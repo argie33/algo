@@ -1,0 +1,76 @@
+name: Test API Lambda for 500 Errors
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  test-api:
+    name: Test API Lambda Health Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install boto3
+        run: pip install boto3
+
+      - name: Test API Lambda
+        run: python3 scripts/test_api_lambda.py
+
+      - name: Get API Lambda Configuration
+        if: always()
+        run: |
+          echo "=== API Lambda Configuration ==="
+          aws lambda get-function-configuration \
+            --function-name algo-api-dev \
+            --region $AWS_REGION \
+            --output json | jq '.Environment.Variables'
+
+      - name: Get Recent Lambda Logs
+        if: always()
+        run: |
+          echo "=== Recent API Lambda Logs ==="
+
+          # Get log group for API Lambda
+          LOG_GROUP="/aws/lambda/algo-api-dev"
+
+          # Get latest log streams
+          STREAMS=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --query 'logStreams[*].logStreamName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$STREAMS" ]; then
+            for stream in $STREAMS; do
+              echo "Stream: $stream"
+              aws logs get-log-events \
+                --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$stream" \
+                --limit 50 \
+                --query 'events[*].message' \
+                --output text 2>/dev/null | head -20
+            done
+          else
+            echo "No log streams found"
+          fi
