@@ -46,9 +46,15 @@ def update_lambda_config(func_name, region, db_host, db_port, db_name, db_user, 
         "Environment": {
             "Variables": merged_vars
         },
-        "Timeout": 300,
-        "Layers": [layer_arn] if layer_arn else []
+        "Timeout": 300
     }
+
+    # Only include Layers if layer_arn is provided and non-empty
+    if layer_arn and layer_arn.strip():
+        config["Layers"] = [layer_arn]
+        print(f"Attaching layer: {layer_arn}")
+    else:
+        print(f"Warning: No layer provided (layer_arn='{layer_arn}'). Not modifying layers.")
 
     config_json = json.dumps(config)
 

@@ -67,7 +67,7 @@ def query_data_loader_status():
                 latest_date,
                 age_days,
                 status,
-                last_audit_at
+                last_updated
             FROM data_loader_status
             WHERE table_name = ANY(%s)
             ORDER BY table_name
@@ -86,7 +86,7 @@ def publish_custom_metrics(table_data):
     metrics = []
 
     for table in table_data:
-        table_name, row_count, latest_date, age_days, status, last_audit_at = table
+        table_name, row_count, latest_date, age_days, status, last_updated = table
 
         metrics.append({
             'MetricName': f'DataLoader_{table_name}_RowCount',
@@ -139,7 +139,7 @@ def check_data_health(table_data):
     }
 
     for table in table_data:
-        table_name, row_count, latest_date, age_days, status, last_audit_at = table
+        table_name, row_count, latest_date, age_days, status, last_updated = table
 
         if row_count == 0:
             issues['critical'].append({

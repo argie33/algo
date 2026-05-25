@@ -1,0 +1,75 @@
+{
+  "database": {
+    "status": "PASS",
+    "version": "PostgreSQL 17.9 on x86_64-windows, compiled by msvc-19.44.35225, 64-bit"
+  },
+  "data_presence": {
+    "stock_symbols": {
+      "rows": 10187,
+      "status": "PASS"
+    },
+    "price_daily": {
+      "rows": 8205638,
+      "status": "PASS"
+    },
+    "technical_data_daily": {
+      "rows": 8189651,
+      "status": "PASS"
+    },
+    "buy_sell_daily": {
+      "rows": 97840,
+      "status": "PASS"
+    },
+    "stock_scores": {
+      "rows": 10157,
+      "status": "PASS"
+    },
+    "data_loader_status": {
+      "rows": 17,
+      "status": "PASS"
+    }
+  },
+  "data_freshness": {
+    "price_daily": {
+      "age_days": 2,
+      "status": "STALE",
+      "rows": 8205638
+    },
+    "technical_data_daily": {
+      "age_days": 2,
+      "status": "STALE",
+      "rows": 8189651
+    },
+    "buy_sell_daily": {
+      "age_days": 2,
+      "status": "STALE",
+      "rows": 97840
+    }
+  },
+  "api_routes": {
+    "Scores": {
+      "items": 10157,
+      "status": "PASS"
+    },
+    "Signals": {
+      "items": 97840,
+      "status": "PASS"
+    },
+    "Prices": {
+      "items": 8205638,
+      "status": "PASS"
+    },
+    "Market": {
+      "items": 1256,
+      "status": "PASS"
+    },
+    "Economic": {
+      "items": 103061,
+      "status": "PASS"
+    }
+  },
+  "orchestrator": {
+    "status": "PASS",
+    "recent_runs": 5
+  }
+}
