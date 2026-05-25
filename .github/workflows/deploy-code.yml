@@ -47,7 +47,7 @@ jobs:
       api_lambda_layer_name: ${{ steps.tf_outputs.outputs.api_lambda_layer_name }}
       rds_credentials_secret_name: ${{ steps.tf_outputs.outputs.rds_credentials_secret_name }}
       cognito_user_pool_id: ${{ steps.tf_outputs.outputs.cognito_user_pool_id }}
-      cognito_client_id: ${{ steps.tf_outputs.outputs.cognito_client_id }}
+      cognito_user_pool_client_id: ${{ steps.tf_outputs.outputs.cognito_user_pool_client_id }}
       terraform_backend_bucket: ${{ steps.tf_outputs.outputs.terraform_backend_bucket }}
       terraform_backend_key: ${{ steps.tf_outputs.outputs.terraform_backend_key }}
 
@@ -57,7 +57,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -104,7 +104,7 @@ jobs:
           API_LAYER=$(echo "$TF_OUT" | jq -r '.api_lambda_layer_name.value')
           RDS_SECRET=$(echo "$TF_OUT" | jq -r '.rds_credentials_secret_name.value')
           POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value')
-          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_client_id.value')
+          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value')
           BACKEND_BUCKET=$(echo "$TF_OUT" | jq -r '.terraform_backend_bucket.value')
           BACKEND_KEY=$(echo "$TF_OUT" | jq -r '.terraform_backend_key.value')
 
@@ -130,7 +130,7 @@ jobs:
           echo "api_lambda_layer_name=${API_LAYER}" >> $GITHUB_OUTPUT
           echo "rds_credentials_secret_name=${RDS_SECRET}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
-          echo "cognito_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
           echo "terraform_backend_bucket=${BACKEND_BUCKET}" >> $GITHUB_OUTPUT
           echo "terraform_backend_key=${BACKEND_KEY}" >> $GITHUB_OUTPUT
 
@@ -156,7 +156,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
@@ -622,7 +622,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
@@ -802,7 +802,7 @@ jobs:
           COGNITO_CLIENT_ID=""
           TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
           COGNITO_POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // empty' 2>/dev/null || echo "")
-          COGNITO_CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_client_id.value // empty' 2>/dev/null || echo "")
+          COGNITO_CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // empty' 2>/dev/null || echo "")
 
           # Fall back to AWS API if not in Terraform output
           if [ -z "$COGNITO_POOL_ID" ]; then
@@ -942,7 +942,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js 24
@@ -1012,7 +1012,7 @@ jobs:
           # Try Terraform output first
           TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
           POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // empty' 2>/dev/null || echo "")
-          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_client_id.value // empty' 2>/dev/null || echo "")
+          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // empty' 2>/dev/null || echo "")
 
           # Fall back to AWS API if Terraform output empty
           if [ -z "$POOL_ID" ]; then
@@ -1167,7 +1167,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Retrieve Developer Credentials from Secrets Manager
@@ -1223,7 +1223,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Retrieve and Display Developer Credentials

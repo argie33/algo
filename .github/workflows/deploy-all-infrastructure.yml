@@ -51,45 +51,57 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    outputs:
+      github_actions_role_arn: ${{ steps.bootstrap.outputs.role_arn }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
           aws-region: ${{ env.AWS_REGION }}
           audience: sts.amazonaws.com
 
       - name: Run Bootstrap Script
+        id: bootstrap
         run: |
+          # Export role ARN for downstream jobs
+          ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}"
+          echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
+
           python3 << 'EOF'
           import boto3
           import sys
+          import os
 
           s3 = boto3.client('s3', region_name='us-east-1')
           dynamodb = boto3.client('dynamodb', region_name='us-east-1')
 
+          # Read backend config from environment or use defaults
+          backend_bucket = os.environ.get('BACKEND_BUCKET', 'stocks-terraform-state')
+          backend_key = os.environ.get('BACKEND_KEY', 'stocks/terraform.tfstate')
+
           # Create Terraform state bucket
           try:
-            s3.head_bucket(Bucket='stocks-terraform-state')
-            print("[OK] S3 bucket exists: stocks-terraform-state")
+            s3.head_bucket(Bucket=backend_bucket)
+            print(f"[OK] S3 bucket exists: {backend_bucket}")
           except:
             try:
-              s3.create_bucket(Bucket='stocks-terraform-state')
+              s3.create_bucket(Bucket=backend_bucket)
               s3.put_bucket_versioning(
-                Bucket='stocks-terraform-state',
+                Bucket=backend_bucket,
                 VersioningConfiguration={'Status': 'Enabled'}
               )
               s3.put_bucket_encryption(
-                Bucket='stocks-terraform-state',
+                Bucket=backend_bucket,
                 ServerSideEncryptionConfiguration={
                   'Rules': [{
                     'ApplyServerSideEncryptionByDefault': {'SSEAlgorithm': 'AES256'}
                   }]
                 }
               )
-              print("[OK] Created S3 bucket: stocks-terraform-state")
+              print(f"[OK] Created S3 bucket: {backend_bucket}")
             except Exception as e:
               print(f"[ERROR] Could not create bucket: {e}")
 
@@ -111,9 +123,11 @@ jobs:
           EOF
 
       - name: Verify Backend Resources
+        env:
+          TF_BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET || 'stocks-terraform-state' }}
         run: |
-          aws s3api head-bucket --bucket stocks-terraform-state && echo "[OK] S3 bucket verified"
-          aws dynamodb describe-table --table-name terraform-locks --region us-east-1 && echo "[OK] DynamoDB table verified"
+          aws s3api head-bucket --bucket "$TF_BACKEND_BUCKET" && echo "[OK] S3 bucket verified: $TF_BACKEND_BUCKET"
+          aws dynamodb describe-table --table-name terraform-locks --region $AWS_REGION && echo "[OK] DynamoDB table verified"
 
   # 
   # STEP 1 -- Infrastructure (Terraform)
@@ -146,7 +160,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Delete Orphaned RDS Parameter Group
@@ -182,18 +196,20 @@ jobs:
           echo "Terraform will use data source for orphaned parameter group - no manual state cleanup needed"
 
       - name: Setup Terraform State Backend
-        run: |
-          # Initialize terraform with cleaned state (working-directory is already terraform)
-          # CRITICAL: Use correct state bucket (stocks-terraform-state, not algo-terraform-state-dev)
-          terraform init -reconfigure \
-            -backend-config="bucket=stocks-terraform-state" \
-            -backend-config="key=stocks/terraform.tfstate" \
-            -backend-config="region=us-east-1" \
-            -backend-config="encrypt=true" \
-            --upgrade
-          echo "[OK] Terraform backend initialized with cleaned state"
+        working-directory: terraform
         env:
           AWS_REGION: us-east-1
+          TF_BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET || 'stocks-terraform-state' }}
+          TF_BACKEND_KEY: ${{ secrets.TF_STATE_KEY || 'stocks/terraform.tfstate' }}
+        run: |
+          # Initialize terraform with dynamic backend config (from secrets or defaults)
+          terraform init -reconfigure \
+            -backend-config="bucket=$TF_BACKEND_BUCKET" \
+            -backend-config="key=$TF_BACKEND_KEY" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="encrypt=true" \
+            --upgrade
+          echo "[OK] Terraform backend initialized: bucket=$TF_BACKEND_BUCKET key=$TF_BACKEND_KEY"
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -495,7 +511,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Resolve ECR URL
@@ -562,7 +578,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: actions/setup-python@v5
@@ -641,7 +657,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: actions/setup-python@v5
@@ -691,7 +707,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: actions/setup-node@v4
