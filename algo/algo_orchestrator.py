@@ -240,6 +240,8 @@ class Orchestrator:
         """Check data patrol results. Fail-closed if critical/error findings.
 
         Only checks the LATEST patrol run (not accumulated from all runs in 24h).
+        Skips stale patrol findings — if the latest patrol ran before the previous
+        trading day, old findings are not representative of current data quality.
         Returns: True if patrol OK, False if critical/error issues found.
         """
         # In DEV mode, skip strict patrol checks to allow testing with partial data
@@ -249,8 +251,9 @@ class Orchestrator:
 
         try:
             cur.execute("""
-                SELECT patrol_run_id FROM data_patrol_log
-                ORDER BY created_at DESC LIMIT 1
+                SELECT patrol_run_id, MAX(created_at) AS run_at FROM data_patrol_log
+                GROUP BY patrol_run_id
+                ORDER BY MAX(created_at) DESC LIMIT 1
             """)
             latest_run = cur.fetchone()
             if not latest_run:
@@ -258,7 +261,31 @@ class Orchestrator:
                     logger.info("No patrol data available")
                 return True
 
-            latest_run_id = latest_run[0]
+            latest_run_id, latest_run_at = latest_run
+
+            # Skip stale patrol findings — only apply patrol check if the patrol
+            # ran on or after the previous trading day. Old patrol results (e.g.
+            # "signal_quality_scores EMPTY" from days ago) are not actionable and
+            # would incorrectly block the orchestrator on fresh data.
+            try:
+                from algo.algo_market_calendar import MarketCalendar
+                expected_patrol_date = self.run_date - timedelta(days=1)
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(expected_patrol_date):
+                        break
+                    expected_patrol_date -= timedelta(days=1)
+            except Exception:
+                expected_patrol_date = self.run_date - timedelta(days=1)
+                while expected_patrol_date.weekday() >= 5:
+                    expected_patrol_date -= timedelta(days=1)
+
+            patrol_date = latest_run_at.date() if hasattr(latest_run_at, 'date') else self.run_date
+            if patrol_date < expected_patrol_date:
+                logger.warning(
+                    f"[PATROL] Latest patrol ({latest_run_id}, {patrol_date}) is older than "
+                    f"expected ({expected_patrol_date}) — skipping stale findings"
+                )
+                return True  # Stale patrol: don't block on old findings
 
             # Now get results for only this run
             cur.execute("""
