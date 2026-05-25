@@ -770,12 +770,32 @@ jobs:
           # Update function configuration with environment variables
           echo "Updating API Lambda configuration..."
 
-          # Build JSON config and update Lambda using AWS CLI directly
+          # Build JSON config using Python to handle special characters in password
+          CONFIG=$(python3 -c "
+import json
+import sys
+config = {
+  'FunctionName': '$FUNC',
+  'Environment': {
+    'Variables': {
+      'DB_HOST': '$DB_HOST',
+      'DB_PORT': '$DB_PORT',
+      'DB_NAME': '$DB_NAME',
+      'DB_USER': '$DB_USER',
+      'DB_PASSWORD': '''${DB_PASSWORD}''',
+      'DB_SSL': 'prefer',
+      'ALLOWED_ORIGINS': '''${ALLOWED_ORIGINS}''',
+      'COGNITO_REGION': '$AWS_REGION'
+    }
+  },
+  'Timeout': 300,
+  'Layers': ['$API_LAYER_ARN']
+}
+print(json.dumps(config))
+")
+
           aws lambda update-function-configuration \
-            --function-name "$FUNC" \
-            --environment "Variables={DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION}" \
-            --timeout 300 \
-            --layers "$API_LAYER_ARN" \
+            --cli-input-json "$CONFIG" \
             --region $AWS_REGION
 
           if [ $? -ne 0 ]; then
