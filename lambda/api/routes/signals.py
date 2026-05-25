@@ -39,7 +39,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     bsd.entry_quality_score, bsd.signal_quality_score,
                     bsd.volume_surge_pct, bsd.risk_reward_ratio,
                     bsd.rsi, bsd.sma_50, bsd.sma_200, bsd.ema_21,
-                    bsd.atr, bsd.adx, bsd.macd, bsd.macd_signal,
+                    bsd.atr, bsd.adx, bsd.mansfield_rs,
                     bsd.stage_number, bsd.reason
                 FROM buy_sell_daily bsd
                 """ + where_clause + """
