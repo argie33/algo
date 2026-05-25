@@ -1,8 +1,8 @@
 """API Router - dispatcher."""
 import logging, inspect
-from routes import (algo, financials, earnings, signals, prices, stocks,
-                     sectors, industries, market, economic, sentiment,
-                     scores, research, audit, trades, admin, contact, settings)
+from .routes import (algo, financials, earnings, signals, prices, stocks,
+                      sectors, industries, market, economic, sentiment,
+                      scores, research, audit, trades, admin, contact, settings)
 
 logger = logging.getLogger(__name__)
 
