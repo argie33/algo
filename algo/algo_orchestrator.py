@@ -335,7 +335,7 @@ class Orchestrator:
                 )
 
             # FAIL-CLOSED: critical findings always block
-            if critical_count and critical_count > 0:
+            if critical_count > 0:
                 logger.info(f"[PATROL_HALT] Blocking orchestrator due to {critical_count} critical findings")
                 if self.verbose:
                     logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
@@ -345,7 +345,7 @@ class Orchestrator:
 
             # FAIL-CLOSED: only CRITICAL blocks in LIVE mode. Errors are warnings.
             # (Errors like incomplete price_daily coverage don't block - we proceed with available data)
-            if error_count and error_count > 0:
+            if error_count > 0:
                 if self.verbose:
                     logger.warning(f"  [PATROL] Data patrol found {error_count} error(s) - proceeding with available data")
 
