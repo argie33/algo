@@ -10,6 +10,10 @@ import logging
 import sys
 import traceback
 from typing import Dict, Any, Optional
+from pathlib import Path
+
+# Add lambda/api to path so routes module can be imported
+sys.path.insert(0, str(Path(__file__).parent))
 
 IMPORT_ERROR = None
 
