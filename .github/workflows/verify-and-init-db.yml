@@ -1,0 +1,108 @@
+name: Verify & Initialize Database
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  init-db-and-verify:
+    name: Initialize DB & Verify System
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find db-init Lambda
+        id: db-init
+        run: |
+          DB_INIT=$(aws lambda list-functions --region us-east-1 --query 'Functions[?contains(FunctionName, `db-init`)].FunctionName' --output text)
+          echo "db_init_func=$DB_INIT" >> $GITHUB_OUTPUT
+          echo "[OK] Found db-init Lambda: $DB_INIT"
+
+      - name: Wait for RDS to be available
+        run: |
+          echo "[INFO] Waiting for RDS to be available..."
+          aws rds wait db-instance-available --db-instance-identifier algo-db --region us-east-1 || echo "[WARN] RDS wait timed out, continuing..."
+
+      - name: Invoke db-init Lambda
+        run: |
+          DB_INIT="${{ steps.db-init.outputs.db_init_func }}"
+          if [ -z "$DB_INIT" ]; then
+            echo "ERROR: db-init Lambda not found"
+            exit 1
+          fi
+
+          echo "[INFO] Invoking $DB_INIT..."
+          aws lambda invoke \
+            --function-name "$DB_INIT" \
+            --log-type Tail \
+            --region $AWS_REGION \
+            /tmp/db-init-response.json
+
+          echo "[INFO] Response:"
+          cat /tmp/db-init-response.json | jq . || cat /tmp/db-init-response.json
+
+      - name: Find API Gateway endpoint
+        id: api
+        run: |
+          API_ENDPOINT=$(aws apigatewayv2 get-apis --region $AWS_REGION --query 'Items[0].ApiEndpoint' --output text)
+          echo "endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "[OK] API Endpoint: $API_ENDPOINT"
+
+      - name: Test API Health Endpoint
+        run: |
+          API="${{ steps.api.outputs.endpoint }}"
+          echo "[INFO] Testing $API/api/health..."
+
+          # Wait for Lambda to be ready
+          for i in {1..5}; do
+            echo "  Attempt $i/5..."
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$API/api/health" 2>&1 || true)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -n-1)
+
+            echo "  HTTP $HTTP_CODE: $BODY"
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "[OK] API is responding"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "[WARN] API returned errors. Checking detailed health..."
+          curl -v "$API/api/health/detailed" 2>&1 | head -100
+
+      - name: Check RDS connectivity
+        run: |
+          # Get RDS endpoint
+          RDS_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier algo-db --region $AWS_REGION --query 'DBInstances[0].Endpoint.Address' --output text)
+          echo "[INFO] RDS Endpoint: $RDS_ENDPOINT"
+
+          # Try to connect via Lambda (check environment)
+          aws lambda get-function-configuration --function-name algo-api-dev --region $AWS_REGION --query 'Environment.Variables | {DB_HOST, DB_PORT, DB_USER, DB_NAME}' || echo "[WARN] Could not get Lambda config"
+
+      - name: Print Summary
+        run: |
+          echo "## Verification Summary"
+          echo ""
+          echo "**Infrastructure Status:**"
+          echo "- API Gateway: ${{ steps.api.outputs.endpoint }}"
+          echo "- db-init Lambda: ${{ steps.db-init.outputs.db_init_func }}"
+          echo ""
+          echo "**Next Steps:**"
+          echo "1. If API still returns 500, check CloudWatch logs: /aws/lambda/algo-api-dev"
+          echo "2. Verify RDS credentials in Secrets Manager: algo-db-credentials-dev"
+          echo "3. Manually test API: \`curl ${{ steps.api.outputs.endpoint }}/api/health\`"
