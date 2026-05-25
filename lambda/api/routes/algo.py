@@ -956,8 +956,12 @@ _TIER_CONFIG = {
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
+            # Use COALESCE to handle both old (market_exposure_pct) and new (exposure_pct) column names.
+            # Optional columns added via ALTER TABLE are fetched in a separate try/except.
             cur.execute("""
-                SELECT date, exposure_pct, regime, distribution_days, factors, halt_reasons
+                SELECT date,
+                       COALESCE(exposure_pct, market_exposure_pct) AS exposure_pct,
+                       exposure_tier
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -965,16 +969,32 @@ def _get_markets(cur) -> Dict:
             latest = cur.fetchone()
             current = dict(latest) if latest else None
 
+            if current:
+                # Try to enrich with ALTER TABLE columns (may not exist in older DB)
+                try:
+                    cur.execute("""
+                        SELECT regime, distribution_days, factors, halt_reasons
+                        FROM market_exposure_daily
+                        ORDER BY date DESC LIMIT 1
+                    """)
+                    extra = cur.fetchone()
+                    if extra:
+                        current.update(dict(extra))
+                except Exception:
+                    pass
+
             active_tier = {}
             if current:
-                tier_key = str(current.get('regime') or '').lower()
+                tier_key = str(current.get('regime') or current.get('exposure_tier') or '').lower()
                 tier_conf = _TIER_CONFIG.get(tier_key, {})
                 active_tier = {'name': tier_key, **tier_conf}
                 halt_from_reasons = bool(current.get('halt_reasons'))
                 active_tier['halt'] = halt_from_reasons or tier_conf.get('halt', False)
 
             cur.execute("""
-                SELECT date, exposure_pct, regime
+                SELECT date,
+                       COALESCE(exposure_pct, market_exposure_pct) AS exposure_pct,
+                       exposure_tier
                 FROM market_exposure_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '60 days'
                 ORDER BY date ASC
@@ -1097,7 +1117,9 @@ def _get_exposure_policy(cur) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
         try:
             cur.execute("""
-                SELECT date, exposure_pct, regime, halt_reasons
+                SELECT date,
+                       COALESCE(exposure_pct, market_exposure_pct) AS exposure_pct,
+                       exposure_tier
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
@@ -1105,7 +1127,15 @@ def _get_exposure_policy(cur) -> Dict:
             row = cur.fetchone()
             if not row:
                 return json_response(200, {'current_exposure_pct': None, 'active_tier': None, 'all_tiers': list(_TIER_CONFIG.keys())})
-            tier_key = str(row.get('regime') or '').lower()
+            row = dict(row)
+            try:
+                cur.execute("SELECT regime, halt_reasons FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
+                extra = cur.fetchone()
+                if extra:
+                    row.update(dict(extra))
+            except Exception:
+                pass
+            tier_key = str(row.get('regime') or row.get('exposure_tier') or '').lower()
             tier_conf = _TIER_CONFIG.get(tier_key, {})
             active_tier = {'name': tier_key, **tier_conf}
             active_tier['halt'] = bool(row.get('halt_reasons')) or tier_conf.get('halt', False)
