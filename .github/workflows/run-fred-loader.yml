@@ -1,7 +1,7 @@
 name: Run FRED Economic Data Loader
 
 # Populates the economic_data table from FRED API.
-# Uses the econ_data ECS task definition with a command override.
+# Uses the naaim_data ECS task definition (has FRED_API_KEY + DB access) with command override.
 
 on:
   workflow_dispatch:
@@ -41,12 +41,12 @@ jobs:
           echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
           echo "security_group=$SG" >> $GITHUB_OUTPUT
 
-      - name: Run FRED loader via econ_data task definition
+      - name: Run FRED loader via naaim_data task definition
         id: run_task
         run: |
-          # Use econ_data-loader task definition with command override to run FRED loader
+          # Use naaim_data-loader task definition (has FRED_API_KEY + DB access) with command override
           TASK_DEF=$(aws ecs list-task-definitions --region us-east-1 \
-            --family-prefix "algo-econ_data" \
+            --family-prefix "algo-naaim_data" \
             --sort DESC --query "taskDefinitionArns[0]" --output text)
           echo "Using task definition: $TASK_DEF"
 
@@ -55,7 +55,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "$TASK_DEF" \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
-            --overrides '{"containerOverrides":[{"name":"algo-econ_data","command":["python3","loaders/load_fred_economic_data.py"]}]}' \
+            --overrides '{"containerOverrides":[{"name":"algo-naaim_data","command":["python3","loaders/load_fred_economic_data.py"]}]}' \
             --region us-east-1 \
             --query "tasks[0].taskArn" --output text)
           echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
