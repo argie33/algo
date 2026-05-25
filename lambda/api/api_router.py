@@ -1,8 +1,13 @@
 """API Router - dispatcher."""
-import logging, inspect
-from .routes import (algo, financials, earnings, signals, prices, stocks,
-                      sectors, industries, market, economic, sentiment,
-                      scores, research, audit, trades, admin, contact, settings)
+import logging, inspect, sys
+from pathlib import Path
+
+# Ensure routes module can be imported
+sys.path.insert(0, str(Path(__file__).parent))
+
+from routes import (algo, financials, earnings, signals, prices, stocks,
+                    sectors, industries, market, economic, sentiment,
+                    scores, research, audit, trades, admin, contact, settings)
 
 logger = logging.getLogger(__name__)
 
