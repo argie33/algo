@@ -147,6 +147,9 @@ jobs:
       frontend_bucket: ${{ steps.outputs.outputs.frontend_bucket }}
       cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
       api_gateway_endpoint: ${{ steps.outputs.outputs.api_gateway_endpoint }}
+      website_url: ${{ steps.outputs.outputs.website_url }}
+      cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
+      cognito_user_pool_client_id: ${{ steps.outputs.outputs.cognito_user_pool_client_id }}
     env:
       TF_VAR_alpaca_api_key_id: ${{ secrets.ALPACA_API_KEY_ID }}
       TF_VAR_alpaca_api_secret_key: ${{ secrets.ALPACA_API_SECRET_KEY }}
@@ -473,6 +476,9 @@ jobs:
           BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value // ""' 2>/dev/null || echo "")
           CF=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value // ""' 2>/dev/null || echo "")
           API_GW=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value // ""' 2>/dev/null || echo "")
+          WEBSITE_URL=$(echo "$TF_OUT" | jq -r '.website_url.value // empty' 2>/dev/null || echo "")
+          POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // ""' 2>/dev/null || echo "")
+          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // ""' 2>/dev/null || echo "")
 
           echo "ecr_repository_url=${ECR}" >> $GITHUB_OUTPUT
           echo "api_lambda_name=${API}" >> $GITHUB_OUTPUT
@@ -480,6 +486,9 @@ jobs:
           echo "frontend_bucket=${BUCKET}" >> $GITHUB_OUTPUT
           echo "cloudfront_id=${CF}" >> $GITHUB_OUTPUT
           echo "api_gateway_endpoint=${API_GW}" >> $GITHUB_OUTPUT
+          echo "website_url=${WEBSITE_URL}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
 
       - name: Summary
         run: |
@@ -718,11 +727,62 @@ jobs:
 
       - name: Build
         working-directory: webapp/frontend
-        env:
-          VITE_API_URL: ${{ needs.terraform.outputs.api_gateway_endpoint }}
         run: |
           npm install
-          npm run build
+          # Use CloudFront URL as VITE_API_URL so the baked-in fallback is correct
+          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
+          API_GW="${{ needs.terraform.outputs.api_gateway_endpoint }}"
+          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
+            FINAL_API_URL="$WEBSITE_URL"
+          else
+            FINAL_API_URL="$API_GW"
+          fi
+          VITE_API_URL="$FINAL_API_URL" npm run build
+
+      - name: Generate Production Config
+        run: |
+          API_URL="${{ needs.terraform.outputs.website_url }}"
+          if [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
+            API_URL=""
+            echo "WARNING: website_url not resolved, using relative paths"
+          else
+            echo "Using CloudFront URL as API base: $API_URL"
+          fi
+          POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
+          CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
+          # Get Cognito domain
+          COGNITO_DOMAIN=""
+          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+            COGNITO_DOMAIN=$(aws cognito-idp describe-user-pool-domain \
+              --domain "stocks-trading-dev" \
+              --region us-east-1 \
+              --query 'UserPoolDomain.Domain' \
+              --output text 2>/dev/null || echo "")
+          fi
+          mkdir -p webapp/frontend/dist
+          printf 'window.__CONFIG__ = {\n' > webapp/frontend/dist/config.js
+          printf '  "API_URL": "%s",\n' "$API_URL" >> webapp/frontend/dist/config.js
+          printf '  "ENVIRONMENT": "production",\n' >> webapp/frontend/dist/config.js
+          printf '  "AWS_REGION": "us-east-1",\n' >> webapp/frontend/dist/config.js
+          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+            printf '  "USER_POOL_ID": "%s",\n' "$POOL_ID" >> webapp/frontend/dist/config.js
+          fi
+          if [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "None" ]; then
+            printf '  "USER_POOL_CLIENT_ID": "%s",\n' "$CLIENT_ID" >> webapp/frontend/dist/config.js
+          fi
+          if [ -n "$COGNITO_DOMAIN" ] && [ "$COGNITO_DOMAIN" != "None" ]; then
+            printf '  "USER_POOL_DOMAIN": "%s"\n' "$COGNITO_DOMAIN" >> webapp/frontend/dist/config.js
+          else
+            printf '  "USER_POOL_DOMAIN": ""\n' >> webapp/frontend/dist/config.js
+          fi
+          printf '};\n' >> webapp/frontend/dist/config.js
+          # Add cache-busting timestamp to config.js script tag in index.html
+          BUILD_TS=$(date +%s)
+          if [ -f "webapp/frontend/dist/index.html" ]; then
+            sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
+          fi
+          echo "Generated config.js with API_URL=$API_URL"
+          cat webapp/frontend/dist/config.js
 
       - name: Sync to S3
         run: |
@@ -736,14 +796,15 @@ jobs:
             echo "ERROR: could not resolve frontend S3 bucket"
             exit 1
           fi
-          # Hashed assets: long cache
+          # Hashed assets: long cache (config.js excluded — it gets special treatment below)
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
-            --exclude "*.html"
-          # HTML: no cache
+            --exclude "*.html" \
+            --exclude "config.js"
+          # HTML and config.js: always no-cache (dynamic per-deploy values)
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
-            --exclude "*" --include "*.html" \
+            --exclude "*" --include "*.html" --include "config.js" \
             --cache-control "no-cache, no-store, must-revalidate"
           echo "[OK] Frontend synced to s3://${BUCKET}/"
 
