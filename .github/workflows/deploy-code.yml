@@ -993,34 +993,44 @@ jobs:
             echo "Cognito pool not found - auth will be disabled in frontend"
           fi
           npm install
+
           # Get API endpoint from Terraform output (resolved in resolve-infra job)
           API_GATEWAY="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
-          if [ -z "$API_GATEWAY" ] || [ "$API_GATEWAY" = "***" ]; then
-            echo "WARNING: API Gateway endpoint not resolved, falling back to dynamic lookup"
+          WEBSITE_URL="${{ needs.resolve-infra.outputs.website_url }}"
+
+          echo "Terraform outputs: API_GATEWAY=$API_GATEWAY, WEBSITE_URL=$WEBSITE_URL"
+
+          # Prefer CloudFront URL for API
+          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ] && [ "$WEBSITE_URL" != "***" ]; then
+            FINAL_API_URL="$WEBSITE_URL"
+            echo "✅ Using CloudFront URL: $FINAL_API_URL"
+          elif [ -n "$API_GATEWAY" ] && [ "$API_GATEWAY" != "null" ] && [ "$API_GATEWAY" != "***" ]; then
+            FINAL_API_URL="$API_GATEWAY"
+            echo "✅ Using API Gateway URL: $FINAL_API_URL"
+          else
+            # Fall back to dynamic discovery (slower but always available)
+            echo "⚠️ Terraform outputs not available, discovering API Gateway..."
             API_GATEWAY=$(aws apigatewayv2 get-apis \
               --region $AWS_REGION \
-              --query 'Items[0].ApiEndpoint' \
+              --query 'Items[?Name==`algo-api-dev`].ApiEndpoint | [0]' \
               --output text 2>/dev/null || echo "")
-          fi
-          if [ -z "$API_GATEWAY" ]; then
-            echo "ERROR: Could not resolve API Gateway endpoint"
-            exit 1
-          fi
-          echo "Using API Gateway: $API_GATEWAY"
-          # Use CloudFront URL so VITE_API_URL fallback never points at raw API GW
-          WEBSITE_URL="${{ needs.resolve-infra.outputs.website_url }}"
-          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
-            FINAL_API_URL="$WEBSITE_URL"
-            echo "Building with CloudFront URL: $FINAL_API_URL"
-          else
+
+            if [ -z "$API_GATEWAY" ] || [ "$API_GATEWAY" = "None" ]; then
+              echo "❌ ERROR: Could not resolve API Gateway endpoint"
+              echo "Available APIs:"
+              aws apigatewayv2 get-apis --region $AWS_REGION --query 'Items[].Name' --output text || echo "No APIs found"
+              exit 1
+            fi
             FINAL_API_URL="$API_GATEWAY"
-            echo "Building with API Gateway URL (CloudFront not yet available): $FINAL_API_URL"
+            echo "✅ Using discovered API Gateway: $FINAL_API_URL"
           fi
+
+          echo "Building with VITE_API_URL=$FINAL_API_URL"
           VITE_API_URL="$FINAL_API_URL" \
           VITE_COGNITO_USER_POOL_ID="${POOL_ID:-}" \
           VITE_COGNITO_CLIENT_ID="${CLIENT_ID:-}" \
           VITE_AWS_REGION="$AWS_REGION" \
-          npm run build
+          npm run build 2>&1 | tee build.log
 
       - name: Generate Production Config
         run: |
