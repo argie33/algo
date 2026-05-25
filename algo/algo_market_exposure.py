@@ -844,7 +844,11 @@ if __name__ == "__main__":
         # Use latest trading date in price_daily
         me.connect()
         me.cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol='SPY'")
-        eval_d = me.cur.fetchone()[0]
+        result = me.cur.fetchone()
+        if not result or result[0] is None:
+            logger.error("No price data available for SPY")
+            exit(1)
+        eval_d = result[0]
     result = me.compute(eval_d)
     logger.info(f"MARKET EXPOSURE — {result['eval_date']}")
     logger.info(f"Regime: {result['regime']}")
