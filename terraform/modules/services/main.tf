@@ -74,7 +74,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.12"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
-  reserved_concurrent_executions = 1
+  reserved_concurrent_executions = 10
   layers        = [local.api_layer_arn, var.psycopg2_layer_arn]
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
@@ -131,6 +131,20 @@ resource "aws_lambda_function" "api" {
   })
 }
 
+# API Lambda Provisioned Concurrency - keeps instances warm to reduce cold-start latency
+resource "aws_lambda_provisioned_concurrency_config" "api" {
+  function_name                     = aws_lambda_function.api.function_name
+  provisioned_concurrent_executions = 2
+  qualifier                         = aws_lambda_alias.api_live.name
+}
+
+# Alias for Lambda provisioned concurrency
+resource "aws_lambda_alias" "api_live" {
+  name            = "live"
+  description     = "Live alias for API Lambda (used for provisioned concurrency)"
+  function_name   = aws_lambda_function.api.function_name
+  function_version = aws_lambda_function.api.version
+}
 
 # ============================================================
 # API Gateway HTTP API

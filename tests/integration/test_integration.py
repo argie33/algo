@@ -13,13 +13,10 @@ class TestIntegration:
 
     def test_end_to_end_signal_generation(self):
         """Test end-to-end signal generation pipeline imports and structure."""
-        try:
-            from algo.algo_signals import SignalGenerator
-            from algo.algo_filter_pipeline import FilterPipeline
-            assert SignalGenerator is not None
-            assert FilterPipeline is not None
-        except ImportError:
-            pytest.skip("Signal generation modules not available")
+        from algo.algo_signals import SignalComputer
+        from algo.algo_filter_pipeline import FilterPipeline
+        assert SignalComputer is not None
+        assert FilterPipeline is not None
 
     def test_live_data_pipeline(self):
         """Test pipeline structure for live market data."""

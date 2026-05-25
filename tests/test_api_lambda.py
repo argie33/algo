@@ -4,7 +4,19 @@
 import json
 import boto3
 import sys
+import os
+import pytest
 
+def has_aws_credentials():
+    """Check if AWS credentials are available."""
+    try:
+        sts = boto3.client('sts', region_name='us-east-1')
+        sts.get_caller_identity()
+        return True
+    except Exception:
+        return False
+
+@pytest.mark.skipif(not has_aws_credentials(), reason="AWS credentials not configured")
 def test_api_lambda():
     """Invoke API Lambda with a simple health check request."""
 
@@ -32,45 +44,25 @@ def test_api_lambda():
     print("Testing API Lambda (algo-api-dev)...")
     print(f"Event: {json.dumps(test_event, indent=2)}\n")
 
-    try:
-        response = lambda_client.invoke(
-            FunctionName='algo-api-dev',
-            InvocationType='RequestResponse',
-            LogType='Tail',
-            Payload=json.dumps(test_event)
-        )
+    response = lambda_client.invoke(
+        FunctionName='algo-api-dev',
+        InvocationType='RequestResponse',
+        LogType='Tail',
+        Payload=json.dumps(test_event)
+    )
 
-        print(f"Lambda Invocation Status Code: {response['StatusCode']}")
-        print(f"Execution Log:\n{response.get('LogResult', 'No logs')}\n")
+    print(f"Lambda Invocation Status Code: {response['StatusCode']}")
+    print(f"Execution Log:\n{response.get('LogResult', 'No logs')}\n")
 
-        if 'Payload' in response:
-            payload = json.loads(response['Payload'].read())
-            print(f"Lambda Response:")
-            print(json.dumps(payload, indent=2))
+    assert 'Payload' in response, "No payload in response"
 
-            status = payload.get('statusCode', 0)
-            if status == 500:
-                print("\n❌ ERROR: Lambda returned 500 error!")
-                body = payload.get('body', {})
-                if isinstance(body, str):
-                    body = json.loads(body)
-                print(f"Error details: {json.dumps(body, indent=2)}")
-                return False
-            elif status == 200:
-                print(f"\n✅ SUCCESS: Lambda returned 200")
-                return True
-            else:
-                print(f"\n⚠️ WARNING: Lambda returned {status}")
-                return True
-        else:
-            print("No payload in response")
-            return False
+    payload = json.loads(response['Payload'].read())
+    print(f"Lambda Response:")
+    print(json.dumps(payload, indent=2))
 
-    except Exception as e:
-        print(f"❌ ERROR invoking Lambda: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    status = payload.get('statusCode', 0)
+    assert status != 500, f"Lambda returned 500 error: {payload.get('body', {})}"
+    assert status in (200, 201, 202, 204), f"Lambda returned unexpected status {status}"
 
 if __name__ == "__main__":
     success = test_api_lambda()

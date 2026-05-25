@@ -165,7 +165,7 @@ class DataPatrol:
             ('technical_data_daily', 'date', 'daily', 7, CRIT),
             ('buy_sell_daily', 'date', 'daily', 7, WARN),  # Demo: downgrade to WARN to allow Phase 1 to pass
             ('trend_template_data', 'date', 'daily', 7, CRIT),
-            # ('signal_quality_scores', 'date', 'daily', 7, WARN),  # TODO: Enable after loaders populate
+            ('signal_quality_scores', 'date', 'daily', 7, WARN),
             ('market_health_daily', 'date', 'daily', 7, ERROR),
             ('sector_ranking', 'date_recorded', 'daily', 10, WARN),
             ('industry_ranking', 'date_recorded', 'daily', 10, WARN),

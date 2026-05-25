@@ -447,7 +447,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         path = event.get('rawPath', event.get('path', '/'))
         method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
         logger.info(f'Request: {method} {path}')
-        logger.info(f'[DEBUG] Environment: DB_HOST={os.getenv("DB_HOST")}, DB_PORT={os.getenv("DB_PORT")}, DB_NAME={os.getenv("DB_NAME")}, has_db_secret_arn={bool(os.getenv("DB_SECRET_ARN"))}')
 
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
