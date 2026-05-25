@@ -13,13 +13,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             params = {}
         if path in ['/api/signals', '/api/signals/stocks'] or path.startswith('/api/signals?') or path.startswith('/api/signals/stocks?'):
             limit_str = params.get('limit', [None])[0] if 'limit' in params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=500)
             timeframe = params.get('timeframe', ['daily'])[0] if 'timeframe' in params else 'daily'
             symbol_filter = params.get('symbol', [None])[0] if 'symbol' in params else None
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == '/api/signals/etf':
             limit_str = params.get('limit', [None])[0] if 'limit' in params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=500)
             return _get_signals_etf(cur, limit)
         else:
             return error_response(404, 'not_found', f'No signals handler for {path}')
