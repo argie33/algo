@@ -9,7 +9,7 @@ Endpoints:
   /api/algo/risk-dashboard/exit-rules — Which exit rules fired most
 """
 
-import psycopg2
+import psycopg2, json
 from typing import Dict, Any
 import logging
 from datetime import datetime, timedelta, date
@@ -242,9 +242,8 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
         items = []
         for row in cur.fetchall():
             try:
-                import json
                 reasons = json.loads(row[8]) if row[8] else {}
-            except:
+            except (json.JSONDecodeError, TypeError):
                 reasons = {}
 
             items.append({
@@ -280,9 +279,8 @@ def _get_stop_loss_audit(cur, days: int) -> Dict:
         items = []
         for row in cur.fetchall():
             try:
-                import json
                 candidates = json.loads(row[7]) if row[7] else {}
-            except:
+            except (json.JSONDecodeError, TypeError):
                 candidates = {}
 
             items.append({
