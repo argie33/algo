@@ -192,9 +192,10 @@ jobs:
           FAILED=0
 
           for TASK_ARN in $STOPPED_TASKS; do
-            TASK_INFO=$(aws ecs describe-tasks --cluster algo-cluster --tasks $TASK_ARN --region us-east-1 --query 'tasks[0].[taskDefinitionArn,containers[0].exitCode]' --output json)
-            FAMILY=$(echo "$TASK_INFO" | jq -r '.[0]' | grep -o 'algo-[^:]*' | sed 's/algo-//')
-            EXIT_CODE=$(echo "$TASK_INFO" | jq -r '.[1]')
+            TASK_DESC=$(aws ecs describe-tasks --cluster algo-cluster --tasks $TASK_ARN --region us-east-1 --output json)
+            TASK_DEF=$(echo "$TASK_DESC" | jq -r '.tasks[0].taskDefinitionArn')
+            FAMILY=$(echo "$TASK_DEF" | grep -o 'algo-[^:]*' | sed 's/algo-//')
+            EXIT_CODE=$(echo "$TASK_DESC" | jq -r '.tasks[0].containers[0].exitCode // "null"')
 
             if [ "$EXIT_CODE" = "0" ] || [ "$EXIT_CODE" = "null" ]; then
               SUCCESS=$((SUCCESS + 1))
