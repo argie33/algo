@@ -78,19 +78,43 @@ jobs:
             -backend-config="key=$TF_BACKEND_KEY" \
             -backend-config="region=$AWS_REGION" \
             -backend-config="encrypt=true" \
-            -reconfigure
+            -reconfigure \
+            -upgrade
+          # Verify terraform initialized successfully
+          if [ ! -d .terraform ]; then
+            echo "ERROR: Terraform initialization failed - .terraform directory not created"
+            exit 1
+          fi
 
       - name: Read Terraform Outputs
         id: tf_outputs
         working-directory: terraform
         run: |
-          TF_OUT=$(terraform output -json 2>/dev/null)
+          echo "Reading Terraform outputs..."
+          TF_OUT=$(terraform output -json 2>&1)
+
+          # Check if output is valid JSON
+          if ! echo "$TF_OUT" | jq empty 2>/dev/null; then
+            echo "ERROR: Terraform output is not valid JSON:"
+            echo "$TF_OUT"
+            echo "Debugging: attempting terraform refresh..."
+            terraform refresh || true
+            TF_OUT=$(terraform output -json 2>&1)
+            if ! echo "$TF_OUT" | jq empty 2>/dev/null; then
+              echo "ERROR: Terraform refresh did not fix output parsing"
+              exit 1
+            fi
+          fi
 
           # Validate outputs exist
           if [ -z "$TF_OUT" ] || [ "$TF_OUT" = "{}" ]; then
             echo "ERROR: Terraform outputs are empty. Infrastructure may not be deployed."
+            echo "Available terraform outputs:"
+            terraform output || echo "No outputs available"
             exit 1
           fi
+
+          echo "✅ Terraform outputs retrieved successfully"
 
           # Extract all needed outputs
           API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value')

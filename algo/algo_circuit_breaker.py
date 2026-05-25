@@ -329,7 +329,8 @@ class CircuitBreaker:
             """,
             (PositionStatus.OPEN.value,)
         )
-        total_open_risk = float(self.cur.fetchone()[0] or 0)
+        result = self.cur.fetchone()
+        total_open_risk = float(result[0]) if result else 0
 
         self.cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"

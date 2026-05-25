@@ -38,7 +38,8 @@ class IndustryRankingLoader:
 
             # Get max date in price_daily
             cur.execute("SELECT MAX(date) FROM price_daily")
-            max_price_date = cur.fetchone()[0]
+            result = cur.fetchone()
+            max_price_date = result[0] if result else None
             if not max_price_date:
                 logger.warning("No price data available")
                 return {"success": False, "rows": 0}

@@ -197,7 +197,8 @@ def _validate_pre_trade_data_quality(
         is_historical_test = today < date.today()
         if is_historical_test:
             cur.execute("SELECT MAX(date) FROM price_daily")
-            latest_date = cur.fetchone()[0]
+            result = cur.fetchone()
+            latest_date = result[0] if result else None
             if latest_date and latest_date > today:
                 logger.info(f"  [TEST MODE] Using latest available data ({latest_date}) instead of run_date ({today})")
                 today = latest_date
@@ -220,14 +221,16 @@ def _validate_pre_trade_data_quality(
                 f"SELECT COUNT(*) FROM {table} WHERE date = %s",
                 (today,)
             )
-            count = cur.fetchone()[0]
+            result = cur.fetchone()
+            count = result[0] if result else 0
             if count == 0:
                 # Allow fallback to yesterday's data if today's not available (for market hours lag)
                 cur.execute(
                     f"SELECT MAX(date) FROM {table} WHERE date <= %s",
                     (today,)
                 )
-                latest = cur.fetchone()[0]
+                result = cur.fetchone()
+                latest = result[0] if result else None
                 if latest and latest >= today - __import__('datetime').timedelta(days=1):
                     logger.info(f"  [OK] {table}: Using data from {latest} (latest available)")
                 else:
@@ -247,7 +250,8 @@ def _validate_pre_trade_data_quality(
                     f"SELECT COUNT(*) FROM {table} WHERE date = %s",
                     (today,)
                 )
-            count = cur.fetchone()[0]
+            result = cur.fetchone()
+            count = result[0] if result else 0
             if count == 0:
                 warnings.append(f"{description} not available (will be populated after trading)")
             else:
@@ -259,12 +263,15 @@ def _validate_pre_trade_data_quality(
             f"SELECT COUNT(*) FROM price_daily WHERE date = %s",
             (price_check_date,)
         )
-        if cur.fetchone()[0] == 0:
+        result = cur.fetchone()
+        count = result[0] if result else 0
+        if count == 0:
             cur.execute(
                 "SELECT MAX(date) FROM price_daily WHERE date <= %s",
                 (price_check_date,)
             )
-            latest = cur.fetchone()[0]
+            result = cur.fetchone()
+            latest = result[0] if result else None
             if latest:
                 price_check_date = latest
                 logger.debug(f"  [FALLBACK] Using price data from {latest} instead of {today}")
@@ -274,7 +281,8 @@ def _validate_pre_trade_data_quality(
             "SELECT COUNT(*) FROM price_daily WHERE date = %s",
             (price_check_date,)
         )
-        price_count = cur.fetchone()[0] or 0
+        result = cur.fetchone()
+        price_count = result[0] if result else 0
         if price_count == 0:
             issues.append("No price data found")
         else:
@@ -298,7 +306,8 @@ def _validate_pre_trade_data_quality(
             "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR signal IS NULL)",
             (today,)
         )
-        null_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        null_count = result[0] if result else 0
         if null_count > 0:
             issues.append(f"Signal data has {null_count} critical NULLs")
 
@@ -306,11 +315,13 @@ def _validate_pre_trade_data_quality(
             "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
             (today,)
         )
-        covered = cur.fetchone()[0]
+        result = cur.fetchone()
+        covered = result[0] if result else 0
         cur.execute(
             "SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE"
         )
-        total = cur.fetchone()[0]
+        result = cur.fetchone()
+        total = result[0] if result else 0
         if total > 0:
             coverage = (covered / total) * 100
             if coverage < 80:
@@ -323,7 +334,8 @@ def _validate_pre_trade_data_quality(
             "SELECT COUNT(*) FROM technical_data_daily WHERE date <= %s",
             (today,)
         )
-        tech_count = cur.fetchone()[0] or 0
+        result = cur.fetchone()
+        tech_count = result[0] if result else 0
         if tech_count == 0:
             issues.append("No technical data found")
         else:
@@ -349,7 +361,8 @@ def _validate_pre_trade_data_quality(
             "SELECT COUNT(*) FROM quality_metrics WHERE DATE(created_at) >= %s::date - INTERVAL '1 day'",
             (today,)
         )
-        quality_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        quality_count = result[0] if result else 0
         if quality_count < (covered * 0.50):  # At least 50% of covered symbols (lenient for historical data)
             warnings.append(f"Quality metrics incomplete: {quality_count}/{covered} symbols ({(quality_count/max(covered,1)*100):.0f}%)")
 
@@ -358,7 +371,8 @@ def _validate_pre_trade_data_quality(
             "SELECT COUNT(*) FROM value_metrics WHERE DATE(created_at) = %s",
             (today,)
         )
-        value_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        value_count = result[0] if result else 0
         if value_count < (covered * 0.70):  # At least 70% of covered symbols (PE coverage is lower)
             warnings.append(f"Value metrics incomplete: {value_count}/{covered} symbols ({(value_count/max(covered,1)*100):.0f}%)")
 
@@ -368,12 +382,14 @@ def _validate_pre_trade_data_quality(
             "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day' AND data_completeness >= 0.8",
             (today,)
         )
-        complete_scores = cur.fetchone()[0]
+        result = cur.fetchone()
+        complete_scores = result[0] if result else 0
         cur.execute(
             "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day'",
             (today,)
         )
-        total_scores = cur.fetchone()[0]
+        result = cur.fetchone()
+        total_scores = result[0] if result else 0
         if total_scores > 0:
             completeness_pct = (complete_scores / total_scores) * 100
             if completeness_pct < 30:

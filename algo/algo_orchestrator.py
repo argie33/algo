@@ -554,7 +554,8 @@ class Orchestrator:
                 "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
                 (self.run_date,)
             )
-            total_signals = cur.fetchone()[0] or 0
+            result = cur.fetchone()
+            total_signals = result[0] if result else 0
 
             # Count from trend_template_data where Stage 2 exists
             # (Stage 2 check is in filter_pipeline, using pre-filtered signals)
@@ -563,7 +564,8 @@ class Orchestrator:
                    WHERE date = %s AND weinstein_stage = 2""",
                 (self.run_date,)
             )
-            stage2_count = cur.fetchone()[0] or 0
+            result = cur.fetchone()
+            stage2_count = result[0] if result else 0
 
             # Count rejections per tier in a single query (uses composite index on eval_date, rejected_at_tier)
             tier_rejections = {f'Tier {i}': 0 for i in range(1, 7)}

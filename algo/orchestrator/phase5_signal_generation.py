@@ -39,7 +39,8 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
             "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
             (run_date,)
         )
-        total_signals = cur.fetchone()[0] or 0
+        result = cur.fetchone()
+        total_signals = result[0] if result else 0
 
         # Count from trend_template_data where Stage 2 exists
         # (Stage 2 check is in filter_pipeline, using pre-filtered signals)
@@ -48,7 +49,8 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
                WHERE date = %s AND weinstein_stage = 2""",
             (run_date,)
         )
-        stage2_count = cur.fetchone()[0] or 0
+        result = cur.fetchone()
+        stage2_count = result[0] if result else 0
 
         # Count rejections at each tier from filter_rejection_log (if table exists)
         tier_rejections = {}
@@ -58,7 +60,8 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
                     f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
                     (run_date, tier_num)
                 )
-                rejected = cur.fetchone()[0] or 0
+                result = cur.fetchone()
+                rejected = result[0] if result else 0
                 tier_rejections[tier_name] = rejected
         except Exception:
             # Table may not exist or columns different; skip
