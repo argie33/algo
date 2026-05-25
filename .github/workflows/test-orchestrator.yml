@@ -39,10 +39,11 @@ jobs:
         id: invoke
         run: |
           FUNC="${{ steps.resolve.outputs.algo_function_name }}"
-          echo "Invoking $FUNC with trading day date (May 26, 2026)..."
+          echo "Invoking $FUNC with trading day date (May 22, 2026 - latest available data)..."
 
-          # Create JSON payload with trading day date (May 25 is Memorial Day, use May 26)
-          PAYLOAD='{"source":"test-live-execution","test":"true","date":"2026-05-26"}'
+          # Create JSON payload with trading day date that has data available in database
+          # May 22, 2026 is Thursday - last trading day before loaders ran on May 25
+          PAYLOAD='{"source":"test-live-execution","test":"true","date":"2026-05-22"}'
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
           # Synchronous invocation with RequestResponse
