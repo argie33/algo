@@ -422,6 +422,7 @@ locals {
     "naaim_data"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
     "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
     "eod_bulk_refresh" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
   }

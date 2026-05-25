@@ -351,6 +351,22 @@ def run(
         if not patrol_ok:
             return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
 
+        # Circuit-breaker: verify signal_quality_scores is populated
+        try:
+            cur.execute("SELECT COUNT(*) FROM signal_quality_scores WHERE date = (SELECT MAX(date) FROM signal_quality_scores)")
+            sqs_count = cur.fetchone()[0]
+            if sqs_count == 0:
+                msg = 'signal_quality_scores table is empty - no signals available for trading'
+                logger.error(f"  [HALT] {msg}")
+                log_phase_result_fn(1, 'signal_quality_scores', 'halt', msg)
+                return PhaseResult(1, 'signal_quality_scores', 'halted', {}, True, msg)
+            if verbose:
+                logger.info(f"  [OK] signal_quality_scores: {sqs_count} entries on latest date")
+        except Exception as e:
+            logger.error(f"  [HALT] signal_quality_scores check failed: {e}")
+            log_phase_result_fn(1, 'signal_quality_scores', 'error', str(e))
+            return PhaseResult(1, 'signal_quality_scores', 'halted', {}, True, str(e))
+
         # Margin health check (Phase 1 - production safeguard)
         try:
             from algo.algo_margin_monitor import MarginMonitor
