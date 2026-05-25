@@ -983,7 +983,16 @@ jobs:
             exit 1
           fi
           echo "Using API Gateway: $API_GATEWAY"
-          VITE_API_URL="$API_GATEWAY" \
+          # Use CloudFront URL so VITE_API_URL fallback never points at raw API GW
+          WEBSITE_URL="${{ needs.resolve-infra.outputs.website_url }}"
+          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
+            FINAL_API_URL="$WEBSITE_URL"
+            echo "Building with CloudFront URL: $FINAL_API_URL"
+          else
+            FINAL_API_URL="$API_GATEWAY"
+            echo "Building with API Gateway URL (CloudFront not yet available): $FINAL_API_URL"
+          fi
+          VITE_API_URL="$FINAL_API_URL" \
           VITE_COGNITO_USER_POOL_ID="${POOL_ID:-}" \
           VITE_COGNITO_CLIENT_ID="${CLIENT_ID:-}" \
           VITE_AWS_REGION="$AWS_REGION" \
@@ -1064,6 +1073,17 @@ jobs:
           echo "✅ Generated dist/config.js with API_URL=$API_URL and Cognito config"
           cat webapp/frontend/dist/config.js
 
+          # Inject build timestamp into config.js URL to bust browser cache.
+          # config.js contains dynamic per-deploy values so it must never be
+          # served from a browser's immutable cache.  Since index.html is always
+          # fetched fresh (no-cache), a versioned URL forces every browser to
+          # download the latest config.js on the next page load.
+          BUILD_TS=$(date +%s)
+          if [ -f "webapp/frontend/dist/index.html" ]; then
+            sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
+            echo "✅ config.js cache buster added: /config.js?v=${BUILD_TS}"
+          fi
+
       - name: Verify Frontend Build Output
         working-directory: webapp/frontend
         run: |
@@ -1107,24 +1127,27 @@ jobs:
           fi
           echo "✅ Bucket is accessible"
 
-          # Long-lived assets (hashed filenames) get max cache
-          echo "Syncing assets (excluding HTML)..."
-          FILE_COUNT=$(find webapp/frontend/dist -type f ! -name "*.html" | wc -l)
+          # Long-lived assets (content-hashed filenames) get immutable cache.
+          # Exclude config.js and HTML — those change with every deploy.
+          echo "Syncing assets (excluding HTML and config.js)..."
+          FILE_COUNT=$(find webapp/frontend/dist -type f ! -name "*.html" ! -name "config.js" | wc -l)
           if [ "$FILE_COUNT" -eq 0 ]; then
-            echo "⚠️ WARNING: No non-HTML files to sync"
+            echo "⚠️ WARNING: No non-HTML/config files to sync"
           else
             echo "Will sync $FILE_COUNT files"
             aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
               --delete \
               --cache-control "public, max-age=31536000, immutable" \
-              --exclude "*.html"
+              --exclude "*.html" \
+              --exclude "config.js"
           fi
 
-          # HTML files must not be cached (always fetch fresh)
-          echo "Syncing HTML files..."
+          # HTML and config.js must always be fetched fresh (dynamic per-deploy content)
+          echo "Syncing HTML and config.js (no-cache)..."
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
             --exclude "*" \
             --include "*.html" \
+            --include "config.js" \
             --cache-control "no-cache, no-store, must-revalidate"
 
           echo "✅ Frontend synced to s3://${BUCKET}/"
