@@ -765,29 +765,9 @@ jobs:
           export DB_SECRET_ARN DB_HOST DB_PORT DB_NAME DB_USER ALLOWED_ORIGINS
           export COGNITO_POOL_ID COGNITO_CLIENT_ID FUNC API_LAYER_ARN AWS_REGION
 
-          # Update function configuration with environment variables using Python
+          # Update function configuration with environment variables using AWS CLI
           echo "Building environment variables JSON..."
-          python3 << EOF
-import json, os
-vars_dict = {
-    "DB_SECRET_ARN": os.environ.get("DB_SECRET_ARN", ""),
-    "DB_HOST": os.environ.get("DB_HOST", ""),
-    "DB_PORT": os.environ.get("DB_PORT", "5432"),
-    "DB_NAME": os.environ.get("DB_NAME", "stocks"),
-    "DB_USER": os.environ.get("DB_USER", "stocks"),
-    "DB_SSL": "prefer",
-    "ALLOWED_ORIGINS": os.environ.get("ALLOWED_ORIGINS", ""),
-    "COGNITO_REGION": os.environ.get("AWS_REGION", "us-east-1"),
-}
-cognito_pool = os.environ.get("COGNITO_POOL_ID", "").strip()
-if cognito_pool and cognito_pool != "None":
-    vars_dict["COGNITO_USER_POOL_ID"] = cognito_pool
-cognito_client = os.environ.get("COGNITO_CLIENT_ID", "").strip()
-if cognito_client and cognito_client != "None":
-    vars_dict["COGNITO_CLIENT_ID"] = cognito_client
-with open("/tmp/api_env.json", "w") as f:
-    json.dump({"Variables": vars_dict}, f, indent=2)
-EOF
+          python3 -c 'import json, os; vars_dict = {"DB_SECRET_ARN": os.environ.get("DB_SECRET_ARN", ""), "DB_HOST": os.environ.get("DB_HOST", ""), "DB_PORT": os.environ.get("DB_PORT", "5432"), "DB_NAME": os.environ.get("DB_NAME", "stocks"), "DB_USER": os.environ.get("DB_USER", "stocks"), "DB_SSL": "prefer", "ALLOWED_ORIGINS": os.environ.get("ALLOWED_ORIGINS", ""), "COGNITO_REGION": os.environ.get("AWS_REGION", "us-east-1")}; cognito_pool = os.environ.get("COGNITO_POOL_ID", "").strip(); cognito_pool and cognito_pool != "None" and vars_dict.update({"COGNITO_USER_POOL_ID": cognito_pool}); cognito_client = os.environ.get("COGNITO_CLIENT_ID", "").strip(); cognito_client and cognito_client != "None" and vars_dict.update({"COGNITO_CLIENT_ID": cognito_client}); open("/tmp/api_env.json", "w").write(json.dumps({"Variables": vars_dict}, indent=2))'
 
           echo "Updating API Lambda configuration..."
 
