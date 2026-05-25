@@ -74,6 +74,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.12"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
+  reserved_concurrent_executions = 1
   layers        = [local.api_layer_arn, var.psycopg2_layer_arn]
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
@@ -130,9 +131,9 @@ resource "aws_lambda_function" "api" {
   })
 }
 
-# NOTE: Provisioned concurrency removed for now (requires published version)
-# TODO: Add provisioned concurrency after system is operational
-# Use: increase memory_size or add CloudWatch alarm to trigger warm-ups instead
+# Reserved concurrency enabled: 1 warm instance running at all times
+# Eliminates 15-40s VPC cold-start delays that would exceed API Gateway's 29s timeout
+# Cost: ~$0.015/hour per concurrent execution
 
 # ============================================================
 # API Gateway HTTP API
