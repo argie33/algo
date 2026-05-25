@@ -773,12 +773,30 @@ jobs:
           # Build environment string for --environment flag
           ENV_VARS="DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION"
 
-          # Update function configuration using simple format
+          # Update function configuration using --cli-input-json to handle special chars in password
+          LAMBDA_CONFIG=$(cat <<EOF
+{
+  "FunctionName": "$FUNC",
+  "Environment": {
+    "Variables": {
+      "DB_HOST": "$DB_HOST",
+      "DB_PORT": "$DB_PORT",
+      "DB_NAME": "$DB_NAME",
+      "DB_USER": "$DB_USER",
+      "DB_PASSWORD": "$DB_PASSWORD",
+      "DB_SSL": "prefer",
+      "ALLOWED_ORIGINS": "$ALLOWED_ORIGINS",
+      "COGNITO_REGION": "$AWS_REGION"
+    }
+  },
+  "Timeout": 300,
+  "Layers": ["$API_LAYER_ARN"]
+}
+EOF
+)
+
           aws lambda update-function-configuration \
-            --function-name "$FUNC" \
-            --environment "Variables={DB_HOST=$DB_HOST,DB_PORT=$DB_PORT,DB_NAME=$DB_NAME,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,DB_SSL=prefer,ALLOWED_ORIGINS=$ALLOWED_ORIGINS,COGNITO_REGION=$AWS_REGION}" \
-            --timeout 300 \
-            --layers "$API_LAYER_ARN" \
+            --cli-input-json "$LAMBDA_CONFIG" \
             --region $AWS_REGION || { echo "ERROR updating Lambda config"; exit 1; }
 
           echo "✅ API Lambda environment and layers updated"
