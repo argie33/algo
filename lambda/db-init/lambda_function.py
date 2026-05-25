@@ -2,6 +2,7 @@
 """
 Database schema initialization Lambda for RDS PostgreSQL.
 Uses Secrets Manager for credentials. Must run in VPC.
+Deployed: May 24, 2026 21:56 - Triggering auto database initialization
 """
 
 import json
