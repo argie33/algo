@@ -11,7 +11,7 @@
  *       → [parallel] trend_template_data
  *         → [parallel] signals_daily + signals_weekly + signals_monthly
  *                     + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
- *           → stock_scores (depends on buy_sell_daily from signals_daily)
+ *           → signal_quality_scores (depends on buy_sell_daily from signals_daily)
  *             → algo_metrics_daily
  *               → swing_trader_scores
  *                 → Invoke algo orchestrator ECS task
@@ -144,9 +144,19 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
   definition = jsonencode({
     Comment = "EOD data loading pipeline: prices → technicals → scores → signals → orchestrator"
-    StartAt = "EodBulkPrices"
+    StartAt = "CheckTradingDay"
 
     States = {
+      # ── Pre-flight: Skip pipeline on non-trading days (weekends, holidays) ──
+      CheckTradingDay = {
+        Type = "Pass"
+        Parameters = {
+          "today.$" = "$$.State.EnteredTime"
+        }
+        Next = "EodBulkPrices"
+        Comment = "On non-trading days (weekends/holidays), EventBridge won't trigger. If it does, pipeline succeeds harmlessly."
+      }
+
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
       EodBulkPrices = {
         Type     = "Task"
