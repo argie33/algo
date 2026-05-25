@@ -20,15 +20,56 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT 1
                 """)
                 row = cur.fetchone()
-                if row:
-                    return json_response(200, {
-                        'fear_greed': float(row['fear_greed_value']) if row['fear_greed_value'] else None,
-                        'label': row['fear_greed_label'],
-                        'put_call_ratio': float(row['put_call_ratio']) if row['put_call_ratio'] else None,
-                        'vix_level': float(row['vix_level']) if row['vix_level'] else None,
-                        'date': str(row['date']),
-                    })
-                return json_response(200, {})
+                fg_value = float(row['fear_greed_value']) if row and row['fear_greed_value'] else None
+                fg_label = row['fear_greed_label'] if row else None
+
+                aaii_row = None
+                try:
+                    cur.execute("""
+                        SELECT bullish, neutral, bearish, date
+                        FROM aaii_sentiment
+                        ORDER BY date DESC
+                        LIMIT 1
+                    """)
+                    aaii_row = cur.fetchone()
+                except Exception:
+                    pass
+
+                naaim_row = None
+                try:
+                    cur.execute("""
+                        SELECT naaim_number_mean, date
+                        FROM naaim
+                        ORDER BY date DESC
+                        LIMIT 1
+                    """)
+                    naaim_row = cur.fetchone()
+                except Exception:
+                    pass
+
+                analyst_row = None
+                try:
+                    cur.execute("""
+                        SELECT SUM(analyst_count) AS analyst_count,
+                               SUM(bullish_count) AS bullish_count,
+                               SUM(bearish_count) AS bearish_count,
+                               MAX(date) AS date
+                        FROM analyst_sentiment_analysis
+                        WHERE date = (SELECT MAX(date) FROM analyst_sentiment_analysis)
+                    """)
+                    analyst_row = cur.fetchone()
+                except Exception:
+                    pass
+
+                return json_response(200, {
+                    'fear_greed': {'value': fg_value, 'label': fg_label} if fg_value is not None else None,
+                    'aaii': dict(aaii_row) if aaii_row else None,
+                    'naaim': dict(naaim_row) if naaim_row else None,
+                    'analyst': dict(analyst_row) if analyst_row and analyst_row['analyst_count'] else None,
+                    'put_call_ratio': float(row['put_call_ratio']) if row and row['put_call_ratio'] else None,
+                    'vix_level': float(row['vix_level']) if row and row['vix_level'] else None,
+                    'date': str(row['date']) if row else None,
+                })
             elif path == '/api/sentiment/data' or path.startswith('/api/sentiment/data?'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
@@ -47,15 +88,16 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/sentiment/divergence':
                 cur.execute("""
                     SELECT asa.symbol, asa.date,
-                           asa.bullish_count, asa.bearish_count,
+                           asa.bullish_count, asa.bearish_count, asa.analyst_count,
                            asa.upside_downside_percent,
+                           ROUND(asa.bullish_count::numeric / NULLIF(asa.analyst_count, 0) * 100, 2) AS bull_percent,
+                           ROUND(asa.bearish_count::numeric / NULLIF(asa.analyst_count, 0) * 100, 2) AS bear_percent,
                            ss.composite_score
                     FROM analyst_sentiment_analysis asa
-                    JOIN stock_scores ss ON ss.symbol = asa.symbol
-                    WHERE asa.date = (SELECT MAX(date) FROM analyst_sentiment_analysis)
-                      AND asa.upside_downside_percent IS NOT NULL
-                    ORDER BY asa.upside_downside_percent DESC
-                    LIMIT 100
+                    LEFT JOIN stock_scores ss ON ss.symbol = asa.symbol
+                    WHERE asa.date >= CURRENT_DATE - INTERVAL '30 days'
+                    ORDER BY asa.date DESC, asa.upside_downside_percent DESC NULLS LAST
+                    LIMIT 2000
                 """)
                 rows = cur.fetchall()
                 return list_response([dict(r) for r in rows] if rows else [])
@@ -76,7 +118,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/sentiment/vix':
                 return _get_vix_data(cur)
             elif path == '/api/sentiment' or path.startswith('/api/sentiment?'):
-                # Default: return summary
+                # Default: return same shape as /api/sentiment/summary
                 cur.execute("""
                     SELECT fg.fear_greed_value, fg.fear_greed_label, fg.date,
                            mh.put_call_ratio, mh.vix_level
@@ -88,8 +130,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 row = cur.fetchone()
                 if row:
                     return json_response(200, {
-                        'fear_greed': float(row['fear_greed_value']) if row['fear_greed_value'] else None,
-                        'label': row['fear_greed_label'],
+                        'fear_greed': {'value': float(row['fear_greed_value']), 'label': row['fear_greed_label']} if row['fear_greed_value'] else None,
                         'put_call_ratio': float(row['put_call_ratio']) if row['put_call_ratio'] else None,
                         'vix_level': float(row['vix_level']) if row['vix_level'] else None,
                         'date': str(row['date']),

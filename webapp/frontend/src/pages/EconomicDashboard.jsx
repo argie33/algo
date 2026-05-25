@@ -79,7 +79,7 @@ export default function EconomicDashboard() {
   const leading    = leadQ.data   || {};
   const yieldData  = yldQ.data    || null;
   const indicators = leading.indicators || [];
-  const calRaw     = calQ.data?.events ?? (Array.isArray(calQ.data) ? calQ.data : []);
+  const calRaw     = calQ.data?.events ?? calQ.data?.items ?? (Array.isArray(calQ.data) ? calQ.data : []);
   const naaimData  = naaimQ.data  || null;
 
   // helper to find indicator by partial name
@@ -225,8 +225,8 @@ export default function EconomicDashboard() {
       date: e.event_date || e.date,
       event: e.event_name || e.Event || e.event,
       importance: e.importance || e.Importance,
-      forecast: e.forecast_value ?? e.Forecast,
-      previous: e.previous_value ?? e.Previous,
+      forecast: e.forecast ?? e.forecast_value ?? e.Forecast,
+      previous: e.previous ?? e.previous_value ?? e.Previous,
       category: e.category || e.Category,
     })).sort((a, b) => new Date(a.date) - new Date(b.date));
   }, [calRaw]);

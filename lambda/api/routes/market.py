@@ -45,7 +45,36 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT 1
                 """)
                 row = cur.fetchone()
-                return json_response(200, dict(row) if row else {})
+                base = dict(row) if row else {}
+                # Compute today's advancing/declining counts from price_daily
+                try:
+                    cur.execute("""
+                        WITH latest AS (SELECT MAX(date) AS d FROM price_daily)
+                        SELECT
+                            COUNT(*) FILTER (WHERE close > open) AS advancing,
+                            COUNT(*) FILTER (WHERE close < open) AS declining,
+                            COUNT(*) FILTER (WHERE close = open) AS unchanged,
+                            COUNT(*) AS total_stocks
+                        FROM price_daily
+                        WHERE date = (SELECT d FROM latest)
+                    """)
+                    brow = cur.fetchone()
+                    base['breadth'] = dict(brow) if brow else {}
+                except Exception:
+                    base['breadth'] = {}
+                # Build 30-day A/D line from market_health_daily for McClellan chart
+                try:
+                    cur.execute("""
+                        SELECT date, advance_decline_ratio AS advance_decline_line
+                        FROM market_health_daily
+                        ORDER BY date DESC
+                        LIMIT 30
+                    """)
+                    adrows = cur.fetchall()
+                    base['mcclellan_oscillator'] = [dict(r) for r in adrows]
+                except Exception:
+                    base['mcclellan_oscillator'] = []
+                return json_response(200, base)
             elif path == '/api/market/top-movers':
                 cur.execute("""
                     WITH today AS (
@@ -68,19 +97,63 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
                     WHERE y.close > 0
                     ORDER BY ABS(t.close - y.close) / y.close DESC
-                    LIMIT 20
+                    LIMIT 40
                 """)
                 movers = cur.fetchall()
-                return list_response([dict(m) for m in movers] if movers else [])
+                items = [dict(m) for m in movers] if movers else []
+                gainers = sorted([m for m in items if (m.get('pct_change') or 0) >= 0],
+                                 key=lambda x: -(x.get('pct_change') or 0))[:10]
+                losers = sorted([m for m in items if (m.get('pct_change') or 0) < 0],
+                                key=lambda x: (x.get('pct_change') or 0))[:10]
+                return json_response(200, {'gainers': gainers, 'losers': losers})
             elif path == '/api/market/distribution-days':
-                cur.execute("""
-                    SELECT symbol, date, distribution_count
-                    FROM distribution_days
-                    ORDER BY date DESC
-                    LIMIT 50
-                """)
-                dist = cur.fetchall()
-                return list_response([dict(d) for d in dist] if dist else [])
+                INDEX_NAMES = {'^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^NYA': 'NYSE Composite', '^DJI': 'Dow Jones'}
+                try:
+                    cur.execute("""
+                        WITH sessions AS (
+                            SELECT symbol, date,
+                                   close,
+                                   LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
+                                   volume,
+                                   AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol,
+                                   (CURRENT_DATE - date)::INTEGER AS days_ago
+                            FROM price_daily
+                            WHERE symbol IN ('^GSPC', '^IXIC', '^NYA', '^DJI')
+                              AND date >= CURRENT_DATE - INTERVAL '65 days'
+                        )
+                        SELECT symbol, date, days_ago,
+                               ROUND(((close - prev_close) / NULLIF(prev_close, 0) * 100)::NUMERIC, 2) AS change_pct,
+                               ROUND((volume::NUMERIC / NULLIF(avg_vol, 0))::NUMERIC, 2) AS volume_ratio
+                        FROM sessions
+                        WHERE prev_close IS NOT NULL
+                          AND close < prev_close * 0.998
+                          AND (avg_vol IS NULL OR volume > avg_vol * 1.01)
+                          AND date >= CURRENT_DATE - INTERVAL '35 days'
+                        ORDER BY symbol, date DESC
+                    """)
+                    rows = cur.fetchall()
+                    by_sym = {}
+                    for row in rows:
+                        r = dict(row)
+                        sym = r['symbol']
+                        if sym not in by_sym:
+                            by_sym[sym] = []
+                        by_sym[sym].append({
+                            'date': str(r['date']),
+                            'change_pct': float(r['change_pct']) if r['change_pct'] is not None else None,
+                            'volume_ratio': float(r['volume_ratio']) if r['volume_ratio'] is not None else None,
+                            'days_ago': r['days_ago'],
+                        })
+                    result = {}
+                    for sym, days in by_sym.items():
+                        count = len(days)
+                        signal = ('DANGER' if count >= 5 else
+                                  'CAUTION' if count >= 3 else
+                                  'WATCH' if count >= 1 else 'NORMAL')
+                        result[sym] = {'name': INDEX_NAMES.get(sym, sym), 'count': count, 'signal': signal, 'days': days}
+                    return json_response(200, result)
+                except Exception as e:
+                    return handle_db_error(e, logger, 'get distribution days')
             elif path == '/api/market/seasonality':
                 # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
                 cur.execute("""
@@ -102,14 +175,51 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 })
             elif path == '/api/market/sentiment':
                 range_days = _parse_range_param(params) if params else 30
-                cur.execute("""
-                    SELECT date, fear_greed_value as value
-                    FROM fear_greed_index
-                    WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                    ORDER BY date DESC
-                """, (range_days,))
-                sentiment = cur.fetchall()
-                return list_response([dict(s) for s in sentiment] if sentiment else [])
+                # AAII investor sentiment
+                try:
+                    cur.execute("""
+                        SELECT date, bullish, neutral, bearish
+                        FROM aaii_sentiment
+                        WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                        ORDER BY date DESC
+                    """, (range_days,))
+                    aaii_rows = [dict(r) for r in cur.fetchall()]
+                except Exception:
+                    aaii_rows = []
+                # NAAIM manager exposure
+                try:
+                    cur.execute("""
+                        SELECT date, naaim_number_mean, bullish, bearish
+                        FROM naaim
+                        ORDER BY date DESC
+                        LIMIT 4
+                    """)
+                    naaim_rows = cur.fetchall()
+                    naaim_current = float(dict(naaim_rows[0])['naaim_number_mean']) if naaim_rows else None
+                except Exception:
+                    naaim_current = None
+                # Fear & Greed
+                try:
+                    cur.execute("""
+                        SELECT date, fear_greed_value as value, fear_greed_label as label
+                        FROM fear_greed_index
+                        WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                        ORDER BY date DESC
+                    """, (range_days,))
+                    fg_rows = [dict(r) for r in cur.fetchall()]
+                    fg_current = fg_rows[0] if fg_rows else None
+                except Exception:
+                    fg_rows = []
+                    fg_current = None
+                return json_response(200, {
+                    'aaii': aaii_rows,
+                    'naaim': {'exposure': naaim_current, 'current': naaim_current},
+                    'fearGreed': {
+                        'value': fg_current.get('value') if fg_current else None,
+                        'label': fg_current.get('label') if fg_current else None,
+                        'history': fg_rows,
+                    },
+                })
             elif path == '/api/market/fear-greed':
                 range_days = _parse_range_param(params) if params else 30
                 return _get_fear_greed_history(cur, range_days)

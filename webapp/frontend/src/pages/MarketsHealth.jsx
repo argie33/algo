@@ -1522,7 +1522,7 @@ function DistributionDaysTimeline() {
   if (loading && !data) return <Empty title="Distribution Days" desc="Loading…" wrap />;
   if (error || !data) return <Empty title="Distribution Days" desc="Distribution days data not loaded" wrap />;
 
-  const indices = ['^GSPC', '^IXIC', '^DJI'].filter(k => data[k]);
+  const indices = ['^GSPC', '^IXIC', '^DJI', '^NYA'].filter(k => data[k]);
   if (!indices.length) return <Empty title="Distribution Days" desc="No index data available" wrap />;
 
   return (

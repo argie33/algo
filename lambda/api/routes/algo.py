@@ -852,6 +852,7 @@ def _get_swing_scores(cur, limit: int = 100) -> Dict:
                     s.components->>'grade' AS grade,
                     COALESCE((s.components->>'pass_gates')::boolean, false) AS pass_gates,
                     s.components->>'fail_reason' AS fail_reason,
+                    s.components AS components,
                     cp.sector, cp.industry
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
@@ -882,12 +883,15 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             cur.execute("""
                 SELECT date AS eval_date,
+                    COUNT(CASE WHEN (components->>'grade') = 'A+' THEN 1 END) AS grade_aplus,
+                    COUNT(CASE WHEN (components->>'grade') = 'A'  THEN 1 END) AS grade_a,
+                    COUNT(CASE WHEN (components->>'pass_gates')::boolean IS TRUE THEN 1 END) AS pass_count,
                     COUNT(*) AS total_candidates,
-                    AVG(score) AS avg_score
+                    ROUND(AVG(score)::NUMERIC, 1) AS avg_score
                 FROM swing_trader_scores
                 WHERE date >= %s
                 GROUP BY date
-                ORDER BY date DESC
+                ORDER BY date ASC
             """, (cutoff_date,))
             history = cur.fetchall()
             return list_response([dict(h) for h in history])
@@ -940,11 +944,22 @@ def _get_rejection_funnel(cur) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
+_TIER_CONFIG = {
+    'confirmed_uptrend':      {'description': 'Market confirmed uptrend',  'risk_mult': 1.0, 'max_new': 5, 'halt': False},
+    'healthy_uptrend':        {'description': 'Healthy uptrend',           'risk_mult': 0.8, 'max_new': 4, 'halt': False},
+    'uptrend_under_pressure': {'description': 'Uptrend under pressure',    'risk_mult': 0.6, 'max_new': 3, 'halt': False},
+    'pressure':               {'description': 'Market under pressure',     'risk_mult': 0.5, 'max_new': 2, 'halt': False},
+    'caution':                {'description': 'Caution — reduce exposure', 'risk_mult': 0.3, 'max_new': 1, 'halt': True},
+    'correction':             {'description': 'Market in correction',      'risk_mult': 0.2, 'max_new': 0, 'halt': True},
+}
+
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("""
-                SELECT id, date, market_exposure_pct, long_exposure_pct, short_exposure_pct,
+                SELECT id, date,
+                       market_exposure_pct AS exposure_pct,
+                       long_exposure_pct, short_exposure_pct,
                        exposure_tier, is_entry_allowed, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
@@ -953,18 +968,38 @@ def _get_markets(cur) -> Dict:
             latest = cur.fetchone()
             current = dict(latest) if latest else None
 
+            active_tier = {}
+            if current:
+                tier_key = str(current.get('exposure_tier') or current.get('regime') or '').lower()
+                tier_conf = _TIER_CONFIG.get(tier_key, {})
+                active_tier = {'name': tier_key, **tier_conf}
+                active_tier['halt'] = not bool(current.get('is_entry_allowed', True)) or tier_conf.get('halt', False)
+
             cur.execute("""
-                SELECT date, market_exposure_pct, exposure_tier
+                SELECT date, market_exposure_pct AS exposure_pct, exposure_tier
                 FROM market_exposure_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '60 days'
                 ORDER BY date ASC
             """)
             history = [dict(h) for h in cur.fetchall()]
 
+            try:
+                cur.execute("""
+                    SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
+                    FROM sector_ranking
+                    WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
+                    ORDER BY current_rank
+                """)
+                sectors = [dict(s) for s in cur.fetchall()]
+            except Exception:
+                sectors = []
+
             return json_response(200, {
                 'success': True,
                 'current': current,
-                'history': history
+                'active_tier': active_tier,
+                'history': history,
+                'sectors': sectors,
             })
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get markets'})
@@ -992,7 +1027,7 @@ def _get_algo_evaluate(cur) -> Dict:
                     MAX(score) AS top_score,
                     AVG(score) AS avg_score
                 FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '1 day'
+                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
             row = cur.fetchone()
             if not row or not row['candidates_screened']:

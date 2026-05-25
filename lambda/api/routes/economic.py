@@ -28,14 +28,28 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return _get_yield_curve_full(cur)
             elif path == '/api/economic/calendar':
                 try:
+                    start_date = params.get('start_date', [None])[0] if params else None
+                    end_date = params.get('end_date', [None])[0] if params else None
+                    query_params = []
+                    date_filter = ""
+                    if start_date:
+                        date_filter += " AND event_date >= %s"
+                        query_params.append(start_date)
+                    if end_date:
+                        date_filter += " AND event_date <= %s"
+                        query_params.append(end_date)
                     cur.execute("""
-                        SELECT event_date AS date, event_name, country, importance,
+                        SELECT event_date, event_name, country, importance,
                                category, event_time,
-                               forecast_value, actual_value, previous_value
+                               forecast_value AS forecast,
+                               actual_value AS actual,
+                               previous_value AS previous
                         FROM economic_calendar
-                        ORDER BY event_date DESC
-                        LIMIT 100
-                    """)
+                        WHERE 1=1
+                    """ + date_filter + """
+                        ORDER BY event_date ASC
+                        LIMIT 200
+                    """, query_params)
                     events = cur.fetchall()
                     return list_response([dict(e) for e in events] if events else [])
                 except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable):
