@@ -970,20 +970,14 @@ jobs:
           # Get environment from terraform.tfvars
           ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
 
-          # Dynamically look up the API Gateway endpoint
-          # API_BASE is the full URL: https://id.execute-api.region.amazonaws.com
-          # Append /api since frontend endpoints don't include it (they're /health, /stocks, etc)
-          API_BASE=$(aws apigatewayv2 get-apis \
-            --region $AWS_REGION \
-            --query 'Items[0].ApiEndpoint' \
-            --output text 2>/dev/null || echo "")
-
-          if [ -n "$API_BASE" ] && [ "$API_BASE" != "None" ]; then
-            API_URL="${API_BASE}/api"
-            echo "Using dynamically resolved API_BASE: $API_URL"
+          # API_URL is the CloudFront website URL from Terraform — all /api/* requests go
+          # through CloudFront which forwards to API Gateway (same-origin, no CORS needed).
+          API_URL="${{ needs.resolve-infra.outputs.website_url }}"
+          if [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
+            echo "Using CloudFront website URL as API base: $API_URL"
           else
-            echo "WARNING: Could not resolve API_BASE from AWS, skipping API_URL config"
             API_URL=""
+            echo "WARNING: website_url not resolved from Terraform, using relative paths"
           fi
 
           # Get Cognito credentials from Terraform outputs or AWS
