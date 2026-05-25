@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-05-25T09:31:05.184339",
+  "api_tests": {
+    "/api/health": {
+      "status": 200,
+      "ok": true,
+      "response_length": 49
+    },
+    "/api/signals": {
+      "status": 200,
+      "ok": true,
+      "response_length": 218408
+    },
+    "/api/scores": {
+      "status": 200,
+      "ok": true,
+      "response_length": 25
+    },
+    "/api/market-health": {
+      "status": 401,
+      "ok": false,
+      "response_length": 75
+    },
+    "/api/stocks": {
+      "status": 200,
+      "ok": true,
+      "response_length": 74545
+    }
+  },
+  "frontend_test": {
+    "cloudfront_status": 200,
+    "ok": true,
+    "index_status": 200
+  },
+  "database_test": {},
+  "errors": [
+    "/api/market-health: HTTP 401",
+    "Database: 'CredentialManager' object has no attribute 'get_database_credentials'",
+    "API Lambda not found"
+  ]
+}

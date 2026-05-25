@@ -136,15 +136,16 @@ class MarketHealthDailyLoader(OptimalLoader):
                     market_trend = "consolidation"
                     market_stage = 1
 
-            # Count distribution days (last 25 trading days per IBD)
+            # Count distribution days (4w = 25 trading days, 20d = 20 trading days per IBD)
             dist_days_25d = int(df["distribution_day"].iloc[max(0, idx-25):idx+1].sum()) if idx >= 0 else 0
+            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx-20):idx+1].sum()) if idx >= 0 else 0
 
             results.append({
                 "date": row["date"].date().isoformat(),
                 "market_trend": market_trend,
                 "market_stage": market_stage,
                 "distribution_days_4w": dist_days_25d,
-                "distribution_days_20d": dist_days_25d,
+                "distribution_days_20d": dist_days_20d,
                 "up_volume_percent": float(df["up_day"].iloc[max(0, idx-10):idx+1].mean() * 100) if idx >= 0 else 50,
                 "advance_decline_ratio": 1.0,
                 "new_highs_count": 0,
