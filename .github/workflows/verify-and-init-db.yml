@@ -55,6 +55,34 @@ jobs:
           echo "[INFO] Response:"
           cat /tmp/db-init-response.json | jq . || cat /tmp/db-init-response.json
 
+      - name: Load Seed Data
+        run: |
+          echo "[INFO] Loading seed data to unblock Phase 1..."
+
+          # Get RDS endpoint and credentials
+          RDS_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier algo-db --region $AWS_REGION --query 'DBInstances[0].Endpoint.Address' --output text)
+          RDS_SECRET=$(aws secretsmanager get-secret-value --secret-id algo-db-credentials-dev --region $AWS_REGION --query 'SecretString' --output text | jq -r '.')
+
+          DB_USER=$(echo "$RDS_SECRET" | jq -r '.username // "stocks"')
+          DB_PASSWORD=$(echo "$RDS_SECRET" | jq -r '.password')
+          DB_NAME="stocks"
+
+          # Export for Python script
+          export DB_HOST="$RDS_ENDPOINT"
+          export DB_PORT="5432"
+          export DB_USER="$DB_USER"
+          export DB_PASSWORD="$DB_PASSWORD"
+          export DB_NAME="$DB_NAME"
+
+          python3 -m pip install -q psycopg2-binary
+          python3 scripts/load_seed_data.py
+
+          if [ $? -eq 0 ]; then
+            echo "[OK] Seed data loaded successfully"
+          else
+            echo "[WARN] Seed data loading had issues, but continuing..."
+          fi
+
       - name: Find API Gateway endpoint
         id: api
         run: |
