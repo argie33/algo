@@ -130,55 +130,7 @@ router.get("/", fetchIndustries);
 // GET /industries - Alias for backward compatibility
 router.get("/industries", fetchIndustries);
 
-// GET /:industry - Get specific industry details
-router.get("/:industry", async (req, res) => {
-  try {
-    const { industry } = req.params;
-    if (!industry || industry.length === 0) {
-      return sendError(res, "Industry name required", 400);
-    }
-
-    // Query industry details with performance metrics
-    const result = await query(`
-      SELECT
-        cp.industry as industry_name,
-        COUNT(DISTINCT cp.ticker) as stock_count,
-        AVG(ss.composite_score) as composite_score,
-        AVG(ss.momentum_score) as momentum_score,
-        AVG(ss.value_score) as value_score,
-        AVG(ss.quality_score) as quality_score,
-        AVG(ss.growth_score) as growth_score,
-        AVG(ss.stability_score) as stability_score
-      FROM company_profile cp
-      LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
-      WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
-      GROUP BY cp.industry
-    `, [industry]);
-
-    if (result.rows.length === 0) {
-      return sendError(res, `Industry not found: ${industry}`, 404);
-    }
-
-    const row = result.rows[0];
-    const industryData = {
-      industry_name: row.industry_name,
-      stock_count: parseInt(row.stock_count || 0),
-      composite_score: row.composite_score ? parseFloat(row.composite_score) : null,
-      momentum_score: row.momentum_score ? parseFloat(row.momentum_score) : null,
-      value_score: row.value_score ? parseFloat(row.value_score) : null,
-      quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
-      growth_score: row.growth_score ? parseFloat(row.growth_score) : null,
-      stability_score: row.stability_score ? parseFloat(row.stability_score) : null,
-    };
-
-    return sendSuccess(res, industryData);
-  } catch (error) {
-    console.error("Error fetching industry:", error);
-    return sendError(res, `Failed to fetch industry: ${error.message.substring(0, 100)}`, 500);
-  }
-});
-
-// GET /trends-batch - Get trend data for multiple industries (comma-separated)
+// GET /trends-batch - MUST be before /:industry so it isn't captured as industry name
 router.get("/trends-batch", async (req, res) => {
   try {
     const { industries: industriesList, days = 90 } = req.query;
@@ -231,6 +183,54 @@ router.get("/trends-batch", async (req, res) => {
   } catch (error) {
     console.error("Error fetching industry trends batch:", error);
     return sendError(res, "Failed to fetch industry trends: " + error.message, 500);
+  }
+});
+
+// GET /:industry - Get specific industry details
+router.get("/:industry", async (req, res) => {
+  try {
+    const { industry } = req.params;
+    if (!industry || industry.length === 0) {
+      return sendError(res, "Industry name required", 400);
+    }
+
+    // Query industry details with performance metrics
+    const result = await query(`
+      SELECT
+        cp.industry as industry_name,
+        COUNT(DISTINCT cp.ticker) as stock_count,
+        AVG(ss.composite_score) as composite_score,
+        AVG(ss.momentum_score) as momentum_score,
+        AVG(ss.value_score) as value_score,
+        AVG(ss.quality_score) as quality_score,
+        AVG(ss.growth_score) as growth_score,
+        AVG(ss.stability_score) as stability_score
+      FROM company_profile cp
+      LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+      WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
+      GROUP BY cp.industry
+    `, [industry]);
+
+    if (result.rows.length === 0) {
+      return sendError(res, `Industry not found: ${industry}`, 404);
+    }
+
+    const row = result.rows[0];
+    const industryData = {
+      industry_name: row.industry_name,
+      stock_count: parseInt(row.stock_count || 0),
+      composite_score: row.composite_score ? parseFloat(row.composite_score) : null,
+      momentum_score: row.momentum_score ? parseFloat(row.momentum_score) : null,
+      value_score: row.value_score ? parseFloat(row.value_score) : null,
+      quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
+      growth_score: row.growth_score ? parseFloat(row.growth_score) : null,
+      stability_score: row.stability_score ? parseFloat(row.stability_score) : null,
+    };
+
+    return sendSuccess(res, industryData);
+  } catch (error) {
+    console.error("Error fetching industry:", error);
+    return sendError(res, `Failed to fetch industry: ${error.message.substring(0, 100)}`, 500);
   }
 });
 

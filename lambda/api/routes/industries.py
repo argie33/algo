@@ -1,128 +1,246 @@
 """Route: industries"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re
-from datetime import datetime, timedelta, date, timezone
+import logging
 from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error
 
 logger = logging.getLogger(__name__)
 
+
+def _sf(v):
+    """Safe float conversion — returns None for null/missing values."""
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
-        """Handle /api/industries and /api/industries/{name} - return ranking data."""
-        try:
-            # Extract industry name if provided: /api/industries/Software
-            parts = path.split('/')
-            industry_name = parts[3] if len(parts) > 3 else None
+    """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
+    try:
+        parts = [p for p in path.split('/') if p]
+        # parts[0]='api', parts[1]='industries', parts[2]=industry_name (optional), parts[3]='trend' (optional)
+        industry_name = parts[2] if len(parts) > 2 else None
+        sub_path = parts[3] if len(parts) > 3 else None
 
-            if industry_name and industry_name != 'trend':
-                days_str = params.get('days', [None])[0] if params else None
-                days = safe_days(days_str, max_val=365, default=90)
-                cur.execute("""
-                    SELECT date, industry, return_pct
-                    FROM industry_performance
-                    WHERE industry = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                    ORDER BY date DESC
-                """, (industry_name, days))
-                rows = cur.fetchall()
-                return list_response([dict(r) for r in rows])
-            else:
-                limit_str = params.get('limit', [None])[0] if params else None
-                limit = safe_limit(limit_str, max_val=50000, default=50000)
-                page_str = params.get('page', [None])[0] if params else None
-                page = safe_page(page_str, default=1)
-                offset = (page - 1) * limit
+        # /api/industries/{name}/trend  →  daily price series for one industry
+        if industry_name and sub_path == 'trend':
+            return _industry_trend(cur, industry_name, params)
 
-                cur.execute("""
-                    WITH industry_perf AS (
-                        SELECT industry,
-                               ROUND(SUM(CASE WHEN return_pct > 0 THEN return_pct ELSE 0 END) / NULLIF(COUNT(*), 0), 2) as perf_20d
-                        FROM industry_performance
-                        WHERE date >= CURRENT_DATE - INTERVAL '20 days'
-                        GROUP BY industry
-                    ),
-                    industry_scores AS (
-                        SELECT
-                            cp.industry,
-                            cp.sector,
-                            COUNT(DISTINCT cp.symbol) as stock_count,
-                            AVG(ss.composite_score) as composite_score,
-                            AVG(ss.momentum_score) as momentum_score,
-                            AVG(ss.value_score) as value_score,
-                            AVG(ss.quality_score) as quality_score,
-                            AVG(ss.growth_score) as growth_score,
-                            AVG(ss.stability_score) as stability_score,
-                            COALESCE(ip.perf_20d, 0) as perf_20d
-                        FROM company_profile cp
-                        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
-                        LEFT JOIN industry_perf ip ON ip.industry = cp.industry
-                        WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
-                        GROUP BY cp.industry, cp.sector, ip.perf_20d
-                    ),
-                    ranked AS (
-                        SELECT *,
-                            RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
-                        FROM industry_scores
-                    ),
-                    industry_pe AS (
-                        SELECT
-                            cp.industry,
-                            AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200) AS avg_trailing_pe,
-                            0::float AS avg_forward_pe
-                        FROM value_metrics vm
-                        JOIN company_profile cp ON vm.symbol = cp.ticker
-                        WHERE cp.industry IS NOT NULL
-                        GROUP BY cp.industry
-                    ),
-                    industry_pe_ranked AS (
-                        SELECT *,
-                            PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
-                        FROM industry_pe
-                    )
-                    SELECT r.*, ipe.avg_trailing_pe, ipe.avg_forward_pe, ipe.pe_percentile
-                    FROM ranked r
-                    LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
-                    ORDER BY r.current_rank, r.stock_count DESC
-                    LIMIT %s OFFSET %s
-                """, (limit, offset))
+        # /api/industries/{name}  →  detail for one industry
+        if industry_name and industry_name != 'trends-batch':
+            return _industry_detail(cur, industry_name)
 
-                industries_data = cur.fetchall()
-                cur.execute("""SELECT COUNT(DISTINCT industry) FROM company_profile WHERE industry IS NOT NULL""")
-                total = next(iter(dict(cur.fetchone() or {}).values()), 0)
+        # /api/industries  →  full ranked list
+        return _industry_list(cur, params)
 
-                industries = []
-                for row in industries_data:
-                    ind = dict(row)
-                    composite = float(ind.get('composite_score') or 0)
-                    perf20d = float(ind.get('perf_20d') or 0)
-                    momentum_label = 'Strong' if composite >= 60 else 'Moderate' if composite >= 45 else 'Weak'
-                    trend_label = 'Uptrend' if perf20d > 2 else 'Downtrend' if perf20d < -2 else 'Sideways'
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        return handle_db_error(e, logger, 'handle industries')
 
-                    industries.append({
-                        'industry': ind.get('industry'),
-                        'sector': ind.get('sector'),
-                        'current_rank': int(ind.get('current_rank') or 0),
-                        'stock_count': int(ind.get('stock_count') or 0),
-                        'composite_score': float(ind.get('composite_score') or 0),
-                        'momentum_score': float(ind.get('momentum_score') or 0),
-                        'value_score': float(ind.get('value_score') or 0),
-                        'quality_score': float(ind.get('quality_score') or 0),
-                        'growth_score': float(ind.get('growth_score') or 0),
-                        'stability_score': float(ind.get('stability_score') or 0),
-                        'current_momentum': momentum_label,
-                        'current_trend': trend_label,
-                        'pe': {
-                            'trailing': float(ind.get('avg_trailing_pe') or 0),
-                            'forward': float(ind.get('avg_forward_pe') or 0),
-                            'percentile': float(ind.get('pe_percentile') or 0)
-                        }
-                    })
 
-                return json_response(200, {
-                    'items': industries,
-                    'total': total,
-                    'page': page,
-                    'limit': limit,
-                })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle industries')
+def _industry_list(cur, params):
+    """Return all industries ranked by composite score with price-based performance."""
+    limit_str = params.get('limit', [None])[0] if params else None
+    limit = safe_limit(limit_str, max_val=50000, default=500)
+    page_str = params.get('page', [None])[0] if params else None
+    page = safe_page(page_str, default=1)
+    offset = (page - 1) * limit
+
+    cur.execute("""
+        WITH recent_prices AS (
+            SELECT symbol, date, close,
+                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+            FROM price_daily
+            WHERE date >= CURRENT_DATE - INTERVAL '60 days'
+              AND close > 0
+        ),
+        symbol_perf AS (
+            SELECT symbol,
+                MAX(close) FILTER (WHERE rn = 1)  AS close_now,
+                MAX(close) FILTER (WHERE rn = 2)  AS close_1d,
+                MAX(close) FILTER (WHERE rn = 6)  AS close_5d,
+                MAX(close) FILTER (WHERE rn = 21) AS close_20d
+            FROM recent_prices
+            GROUP BY symbol
+        ),
+        industry_scores AS (
+            SELECT
+                cp.industry,
+                cp.sector,
+                COUNT(DISTINCT cp.ticker)           AS stock_count,
+                AVG(ss.composite_score)             AS composite_score,
+                AVG(ss.momentum_score)              AS momentum_score,
+                AVG(ss.value_score)                 AS value_score,
+                AVG(ss.quality_score)               AS quality_score,
+                AVG(ss.growth_score)                AS growth_score,
+                AVG(ss.stability_score)             AS stability_score,
+                AVG(CASE WHEN sp.close_1d  > 0 THEN (sp.close_now - sp.close_1d)  / sp.close_1d  * 100 END) AS perf_1d,
+                AVG(CASE WHEN sp.close_5d  > 0 THEN (sp.close_now - sp.close_5d)  / sp.close_5d  * 100 END) AS perf_5d,
+                AVG(CASE WHEN sp.close_20d > 0 THEN (sp.close_now - sp.close_20d) / sp.close_20d * 100 END) AS perf_20d
+            FROM company_profile cp
+            LEFT JOIN symbol_perf  sp ON cp.ticker = sp.symbol
+            LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+            WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
+            GROUP BY cp.industry, cp.sector
+        ),
+        ranked AS (
+            SELECT *,
+                RANK() OVER (ORDER BY composite_score DESC NULLS LAST) AS current_rank
+            FROM industry_scores
+        ),
+        industry_pe AS (
+            SELECT
+                cp.industry,
+                AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200)  AS avg_trailing_pe,
+                AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50)   AS avg_forward_pe
+            FROM value_metrics vm
+            JOIN company_profile cp ON vm.symbol = cp.ticker
+            WHERE cp.industry IS NOT NULL
+            GROUP BY cp.industry
+        ),
+        industry_pe_ranked AS (
+            SELECT *,
+                PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
+            FROM industry_pe
+        )
+        SELECT r.*, ipe.avg_trailing_pe, ipe.avg_forward_pe, ipe.pe_percentile,
+               NULL::INTEGER AS rank_12w_ago
+        FROM ranked r
+        LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
+        ORDER BY r.current_rank, r.stock_count DESC
+        LIMIT %s OFFSET %s
+    """, (limit, offset))
+
+    industries_data = cur.fetchall()
+    cur.execute("""
+        SELECT COUNT(DISTINCT industry) AS cnt
+        FROM company_profile
+        WHERE industry IS NOT NULL AND TRIM(industry) != ''
+    """)
+    total = int((cur.fetchone() or {}).get('cnt', 0))
+
+    industries = []
+    for idx, row in enumerate(industries_data):
+        ind = dict(row)
+        composite = _sf(ind.get('composite_score'))
+        perf_20d = _sf(ind.get('perf_20d'))
+
+        momentum_label = (
+            'Strong'   if composite is not None and composite >= 60 else
+            'Moderate' if composite is not None and composite >= 45 else
+            'Weak'
+        )
+        trend_label = (
+            'Uptrend'   if perf_20d is not None and perf_20d > 2  else
+            'Downtrend' if perf_20d is not None and perf_20d < -2 else
+            'Sideways'
+        )
+
+        industries.append({
+            'industry':           ind.get('industry'),
+            'sector':             ind.get('sector'),
+            'current_rank':       int(ind.get('current_rank') or idx + 1 + offset),
+            'overall_rank':       int(ind.get('current_rank') or idx + 1 + offset),
+            'rank_12w_ago':       None,
+            'stock_count':        int(ind.get('stock_count') or 0),
+            'composite_score':    composite,
+            'momentum_score':     _sf(ind.get('momentum_score')),
+            'value_score':        _sf(ind.get('value_score')),
+            'quality_score':      _sf(ind.get('quality_score')),
+            'growth_score':       _sf(ind.get('growth_score')),
+            'stability_score':    _sf(ind.get('stability_score')),
+            'performance_1d':     _sf(ind.get('perf_1d')),
+            'performance_5d':     _sf(ind.get('perf_5d')),
+            'performance_20d':    perf_20d,
+            'current_momentum':   momentum_label,
+            'current_trend':      trend_label,
+            'pe': {
+                'trailing':   _sf(ind.get('avg_trailing_pe')),
+                'forward':    _sf(ind.get('avg_forward_pe')),
+                'percentile': _sf(ind.get('pe_percentile')),
+            },
+        })
+
+    return json_response(200, {
+        'items': industries,
+        'total': total,
+        'page':  page,
+        'limit': limit,
+    })
+
+
+def _industry_detail(cur, industry_name):
+    """Return detail for a single industry."""
+    cur.execute("""
+        SELECT
+            cp.industry AS industry_name,
+            COUNT(DISTINCT cp.ticker) AS stock_count,
+            AVG(ss.composite_score)  AS composite_score,
+            AVG(ss.momentum_score)   AS momentum_score,
+            AVG(ss.value_score)      AS value_score,
+            AVG(ss.quality_score)    AS quality_score,
+            AVG(ss.growth_score)     AS growth_score,
+            AVG(ss.stability_score)  AS stability_score
+        FROM company_profile cp
+        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+        WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
+        GROUP BY cp.industry
+    """, (industry_name,))
+    row = cur.fetchone()
+    if not row:
+        return error_response(404, 'not_found', f'Industry not found: {industry_name}')
+
+    r = dict(row)
+    return json_response(200, {
+        'industry_name':   r.get('industry_name'),
+        'stock_count':     int(r.get('stock_count') or 0),
+        'composite_score': _sf(r.get('composite_score')),
+        'momentum_score':  _sf(r.get('momentum_score')),
+        'value_score':     _sf(r.get('value_score')),
+        'quality_score':   _sf(r.get('quality_score')),
+        'growth_score':    _sf(r.get('growth_score')),
+        'stability_score': _sf(r.get('stability_score')),
+    })
+
+
+def _industry_trend(cur, industry_name, params):
+    """Return daily price series for an industry (from price_daily, indexed to 100)."""
+    days_str = params.get('days', [None])[0] if params else None
+    days = safe_days(days_str, max_val=365, default=90)
+
+    cur.execute("""
+        WITH prices AS (
+            SELECT
+                DATE(pd.date)                        AS date,
+                AVG(CAST(pd.close AS FLOAT))         AS avg_price,
+                COUNT(DISTINCT pd.symbol)            AS stock_count
+            FROM price_daily pd
+            JOIN company_profile cp ON pd.symbol = cp.ticker
+            WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
+              AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+              AND pd.close > 0
+            GROUP BY DATE(pd.date)
+            ORDER BY DATE(pd.date) ASC
+        )
+        SELECT date, avg_price, stock_count,
+            ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100
+                AS daily_strength_score
+        FROM prices
+        ORDER BY date ASC
+    """, (industry_name, days))
+
+    rows = cur.fetchall()
+    trend_data = [
+        {
+            'date':               str(r['date']),
+            'avgPrice':           float(r['avg_price'] or 0),
+            'stockCount':         int(r['stock_count'] or 0),
+            'dailyStrengthScore': float(r['daily_strength_score'] or 0),
+        }
+        for r in rows
+    ]
+
+    return json_response(200, {'industry': industry_name, 'trendData': trend_data})
