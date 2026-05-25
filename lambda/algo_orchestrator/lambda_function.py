@@ -61,16 +61,17 @@ def lambda_handler(event, context):
         is_test = event.get('test', False)
         dry_run = event.get('dry_run', False)
         skip_freshness = event.get('skip_freshness', False)
-        run_date_str = event.get('date', None)
+        # Support both 'date' and 'run_date' fields from EventBridge; treat 'now'/'today' as None (use today's date)
+        run_date_str = event.get('date') or event.get('run_date')
 
         logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}")
 
         # Get timeout from Lambda context (in seconds)
         lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 240
 
-        # Parse run date if provided
+        # Parse run date if provided (skip 'now'/'today' to use system date logic)
         run_date = None
-        if run_date_str:
+        if run_date_str and run_date_str.lower() not in ('now', 'today', ''):
             try:
                 run_date = _date.fromisoformat(run_date_str)
             except (ValueError, TypeError):

@@ -1,25 +1,20 @@
-﻿import { useState } from "react";
-import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
-  Alert,
-  CircularProgress,
-  Link,
-  InputAdornment,
-  IconButton,
-} from "@mui/material";
-import { Visibility, VisibilityOff, VpnKey } from "@mui/icons-material";
+import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 
-function ResetPasswordForm({
-  username,
-  onPasswordResetSuccess,
-  onSwitchToLogin,
-}) {
+const EyeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/>
+  </svg>
+);
+
+function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }) {
   const [formData, setFormData] = useState({
     confirmationCode: "",
     newPassword: "",
@@ -33,35 +28,24 @@ function ResetPasswordForm({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear errors when user starts typing
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (error) clearError();
     if (localError) setLocalError("");
   };
 
   const validateForm = () => {
-    if (
-      !formData.confirmationCode ||
-      !formData.newPassword ||
-      !formData.confirmPassword
-    ) {
+    if (!formData.confirmationCode || !formData.newPassword || !formData.confirmPassword) {
       setLocalError("Please fill in all fields");
       return false;
     }
-
     if (formData.newPassword !== formData.confirmPassword) {
       setLocalError("Passwords do not match");
       return false;
     }
-
     if ((formData.newPassword?.length || 0) < 8) {
-      setLocalError("Password must be at least 8 characters long");
+      setLocalError("Password must be at least 8 characters");
       return false;
     }
-
     return true;
   };
 
@@ -69,15 +53,9 @@ function ResetPasswordForm({
     e.preventDefault();
     setLocalError("");
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
-    const result = await confirmForgotPassword(
-      username,
-      formData.confirmationCode,
-      formData.newPassword
-    );
+    const result = await confirmForgotPassword(username, formData.confirmationCode, formData.newPassword);
 
     if (result.success) {
       onPasswordResetSuccess?.();
@@ -89,134 +67,125 @@ function ResetPasswordForm({
   const displayError = error || localError;
 
   return (
-    <Card sx={{ maxWidth: 400, mx: "auto", mt: 4 }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <VpnKey sx={{ mr: 1, color: "primary.main" }} />
-          <Typography variant="h4" component="h1" color="primary">
-            Set New Password
-          </Typography>
-        </Box>
+    <form onSubmit={handleSubmit} noValidate>
+      <div style={{ marginBottom: "var(--space-5)" }}>
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--text-muted)", margin: 0 }}>
+          Enter the code from your email and choose a new password.
+        </p>
+      </div>
 
-        <Typography
-          variant="body1"
-          color="text.secondary"
-          align="center"
-          mb={3}
-        >
-          Enter the code from your email and choose a new password
-        </Typography>
+      {displayError && (
+        <div className="alert alert-danger" style={{ marginBottom: "var(--space-4)" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <span style={{ fontSize: "var(--t-sm)" }}>{displayError}</span>
+        </div>
+      )}
 
-        {displayError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {displayError}
-          </Alert>
-        )}
+      <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
+        <label className="field-label" htmlFor="confirmationCode">Reset Code</label>
+        <input
+          className="input"
+          id="confirmationCode"
+          name="confirmationCode"
+          type="text"
+          value={formData.confirmationCode}
+          onChange={handleChange}
+          autoFocus
+          disabled={isLoading}
+          placeholder="000000"
+          maxLength={6}
+          style={{
+            textAlign: "center",
+            fontSize: "var(--t-xl)",
+            fontFamily: "var(--font-mono)",
+            letterSpacing: "0.3em",
+            fontWeight: "var(--w-semibold)",
+          }}
+        />
+      </div>
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <TextField
-            fullWidth
-            id="confirmationCode"
-            name="confirmationCode"
-            label="Reset Code"
-            type="text"
-            value={formData.confirmationCode}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoFocus
-            disabled={isLoading}
-            placeholder="Enter 6-digit code"
-            inputProps={{ maxLength: 6 }}
-          />
-
-          <TextField
-            fullWidth
+      <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <label className="field-label" htmlFor="newPassword">New Password</label>
+          <span style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}>8+ chars</span>
+        </div>
+        <div style={{ position: "relative" }}>
+          <input
+            className="input"
             id="newPassword"
             name="newPassword"
-            label="New Password"
             type={showPassword ? "text" : "password"}
             value={formData.newPassword}
             onChange={handleChange}
-            margin="normal"
-            required
-            disabled={isLoading}
             autoComplete="new-password"
-            helperText="Must be at least 8 characters long"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
+            disabled={isLoading}
+            placeholder="New password"
+            style={{ paddingRight: "40px" }}
           />
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={() => setShowPassword(!showPassword)}
+            disabled={isLoading}
+            aria-label="Toggle password visibility"
+            style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", width: "28px", height: "28px" }}
+          >
+            {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
+      </div>
 
-          <TextField
-            fullWidth
+      <div className="field-group" style={{ marginBottom: "var(--space-5)" }}>
+        <label className="field-label" htmlFor="confirmPassword">Confirm New Password</label>
+        <div style={{ position: "relative" }}>
+          <input
+            className="input"
             id="confirmPassword"
             name="confirmPassword"
-            label="Confirm New Password"
             type={showConfirmPassword ? "text" : "password"}
             value={formData.confirmPassword}
             onChange={handleChange}
-            margin="normal"
-            required
-            disabled={isLoading}
             autoComplete="new-password"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle confirm password visibility"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                    disabled={isLoading}
-                  >
-                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2, py: 1.5 }}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} /> : <VpnKey />}
+            placeholder="Confirm password"
+            style={{ paddingRight: "40px" }}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            disabled={isLoading}
+            aria-label="Toggle password visibility"
+            style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", width: "28px", height: "28px" }}
           >
-            {isLoading ? "Resetting..." : "Reset Password"}
-          </Button>
+            {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
+      </div>
 
-          <Box textAlign="center" mt={2}>
-            <Typography variant="body2" color="text.secondary">
-              <Link
-                component="button"
-                type="button"
-                variant="body2"
-                onClick={onSwitchToLogin}
-                disabled={isLoading}
-                sx={{ fontWeight: "medium" }}
-              >
-                Back to Sign In
-              </Link>
-            </Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
+      <button
+        type="submit"
+        className="btn btn-primary btn-lg w-full"
+        disabled={isLoading}
+        style={{ marginBottom: "var(--space-4)" }}
+      >
+        {isLoading ? "Resetting…" : "Reset Password"}
+      </button>
+
+      <div style={{ textAlign: "center", paddingTop: "var(--space-4)", borderTop: "1px solid var(--border)" }}>
+        <button
+          type="button"
+          onClick={onSwitchToLogin}
+          disabled={isLoading}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "var(--t-sm)", color: "var(--text-muted)" }}
+        >
+          Back to Sign In
+        </button>
+      </div>
+    </form>
   );
 }
 
 export default ResetPasswordForm;
-

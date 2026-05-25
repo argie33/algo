@@ -1,15 +1,7 @@
-﻿import { useState } from "react";
-import {
-  Box,
-  TextField,
-  Button,
-  Typography,
-  Alert,
-  Paper,
-} from "@mui/material";
+import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 
-const ForgotPasswordForm = ({ onBack }) => {
+const ForgotPasswordForm = ({ onBack, onForgotPasswordSuccess }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -26,77 +18,84 @@ const ForgotPasswordForm = ({ onBack }) => {
     try {
       const result = await forgotPassword(email);
       if (result.success) {
-        setMessage(result.message || "Reset code sent to your email");
+        if (onForgotPasswordSuccess) {
+          onForgotPasswordSuccess(email);
+        } else {
+          setMessage(result.message || "Reset code sent. Check your email.");
+        }
       } else {
-        setError(result.error || "Failed to send password reset email.");
+        setError(result.error || "Failed to send reset email.");
       }
-    } catch (err) {
-      setError("Failed to send password reset email. Please try again.");
+    } catch {
+      setError("Failed to send reset email. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Paper elevation={3} sx={{ p: 4, maxWidth: 400, width: "100%" }}>
-      <Typography variant="h4" gutterBottom align="center">
-        Reset Password
-      </Typography>
-
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        sx={{ mb: 3 }}
-        align="center"
-      >
-        Enter your email address and we&apos;ll send you a password reset link.
-      </Typography>
+    <form onSubmit={handleSubmit} noValidate>
+      <div style={{ marginBottom: "var(--space-5)" }}>
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--text-muted)", margin: 0 }}>
+          Enter your email address and we&apos;ll send you a reset code.
+        </p>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
+        <div className="alert alert-danger" style={{ marginBottom: "var(--space-4)" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <span style={{ fontSize: "var(--t-sm)" }}>{error}</span>
+        </div>
       )}
 
       {message && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {message}
-        </Alert>
+        <div className="alert alert-success" style={{ marginBottom: "var(--space-4)" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span style={{ fontSize: "var(--t-sm)" }}>{message}</span>
+        </div>
       )}
 
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-        <TextField
-          margin="normal"
-          required
-          fullWidth
+      <div className="field-group" style={{ marginBottom: "var(--space-5)" }}>
+        <label className="field-label" htmlFor="email">Email Address</label>
+        <input
+          className="input"
           id="email"
-          label="Email Address"
           name="email"
-          autoComplete="email"
-          autoFocus
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          autoFocus
           disabled={loading}
+          placeholder="you@example.com"
+          required
         />
+      </div>
 
-        <Button
-          type="submit"
-          fullWidth
-          variant="contained"
-          sx={{ mt: 3, mb: 2 }}
-          disabled={loading || !email}
-        >
-          {loading ? "Sending..." : "Send Reset Email"}
-        </Button>
+      <button
+        type="submit"
+        className="btn btn-primary btn-lg w-full"
+        disabled={loading || !email}
+        style={{ marginBottom: "var(--space-3)" }}
+      >
+        {loading ? "Sending…" : "Send Reset Code"}
+      </button>
 
-        <Button fullWidth variant="text" onClick={onBack} disabled={loading}>
-          Back to Sign In
-        </Button>
-      </Box>
-    </Paper>
+      <button
+        type="button"
+        className="btn btn-ghost w-full"
+        onClick={onBack}
+        disabled={loading}
+        style={{ justifyContent: "center" }}
+      >
+        Back to Sign In
+      </button>
+    </form>
   );
 };
 
 export default ForgotPasswordForm;
-

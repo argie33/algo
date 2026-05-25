@@ -1,25 +1,18 @@
-﻿import { useState } from "react";
-import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
-  Alert,
-  CircularProgress,
-  Link,
-  InputAdornment,
-  IconButton,
-  Divider,
-  Grid,
-} from "@mui/material";
-import {
-  Visibility,
-  VisibilityOff,
-  PersonAdd as RegisterIcon,
-} from "@mui/icons-material";
+import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+
+const EyeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/>
+  </svg>
+);
 
 function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   const [formData, setFormData] = useState({
@@ -38,11 +31,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear errors when user starts typing
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (error) clearError();
     if (localError) setLocalError("");
   };
@@ -52,22 +41,18 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
       setLocalError("Please fill in all required fields");
       return false;
     }
-
     if (formData.password !== formData.confirmPassword) {
       setLocalError("Passwords do not match");
       return false;
     }
-
     if ((formData.password?.length || 0) < 8) {
-      setLocalError("Password must be at least 8 characters long");
+      setLocalError("Password must be at least 8 characters");
       return false;
     }
-
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       setLocalError("Please enter a valid email address");
       return false;
     }
-
     return true;
   };
 
@@ -75,9 +60,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
     e.preventDefault();
     setLocalError("");
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     const result = await register(
       formData.username,
@@ -96,180 +79,110 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
   const displayError = error || localError;
 
-  return (
-    <Card sx={{ maxWidth: 500, mx: "auto", mt: 4 }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-          <RegisterIcon sx={{ mr: 1, color: "primary.main" }} />
-          <Typography variant="h4" component="h1" color="primary">
-            Sign Up
-          </Typography>
-        </Box>
-
-        <Typography
-          variant="body1"
-          color="text.secondary"
-          align="center"
-          mb={3}
+  const PasswordField = ({ id, name, label, value, show, onToggle, placeholder, hint }) => (
+    <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <label className="field-label" htmlFor={id}>{label}</label>
+        {hint && <span style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}>{hint}</span>}
+      </div>
+      <div style={{ position: "relative" }}>
+        <input
+          className="input"
+          id={id}
+          name={name}
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={handleChange}
+          autoComplete="new-password"
+          disabled={isLoading}
+          placeholder={placeholder}
+          style={{ paddingRight: "40px" }}
+        />
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon"
+          onClick={onToggle}
+          disabled={isLoading}
+          aria-label="Toggle password visibility"
+          style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", width: "28px", height: "28px" }}
         >
-          Create your Financial Dashboard account
-        </Typography>
+          {show ? <EyeOffIcon /> : <EyeIcon />}
+        </button>
+      </div>
+    </div>
+  );
 
-        {displayError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {displayError}
-          </Alert>
-        )}
+  return (
+    <form onSubmit={handleSubmit} noValidate>
+      {displayError && (
+        <div className="alert alert-danger" style={{ marginBottom: "var(--space-4)" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <span style={{ fontSize: "var(--t-sm)" }}>{displayError}</span>
+        </div>
+      )}
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                id="firstName"
-                name="firstName"
-                label="First Name"
-                value={formData.firstName}
-                onChange={handleChange}
-                autoComplete="given-name"
-                disabled={isLoading}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                id="lastName"
-                name="lastName"
-                label="Last Name"
-                value={formData.lastName}
-                onChange={handleChange}
-                autoComplete="family-name"
-                disabled={isLoading}
-              />
-            </Grid>
-          </Grid>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
+        <div className="field-group">
+          <label className="field-label" htmlFor="firstName">First Name</label>
+          <input className="input" id="firstName" name="firstName" type="text" value={formData.firstName} onChange={handleChange} autoComplete="given-name" disabled={isLoading} placeholder="First" />
+        </div>
+        <div className="field-group">
+          <label className="field-label" htmlFor="lastName">Last Name</label>
+          <input className="input" id="lastName" name="lastName" type="text" value={formData.lastName} onChange={handleChange} autoComplete="family-name" disabled={isLoading} placeholder="Last" />
+        </div>
+      </div>
 
-          <TextField
-            fullWidth
-            id="username"
-            name="username"
-            label="Username"
-            value={formData.username}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoComplete="username"
+      <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <label className="field-label" htmlFor="username">Username <span style={{ color: "var(--danger)" }}>*</span></label>
+          <span style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}>used to sign in</span>
+        </div>
+        <input className="input" id="username" name="username" type="text" value={formData.username} onChange={handleChange} autoComplete="username" disabled={isLoading} placeholder="Choose a username" required />
+      </div>
+
+      <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
+        <label className="field-label" htmlFor="email">Email Address <span style={{ color: "var(--danger)" }}>*</span></label>
+        <input className="input" id="email" name="email" type="email" value={formData.email} onChange={handleChange} autoComplete="email" disabled={isLoading} placeholder="you@example.com" required />
+      </div>
+
+      <PasswordField
+        id="password" name="password" label="Password" value={formData.password}
+        show={showPassword} onToggle={() => setShowPassword(!showPassword)}
+        placeholder="Min 8 characters" hint="8+ chars"
+      />
+
+      <PasswordField
+        id="confirmPassword" name="confirmPassword" label="Confirm Password" value={formData.confirmPassword}
+        show={showConfirmPassword} onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
+        placeholder="Re-enter password"
+      />
+
+      <button
+        type="submit"
+        className="btn btn-primary btn-lg w-full"
+        disabled={isLoading}
+        style={{ marginBottom: "var(--space-5)" }}
+      >
+        {isLoading ? "Creating account…" : "Create Account"}
+      </button>
+
+      <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--space-4)", textAlign: "center" }}>
+        <span style={{ fontSize: "var(--t-sm)", color: "var(--text-muted)" }}>
+          Already have an account?{" "}
+          <button
+            type="button"
+            onClick={onSwitchToLogin}
             disabled={isLoading}
-            helperText="This will be your unique identifier for signing in"
-          />
-
-          <TextField
-            fullWidth
-            id="email"
-            name="email"
-            label="Email Address"
-            type="email"
-            value={formData.email}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoComplete="email"
-            disabled={isLoading}
-            helperText="We'll send verification instructions to this email"
-          />
-
-          <TextField
-            fullWidth
-            id="password"
-            name="password"
-            label="Password"
-            type={showPassword ? "text" : "password"}
-            value={formData.password}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoComplete="new-password"
-            disabled={isLoading}
-            helperText="Must be at least 8 characters long"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          <TextField
-            fullWidth
-            id="confirmPassword"
-            name="confirmPassword"
-            label="Confirm Password"
-            type={showConfirmPassword ? "text" : "password"}
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            margin="normal"
-            required
-            autoComplete="new-password"
-            disabled={isLoading}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle confirm password visibility"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                    disabled={isLoading}
-                  >
-                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2, py: 1.5 }}
-            disabled={isLoading}
-            startIcon={
-              isLoading ? <CircularProgress size={20} /> : <RegisterIcon />
-            }
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "var(--t-sm)", color: "var(--brand-2)", fontWeight: "var(--w-semibold)" }}
           >
-            {isLoading ? "Creating Account..." : "Create Account"}
-          </Button>
-
-          <Divider sx={{ my: 2 }} />
-
-          <Box textAlign="center">
-            <Typography variant="body2" color="text.secondary">
-              Already have an account?{" "}
-              <Link
-                component="button"
-                type="button"
-                variant="body2"
-                onClick={onSwitchToLogin}
-                disabled={isLoading}
-                sx={{ fontWeight: "medium" }}
-              >
-                Sign in here
-              </Link>
-            </Typography>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
+            Sign in
+          </button>
+        </span>
+      </div>
+    </form>
   );
 }
 
 export default RegisterForm;
-
