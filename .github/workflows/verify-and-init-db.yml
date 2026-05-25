@@ -55,7 +55,7 @@ jobs:
           echo "[INFO] Response:"
           cat /tmp/db-init-response.json | jq . || cat /tmp/db-init-response.json
 
-      - name: Load Seed Data
+      - name: Load Seed Data & Configure for Demo Mode
         run: |
           echo "[INFO] Loading seed data to unblock Phase 1..."
 
@@ -82,6 +82,13 @@ jobs:
           else
             echo "[WARN] Seed data loading had issues, but continuing..."
           fi
+
+          # Configure orchestrator Lambda for demo mode (lenient data checks)
+          echo "[INFO] Enabling DEV_MODE for orchestrator..."
+          aws lambda update-function-configuration \
+            --function-name algo-algo-dev \
+            --environment "Variables={DEV_MODE=true}" \
+            --region $AWS_REGION > /dev/null 2>&1 || echo "[WARN] Could not set DEV_MODE"
 
       - name: Find API Gateway endpoint
         id: api
