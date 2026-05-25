@@ -7,9 +7,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from routes import (algo, financials, earnings, signals, prices, stocks,
                     sectors, industries, market, economic, sentiment,
-                    scores, research, audit, trades, admin, contact, settings)
+                    scores, research, audit, trades, admin, contact, settings, health)
 
 logger = logging.getLogger(__name__)
+
+# Health endpoint (public, no auth) must be checked first
+PUBLIC_HANDLERS = {'/api/health': health}
 
 HANDLERS = {
     '/api/algo': algo, '/api/financials': financials, '/api/earnings': earnings,
@@ -29,7 +32,17 @@ _JWT_AWARE = {
 
 
 def route_request(cur, path, method, params, body=None, jwt_claims=None):
-    """Route request to handler."""
+    """Route request to handler. Public handlers checked first (no auth required)."""
+    # Check public handlers first (health, etc.) - these don't require JWT
+    for prefix, handler in PUBLIC_HANDLERS.items():
+        if path.startswith(prefix):
+            try:
+                return handler.handle(cur, path, method, params, body)
+            except Exception as e:
+                logger.error(f"Public handler error for {path}: {e}", exc_info=True)
+                return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
+
+    # Check authenticated handlers
     for prefix, handler in HANDLERS.items():
         if path.startswith(prefix):
             try:
