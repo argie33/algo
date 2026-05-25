@@ -29,7 +29,7 @@ orchestrator_dry_run   = false
 orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
-alpaca_paper_trading   = true # Paper trading mode for testing (false = LIVE)
+alpaca_paper_trading   = false # Live trading mode — uses ALPACA_API_KEY/ALPACA_SECRET_KEY from Secrets Manager
 api_lambda_timeout     = 300   # Increased from 120s to handle VPC cold-start (15-20s) + DNS + DB connection delays
 algo_lambda_timeout    = 600   # Orchestrator needs time to process: 7 phases, data loading, signal generation
 
