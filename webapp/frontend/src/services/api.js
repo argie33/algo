@@ -42,6 +42,34 @@ export const getApiConfig = () => {
 // Create API instance that can be updated
 let currentConfig = getApiConfig();
 
+// Initialize and watch for config changes (config.js may load after module init in production)
+export const initializeApiConfig = () => {
+  const newConfig = getApiConfig();
+  if (newConfig.baseURL !== currentConfig.baseURL) {
+    console.log(`[API] Config updated: baseURL changed from "${currentConfig.baseURL}" to "${newConfig.baseURL}"`);
+    currentConfig = newConfig;
+    api.defaults.baseURL = newConfig.baseURL;
+  }
+};
+
+// If window.__CONFIG__ gets set after module init (due to Vite reordering), reinitialize on first use
+// Set up a timer to check if config has been loaded
+if (typeof window !== "undefined") {
+  let initCheckCount = 0;
+  const checkConfigInit = setInterval(() => {
+    initCheckCount++;
+    if (window.__CONFIG__ && currentConfig.baseURL !== window.__CONFIG__.API_URL) {
+      console.log(`[API] Detected config.js loaded, reinitializing API config`);
+      initializeApiConfig();
+      clearInterval(checkConfigInit);
+    }
+    // Stop checking after 2 seconds (100 x 20ms checks)
+    if (initCheckCount > 100) {
+      clearInterval(checkConfigInit);
+    }
+  }, 20);
+}
+
 // Simple health check state
 let apiHealthy = true;
 let lastHealthCheck = 0;
