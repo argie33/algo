@@ -276,19 +276,27 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
     try:
         # Decode header to get key ID without verification first
         parts = token.split('.')
-        header = json.loads(base64.urlsafe_b64decode(parts[0] + '=='))
 
         # Get Cognito public keys
         cognito_region = os.getenv('COGNITO_REGION', 'us-east-1')
         cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
 
         # If Cognito not configured, do format-only validation (dev mode)
+        # Dev tokens use format: devToken.{standard_base64_payload}.sig
         if not cognito_user_pool_id:
             logger.warning("Dev mode: COGNITO_USER_POOL_ID not set, skipping signature verification")
-            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
-            if 'exp' in payload and payload['exp'] < int(time()):
-                return (False, None, "Token expired")
-            return (True, payload, None)
+            # Handle dev token format (not URL-safe base64)
+            try:
+                payload = json.loads(base64.b64decode(parts[1]))
+                if 'exp' in payload and payload['exp'] < int(time()):
+                    return (False, None, "Token expired")
+                return (True, payload, None)
+            except Exception as e:
+                logger.warning(f"Dev token decode failed, trying standard JWT: {e}")
+                # Fall through to standard JWT handling for fallback
+
+        # Production mode: decode header to get key ID
+        header = json.loads(base64.urlsafe_b64decode(parts[0] + '=='))
 
         # Production: verify signature with Cognito public keys
         jwks = _get_cognito_jwks()

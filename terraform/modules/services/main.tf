@@ -143,16 +143,15 @@ resource "aws_apigatewayv2_api" "main" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins     = ["*"]
-    allow_methods     = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    allow_headers     = ["Content-Type", "Authorization", "X-Requested-With"]
-    expose_headers    = ["Content-Type", "X-Request-ID"]
-    max_age           = 300
-    allow_credentials = true
+    allow_origins  = ["*"]
+    allow_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    allow_headers  = ["Content-Type", "Authorization", "X-Requested-With"]
+    expose_headers = ["Content-Type", "X-Request-ID"]
+    max_age        = 300
   }
 
-  # CORS disabled: CloudFront is the origin to browsers (same domain, no CORS needed)
-  # CloudFront origin requests to API Gateway don't require CORS headers
+  # CloudFront serves frontend; CORS allows direct API calls from browsers during development
+  # Note: allow_credentials=false because allow_origins="*" (AWS restriction)
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-api-${var.environment}"
