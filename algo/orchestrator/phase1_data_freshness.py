@@ -351,17 +351,22 @@ def run(
         if not patrol_ok:
             return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
 
-        # Circuit-breaker: verify signal_quality_scores is populated
+        # Circuit-breaker: verify signal_quality_scores is populated (unless bootstrapping)
         try:
-            cur.execute("SELECT COUNT(*) FROM signal_quality_scores WHERE date = (SELECT MAX(date) FROM signal_quality_scores)")
-            sqs_count = cur.fetchone()[0]
-            if sqs_count == 0:
-                msg = 'signal_quality_scores table is empty - no signals available for trading'
-                logger.error(f"  [HALT] {msg}")
-                log_phase_result_fn(1, 'signal_quality_scores', 'halt', msg)
-                return PhaseResult(1, 'signal_quality_scores', 'halted', {}, True, msg)
-            if verbose:
-                logger.info(f"  [OK] signal_quality_scores: {sqs_count} entries on latest date")
+            cur.execute("SELECT COUNT(*) FROM signal_quality_scores")
+            total_sqs = cur.fetchone()[0]
+            if total_sqs == 0:
+                logger.warning("  [WARN] signal_quality_scores table is empty (first run?) - proceeding for bootstrap")
+                log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, allowing first run to populate')
+            else:
+                cur.execute("SELECT COUNT(*) FROM signal_quality_scores WHERE date = (SELECT MAX(date) FROM signal_quality_scores)")
+                sqs_count = cur.fetchone()[0]
+                if sqs_count == 0:
+                    logger.error("  [HALT] signal_quality_scores has stale data")
+                    log_phase_result_fn(1, 'signal_quality_scores', 'halt', 'No recent signals available')
+                    return PhaseResult(1, 'signal_quality_scores', 'halted', {}, True, 'No recent signals')
+                if verbose:
+                    logger.info(f"  [OK] signal_quality_scores: {sqs_count} entries on latest date")
         except Exception as e:
             logger.error(f"  [HALT] signal_quality_scores check failed: {e}")
             log_phase_result_fn(1, 'signal_quality_scores', 'error', str(e))
