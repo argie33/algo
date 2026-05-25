@@ -762,7 +762,7 @@ jobs:
           DB_SECRET_ARN="$SECRET_ID"
 
           # Build ALLOWED_ORIGINS using CloudFront domain from Terraform outputs (fully dynamic)
-          CLOUDFRONT_DOMAIN="${{ needs.resolve-infra.outputs.cloudfront_domain }}"
+          CLOUDFRONT_DOMAIN="${{ needs.resolve-infra.outputs.cloudfront_distribution_id }}"
           ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
           if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ] && [ "$CLOUDFRONT_DOMAIN" != "null" ]; then
             ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://$CLOUDFRONT_DOMAIN"
@@ -887,7 +887,7 @@ jobs:
       - name: Add Provisioned Concurrency to API Lambda
         continue-on-error: true
         run: |
-          FUNC="${{ needs.resolve-infra.outputs.api_lambda_name }}"
+          FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           echo "Adding provisioned concurrency to API Lambda: $FUNC"
 
           # Check if provisioned concurrency already exists
@@ -980,7 +980,7 @@ jobs:
 
           # API_URL is the CloudFront website URL from Terraform — all /api/* requests go
           # through CloudFront which forwards to API Gateway (same-origin, no CORS needed).
-          API_URL="${{ needs.resolve-infra.outputs.website_url }}"
+          API_URL="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
           if [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
             echo "Using CloudFront website URL as API base: $API_URL"
           else
