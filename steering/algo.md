@@ -136,7 +136,7 @@ after any multi-day weekend because the calendar gap exceeds the staleness thres
 ## LOADERS
 
 24 loader scripts in `loaders/load_*.py`:
-- **Prices:** `load_price_daily.py`, `load_price_weekly.py`, `load_price_monthly.py` (yfinance)
+- **Prices:** `load_stock_prices_daily.py`, `load_stock_prices_weekly.py` (yfinance)
 - **Technicals:** RSI, SMA, EMA, ATR, ADX, Bollinger Bands (calculated, stored in `technical_data_daily`)
 - **Fundamentals:** PE ratio, earnings, revenue, margins (via Yahoo Finance API)
 - **Market health:** Distribution days, advance/decline, breadth, VIX (via Yahoo, CBOE)
