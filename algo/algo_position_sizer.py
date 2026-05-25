@@ -102,8 +102,8 @@ class PositionSizer:
             key = _creds.get("key")
             secret = _creds.get("secret")
         except Exception:
-            key = os.getenv("APCA_API_KEY_ID") or os.getenv("ALPACA_API_KEY")
-            secret = os.getenv("APCA_API_SECRET_KEY") or os.getenv("ALPACA_SECRET_KEY")
+            key = os.getenv("APCA_API_KEY_ID")
+            secret = os.getenv("APCA_API_SECRET_KEY")
         base = os.getenv('APCA_API_BASE_URL')
         if not base:
             logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")

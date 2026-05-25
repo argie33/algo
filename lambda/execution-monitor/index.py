@@ -81,8 +81,8 @@ def get_alpaca_trades():
         return {'error': 'alpaca_trade_api not installed', 'status': 'skipped'}
 
     try:
-        api_key = os.getenv('ALPACA_API_KEY')
-        secret_key = os.getenv('ALPACA_SECRET_KEY')
+        api_key = os.getenv('APCA_API_KEY_ID')
+        secret_key = os.getenv('APCA_API_SECRET_KEY')
 
         if not api_key or not secret_key:
             return {'error': 'Alpaca credentials not configured', 'status': 'skipped'}
