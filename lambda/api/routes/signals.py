@@ -38,7 +38,6 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 where_clause += " AND bsd.symbol = %s"
                 params.insert(0, symbol_filter.upper())
 
-            # Query with mansfield_rs column
             cur.execute("""
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
@@ -47,36 +46,20 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     bsd.volume_surge_pct, bsd.risk_reward_ratio,
                     bsd.rsi, bsd.sma_50, bsd.sma_200, bsd.ema_21,
                     bsd.atr, bsd.adx, COALESCE(bsd.mansfield_rs, 0) as mansfield_rs,
-                    bsd.stage_number, bsd.reason
+                    bsd.stage_number, bsd.reason,
+                    bsd.close, bsd.volume, bsd.base_type, bsd.base_length_days,
+                    bsd.market_stage, bsd.buylevel, bsd.stoplevel,
+                    bsd.signal_triggered_date, bsd.entry_price,
+                    cp.sector, cp.industry
                 FROM buy_sell_daily bsd
+                LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                 """ + where_clause + """
                 ORDER BY bsd.date DESC, COALESCE(bsd.signal_quality_score, 0) DESC, bsd.symbol ASC
                 LIMIT %s
             """, tuple(params))
             signals = cur.fetchall()
             return json_response(200, {'items': [dict(s) for s in signals]})
-        except psycopg2.errors.UndefinedColumn as e:
-            # If mansfield_rs column doesn't exist, try without it
-            try:
-                cur.execute("""
-                    SELECT
-                        bsd.id, bsd.symbol, bsd.signal, bsd.date,
-                        bsd.timeframe, bsd.signal_type, bsd.strength,
-                        bsd.entry_quality_score, bsd.signal_quality_score,
-                        bsd.volume_surge_pct, bsd.risk_reward_ratio,
-                        bsd.rsi, bsd.sma_50, bsd.sma_200, bsd.ema_21,
-                        bsd.atr, bsd.adx, NULL::DECIMAL as mansfield_rs,
-                        bsd.stage_number, bsd.reason
-                    FROM buy_sell_daily bsd
-                    """ + where_clause + """
-                    ORDER BY bsd.date DESC, COALESCE(bsd.signal_quality_score, 0) DESC, bsd.symbol ASC
-                    LIMIT %s
-                """, tuple(params))
-                signals = cur.fetchall()
-                return json_response(200, {'items': [dict(s) for s in signals]})
-            except Exception as fallback_error:
-                return handle_db_error(fallback_error, logger, 'fetch stock signals (fallback)')
-        except (psycopg2.errors.UndefinedTable,
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch stock signals')
 

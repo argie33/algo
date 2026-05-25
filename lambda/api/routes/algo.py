@@ -1,8 +1,10 @@
 """Route: algo"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re
+import logging, re, json, os
 from datetime import datetime, timedelta, date, timezone
+import boto3
+from botocore.exceptions import ClientError
 from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_offset, handle_db_error
 
 logger = logging.getLogger(__name__)
@@ -848,10 +850,12 @@ def _get_swing_scores(cur, limit: int = 100) -> Dict:
                 SELECT
                     s.symbol, s.date, s.score AS swing_score,
                     s.components->>'grade' AS grade,
+                    COALESCE((s.components->>'pass_gates')::boolean, false) AS pass_gates,
+                    s.components->>'fail_reason' AS fail_reason,
                     cp.sector, cp.industry
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-                WHERE s.date >= CURRENT_DATE - INTERVAL '1 day'
+                WHERE s.date >= CURRENT_DATE - INTERVAL '7 days'
                 ORDER BY s.date DESC, s.score DESC
                 LIMIT %s
             """, (limit,))
@@ -940,7 +944,8 @@ def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("""
-                SELECT id, date, market_exposure_pct, long_exposure_pct, short_exposure_pct, exposure_tier, is_entry_allowed
+                SELECT id, date, market_exposure_pct, long_exposure_pct, short_exposure_pct,
+                       exposure_tier, is_entry_allowed, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1

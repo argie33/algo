@@ -47,11 +47,8 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
             sort_col = allowed_sorts.get(sort_by, 'sc.composite_score')
             sort_direction = 'DESC' if sort_order == 'desc' else 'ASC'
 
-            # Filter to stocks with good data coverage: need at least sector + pe_ratio
             where_clause = """
             WHERE sc.composite_score > 0
-            AND cp.sector IS NOT NULL
-            AND vm.pe_ratio IS NOT NULL
             """
             params_list = []
 
