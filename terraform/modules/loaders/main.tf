@@ -171,7 +171,7 @@ locals {
     "market_health_daily"           = "load_market_health_daily.py"
     "swing_trader_scores"           = "load_swing_trader_scores.py"
     "stock_scores"                  = "load_signal_quality_scores.py"
-    "eod_bulk_refresh"              = "load_signal_quality_scores.py"
+    "eod_bulk_refresh"              = "load_stock_prices_daily.py"
   }
 
   scheduled_loaders = {
@@ -536,6 +536,15 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "LOADER_INTERVALS"
           value = "1d,1wk,1mo"
+        },
+        {
+          name  = "LOADER_ASSET_CLASSES"
+          value = "stock,etf"
+        }
+      ] : each.key == "eod_bulk_refresh" ? [
+        {
+          name  = "LOADER_INTERVALS"
+          value = "1d"
         },
         {
           name  = "LOADER_ASSET_CLASSES"

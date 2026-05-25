@@ -165,8 +165,7 @@ def main():
         if args.symbols:
             symbols = args.symbols.split(",")
         else:
-            # Limit to 100 symbols to prevent timeout in ECS
-            symbols = get_active_symbols(max_symbols=100, timeout_secs=60)
+            symbols = get_active_symbols(timeout_secs=300)
             if not symbols:
                 logger.warning("No symbols found in stock_symbols table - exiting")
                 return 1
