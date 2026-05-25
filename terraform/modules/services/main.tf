@@ -67,6 +67,13 @@ locals {
 # GitHub Actions builds lambda-api.zip in terraform/ directory before terraform apply
 # For local/manual Terraform runs, fallback to looking for pre-built ZIP at terraform root
 
+resource "aws_lambda_layer_version" "api" {
+  filename                 = "${path.module}/../../terraform/api_layer.zip"
+  source_code_hash         = filebase64sha256("${path.module}/../../terraform/api_layer.zip")
+  layer_name               = "${var.project_name}-api-layer"
+  compatible_runtimes      = ["python3.12"]
+}
+
 resource "aws_lambda_function" "api" {
   function_name = local.api_lambda_name
   role          = var.api_lambda_role_arn
@@ -74,7 +81,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.12"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
-  # Dependencies bundled in lambda_api.zip - no layer needed
+  layers        = [aws_lambda_layer_version.api.arn]
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
@@ -91,6 +98,8 @@ resource "aws_lambda_function" "api" {
     subnet_ids         = var.private_subnet_ids
     security_group_ids = [var.api_lambda_security_group_id]
   }
+
+  depends_on = [aws_lambda_layer_version.api]
 
   environment {
     variables = {
