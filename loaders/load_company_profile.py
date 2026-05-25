@@ -77,19 +77,26 @@ class CompanyProfileLoader:
 
 def main():
     import argparse
+    from utils.loader_history_tracker import LoaderHistoryTracker
+
     parser = argparse.ArgumentParser(description='Company Profile Loader')
     parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
     parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
     args = parser.parse_args()
+
+    tracker = LoaderHistoryTracker('company_profile')
+    tracker.start()
 
     loader = CompanyProfileLoader()
     result = loader.run()
 
     if result["success"]:
         logger.info(f"SUCCESS: {result['rows']} company profiles loaded")
+        tracker.complete(symbols_processed=result['rows'], errors=0)
         return 0
     else:
         logger.error(f"FAILED: {result.get('error', 'unknown error')}")
+        tracker.failed(error_message=result.get('error', 'unknown error'))
         return 1
 
 if __name__ == '__main__':
