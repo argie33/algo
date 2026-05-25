@@ -31,7 +31,14 @@ class SignalsDailyLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Generate signals from technical data."""
+        from algo.algo_market_calendar import MarketCalendar
+
         end = date.today()
+        # If today is not a trading day, use yesterday instead
+        # (prevents generating signals for non-trading days when no new data exists)
+        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+            end = end - timedelta(days=1)
+
         if since is None:
             start = end - timedelta(days=30)
         else:

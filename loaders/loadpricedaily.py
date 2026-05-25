@@ -73,7 +73,14 @@ class PriceLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch OHLCV from yfinance at specified interval."""
+        from algo.algo_market_calendar import MarketCalendar
+
         end = date.today()
+        # If today is not a trading day, fetch through yesterday instead
+        # (prevents fetching on non-trading days when no data will be published)
+        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+            end = end - timedelta(days=1)
+
         if since is None:
             # First run: load 100 days instead of 5 years for speed
             # Technical indicators need ~60-100 days, full history can be backfilled later
