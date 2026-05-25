@@ -901,7 +901,7 @@ jobs:
             exit 1
           fi
           echo "Using API Gateway: $API_GATEWAY"
-          VITE_API_URL="$API_GATEWAY" \
+          VITE_API_URL="$API_GATEWAY/api" \
           VITE_COGNITO_USER_POOL_ID="${POOL_ID:-}" \
           VITE_COGNITO_CLIENT_ID="${CLIENT_ID:-}" \
           VITE_AWS_REGION="$AWS_REGION" \
