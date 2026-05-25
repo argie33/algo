@@ -755,10 +755,18 @@ resource "aws_dynamodb_table" "watermarks" {
 
   # Global secondary index for querying by status (for monitoring)
   global_secondary_index {
-    name            = "StatusIndex"
-    hash_key        = "status"
-    range_key       = "updated_at"
+    name           = "StatusIndex"
     projection_type = "ALL"
+
+    key_schema {
+      attribute_name = "status"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "updated_at"
+      key_type       = "RANGE"
+    }
   }
 
   # Time-to-live: Auto-delete stale watermarks after 90 days of no updates

@@ -139,7 +139,7 @@ def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
             'buy_sell_daily': 'buy_sell_daily (entry signals)',
             'trend_template_data': 'trend_template_data (Minervini/Weinstein scores)',
             'technical_data_daily': 'technical_data_daily (MA/RSI/ATR)',
-            # 'signal_quality_scores': 'signal_quality_scores (SQS >= 40 gate)',  # TODO: Enable after loaders populate
+            'signal_quality_scores': 'signal_quality_scores (SQS >= 40 gate)',
             'swing_trader_scores': 'swing_trader_scores (final ranking)',
             'market_health_daily': 'market_health_daily (Tier 2 gate)',
             'sector_ranking': 'sector_ranking (Tier 6 context)',

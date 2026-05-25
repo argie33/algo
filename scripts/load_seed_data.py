@@ -170,6 +170,38 @@ def load_seed_data():
         conn.commit()
         logger.info("✓ signal_quality_scores loaded")
 
+        # 9. Populate analyst_sentiment_analysis (critical table)
+        logger.info("Loading analyst_sentiment_analysis...")
+        for symbol in symbols[:4]:  # Load for first 4 symbols
+            cur.execute("""
+                INSERT INTO analyst_sentiment_analysis
+                (symbol, analyst_consensus, price_target, updated_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    analyst_consensus = EXCLUDED.analyst_consensus,
+                    price_target = EXCLUDED.price_target,
+                    updated_at = EXCLUDED.updated_at
+            """, (
+                symbol, 'buy', 450.0, today
+            ))
+        conn.commit()
+        logger.info("✓ analyst_sentiment_analysis loaded")
+
+        # 10. Populate earnings_calendar (critical table)
+        logger.info("Loading earnings_calendar...")
+        next_week = today + timedelta(days=7)
+        for symbol in symbols[:4]:  # Load for first 4 symbols
+            cur.execute("""
+                INSERT INTO earnings_calendar
+                (symbol, earnings_date, eps_estimate, created_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (symbol, earnings_date) DO NOTHING
+            """, (
+                symbol, next_week, 5.0, today
+            ))
+        conn.commit()
+        logger.info("✓ earnings_calendar loaded")
+
         logger.info("\n✅ All seed data loaded successfully!")
         logger.info("Phase 1 should now pass - critical tables have recent data")
 
