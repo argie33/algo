@@ -1050,17 +1050,11 @@ jobs:
             --output text 2>/dev/null || echo "")
 
           if [ -n "$API_BASE" ] && [ "$API_BASE" != "None" ]; then
-            API_ID="${API_BASE#https://}"
-            API_ID="${API_ID%%.*}"
-            STAGE=$(aws apigatewayv2 get-stages \
-              --api-id "$API_ID" \
-              --region $AWS_REGION \
-              --query 'Items[?Name!=`$default`].Name | [0]' \
-              --output text 2>/dev/null || echo "api")
-            [ "$STAGE" = "None" ] || [ -z "$STAGE" ] && STAGE="api"
-            API_URL="${API_BASE}/${STAGE}"
+            # API_BASE is the full URL: https://id.execute-api.region.amazonaws.com
+            # Frontend endpoints already include /api prefix, so don't append stage
+            API_URL="${API_BASE}"
           else
-            API_URL="${{ secrets.API_GATEWAY_URL }}/api"
+            API_URL="${{ secrets.API_GATEWAY_URL }}"
           fi
 
           # Get Cognito credentials from Terraform outputs or AWS
