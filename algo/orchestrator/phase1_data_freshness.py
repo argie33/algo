@@ -312,13 +312,19 @@ def run(
             return PhaseResult(1, 'data_freshness', 'ok', {}, False, 'Could not query data freshness')
 
         spy_date, mh_date, tt_date, sqs_date, buys_date = row
-        checks = {
+        # buy_sell_daily is written by the orchestrator's own Phase 5 — checking it here
+        # creates a deadlock where Phase 1 blocks because Phase 5 hasn't run yet.
+        # It is logged below for observability but not included in the halt decision.
+        halt_checks = {
             'SPY price data': spy_date,
             'Market health': mh_date,
             'Trend template': tt_date,
             'Signal quality scores': sqs_date,
+        }
+        observe_checks = {
             'Buy/sell signals': buys_date,
         }
+        checks = {**halt_checks, **observe_checks}
         table_keys = {
             'SPY price data': 'price_daily',
             'Market health': 'market_health_daily',
@@ -353,9 +359,12 @@ def run(
             _metrics = None
 
         for name, d in checks.items():
+            is_halt_check = name in halt_checks
             if d is None and not is_dev_mode:
-                # In DEV_MODE, allow missing data; in production fail
-                stale_items.append(f"{name}: missing")
+                if is_halt_check:
+                    stale_items.append(f"{name}: missing")
+                else:
+                    logger.warning(f"  [WARN] {name}: missing (observe-only, not blocking)")
                 if _metrics:
                     _metrics.put_data_freshness(table_keys[name], 999)
             elif d is not None:
@@ -363,10 +372,15 @@ def run(
                 if _metrics:
                     _metrics.put_data_freshness(table_keys[name], age)
                 is_stale = d < expected_date and not is_dev_mode
-                if is_stale:
+                if is_stale and is_halt_check:
                     stale_items.append(f"{name}: {age}d old (expected {expected_date})")
                 if verbose:
-                    flag = '[OK]' if not is_stale else '[STALE]'
+                    if is_stale and not is_halt_check:
+                        flag = '[WARN]'
+                    elif is_stale:
+                        flag = '[STALE]'
+                    else:
+                        flag = '[OK]'
                     logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
         if _metrics:
