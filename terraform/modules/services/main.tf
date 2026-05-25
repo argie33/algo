@@ -139,7 +139,7 @@ resource "aws_apigatewayv2_api" "main" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins     = concat(var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : [], ["http://localhost:5173", "http://localhost:3000"])
+    allow_origins     = ["http://localhost:5173", "http://localhost:3000"]
     allow_methods     = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
     allow_headers     = ["Content-Type", "Authorization", "X-Requested-With"]
     expose_headers    = ["Content-Type", "X-Request-ID"]
