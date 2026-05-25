@@ -700,13 +700,15 @@ jobs:
             exit 1
           fi
 
-          # Extract database configuration
+          # Extract database configuration from Secrets Manager
           DB_HOST=$(echo "$DB_CREDS" | jq -r '.host // "localhost"')
           DB_PORT=$(echo "$DB_CREDS" | jq -r '.port // 5432')
           DB_NAME=$(echo "$DB_CREDS" | jq -r '.dbname // "stocks"')
           DB_USER=$(echo "$DB_CREDS" | jq -r '.username // "stocks"')
-          ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-          DB_SECRET_ARN="arn:aws:secretsmanager:${AWS_REGION}:${ACCOUNT_ID}:secret:${SECRET_ID}"
+          DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password')
+
+          # Also provide secret name as fallback (boto3 can fetch if needed)
+          DB_SECRET_ARN="$SECRET_ID"
 
           # Get CloudFront domain for CORS whitelist
           CF_ID="${{ needs.resolve-infra.outputs.cloudfront_id }}"
@@ -775,11 +777,12 @@ jobs:
               \"FunctionName\": \"$FUNC\",
               \"Environment\": {
                 \"Variables\": {
-                  \"DB_SECRET_ARN\": \"$DB_SECRET_ARN\",
                   \"DB_HOST\": \"$DB_HOST\",
                   \"DB_PORT\": \"$DB_PORT\",
                   \"DB_NAME\": \"$DB_NAME\",
                   \"DB_USER\": \"$DB_USER\",
+                  \"DB_PASSWORD\": \"$DB_PASSWORD\",
+                  \"DB_SECRET_ARN\": \"$DB_SECRET_ARN\",
                   \"DB_SSL\": \"prefer\",
                   \"ALLOWED_ORIGINS\": \"$ALLOWED_ORIGINS\",
                   \"COGNITO_REGION\": \"$AWS_REGION\"
