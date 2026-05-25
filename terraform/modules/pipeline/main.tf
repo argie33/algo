@@ -7,11 +7,14 @@
  *
  * Pipeline DAG:
  *   eod_bulk_refresh
- *     → [parallel] trend_template_data + stock_scores + market enrichment + sentiment + economic
- *       → [parallel] signals_daily + signals_weekly + signals_monthly
- *                   + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
- *         → algo_metrics_daily
- *           → Invoke algo orchestrator ECS task
+ *     → [parallel] technical_data_daily + market_health_daily
+ *       → [parallel] trend_template_data
+ *         → [parallel] signals_daily + signals_weekly + signals_monthly
+ *                     + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
+ *           → stock_scores (depends on buy_sell_daily from signals_daily)
+ *             → algo_metrics_daily
+ *               → swing_trader_scores
+ *                 → Invoke algo orchestrator ECS task
  *
  * Note: technicals_daily was removed from this pipeline (moved to async processing elsewhere)
  */
@@ -477,7 +480,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "TriggerOrchestrator"
       }
 
-      # ── Step 8: Fire the trading orchestrator (ECS Fargate) ──────────────
+      # ── Step 9: Fire the trading orchestrator (ECS Fargate) ──────────────
       TriggerOrchestrator = {
         Type     = "Task"
         Resource = "arn:aws:states:::ecs:runTask.sync"
