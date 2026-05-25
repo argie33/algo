@@ -421,9 +421,13 @@ def main():
                 total_stats["rows_inserted"] += stats.get("rows_inserted", 0)
 
                 fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-                if fail_rate > 0.05:
-                    logger.error(f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(symbols)}")
+                # Increased threshold to 10% - with small batches (30 symbols), transient API failures are common
+                # 5% threshold meant even 2-3 transient failures would fail the entire loader
+                if fail_rate > 0.10:
+                    logger.error(f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
                     fail_count += 1
+                else:
+                    logger.info(f"Acceptable failure rate for {asset_class}/{interval}: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
 
                 loader.close()
             except Exception as e:
