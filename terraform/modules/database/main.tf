@@ -736,7 +736,8 @@ resource "aws_dynamodb_table" "watermarks" {
   name         = "${var.project_name}-watermarks-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "source"
-  # TODO: Migrate to partition_key when AWS provider deprecates hash_key (currently both supported)
+  # Note: Both hash_key and partition_key currently supported by AWS provider
+  # Recommended: Migrate to partition_key when hash_key fully deprecated (track AWS provider changelog)
 
   attribute {
     name = "source"
