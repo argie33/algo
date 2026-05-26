@@ -367,10 +367,22 @@ variable "algo_schedule_expression" {
   }
 }
 
-variable "enable_morning_orchestrator" {
-  description = "Enable 2x daily orchestrator execution (morning at 9:30 AM ET + evening at 5:30 PM ET)"
+variable "enable_premarket_orchestrator" {
+  description = "Enable pre-market orchestrator execution (4:30 AM ET, optional early prep)"
   type        = bool
   default     = false
+}
+
+variable "enable_morning_orchestrator" {
+  description = "Enable morning orchestrator execution (9:30 AM ET at market open, primary execution)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_afternoon_orchestrator" {
+  description = "Enable afternoon orchestrator execution (1:00 PM ET, mid-day rebalance, catch missed opportunities)"
+  type        = bool
+  default     = true
 }
 
 variable "algo_schedule_enabled" {

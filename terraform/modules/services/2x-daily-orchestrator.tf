@@ -1,28 +1,72 @@
 /**
- * 2x Daily Orchestrator Execution - Morning (9:30 AM ET) + Evening (5:30 PM ET)
+ * Multiple Daily Orchestrator Execution (3-4x Daily)
  *
- * Split from single evening run to support swing trading schedule with:
- * - Morning run after price loads (4 AM ET) but before market open
- * - Evening run after all technicals/scores compute (5:30 PM ET)
+ * Pragmatic approach: keep signals from night before, execute multiple times to catch opportunities:
+ * - Pre-market (4:30 AM ET, optional) — early entry prep
+ * - Morning (9:30 AM ET) — market open, primary execution
+ * - Afternoon (1:00 PM ET) — mid-day rebalance, catch missed opportunities
+ * - Evening (5:30 PM ET) — after close, final position management
  *
  * Data flow:
- * 4:00 AM ET  → Price loaders (daily, weekly, monthly)
- * 9:30 AM ET  → ORCHESTRATOR (uses prices, yesterday's technicals) ← MORNING RUN
- * 10:00 AM ET → Technicals compute (parallel with morning orchestrator)
- * 5:00 PM ET  → Metrics compute (after technicals ready)
- * 5:30 PM ET  → ORCHESTRATOR (uses complete dataset) ← EVENING RUN (default)
+ * Night before (5 PM)  → Signal generation for tomorrow (6h batch) → eod_bulk_refresh pipeline
+ * 4:00 AM ET          → Price loaders (daily, weekly, monthly)
+ * 4:30 AM ET          → ORCHESTRATOR pre-market (uses prices, signals from night before) [OPTIONAL]
+ * 9:30 AM ET          → ORCHESTRATOR morning (uses prices, signals from night before) ← PRIMARY
+ * 10:00 AM ET         → Technicals compute (parallel, ready for afternoon run)
+ * 1:00 PM ET          → ORCHESTRATOR afternoon (uses prices, same signals, manage positions)
+ * 5:00 PM ET          → Metrics compute (final update before evening)
+ * 5:30 PM ET          → ORCHESTRATOR evening (full dataset, final position management)
+ *
+ * Goal: Move towards real-time monitoring; for now, signal recomputation happens only overnight.
  */
 
 # ============================================================
-# Morning Schedule (9:30 AM ET = 2:30 PM UTC)
-# Triggers orchestrator IMMEDIATELY after 4 AM price loads
+# Pre-market Schedule (4:30 AM ET = 8:30 AM UTC) [OPTIONAL]
+# Runs after stock_symbols, before price loads complete
+# Uses: signals from night before + previous prices
+# Purpose: Early position setup, scout for opportunities
+# ============================================================
+
+resource "aws_scheduler_schedule" "algo_orchestrator_premarket" {
+  count                        = var.enable_premarket_orchestrator ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-premarket-${var.environment}"
+  description                  = "Pre-market algo orchestrator run: 4:30 AM ET (early prep, signals from night before)"
+  schedule_expression          = "cron(30 8 ? * MON-FRI *)" # 4:30 AM ET = 8:30 AM UTC
+  schedule_expression_timezone = "UTC"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "premarket"
+      note           = "Pre-market trading run: signals from night before, early entry opportunities"
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
+# ============================================================
+# Morning Schedule (9:30 AM ET = 2:30 PM UTC) [PRIMARY]
+# Triggers at market open, after 4 AM price loads complete
 # Uses: prices (today) + technicals (yesterday)
+# Purpose: Primary trading execution, catch market open momentum
 # ============================================================
 
 resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
   count                        = var.enable_morning_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-morning-${var.environment}"
-  description                  = "Morning algo orchestrator run: 9:30 AM ET (after price loads, before market open)"
+  description                  = "Morning algo orchestrator run: 9:30 AM ET (market open, after price loads)"
   schedule_expression          = "cron(30 14 ? * MON-FRI *)" # 9:30 AM ET = 2:30 PM UTC
   schedule_expression_timezone = "UTC"
   state                        = "ENABLED"
@@ -39,7 +83,43 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
       source         = "eventbridge-scheduler"
       run_date       = "now"
       run_identifier = "morning"
-      note           = "Morning trading run: uses prices (today) + technicals (yesterday)"
+      note           = "Morning trading run: uses prices (today) + technicals (yesterday), primary execution"
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
+# ============================================================
+# Afternoon Schedule (1:00 PM ET = 5:00 PM UTC)
+# Mid-day run to catch missed opportunities and rebalance
+# Uses: prices (today, fresh) + same signals as morning
+# Purpose: Intraday rebalance, execute missed signal entries, manage positions
+# ============================================================
+
+resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
+  count                        = var.enable_afternoon_orchestrator ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-afternoon-${var.environment}"
+  description                  = "Afternoon algo orchestrator run: 1:00 PM ET (mid-day rebalance, same signals as morning)"
+  schedule_expression          = "cron(0 17 ? * MON-FRI *)" # 1:00 PM ET = 5:00 PM UTC
+  schedule_expression_timezone = "UTC"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "afternoon"
+      note           = "Afternoon trading run: uses fresh prices + same signals as morning, catch missed entries + rebalance"
     })
   }
 

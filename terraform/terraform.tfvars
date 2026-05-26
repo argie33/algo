@@ -12,11 +12,17 @@ api_cors_allowed_origins = [
   "http://localhost:3000",
   "http://localhost:5174"
 ]
-# ENABLED: Orchestrator runs daily at market open (9:30am ET)
-# This ensures fresh data is loaded and signals evaluated before market opens
-algo_schedule_enabled       = true
-algo_schedule_expression    = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 PM ET
-enable_morning_orchestrator = true
+# ORCHESTRATOR SCHEDULE: 3-4 runs per trading day
+# Goal: Keep signals computed overnight, execute multiple times to catch opportunities
+# Pre-market (4:30 AM ET): OPTIONAL early entry prep [disabled]
+# Morning (9:30 AM ET): PRIMARY execution at market open [enabled]
+# Afternoon (1:00 PM ET): Mid-day rebalance, catch missed opportunities [enabled]
+# Evening (5:30 PM ET): After-close position management, signal prep for next day [enabled]
+algo_schedule_enabled          = true
+algo_schedule_expression       = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 PM ET (evening)
+enable_premarket_orchestrator  = false # Optional: 4:30 AM ET early entry prep
+enable_morning_orchestrator    = true # PRIMARY: 9:30 AM ET market open
+enable_afternoon_orchestrator  = true # 1:00 PM ET mid-day rebalance
 cognito_enabled             = true # Authorizer exists but not used on routes (all NONE auth)
 
 # Database configuration
