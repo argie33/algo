@@ -43,8 +43,7 @@ class DailyReconciliation:
                     key_id=creds["key"],
                     secret_key=creds["secret"],
                     base_url=base_url,
-                    api_version='v2',
-                    raw_data=False
+                    api_version='v2'
                 )
         except Exception as e:
             logger.warning(f"Alpaca client initialization failed: {e}")

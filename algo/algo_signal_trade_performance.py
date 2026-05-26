@@ -68,7 +68,7 @@ class SignalTradePerformancePopulator:
                   AND t.exit_date >= %s
                   AND NOT EXISTS (
                       SELECT 1 FROM signal_trade_performance stp
-                      WHERE stp.trade_id = t.trade_id
+                      WHERE stp.trade_id::text = t.trade_id::text
                   )
                 ORDER BY t.exit_date DESC
                 """,

@@ -335,7 +335,7 @@ class PositionMonitor:
 
         - Before T1: keep initial stop OR use 50-DMA (whichever higher) capped at entry-2*ATR
         - After T1: stop = entry (breakeven) at minimum, or trail tighter via ATR
-        - After T2: stop = T1 area or 1.5*ATR below close, whichever higher
+        - After T2: stop = entry area, never target levels (targets are exits, not protection)
         """
         candidates = [active_stop]
 
@@ -346,8 +346,7 @@ class PositionMonitor:
 
         if target_hits >= 1:
             candidates.append(entry_price)  # at least breakeven after T1
-        if target_hits >= 2 and t1_price is not None:
-            candidates.append(float(t1_price))  # at T1 price after T2
+        # NOTE: target_hits >= 2 does NOT add T1 price. Target prices are exits, not stops.
 
         # Don't let trailing stop get within 1.0 ATR of price (room to breathe)
         if atr and cur_price:
@@ -356,7 +355,9 @@ class PositionMonitor:
             if not candidates:
                 candidates = [cap]
 
-        new_stop = max(candidates)
+        # For a stop loss, pick the highest valid candidate (most conservative protection).
+        # This ratchets stops UP as price rises, but never above current price - ATR.
+        new_stop = max(candidates) if candidates else active_stop
         # NEVER lower the trailing stop below its prior level
         return round(max(new_stop, active_stop), 2)
 
