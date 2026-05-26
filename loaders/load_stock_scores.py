@@ -359,12 +359,12 @@ class StockScoresLoader(OptimalLoader):
             div = min(metrics['dividend_yield'] * 100, 5)  # Cap at 5%
             scores.append(min(100, div * 20))
 
-        return sum(scores) / len(scores) if scores else 50
+        return sum(scores) / len(scores) if scores else None
 
-    def _score_positioning(self, metrics: Optional[Dict]) -> float:
-        """Score positioning metrics on 0-100 scale."""
+    def _score_positioning(self, metrics: Optional[Dict]) -> Optional[float]:
+        """Score positioning metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
-            return 50
+            return None
 
         scores = []
 
@@ -378,12 +378,12 @@ class StockScoresLoader(OptimalLoader):
             si = metrics['short_interest']
             scores.append(max(0, 100 - (si * 10)))
 
-        return sum(scores) / len(scores) if scores else 50
+        return sum(scores) / len(scores) if scores else None
 
-    def _score_stability(self, metrics: Optional[Dict]) -> float:
-        """Score stability metrics on 0-100 scale."""
+    def _score_stability(self, metrics: Optional[Dict]) -> Optional[float]:
+        """Score stability metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
-            return 50
+            return None
 
         scores = []
 
@@ -403,17 +403,17 @@ class StockScoresLoader(OptimalLoader):
                 score = max(0, 100 - (diff * 50))
                 scores.append(min(100, score))
 
-        return sum(scores) / len(scores) if scores else 50
+        return sum(scores) / len(scores) if scores else None
 
-    def _score_momentum(self, metrics: Optional[Dict]) -> float:
-        """Score momentum metrics on 0-100 scale.
+    def _score_momentum(self, metrics: Optional[Dict]) -> Optional[float]:
+        """Score momentum metrics on 0-100 scale. Returns None if no real data.
 
         Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
         Normalizes by total weight of available timeframes so partial data doesn't
         deflate the score.
         """
         if not metrics:
-            return 50
+            return None
 
         # Named weights — recent timeframes matter more for swing trading
         WEIGHTS = {'momentum_1m': 0.30, 'momentum_3m': 0.30, 'momentum_6m': 0.25, 'momentum_12m': 0.15}
@@ -425,7 +425,7 @@ class StockScoresLoader(OptimalLoader):
                 weighted_sum += self._pct_to_score(metrics[key]) * w
                 total_weight += w
 
-        return weighted_sum / total_weight if total_weight > 0 else 50
+        return weighted_sum / total_weight if total_weight > 0 else None
 
     @staticmethod
     def _pct_to_score(pct_return: float) -> float:
