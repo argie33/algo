@@ -265,7 +265,7 @@ const MarketingNav = () => {
                     >
                       {item.label}
                       {item.submenu && (
-                        <Box sx={{ fontSize: '0.8rem', ml: 0.5 }}>â–¼</Box>
+                        <Box sx={{ fontSize: '0.65rem', ml: 0.5, opacity: 0.7 }}>&#9660;</Box>
                       )}
                     </Button>
 
