@@ -72,23 +72,23 @@ const colors = {
     dark: '#2563EB',
   },
 
-  // Backgrounds - Clean, light, professional
+  // Backgrounds - Dark, matching CSS tokens
   background: {
-    default: '#F8F9FA',      // Very light gray - softer than white
-    paper: '#FFFFFF',        // Pure white for cards
-    elevated: '#FAFBFC',     // Slightly off-white for elevated elements
+    default: '#0a0c12',      // Deep dark page background (matches --bg)
+    paper: '#141720',        // Dark card surface (matches --surface)
+    elevated: '#1a1e2d',     // Slightly lifted (matches --surface-2)
   },
 
-  // Text - High readability
+  // Text - Light text on dark backgrounds (matches CSS tokens)
   text: {
-    primary: '#1A202C',      // Near black
-    secondary: '#4A5568',    // Medium gray
-    disabled: '#A0AEC0',     // Light gray
+    primary: '#e8eaf4',      // Primary text (matches --text)
+    secondary: '#8891b0',    // Secondary text (matches --text-muted)
+    disabled: '#6b7a99',     // Disabled text (matches --text-faint)
   },
 
-  // Borders & Dividers
-  divider: 'rgba(0, 0, 0, 0.08)',
-  border: 'rgba(0, 0, 0, 0.12)',
+  // Borders & Dividers - Dark mode borders
+  divider: '#232838',
+  border: '#2a2f42',
 };
 
 // ============================================================
@@ -97,17 +97,17 @@ const colors = {
 
 export const modernTheme = createTheme({
   palette: {
-    mode: 'light',
+    mode: 'dark',
     primary: {
-      main: colors.primary[500],
-      light: colors.primary[400],
-      dark: colors.primary[700],
+      main: '#6366f1',        // Brand indigo (matches --brand)
+      light: '#818cf8',       // Lighter indigo (matches --brand-2)
+      dark: '#4f46e5',        // Darker indigo
       contrastText: '#FFFFFF',
     },
     secondary: {
-      main: colors.secondary[500],
-      light: colors.secondary[400],
-      dark: colors.secondary[700],
+      main: '#6b7a99',        // Muted slate (matches --text-faint area)
+      light: '#8891b0',       // Lighter
+      dark: '#4a5568',        // Darker
       contrastText: '#FFFFFF',
     },
     success: {
@@ -164,66 +164,66 @@ export const modernTheme = createTheme({
       fontSize: '2.5rem',
       lineHeight: 1.2,
       letterSpacing: '-0.02em',
-      color: colors.text.primary,
+      color: 'inherit',
     },
     h2: {
       fontWeight: 700,
       fontSize: '2rem',
       lineHeight: 1.3,
       letterSpacing: '-0.01em',
-      color: colors.text.primary,
+      color: 'inherit',
     },
     h3: {
       fontWeight: 600,
       fontSize: '1.75rem',
       lineHeight: 1.3,
       letterSpacing: '-0.01em',
-      color: colors.text.primary,
+      color: 'inherit',
     },
     h4: {
       fontWeight: 600,
       fontSize: '1.5rem',
       lineHeight: 1.4,
       letterSpacing: '0em',
-      color: colors.text.primary,
+      color: 'inherit',
     },
     h5: {
       fontWeight: 600,
       fontSize: '1.25rem',
       lineHeight: 1.4,
       letterSpacing: '0em',
-      color: colors.text.primary,
+      color: 'inherit',
     },
     h6: {
       fontWeight: 600,
       fontSize: '1rem',
       lineHeight: 1.5,
       letterSpacing: '0em',
-      color: colors.text.primary,
+      color: 'inherit',
     },
     subtitle1: {
       fontWeight: 500,
       fontSize: '1rem',
       lineHeight: 1.5,
-      color: colors.text.secondary,
+      color: 'inherit',
     },
     subtitle2: {
       fontWeight: 500,
       fontSize: '0.875rem',
       lineHeight: 1.5,
-      color: colors.text.secondary,
+      color: 'inherit',
     },
     body1: {
       fontWeight: 400,
       fontSize: '1rem',
       lineHeight: 1.6,
-      color: colors.text.primary,
+      color: 'inherit',
     },
     body2: {
       fontWeight: 400,
       fontSize: '0.875rem',
       lineHeight: 1.6,
-      color: colors.text.primary,
+      color: 'inherit',
     },
     button: {
       fontWeight: 600,
@@ -236,7 +236,7 @@ export const modernTheme = createTheme({
       fontWeight: 400,
       fontSize: '0.75rem',
       lineHeight: 1.6,
-      color: colors.text.secondary,
+      color: 'inherit',
     },
     overline: {
       fontWeight: 600,
@@ -244,7 +244,7 @@ export const modernTheme = createTheme({
       lineHeight: 2,
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
-      color: colors.text.secondary,
+      color: 'inherit',
     },
   },
 
@@ -389,7 +389,7 @@ export const modernTheme = createTheme({
       styleOverrides: {
         root: {
           backgroundColor: colors.background.paper,
-          color: colors.text.primary,
+          color: 'inherit',
           borderBottom: `1px solid ${colors.divider}`,
           boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.04), 0px 2px 6px rgba(0, 0, 0, 0.06)',
         },
@@ -459,7 +459,7 @@ export const modernTheme = createTheme({
             textTransform: 'uppercase',
             fontSize: '0.75rem',
             letterSpacing: '0.05em',
-            color: colors.text.secondary,
+            color: 'inherit',
             padding: '16px',
           },
           '& .MuiTableRow-root': {
@@ -556,7 +556,7 @@ export const modernTheme = createTheme({
           fontWeight: 600,
           fontSize: '0.9375rem',
           minHeight: 48,
-          color: colors.text.secondary,
+          color: 'inherit',
           transition: 'all 0.2s ease',
           '&:hover': {
             color: colors.primary[600],

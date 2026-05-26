@@ -10,7 +10,7 @@ const MarketingLayout = ({ children }) => {
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        backgroundColor: '#f8f9fa',
+        backgroundColor: 'background.default',
       }}
     >
       <MarketingNav />
