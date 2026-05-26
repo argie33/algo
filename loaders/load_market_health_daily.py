@@ -53,11 +53,68 @@ class MarketHealthDailyLoader(OptimalLoader):
         if not health_metrics:
             return []
 
+        # Merge real breadth data (A/D ratio, new highs/lows) into health metrics
+        breadth = self._fetch_breadth_data(start, end)
+        for m in health_metrics:
+            b = breadth.get(m["date"], {})
+            m["advance_decline_ratio"] = b.get("advance_decline_ratio", 1.0)
+            m["new_highs_count"] = b.get("new_highs_count", 0)
+            m["new_lows_count"] = b.get("new_lows_count", 0)
+
         if since is not None:
             since_str = since.isoformat()
             health_metrics = [m for m in health_metrics if m["date"] > since_str]
 
         return health_metrics
+
+    def _fetch_breadth_data(self, start: date, end: date) -> dict:
+        """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            lookback_start = start - timedelta(days=365)
+            cur.execute("""
+                WITH prices AS (
+                    SELECT symbol, date, close
+                    FROM price_daily
+                    WHERE date >= %s AND date <= %s
+                      AND symbol NOT LIKE '^%%'
+                ),
+                with_context AS (
+                    SELECT
+                        date, symbol, close,
+                        LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
+                        MAX(close) OVER (PARTITION BY symbol ORDER BY date
+                                         ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS high_251d,
+                        MIN(close) OVER (PARTITION BY symbol ORDER BY date
+                                         ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS low_251d
+                    FROM prices
+                )
+                SELECT
+                    date,
+                    COUNT(CASE WHEN close > prev_close THEN 1 END) AS advances,
+                    COUNT(CASE WHEN close < prev_close THEN 1 END) AS declines,
+                    ROUND(
+                        COUNT(CASE WHEN close > prev_close THEN 1 END)::numeric /
+                        NULLIF(COUNT(CASE WHEN close < prev_close THEN 1 END), 0), 3
+                    ) AS advance_decline_ratio,
+                    COUNT(CASE WHEN high_251d IS NOT NULL AND close >= high_251d THEN 1 END) AS new_highs,
+                    COUNT(CASE WHEN low_251d IS NOT NULL AND close <= low_251d THEN 1 END) AS new_lows
+                FROM with_context
+                WHERE prev_close IS NOT NULL AND date >= %s
+                GROUP BY date
+                ORDER BY date ASC
+            """, (lookback_start, end, start))
+            result = {}
+            for r in cur.fetchall():
+                result[r[0].isoformat()] = {
+                    "advance_decline_ratio": float(r[3]) if r[3] is not None else 1.0,
+                    "new_highs_count": int(r[4]) if r[4] is not None else 0,
+                    "new_lows_count": int(r[5]) if r[5] is not None else 0,
+                }
+            return result
+        finally:
+            cur.close()
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
         conn = self._connect()
@@ -147,9 +204,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "distribution_days_4w": dist_days_25d,
                 "distribution_days_20d": dist_days_20d,
                 "up_volume_percent": float(df["up_day"].iloc[max(0, idx-10):idx+1].mean() * 100) if idx >= 0 else 50,
-                "advance_decline_ratio": 1.0,
-                "new_highs_count": 0,
-                "new_lows_count": 0,
+                "advance_decline_ratio": None,  # filled from _fetch_breadth_data
+                "new_highs_count": None,         # filled from _fetch_breadth_data
+                "new_lows_count": None,          # filled from _fetch_breadth_data
                 "breadth_momentum_10d": float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else 50,
                 "vix_level": None,
                 "put_call_ratio": None,

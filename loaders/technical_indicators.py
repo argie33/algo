@@ -70,6 +70,43 @@ def compute_volume_ma(volume: pd.Series, period: int = 50) -> pd.Series:
     return volume.rolling(period).mean()
 
 
+def compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> Tuple[pd.Series, pd.Series, pd.Series]:
+    """Compute Plus DI, Minus DI, and ADX using Wilder's smoothing.
+
+    Returns: (plus_di, minus_di, adx)
+    """
+    high_diff = high.diff()
+    low_diff = -low.diff()
+
+    plus_dm = pd.Series(
+        np.where((high_diff > 0) & (high_diff > low_diff), high_diff, 0.0),
+        index=high.index,
+    )
+    minus_dm = pd.Series(
+        np.where((low_diff > 0) & (low_diff > high_diff), low_diff, 0.0),
+        index=high.index,
+    )
+
+    tr1 = high - low
+    tr2 = (high - close.shift()).abs()
+    tr3 = (low - close.shift()).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+    alpha = 1.0 / period
+    atr_w = tr.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
+    plus_dm_w = plus_dm.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
+    minus_dm_w = minus_dm.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
+
+    plus_di = 100.0 * plus_dm_w / atr_w.replace(0, np.nan)
+    minus_di = 100.0 * minus_dm_w / atr_w.replace(0, np.nan)
+
+    di_sum = (plus_di + minus_di).replace(0, np.nan)
+    dx = 100.0 * (plus_di - minus_di).abs() / di_sum
+    adx = dx.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
+
+    return plus_di, minus_di, adx
+
+
 def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Compute all technical indicators and add to dataframe.
 

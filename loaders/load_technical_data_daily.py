@@ -23,7 +23,7 @@ from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from loaders.technical_indicators import (
     compute_rsi, compute_macd, compute_moving_averages,
-    compute_atr, compute_bollinger_bands, compute_volume_ma
+    compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
 )
 
 logger = get_logger(__name__)
@@ -52,7 +52,8 @@ class TechnicalDataDailyLoader(OptimalLoader):
         if not rows:
             return []
 
-        indicators = self._compute_all_indicators(symbol, rows)
+        spy_rows = self._fetch_price_daily("SPY", start, end) if symbol != "SPY" else []
+        indicators = self._compute_all_indicators(symbol, rows, spy_rows)
         if not indicators:
             return []
 
@@ -96,7 +97,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         finally:
             cur.close()
 
-    def _compute_all_indicators(self, symbol: str, rows: List[dict]) -> List[dict]:
+    def _compute_all_indicators(self, symbol: str, rows: List[dict], spy_rows: List[dict] = None) -> List[dict]:
         if not rows or len(rows) < 50:
             return []
 
@@ -141,11 +142,21 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df["atr_14"] = compute_atr(df["high"], df["low"], df["close"], 14)
         df["atr"] = df["atr_14"]  # Schema has both atr and atr_14
 
-        # ADX calculation (requires simple approximation without full DI calculation)
-        df["plus_di"] = 0.0  # Placeholder - would need full ADX implementation
-        df["minus_di"] = 0.0  # Placeholder
-        df["adx"] = 0.0  # Placeholder
-        df["mansfield_rs"] = 0.0  # Placeholder - relative strength indicator
+        df["plus_di"], df["minus_di"], df["adx"] = compute_adx(df["high"], df["low"], df["close"], 14)
+
+        # Mansfield Relative Strength: (stock_rs_line / rs_line_52w_ago - 1) * 100
+        # rs_line = close / spy_close; requires SPY prices aligned to same dates
+        if spy_rows:
+            spy_df = pd.DataFrame(spy_rows)
+            spy_df["date"] = pd.to_datetime(spy_df["date"])
+            spy_closes = spy_df.set_index("date")["close"]
+            spy_aligned = spy_closes.reindex(df["date"].values)
+            rs_line = df["close"].values / spy_aligned.values
+            rs_line_s = pd.Series(rs_line, index=df.index)
+            rs_line_52w = rs_line_s.shift(252)
+            df["mansfield_rs"] = (rs_line_s / rs_line_52w - 1) * 100
+        else:
+            df["mansfield_rs"] = None
 
         bbs = compute_bollinger_bands(df["close"], 20, 2.0)
         for name, values in bbs.items():
