@@ -1400,17 +1400,19 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
 
             if action_type:
                 cur.execute("""
-                    SELECT id, action_type, symbol, action_date, details, actor, status, error_message
+                    SELECT id, action_type, symbol, action_date, details, actor, status,
+                           error_message AS error, created_at
                     FROM algo_audit_log
                     WHERE action_type = %s
-                    ORDER BY action_date DESC
+                    ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                 """, (action_type, limit, offset))
             else:
                 cur.execute("""
-                    SELECT id, action_type, symbol, action_date, details, actor, status, error_message
+                    SELECT id, action_type, symbol, action_date, details, actor, status,
+                           error_message AS error, created_at
                     FROM algo_audit_log
-                    ORDER BY action_date DESC
+                    ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
             rows = cur.fetchall()

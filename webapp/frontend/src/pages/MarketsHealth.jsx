@@ -7,7 +7,7 @@
  * Sections:
  *   1. Regime banner (exposure, tier, halt status)
  *   2. Major indices grid w/ 30d sparklines
- *   3. 9-factor exposure composite
+ *   3. 11-factor exposure composite
  *   4. Market pulse (DD circle + FTD)
  *   5. 90d exposure history area chart
  *   6. Breadth bar chart (% > 50/200 DMA)
