@@ -726,7 +726,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     'trend_score': trend_score,
                 }
 
-            min_score = int(self.config.get('min_trend_template_score', 8))
+            min_score = int(self.config.get('min_trend_template_score', 7))
             if trend_score < min_score:
                 return {
                     'pass': False,
@@ -734,7 +734,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     'trend_score': trend_score,
                 }
 
-            min_from_low = float(self.config.get('min_percent_from_52w_low', 25.0))
+            min_from_low = float(self.config.get('min_percent_from_52w_low', 30.0))
             if pct_from_low < min_from_low:
                 return {
                     'pass': False,

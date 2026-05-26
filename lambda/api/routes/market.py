@@ -46,27 +46,50 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 """)
                 row = cur.fetchone()
                 base = dict(row) if row else {}
-                # Compute today's advancing/declining counts from price_daily
+                # Compute today's advancing/declining counts from price_daily.
+                # Compare close to previous day's close (traditional A/D breadth),
+                # not close to open (intraday direction, which is a different measure).
                 try:
                     cur.execute("""
-                        WITH latest AS (SELECT MAX(date) AS d FROM price_daily)
+                        WITH latest AS (SELECT MAX(date) AS d FROM price_daily),
+                             prev_day AS (
+                                 SELECT MAX(date) AS d FROM price_daily
+                                 WHERE date < (SELECT d FROM latest)
+                             ),
+                             today AS (
+                                 SELECT symbol, close FROM price_daily
+                                 WHERE date = (SELECT d FROM latest)
+                                   AND symbol NOT LIKE '^%%'
+                             ),
+                             yesterday AS (
+                                 SELECT symbol, close FROM price_daily
+                                 WHERE date = (SELECT d FROM prev_day)
+                                   AND symbol NOT LIKE '^%%'
+                             )
                         SELECT
-                            COUNT(*) FILTER (WHERE close > open) AS advancing,
-                            COUNT(*) FILTER (WHERE close < open) AS declining,
-                            COUNT(*) FILTER (WHERE close = open) AS unchanged,
-                            COUNT(*) AS total_stocks
-                        FROM price_daily
-                        WHERE date = (SELECT d FROM latest)
+                            COUNT(*) FILTER (WHERE t.close > y.close) AS advancing,
+                            COUNT(*) FILTER (WHERE t.close < y.close) AS declining,
+                            COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
+                            COUNT(t.symbol) AS total_stocks
+                        FROM today t
+                        JOIN yesterday y ON t.symbol = y.symbol
                     """)
                     brow = cur.fetchone()
                     base['breadth'] = dict(brow) if brow else {}
                 except Exception:
                     base['breadth'] = {}
-                # Build 30-day A/D line from market_health_daily for McClellan chart
+                # Build 30-day McClellan Oscillator history from market_exposure_daily.
+                # The factors JSONB column stores the true McClellan value (19-EMA minus
+                # 39-EMA of net advances) computed by algo_market_exposure._mcclellan().
                 try:
                     cur.execute("""
-                        SELECT date, advance_decline_ratio AS advance_decline_line
-                        FROM market_health_daily
+                        SELECT date,
+                               (factors->'mcclellan'->>'value')::float AS advance_decline_line
+                        FROM market_exposure_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '35 days'
+                          AND factors IS NOT NULL
+                          AND factors->'mcclellan' IS NOT NULL
+                          AND (factors->'mcclellan'->>'value') IS NOT NULL
                         ORDER BY date DESC
                         LIMIT 30
                     """)
