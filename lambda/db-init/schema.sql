@@ -2773,17 +2773,6 @@ ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER;
 ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_4w_ago INTEGER;
 ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_12w_ago INTEGER;
 
--- sector_ranking: add unique constraint so loadsectors.py can do ON CONFLICT upsert
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'uq_sector_ranking_sector_date'
-    ) THEN
-        ALTER TABLE sector_ranking
-        ADD CONSTRAINT uq_sector_ranking_sector_date UNIQUE (sector_name, date_recorded);
-    END IF;
-END $$;
-
 -- algo_positions: add missing columns referenced in index definitions
 ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS entry_date DATE;
 ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(100);
