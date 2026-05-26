@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 def _recalculate_position_size_after_exits(
     trade: Dict[str, Any],
     get_conn: Callable,
+    config: Any,
     exposure_multiplier: float = 1.0,
     verbose: bool = False
 ) -> Dict[str, Any]:
@@ -41,7 +42,7 @@ def _recalculate_position_size_after_exits(
 
     Solution: Recalculate position size based on:
     - Current available capital
-    - Same risk percentage (2%)
+    - Same risk percentage (base_risk_pct from config)
     - Entry price + stop loss
     - Exposure tier multiplier (1.0x normal, 0.75x caution, 0.5x pressure)
 
@@ -57,13 +58,13 @@ def _recalculate_position_size_after_exits(
     try:
         from algo.algo_position_sizer import PositionSizer
 
-        sizer = PositionSizer()
+        sizer = PositionSizer(config)
         # Get current portfolio value (not stale Phase 5 value)
         current_result = sizer.calculate_position_size(
             symbol=symbol,
             entry_price=entry_price,
             stop_loss_price=stop_loss,
-            run_date=trade.get('signal_date')  # Recalc with current data
+            signal_date=trade.get('signal_date'),
         )
 
         if current_result.get('shares', 0) > 0:
@@ -607,7 +608,7 @@ def run(
                 continue
 
             # Recalculate position size based on current portfolio value (after Phase 4 exits)
-            trade = _recalculate_position_size_after_exits(trade, get_conn, exposure_mult, verbose)
+            trade = _recalculate_position_size_after_exits(trade, get_conn, config, exposure_mult, verbose)
 
             if dry_run:
                 if verbose:
