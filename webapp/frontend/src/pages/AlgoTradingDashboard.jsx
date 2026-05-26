@@ -285,7 +285,7 @@ function AlgoTradingDashboard() {
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load risk data:</strong> {err11?.message || 'Unknown error'}</div></div>
           : data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={[]} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No circuit breaker data</div></div>
         )}
-        {tab === 2 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} error={err7 || err12 || err13} />}
+        {tab === 2 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} dataStatus={data.dataStatus} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} error={err7 || err12 || err13} />}
         {tab === 3 && (err5 ?
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load config:</strong> {err5?.message || 'Unknown error'}</div></div>
           : data.config ? <ConfigTab config={data.config} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No config data</div></div>
@@ -438,17 +438,17 @@ const ScoreDetailExpanded = ({ details, _symbol }) => {
 // ============================================================================
 // PIPELINE TAB — live 7-phase orchestrator status + data loader health
 // ============================================================================
-function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBreakers }) {
-  const loaders = dataQuality?.checks || [];
+function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, circuitBreakers }) {
+  const loaders = dataStatus?.sources || [];
   const funnelTiers = rejectionFunnel?.tiers || [];
-  const overallStatus = dataQuality?.status || 'unknown';
+  const overallStatus = dataStatus?.ready_to_trade ? 'ok' : dataQuality?.accuracy_check === 'warning' ? 'warning' : 'error';
   const statusColor2 = overallStatus === 'ok' ? 'var(--success)' : overallStatus === 'warning' ? 'var(--amber)' : 'var(--danger)';
 
   const PHASES = [
     { n: '1', name: 'Data Freshness', desc: 'Halt if any CRITICAL data > 7d stale', mode: 'fail-closed',
       live: overallStatus === 'ok' ? 'ok' : overallStatus === 'warning' ? 'warn' : 'fail' },
     { n: '2', name: 'Circuit Breakers', desc: 'Drawdown / consec losses / VIX / breadth / data', mode: 'fail-closed',
-      live: circuitBreakers?.any_triggered ? 'fail' : 'ok' },
+      live: circuitBreakers?.system_halted ? 'fail' : 'ok' },
     { n: '3', name: 'Position Monitor', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
     { n: '3b', name: 'Exposure Policy', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
     { n: '4', name: 'Exit Execution', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
@@ -530,23 +530,23 @@ function PipelineTab({ policy, _markets, dataQuality, rejectionFunnel, circuitBr
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Loader</th>
                       <th>Table</th>
-                      <th>Latest Date</th>
+                      <th className="num">Rows</th>
+                      <th>Last Updated</th>
                       <th className="num">Age (h)</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loaders.map((l, i) => {
-                      const s = l.status || 'unknown';
-                      const sc = s === 'OK' ? 'badge-success' : s === 'WARNING' ? 'badge-amber' : 'badge-danger';
+                      const s = (l.status || 'unknown').toUpperCase();
+                      const sc = s === 'OK' ? 'badge-success' : s === 'STALE' ? 'badge-amber' : 'badge-danger';
                       return (
                         <tr key={i}>
-                          <td className="mono t-xs">{l.loader}</td>
-                          <td className="muted t-xs">{l.table}</td>
-                          <td className="mono t-xs">{l.latest_date || '—'}</td>
-                          <td className={`num mono tnum t-xs ${l.age_hours > (l.max_age_hours || 24) ? 'down' : ''}`}>
+                          <td className="mono t-xs">{l.name}</td>
+                          <td className="muted t-xs">{l.row_count?.toLocaleString() ?? '—'}</td>
+                          <td className="mono t-xs">{l.last_updated ? new Date(l.last_updated).toLocaleDateString() : '—'}</td>
+                          <td className={`num mono tnum t-xs ${l.age_hours > 72 ? 'down' : ''}`}>
                             {l.age_hours != null ? l.age_hours.toFixed(1) : '—'}
                           </td>
                           <td><span className={`badge ${sc}`} style={{ fontSize: 'var(--t-2xs)' }}>{s}</span></td>
