@@ -58,7 +58,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 LIMIT %s
             """, tuple(params))
             signals = cur.fetchall()
-            return json_response(200, {'items': [dict(s) for s in signals]})
+            return list_response([dict(s) for s in signals])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch stock signals')
