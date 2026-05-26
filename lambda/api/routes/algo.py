@@ -1460,7 +1460,7 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
             rows = cur.fetchall()
-            return json_response(200, {'data': [dict(r) for r in rows], 'total': total, 'limit': limit, 'offset': offset})
+            return json_response(200, {'items': [dict(r) for r in rows], 'total': total, 'limit': limit, 'offset': offset})
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get algo audit log'})
             return error_response(503, 'service_unavailable', 'Data pipeline loading')
