@@ -184,14 +184,12 @@ class SignalQualityScoresLoader(OptimalLoader):
                     rsi = row.get("rsi")
                     macd = row.get("macd")
                     macd_signal = row.get("macd_signal")
-                    minervini = row.get("minervini_score", 0)
 
                     if rsi and 20 < float(rsi) < 60:
                         score += 10
                     if macd is not None and macd_signal is not None and float(macd) < float(macd_signal):
                         score += 10
-                    if minervini and float(minervini) >= 3:
-                        score += 15
+                    # Note: minervini_score is for uptrends (BUY), not applicable to SELL
 
                     score = min(100, score)
 
