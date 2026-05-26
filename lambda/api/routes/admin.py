@@ -77,8 +77,9 @@ def _get_loader_status(cur) -> Dict:
                     age_hours = (now - last_updated).total_seconds() / 3600
                 else:
                     age_hours = 9999
-                health = 'stale' if age_hours > 24 else 'fresh'
-                status = row['status'] or ('fresh' if age_hours <= 24 else 'stale')
+                # Loaders run on weekdays only; allow up to 72h (covers 3-day weekends)
+                health = 'stale' if age_hours > 72 else 'fresh'
+                status = row['status'] or ('fresh' if age_hours <= 72 else 'stale')
 
                 loaders.append({
                     'name': row['table_name'],
@@ -120,10 +121,24 @@ def _get_system_health(cur) -> Dict:
             cur.execute("SELECT MAX(date) FROM price_daily")
             last_price_date = next(iter(dict(cur.fetchone() or {}).values()), 0)
             if last_price_date:
-                age_days = (datetime.now(timezone.utc).date() - last_price_date).days
-                health_data['components']['data_freshness'] = 'ok' if age_days <= 3 else 'stale'
+                today = datetime.now(timezone.utc).date()
+                age_days = (today - last_price_date).days
+                # Use trading-day-aware freshness: data is fresh if it's from the most
+                # recent trading day. A hardcoded day threshold causes false 'degraded'
+                # on 3-day holiday weekends where Friday data is 4 calendar days old.
+                try:
+                    from algo.algo_market_calendar import MarketCalendar
+                    expected = today - timedelta(days=1)
+                    for _ in range(10):
+                        if MarketCalendar.is_trading_day(expected):
+                            break
+                        expected -= timedelta(days=1)
+                    is_fresh = last_price_date >= expected
+                except Exception:
+                    is_fresh = age_days <= 3
+                health_data['components']['data_freshness'] = 'ok' if is_fresh else 'stale'
                 health_data['last_data_update'] = last_price_date.isoformat()
-                if age_days > 3:
+                if not is_fresh:
                     health_data['status'] = 'degraded'
             else:
                 health_data['components']['data_freshness'] = 'no_data'
