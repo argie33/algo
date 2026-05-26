@@ -41,7 +41,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     count_args.append(status_filter)
                 cur.execute(count_query, count_args)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return json_response(200, {'data': [dict(t) for t in trades], 'total': total})
+                return json_response(200, {'items': [dict(t) for t in trades], 'total': total})
             elif path == '/api/trades/summary':
                 cur.execute("""
                     SELECT
