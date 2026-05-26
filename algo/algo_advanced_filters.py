@@ -258,7 +258,7 @@ class AdvancedFilters:
             components['earnings_proximity_pts'] = round(ep_pts, 1)
             subscores['risk'] += ep_pts
 
-            composite_score = sum(subscores.values())
+            composite_score = min(100.0, sum(subscores.values()))
             return {
                 'pass': hard_fail is None,
                 'reason': hard_fail or 'all advanced gates passed',
