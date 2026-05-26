@@ -1059,8 +1059,13 @@ if __name__ == "__main__":
 
     run_date = _date.fromisoformat(args.date) if args.date else None
 
+    # ORCHESTRATOR_DRY_RUN env var takes precedence over --dry-run flag.
+    # Step Functions TriggerOrchestrator sets this to "true" for pipeline validation runs.
+    env_dry_run = os.getenv('ORCHESTRATOR_DRY_RUN', 'false').lower() in ('true', '1', 'yes')
+    dry_run = args.dry_run or env_dry_run
+
     # For --init-only and --dry-run, don't require full validation at startup
-    if not (args.init_only or args.dry_run):
+    if not (args.init_only or dry_run):
         from utils.config_validator import validate_at_startup
         validate_at_startup()
 
@@ -1070,7 +1075,7 @@ if __name__ == "__main__":
         logger.info("To run loaders, execute: python3 run-all-loaders.py")
         sys.exit(0)
 
-    orch = Orchestrator(run_date=run_date, dry_run=args.dry_run, verbose=not args.quiet)
+    orch = Orchestrator(run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
     try:
         if args.skip_freshness:
             orch.skip_freshness = True
