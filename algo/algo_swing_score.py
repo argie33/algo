@@ -714,8 +714,8 @@ class SwingTraderScore:
         short_interest = None
         try:
             self.cur.execute(
-                """SELECT short_interest_pct FROM stock_scores WHERE symbol = %s
-                   ORDER BY score_date DESC LIMIT 1""",
+                """SELECT short_interest_percent FROM positioning_metrics WHERE symbol = %s
+                   ORDER BY date DESC LIMIT 1""",
                 (symbol,),
             )
             r = self.cur.fetchone()
@@ -741,7 +741,11 @@ class SwingTraderScore:
                 if short_interest > 15 and vol_ratio > 1.5 and rs_60 is not None and rs_60 > 70:
                     si_pts = 3.0
         except Exception:
-            pass
+            try:
+                if self._owned:
+                    self._owned.rollback()
+            except Exception:
+                pass
 
         # EARNINGS SURPRISE MOMENTUM removed (no earnings_metrics data source)
         earnings_pts = 0.0
