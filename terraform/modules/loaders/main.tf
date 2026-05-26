@@ -2,8 +2,8 @@
  * Loaders Module - ECS Task Definitions, EventBridge Scheduled Rules
  *
  * Creates:
- * - 34 ECS task definitions (data loaders)
- * - 22 EventBridge scheduled rules (staggered ET schedule)
+ * - 36 ECS task definitions (data loaders)
+ * - 26 EventBridge scheduled rules (staggered ET schedule)
  * - IAM roles for EventBridge and ECS task execution
  *
  * NOTE: 13 EOD-critical loaders are now triggered by Step Functions (modules/pipeline)
@@ -255,6 +255,15 @@ locals {
       schedule    = "cron(4 21 ? * MON-FRI *)"
       description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:04pm ET"
     }
+    "stability_metrics" = {
+      schedule    = "cron(6 21 ? * MON-FRI *)"
+      description = "Stability metrics (beta, volatility) - Daily 5:06pm ET"
+    }
+    # stock_scores runs after all per-symbol metric tables (quality/growth/value/stability) are populated
+    "stock_scores" = {
+      schedule    = "cron(30 21 ? * MON-FRI *)"
+      description = "Multi-factor composite stock scores - Daily 5:30pm ET (after all metrics)"
+    }
 
     # Earnings — run Sunday night only (data changes quarterly)
     # STAGGERED: Spread across 3 minutes to avoid resource exhaustion
@@ -434,8 +443,7 @@ locals {
 
     # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
     "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
-    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
-    "eod_bulk_refresh" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    "eod_bulk_refresh"      = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
   }
 
   # For backward compatibility
@@ -445,7 +453,7 @@ locals {
   critical_loaders = toset([
     "stock_prices_daily",
     "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly",
-    "algo_metrics_daily", "eod_bulk_refresh"
+    "algo_metrics_daily", "eod_bulk_refresh", "stock_scores"
   ])
 }
 
