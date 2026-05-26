@@ -312,15 +312,15 @@ class DailyReconciliation:
                     if abs(db_qty - qty) > 0.1:  # Allow small rounding differences
                         try:
                             notify(
-                                kind='position_drift',
                                 severity='critical',
                                 title='CRITICAL: Quantity Mismatch',
                                 message=f'{sym} has {qty:.0f} shares on Alpaca but '
                                         f'{db_qty} in DB. Manual intervention required.',
+                                symbol=sym,
                                 details={'symbol': sym, 'alpaca_qty': qty, 'db_qty': db_qty},
                             )
                         except Exception as e:
-                            logger.info(f"  Warning: Could not send quantity drift alert: {e}")
+                            logger.warning(f"  Could not send quantity drift alert: {e}")
                 continue  # already tracked
 
             # Import this Alpaca position as a manual/external one
