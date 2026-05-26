@@ -144,8 +144,19 @@ class DailyReconciliation:
                 logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
 
             # 3. Calculate metrics
-            cash = alpaca_data.get('cash', 100000)
-            total_equity = cash + total_position_value
+            cash = alpaca_data.get('cash', 0)
+            # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
+            # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
+            alpaca_portfolio_value = float(alpaca_data.get('portfolio_value', 0) or 0)
+            # DB-computed total (kept for drift reporting)
+            total_equity_db = cash + total_position_value
+            # Prefer Alpaca's live value; fall back to DB sum only if Alpaca value is missing/zero
+            total_equity = alpaca_portfolio_value if alpaca_portfolio_value > 0 else total_equity_db
+
+            if total_equity_db > 0:
+                drift_pct = ((alpaca_portfolio_value - total_equity_db) / total_equity_db) * 100
+                if abs(drift_pct) > 1.0:
+                    logger.warning(f"Position value drift: Alpaca ${alpaca_portfolio_value:,.2f} vs DB-computed ${total_equity_db:,.2f} ({drift_pct:+.1f}%)")
 
             if total_equity > 0:
                 unrealized_pnl_pct = (unrealized_pnl / total_equity) * 100

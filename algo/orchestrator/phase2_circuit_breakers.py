@@ -104,4 +104,6 @@ def run(
     except Exception as e:
         traceback.print_exc()
         log_phase_result_fn(2, 'circuit_breakers', 'error', str(e))
-        return PhaseResult(2, 'circuit_breakers', 'ok', {}, False, str(e))
+        # Fail-closed: if the circuit breaker check itself crashes we cannot
+        # determine whether trading is safe, so halt rather than proceed.
+        return PhaseResult(2, 'circuit_breakers', 'halted', {}, True, str(e))
