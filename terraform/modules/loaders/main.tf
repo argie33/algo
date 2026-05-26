@@ -332,7 +332,7 @@ locals {
     }
 
     # NOTE: market_overview, relative_performance, social_sentiment deleted — no real data sources.
-    # NOTE: factor_metrics, stock_scores are run via Step Functions EOD pipeline.
+    # NOTE: stock_scores runs via EventBridge at 5:30pm ET (not Step Functions pipeline).
 
     # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
     # signals_etf_weekly, signals_etf_monthly, etf_signals, algo_metrics_daily,
