@@ -26,33 +26,39 @@ logger = get_logger(__name__)
 
 
 def get_missing_symbols(loader_type: str, batch_size: int) -> List[str]:
-    """Get symbols that don't have data for this loader_type."""
+    """Get symbols that don't have actual data for this loader_type."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
         if loader_type == "stability":
-            table = "stability_metrics"
+            # Symbols with no stability data (all NULL metrics)
+            cur.execute("""SELECT DISTINCT s.symbol FROM stock_symbols s
+                          LEFT JOIN stability_metrics m ON s.symbol = m.symbol
+                          WHERE m.volatility_30d IS NULL AND m.volatility_60d IS NULL
+                            AND m.volatility_252d IS NULL AND m.beta IS NULL
+                          LIMIT %s""", (batch_size,))
         elif loader_type == "positioning":
-            table = "positioning_metrics"
+            # Symbols with no positioning data (all NULL metrics)
+            cur.execute("""SELECT DISTINCT s.symbol FROM stock_symbols s
+                          LEFT JOIN positioning_metrics m ON s.symbol = m.symbol
+                          WHERE m.institutional_ownership IS NULL AND m.insider_ownership IS NULL
+                            AND m.short_interest_percent IS NULL
+                          LIMIT %s""", (batch_size,))
         elif loader_type == "growth":
-            table = "growth_metrics"
+            # Symbols with no growth data (all NULL metrics)
+            cur.execute("""SELECT DISTINCT s.symbol FROM stock_symbols s
+                          LEFT JOIN growth_metrics m ON s.symbol = m.symbol
+                          WHERE m.revenue_growth_5y IS NULL AND m.eps_growth_5y IS NULL
+                          LIMIT %s""", (batch_size,))
         else:
             raise ValueError(f"Unknown loader_type: {loader_type}")
 
-        # Get all active symbols
-        all_symbols = get_active_symbols(timeout_secs=60)
-
-        # Get symbols that already have data
-        cur.execute(f"SELECT symbol FROM {table}")
-        have_data = set(row[0] for row in cur.fetchall())
-
+        missing_symbols = [row[0] for row in cur.fetchall()]
         cur.close()
         conn.close()
 
-        # Return symbols missing data, limited to batch_size
-        missing = [s for s in all_symbols if s not in have_data]
-        return missing[:batch_size]
+        return missing_symbols
 
     except Exception as e:
         logger.error(f"Error getting missing symbols: {e}")
