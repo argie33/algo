@@ -97,9 +97,10 @@ class StockScoresLoader(OptimalLoader):
                 logger.debug(f"{symbol}: insufficient data ({data_count}/6 metrics, {data_completeness:.0f}% complete) - skipping")
                 return None
 
-            # Compute weighted composite score, using only real factors
-            # Replace None with mean of non-None factors to weight correctly
-            weights = {
+            # Compute weighted composite score with NORMALIZED weights
+            # When metrics are missing, redistribute their weight to available metrics
+            # instead of filling with mean (which would double-count missing factors)
+            base_weights = {
                 'quality': 0.25,
                 'growth': 0.20,
                 'value': 0.20,
@@ -108,28 +109,47 @@ class StockScoresLoader(OptimalLoader):
                 'momentum': 0.08,
             }
 
-            # Replace None scores with mean of non-None scores for weighting
+            # Calculate real scores and identify available metrics
             real_scores = [s for s in [quality_score, growth_score, value_score, positioning_score, stability_score, momentum_score] if s is not None]
             if not real_scores:
                 return None  # No real data at all
 
-            mean_score = sum(real_scores) / len(real_scores)
+            # Build mapping of which scores are available
+            score_availability = {
+                'quality': quality_score is not None,
+                'growth': growth_score is not None,
+                'value': value_score is not None,
+                'positioning': positioning_score is not None,
+                'stability': stability_score is not None,
+                'momentum': momentum_score is not None,
+            }
 
-            # Clamp all factor scores to 0-100 range, using mean for None values
-            quality_score = max(0, min(100, quality_score if quality_score is not None else mean_score))
-            growth_score = max(0, min(100, growth_score if growth_score is not None else mean_score))
-            value_score = max(0, min(100, value_score if value_score is not None else mean_score))
-            positioning_score = max(0, min(100, positioning_score if positioning_score is not None else mean_score))
-            stability_score = max(0, min(100, stability_score if stability_score is not None else mean_score))
-            momentum_score = max(0, min(100, momentum_score if momentum_score is not None else mean_score))
+            # Normalize weights: keep weights of available metrics, redistribute missing weights
+            available_weight_sum = sum(w for k, w in base_weights.items() if score_availability[k])
+            normalized_weights = {}
+            for key, weight in base_weights.items():
+                if score_availability[key]:
+                    # Scale up available weights to sum to 1.0
+                    normalized_weights[key] = weight / available_weight_sum if available_weight_sum > 0 else 0
+                else:
+                    normalized_weights[key] = 0
 
+            # Clamp all scores to 0-100 range (only actual computed scores, not filled)
+            quality_score = max(0, min(100, quality_score if quality_score is not None else 0))
+            growth_score = max(0, min(100, growth_score if growth_score is not None else 0))
+            value_score = max(0, min(100, value_score if value_score is not None else 0))
+            positioning_score = max(0, min(100, positioning_score if positioning_score is not None else 0))
+            stability_score = max(0, min(100, stability_score if stability_score is not None else 0))
+            momentum_score = max(0, min(100, momentum_score if momentum_score is not None else 0))
+
+            # Compute weighted composite with normalized weights (sums to 1.0)
             composite_score = round(
-                quality_score * weights['quality'] +
-                growth_score * weights['growth'] +
-                value_score * weights['value'] +
-                positioning_score * weights['positioning'] +
-                stability_score * weights['stability'] +
-                momentum_score * weights['momentum'],
+                quality_score * normalized_weights['quality'] +
+                growth_score * normalized_weights['growth'] +
+                value_score * normalized_weights['value'] +
+                positioning_score * normalized_weights['positioning'] +
+                stability_score * normalized_weights['stability'] +
+                momentum_score * normalized_weights['momentum'],
                 2
             )
             # Final clamp to ensure composite is in range
@@ -249,16 +269,21 @@ class StockScoresLoader(OptimalLoader):
         return None
 
     def _get_momentum_metrics(self, cur, symbol: str) -> Optional[Dict]:
-        """Fetch momentum/RS metrics for symbol."""
+        """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
+
+        Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
+        More robust than OFFSET which breaks on data gaps or different row counts.
+        """
         try:
-            # Get recent price performance from price_daily table
+            # Get recent price performance from price_daily table using date lookups
+            # ~20 trading days = 1 month, ~60 = 3 months, ~126 = 6 months, ~252 = 1 year
             cur.execute("""
                 SELECT
                     (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
-                    (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1 OFFSET 20) as price_1m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1 OFFSET 60) as price_3m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1 OFFSET 126) as price_6m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1 OFFSET 252) as price_12m_ago
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '20 days' ORDER BY date DESC LIMIT 1) as price_1m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '60 days' ORDER BY date DESC LIMIT 1) as price_3m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '126 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
             """, (symbol, symbol, symbol, symbol, symbol))
             row = cur.fetchone()
 

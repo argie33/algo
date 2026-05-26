@@ -178,15 +178,32 @@ class CredentialManager:
         """Get Alpaca API credentials as a dict.
 
         Checks in order:
-        1. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
-        2. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
-        3. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
+        1. ALGO_SECRETS_ARN env var → JSON blob (APCA_API_KEY_ID / APCA_API_SECRET_KEY fields)
+        2. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
+        3. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
+        4. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
 
         Raises ValueError if credentials not found (required for live trading).
         """
         import json as _json
 
-        # Try 'algo/alpaca' JSON blob first (new secrets module format)
+        # Try ALGO_SECRETS_ARN first (Terraform-managed secret: algo-algo-secrets-dev)
+        algo_secrets_arn = os.getenv('ALGO_SECRETS_ARN')
+        if algo_secrets_arn and self._is_aws:
+            try:
+                client = self._get_secrets_client()
+                if client:
+                    response = client.get_secret_value(SecretId=algo_secrets_arn)
+                    creds = _json.loads(response.get('SecretString', '{}'))
+                    key = creds.get('APCA_API_KEY_ID')
+                    secret = creds.get('APCA_API_SECRET_KEY')
+                    if key and secret:
+                        log.debug("Alpaca credentials loaded from ALGO_SECRETS_ARN")
+                        return {'key': key, 'secret': secret}
+            except Exception as e:
+                log.debug(f"Could not fetch Alpaca credentials from ALGO_SECRETS_ARN: {e}")
+
+        # Try 'algo/alpaca' JSON blob (legacy secrets module format)
         if self._is_aws:
             try:
                 client = self._get_secrets_client()

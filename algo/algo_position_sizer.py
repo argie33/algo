@@ -226,15 +226,8 @@ class PositionSizer:
             return 1.0
 
     def get_phase_size_multiplier(self, symbol, signal_date=None):
-        """Stage-2 phase mult: Early=1.0, Mid=1.0, Late=0.5, Climax=0.0."""
-        try:
-            from algo.algo_signals import SignalComputer
-            sc = SignalComputer(cur=self.cur)
-            eval_date = signal_date if signal_date else _date.today()
-            phase = sc.stage2_phase(symbol, eval_date)
-            return phase.get('size_multiplier', 1.0)
-        except Exception:
-            return 1.0
+        """Stage-2 phase mult: always 1.0 (DB schema has no late/climax phase column)."""
+        return 1.0
 
     def get_position_size_multiplier_from_regime(self, signal_date=None):
         """Get position size multiplier from current market regime (mockable for tests)."""

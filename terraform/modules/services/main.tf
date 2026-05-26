@@ -102,8 +102,8 @@ resource "aws_lambda_function" "api" {
       DB_NAME              = var.rds_database_name
       DB_USER              = var.rds_username
       DB_SSL               = "require"
-      APCA_API_KEY_ID      = var.alpaca_api_key_id
-      APCA_API_SECRET_KEY  = var.alpaca_api_secret_key
+      # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
+      ALGO_SECRETS_ARN     = var.algo_secrets_arn
       APCA_API_BASE_URL    = var.alpaca_api_base_url
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
@@ -400,21 +400,28 @@ resource "aws_s3_bucket_policy" "frontend_cloudfront" {
   count  = var.cloudfront_enabled ? 1 : 0
   bucket = var.frontend_bucket_name
 
+  # Restrict S3 access to CloudFront OAC only — direct S3 URL access is blocked.
+  # The OAC signing (sigv4) ensures only CloudFront can fetch objects.
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowPublicRead"
+        Sid    = "AllowCloudFrontOACOnly"
         Effect = "Allow"
-        Principal = "*"
-        Action = "s3:GetObject"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
         Resource = "arn:aws:s3:::${var.frontend_bucket_name}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.frontend[0].arn
+          }
+        }
       }
     ]
   })
 
-  # Ensure S3 block public access is updated before setting bucket policy
-  # This prevents race conditions where AWS hasn't reflected the BlockPublicPolicy=false change yet
   depends_on = [var.frontend_bucket_public_access_block_id]
 }
 
@@ -497,8 +504,8 @@ resource "aws_lambda_function" "algo" {
       DB_NAME               = var.rds_database_name
       DB_USER               = var.rds_username
       DB_SSL                = "require"
-      APCA_API_KEY_ID       = var.alpaca_api_key_id
-      APCA_API_SECRET_KEY   = var.alpaca_api_secret_key
+      # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
+      ALGO_SECRETS_ARN      = var.algo_secrets_arn
       ALERTS_SNS_TOPIC      = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       EXECUTION_MODE        = var.execution_mode
       ORCHESTRATOR_DRY_RUN  = tostring(var.orchestrator_dry_run)

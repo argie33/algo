@@ -517,15 +517,17 @@ class SignalPatternsMixin:
 
             twt = self.three_weeks_tight(symbol, eval_date)
             if twt.get('is_3wt') and method == 'fallback_8pct':
-                # 3WT: stop below the 3-week range low
+                # 3WT: stop below the 3-week range low (subquery limits rows BEFORE aggregating)
                 self.cur.execute(
-                    "SELECT MIN(low) FROM price_weekly WHERE symbol = %s AND date <= %s "
-                    "ORDER BY date DESC LIMIT 3",
+                    "SELECT MIN(low) FROM ("
+                    "  SELECT low FROM price_weekly WHERE symbol = %s AND date <= %s"
+                    "  ORDER BY date DESC LIMIT 3"
+                    ") AS recent_3w",
                     (symbol, eval_date),
                 )
-                rows = self.cur.fetchall()
-                if rows:
-                    three_wk_low = min(float(r[0]) for r in rows)
+                row = self.cur.fetchone()
+                if row and row[0] is not None:
+                    three_wk_low = float(row[0])
                     candidate = three_wk_low * 0.985
                     method = '3wt_low'
                     reasoning = f'3-Weeks-Tight: 1.5% below 3wk low ${three_wk_low:.2f}'

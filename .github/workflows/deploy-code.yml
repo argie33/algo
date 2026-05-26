@@ -569,6 +569,10 @@ jobs:
           else:
             db_host_parsed = str(db_host)
 
+          # Alpaca keys are NOT set as plaintext env vars. Lambda reads them at runtime
+          # from ALGO_SECRETS_ARN (Secrets Manager) via config/credential_manager.py.
+          # This prevents keys from being visible via lambda:GetFunctionConfiguration.
+          algo_secrets_arn = f"arn:aws:secretsmanager:{region}:{account_id}:secret:algo-algo-secrets-dev"
           lambda_config = {
             "FunctionName": func_name,
             "Environment": {
@@ -578,8 +582,7 @@ jobs:
                 "DB_PORT": str(db_port),
                 "DB_NAME": str(db_name),
                 "DB_USER": "stocks",
-                "APCA_API_KEY_ID": alpaca_api_key,
-                "APCA_API_SECRET_KEY": alpaca_api_secret,
+                "ALGO_SECRETS_ARN": algo_secrets_arn,
                 "APCA_API_BASE_URL": apca_base_url,
                 "ALPACA_PAPER_TRADING": "true" if paper_trading else "false",
                 "ALGO_LIVE_TRADING": "" if paper_trading else "I_UNDERSTAND_REAL_MONEY",
@@ -965,17 +968,16 @@ jobs:
           if [ "$EXISTING" != "None" ] && [ -n "$EXISTING" ]; then
             echo "✓ Provisioned concurrency already configured: $EXISTING"
           else
-            echo "Setting provisioned concurrency to 10 instances..."
+            echo "Setting provisioned concurrency to 1 instance (keeps Lambda warm, eliminates cold starts)..."
             aws lambda put-provisioned-concurrency-config \
               --function-name "$FUNC" \
               --qualifier "\$LATEST" \
-              --provisioned-concurrent-executions 10 \
+              --provisioned-concurrent-executions 1 \
               --region $AWS_REGION || {
                 echo "⚠️ Could not set provisioned concurrency (optional)"
                 echo "This may occur if the function is not yet deployed or has no alias"
               }
-            echo "✅ Provisioned concurrency configured"
-            echo "   This helps eliminate cold-start timeouts (cost: ~$0.015/hour)"
+            echo "✅ Provisioned concurrency configured (cost: ~$0.015/hour)"
           fi
 
   # ──────────────────────────────────────────────────────────────

@@ -75,8 +75,7 @@ class SignalTrendMixin:
         """
         try:
             self.cur.execute(
-                """SELECT weinstein_stage, size_multiplier, price_vs_30wk_ma_pct,
-                          ma_30w_slope_pct
+                """SELECT weinstein_stage, consolidation_flag
                    FROM trend_template_data
                    WHERE symbol = %s AND date <= %s
                    ORDER BY date DESC LIMIT 1""",
@@ -87,13 +86,14 @@ class SignalTrendMixin:
                 return {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
 
             stage = int(row[0])
-            confidence = float(row[1]) if row[1] else 0  # size_multiplier as confidence proxy
+            # consolidation_flag=True means stock is building a base (early phase, higher confidence)
+            confidence = 1.0 if row[1] else 0.5
 
             return {
                 'stage': stage,
                 'confidence': confidence,
-                'price_vs_ma_pct': float(row[2]) if row[2] else None,
-                'slope_pct': float(row[3]) if row[3] else None,
+                'price_vs_ma_pct': None,
+                'slope_pct': None,
             }
         except Exception as e:
             logger.warning(f"weinstein_stage({symbol}) failed: {e}")

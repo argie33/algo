@@ -2,8 +2,16 @@
 """
 Swing Trader Scores Loader - Computes swing trading quality scores.
 
-FIX (May 25): Now pulls from signal_quality_scores which has real data,
-instead of buy_sell_daily which has NULL/zero quality metrics.
+Computes per-symbol swing scores with a 7-component breakdown by joining
+signal_quality_scores, trend_template_data, and technical_data_daily.
+The component breakdown maps directly to the RadarChart in SwingCandidates.jsx:
+  setup        — Minervini 8-point template (% of 8 criteria met)
+  trend        — Weinstein stage quality (Stage 2 = 100, Stage 1 = 50, other = 0)
+  momentum     — RSI normalized to momentum sweet spot (40-70 RSI → 0-100)
+  volume       — 20-day price ROC as volume-confirmation proxy
+  fundamentals — overall composite_sqs (best available proxy without full fundamentals)
+  sector       — overall composite_sqs (fallback; enriched by sector loader separately)
+  multi_tf     — trend + momentum blend (confirms trend on multiple timeframes)
 
 Inherits from OptimalLoader: watermarks, dedup, parallelism, bulk COPY.
 
@@ -35,18 +43,14 @@ class SwingTraderScoresLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Compute swing trader scores from signal_quality_scores."""
+        """Compute swing trader scores with 7-component breakdown."""
         from algo.algo_market_calendar import MarketCalendar
 
         try:
             end = date.today()
-            # If today is not a trading day, use yesterday instead
-            # (prevents computing scores for non-trading days when no new signals exist)
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
                 end = end - timedelta(days=1)
 
-            # On ECS restart the in-memory watermark is empty, so since=None.
-            # Read the actual DB max date to avoid re-querying 5 years of history.
             if since is None:
                 try:
                     wm_conn = get_db_connection()
@@ -73,26 +77,35 @@ class SwingTraderScoresLoader(OptimalLoader):
             conn = get_db_connection()
             try:
                 with conn.cursor() as cur:
-                    # Get signal quality scores for this symbol
-                    # signal_quality_scores table has composite_sqs (0-100 scale)
-                    # Note: Only composite_sqs is populated by load_signal_quality_scores
+                    # Join signal_quality_scores with trend + technical data for component breakdown
                     cur.execute("""
-                        SELECT symbol, date, COALESCE(composite_sqs, 0) as composite_sqs
-                        FROM signal_quality_scores
-                        WHERE symbol = %s AND date >= %s AND date <= %s
-                        ORDER BY date ASC
+                        SELECT
+                            sqs.symbol,
+                            sqs.date,
+                            COALESCE(sqs.composite_sqs, 0) AS composite_sqs,
+                            COALESCE(td.minervini_trend_score, 0) AS minervini_score,
+                            COALESCE(td.weinstein_stage, 0) AS weinstein_stage,
+                            tdd.rsi,
+                            tdd.roc_20d,
+                            tdd.mansfield_rs
+                        FROM signal_quality_scores sqs
+                        LEFT JOIN trend_template_data td
+                            ON td.symbol = sqs.symbol AND td.date = sqs.date
+                        LEFT JOIN technical_data_daily tdd
+                            ON tdd.symbol = sqs.symbol AND tdd.date = sqs.date
+                        WHERE sqs.symbol = %s AND sqs.date >= %s AND sqs.date <= %s
+                        ORDER BY sqs.date ASC
                     """, (symbol, start, end))
                     rows = cur.fetchall()
 
                     if not rows:
                         return None
 
-                    # Compute swing scores for all dates
                     all_scores = []
                     for row in rows:
-                        scores = self._compute_swing_score(symbol, row)
-                        if scores:
-                            all_scores.extend(scores)
+                        score_row = self._compute_swing_score(row)
+                        if score_row:
+                            all_scores.append(score_row)
 
                     return all_scores if all_scores else None
             finally:
@@ -101,52 +114,104 @@ class SwingTraderScoresLoader(OptimalLoader):
             logging.debug(f"Swing score computation error for {symbol}: {e}")
             return None
 
-    def _compute_swing_score(self, symbol: str, signal_data: tuple) -> Optional[List[Dict]]:
-        """Compute swing trader score from signal quality scores.
+    def _compute_swing_score(self, row) -> Optional[Dict]:
+        """Compute swing trader score with 7-component breakdown.
 
-        Input: (symbol, date, composite_sqs)
-        composite_sqs is already 0-100 scale from load_signal_quality_scores.
+        Input columns: symbol, date, composite_sqs, minervini_score, weinstein_stage,
+                       rsi, roc_20d, mansfield_rs
         """
-        if not signal_data:
+        if not row:
             return None
 
         try:
-            # Unpack 3 columns: symbol, date, composite_sqs
-            symbol, date, composite_sqs = signal_data
+            (symbol, score_date, composite_sqs,
+             minervini_score, weinstein_stage,
+             rsi, roc_20d, mansfield_rs) = row
 
-            # composite_sqs is already 0-100 score
-            composite_score = float(composite_sqs or 0)
+            composite = float(composite_sqs or 0)
 
-            # Determine grade based on composite score
-            if composite_score >= 85:
+            # --- 7 component scores (0-100 each) ---
+
+            # Setup: Minervini 8-point template completion (0-100)
+            setup = min(100.0, float(minervini_score or 0) / 8.0 * 100.0)
+
+            # Trend: Weinstein stage quality
+            stage = int(weinstein_stage or 0)
+            if stage == 2:
+                trend = 100.0
+            elif stage == 1:
+                trend = 50.0
+            elif stage == 3:
+                trend = 25.0
+            else:
+                trend = 0.0
+
+            # Momentum: RSI in the 40-70 sweet spot (below 40 = weak, above 70 = extended)
+            rsi_f = float(rsi) if rsi is not None else 50.0
+            if 40 <= rsi_f <= 70:
+                momentum = (rsi_f - 40) / 30.0 * 100.0  # 0 at RSI=40, 100 at RSI=70
+            elif rsi_f < 40:
+                momentum = max(0.0, rsi_f / 40.0 * 50.0)
+            else:  # > 70 (overbought)
+                momentum = max(0.0, 100.0 - (rsi_f - 70) / 30.0 * 100.0)
+
+            # Volume: 20-day ROC as proxy for sustained institutional participation
+            roc = float(roc_20d) if roc_20d is not None else 0.0
+            # >10% 20-day ROC = strong; negative = weak
+            volume = max(0.0, min(100.0, 50.0 + roc * 2.5))
+
+            # Fundamentals: use overall composite as best available proxy
+            fundamentals = composite
+
+            # Sector: Mansfield RS if available (positive RS = sector leadership)
+            if mansfield_rs is not None:
+                rs = float(mansfield_rs)
+                # Mansfield RS: 0 = at par, positive = outperforming, negative = underperforming
+                sector = max(0.0, min(100.0, 50.0 + rs * 5.0))
+            else:
+                sector = composite  # fallback
+
+            # Multi-timeframe: blend of trend + momentum (confirming at multiple scales)
+            multi_tf = (trend * 0.6 + momentum * 0.4)
+
+            # --- Grade and gates ---
+            if composite >= 85:
                 grade = 'A+'
-            elif composite_score >= 75:
+            elif composite >= 75:
                 grade = 'A'
-            elif composite_score >= 65:
+            elif composite >= 65:
                 grade = 'B'
-            elif composite_score >= 55:
+            elif composite >= 55:
                 grade = 'C'
-            elif composite_score >= 45:
+            elif composite >= 45:
                 grade = 'D'
             else:
                 grade = 'F'
 
-            pass_gates = composite_score >= 75
+            pass_gates = composite >= 75
             fail_reason = None if pass_gates else (
-                'Low composite score' if composite_score < 45 else
-                'Below quality threshold'
+                'Low composite score' if composite < 45 else 'Below quality threshold'
             )
-            return [{
+
+            return {
                 'symbol': symbol,
-                'date': date,
-                'score': round(composite_score, 2),
+                'date': score_date,
+                'score': round(composite, 2),
                 'components': json.dumps({
                     'grade': grade,
-                    'composite_sqs': round(composite_score, 1),
+                    'composite_sqs': round(composite, 1),
                     'pass_gates': pass_gates,
                     'fail_reason': fail_reason,
+                    # 7-component breakdown (displayed in SwingCandidates radar chart)
+                    'setup': round(setup, 1),
+                    'trend': round(trend, 1),
+                    'momentum': round(momentum, 1),
+                    'volume': round(volume, 1),
+                    'fundamentals': round(fundamentals, 1),
+                    'sector': round(sector, 1),
+                    'multi_tf': round(multi_tf, 1),
                 })
-            }]
+            }
         except Exception as e:
             logging.debug(f"Score computation failed: {e}")
             return None

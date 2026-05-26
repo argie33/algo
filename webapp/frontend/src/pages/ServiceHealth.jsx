@@ -3,10 +3,10 @@
  * Pure JSX + theme.css classes.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import {
-  RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle, Activity,
+  RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle, Activity, Play,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -27,6 +27,21 @@ const STATUS_VARIANT = {
 };
 
 export default function ServiceHealth() {
+  const [patrolRunning, setPatrolRunning] = useState(false);
+  const [patrolMsg, setPatrolMsg] = useState(null);
+
+  const runPatrol = async () => {
+    setPatrolRunning(true);
+    setPatrolMsg(null);
+    try {
+      await api.post('/api/algo/patrol', { quick: false });
+      setPatrolMsg({ ok: true, text: 'Data patrol complete — refresh to see latest findings.' });
+    } catch (e) {
+      setPatrolMsg({ ok: false, text: `Patrol failed: ${e?.message || 'Unknown error'}` });
+    }
+    setPatrolRunning(false);
+  };
+
   const { data: dataStatus, loading: isLoading, error: dsError, refetch } = useApiQuery(
     ['algo-data-status'],
     () => api.get('/api/algo/data-status'),
@@ -60,11 +75,21 @@ export default function ServiceHealth() {
           <div className="page-head-sub">Data freshness · Patrol findings · Algo readiness</div>
         </div>
         <div className="page-head-actions">
+          <button className="btn btn-primary btn-sm" onClick={runPatrol} disabled={patrolRunning}>
+            <Play size={14} /> {patrolRunning ? 'Running…' : 'Run Data Patrol'}
+          </button>
           <button className="btn btn-outline btn-sm" onClick={() => refetch()}>
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
       </div>
+
+      {patrolMsg && (
+        <div className={`alert ${patrolMsg.ok ? 'alert-success' : 'alert-danger'}`} style={{ marginBottom: 'var(--space-4)' }}>
+          {patrolMsg.ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+          <span>{patrolMsg.text}</span>
+        </div>
+      )}
 
       {/* Top status banner */}
       <div className="card" style={{ borderLeft: `3px solid ${ready ? 'var(--success)' : 'var(--danger)'}`, padding: 'var(--space-5) var(--space-6)' }}>
