@@ -16,9 +16,9 @@ rm -rf "${LAYER_DIR}" "${OUTPUT_ZIP}"
 # Build for Python 3.12 (DB Init Lambda uses 3.12)
 mkdir -p "${LAYER_DIR}/python/lib/python3.12/site-packages"
 
-# Option 1: Use psycopg[binary] (recommended - single binary)
-echo "Installing psycopg[binary] for Python 3.12..."
-pip install -t "${LAYER_DIR}/python/lib/python3.12/site-packages" psycopg[binary] --no-cache-dir
+# Install psycopg2-binary (required by data-freshness-monitor and RDS rotation Lambda)
+echo "Installing psycopg2-binary for Python 3.12..."
+pip install -t "${LAYER_DIR}/python/lib/python3.12/site-packages" psycopg2-binary --no-cache-dir
 
 # Remove unnecessary files to reduce size
 find "${LAYER_DIR}" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
