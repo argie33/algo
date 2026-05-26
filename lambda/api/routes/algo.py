@@ -122,7 +122,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
 def _get_algo_status(cur) -> Dict:
-        """Get latest algo execution status."""
+        """Get latest algo execution status plus latest portfolio snapshot."""
         try:
             cur.execute("""
                 SELECT
@@ -138,7 +138,28 @@ def _get_algo_status(cur) -> Dict:
             """)
             row = cur.fetchone()
             if not row:
-                return json_response(200, {'status': 'no_runs_yet', 'last_run': None})
+                return json_response(200, {'status': 'no_runs_yet', 'last_run': None, 'portfolio': {}})
+
+            # Attach latest portfolio snapshot so the dashboard card can show live values
+            portfolio = {}
+            try:
+                cur.execute("""
+                    SELECT total_portfolio_value, daily_return_pct,
+                           unrealized_pnl_total, position_count
+                    FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
+                snap = cur.fetchone()
+                if snap:
+                    pv = float(snap[0] or 0)
+                    portfolio = {
+                        'total_value': round(pv, 2),
+                        'daily_return_pct': round(float(snap[1] or 0), 2),
+                        'unrealized_pnl_pct': round((float(snap[2] or 0) / pv * 100) if pv > 0 else 0, 2),
+                        'open_positions': int(snap[3] or 0),
+                    }
+            except Exception:
+                pass
 
             return json_response(200, {
                 'run_id': row['run_id'],
@@ -146,6 +167,7 @@ def _get_algo_status(cur) -> Dict:
                 'current_phase': row['action_type'],
                 'status': row['status'],
                 'message': row['message'],
+                'portfolio': portfolio,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
