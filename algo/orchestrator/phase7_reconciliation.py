@@ -77,23 +77,26 @@ def run(
                           f"{trades_processed} trades processed")
 
         # Step 2: Compute IC via attribution engine
-        attr_result = {'components': {}}
+        attr_result = {}
         try:
             attribution = SignalAttributionEngine()
             attr_result = attribution.compute_ic(run_date, lookback_trades=40)
-            logger.info(f"Signal attribution: IC computed for {len(attr_result.get('components', {}))} components")
-            for comp, ic_data in attr_result.get('components', {}).items():
-                logger.info(f"  {comp}: IC={ic_data.get('ic', 0):.3f}, pval={ic_data.get('pvalue', 1):.3f}")
+            # compute_ic returns {component_name: {ic_value, ic_pvalue, sample_size, ...}}
+            logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
+            for comp, ic_data in attr_result.items():
+                logger.info(f"  {comp}: IC={ic_data.get('ic_value', 0):.3f}, pval={ic_data.get('ic_pvalue', 1):.3f}")
         except Exception as e:
             logger.warning(f"Signal attribution failed: {e}")
-        log_phase_result_fn(7, 'ic_computation', 'success' if attr_result.get('components') else 'warn',
-                          f"{len(attr_result.get('components', {}))} components analyzed")
+        log_phase_result_fn(7, 'ic_computation', 'success' if attr_result else 'warn',
+                          f"{len(attr_result)} components analyzed")
 
         # Step 3: Run weight optimization (if enough trades)
         opt_result = {'changes': []}
         try:
+            from algo.algo_regime_manager import RegimeManager as _RegimeManager
+            _current_regime = _RegimeManager().get_current_regime(run_date) or 'confirmed_uptrend'
             optimizer = WeightOptimizer(config)
-            opt_result = optimizer.apply(run_date, dry_run=False)
+            opt_result = optimizer.apply(run_date, regime=_current_regime, dry_run=False)
             if opt_result.get('changes'):
                 logger.info(f"Weight optimization: {len(opt_result['changes'])} changes applied")
                 for change in opt_result['changes']:
