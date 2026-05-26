@@ -67,14 +67,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     SELECT id, created_at AS timestamp, action_type,
                            actor, status, error_message, details
                     FROM algo_audit_log
-                    WHERE action_type IN ('circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
+                    WHERE action_type IN ('circuit_breaker_halt', 'circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
                 audits = cur.fetchall()
                 cur.execute("""
                     SELECT COUNT(*) FROM algo_audit_log
-                    WHERE action_type IN ('circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
+                    WHERE action_type IN ('circuit_breaker_halt', 'circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                 """)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
                 return list_response([dict(a) for a in audits] if audits else [], total=total)
