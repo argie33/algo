@@ -69,9 +69,11 @@ class SwingTraderScoresLoader(OptimalLoader):
             if since is None:
                 start = end - timedelta(days=5 * 365)
             else:
-                start = since + timedelta(days=1) if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0]) + timedelta(days=1)
+                # BUG FIX: Same watermark issue as price loader - use since directly
+                # to allow refetch after weekend/holidays
+                start = since if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0])
 
-            if start >= end:
+            if start > end:
                 return None
 
             conn = get_db_connection()
