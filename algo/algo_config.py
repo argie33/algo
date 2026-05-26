@@ -172,6 +172,7 @@ class AlgoConfig:
         'earnings_blackout_days_before': ('7', 'int', 'Days before earnings to block entries'),
         'earnings_blackout_days_after': ('3', 'int', 'Days after earnings to block entries'),
 
+        'min_price_history_days': ('200', 'int', 'Min trading days of price history (IPO age gate — Minervini avoids stocks <1yr post-IPO)'),
         'min_daily_volume_shares': ('500000', 'int', 'Minimum daily volume shares'),
         'max_spread_pct': ('0.5', 'float', 'Maximum bid-ask spread %'),
         'min_market_cap_millions': ('300.0', 'float', 'Minimum market cap $M'),

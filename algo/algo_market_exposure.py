@@ -805,8 +805,8 @@ class MarketExposure:
                 """
                 INSERT INTO market_exposure_daily
                     (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons,
-                     long_exposure_pct, short_exposure_pct)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     long_exposure_pct, short_exposure_pct, is_entry_allowed, exposure_tier)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
                     exposure_pct = EXCLUDED.exposure_pct,
                     raw_score = EXCLUDED.raw_score,
@@ -815,7 +815,9 @@ class MarketExposure:
                     factors = EXCLUDED.factors,
                     halt_reasons = EXCLUDED.halt_reasons,
                     long_exposure_pct = EXCLUDED.long_exposure_pct,
-                    short_exposure_pct = EXCLUDED.short_exposure_pct
+                    short_exposure_pct = EXCLUDED.short_exposure_pct,
+                    is_entry_allowed = EXCLUDED.is_entry_allowed,
+                    exposure_tier = EXCLUDED.exposure_tier
                 """,
                 (
                     eval_date,
@@ -827,6 +829,8 @@ class MarketExposure:
                     halt_reasons_str,
                     long_exp,
                     short_exp,
+                    is_entry_allowed,
+                    tier,
                 ),
             )
             if self._owned:

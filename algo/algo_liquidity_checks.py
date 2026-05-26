@@ -51,6 +51,10 @@ class LiquidityChecks:
         try:
             self.connect()
 
+            age_passed, age_reason = self._check_price_history_age(symbol, signal_date)
+            if not age_passed:
+                return False, f"IPO age check failed: {age_reason}"
+
             adv_passed, adv_reason = self._check_adv(symbol, signal_date)
             if not adv_passed:
                 return False, f"ADV check failed: {adv_reason}"
@@ -153,3 +157,48 @@ class LiquidityChecks:
         except Exception as e:
             logger.warning(f"Dollar volume check error for {symbol}: {e}")
             return True, "Dollar volume check skipped"
+
+    def _check_price_history_age(self, symbol: str, signal_date) -> tuple:
+        """
+        Require minimum price history before trading (Minervini/IBD IPO age rule).
+
+        New stocks lack institutional sponsorship track record, established bases,
+        and earnings history needed for high-quality trend following. Minervini
+        specifically avoids stocks in their first year of trading.
+
+        Uses price_daily row count as a proxy for trading age (no IPO date column
+        needed). 200 trading days ≈ 10 months — long enough for a first proper base.
+
+        Config key: min_price_history_days (default 200)
+
+        Returns:
+            Tuple[bool, str]: (passed, reason)
+        """
+        try:
+            min_days = int(self.config.get('min_price_history_days', 200))
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT COUNT(*) as trading_days, MIN(date) as first_date
+                FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                """,
+                (symbol, signal_date),
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None or int(row[0]) == 0:
+                return False, "No price history (new listing or data missing)"
+
+            trading_days = int(row[0])
+            first_date = row[1]
+            if trading_days < min_days:
+                return (
+                    False,
+                    f"Only {trading_days} trading days of history (need {min_days}; listed ~{first_date})",
+                )
+
+            return True, f"{trading_days} trading days of history ok"
+
+        except Exception as e:
+            logger.warning(f"Price history age check error for {symbol}: {e}")
+            return True, "Price history age check skipped"
