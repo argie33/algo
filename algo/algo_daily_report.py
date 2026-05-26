@@ -176,9 +176,12 @@ class DailyFinanceReport:
             avg_hold_days = 0
             self.cur.execute(
                 """
-                SELECT AVG(trade_duration_days) FROM algo_trades
-                WHERE exit_date IS NOT NULL AND exit_date <= %s
-                ORDER BY exit_date DESC LIMIT 100
+                SELECT AVG(trade_duration_days)
+                FROM (
+                    SELECT trade_duration_days FROM algo_trades
+                    WHERE exit_date IS NOT NULL AND exit_date <= %s
+                    ORDER BY exit_date DESC LIMIT 100
+                ) AS last_100
                 """,
                 (report_date,),
             )
@@ -287,17 +290,17 @@ class DailyFinanceReport:
             f"{'='*70}",
             f"DAILY FINANCE REPORT — {report['date']} | Regime: {regime.get('current', 'unknown')}",
             f"{'='*70}",
-            f"Portfolio: ${portfolio.get('current_value', 0):,.0f} | "
-            f"Daily P&L: {portfolio.get('daily_pnl_pct', 0):+.2f}% | "
-            f"YTD: {portfolio.get('ytd_pnl_pct', 0):+.2f}%",
-            f"Risk: VaR {risk.get('var_95_pct', 0):.1f}% | "
-            f"Beta {risk.get('beta', 0):.2f} | "
-            f"Sharpe {risk.get('sharpe_ytd', 0):.1f}",
+            f"Portfolio: ${portfolio.get('current_value') or 0:,.0f} | "
+            f"Daily P&L: {portfolio.get('daily_pnl_pct') or 0:+.2f}% | "
+            f"YTD: {portfolio.get('ytd_pnl_pct') or 0:+.2f}%",
+            f"Risk: VaR {risk.get('var_95_pct') or 0:.1f}% | "
+            f"Beta {risk.get('beta') or 0:.2f} | "
+            f"Sharpe {risk.get('sharpe_ytd') or 0:.1f}",
             f"",
             f"Strategy (last 50 trades):",
             f"  Win rate: {strategy.get('win_rate_pct', 0):.0f}% | "
             f"Profit factor: {strategy.get('profit_factor', 0):.1f}x | "
-            f"Expectancy: {strategy.get('expectancy_r', 0):+.2f}R",
+            f"Expectancy: {strategy.get('expectancy_r') or 0:+.2f}R",
             f"",
             f"Component IC (alpha contribution):",
         ]
