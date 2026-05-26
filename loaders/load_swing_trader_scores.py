@@ -45,8 +45,25 @@ class SwingTraderScoresLoader(OptimalLoader):
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
                 end = end - timedelta(days=1)
 
+            # On ECS restart the in-memory watermark is empty, so since=None.
+            # Read the actual DB max date to avoid re-querying 5 years of history.
             if since is None:
-                start = end - timedelta(days=5 * 365)  # 5 years initial load
+                try:
+                    wm_conn = get_db_connection()
+                    with wm_conn.cursor() as wm_cur:
+                        wm_cur.execute(
+                            "SELECT MAX(date) FROM swing_trader_scores WHERE symbol = %s",
+                            (symbol,),
+                        )
+                        wm_row = wm_cur.fetchone()
+                    wm_conn.close()
+                    if wm_row and wm_row[0]:
+                        since = wm_row[0] if isinstance(wm_row[0], date) else date.fromisoformat(str(wm_row[0]))
+                except Exception as e:
+                    logging.warning(f"Could not read swing_trader_scores watermark for {symbol}: {e}")
+
+            if since is None:
+                start = end - timedelta(days=5 * 365)
             else:
                 start = since + timedelta(days=1) if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0]) + timedelta(days=1)
 

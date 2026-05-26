@@ -43,9 +43,27 @@ class TechnicalDataDailyLoader(OptimalLoader):
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
 
+        # On ECS restart the in-memory watermark is empty, so since=None.
+        # Read the actual DB max date to avoid re-fetching 5 years of history.
+        if since is None:
+            try:
+                conn = self._connect()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                cur.close()
+                if row and row[0]:
+                    since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+            except Exception as e:
+                logger.warning(f"Could not read technical_data_daily watermark for {symbol}: {e}")
+
         if since is None:
             start = end - timedelta(days=5 * 365)
         else:
+            # Keep 300-day lookback so long moving averages (SMA 200) stay warm.
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)
