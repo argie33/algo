@@ -1393,7 +1393,7 @@ const VALUE_SCHEMA = [
   { key: 'stock_ev_ebitda',     label: 'EV / EBITDA',  fmt: v => num(v, 2) },
   { key: 'stock_ev_revenue',    label: 'EV / Revenue', fmt: v => num(v, 2) },
   { key: 'peg_ratio',           label: 'PEG',          fmt: v => num(v, 2) },
-  { key: 'stock_dividend_yield',label: 'Dividend Yield', fmt: v => pct(v, 2) },
+  { key: 'stock_dividend_yield',label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2) },
 ];
 
 const GROWTH_SCHEMA = [

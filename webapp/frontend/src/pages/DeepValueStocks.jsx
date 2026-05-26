@@ -211,7 +211,7 @@ const DeepValueStocks = () => {
                 ["P/S Ratio", fmt(stock.price_to_sales)],
                 ["EV/EBITDA", fmt(stock.ev_to_ebitda)],
                 ["PEG Ratio", fmt(stock.peg_ratio)],
-                ["Div Yield", fmtPct(stock.dividend_yield)],
+                ["Div Yield", fmtPct(stock.dividend_yield != null ? stock.dividend_yield * 100 : null)],
               ]} />
             </div>
 
