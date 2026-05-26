@@ -88,7 +88,8 @@ class StockScoresLoader(OptimalLoader):
             # (ignores empty rows with all NULLs which return None from scoring functions)
             real_scores = [s for s in [quality_score, growth_score, value_score, positioning_score, stability_score, momentum_score] if s is not None]
             data_count = len(real_scores)
-            data_completeness = round((data_count / 6.0) * 100, 2)
+            # Cap at 99.99 to fit in NUMERIC(4,2) database column
+            data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
             # SKIP stocks without sufficient real data (require >=50% completeness = 3+ metrics)
             min_required_metrics = 3
