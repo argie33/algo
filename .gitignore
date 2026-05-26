@@ -69,6 +69,9 @@ coverage/
 .nyc_output/
 test-results/
 playwright-report/
+*_test_results.json
+test_results.json
+aws_test_results.json
 
 # IDE
 .vscode/
