@@ -88,7 +88,7 @@ class SectorsLoader(OptimalLoader):
                     "sector": r[0],
                     "date": today,
                     "return_pct": round(float(r[2] or 0), 4),  # YTD return
-                    "relative_strength": round((float(r[3] or 0) - 100) / 100, 4),  # 1Y as RS proxy
+                    "relative_strength": round(float(r[3] or 0) / 100, 4),  # 1Y return as decimal RS proxy
                 }
                 for r in rows
             ]
