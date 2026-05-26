@@ -21,7 +21,6 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from algo.algo_config import get_config
 from algo.algo_advanced_filters import AdvancedFilters
-from algo.algo_swing_score import SwingTraderScore
 from utils.filter_rejection_tracker import RejectionTracker
 from algo.algo_earnings_blackout import EarningsBlackout
 from algo.algo_trendline_support import TrendlineSupport
@@ -51,7 +50,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         self._snapshot_eval_date = None  # Immutable snapshot of eval_date for this run
         self._last_stop_method = None
         self._last_stop_reasoning = None
-        self._swing = None
 
     def connect(self) -> None:
         self.conn = get_db_connection()
@@ -289,24 +287,22 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     if adv['pass']:
                         advanced_passed += 1
 
-                        # NEW: compute the SWING-SPECIFIC score (research-weighted)
-                        # NOTE: SwingTraderScore uses its own connection, not shared cursor,
-                        # to prevent transaction errors from cascading across signals
+                        # OPTIMIZED: Look up pre-computed swing trader scores (no inline computation)
+                        # Scores are pre-computed overnight by load_swing_trader_scores.py
                         try:
-                            if self._swing is None:
-                                self._swing = SwingTraderScore(cur=None)  # Use own connection
-                            swing = self._swing.compute(
-                                symbol, signal_date,
-                                sector=sector_info['sector'], industry=sector_info['industry'],
+                            self.cur.execute(
+                                "SELECT score, grade, components FROM swing_trader_scores WHERE symbol = %s AND date = %s LIMIT 1",
+                                (symbol, signal_date)
                             )
-                        except Exception as swing_err:
-                            logger.warning(f"SwingTraderScore failed for {symbol}: {swing_err} (passing through)")
-                            # Rollback transaction to prevent "transaction aborted" errors on subsequent signals
-                            try:
-                                self.conn.rollback()
-                            except Exception:
-                                pass
-                            swing = {'pass': True, 'reason': 'swing score unavailable', 'swing_score': 60.0, 'grade': 'C', 'components': {}}
+                            swing_row = self.cur.fetchone()
+                            if swing_row:
+                                swing_score, swing_grade, swing_comp_json = swing_row
+                                import json
+                                swing_components = json.loads(swing_comp_json) if swing_comp_json else {}
+                                swing = {'pass': True, 'reason': 'precomputed', 'swing_score': float(swing_score or 0), 'grade': swing_grade or 'C', 'components': swing_components}
+                            else:
+                                logger.debug(f"No precomputed swing score for {symbol} on {signal_date}")
+                                swing = {'pass': True, 'reason': 'score_unavailable', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
 
                         # Hard gate: swing score gate relaxed for production (use component scoring for filtering)
                         # min_swing check disabled to allow all candidates through for ranking
