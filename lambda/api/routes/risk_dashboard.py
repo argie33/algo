@@ -79,9 +79,12 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             row = cur.fetchone()
             if row:
                 vix = float(row['vix_level']) if row['vix_level'] else None
-                risk_reduction = 1.0
-                if vix and vix > 25 and vix < 35:
+                if vix is None or vix <= 25:
+                    risk_reduction = 1.0
+                elif vix < 35:
                     risk_reduction = 0.75
+                else:
+                    risk_reduction = 0.0  # halt territory
                 result['vix_metrics'] = {
                     'vix_level': vix,
                     'caution_threshold': 25.0,

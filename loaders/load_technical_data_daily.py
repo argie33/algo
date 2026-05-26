@@ -162,7 +162,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         df["plus_di"], df["minus_di"], df["adx"] = compute_adx(df["high"], df["low"], df["close"], 14)
 
-        # Mansfield Relative Strength: (stock_rs_line / rs_line_52w_ago - 1) * 100
+        # Mansfield Relative Strength: (rs_line / 52wk_ma_of_rs_line - 1) * 100
         # rs_line = close / spy_close; requires SPY prices aligned to same dates
         if spy_rows:
             spy_df = pd.DataFrame(spy_rows)
@@ -171,8 +171,8 @@ class TechnicalDataDailyLoader(OptimalLoader):
             spy_aligned = spy_closes.reindex(df["date"].values)
             rs_line = df["close"].values / spy_aligned.values
             rs_line_s = pd.Series(rs_line, index=df.index)
-            rs_line_52w = rs_line_s.shift(252)
-            df["mansfield_rs"] = (rs_line_s / rs_line_52w - 1) * 100
+            rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
+            df["mansfield_rs"] = (rs_line_s / rs_line_52w_ma - 1) * 100
         else:
             df["mansfield_rs"] = None
 

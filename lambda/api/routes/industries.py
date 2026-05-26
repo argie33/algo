@@ -95,7 +95,7 @@ def _industry_list(cur, params):
             SELECT
                 cp.industry,
                 AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200)  AS avg_trailing_pe,
-                AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50)   AS avg_forward_pe
+                AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50)   AS avg_pb_ratio
             FROM value_metrics vm
             JOIN company_profile cp ON vm.symbol = cp.ticker
             WHERE cp.industry IS NOT NULL
@@ -106,7 +106,7 @@ def _industry_list(cur, params):
                 PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
             FROM industry_pe
         )
-        SELECT r.*, ipe.avg_trailing_pe, ipe.avg_forward_pe, ipe.pe_percentile,
+        SELECT r.*, ipe.avg_trailing_pe, ipe.avg_pb_ratio, ipe.pe_percentile,
                NULL::INTEGER AS rank_12w_ago
         FROM ranked r
         LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry

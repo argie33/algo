@@ -329,7 +329,7 @@ def _get_algo_performance(cur) -> Dict:
                 'sortino_ratio': round(sortino, 2),
                 'max_drawdown_pct': round(max_dd * 100, 2),
                 'calmar_ratio': calmar_ratio,
-                'expectancy_r': round((wins_sum - losses_sum) / total if total > 0 else 0.0, 2),
+                'expectancy_r': round(_mean(r_multiples), 2) if r_multiples else 0.0,
                 'avg_hold_days': round(_mean(holding_days), 1),
                 'avg_holding_days': round(_mean(holding_days), 1),
                 'avg_r_multiple': round(_mean(r_multiples), 2),
@@ -1015,7 +1015,7 @@ def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("""
-                SELECT date, exposure_pct, regime, distribution_days, factors, halt_reasons
+                SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
