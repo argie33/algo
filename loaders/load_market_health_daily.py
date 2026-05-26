@@ -212,7 +212,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Determine market trend and stage
             market_trend = "neutral"
-            market_stage = 2  # Default to 2 (consolidation)
+            market_stage = 2  # Default to Stage 2 (uptrend); overridden below when MAs available
 
             if sma_200 and sma_50:
                 if close > sma_50 > sma_200:
@@ -236,8 +236,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                     market_stage = 1
 
             # Count distribution days (4w = 25 trading days, 20d = 20 trading days per IBD)
-            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx-25):idx+1].sum()) if idx >= 0 else 0
-            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx-20):idx+1].sum()) if idx >= 0 else 0
+            # idx-24:idx+1 = 25 rows (today + 24 prior sessions)
+            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx-24):idx+1].sum()) if idx >= 0 else 0
+            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx-19):idx+1].sum()) if idx >= 0 else 0
 
             results.append({
                 "date": row["date"].date().isoformat(),

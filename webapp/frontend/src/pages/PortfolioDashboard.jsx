@@ -373,9 +373,9 @@ export default function PortfolioDashboard() {
               sub={(markets?.current?.regime || '').toString().toUpperCase()}
             />
             <Stile
-              label="9-Factor Score"
+              label="Market Score"
               value={<span className="mono tnum">{markets?.current?.raw_score ?? '—'}/100</span>}
-              sub="0-100 composite"
+              sub="11-factor composite"
             />
             <Stile
               label="VIX"
