@@ -90,6 +90,7 @@ def _recalculate_position_size_after_exits(
 def _validate_and_adjust_entry_price(
     trade: Dict[str, Any],
     get_conn: Callable,
+    put_conn: Callable,
     verbose: bool = False
 ) -> Dict[str, Any]:
     """
@@ -103,21 +104,22 @@ def _validate_and_adjust_entry_price(
     shares = trade['shares']
     stop_loss = trade['stop_loss_price']
 
+    conn = None
     try:
         conn = get_conn()
         if not conn:
             return trade
 
         cur = conn.cursor()
-
-        # Get most recent price for this symbol
-        cur.execute("""
-            SELECT close FROM price_daily
-            WHERE symbol = %s
-            ORDER BY date DESC LIMIT 1
-        """, (symbol,))
-        result = cur.fetchone()
-        cur.close()
+        try:
+            cur.execute("""
+                SELECT close FROM price_daily
+                WHERE symbol = %s
+                ORDER BY date DESC LIMIT 1
+            """, (symbol,))
+            result = cur.fetchone()
+        finally:
+            cur.close()
 
         if not result:
             if verbose:
@@ -163,10 +165,14 @@ def _validate_and_adjust_entry_price(
     except Exception as e:
         logger.warning(f"  {symbol}: Price validation failed ({e}), using signal price")
         return trade
+    finally:
+        if conn:
+            put_conn(conn)
 
 
 def _validate_pre_trade_data_quality(
     get_conn: Callable,
+    put_conn: Callable,
     run_date: _date,
 ) -> Tuple[bool, List[str], List[str]]:
     """
@@ -380,9 +386,9 @@ def _validate_pre_trade_data_quality(
             warnings.append(f"Value metrics incomplete: {value_count}/{covered} symbols ({(value_count/max(covered,1)*100):.0f}%)")
 
         # 6c. Stock scores data completeness (scores must have >80% component coverage)
-        # data_completeness field ranges 0.0-1.0 (1.0 = all 6 score components available, 0.8+ = acceptable)
+        # data_completeness is stored as 0-100 (percent of 6 score components available); 80+ is acceptable
         cur.execute(
-            "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day' AND data_completeness >= 0.8",
+            "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day' AND data_completeness >= 80",
             (today,)
         )
         result = cur.fetchone()
@@ -414,7 +420,7 @@ def _validate_pre_trade_data_quality(
                 logger.error(f"Unhandled exception: {e}")
         if conn:
             try:
-                conn.close()
+                put_conn(conn)
             except Exception as e:
                 logger.error(f"Unhandled exception: {e}")
 
@@ -465,7 +471,7 @@ def run(
         executor = TradeExecutor(config)
 
         # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete
-        data_quality_ok, dq_issues, dq_warnings = _validate_pre_trade_data_quality(get_conn, run_date)
+        data_quality_ok, dq_issues, dq_warnings = _validate_pre_trade_data_quality(get_conn, put_conn, run_date)
         if not data_quality_ok:
             log_phase_result_fn(
                 6, 'entry_execution', 'halt',
@@ -601,7 +607,7 @@ def run(
 
         for trade in trades_to_enter[:open_slots]:
             # Validate entry price hasn't drifted significantly
-            trade = _validate_and_adjust_entry_price(trade, get_conn, verbose)
+            trade = _validate_and_adjust_entry_price(trade, get_conn, put_conn, verbose)
             if trade.get('skip_due_to_price_drift'):
                 blocked += 1
                 logger.warning(f"  SKIPPED {trade['symbol']}: Price validation failed")
