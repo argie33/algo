@@ -50,26 +50,44 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'income-statement':
-            table = 'quarterly_income_statement' if period == 'quarterly' else 'annual_income_statement'
-            cur.execute(psycopg2.sql.SQL("""
-                SELECT * FROM {} WHERE symbol = %s ORDER BY date DESC LIMIT %s
-            """).format(psycopg2.sql.Identifier(table)), (sym, limit))
+            if period == 'quarterly':
+                cur.execute(psycopg2.sql.SQL("""
+                    SELECT * FROM quarterly_income_statement
+                    WHERE symbol = %s ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT %s
+                """), (sym, limit))
+            else:
+                cur.execute(psycopg2.sql.SQL("""
+                    SELECT * FROM annual_income_statement
+                    WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
+                """), (sym, limit))
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'balance-sheet':
-            table = 'quarterly_balance_sheet' if period == 'quarterly' else 'annual_balance_sheet'
-            cur.execute(psycopg2.sql.SQL("""
-                SELECT * FROM {} WHERE symbol = %s ORDER BY date DESC LIMIT %s
-            """).format(psycopg2.sql.Identifier(table)), (sym, limit))
+            if period == 'quarterly':
+                cur.execute(psycopg2.sql.SQL("""
+                    SELECT * FROM quarterly_balance_sheet
+                    WHERE symbol = %s ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT %s
+                """), (sym, limit))
+            else:
+                cur.execute(psycopg2.sql.SQL("""
+                    SELECT * FROM annual_balance_sheet
+                    WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
+                """), (sym, limit))
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'cash-flow':
-            table = 'quarterly_cash_flow' if period == 'quarterly' else 'annual_cash_flow'
-            cur.execute(psycopg2.sql.SQL("""
-                SELECT * FROM {} WHERE symbol = %s ORDER BY date DESC LIMIT %s
-            """).format(psycopg2.sql.Identifier(table)), (sym, limit))
+            if period == 'quarterly':
+                cur.execute(psycopg2.sql.SQL("""
+                    SELECT * FROM quarterly_cash_flow
+                    WHERE symbol = %s ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT %s
+                """), (sym, limit))
+            else:
+                cur.execute(psycopg2.sql.SQL("""
+                    SELECT * FROM annual_cash_flow
+                    WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
+                """), (sym, limit))
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows] if rows else [])
 
