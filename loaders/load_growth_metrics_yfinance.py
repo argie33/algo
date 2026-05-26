@@ -104,7 +104,13 @@ class GrowthMetricsYfinanceLoader(OptimalLoader):
             elif 'epsTrailingTwelveMonths' in info and info['epsTrailingTwelveMonths'] is not None:
                 eps_growth_1y = float(info['epsTrailingTwelveMonths'])
 
-            # Store whatever we found
+            # Store whatever we found (clamp to fit NUMERIC(8,4) column constraints)
+            # Growth rates above 9999.9% are typically data errors; cap at 9999.99
+            if revenue_growth_1y:
+                revenue_growth_1y = min(9999.99, max(-100.0, revenue_growth_1y))
+            if eps_growth_1y:
+                eps_growth_1y = min(9999.99, max(-100.0, eps_growth_1y))
+
             metrics['revenue_growth_1y'] = round(revenue_growth_1y, 2) if revenue_growth_1y else None
             metrics['revenue_growth_3y'] = None  # Not easily available from yfinance
             metrics['eps_growth_1y'] = round(eps_growth_1y, 2) if eps_growth_1y else None
