@@ -1,31 +1,85 @@
-﻿import React from 'react';
+import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
-import PromoBanner from '../../components/marketing/PromoBanner';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
-import { Insights as InsightsIcon } from '@mui/icons-material';
+import {
+  TrendingUp as TrendingUpIcon,
+  DataObject as DataObjectIcon,
+  FilterList as FilterListIcon,
+  Verified as VerifiedIcon,
+} from '@mui/icons-material';
 
 const ResearchInsights = () => {
   const theme = useTheme();
 
-  const researchCategories = [
+  const researchDimensions = [
     {
-      title: 'AI-Powered Stock Analysis',
-      description: 'Our composite scoring system analyzes stocks across multiple dimensions using machine learning. Get comprehensive insights beyond traditional metrics.',
+      icon: <TrendingUpIcon />,
+      title: 'Trend Analysis',
+      description: 'Minervini-style trend template requiring stocks to be above the 150 and 200-day SMA, with the 50-day above the 150, within a specific 52-week range position, and showing relative strength vs. the S&P 500.',
     },
     {
-      title: 'Market Research & Reports',
-      description: 'In-depth analysis of market trends, sector performance, and economic indicators. Actionable insights to inform your investment strategy.',
+      icon: <DataObjectIcon />,
+      title: 'Fundamental Quality',
+      description: 'Multi-factor fundamental filters evaluating earnings growth rate, revenue acceleration, profit margins, return on equity, and debt levels. The system favors companies with actual earnings, not story stocks.',
     },
     {
-      title: 'Sentiment & Positioning Analysis',
-      description: 'Track how institutional sentiment is shifting. Our AI interprets analyst positioning, upgrades/downgrades, and market psychology.',
+      icon: <FilterListIcon />,
+      title: 'Market Health Gating',
+      description: 'Before any signal reaches the execution layer, the broader market must clear health thresholds: advance/decline breadth, distribution day count, VIX conditions, and market stage analysis.',
     },
     {
-      title: 'Technical Analysis & Trading Signals',
-      description: 'AI-generated signals based on price action, technical patterns, and momentum indicators. Identify entry and exit opportunities.',
+      icon: <VerifiedIcon />,
+      title: 'Signal Validation',
+      description: 'Every scoring model is backtested against 10+ years of historical data. Out-of-sample performance is tracked continuously, and models are updated when market conditions change their predictive validity.',
+    },
+  ];
+
+  const processSteps = [
+    {
+      step: '01',
+      title: 'Data Collection',
+      description: 'Twenty-four automated loaders run daily before market open, pulling prices, technicals, fundamentals, earnings, sentiment, sector data, and economic indicators from authoritative sources.',
+    },
+    {
+      step: '02',
+      title: 'Multi-Factor Scoring',
+      description: 'Each stock in the 5,300+ universe is scored across valuation, momentum, trend strength, earnings quality, and fundamental health. Composite scores update every trading day.',
+    },
+    {
+      step: '03',
+      title: 'Signal Generation',
+      description: 'The top-ranked stocks are run through six sequential filters: market health, trend template, fundamental quality, earnings signals, portfolio constraints, and advanced technical criteria.',
+    },
+    {
+      step: '04',
+      title: 'Research Delivery',
+      description: 'Signals, scores, sector analysis, earnings calendar, and economic data are surfaced through the research platform&#8212;updated before market open and after market close.',
+    },
+  ];
+
+  const differentiators = [
+    {
+      number: '01',
+      title: 'Minervini Stage Analysis',
+      description: 'Our trend template is based on Mark Minervini\'s Stage Analysis framework, one of the most rigorously backtested approaches to identifying stocks in Stage 2 uptrends. Seven specific conditions must all be met simultaneously.',
+    },
+    {
+      number: '02',
+      title: 'Fundamentals-First Filter',
+      description: 'Technical setups without fundamental support don\'t pass. The research screens for earnings acceleration, revenue growth, and profit margin expansion&#8212;the hallmarks of stocks that sustain their moves.',
+    },
+    {
+      number: '03',
+      title: 'Market Regime Awareness',
+      description: 'No new longs in declining markets. The system evaluates distribution days, breadth deterioration, and VIX expansion before allowing any new position. Capital preservation during corrections is explicit.',
+    },
+    {
+      number: '04',
+      title: 'Transparent, Verifiable Methodology',
+      description: 'Every filter, every scoring weight, every threshold is documented and observable. You can see exactly why a stock passes or fails any stage of the process&#8212;no black box.',
     },
   ];
 
@@ -33,14 +87,20 @@ const ResearchInsights = () => {
     <MarketingLayout>
       <PageHeader
         title="Research & Insights"
-        subtitle="AI-powered market analysis and intelligence"
+        subtitle="How we find high-quality setups: transparent methodology, systematic process, backtested validation"
       />
 
-      {/* Hero Section with Image */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+      {/* Hero */}
+      <Box sx={{ py: { xs: 8, md: 10 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
-          <Grid container spacing={6} alignItems="center">
+          <Grid container spacing={7} alignItems="center">
             <Grid item xs={12} md={6}>
+              <Typography
+                variant="overline"
+                sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+              >
+                Evidence-Based Methodology
+              </Typography>
               <Typography
                 variant="h3"
                 sx={{
@@ -48,192 +108,192 @@ const ResearchInsights = () => {
                   fontWeight: 800,
                   mb: 3,
                   color: theme.palette.text.primary,
+                  letterSpacing: '-0.5px',
+                  lineHeight: 1.2,
                 }}
               >
-                Research-Driven Intelligence
+                Systematic Research. No Guesswork.
               </Typography>
               <Typography
                 variant="body1"
-                sx={{
-                  fontSize: '1.1rem',
-                  color: theme.palette.text.secondary,
-                  lineHeight: 1.8,
-                }}
+                sx={{ fontSize: '1.1rem', color: theme.palette.text.secondary, lineHeight: 1.8, mb: 3 }}
               >
-                Our AI-powered research platform analyzes markets across multiple dimensions - stocks, earnings, sentiment, technicals, sectors, and macro trends. Get institutional-grade insights in real-time.
+                Our research process is built on a single premise: the best stocks to own are
+                in Stage 2 uptrends with accelerating fundamentals, entered only when the
+                broader market is in a healthy condition. Everything else is noise.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{ fontSize: '1rem', color: theme.palette.text.secondary, lineHeight: 1.8 }}
+              >
+                That premise has been validated across decades of market data. The Minervini
+                Trend Template, combined with fundamental quality filters and market health gating,
+                produces a signal set with historically high win rates and favorable risk/reward ratios.
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
-                alt="Research Intelligence Dashboard showing data analytics"
-                height={{ xs: '300px', md: '450px' }}
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=900&h=650&fit=crop&auto=format&q=80"
+                alt="Research analytics dashboard with market data"
+                height={{ xs: '300px', md: '420px' }}
               />
             </Grid>
           </Grid>
         </Container>
       </Box>
 
-      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
-        <Typography
-          variant="h3"
-          sx={{
-            fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-            fontWeight: 800,
-            mb: 4,
-            textAlign: 'center',
-            color: theme.palette.text.primary,
-          }}
-        >
-          Comprehensive Research Tools
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            fontSize: '1.05rem',
-            color: theme.palette.text.secondary,
-            mb: 6,
-            textAlign: 'center',
-            maxWidth: '700px',
-            mx: 'auto',
-          }}
-        >
-          Access professional-grade research and analysis tools powered by artificial intelligence. Get insights that traditional analysis misses.
-        </Typography>
-
-        <Grid container spacing={4}>
-          {researchCategories.map((category, idx) => (
-            <Grid item xs={12} sm={6} key={idx}>
-              <Card
-                sx={{
-                  height: '100%',
-                  border: `1px solid ${theme.palette.divider}`,
-                  backgroundColor: theme.palette.background.default,
-                  borderRadius: '0px',
-                  transition: 'all 0.3s ease',
-                  overflow: 'hidden',
-                  '&:hover': {
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
-                    transform: 'translateY(-4px)',
-                  },
-                }}
-              >
-                <CardContent>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 700,
-                      mb: 1.5,
-                      color: theme.palette.primary.main,
-                    }}
-                  >
-                    {category.title}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {category.description}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      </Container>
-
-      {/* How Our Research Works Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+      {/* Research Dimensions */}
+      <Box
+        sx={{
+          py: { xs: 8, md: 10 },
+          backgroundColor: theme.palette.background.paper,
+          borderTop: `1px solid ${theme.palette.divider}`,
+        }}
+      >
         <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            How Bullseye's Research Process Works
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '700px',
-              mx: 'auto',
-            }}
-          >
-            Our research engine processes comprehensive data through proprietary AI models to deliver actionable intelligence
-          </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                step: '1',
-                title: 'Data Integration',
-                description: 'We aggregate and normalize data across 6+ dimensions: market data, economic indicators, financial fundamentals, technical patterns, sector dynamics, and sentiment signals.',
-              },
-              {
-                step: '2',
-                title: 'AI Analysis',
-                description: 'Our machine learning models analyze patterns, correlations, and anomalies across all dimensions simultaneously. Models adapt to changing market conditions in real-time.',
-              },
-              {
-                step: '3',
-                title: 'Research Synthesis',
-                description: 'Complex AI outputs are synthesized into clear, actionable research insights. We explain the reasoning behind every recommendation.',
-              },
-              {
-                step: '4',
-                title: 'Platform Access',
-                description: 'All research is available through our platform interface. Institutional clients can access data via API, while advisors and traders use the web platform for analysis and screening.',
-              },
-            ].map((item, idx) => (
+          <Box sx={{ textAlign: 'center', mb: 7 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+            >
+              Core Research Framework
+            </Typography>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '1.9rem', sm: '2.3rem', md: '2.8rem' },
+                fontWeight: 800,
+                mb: 2,
+                color: theme.palette.text.primary,
+                letterSpacing: '-0.5px',
+              }}
+            >
+              Four Pillars of Our Analysis
+            </Typography>
+            <Typography sx={{ fontSize: '1.05rem', color: theme.palette.text.secondary, maxWidth: '620px', mx: 'auto', lineHeight: 1.8 }}>
+              The research engine applies all four simultaneously. A stock must pass every pillar to generate a signal.
+            </Typography>
+          </Box>
+
+          <Grid container spacing={3}>
+            {researchDimensions.map((dim, idx) => (
+              <Grid item xs={12} sm={6} key={idx}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    border: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: theme.palette.background.default,
+                    borderRadius: '0px',
+                    boxShadow: 'none',
+                    transition: 'all 0.25s ease',
+                    '&:hover': {
+                      borderColor: theme.palette.primary.main,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.07)',
+                    },
+                  }}
+                >
+                  <CardContent sx={{ p: 3.5 }}>
+                    <Box
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: '0px',
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        color: theme.palette.primary.main,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mb: 2,
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                      }}
+                    >
+                      {dim.icon}
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5, color: theme.palette.text.primary, fontSize: '1.05rem' }}>
+                      {dim.title}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, lineHeight: 1.7 }}>
+                      {dim.description}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Process Steps */}
+      <Box
+        sx={{
+          py: { xs: 8, md: 10 },
+          backgroundColor: alpha(theme.palette.primary.main, 0.03),
+          borderTop: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Container maxWidth="lg">
+          <Box sx={{ textAlign: 'center', mb: 7 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+            >
+              Daily Process
+            </Typography>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '1.9rem', sm: '2.3rem', md: '2.8rem' },
+                fontWeight: 800,
+                mb: 2,
+                color: theme.palette.text.primary,
+                letterSpacing: '-0.5px',
+              }}
+            >
+              From Data to Signal Every Day
+            </Typography>
+            <Typography sx={{ fontSize: '1.05rem', color: theme.palette.text.secondary, maxWidth: '600px', mx: 'auto', lineHeight: 1.8 }}>
+              The research pipeline runs automatically before market open. Here&apos;s how raw data becomes actionable signals.
+            </Typography>
+          </Box>
+
+          <Grid container spacing={3}>
+            {processSteps.map((item, idx) => (
               <Grid item xs={12} sm={6} md={3} key={idx}>
-                <Box sx={{ textAlign: 'center' }}>
+                <Box sx={{ position: 'relative', height: '100%' }}>
                   <Box
                     sx={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: '0px',
+                      position: 'absolute',
+                      top: -1,
+                      left: -1,
                       backgroundColor: theme.palette.primary.main,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
                       color: '#fff',
-                      fontSize: '1.5rem',
-                      fontWeight: 'bold',
-                      mb: 2,
-                      mx: 'auto',
+                      px: 1.5,
+                      py: 0.5,
+                      fontWeight: 900,
+                      fontSize: '0.8rem',
+                      letterSpacing: '1px',
+                      zIndex: 1,
                     }}
                   >
                     {item.step}
                   </Box>
-                  <Typography
-                    variant="h6"
+                  <Box
                     sx={{
-                      fontWeight: 700,
-                      mb: 1.5,
-                      color: theme.palette.text.primary,
+                      pt: 5,
+                      px: 3,
+                      pb: 3,
+                      border: `1px solid ${theme.palette.divider}`,
+                      backgroundColor: theme.palette.background.paper,
+                      height: '100%',
                     }}
                   >
-                    {item.title}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {item.description}
-                  </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5, color: theme.palette.text.primary, fontSize: '1rem' }}>
+                      {item.title}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, lineHeight: 1.7 }}
+                      dangerouslySetInnerHTML={{ __html: item.description }}
+                    />
+                  </Box>
                 </Box>
               </Grid>
             ))}
@@ -241,146 +301,85 @@ const ResearchInsights = () => {
         </Container>
       </Box>
 
-      {/* What Sets Our Research Apart Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.04) }}>
+      {/* What Sets It Apart */}
+      <Box sx={{ py: { xs: 8, md: 10 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            What Sets Our Research Apart
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '700px',
-              mx: 'auto',
-            }}
-          >
-            Independent research built on rigorous quantitative analysis and fundamental insights
-          </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                number: '1',
-                title: 'Multi-Dimensional Analysis',
-                description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
-              },
-              {
-                number: '2',
-                title: 'Evidence-Based Methodology',
-                description: 'Every signal is backtested against 10+ years of market data. We validate our models against real market outcomes and continuously refine our research process based on performance.',
-              },
-              {
-                number: '3',
-                title: 'Institutional-Grade Tools',
-                description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, stock screening, and portfolio monitoring for serious investors.',
-              },
-              {
-                number: '4',
-                title: 'Independent & Transparent',
-                description: 'We publish independent research without investment banking conflicts. Our methodology is transparent, and we explain the factors driving our analysis and recommendations.',
-              },
-            ].map((item, idx) => (
-              <Grid item xs={12} sm={6} md={3} key={idx}>
-                <Box
+          <Box sx={{ textAlign: 'center', mb: 7 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+            >
+              Why It Works
+            </Typography>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '1.9rem', sm: '2.3rem', md: '2.8rem' },
+                fontWeight: 800,
+                mb: 2,
+                color: theme.palette.text.primary,
+                letterSpacing: '-0.5px',
+              }}
+            >
+              What Sets Our Research Apart
+            </Typography>
+            <Typography sx={{ fontSize: '1.05rem', color: theme.palette.text.secondary, maxWidth: '600px', mx: 'auto', lineHeight: 1.8 }}>
+              Most research platforms generate noise. Ours generates signal.
+            </Typography>
+          </Box>
+
+          <Grid container spacing={3}>
+            {differentiators.map((item, idx) => (
+              <Grid item xs={12} sm={6} key={idx}>
+                <Card
                   sx={{
-                    backgroundColor: theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: '0px',
-                    transition: 'all 0.3s ease',
-                    overflow: 'hidden',
                     height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
+                    border: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: theme.palette.background.paper,
+                    borderRadius: '0px',
+                    boxShadow: 'none',
+                    transition: 'all 0.25s ease',
                     '&:hover': {
-                      borderColor: theme.palette.primary.main,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                      transform: 'translateY(-4px)',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.07)',
                     },
                   }}
                 >
-                  <Box
-                    sx={{
-                      height: { xs: '200px', md: '200px' },
-                      background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Typography sx={{ color: theme.palette.text.secondary, textAlign: 'center', px: 2, fontSize: '0.9rem' }}>
-                      {item.title}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <CardContent sx={{ p: 3.5 }}>
                     <Typography
                       sx={{
-                        fontSize: '1.8rem',
-                        fontWeight: 800,
-                        color: theme.palette.primary.main,
+                        fontSize: '2.2rem',
+                        fontWeight: 900,
+                        color: alpha(theme.palette.primary.main, 0.25),
+                        lineHeight: 1,
                         mb: 1,
+                        fontVariantNumeric: 'tabular-nums',
                       }}
                     >
                       {item.number}
                     </Typography>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        mb: 1.5,
-                        color: theme.palette.text.primary,
-                        fontSize: '1.15rem',
-                      }}
-                    >
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5, color: theme.palette.text.primary, fontSize: '1.05rem' }}>
                       {item.title}
                     </Typography>
-                    <Typography
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        lineHeight: 1.6,
-                        fontSize: '0.95rem',
-                        flex: 1,
-                      }}
-                    >
+                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary, lineHeight: 1.7 }}>
                       {item.description}
                     </Typography>
-                  </Box>
-                </Box>
+                  </CardContent>
+                </Card>
               </Grid>
             ))}
           </Grid>
         </Container>
       </Box>
 
-      <PromoBanner
-        icon={<InsightsIcon sx={{ color: theme.palette.primary.main }} />}
-        title="Ready for Professional-Grade Insights?"
-        subtitle="Start leveraging AI-powered research to improve your investment decisions"
-        primaryCTA={{ label: 'Launch Platform', href: '/app/markets' }}
-        secondaryCTA={{ label: 'Schedule Demo', href: '/contact' }}
+      <CTASection
+        variant="dark"
+        title="See the Research in Action"
+        subtitle="Access trading signals, stock scores, and market analysis built on this methodology&#8212;free."
+        primaryCTA={{ label: 'Launch Platform', link: '/app/markets' }}
+        secondaryCTA={{ label: 'View Trading Signals', link: '/app/trading-signals' }}
       />
-
-      <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
-        <CTASection
-          variant="primary"
-          title="Unlock Market Intelligence"
-          subtitle="Access comprehensive research and insights to stay ahead of the market."
-          primaryCTA={{ label: 'Get Started', link: '/app/markets' }}
-        />
-      </Box>
     </MarketingLayout>
   );
 };
 
 export default ResearchInsights;
-

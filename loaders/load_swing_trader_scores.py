@@ -114,6 +114,11 @@ class SwingTraderScoresLoader(OptimalLoader):
             else:
                 grade = 'F'
 
+            pass_gates = composite_score >= 75
+            fail_reason = None if pass_gates else (
+                'Low composite score' if composite_score < 45 else
+                'Below quality threshold'
+            )
             return [{
                 'symbol': symbol,
                 'date': date,
@@ -121,6 +126,8 @@ class SwingTraderScoresLoader(OptimalLoader):
                 'components': json.dumps({
                     'grade': grade,
                     'composite_sqs': round(composite_score, 1),
+                    'pass_gates': pass_gates,
+                    'fail_reason': fail_reason,
                 })
             }]
         except Exception as e:

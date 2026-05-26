@@ -1,62 +1,93 @@
-﻿import React from 'react';
+import React from 'react';
 import { Box, Container, Typography, Button, Grid, useTheme, alpha } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { ArrowForward as ArrowForwardIcon } from '@mui/icons-material';
 
 const HeroSection = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+
+  const stats = [
+    { value: '5,300+', label: 'Stocks Covered' },
+    { value: '10+', label: 'Years of Data' },
+    { value: 'Daily', label: 'Research Updates' },
+    { value: 'Free', label: 'Platform Access' },
+  ];
 
   return (
     <Box
       sx={{
         position: 'relative',
         overflow: 'hidden',
-        py: { xs: 8, sm: 10, md: 14 },
-        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-        backgroundImage: `url('https://images.unsplash.com/photo-1518391846015-55a9cc003b25?w=1200&h=700&fit=crop&auto=format&q=80')`,
+        py: { xs: 10, sm: 12, md: 16 },
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundImage: `url('https://images.unsplash.com/photo-1518391846015-55a9cc003b25?w=1400&h=800&fit=crop&auto=format&q=80')`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundPosition: 'center top',
         '&::before': {
           content: '""',
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: `linear-gradient(90deg, ${alpha(theme.palette.background.default, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.85)} 40%, ${alpha(theme.palette.background.default, 0.6)} 70%, transparent 100%)`,
+          inset: 0,
+          background: `linear-gradient(105deg,
+            ${alpha(theme.palette.background.default, 0.97)} 0%,
+            ${alpha(theme.palette.background.default, 0.92)} 35%,
+            ${alpha(theme.palette.background.default, 0.75)} 60%,
+            transparent 100%)`,
           zIndex: 1,
         },
       }}
     >
       <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 2 }}>
         <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center">
-          {/* Left Content - Overlaid on Image */}
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={7}>
             <Box>
+              <Typography
+                variant="overline"
+                sx={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  letterSpacing: '3px',
+                  color: theme.palette.primary.main,
+                  display: 'block',
+                  mb: 2,
+                }}
+              >
+                Independent Equity Research
+              </Typography>
+
               <Typography
                 variant="h1"
                 component="h1"
                 sx={{
-                  fontWeight: 800,
-                  fontSize: { xs: '2.2rem', sm: '3.2rem', md: '3.8rem' },
-                  lineHeight: 1.15,
+                  fontWeight: 900,
+                  fontSize: { xs: '2.4rem', sm: '3.4rem', md: '4.2rem' },
+                  lineHeight: 1.1,
                   mb: 3,
                   color: theme.palette.text.primary,
-                  letterSpacing: '-0.5px',
+                  letterSpacing: '-1px',
                 }}
               >
-                Research Without the Guesswork
+                Research Without
+                <Box
+                  component="span"
+                  sx={{
+                    display: 'block',
+                    color: theme.palette.primary.main,
+                  }}
+                >
+                  the Guesswork
+                </Box>
               </Typography>
 
               <Typography
                 variant="body1"
                 sx={{
-                  fontSize: { xs: '1.05rem', sm: '1.15rem', md: '1.25rem' },
+                  fontSize: { xs: '1.05rem', md: '1.2rem' },
                   color: theme.palette.text.secondary,
-                  mb: 4,
-                  fontWeight: 400,
-                  lineHeight: 1.7,
-                  maxWidth: '95%',
+                  mb: 2,
+                  lineHeight: 1.8,
+                  maxWidth: '580px',
+                  fontWeight: 500,
                 }}
               >
                 We&apos;re tired of watching Wall Street have all the advantages. That ends now.
@@ -65,38 +96,97 @@ const HeroSection = () => {
               <Typography
                 variant="body1"
                 sx={{
-                  fontSize: { xs: '0.95rem', sm: '1.05rem', md: '1.1rem' },
+                  fontSize: { xs: '0.95rem', md: '1.05rem' },
                   color: theme.palette.text.secondary,
-                  mb: 4,
-                  fontWeight: 400,
-                  lineHeight: 1.7,
-                  maxWidth: '95%',
+                  mb: 5,
+                  lineHeight: 1.8,
+                  maxWidth: '560px',
                 }}
               >
-                Bullseye harnesses cutting-edge AI and advanced technology to deliver institutional-grade research completely free. Quantitative insights, fundamental analysis, technical research&mdash;everything the big guys pay millions for. We&apos;re using the same tools and tech that power Wall Street to level the playing field and give individual investors a real competitive edge.
+                Bullseye delivers institutional-grade equity research completely free&#8212;quantitative
+                scoring, fundamental analysis, technical signals, and market intelligence that the
+                big firms pay millions for. We built it for serious investors.
               </Typography>
 
-              {/* CTA Button */}
-              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 5 }}>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 6 }}>
                 <Button
                   variant="contained"
                   size="large"
+                  endIcon={<ArrowForwardIcon />}
                   onClick={() => navigate('/app/markets')}
                   sx={{
-                    fontSize: '1.05rem',
-                    fontWeight: 600,
+                    fontSize: '1rem',
+                    fontWeight: 700,
                     py: 1.75,
                     px: 4,
-                    borderRadius: '6px',
+                    borderRadius: '0px',
                     textTransform: 'none',
-                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                    boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.35)}`,
                     '&:hover': {
-                      boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                      boxShadow: `0 6px 24px ${alpha(theme.palette.primary.main, 0.5)}`,
                     },
                   }}
                 >
-                  Get Started
+                  Launch Platform
                 </Button>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  onClick={() => navigate('/research-insights')}
+                  sx={{
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    py: 1.75,
+                    px: 4,
+                    borderRadius: '0px',
+                    textTransform: 'none',
+                    borderColor: alpha(theme.palette.primary.main, 0.5),
+                    '&:hover': {
+                      backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                      borderColor: theme.palette.primary.main,
+                    },
+                  }}
+                >
+                  How It Works
+                </Button>
+              </Box>
+
+              {/* Stats Row */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: { xs: 3, sm: 5 },
+                  flexWrap: 'wrap',
+                  pt: 4,
+                  borderTop: `1px solid ${theme.palette.divider}`,
+                }}
+              >
+                {stats.map((stat) => (
+                  <Box key={stat.label}>
+                    <Typography
+                      sx={{
+                        fontSize: { xs: '1.5rem', md: '1.8rem' },
+                        fontWeight: 800,
+                        color: theme.palette.primary.main,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {stat.value}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: '0.8rem',
+                        color: theme.palette.text.secondary,
+                        fontWeight: 500,
+                        mt: 0.5,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      {stat.label}
+                    </Typography>
+                  </Box>
+                ))}
               </Box>
             </Box>
           </Grid>
@@ -107,4 +197,3 @@ const HeroSection = () => {
 };
 
 export default HeroSection;
-

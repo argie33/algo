@@ -27,13 +27,94 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         if path == '/api/stocks/deep-value':
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=600)
             cur.execute("""
-                SELECT ss.symbol, ss.security_name as company_name,
-                       cp.sector, cp.industry, km.market_cap
+                WITH latest_prices AS (
+                    SELECT DISTINCT ON (symbol) symbol, close AS current_price
+                    FROM price_daily
+                    ORDER BY symbol, date DESC
+                ),
+                stats_52w AS (
+                    SELECT symbol, MAX(high) AS high_52w, MIN(low) AS low_52w
+                    FROM price_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '52 weeks'
+                    GROUP BY symbol
+                ),
+                stats_3y AS (
+                    SELECT symbol, MAX(high) AS high_3y
+                    FROM price_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '3 years'
+                    GROUP BY symbol
+                ),
+                sector_medians AS (
+                    SELECT cp.sector,
+                           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY vm.pe_ratio) AS sector_median_pe
+                    FROM value_metrics vm
+                    JOIN company_profile cp ON cp.ticker = vm.symbol
+                    WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200
+                    GROUP BY cp.sector
+                ),
+                market_median AS (
+                    SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY pe_ratio) AS market_median_pe
+                    FROM value_metrics
+                    WHERE pe_ratio > 0 AND pe_ratio < 200
+                )
+                SELECT
+                    ss.symbol,
+                    ss.security_name AS company_name,
+                    cp.sector,
+                    cp.industry,
+                    km.market_cap,
+                    lp.current_price,
+                    ROUND((
+                        COALESCE(sc.value_score, 0) * 0.5 +
+                        COALESCE(sc.quality_score, 0) * 0.3 +
+                        COALESCE(sc.growth_score, 0) * 0.2
+                    )::numeric, 2) AS generational_score,
+                    vm.pe_ratio AS trailing_pe,
+                    vm.pb_ratio AS price_to_book,
+                    vm.ps_ratio AS price_to_sales,
+                    NULL::numeric AS ev_to_ebitda,
+                    vm.peg_ratio,
+                    vm.dividend_yield,
+                    ROUND((qm.roe * 100)::numeric, 2) AS roe_pct,
+                    ROUND((qm.operating_margin * 100)::numeric, 2) AS op_margin_pct,
+                    NULL::numeric AS gross_margin_pct,
+                    ROUND((qm.net_margin * 100)::numeric, 2) AS net_margin_pct,
+                    ROUND((qm.roa * 100)::numeric, 2) AS roa_pct,
+                    qm.debt_to_equity,
+                    qm.current_ratio,
+                    s52.high_52w,
+                    s52.low_52w,
+                    s3y.high_3y,
+                    ROUND(((s52.high_52w - lp.current_price) / NULLIF(s52.high_52w, 0) * 100)::numeric, 2) AS drop_from_52w_high_pct,
+                    ROUND(((s3y.high_3y - lp.current_price) / NULLIF(s3y.high_3y, 0) * 100)::numeric, 2) AS drop_from_3y_high_pct,
+                    sm.sector_median_pe,
+                    mm.market_median_pe,
+                    ROUND(((sm.sector_median_pe - vm.pe_ratio) / NULLIF(sm.sector_median_pe, 0) * 100)::numeric, 2) AS discount_vs_sector_pe_pct,
+                    ROUND(((mm.market_median_pe - vm.pe_ratio) / NULLIF(mm.market_median_pe, 0) * 100)::numeric, 2) AS discount_vs_market_pe_pct,
+                    ROUND((lp.current_price / NULLIF(vm.pb_ratio, 0))::numeric, 2) AS intrinsic_value_per_share,
+                    ROUND(((1 - vm.pb_ratio) / NULLIF(vm.pb_ratio, 0) * 100)::numeric, 2) AS margin_of_safety_pct,
+                    ROUND((gm.revenue_growth_3y * 100)::numeric, 2) AS revenue_growth_3y_pct,
+                    ROUND((gm.eps_growth_3y * 100)::numeric, 2) AS eps_growth_3y_pct,
+                    ROUND((gm.revenue_growth_1y * 100)::numeric, 2) AS revenue_growth_yoy_pct,
+                    NULL::numeric AS fcf_growth_yoy_pct,
+                    NULL::numeric AS sustainable_growth_pct,
+                    NULL::numeric AS op_margin_trend_pp,
+                    NULL::numeric AS gross_margin_trend_pp,
+                    NULL::numeric AS roe_trend_pp
                 FROM stock_symbols ss
-                LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-                LEFT JOIN key_metrics km ON ss.symbol = km.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
+                LEFT JOIN key_metrics km ON km.symbol = ss.symbol
+                LEFT JOIN latest_prices lp ON lp.symbol = ss.symbol
+                LEFT JOIN stats_52w s52 ON s52.symbol = ss.symbol
+                LEFT JOIN stats_3y s3y ON s3y.symbol = ss.symbol
+                LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
+                LEFT JOIN quality_metrics qm ON qm.symbol = ss.symbol
+                LEFT JOIN growth_metrics gm ON gm.symbol = ss.symbol
+                LEFT JOIN stock_scores sc ON sc.symbol = ss.symbol
+                LEFT JOIN sector_medians sm ON sm.sector = cp.sector
+                CROSS JOIN market_median mm
                 WHERE ss.symbol NOT LIKE '^%%'
-                ORDER BY ss.symbol
+                ORDER BY generational_score DESC NULLS LAST
                 LIMIT %s
             """, (limit,))
             rows = cur.fetchall()

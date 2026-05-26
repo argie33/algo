@@ -716,7 +716,3 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'message': 'An unexpected error occurred'
             })
         }
-
-# Force redeploy
-# Trigger redeploy
-# Redeploy trigger 1779676909

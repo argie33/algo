@@ -1,48 +1,56 @@
-﻿import React from 'react';
+import React from 'react';
 import { Box, Container, Typography, useTheme, alpha } from '@mui/material';
 
-/**
- * PageHeader Component
- * Reusable header section for all marketing pages
- * Eliminates duplicate code across Contact, Firm, Services, Research, Media pages
- */
 const PageHeader = ({ title, subtitle }) => {
   const theme = useTheme();
 
   return (
-    <Box sx={{
-      py: { xs: 6, md: 8 },
-      position: 'relative',
-      overflow: 'hidden',
-      borderBottom: `3px solid ${theme.palette.primary.main}`,
-      backgroundImage: `url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=700&fit=crop&auto=format&q=80')`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: `linear-gradient(90deg, ${alpha(theme.palette.background.default, 0.75)} 0%, ${alpha(theme.palette.background.default, 0.65)} 40%, ${alpha(theme.palette.background.default, 0.4)} 70%, transparent 100%)`,
-        zIndex: 1,
-      }
-    }}>
+    <Box
+      sx={{
+        py: { xs: 8, md: 10 },
+        position: 'relative',
+        overflow: 'hidden',
+        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.dark || theme.palette.primary.main, 0.85)} 50%, ${alpha(theme.palette.primary.main, 0.7)} 100%)`,
+        borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          background: `radial-gradient(ellipse at 0% 50%, ${alpha('#000', 0.3)} 0%, transparent 70%)`,
+        },
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(255,255,255,0.02) 60px, rgba(255,255,255,0.02) 61px)',
+          pointerEvents: 'none',
+        },
+      }}
+    >
       <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+        <Typography
+          variant="overline"
+          sx={{
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            letterSpacing: '3px',
+            color: alpha('#fff', 0.7),
+            display: 'block',
+            mb: 2,
+          }}
+        >
+          Bullseye Financial
+        </Typography>
         <Typography
           variant="h2"
           component="h1"
           sx={{
-            fontSize: { xs: '2rem', sm: '2.5rem', md: '3.5rem' },
+            fontSize: { xs: '2.2rem', sm: '2.8rem', md: '3.5rem' },
             fontWeight: 900,
-            mb: 2,
-            color: theme.palette.text.primary,
+            mb: subtitle ? 2.5 : 0,
+            color: '#fff',
             letterSpacing: '-0.5px',
-            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.text.primary} 100%)`,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
+            lineHeight: 1.1,
           }}
         >
           {title}
@@ -52,11 +60,11 @@ const PageHeader = ({ title, subtitle }) => {
             variant="h6"
             sx={{
               fontSize: { xs: '1rem', md: '1.15rem' },
-              color: theme.palette.text.secondary,
-              fontWeight: 500,
-              maxWidth: '700px',
+              color: alpha('#fff', 0.8),
+              fontWeight: 400,
+              maxWidth: '640px',
               mx: 'auto',
-              lineHeight: 1.6,
+              lineHeight: 1.7,
             }}
           >
             {subtitle}
@@ -68,4 +76,3 @@ const PageHeader = ({ title, subtitle }) => {
 };
 
 export default PageHeader;
-

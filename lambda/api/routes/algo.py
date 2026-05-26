@@ -87,7 +87,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         elif path == '/api/algo/swing-scores':
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=50000, default=50000)
-            return _get_swing_scores(cur, limit)
+            min_score_str = params.get('min_score', [None])[0] if params else None
+            min_score = float(min_score_str) if min_score_str else None
+            return _get_swing_scores(cur, limit, min_score)
         elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=30)
@@ -181,7 +183,7 @@ def _get_algo_positions(cur) -> Dict:
                        days_since_entry, distribution_day_count, target_levels_hit,
                        current_stop_price, stage_in_exit_plan, created_at, updated_at
                 FROM algo_positions
-                WHERE status IN ('open', 'OPEN')
+                WHERE LOWER(status) = 'open'
                 ORDER BY position_value DESC
             """)
             positions = cur.fetchall()
@@ -237,6 +239,9 @@ def _get_algo_performance(cur) -> Dict:
             profit_factor = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
 
             sharpe, sortino, max_dd = 0.0, 0.0, 0.0
+            snapshot_count = 0
+            total_return_pct = None  # True compounded return from snapshots (preferred)
+            calmar_ratio = 0.0
             try:
                 cur.execute("""
                     SELECT snapshot_date, total_portfolio_value
@@ -244,8 +249,10 @@ def _get_algo_performance(cur) -> Dict:
                     ORDER BY snapshot_date ASC
                 """)
                 snapshots = [dict(row) for row in cur.fetchall()]
-                if len(snapshots) > 1:
+                snapshot_count = len(snapshots)
+                if snapshot_count > 1:
                     vals = [float(s['total_portfolio_value'] or 0) for s in snapshots]
+                    dates = [s['snapshot_date'] for s in snapshots]
                     returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
                     if returns:
                         mean_r = _mean(returns)
@@ -255,6 +262,14 @@ def _get_algo_performance(cur) -> Dict:
                         dv = _std(downside) if downside else 0.0
                         sortino = (mean_r / dv * math.sqrt(252)) if dv > 0 else 0.0
                         max_dd = _cumprod_max_dd(returns)
+                    # True compounded portfolio return: (end / start - 1) * 100
+                    if vals[0] > 0 and vals[-1] > 0:
+                        total_return_pct = round((vals[-1] / vals[0] - 1) * 100, 2)
+                        # CAGR for Calmar: (end/start)^(365/calendar_days) - 1
+                        n_days = (dates[-1] - dates[0]).days if len(dates) > 1 else 0
+                        if n_days > 0 and max_dd < 0:
+                            cagr = (vals[-1] / vals[0]) ** (365.25 / n_days) - 1
+                            calmar_ratio = round(cagr / abs(max_dd), 2)
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 logger.warning(f'Portfolio snapshots unavailable: {e}')
@@ -263,6 +278,14 @@ def _get_algo_performance(cur) -> Dict:
             win_rate_pct = round((winning / total * 100) if total > 0 else 0.0, 2)
             wins_p = [p for p in pnls_pcts if p > 0]
             losses_p = [p for p in pnls_pcts if p < 0]
+            # sum_of_trade_pnls_pct: sum of per-trade P&L percentages (not compounded portfolio return)
+            sum_of_trade_pnls_pct = round(sum(pnls_pcts), 2)
+            # total_return_pct: true compounded portfolio return from snapshots when available
+            if total_return_pct is None:
+                total_return_pct = sum_of_trade_pnls_pct
+            # Calmar fallback when no snapshots: use sum_of_trade_pnls_pct as numerator (imprecise)
+            if calmar_ratio == 0.0 and max_dd < 0:
+                calmar_ratio = round(sum_of_trade_pnls_pct / 100 / abs(max_dd), 2)
             return json_response(200, {
                 'total_trades': total,
                 'winning_trades': winning,
@@ -271,8 +294,8 @@ def _get_algo_performance(cur) -> Dict:
                 'win_rate_pct': win_rate_pct,
                 'profit_factor': round(profit_factor, 2),
                 'total_pnl_dollars': round(sum(pnls_dollars), 2),
-                'total_pnl_pct': round(sum(pnls_pcts), 2),
-                'total_return_pct': round(sum(pnls_pcts), 2),
+                'total_pnl_pct': sum_of_trade_pnls_pct,
+                'total_return_pct': total_return_pct,
                 'avg_trade_pct': round(_mean(pnls_pcts), 2),
                 'avg_win_pct': round(_mean(wins_p), 2),
                 'avg_loss_pct': round(_mean(losses_p), 2),
@@ -283,14 +306,14 @@ def _get_algo_performance(cur) -> Dict:
                 'sortino_annualized': round(sortino, 2),
                 'sortino_ratio': round(sortino, 2),
                 'max_drawdown_pct': round(max_dd * 100, 2),
-                'calmar_ratio': round(sum(pnls_pcts) / 100 / abs(max_dd) if max_dd < 0 else 0.0, 2),
+                'calmar_ratio': calmar_ratio,
                 'expectancy_r': round((wins_sum - losses_sum) / total if total > 0 else 0.0, 2),
                 'avg_hold_days': round(_mean(holding_days), 1),
                 'avg_holding_days': round(_mean(holding_days), 1),
                 'avg_r_multiple': round(_mean(r_multiples), 2),
                 'avg_win_r': round(_mean([r for r in r_multiples if r > 0]), 2),
                 'avg_loss_r': round(_mean([r for r in r_multiples if r < 0]), 2),
-                'portfolio_snapshots': 0
+                'portfolio_snapshots': snapshot_count
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -518,14 +541,14 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             invested = float(portfolio_row.get('invested') or 0)
 
             cur.execute("""
-                SELECT equity FROM algo_portfolio_snapshots
+                SELECT total_equity FROM algo_portfolio_snapshots
                 ORDER BY created_at DESC LIMIT 1
             """)
             snap = cur.fetchone()
             portfolio_value = float(snap[0]) if snap and snap[0] else 100000.0
 
             cur.execute("""
-                SELECT sector, industry FROM company_profile WHERE symbol = %s
+                SELECT sector, industry FROM company_profile WHERE ticker = %s
             """, (symbol,))
             profile = cur.fetchone()
             sector = profile['sector'] if (profile and hasattr(profile, '__getitem__')) else 'Unknown'
@@ -545,9 +568,18 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             shares = int(position_size_dollars / entry_price) if entry_price > 0 else 0
             position_pct_calc = (position_size_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
 
-            max_positions = 12
-            max_position_pct = 8.0
-            max_sector_pct = 30.0
+            # Read live limits from algo_config (fall back to conservative defaults)
+            try:
+                cur.execute("""
+                    SELECT key, value FROM algo_config
+                    WHERE key IN ('max_positions', 'max_position_pct', 'max_sector_pct')
+                """)
+                cfg = {row['key']: row['value'] for row in cur.fetchall()}
+            except Exception:
+                cfg = {}
+            max_positions = int(cfg.get('max_positions', 12))
+            max_position_pct = float(cfg.get('max_position_pct', 8.0))
+            max_sector_pct = float(cfg.get('max_sector_pct', 30.0))
 
             position_limit_ok = current_positions < max_positions
             position_size_ok = position_pct_calc <= max_position_pct
@@ -558,7 +590,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                 SELECT SUM(CASE WHEN cp.sector = %s THEN pd.market_value ELSE 0 END) /
                        NULLIF((SELECT SUM(market_value) FROM algo_positions), 0) * 100 AS sector_pct
                 FROM algo_positions pd
-                JOIN company_profile cp ON pd.symbol = cp.symbol
+                JOIN company_profile cp ON pd.symbol = cp.ticker
             """, (sector,))
             sector_row = dict(cur.fetchone() or {})
             current_sector_pct = float(sector_row.get('sector_pct') or 0)
@@ -843,10 +875,12 @@ def _get_sector_breadth(cur) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
-def _get_swing_scores(cur, limit: int = 100) -> Dict:
+def _get_swing_scores(cur, limit: int = 100, min_score: float = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
-            cur.execute("""
+            score_filter = "AND s.score >= %s" if min_score is not None else ""
+            query_params = [limit] if min_score is None else [min_score, limit]
+            cur.execute(f"""
                 SELECT
                     s.symbol, s.date, s.score AS swing_score,
                     s.components->>'grade' AS grade,
@@ -857,9 +891,10 @@ def _get_swing_scores(cur, limit: int = 100) -> Dict:
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
                 WHERE s.date >= CURRENT_DATE - INTERVAL '7 days'
+                {score_filter}
                 ORDER BY s.date DESC, s.score DESC
                 LIMIT %s
-            """, (limit,))
+            """, query_params)
             scores = cur.fetchall()
             return list_response([dict(s) for s in scores])
         except psycopg2.errors.UndefinedTable as e:

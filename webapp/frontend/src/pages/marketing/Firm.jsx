@@ -1,9 +1,9 @@
-﻿import React from 'react';
+import React from 'react';
 import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
-import PromoBanner from '../../components/marketing/PromoBanner';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import {
   Flag as FlagIcon,
@@ -15,155 +15,200 @@ import {
 
 const Firm = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
 
   const expertise = [
     {
       icon: <FlagIcon />,
       title: 'Independent Research',
       description:
-        'We operate without investment banking relationships or sell-side conflicts. Our research is driven purely by analysis and data, allowing us to publish unbiased views on companies and markets.',
+        'We operate without investment banking relationships or sell-side conflicts. Our research is driven purely by data and analysis&#8212;no pressure to maintain ratings, no underwriting agenda. Just the facts.',
     },
     {
       icon: <LightbulbIcon />,
       title: 'Quantitative & Fundamental Analysis',
       description:
-        'Our research combines quantitative factor models with fundamental analysis. We evaluate stocks using multi-factor scoring across value, quality, momentum, and technical metrics validated through historical backtesting.',
+        'Research combining Minervini trend template analysis with fundamental quality filters. Multi-factor scoring across momentum, value, earnings quality, and technical structure&#8212;all backtested against 10+ years of market data.',
     },
     {
       icon: <GroupsIcon />,
       title: 'Comprehensive Market Coverage',
       description:
-        'Research coverage across 5,300+ US equities with 10+ years of historical data. We publish analysis on earnings, sector trends, economic indicators, and market technicals to provide complete investment intelligence.',
+        'Research coverage across 5,300+ US equities with 10+ years of historical data. Earnings, sector trends, economic indicators, and market technicals&#8212;the full picture in one platform.',
     },
     {
       icon: <TrendingUpIcon />,
       title: 'Evidence-Based Methodology',
       description:
-        'All research models are backtested against historical data and validated for statistical significance. We explain our methodology transparently and show the factors driving our analysis.',
+        'All research models are backtested against historical data and validated for statistical significance. We explain the methodology transparently and show the factors driving our analysis.',
     },
   ];
 
-  const _teamMembers = [];
+  const philosophy = [
+    {
+      principle: 'Quantitative Rigor',
+      description: 'All factor models are backtested against 10+ years of historical data. We validate statistical significance and measure out-of-sample performance before deploying any model in production.',
+    },
+    {
+      principle: 'Fundamental Analysis',
+      description: 'We evaluate companies using earnings growth, revenue acceleration, profit margins, and financial strength. Technical analysis alone is insufficient&#8212;fundamentals remain the foundation of sustainable moves.',
+    },
+    {
+      principle: 'Research Independence',
+      description: 'Bullseye maintains complete research independence. We have no investment banking relationships, no underwriting business, and no conflicts that compromise our analytical objectivity.',
+    },
+    {
+      principle: 'Transparent Methodology',
+      description: 'We explain our research process and show the factors driving our analysis. You understand exactly what metrics we evaluate and why certain stocks score positively or negatively.',
+    },
+    {
+      principle: 'Comprehensive Coverage',
+      description: 'Our research universe covers 5,300+ US equities across all market capitalizations and sectors. The breadth needed for portfolio construction and relative value analysis.',
+    },
+    {
+      principle: 'Continuous Validation',
+      description: 'Research models are continuously monitored and validated. We track performance, refine models based on changing market conditions, and adapt as evidence dictates.',
+    },
+  ];
 
   return (
     <MarketingLayout>
-      {/* Header */}
       <PageHeader
         title="About Bullseye Financial"
-        subtitle="Independent equity research firm delivering quantitative analysis, fundamental insights, and technical research to institutional and individual investors"
+        subtitle="Independent equity research firm delivering systematic, evidence-based analysis to professional and individual investors"
       />
 
-      {/* Who We Are Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
+      {/* Who We Are */}
+      <Box sx={{ py: { xs: 8, md: 10 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 4,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Who We Are
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              mb: 3,
-              lineHeight: 1.8,
-              maxWidth: '900px',
-              mx: 'auto',
-            }}
-          >
-            Bullseye Financial is an independent research firm providing comprehensive equity analysis to institutional investors, registered investment advisors, and active traders. We publish research combining quantitative models, fundamental analysis, and technical insights across 5,300+ US equities.
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              lineHeight: 1.8,
-              maxWidth: '900px',
-              mx: 'auto',
-            }}
-          >
-            Our research covers earnings analysis, sector rotation, economic trends, and multi-factor stock scoring. We maintain research independence without investment banking conflicts, allowing us to publish unbiased analysis focused solely on investment merit.
-          </Typography>
+          <Grid container spacing={7} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <Typography
+                variant="overline"
+                sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+              >
+                Who We Are
+              </Typography>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                  fontWeight: 800,
+                  mb: 3,
+                  color: theme.palette.text.primary,
+                  letterSpacing: '-0.5px',
+                  lineHeight: 1.2,
+                }}
+              >
+                Built by Investors, for Investors
+              </Typography>
+              <Typography
+                sx={{ fontSize: '1.05rem', color: theme.palette.text.secondary, mb: 3, lineHeight: 1.8 }}
+              >
+                Bullseye Financial is an independent research firm providing comprehensive equity
+                analysis to institutional investors, registered investment advisors, and active traders.
+                We publish research combining quantitative models, fundamental analysis, and technical
+                insights across 5,300+ US equities.
+              </Typography>
+              <Typography
+                sx={{ fontSize: '1.05rem', color: theme.palette.text.secondary, lineHeight: 1.8 }}
+              >
+                Our research covers earnings analysis, sector rotation, economic trends, and
+                multi-factor stock scoring. We maintain research independence without investment
+                banking conflicts&#8212;allowing us to publish unbiased analysis focused solely
+                on investment merit.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <ImagePlaceholder
+                src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=900&h=650&fit=crop&auto=format&q=80"
+                alt="Financial data and market analysis"
+                height={{ xs: '280px', md: '400px' }}
+              />
+            </Grid>
+          </Grid>
         </Container>
       </Box>
 
-      {/* Visual Section */}
-      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.paper }}>
-        <Container maxWidth="lg">
-          <ImagePlaceholder
-            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
-            alt="Data analytics and market research visualization"
-            height={{ xs: '250px', md: '350px' }}
-          />
-        </Container>
-      </Box>
-
-      {/* Mission Statement Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
-        <Container maxWidth="lg">
+      {/* Mission Statement */}
+      <Box
+        sx={{
+          py: { xs: 8, md: 10 },
+          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.8)} 100%)`,
+        }}
+      >
+        <Container maxWidth="md">
           <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 4,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
+            variant="overline"
+            sx={{ color: alpha('#fff', 0.7), fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 2, textAlign: 'center' }}
           >
             Our Mission
           </Typography>
           <Typography
+            variant="h3"
             sx={{
-              fontSize: '1.1rem',
-              color: theme.palette.text.secondary,
-              mb: 3,
-              lineHeight: 1.8,
-              maxWidth: '900px',
-              mx: 'auto',
+              fontSize: { xs: '1.8rem', md: '2.4rem' },
+              fontWeight: 800,
+              color: '#fff',
               textAlign: 'center',
+              mb: 3,
+              lineHeight: 1.3,
             }}
           >
-            To democratize institutional-grade equity research by combining rigorous quantitative analysis, fundamental insights, and technical expertise into a comprehensive research platform accessible to professional and individual investors.
+            Democratize Institutional-Grade Research
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.1rem',
+              color: alpha('#fff', 0.85),
+              textAlign: 'center',
+              lineHeight: 1.8,
+              mb: 2,
+            }}
+          >
+            To combine rigorous quantitative analysis, fundamental insights, and technical
+            expertise into a comprehensive research platform accessible to every serious investor&#8212;not
+            just those who can afford a Bloomberg terminal or institutional research desk.
           </Typography>
           <Typography
             sx={{
               fontSize: '1rem',
-              color: theme.palette.text.secondary,
-              lineHeight: 1.8,
-              maxWidth: '900px',
-              mx: 'auto',
+              color: alpha('#fff', 0.7),
               textAlign: 'center',
+              lineHeight: 1.8,
               fontStyle: 'italic',
             }}
           >
-            We believe independent research drives better investment decisions. By removing conflicts of interest and publishing transparent, evidence-based analysis across 5,300+ equities, we empower investors to make informed decisions based on data, not Wall Street relationships.
+            Independent research drives better investment decisions. By removing conflicts of interest
+            and publishing transparent, evidence-based analysis, we empower investors to make decisions
+            based on data&#8212;not Wall Street relationships.
           </Typography>
         </Container>
       </Box>
 
-      {/* Our Expertise Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+      {/* Research Expertise */}
+      <Box sx={{ py: { xs: 8, md: 10 }, backgroundColor: theme.palette.background.paper }}>
         <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 6,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Our Research Expertise
-          </Typography>
+          <Box sx={{ textAlign: 'center', mb: 7 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+            >
+              Research Expertise
+            </Typography>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '1.9rem', sm: '2.3rem', md: '2.8rem' },
+                fontWeight: 800,
+                mb: 2,
+                color: theme.palette.text.primary,
+                letterSpacing: '-0.5px',
+              }}
+            >
+              What We Do Best
+            </Typography>
+          </Box>
           <Grid container spacing={4}>
             {expertise.map((item, idx) => (
               <Grid item xs={12} sm={6} key={idx}>
@@ -173,36 +218,39 @@ const Firm = () => {
                     border: `1px solid ${theme.palette.divider}`,
                     backgroundColor: theme.palette.background.default,
                     borderRadius: '0px',
-                    transition: 'all 0.3s ease',
+                    boxShadow: 'none',
+                    transition: 'all 0.25s ease',
                     '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.07)',
+                      borderColor: theme.palette.primary.main,
                     },
                   }}
                 >
-                  <CardContent>
-                    <Box sx={{ mb: 2, color: theme.palette.primary.main }}>
-                      {item.icon}
-                    </Box>
-                    <Typography
-                      variant="h6"
+                  <CardContent sx={{ p: 3.5 }}>
+                    <Box
                       sx={{
-                        fontWeight: 700,
-                        mb: 1.5,
-                        color: theme.palette.text.primary,
+                        width: 44,
+                        height: 44,
+                        borderRadius: '0px',
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        color: theme.palette.primary.main,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mb: 2.5,
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                       }}
                     >
+                      {item.icon}
+                    </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5, color: theme.palette.text.primary, fontSize: '1.05rem' }}>
                       {item.title}
                     </Typography>
                     <Typography
                       variant="body2"
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {item.description}
-                    </Typography>
+                      sx={{ color: theme.palette.text.secondary, lineHeight: 1.7 }}
+                      dangerouslySetInnerHTML={{ __html: item.description }}
+                    />
                   </CardContent>
                 </Card>
               </Grid>
@@ -211,61 +259,161 @@ const Firm = () => {
         </Container>
       </Box>
 
-      {/* Research Approach Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
-        <Container maxWidth="lg">
+      {/* Leadership Spotlight */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+          gap: 0,
+          alignItems: 'stretch',
+        }}
+      >
+        <Box
+          sx={{
+            backgroundImage: `url('https://images.unsplash.com/photo-1543286386-713bdd548da4?w=800&h=600&fit=crop&auto=format&q=80')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            minHeight: { xs: '280px', md: '480px' },
+            display: { xs: 'none', md: 'block' },
+            position: 'relative',
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: `rgba(0,0,0,0.3)`,
+            },
+          }}
+        />
+        <Box
+          sx={{
+            backgroundColor: theme.palette.background.paper,
+            p: { xs: 4, md: 6 },
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            minHeight: { xs: 'auto', md: '480px' },
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '3px',
+              color: theme.palette.primary.main,
+              mb: 1.5,
+            }}
+          >
+            Expert Team
+          </Typography>
           <Typography
             variant="h3"
             sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
+              fontSize: { xs: '2rem', md: '2.8rem' },
+              fontWeight: 900,
+              mb: 3,
               color: theme.palette.text.primary,
+              lineHeight: 1.2,
             }}
           >
-            Our Research Philosophy
+            Built by Market Veterans
           </Typography>
           <Typography
             sx={{
               fontSize: '1.05rem',
               color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '800px',
-              mx: 'auto',
+              mb: 4,
+              lineHeight: 1.8,
+              maxWidth: '460px',
             }}
           >
-            Everything we do is grounded in five core principles that guide our research and advisory approach
+            Our team combines deep capital markets expertise with advanced technology capabilities.
+            Every piece of the platform&#8212;from the data infrastructure to the trading algorithm
+            to the research interface&#8212;was built in-house.
           </Typography>
-
-          <Grid container spacing={4}>
+          <Box sx={{ mb: 4 }}>
             {[
-              {
-                principle: 'Quantitative Rigor',
-                description: 'All factor models are backtested against 10+ years of historical data. We validate statistical significance and measure out-of-sample performance before deploying any research model in production.',
+              'Minervini-based quantitative research system',
+              '24-loader automated daily data pipeline',
+              'Seven-phase algorithmic trading orchestrator',
+              'Full-stack research platform built from scratch',
+            ].map((credential, i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'flex-start', mb: 2, gap: 1.5 }}>
+                <Box
+                  sx={{
+                    width: 22,
+                    height: 22,
+                    flexShrink: 0,
+                    backgroundColor: theme.palette.primary.main,
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    mt: 0.2,
+                  }}
+                >
+                  &#10003;
+                </Box>
+                <Typography sx={{ color: theme.palette.text.secondary, fontSize: '0.97rem', lineHeight: 1.6 }}>
+                  {credential}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+          <Box
+            onClick={() => navigate('/our-team')}
+            sx={{
+              px: 3,
+              py: 1.5,
+              backgroundColor: theme.palette.primary.main,
+              color: '#fff',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '0.95rem',
+              transition: 'all 0.25s',
+              display: 'inline-block',
+              alignSelf: 'flex-start',
+              '&:hover': {
+                boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.35)}`,
+                transform: 'translateY(-2px)',
               },
-              {
-                principle: 'Fundamental Analysis',
-                description: 'We evaluate companies using traditional fundamental metrics including valuation, profitability, financial strength, and earnings quality. Fundamental analysis remains the foundation of long-term investment decisions.',
-              },
-              {
-                principle: 'Research Independence',
-                description: 'Bullseye maintains complete research independence. We have no investment banking relationships, no underwriting business, and no conflicts that compromise our analytical objectivity.',
-              },
-              {
-                principle: 'Transparent Methodology',
-                description: 'We explain our research methodology and show the factors driving our analysis. Clients understand what metrics we evaluate and why certain stocks score positively or negatively.',
-              },
-              {
-                principle: 'Comprehensive Coverage',
-                description: 'Our research universe covers 5,300+ US equities across all market capitalizations and sectors. We provide the breadth needed for portfolio construction and relative value analysis.',
-              },
-              {
-                principle: 'Continuous Validation',
-                description: 'Research models are continuously monitored and validated. We track performance, refine models based on changing market conditions, and adapt our approach as evidence dictates.',
-              },
-            ].map((item, idx) => (
+            }}
+          >
+            Meet the Team
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Research Philosophy */}
+      <Box sx={{ py: { xs: 8, md: 10 }, backgroundColor: theme.palette.background.default }}>
+        <Container maxWidth="lg">
+          <Box sx={{ textAlign: 'center', mb: 7 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+            >
+              Research Philosophy
+            </Typography>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '1.9rem', sm: '2.3rem', md: '2.8rem' },
+                fontWeight: 800,
+                mb: 2,
+                color: theme.palette.text.primary,
+                letterSpacing: '-0.5px',
+              }}
+            >
+              Our Core Principles
+            </Typography>
+            <Typography sx={{ fontSize: '1.05rem', color: theme.palette.text.secondary, maxWidth: '600px', mx: 'auto', lineHeight: 1.8 }}>
+              Six principles that guide how we build research models and what we publish
+            </Typography>
+          </Box>
+          <Grid container spacing={3}>
+            {philosophy.map((item, idx) => (
               <Grid item xs={12} md={6} key={idx}>
                 <Card
                   sx={{
@@ -273,33 +421,25 @@ const Firm = () => {
                     border: `1px solid ${theme.palette.divider}`,
                     backgroundColor: theme.palette.background.paper,
                     borderRadius: '0px',
-                    transition: 'all 0.3s ease',
+                    boxShadow: 'none',
+                    transition: 'all 0.25s ease',
                     '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.07)',
                     },
                   }}
                 >
-                  <CardContent>
+                  <CardContent sx={{ p: 3.5 }}>
                     <Typography
                       variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        mb: 2,
-                        color: theme.palette.primary.main,
-                        fontSize: '1.1rem',
-                      }}
+                      sx={{ fontWeight: 700, mb: 1.5, color: theme.palette.primary.main, fontSize: '1rem' }}
                     >
                       {item.principle}
                     </Typography>
                     <Typography
                       variant="body2"
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {item.description}
-                    </Typography>
+                      sx={{ color: theme.palette.text.secondary, lineHeight: 1.7 }}
+                      dangerouslySetInnerHTML={{ __html: item.description }}
+                    />
                   </CardContent>
                 </Card>
               </Grid>
@@ -308,422 +448,56 @@ const Firm = () => {
         </Container>
       </Box>
 
-      {/* Featured: Leadership Spotlight */}
-      <Box sx={{ position: 'relative', py: { xs: 4, md: 6 }, overflow: 'hidden', backgroundColor: alpha(theme.palette.primary.main, 0.03) }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0, alignItems: 'stretch' }}>
-          {/* Left: Image */}
-          <Box
-            sx={{
-              backgroundImage: 'none',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              minHeight: { xs: '300px', md: '500px' },
-              position: 'relative',
-              display: { xs: 'none', md: 'block' },
-              '&::after': {
-                content: '""',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(98, 125, 152, 0.2)',
-              },
-            }}
-          />
-          {/* Right: Content */}
-          <Box
-            sx={{
-              backgroundColor: 'white',
-              p: { xs: 4, md: 6 },
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              minHeight: { xs: 'auto', md: '500px' },
-            }}
-          >
-            <Box sx={{ mb: 2 }}>
-              <Typography
+      {/* By the Numbers */}
+      <Box
+        sx={{
+          py: { xs: 7, md: 8 },
+          backgroundColor: theme.palette.primary.main,
+        }}
+      >
+        <Container maxWidth="lg">
+          <Grid container spacing={0} justifyContent="center">
+            {[
+              { metric: '5,300+', label: 'Stocks Covered' },
+              { metric: '10+', label: 'Years of Data' },
+              { metric: '24', label: 'Data Loaders' },
+              { metric: '6', label: 'Research Dimensions' },
+              { metric: 'Daily', label: 'Research Updates' },
+              { metric: '100%', label: 'Free to Use' },
+            ].map((item, idx) => (
+              <Grid
+                item
+                xs={6}
+                sm={4}
+                md={2}
+                key={idx}
                 sx={{
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '1px',
-                  color: theme.palette.primary.main,
-                  mb: 1,
+                  textAlign: 'center',
+                  py: { xs: 3, md: 2 },
+                  borderRight: { md: idx < 5 ? `1px solid ${alpha('#fff', 0.2)}` : 'none' },
                 }}
               >
-                ðŸ‘¥ Expert Leadership
-              </Typography>
-            </Box>
-            <Typography
-              variant="h3"
-              sx={{
-                fontSize: { xs: '2rem', md: '3rem' },
-                fontWeight: 900,
-                mb: 3,
-                color: theme.palette.text.primary,
-                lineHeight: 1.2,
-              }}
-            >
-              Built by Market Veterans
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: '1.15rem',
-                color: theme.palette.text.secondary,
-                mb: 4,
-                lineHeight: 1.8,
-                maxWidth: '500px',
-              }}
-            >
-              Our team combines 20+ years of combined experience in finance and technology. We bring market expertise and technical innovation together to solve real problems investors face every day.
-            </Typography>
-            <Box sx={{ mb: 4 }}>
-              {[
-                'Deep expertise in financial markets and analysis',
-                'Advanced technology and data science capabilities',
-                'Real-world understanding of investor needs',
-                'Commitment to bringing institutional-grade insights to all investors',
-              ].map((credential, i) => (
-                <Box key={i} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Box
-                    sx={{
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: theme.palette.primary.main,
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.8rem',
-                      fontWeight: 'bold',
-                      mr: 2,
-                      flexShrink: 0,
-                    }}
-                  >
-                    âœ“
-                  </Box>
-                  <Typography sx={{ color: theme.palette.text.secondary, fontSize: '1rem' }}>
-                    {credential}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-            <Box
-              sx={{
-                px: 3,
-                py: 1.5,
-                backgroundColor: theme.palette.primary.main,
-                color: '#fff',
-                cursor: 'pointer',
-                fontWeight: 600,
-                transition: 'all 0.3s',
-                display: 'inline-block',
-                '&:hover': {
-                  boxShadow: '0 8px 20px rgba(98, 125, 152, 0.3)',
-                  transform: 'translateY(-2px)',
-                },
-              }}
-            >
-              Meet the Full Team
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Core Values Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 6,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            What Drives Us
-          </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                title: 'Research Integrity',
-                description:
-                  'Unbiased, fact-based analysis free from conflicts of interest. No investment banking relationships. No pressure to maintain ratings. Our research reflects only the data and our analytical views.',
-              },
-              {
-                title: 'Institutional Quality',
-                description:
-                  'Professional-grade research comparable to Wall Street firms. Rigorous factor analysis, multi-dimensional modeling, and institutional-caliber coverage across 5,300+ equities.',
-              },
-              {
-                title: 'Evidence-Based Validation',
-                description:
-                  'Every model backtested against 10+ years of data. Every signal validated for statistical significance. Real performance tracking ensures our research delivers measurable results.',
-              },
-              {
-                title: 'Market Excellence',
-                description:
-                  'Deep expertise in equity research, portfolio strategy, and market dynamics. Continuous innovation in analytical methods and incorporation of AI-powered insights for competitive advantage.',
-              },
-            ].map((value, idx) => (
-              <Grid item xs={12} sm={6} key={idx}>
-                <Card
-                  sx={{
-                    height: '100%',
-                    border: `1px solid ${theme.palette.divider}`,
-                    backgroundColor: theme.palette.background.paper,
-                    borderRadius: '0px',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    },
-                  }}
-                >
-                  <CardContent>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        mb: 2,
-                        color: theme.palette.primary.main,
-                        fontSize: '1.1rem',
-                      }}
-                    >
-                      {value.title}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {value.description}
-                    </Typography>
-                  </CardContent>
-                </Card>
+                <Typography sx={{ fontSize: { xs: '2rem', md: '2.4rem' }, fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+                  {item.metric}
+                </Typography>
+                <Typography sx={{ fontSize: '0.78rem', color: alpha('#fff', 0.75), mt: 0.75, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {item.label}
+                </Typography>
               </Grid>
             ))}
           </Grid>
         </Container>
       </Box>
 
-      {/* Why Bullseye Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 6,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Why Choose Bullseye Financial
-          </Typography>
-
-          <Grid container spacing={3}>
-            {[
-              'Independent research without investment banking conflicts',
-              'Multi-factor quantitative models validated through rigorous backtesting',
-              'Comprehensive coverage of 5,300+ US equities with 10+ years of data',
-              'Evidence-based methodology prioritizing data over market narratives',
-              'Research platform serving institutions, RIAs, and active traders',
-              'Transparent methodology with clear factor explanations',
-              'Analysis updated during market hours with historical context',
-              'Professional research platform designed for serious investors',
-            ].map((item, idx) => (
-              <Grid item xs={12} sm={6} md={4} key={idx}>
-                <Box
-                  sx={{
-                    p: 3,
-                    backgroundColor: theme.palette.background.default,
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: '0px',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      borderColor: theme.palette.primary.main,
-                      backgroundColor: theme.palette.primary.main + '05',
-                    },
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      backgroundColor: theme.palette.primary.main,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: '0.8rem',
-                      fontWeight: 'bold',
-                      mb: 2,
-                    }}
-                  >
-                    âœ“
-                  </Box>
-                  <Typography
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      fontSize: '0.95rem',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {item}
-                  </Typography>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
-
-      {/* By the Numbers Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Research Firm By the Numbers
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 8,
-              maxWidth: '700px',
-              mx: 'auto',
-            }}
-          >
-            The depth of our research capabilities and institutional coverage at a glance
-          </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                metric: '5,300+',
-                label: 'Stocks Covered',
-                description: 'Comprehensive US equity research coverage',
-              },
-              {
-                metric: '10+',
-                label: 'Years of Data',
-                description: 'Historical data for backtesting and validation',
-              },
-              {
-                metric: 'Multi-Factor',
-                label: 'Research Models',
-                description: 'Quantitative, fundamental, and technical analysis',
-              },
-              {
-                metric: 'Daily',
-                label: 'Research Updates',
-                description: 'Analysis refreshed during market hours',
-              },
-              {
-                metric: 'Independent',
-                label: 'Research Firm',
-                description: 'No investment banking conflicts of interest',
-              },
-              {
-                metric: 'Evidence-Based',
-                label: 'Methodology',
-                description: 'Backtested models with statistical validation',
-              },
-            ].map((item, idx) => (
-              <Grid item xs={12} sm={6} md={4} key={idx}>
-                <Box
-                  sx={{
-                    textAlign: 'center',
-                    py: 4,
-                    px: 3,
-                    backgroundColor: theme.palette.background.default,
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: '0px',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-                    },
-                  }}
-                >
-                  <Typography
-                    variant="h4"
-                    sx={{
-                      fontWeight: 800,
-                      color: theme.palette.primary.main,
-                      mb: 0.5,
-                      fontSize: '2.2rem',
-                      mt: 2,
-                    }}
-                  >
-                    {item.metric}
-                  </Typography>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 700,
-                      color: theme.palette.text.primary,
-                      mb: 1,
-                      fontSize: '1.1rem',
-                    }}
-                  >
-                    {item.label}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {item.description}
-                  </Typography>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
-
-      {/* Promotional Banner */}
-      <PromoBanner
-        icon={<HandshakeIcon sx={{ color: theme.palette.primary.main }} />}
-        title="Partner With a Research-Driven Firm"
-        subtitle="Access institutional-grade market intelligence and research-backed advisory solutions."
-        primaryCTA={{ label: 'Get Started', href: '/contact' }}
-        
+      <CTASection
+        variant="primary"
+        title="Ready to Partner with Bullseye?"
+        subtitle="Access research-driven equity analysis designed for serious investors&#8212;free."
+        primaryCTA={{ label: 'Launch Platform', link: '/app/markets' }}
+        secondaryCTA={{ label: 'Meet the Team', link: '/our-team' }}
       />
-
-      {/* CTA */}
-      <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
-        <CTASection
-          variant="primary"
-          title="Ready to Partner With Bullseye?"
-          subtitle="Access research-driven insights and institutional-grade advisory solutions designed for serious investors."
-          primaryCTA={{ label: 'Explore Platform', link: '/app/markets' }}
-          secondaryCTA={{ label: 'View Team', link: '/our-team' }}
-        />
-      </Box>
     </MarketingLayout>
   );
 };
 
 export default Firm;
-

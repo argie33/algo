@@ -121,8 +121,9 @@ class StockScoresLoader(OptimalLoader):
             # Final clamp to ensure composite is in range
             composite_score = max(0, min(100, composite_score))
 
-            # Calculate RS percentile (dummy for now - would need full market rank)
-            rs_percentile = round(momentum_score * 1.0, 2)  # Simple proxy
+            # RS percentile is set to 0 here and updated in a batch pass
+            # after all symbols are scored (see _update_rs_percentiles).
+            rs_percentile = 0.0
 
             return {
                 'symbol': symbol,
@@ -390,25 +391,26 @@ class StockScoresLoader(OptimalLoader):
         return sum(scores) / len(scores) if scores else 50
 
     def _score_momentum(self, metrics: Optional[Dict]) -> float:
-        """Score momentum metrics on 0-100 scale."""
+        """Score momentum metrics on 0-100 scale.
+
+        Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
+        Normalizes by total weight of available timeframes so partial data doesn't
+        deflate the score.
+        """
         if not metrics:
             return 50
 
-        scores = []
-        weights = [0.2, 0.2, 0.3, 0.3]  # Weight recent returns more heavily
+        # Named weights — recent timeframes matter more for swing trading
+        WEIGHTS = {'momentum_1m': 0.30, 'momentum_3m': 0.30, 'momentum_6m': 0.25, 'momentum_12m': 0.15}
 
-        if metrics.get('momentum_1m'):
-            scores.append(self._pct_to_score(metrics['momentum_1m']))
-        if metrics.get('momentum_3m'):
-            scores.append(self._pct_to_score(metrics['momentum_3m']))
-        if metrics.get('momentum_6m'):
-            scores.append(self._pct_to_score(metrics['momentum_6m']))
-        if metrics.get('momentum_12m'):
-            scores.append(self._pct_to_score(metrics['momentum_12m']))
+        weighted_sum = 0.0
+        total_weight = 0.0
+        for key, w in WEIGHTS.items():
+            if metrics.get(key):
+                weighted_sum += self._pct_to_score(metrics[key]) * w
+                total_weight += w
 
-        if scores:
-            return sum(s * w for s, w in zip(scores, weights[-len(scores):]))
-        return 50
+        return weighted_sum / total_weight if total_weight > 0 else 50
 
     @staticmethod
     def _pct_to_score(pct_return: float) -> float:
@@ -417,6 +419,35 @@ class StockScoresLoader(OptimalLoader):
         # Clamp to 0-100 range
         score = 50 + (pct_return / 0.4)
         return max(0, min(100, score))
+
+    def update_rs_percentiles(self):
+        """Batch pass: rank all stocks by momentum_score and write true RS percentile.
+
+        Uses PERCENT_RANK() so a stock scoring higher than 90% of peers gets rs_percentile=90.
+        Must run after all per-symbol scores are loaded.
+        """
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE stock_scores ss
+                    SET rs_percentile = ranked.pct
+                    FROM (
+                        SELECT symbol,
+                               ROUND(
+                                   (PERCENT_RANK() OVER (ORDER BY momentum_score))::NUMERIC * 100,
+                                   2
+                               ) AS pct
+                        FROM stock_scores
+                    ) ranked
+                    WHERE ss.symbol = ranked.symbol
+                """)
+                conn.commit()
+            logger.info("RS percentiles updated via batch rank")
+        except Exception as e:
+            logger.warning(f"RS percentile batch update failed: {e}")
+        finally:
+            conn.close()
 
 
 def main():
@@ -436,6 +467,8 @@ def main():
         if fail_rate > 0.05:
             logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)}")
             return 1
+
+        loader.update_rs_percentiles()
         return 0
     except Exception as e:
         logger.error(f"Stock scores load failed: {e}")

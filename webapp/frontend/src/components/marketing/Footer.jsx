@@ -120,15 +120,17 @@ const Footer = () => {
           }}
         >
           <Typography variant="body2">
-            © {currentYear} Bullseye Financial. All rights reserved.
+            &copy; {currentYear} Bullseye Financial. All rights reserved.
           </Typography>
           <Box sx={{ display: 'flex', gap: 3 }}>
             <Link
-              href="#"
+              component="button"
+              onClick={() => navigate('/privacy')}
               variant="body2"
               sx={{
                 color: theme.palette.text.secondary,
                 textDecoration: 'none',
+                cursor: 'pointer',
                 '&:hover': {
                   color: theme.palette.primary.main,
                 },
@@ -137,11 +139,13 @@ const Footer = () => {
               Privacy Policy
             </Link>
             <Link
-              href="#"
+              component="button"
+              onClick={() => navigate('/terms')}
               variant="body2"
               sx={{
                 color: theme.palette.text.secondary,
                 textDecoration: 'none',
+                cursor: 'pointer',
                 '&:hover': {
                   color: theme.palette.primary.main,
                 },

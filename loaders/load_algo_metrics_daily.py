@@ -63,8 +63,6 @@ class AlgoMetricsDailyLoader:
             except Exception:
                 pass
             raise
-            self.conn.rollback()
-            raise
         finally:
             cursor.close()
 

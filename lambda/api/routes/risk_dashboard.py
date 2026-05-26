@@ -177,7 +177,7 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
     try:
         cur.execute("""
-            SELECT exposure_pct, exposure_tier, rationale
+            SELECT exposure_pct, regime, halt_reasons
             FROM market_exposure_daily
             ORDER BY date DESC LIMIT 1
         """)
@@ -234,10 +234,10 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
                    base_shares, final_shares, position_size_pct,
                    cascade_multiplier, reasons_json, created_at
             FROM algo_position_sizing_audit
-            WHERE created_at >= NOW() - INTERVAL '%d days'
+            WHERE created_at >= NOW() - INTERVAL '1 day' * %s
             ORDER BY created_at DESC
             LIMIT 100
-        """ % days)
+        """, (days,))
 
         items = []
         for row in cur.fetchall():
@@ -271,10 +271,10 @@ def _get_stop_loss_audit(cur, days: int) -> Dict:
             SELECT symbol, signal_date, entry_price, stop_loss_price,
                    distance_pct, stop_method, stop_reasoning, candidates_json, created_at
             FROM algo_stop_loss_audit
-            WHERE created_at >= NOW() - INTERVAL '%d days'
+            WHERE created_at >= NOW() - INTERVAL '1 day' * %s
             ORDER BY created_at DESC
             LIMIT 100
-        """ % days)
+        """, (days,))
 
         items = []
         for row in cur.fetchall():
@@ -310,10 +310,10 @@ def _get_exit_rules_distribution(cur, days: int) -> Dict:
                    COUNT(CASE WHEN pnl_dollars > 0 THEN 1 END) as winning_count,
                    COUNT(CASE WHEN pnl_dollars < 0 THEN 1 END) as losing_count
             FROM algo_exit_rules_distribution
-            WHERE created_at >= NOW() - INTERVAL '%d days'
+            WHERE created_at >= NOW() - INTERVAL '1 day' * %s
             GROUP BY exit_rule
             ORDER BY count DESC
-        """ % days)
+        """, (days,))
 
         items = []
         for row in cur.fetchall():

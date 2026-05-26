@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 PUBLIC_HANDLERS = {'/api/health': health}
 
 HANDLERS = {
+    '/api/algo/risk-dashboard': risk_dashboard,  # must come before /api/algo
     '/api/algo': algo, '/api/financials': financials, '/api/earnings': earnings,
     '/api/signals': signals, '/api/prices': prices, '/api/stocks': stocks,
     '/api/sectors': sectors, '/api/industries': industries,
@@ -22,7 +23,6 @@ HANDLERS = {
     '/api/scores': scores, '/api/research': research, '/api/audit': audit,
     '/api/trades': trades, '/api/admin': admin,
     '/api/contact': contact, '/api/settings': settings,
-    '/api/algo/risk-dashboard': risk_dashboard,
 }
 
 # Pre-compute which handlers accept jwt_claims (avoids TypeError fallback hacks)
