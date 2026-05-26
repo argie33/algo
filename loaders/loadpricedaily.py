@@ -168,6 +168,8 @@ class PriceLoader(OptimalLoader):
         if not rows:
             return []
 
+        from algo.algo_market_calendar import MarketCalendar
+
         # TIER 2: Use loader_validation framework for comprehensive validation
         validated, validation_errors = count_validation_errors(
             rows,
@@ -188,6 +190,25 @@ class PriceLoader(OptimalLoader):
         prior_close = None
 
         for row in validated:
+            # CRITICAL: Filter out weekend/holiday data before any other validation
+            # yfinance occasionally returns non-trading-day rows; we must reject them
+            row_date_str = row.get('date')
+            try:
+                row_date = datetime.fromisoformat(row_date_str).date()
+                if not MarketCalendar.is_trading_day(row_date):
+                    if self.tracker:
+                        self.tracker.record_error(
+                            symbol=row.get('symbol'),
+                            error_type='NON_TRADING_DAY',
+                            error_message=f'Data for non-trading day (weekend/holiday)',
+                            resolution='rejected',
+                        )
+                    logger.debug(f"[{row.get('symbol')}] {row_date}: Non-trading day, rejecting")
+                    continue
+            except (ValueError, TypeError) as e:
+                logger.warning(f"[{row.get('symbol')}] Could not parse date {row_date_str}: {e}")
+                continue
+
             is_valid, errors = validate_price_tick(
                 symbol=row.get('symbol'),
                 open_price=row.get('open'),
