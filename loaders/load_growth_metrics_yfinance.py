@@ -38,7 +38,7 @@ class GrowthMetricsYfinanceLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch growth metrics for this symbol if not already in database."""
         try:
-            # Skip if already has SEC-based growth metrics
+            # Skip if already has real SEC-based growth metrics (non-NULL values)
             if self._has_sec_growth_metrics(symbol):
                 return None
 
@@ -53,13 +53,24 @@ class GrowthMetricsYfinanceLoader(OptimalLoader):
 
     @staticmethod
     def _has_sec_growth_metrics(symbol: str) -> bool:
-        """Check if symbol already has growth metrics (from SEC EDGAR)."""
+        """Check if symbol already has real growth metrics (non-NULL values from SEC EDGAR).
+
+        Returns True only if symbol has actual growth data, not just an empty row.
+        """
         try:
             conn = None
             from utils.db_connection import get_db_connection
             conn = get_db_connection()
             cur = conn.cursor()
-            cur.execute("SELECT 1 FROM growth_metrics WHERE symbol = %s", (symbol,))
+            # Check for actual data (non-NULL fields), not just row existence
+            cur.execute("""SELECT 1 FROM growth_metrics
+                          WHERE symbol = %s
+                            AND (revenue_growth_1y IS NOT NULL
+                              OR revenue_growth_3y IS NOT NULL
+                              OR revenue_growth_5y IS NOT NULL
+                              OR eps_growth_1y IS NOT NULL
+                              OR eps_growth_3y IS NOT NULL
+                              OR eps_growth_5y IS NOT NULL)""", (symbol,))
             result = cur.fetchone()
             cur.close()
             conn.close()
