@@ -481,9 +481,12 @@ class OptimalLoader(ABC):
             cur = conn.cursor()
             # Use actual table counts — not incremental delta — so the dashboard correctly
             # shows tables as non-empty when no new rows were loaded (already up-to-date).
-            cur.execute(
-                f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
-            )
+            if self.watermark_field:
+                cur.execute(
+                    f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+                )
+            else:
+                cur.execute(f"SELECT COUNT(*), NULL FROM {self.table_name}")
             result = cur.fetchone()
             total_rows = result[0] if result else 0
             latest_date = result[1] if result else None
