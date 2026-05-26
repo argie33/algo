@@ -86,7 +86,11 @@ class PriceLoader(OptimalLoader):
             # Technical indicators need ~60-100 days, full history can be backfilled later
             start = end - timedelta(days=100)
         else:
-            start = since + timedelta(days=1)
+            # BUG FIX: Calculate start before comparing to end
+            # If watermark is Friday and today is Monday, since=Friday, start=Saturday
+            # After adjusting end to Friday (last trading day), start > end causes return None
+            # Solution: Always fetch at least the watermark date again (in case of partial updates)
+            start = since
 
         if start > end:
             return None
@@ -114,7 +118,9 @@ class PriceLoader(OptimalLoader):
         if since is None:
             start = end - timedelta(days=100)
         else:
-            start = since + timedelta(days=1)
+            # BUG FIX: Same as fetch_incremental - use since directly, not since+1day
+            # Allows refetch of watermark date for partial updates
+            start = since
 
         if start > end:
             return {s: None for s in symbols}
