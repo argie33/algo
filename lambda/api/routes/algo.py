@@ -308,6 +308,21 @@ def _get_algo_performance(cur) -> Dict:
             # Calmar fallback when no snapshots: use sum_of_trade_pnls_pct as numerator (imprecise)
             if calmar_ratio == 0.0 and max_dd < 0:
                 calmar_ratio = round(sum_of_trade_pnls_pct / 100 / abs(max_dd), 2)
+            # Compute streak metrics from ordered trade P&Ls
+            best_win_streak = worst_loss_streak = current_streak = 0
+            if pnls_dollars:
+                cur_run = 0
+                best_w = best_l = 0
+                for p in reversed(pnls_dollars):
+                    if p > 0:
+                        cur_run = max(0, cur_run) + 1
+                    elif p < 0:
+                        cur_run = min(0, cur_run) - 1
+                    best_w = max(best_w, cur_run)
+                    best_l = min(best_l, cur_run)
+                current_streak = cur_run
+                best_win_streak = best_w
+                worst_loss_streak = abs(best_l)
             return json_response(200, {
                 'total_trades': total,
                 'winning_trades': winning,
@@ -335,62 +350,161 @@ def _get_algo_performance(cur) -> Dict:
                 'avg_r_multiple': round(_mean(r_multiples), 2),
                 'avg_win_r': round(_mean([r for r in r_multiples if r > 0]), 2),
                 'avg_loss_r': round(_mean([r for r in r_multiples if r < 0]), 2),
-                'portfolio_snapshots': snapshot_count
+                'portfolio_snapshots': snapshot_count,
+                'best_win_streak': best_win_streak,
+                'worst_loss_streak': worst_loss_streak,
+                'current_streak': current_streak,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'calculate performance')
 
 def _get_circuit_breakers(cur) -> Dict:
-        """Get circuit breaker status from most recent orchestrator run."""
+        """Get real-time circuit breaker state with current values vs thresholds."""
         try:
-            # Most recent circuit breaker check (halt or all-clear)
-            cur.execute("""
-                SELECT details, action_date, status
-                FROM algo_audit_log
-                WHERE action_type = 'circuit_breaker_halt'
-                ORDER BY created_at DESC
-                LIMIT 1
-            """)
-            row = cur.fetchone()
-
-            # Also get last successful (non-halted) orchestrator run details
-            cur.execute("""
-                SELECT details, action_date
-                FROM algo_audit_log
-                WHERE action_type IN ('phase_2_complete', 'orchestrator_run')
-                ORDER BY created_at DESC
-                LIMIT 1
-            """)
-            last_run = cur.fetchone()
-
+            today = date.today()
             breakers = []
-            if row and row['details']:
-                try:
-                    details = json.loads(row['details']) if isinstance(row['details'], str) else row['details']
-                    if not isinstance(details, dict):
-                        details = {}
-                    checks = details.get('checks', {})
-                    if not isinstance(checks, dict):
-                        checks = {}
-                    for name, state in checks.items():
-                        if not isinstance(state, dict):
-                            continue  # Skip malformed entries
-                        breakers.append({
-                            'name': name,
-                            'halted': bool(state.get('halted', False)),
-                            'reason': state.get('reason', ''),
-                            'as_of': str(row['action_date']),
-                        })
-                except (json.JSONDecodeError, AttributeError):
-                    pass
 
-            return json_response(200, {
-                'breakers': breakers,
-                'last_check': str(row['action_date']) if row else None,
-                'last_run': str(last_run['action_date']) if last_run else None,
-                'system_halted': any(b['halted'] for b in breakers),
-            })
+            # CB1: Portfolio drawdown
+            try:
+                cur.execute("""
+                    SELECT MAX(total_portfolio_value) AS peak,
+                           (SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                            ORDER BY snapshot_date DESC LIMIT 1) AS current
+                    FROM algo_portfolio_snapshots
+                """)
+                row = cur.fetchone()
+                peak = float(row[0] or 0) if row else 0
+                current_val = float(row[1] or 0) if row else 0
+                dd = round(((peak - current_val) / peak * 100) if peak > 0 else 0, 2)
+                threshold_dd = 20.0
+                breakers.append({
+                    'id': 'drawdown', 'label': 'Portfolio Drawdown',
+                    'triggered': dd >= threshold_dd,
+                    'current': dd, 'threshold': threshold_dd, 'unit': '%',
+                    'description': f'Halt when drawdown from peak ≥ {threshold_dd:.0f}%',
+                })
+            except Exception:
+                breakers.append({'id': 'drawdown', 'label': 'Portfolio Drawdown',
+                    'triggered': False, 'current': 0, 'threshold': 20, 'unit': '%',
+                    'description': 'No portfolio data yet'})
+
+            # CB2: Daily loss
+            try:
+                cur.execute("""
+                    SELECT daily_return_pct FROM algo_portfolio_snapshots
+                    WHERE snapshot_date = %s
+                """, (today,))
+                row = cur.fetchone()
+                daily = round(float(row[0] or 0), 2) if row else 0.0
+                daily_loss = abs(min(0, daily))
+                threshold_dl = 2.0
+                breakers.append({
+                    'id': 'daily_loss', 'label': 'Daily Loss',
+                    'triggered': daily <= -threshold_dl,
+                    'current': daily_loss, 'threshold': threshold_dl, 'unit': '%',
+                    'description': f'Halt when today\'s loss ≥ {threshold_dl:.0f}%',
+                })
+            except Exception:
+                breakers.append({'id': 'daily_loss', 'label': 'Daily Loss',
+                    'triggered': False, 'current': 0, 'threshold': 2, 'unit': '%',
+                    'description': 'No today snapshot yet'})
+
+            # CB3: Consecutive losses
+            try:
+                cur.execute("""
+                    SELECT profit_loss_pct FROM algo_trades
+                    WHERE status = 'closed' AND exit_date IS NOT NULL
+                    ORDER BY exit_date DESC, trade_id DESC
+                    LIMIT 10
+                """)
+                rows = cur.fetchall()
+                streak = 0
+                for r in rows:
+                    if float(r[0] or 0) < 0:
+                        streak += 1
+                    else:
+                        break
+                threshold_cl = 3
+                breakers.append({
+                    'id': 'consecutive_losses', 'label': 'Consecutive Losses',
+                    'triggered': streak >= threshold_cl,
+                    'current': streak, 'threshold': threshold_cl, 'unit': '',
+                    'description': f'Halt after {threshold_cl} consecutive losing trades',
+                })
+            except Exception:
+                breakers.append({'id': 'consecutive_losses', 'label': 'Consecutive Losses',
+                    'triggered': False, 'current': 0, 'threshold': 3, 'unit': '',
+                    'description': 'No closed trades yet'})
+
+            # CB4: VIX spike
+            try:
+                cur.execute("SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1")
+                row = cur.fetchone()
+                vix = round(float(row[0] or 0), 1) if row else 0.0
+                threshold_vix = 35.0
+                breakers.append({
+                    'id': 'vix_spike', 'label': 'VIX Spike',
+                    'triggered': vix >= threshold_vix,
+                    'current': vix, 'threshold': threshold_vix, 'unit': '',
+                    'description': f'Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)',
+                })
+            except Exception:
+                breakers.append({'id': 'vix_spike', 'label': 'VIX Spike',
+                    'triggered': False, 'current': 0, 'threshold': 35, 'unit': '',
+                    'description': 'No market data yet'})
+
+            # CB5: Weekly portfolio loss
+            try:
+                cur.execute("""
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= %s
+                    ORDER BY snapshot_date ASC
+                    LIMIT 1
+                """, (today - timedelta(days=7),))
+                week_start = cur.fetchone()
+                cur.execute("""
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
+                week_end = cur.fetchone()
+                if week_start and week_end:
+                    sv = float(week_start[0] or 0)
+                    ev = float(week_end[0] or 0)
+                    weekly_ret = round(((ev - sv) / sv * 100) if sv > 0 else 0, 2)
+                else:
+                    weekly_ret = 0.0
+                weekly_loss = abs(min(0, weekly_ret))
+                threshold_wl = 5.0
+                breakers.append({
+                    'id': 'weekly_loss', 'label': 'Weekly Loss',
+                    'triggered': weekly_ret <= -threshold_wl,
+                    'current': weekly_loss, 'threshold': threshold_wl, 'unit': '%',
+                    'description': f'Halt when 7-day loss ≥ {threshold_wl:.0f}%',
+                })
+            except Exception:
+                breakers.append({'id': 'weekly_loss', 'label': 'Weekly Loss',
+                    'triggered': False, 'current': 0, 'threshold': 5, 'unit': '%',
+                    'description': 'No weekly data yet'})
+
+            # CB6: Market stage break (Stage 4 = downtrend)
+            try:
+                cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
+                row = cur.fetchone()
+                stage = int(row[0] or 0) if row else 0
+                breakers.append({
+                    'id': 'market_stage', 'label': 'Market Stage',
+                    'triggered': stage == 4,
+                    'current': stage, 'threshold': 4, 'unit': '',
+                    'description': 'Halt when market enters Stage 4 (confirmed downtrend)',
+                })
+            except Exception:
+                breakers.append({'id': 'market_stage', 'label': 'Market Stage',
+                    'triggered': False, 'current': 0, 'threshold': 4, 'unit': '',
+                    'description': 'No market data yet'})
+
+            any_halted = any(b['triggered'] for b in breakers)
+            return json_response(200, {'breakers': breakers, 'system_halted': any_halted})
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch circuit breakers')
