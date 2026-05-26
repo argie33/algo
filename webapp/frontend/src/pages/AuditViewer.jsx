@@ -146,7 +146,7 @@ const AuditViewer = () => {
       {items.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
           <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
-            Showing {offset + 1}-{Math.min(offset + limit, (auditData?.pagination?.total || 0))} of {auditData?.pagination?.total || 0}
+            Showing {offset + 1}-{Math.min(offset + limit, (auditData?.total || 0))} of {auditData?.total || 0}
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -166,15 +166,15 @@ const AuditViewer = () => {
             </button>
             <button
               onClick={() => setOffset(offset + limit)}
-              disabled={offset + limit >= (auditData?.pagination?.total || 0)}
+              disabled={offset + limit >= (auditData?.total || 0)}
               style={{
                 padding: '8px 12px',
-                background: offset + limit >= (auditData?.pagination?.total || 0) ? 'var(--bg-secondary)' : 'var(--accent-color)',
-                color: offset + limit >= (auditData?.pagination?.total || 0) ? 'var(--text-secondary)' : 'white',
+                background: offset + limit >= (auditData?.total || 0) ? 'var(--bg-secondary)' : 'var(--accent-color)',
+                color: offset + limit >= (auditData?.total || 0) ? 'var(--text-secondary)' : 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: offset + limit >= (auditData?.pagination?.total || 0) ? 'not-allowed' : 'pointer',
-                opacity: offset + limit >= (auditData?.pagination?.total || 0) ? 0.5 : 1
+                cursor: offset + limit >= (auditData?.total || 0) ? 'not-allowed' : 'pointer',
+                opacity: offset + limit >= (auditData?.total || 0) ? 0.5 : 1
               }}
             >
               Next
