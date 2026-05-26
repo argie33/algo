@@ -173,7 +173,6 @@ locals {
     "technical_data_daily"          = "load_technical_data_daily.py"
     "market_health_daily"           = "load_market_health_daily.py"
     "swing_trader_scores"           = "load_swing_trader_scores.py"
-    "stock_scores"                  = "load_signal_quality_scores.py"
     "eod_bulk_refresh"              = "load_stock_prices_daily.py"
   }
 
@@ -376,11 +375,14 @@ locals {
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
+    # Computed metrics (growth, quality, value, stability) — CPU bound, process 10K symbols, need parallelism
     "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 8 }
+    # stock_scores: reads quality/growth/value/stability/positioning tables — must run after all metrics
+    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
     # Earnings data (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
     # Increase timeout to 60min for sequential 5000+ symbol processing
