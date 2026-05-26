@@ -13,7 +13,7 @@ FAIL-OPEN per trade, but FAIL-CLOSED if >50% of trades fail in batch.
 
 import logging
 import traceback
-from datetime import date as _date
+from datetime import date as _date, timedelta
 from typing import Any, Callable, List, Dict, Tuple, Optional
 
 from utils.db_connection import get_db_connection
@@ -234,7 +234,7 @@ def _validate_pre_trade_data_quality(
                 )
                 result = cur.fetchone()
                 latest = result[0] if result else None
-                if latest and latest >= today - __import__('datetime').timedelta(days=1):
+                if latest and latest >= today - timedelta(days=1):
                     logger.info(f"  [OK] {table}: Using data from {latest} (latest available)")
                 else:
                     issues.append(f"{description} missing for {today}")
@@ -622,8 +622,8 @@ def run(
                 setup = (trade.get('swing_components', {}) or {}).get('setup_quality', {}).get('detail', {})
                 trend_d = (trade.get('swing_components', {}) or {}).get('trend_quality', {}).get('detail', {})
 
-                stop_method = getattr(trade, 'stop_method', None) or 'base_type_stop'
-                stop_reasoning = getattr(trade, 'stop_reasoning', None)
+                stop_method = trade.get('stop_method') or 'base_type_stop'
+                stop_reasoning = trade.get('stop_reasoning')
 
                 result = executor.execute_trade(
                     symbol=trade['symbol'],
