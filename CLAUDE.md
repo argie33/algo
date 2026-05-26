@@ -8,6 +8,16 @@ This workspace supports multiple projects. When working in this repo, **read the
 |---------|----------|----------|
 | **algo** | `.` | `steering/algo.md` |
 
+## QUICK START
+
+**If you see:** `Error: The security token included in the request is invalid` or any AWS credential error when troubleshooting:
+
+```powershell
+scripts/refresh-aws-credentials.ps1
+```
+
+This fetches fresh credentials from IaC (Secrets Manager) and updates your local profile. See `steering/algo.md` → **LOCAL AWS CREDENTIALS** for details.
+
 ## STEERING PRINCIPLES
 
 **Goal:** Steering docs are the single source of truth for how systems work. They must be clear, complete, and verifiable so people can understand and debug the system without relying on stale memory.

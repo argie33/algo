@@ -15,30 +15,50 @@ $CredFile = "$HOME\.aws\credentials"
 
 Write-Host "Refreshing $Profile credentials from IaC (Secrets Manager)..." -ForegroundColor Cyan
 
+# Get the current repository
+$RepoPath = & git rev-parse --show-toplevel 2>$null
+if (-not $RepoPath) {
+    Write-Error "Not in a git repository. Run this script from the project root."
+    exit 1
+}
+
+# Determine repo owner/name from git remote
+$GitRemote = & git config --get remote.origin.url 2>$null
+if ($GitRemote -match "github\.com[:/]([^/]+)/([^/\.]+)") {
+    $Owner = $Matches[1]
+    $Repo = $Matches[2]
+} else {
+    Write-Error "Could not determine GitHub repo from remote. Ensure 'origin' remote is set."
+    exit 1
+}
+
+$Repository = "$Owner/$Repo"
+
 # Trigger the credentials export workflow
-Write-Host "Triggering refresh-dev-credentials workflow..." -ForegroundColor Gray
-gh workflow run refresh-dev-credentials.yml --repo argie33/algo
+Write-Host "Triggering refresh-dev-credentials workflow in $Repository..." -ForegroundColor Gray
+gh workflow run refresh-dev-credentials.yml --repo $Repository 2>&1 | Write-Host
 
 # Wait for the run to start
-Start-Sleep -Seconds 5
+Start-Sleep -Seconds 2
 
-# Get the run ID
+# Get the run ID (newest first)
 $RunId = gh run list `
     --workflow refresh-dev-credentials.yml `
-    --repo argie33/algo `
+    --repo $Repository `
     --limit 1 `
     --json databaseId `
     --jq ".[0].databaseId"
 
 if (-not $RunId) {
-    Write-Error "Could not find workflow run. Check: gh run list --workflow refresh-dev-credentials.yml"
+    Write-Error "Could not find workflow run. Check: gh run list --workflow refresh-dev-credentials.yml --repo $Repository"
     exit 1
 }
 
-Write-Host "Waiting for run $RunId to complete..." -ForegroundColor Gray
-gh run watch $RunId --repo argie33/algo --exit-status
+Write-Host "Workflow run ID: $RunId" -ForegroundColor Gray
+Write-Host "Waiting for run to complete (this may take 10-20 seconds)..." -ForegroundColor Gray
+gh run watch $RunId --repo $Repository --exit-status
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Workflow run $RunId failed. Check: gh run view $RunId"
+    Write-Error "Workflow run $RunId failed. Check: gh run view $RunId --repo $Repository"
     exit 1
 }
 
@@ -48,9 +68,9 @@ New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
 
 Write-Host "Downloading credentials artifact..." -ForegroundColor Gray
 gh run download $RunId `
-    --repo argie33/algo `
+    --repo $Repository `
     --name dev-credentials `
-    --dir $TmpDir
+    --dir $TmpDir 2>&1 | Write-Host
 
 $ArtifactCreds = Join-Path $TmpDir "credentials"
 if (-not (Test-Path $ArtifactCreds)) {
@@ -101,13 +121,40 @@ Remove-Item -Recurse -Force $TmpDir
 Write-Host "Verifying credentials..." -ForegroundColor Gray
 $env:AWS_PROFILE = $Profile
 $env:AWS_DEFAULT_REGION = $Region
-$Identity = aws sts get-caller-identity --profile $Profile 2>&1
+
+# Try verification with a short delay for IAM consistency
+$MaxRetries = 3
+$Retry = 0
+$Identity = $null
+
+while ($Retry -lt $MaxRetries) {
+    $Identity = aws sts get-caller-identity --profile $Profile 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        break
+    }
+    $Retry++
+    if ($Retry -lt $MaxRetries) {
+        Write-Host "Waiting for credentials to propagate (attempt $($Retry + 1)/$MaxRetries)..." -ForegroundColor Gray
+        Start-Sleep -Seconds 2
+    }
+}
 
 if ($LASTEXITCODE -eq 0) {
-    $Arn = ($Identity | ConvertFrom-Json).Arn
-    Write-Host "Credentials valid. Identity: $Arn" -ForegroundColor Green
-    Write-Host "Updated $CredFile [$Profile] with key $AccessKeyId" -ForegroundColor Green
+    $IdentityObj = $Identity | ConvertFrom-Json
+    $Arn = $IdentityObj.Arn
+    $Account = $IdentityObj.Account
+
+    Write-Host "`n✓ Credentials verified successfully" -ForegroundColor Green
+    Write-Host "  Profile: $Profile" -ForegroundColor Green
+    Write-Host "  IAM ARN: $Arn" -ForegroundColor Green
+    Write-Host "  Account: $Account" -ForegroundColor Green
+    Write-Host "  File: $CredFile" -ForegroundColor Green
+    Write-Host "  Access Key: $AccessKeyId" -ForegroundColor Green
 } else {
-    Write-Warning "Credentials written but verification failed: $Identity"
-    Write-Warning "The key may need a moment to propagate. Try: aws sts get-caller-identity --profile $Profile"
+    Write-Warning "Credentials written to $CredFile but verification failed."
+    Write-Warning "Details: $Identity"
+    Write-Warning ""
+    Write-Warning "The IAM key may need a moment to propagate (usually < 1 minute)."
+    Write-Warning "Retry: aws sts get-caller-identity --profile $Profile"
+    exit 1
 }

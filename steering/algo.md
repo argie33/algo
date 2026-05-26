@@ -42,6 +42,37 @@ FRED_API_KEY (economic data)
 - Never commit `.env` files
 - CI uses OIDC (OpenID Connect) for AWS authentication, not static keys
 
+## LOCAL AWS CREDENTIALS (Reader Access)
+
+When troubleshooting or reading logs/resources in AWS, use the IaC-managed developer credentials:
+
+**If you see:** `Error: The security token included in the request is invalid`
+- Your local AWS credentials have expired. Use the refresh script (below).
+
+**To refresh:**
+```powershell
+scripts/refresh-aws-credentials.ps1
+```
+
+**What this does:**
+1. Triggers GitHub Actions workflow `refresh-dev-credentials.yml` (uses GitHub OIDC, no static keys)
+2. Workflow reads developer credentials from `algo/developer-credentials` in AWS Secrets Manager
+3. Downloads credentials artifact and updates `~/.aws/credentials` file
+4. Verifies with `aws sts get-caller-identity` before completing
+
+**Why this approach:**
+- Credentials are generated fresh from IaC every refresh (never stale in Secrets Manager)
+- No need to manage static keys locally
+- GitHub OIDC = no credentials stored in git, CI environment, or PowerShell profile
+- All credential rotations happen in Terraform (centralizing security)
+
+**If the script fails:**
+1. Verify GitHub CLI is authenticated: `gh auth status`
+2. Check workflow logs: `gh run list --workflow refresh-dev-credentials.yml --limit 5`
+3. Manually download: `gh workflow run refresh-dev-credentials.yml`, then `gh run download --name dev-credentials --dir ~/.aws-tmp`
+
+**AWS credentials profile:** `algo-developer` (read-only IAM user, created by Terraform)
+
 ## CREDENTIAL FLOW (IaC)
 
 Credentials flow through a single pipeline — never lose them, never hardcode them:
