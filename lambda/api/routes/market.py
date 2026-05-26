@@ -25,11 +25,19 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
                 cur.execute("""
+                    WITH daily AS (
+                        SELECT symbol, date, close,
+                               LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '31 days'
+                          AND symbol NOT LIKE '^%%'
+                    )
                     SELECT date,
-                        COUNT(*) as total,
-                        SUM(CASE WHEN close > open THEN 1 ELSE 0 END) as advances
-                    FROM price_daily
+                        COUNT(*) AS total,
+                        SUM(CASE WHEN close > prev_close THEN 1 ELSE 0 END) AS advances
+                    FROM daily
                     WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                      AND prev_close IS NOT NULL
                     GROUP BY date
                     ORDER BY date DESC
                 """)
