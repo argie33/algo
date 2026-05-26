@@ -365,6 +365,9 @@ module "monitoring" {
   private_subnet_ids    = module.vpc.private_subnet_ids
   rds_security_group_id = module.vpc.rds_security_group_id
 
+  # Lambda layer for psycopg2 (needed by data freshness monitor)
+  python_dependencies_layer_arn = module.database.psycopg2_layer_arn
+
   # Alarm configuration
   apigw_5xx_alarm_name         = "${var.project_name}-apigw-5xx-${var.environment}"
   api_lambda_errors_alarm_name = "${var.project_name}-api-${var.environment}-errors"

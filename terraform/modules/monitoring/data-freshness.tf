@@ -102,9 +102,7 @@ resource "aws_lambda_function" "data_freshness_monitor" {
     }
   }
 
-  layers = [
-    var.python_dependencies_layer_arn
-  ]
+  layers = compact([var.python_dependencies_layer_arn])
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-data-freshness-monitor"
