@@ -155,7 +155,7 @@ def _get_vix_data(cur) -> Dict:
             rows = cur.fetchall()
 
             if not rows:
-                return json_response(200, {'data': [], 'latest': None})
+                return json_response(200, {'latest': None, 'history': []})
 
             latest = dict(rows[0]) if rows else None
             history = [dict(r) for r in rows]

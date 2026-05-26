@@ -131,7 +131,7 @@ class FilterTiers45Mixin:
 
             # Apply exposure tier risk multiplier (e.g., PRESSURE tier = 0.5)
             if self.exposure_risk_multiplier != 1.0:
-                adjusted_shares = int(result['shares'] * self.exposure_risk_multiplier)
+                adjusted_shares = round(result['shares'] * self.exposure_risk_multiplier)
                 if adjusted_shares <= 0 and result['shares'] > 0:
                     return {
                         'pass': False,
