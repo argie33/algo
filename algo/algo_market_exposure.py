@@ -201,8 +201,8 @@ class MarketExposure:
                 eco = self._economic_regime_overlay(eval_date)
                 eco_penalty = eco.get('penalty', 0)
                 eco_cap = eco.get('cap', 100.0)
-                if eco_penalty > 0 or eco_cap < 100.0:
-                    score = max(0.0, score - eco_penalty)
+                if eco_penalty != 0 or eco_cap < 100.0:
+                    score = max(0.0, min(100.0, score - eco_penalty))
                 factors['economic_overlay'] = {**eco, 'pts': -eco_penalty, 'max': 0}
             except Exception as e:
                 factors['economic_overlay'] = {'error': str(e)[:60], 'pts': 0, 'max': 0}
@@ -397,8 +397,10 @@ class MarketExposure:
             WITH stocks AS (
                 SELECT symbol,
                        (SELECT close FROM price_daily WHERE symbol = pd.symbol AND date <= %s ORDER BY date DESC LIMIT 1) AS price,
-                       (SELECT AVG(close) FROM price_daily WHERE symbol = pd.symbol AND date <= %s
-                          AND date >= %s::date - INTERVAL '{ma_days * 2} days') AS ma_n
+                       (SELECT AVG(close) FROM (
+                           SELECT close FROM price_daily WHERE symbol = pd.symbol AND date <= %s
+                           ORDER BY date DESC LIMIT {ma_days}
+                       ) t) AS ma_n
                 FROM (SELECT DISTINCT symbol FROM price_daily WHERE date >= %s::date - INTERVAL '5 days') pd
             )
             SELECT
@@ -407,7 +409,7 @@ class MarketExposure:
             FROM stocks
             WHERE price IS NOT NULL AND ma_n IS NOT NULL AND price > 5
             """,
-            (eval_date, eval_date, eval_date, eval_date),
+            (eval_date, eval_date, eval_date),
         )
         row = self.cur.fetchone()
         if not row or not row[1]:

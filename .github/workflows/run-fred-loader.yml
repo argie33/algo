@@ -4,6 +4,8 @@ name: Run FRED Economic Data Loader
 # Uses the naaim_data ECS task definition (has FRED_API_KEY + DB access) with command override.
 
 on:
+  schedule:
+    - cron: '0 9 * * 1-5'  # 9:00 AM UTC (5:00 AM ET) Mon-Fri, before market open
   workflow_dispatch:
 
 env:

@@ -430,22 +430,33 @@ class PositionMonitor:
     def _days_to_earnings(self, symbol, current_date):
         """Get days until next earnings. Returns None if earnings data missing.
 
-        B17: Fail-safe if earnings_history is empty (don't crash on NULL).
+        Primary: query earnings_calendar for accurate scheduled dates.
+        Fallback: estimate from earnings_history quarterly cycle if calendar missing.
         """
         try:
+            # Primary: use earnings_calendar (populated by earnings loader)
+            self.cur.execute(
+                """SELECT earnings_date FROM earnings_calendar
+                   WHERE symbol = %s AND earnings_date >= %s
+                   ORDER BY earnings_date ASC LIMIT 1""",
+                (symbol, current_date),
+            )
+            row = self.cur.fetchone()
+            if row and row[0]:
+                return (row[0] - current_date).days
+
+            # Fallback: estimate from last reported quarter + 90-day cycle
             self.cur.execute(
                 "SELECT MAX(quarter) FROM earnings_history WHERE symbol = %s",
                 (symbol,),
             )
             row = self.cur.fetchone()
             if not row or not row[0]:
-                # No earnings history for this symbol
                 return None
             est = row[0] + timedelta(days=45)
             while est < current_date:
                 est += timedelta(days=90)
             days = (est - current_date).days
-            # Sanity check: earnings should be 0-120 days away
             if days < 0 or days > 200:
                 return None
             return days
