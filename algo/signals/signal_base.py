@@ -140,7 +140,7 @@ class SignalBase:
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
                 FROM price_daily
                 WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - INTERVAL '%s days'
+                  AND date >= %s::date - (%s * INTERVAL '1 day')
             )
             SELECT
                 (SELECT close FROM bracket WHERE rn = 1),
