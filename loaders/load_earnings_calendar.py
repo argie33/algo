@@ -48,7 +48,7 @@ class EarningsCalendarLoader:
     def get_symbols(self) -> List[str]:
         """Get all active symbols from database."""
         try:
-            self.cur.execute("SELECT symbol FROM stock_symbols WHERE symbol NOT LIKE '%.%' LIMIT 100")
+            self.cur.execute("SELECT symbol FROM stock_symbols WHERE symbol NOT LIKE '%.%'")
             return [row[0] for row in self.cur.fetchall()]
         except Exception as e:
             logger.error(f"Failed to fetch symbols: {e}")
@@ -111,7 +111,14 @@ class EarningsCalendarLoader:
                             (symbol, earnings_date, announce_time, eps_estimate, actual_eps,
                              revenue_estimate, actual_revenue, fiscal_period)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (symbol, earnings_date) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+                            ON CONFLICT (symbol, earnings_date) DO UPDATE SET
+                                announce_time = EXCLUDED.announce_time,
+                                eps_estimate = EXCLUDED.eps_estimate,
+                                actual_eps = EXCLUDED.actual_eps,
+                                revenue_estimate = EXCLUDED.revenue_estimate,
+                                actual_revenue = EXCLUDED.actual_revenue,
+                                fiscal_period = EXCLUDED.fiscal_period,
+                                updated_at = CURRENT_TIMESTAMP
                         """, (
                             earning['symbol'],
                             earning['earnings_date'],

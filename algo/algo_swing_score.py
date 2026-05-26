@@ -473,6 +473,23 @@ class SwingTraderScore:
             'days_to_earnings': days_to_earn,
         }
 
+    def _days_to_earnings(self, symbol: str, eval_date) -> Optional[int]:
+        """Days until next earnings from earnings_calendar. Returns None if unknown."""
+        try:
+            self.cur.execute(
+                """SELECT earnings_date FROM earnings_calendar
+                   WHERE symbol = %s AND earnings_date > %s
+                   ORDER BY earnings_date ASC LIMIT 1""",
+                (symbol, eval_date),
+            )
+            row = self.cur.fetchone()
+            if row and row[0]:
+                return (row[0] - eval_date).days
+            return None
+        except Exception as e:
+            logger.debug(f"earnings check failed for {symbol}: {e}")
+            return None
+
     def _load_config_val(self, key: str, default):
         """Load a config value, with fallback to default."""
         try:
