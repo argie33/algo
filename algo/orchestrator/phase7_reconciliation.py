@@ -85,6 +85,8 @@ def run(
             logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
             for comp, ic_data in attr_result.items():
                 logger.info(f"  {comp}: IC={ic_data.get('ic_value', 0):.3f}, pval={ic_data.get('ic_pvalue', 1):.3f}")
+            if attr_result:
+                attribution.persist(run_date, attr_result)
         except Exception as e:
             logger.warning(f"Signal attribution failed: {e}")
         log_phase_result_fn(7, 'ic_computation', 'success' if attr_result else 'warn',
