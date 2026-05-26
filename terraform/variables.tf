@@ -977,6 +977,16 @@ variable "cognito_test_user_email" {
 # Secrets & Rotation Configuration
 # ============================================================
 
+variable "developer_key_rotation_date" {
+  description = "Date of last developer AWS credential rotation (YYYY-MM-DD format). Update quarterly via rotate-dev-credentials.yml"
+  type        = string
+  default     = "2026-05-26"
+  validation {
+    condition     = can(regex("^\\d{4}-\\d{2}-\\d{2}$", var.developer_key_rotation_date))
+    error_message = "Must be in YYYY-MM-DD format"
+  }
+}
+
 variable "secrets_rotation_days" {
   description = "Secrets Manager rotation frequency (days)"
   type        = number

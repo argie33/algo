@@ -109,3 +109,8 @@ output "developer_console_login_url" {
   description = "AWS Console login URL for developer user"
   value       = "https://${var.aws_account_id}.signin.aws.amazon.com/console"
 }
+
+output "developer_key_rotation_date" {
+  description = "Date of last developer credentials rotation (for quarterly rotation tracking)"
+  value       = var.developer_key_rotation_date
+}

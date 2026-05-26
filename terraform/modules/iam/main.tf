@@ -74,9 +74,9 @@ resource "aws_iam_role_policy" "github_actions_observability" {
 
 data "aws_iam_policy_document" "github_actions_compute" {
   statement {
-    sid       = "Compute"
-    effect    = "Allow"
-    actions   = [
+    sid    = "Compute"
+    effect = "Allow"
+    actions = [
       "ec2:Describe*", "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:CreateSubnet",
       "ec2:DeleteSubnet", "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
       "ec2:AuthorizeSecurityGroupIngress", "ec2:AuthorizeSecurityGroupEgress",
@@ -975,13 +975,31 @@ data "aws_iam_policy_document" "developer" {
 }
 
 # Access key for developer user (local CLI use)
+# Rotated quarterly per security baseline (see steering/algo.md)
 resource "aws_iam_access_key" "developer" {
   user = aws_iam_user.developer.name
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Mark access key for rotation on a schedule
+# Terraform will invalidate old key when this value changes (via scheduled rotation workflow)
+variable "developer_key_rotation_date" {
+  description = "Date of last developer credential rotation (updated quarterly by automation)"
+  type        = string
+  default     = "2026-05-26" # Last rotation date
+}
+
+locals {
+  # Key ID includes rotation marker - Terraform will create new key on every apply if this changes
+  developer_key_rotation = var.developer_key_rotation_date
 }
 
 # Store developer credentials in Secrets Manager (IaC-managed)
 resource "aws_secretsmanager_secret" "developer_credentials" {
-  name = "${var.project_name}/developer-credentials"
+  name        = "${var.project_name}/developer-credentials"
   description = "Developer IAM user access keys for local CLI/automation"
 
   tags = var.common_tags

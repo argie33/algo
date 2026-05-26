@@ -73,6 +73,12 @@ scripts/refresh-aws-credentials.ps1
 
 **AWS credentials profile:** `algo-developer` (read-only IAM user, created by Terraform)
 
+**Credential Rotation:** Automatic quarterly rotation (first Monday of each quarter at 02:00 UTC)
+- Workflow: `.github/workflows/rotate-dev-credentials.yml`
+- Manual trigger: `gh workflow run rotate-dev-credentials.yml`
+- After rotation: Users must refresh with `scripts/refresh-aws-credentials.ps1`
+- Procedure: Terraform invalidates old key, creates new one, stores in Secrets Manager
+
 ## CREDENTIAL FLOW (IaC)
 
 Credentials flow through a single pipeline — never lose them, never hardcode them:
@@ -108,6 +114,22 @@ For paper trading (testing):
 alpaca_paper_trading = true  (in terraform.tfvars)
 ```
 Lambda endpoint and keys are set automatically by deploy based on tfvars value.
+
+## CREDENTIAL ROTATION SCHEDULE
+
+All credentials rotate on fixed schedules. Update locally when rotated:
+
+| Credential | Interval | Procedure | Local Refresh |
+|-----------|----------|-----------|---------------|
+| `algo-developer` AWS key | Quarterly (Feb, May, Aug, Nov) | Automatic: `rotate-dev-credentials.yml` | `scripts/refresh-aws-credentials.ps1` |
+| Alpaca API (paper) | Quarterly | Manual: regenerate in Alpaca dashboard → `gh secret set` → `update-credentials.yml` | Update PowerShell profile env vars |
+| Alpaca API (live) | Quarterly | Manual: regenerate in Alpaca dashboard → `gh secret set` → `update-credentials.yml` | Update PowerShell profile env vars |
+| FRED API key | Quarterly | Manual: regenerate in FRED dashboard → `gh secret set` → `update-credentials.yml` | Update PowerShell profile env vars |
+| RDS database password | Quarterly | Manual: `terraform apply` with new password → redeploy Lambdas | Lambda env auto-updated |
+
+**Rotation reminder:** Q1=February, Q2=May, Q3=August, Q4=November
+
+**If a credential is leaked:** Rotate immediately (don't wait for quarterly schedule). For AWS keys, delete old key in IAM console and trigger `rotate-dev-credentials.yml`. For API keys, regenerate in dashboard immediately.
 
 ## DEPLOYMENT ARCHITECTURE
 

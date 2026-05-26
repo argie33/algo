@@ -249,6 +249,11 @@ output "developer_console_login_url" {
   value       = module.iam.developer_console_login_url
 }
 
+output "developer_key_rotation_date" {
+  description = "Date of last developer AWS credential rotation"
+  value       = module.iam.developer_key_rotation_date
+}
+
 # ============================================================
 # Deployment Info
 # ============================================================
