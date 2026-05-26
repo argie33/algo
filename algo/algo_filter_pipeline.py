@@ -630,7 +630,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
     def _tier2_market_health(self, signal_date) -> Dict[str, Any]:
         """Market health for the signal's date, with 5-day fallback."""
         try:
-            if self._market_health_cache and self._market_health_date == signal_date:
+            if self._market_health_date == signal_date:
+                # Use cached result (even if None — no market health data for this date)
                 row = self._market_health_cache
             else:
                 self.cur.execute(
