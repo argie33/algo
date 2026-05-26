@@ -337,6 +337,12 @@ class PositionMonitor:
         - After T1: stop = entry (breakeven) at minimum, or trail tighter via ATR
         - After T2: stop = entry area, never target levels (targets are exits, not protection)
         """
+        # Sanity check: if active_stop is already > cur_price (shouldn't happen), clamp it.
+        # This can occur with stale/imported positions.
+        if active_stop > cur_price:
+            active_stop = cur_price - 0.01
+            logger.warning(f"  Clamped active_stop {active_stop:.2f} to {cur_price - 0.01:.2f} (was above market)")
+
         candidates = [active_stop]
 
         if atr and cur_price:
@@ -396,19 +402,33 @@ class PositionMonitor:
 
         self.cur.execute(
             """
-            SELECT current_rank, rank_4w_ago FROM sector_ranking
+            SELECT current_rank, date_recorded FROM sector_ranking
             WHERE sector_name = %s
               AND date_recorded <= %s
             ORDER BY date_recorded DESC LIMIT 1
             """,
             (sector, current_date),
         )
-        row = self.cur.fetchone()
-        if not row:
+        cur_row = self.cur.fetchone()
+        if not cur_row:
             logger.warning(f"Missing sector ranking data for {sector} — cannot assess health")
             return 'unknown'
-        cur_rank = int(row[0]) if row[0] else 99
-        old_rank = int(row[1]) if row[1] else cur_rank
+        cur_rank = int(cur_row[0]) if cur_row[0] else 99
+
+        # Get rank from ~4 weeks ago for comparison
+        four_weeks_ago = current_date - timedelta(days=28)
+        self.cur.execute(
+            """
+            SELECT current_rank FROM sector_ranking
+            WHERE sector_name = %s
+              AND date_recorded >= %s
+              AND date_recorded <= %s
+            ORDER BY date_recorded ASC LIMIT 1
+            """,
+            (sector, four_weeks_ago, four_weeks_ago + timedelta(days=3)),
+        )
+        old_row = self.cur.fetchone()
+        old_rank = int(old_row[0]) if old_row and old_row[0] else cur_rank
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return 'weakening'
         if cur_rank < old_rank - 3:
