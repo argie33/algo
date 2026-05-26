@@ -129,6 +129,43 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
 }
 
 # ============================================================
+# Pre-Close Schedule (3:00 PM ET = 8:00 PM UTC)
+# Final trading run before market close (4 PM ET)
+# Uses: prices (today, fresh) + same signals as morning
+# Purpose: Last-minute position adjustments, final entries/exits BEFORE market close
+# SLA: Must finish by 3:15 PM ET to leave 45-min buffer for trade execution
+# ============================================================
+
+resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
+  count                        = var.enable_preclose_orchestrator ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-preclose-${var.environment}"
+  description                  = "Pre-close algo orchestrator run: 3:00 PM ET (final trades before market close at 4 PM ET)"
+  schedule_expression          = "cron(0 20 ? * MON-FRI *)" # 3:00 PM ET = 8:00 PM UTC
+  schedule_expression_timezone = "UTC"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "preclose"
+      note           = "Pre-close trading run: final adjustments before 4 PM ET market close, must finish by 3:15 PM"
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
+# ============================================================
 # Evening Schedule (5:30 PM ET = 10:30 PM UTC)
 # Original schedule - full pipeline execution
 # Uses: prices (today) + technicals (today) + all computed metrics

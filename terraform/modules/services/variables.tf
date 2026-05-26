@@ -385,6 +385,12 @@ variable "enable_afternoon_orchestrator" {
   default     = true
 }
 
+variable "enable_preclose_orchestrator" {
+  description = "Enable pre-close orchestrator execution (3:00 PM ET, final trades before 4 PM ET market close)"
+  type        = bool
+  default     = true
+}
+
 variable "algo_schedule_enabled" {
   description = "Whether the algo orchestrator schedule is enabled"
   type        = bool

@@ -12,17 +12,20 @@ api_cors_allowed_origins = [
   "http://localhost:3000",
   "http://localhost:5174"
 ]
-# ORCHESTRATOR SCHEDULE: 3-4 runs per trading day
-# Goal: Keep signals computed overnight, execute multiple times to catch opportunities
-# Pre-market (4:30 AM ET): OPTIONAL early entry prep [disabled]
+# ORCHESTRATOR SCHEDULE: 3 runs during market hours
+# Goal: Keep signals computed overnight, execute multiple times to catch opportunities + meet 4 PM ET close SLA
+# All runs use signals from previous night's EOD computation (no intraday signal recalc yet)
+# Pre-market (4:30 AM ET): DISABLED - not during market hours
 # Morning (9:30 AM ET): PRIMARY execution at market open [enabled]
 # Afternoon (1:00 PM ET): Mid-day rebalance, catch missed opportunities [enabled]
-# Evening (5:30 PM ET): After-close position management, signal prep for next day [enabled]
+# Pre-close (3:00 PM ET): FINAL execution before 4 PM ET market close, SLA finish by 3:15 PM ET [enabled]
+# Evening (5:30 PM ET): AFTER CLOSE - signal prep for next day only, no trading [managed separately]
 algo_schedule_enabled          = true
-algo_schedule_expression       = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 PM ET (evening)
-enable_premarket_orchestrator  = false # Optional: 4:30 AM ET early entry prep
+algo_schedule_expression       = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 PM ET (signal prep, not trading)
+enable_premarket_orchestrator  = false # Disabled: not during market hours
 enable_morning_orchestrator    = true # PRIMARY: 9:30 AM ET market open
 enable_afternoon_orchestrator  = true # 1:00 PM ET mid-day rebalance
+enable_preclose_orchestrator   = true # FINAL: 3:00 PM ET last trades before close
 cognito_enabled             = true # Authorizer exists but not used on routes (all NONE auth)
 
 # Database configuration
