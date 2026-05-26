@@ -812,7 +812,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     from algo.algo_trade_audit_logger import TradeAuditLogger
                     audit = TradeAuditLogger()
                     audit.log_stop_loss_calculation(
-                        symbol, signal_date, entry_price if 'entry_price' in dir() else None,
+                        symbol, signal_date, None,
                         stop_loss_price,
                         stop_info.get('method', 'unknown'),
                         stop_info.get('reasoning', ''),

@@ -148,11 +148,18 @@ def check_data_health(table_data):
                 'row_count': row_count,
             })
 
-        elif age_days >= SEVERITY_THRESHOLDS['stale_critical']:
+        elif age_days is not None and age_days >= SEVERITY_THRESHOLDS['stale_critical']:
             issues['critical'].append({
                 'table': table_name,
                 'reason': 'STALE (>7 days)',
                 'age_days': age_days,
+            })
+
+        elif age_days is None:
+            issues['warning'].append({
+                'table': table_name,
+                'reason': 'age unknown (NULL in data_loader_status)',
+                'age_days': None,
             })
 
         elif age_days >= SEVERITY_THRESHOLDS['stale_warning']:

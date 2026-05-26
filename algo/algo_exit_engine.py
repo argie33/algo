@@ -151,8 +151,9 @@ class ExitEngine:
                 )
 
                 if not exit_signal:
+                    t1_str = f'${t1_price:.2f}' if t1_price is not None else '—'
                     logger.info(f"  {symbol}: hold (cur ${cur_price:.2f}, "
-                                f"stop ${active_stop:.2f}, t1 ${t1_price:.2f}, "
+                                f"stop ${active_stop:.2f}, t1 {t1_str}, "
                                 f"day {days_held}, hits {target_hits})")
                     continue
 

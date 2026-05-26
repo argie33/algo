@@ -6,7 +6,7 @@
  * Trades → /app/trades    |  Audit → /app/audit
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Shield, RefreshCw,
 } from 'lucide-react';
@@ -86,11 +86,17 @@ function AlgoTradingDashboard() {
     [r0,r1,r2,r5,r6,r7,r8,r11,r12,r13].forEach(fn => fn?.());
   }, [r0,r1,r2,r5,r6,r7,r8,r11,r12,r13]);
 
+  // Transform config from array [{key, value, ...}] to dict {key: {value, ...}}
+  const configMap = useMemo(() => {
+    const items = config?.items || (Array.isArray(config) ? config : []);
+    return items.reduce((acc, row) => { acc[row.key] = row; return acc; }, {});
+  }, [config]);
+
   // Stable data shape consumed by sub-components
   const data = {
     status,
     scores:           scores || [],
-    config,
+    config:           configMap,
     dataStatus,
     policy,
     evaluated,

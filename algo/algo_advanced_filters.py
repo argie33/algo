@@ -301,7 +301,7 @@ class AdvancedFilters:
             """
             WITH d AS (
                 SELECT date, volume,
-                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 49 PRECEDING AND 1 PRECEDING) AS avg_vol
+                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol
                 FROM price_daily
                 WHERE symbol = %s AND date <= %s
                 ORDER BY date DESC LIMIT 1
@@ -492,7 +492,7 @@ class AdvancedFilters:
         self.cur.execute(
             """
             SELECT revenue_growth_3y_cagr, eps_growth_3y_cagr,
-                   quarterly_growth_momentum, revenue_growth_yoy, eps_growth_3y_cagr
+                   quarterly_growth_momentum, revenue_growth_yoy
             FROM growth_metrics
             WHERE symbol = %s
             ORDER BY date DESC LIMIT 1

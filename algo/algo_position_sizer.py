@@ -121,7 +121,7 @@ class PositionSizer:
                 data = response.json()
                 # Use portfolio_value (equity + cash)
                 pv = data.get('portfolio_value') or data.get('equity')
-                if pv is not None:
+                if pv:
                     return float(pv)
         except Exception:
             pass

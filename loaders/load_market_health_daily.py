@@ -221,6 +221,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 elif close < sma_50 < sma_200:
                     market_trend = "downtrend"
                     market_stage = 4
+                elif close > sma_200 and sma_50 < sma_200:
+                    market_trend = "topping"
+                    market_stage = 3
                 else:
                     market_trend = "mixed"
                     market_stage = 1
