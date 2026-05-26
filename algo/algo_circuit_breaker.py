@@ -207,7 +207,7 @@ class CircuitBreaker:
         self.cur.execute(
             """
             SELECT created_at FROM algo_audit_log
-            WHERE action_type = 'circuit_breaker' AND details ILIKE '%drawdown%'
+            WHERE action_type = 'circuit_breaker_halt' AND details ILIKE '%drawdown%'
             ORDER BY created_at DESC LIMIT 1
             """
         )
