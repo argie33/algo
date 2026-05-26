@@ -106,8 +106,14 @@ class FilterTiers45Mixin:
                     pass
 
                 if atr_value and atr_value > 0:
-                    stop_loss_price = max(0.01, entry_price - (2.0 * atr_value))
-                    logger.warning(f'[T5] Stop calculation failed for {symbol}; using 2x ATR fallback: {stop_loss_price:.2f} (ATR={atr_value:.2f})')
+                    atr_stop = entry_price - (2.0 * atr_value)
+                    # If ATR is huge, use % fallback instead (prevent unprotected position)
+                    if atr_stop < entry_price * 0.85:
+                        stop_loss_price = entry_price * 0.95
+                        logger.warning(f'[T5] Stop calculation failed for {symbol}; ATR {atr_value:.2f} too large, using 5% fallback: {stop_loss_price:.2f}')
+                    else:
+                        stop_loss_price = max(0.01, atr_stop)
+                        logger.warning(f'[T5] Stop calculation failed for {symbol}; using 2x ATR fallback: {stop_loss_price:.2f} (ATR={atr_value:.2f})')
                 else:
                     stop_loss_price = entry_price * 0.95  # Conservative 5% fallback when ATR missing
                     logger.warning(f'[T5] Stop calculation FAILED for {symbol}; using 5% emergency fallback: {stop_loss_price:.2f} (no ATR available) — RISK INFLATED')
