@@ -766,9 +766,12 @@ class Orchestrator:
     # ---------- Main entrypoint ----------
 
     def run(self) -> Dict[str, Any]:
+        import time
+        run_start = time.time()
         logger.info(f"\n{'#'*70}")
         logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
         logger.info(f"#   run_id: {self.run_id}")
+        logger.info(f"#   START TIME: {datetime.now().isoformat()}")
         logger.info(f"{'#'*70}")
 
         # Loudly warn if DEV_MODE is active — this bypasses all data freshness and patrol gates
@@ -855,18 +858,26 @@ class Orchestrator:
                                      '--skip-freshness flag used — data freshness check skipped')
             else:
                 try:
+                    phase_1_start = time.time()
+                    logger.info(f"\n[PHASE 1] Starting at {datetime.now().isoformat()}")
                     with TimeBlock("phase_1_data_freshness"):
                         if not self.phase_1_data_freshness():
                             logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
                             self.log_phase_result(1, 'data_freshness', 'fail', 'Stale or missing critical data')
                             return self._final_report()
+                    phase_1_elapsed = time.time() - phase_1_start
+                    logger.info(f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now().isoformat()}")
                 except Exception as e:
                     logger.error(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
                     self.log_phase_result(1, 'data_freshness', 'error', str(e))
                     return self._final_report()
 
+            phase_2_start = time.time()
+            logger.info(f"\n[PHASE 2] Starting at {datetime.now().isoformat()}")
             with TimeBlock("phase_2_circuit_breakers"):
                 phase_2_passed = self.phase_2_circuit_breakers()
+            phase_2_elapsed = time.time() - phase_2_start
+            logger.info(f"[PHASE 2] Completed in {phase_2_elapsed:.2f}s at {datetime.now().isoformat()}")
 
             if not phase_2_passed:
                 logger.info("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
@@ -878,40 +889,52 @@ class Orchestrator:
                 return self._final_report()
 
             # Phase 3: Position Monitor
+            phase_3_start = time.time()
+            logger.info(f"\n[PHASE 3] Starting at {datetime.now().isoformat()}")
             try:
                 with TimeBlock("phase_3_position_monitor"):
                     self.phase_3_position_monitor()
-                logger.info("[OK] Phase 3 (Position Monitor) completed")
+                phase_3_elapsed = time.time() - phase_3_start
+                logger.info(f"[PHASE 3] Completed in {phase_3_elapsed:.2f}s at {datetime.now().isoformat()}")
             except Exception as e:
                 logger.error(f"✗ Phase 3 (Position Monitor) failed: {e}", exc_info=True)
                 self.log_phase_result(3, 'position_monitor', 'error', str(e))
 
             # Phase 3b: Exposure Policy
+            phase_3b_start = time.time()
+            logger.info(f"\n[PHASE 3b] Starting at {datetime.now().isoformat()}")
             try:
                 with TimeBlock("phase_3b_exposure_policy"):
                     self.phase_3b_exposure_policy()
-                logger.info("[OK] Phase 3b (Exposure Policy) completed")
+                phase_3b_elapsed = time.time() - phase_3b_start
+                logger.info(f"[PHASE 3b] Completed in {phase_3b_elapsed:.2f}s at {datetime.now().isoformat()}")
             except Exception as e:
                 logger.error(f"✗ Phase 3b (Exposure Policy) failed: {e}", exc_info=True)
                 self.log_phase_result('3b', 'exposure_policy', 'error', str(e))
 
             # Phase 4: Exit Execution
+            phase_4_start = time.time()
+            logger.info(f"\n[PHASE 4] Starting at {datetime.now().isoformat()}")
             try:
                 with TimeBlock("phase_4_exit_execution"):
                     result = self.phase_4_exit_execution()
                     if result is False:
                         logger.critical("HALT: Phase 4 (Exit Execution) returned False — stopping pipeline")
                         return self._final_report()
-                logger.info("[OK] Phase 4 (Exit Execution) completed")
+                phase_4_elapsed = time.time() - phase_4_start
+                logger.info(f"[PHASE 4] Completed in {phase_4_elapsed:.2f}s at {datetime.now().isoformat()}")
             except Exception as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(4, 'exit_execution', 'error', str(e))
 
             # Phase 3a: Reconciliation (AFTER exits, BEFORE entries, to get fresh position counts)
+            phase_3a_start = time.time()
+            logger.info(f"\n[PHASE 3a] Starting at {datetime.now().isoformat()}")
             try:
                 with TimeBlock("phase_3a_reconciliation"):
                     self.phase_3a_reconciliation()
-                logger.info("[OK] Phase 3a (Reconciliation — post-exits) completed")
+                phase_3a_elapsed = time.time() - phase_3a_start
+                logger.info(f"[PHASE 3a] Completed in {phase_3a_elapsed:.2f}s at {datetime.now().isoformat()}")
             except Exception as e:
                 logger.error(f"✗ Phase 3a (Reconciliation — post-exits) failed: {e}", exc_info=True)
                 self.log_phase_result('3a', 'reconciliation_post_exits', 'error', str(e))
@@ -926,42 +949,54 @@ class Orchestrator:
                 self.log_phase_result('4b', 'pyramid_adds', 'error', str(e))
 
             # Phase 5: Signal Generation
+            phase_5_start = time.time()
+            logger.info(f"\n[PHASE 5] Starting at {datetime.now().isoformat()}")
             try:
                 with TimeBlock("phase_5_signal_generation"):
                     result = self.phase_5_signal_generation()
                     if result is False:
                         logger.critical("HALT: Phase 5 (Signal Generation) returned False — stopping pipeline")
                         return self._final_report()
-                logger.info("[OK] Phase 5 (Signal Generation) completed")
+                phase_5_elapsed = time.time() - phase_5_start
+                logger.info(f"[PHASE 5] Completed in {phase_5_elapsed:.2f}s at {datetime.now().isoformat()}")
             except Exception as e:
                 logger.error(f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True)
                 self.log_phase_result(5, 'signal_generation', 'error', str(e))
 
             # Phase 6: Entry Execution
+            phase_6_start = time.time()
+            logger.info(f"\n[PHASE 6] Starting at {datetime.now().isoformat()}")
             try:
                 with TimeBlock("phase_6_entry_execution"):
                     result = self.phase_6_entry_execution()
                     if result is False:
                         logger.critical("HALT: Phase 6 (Entry Execution) returned False — stopping pipeline")
                         return self._final_report()
-                logger.info("[OK] Phase 6 (Entry Execution) completed")
+                phase_6_elapsed = time.time() - phase_6_start
+                logger.info(f"[PHASE 6] Completed in {phase_6_elapsed:.2f}s at {datetime.now().isoformat()}")
             except Exception as e:
                 logger.error(f"✗ Phase 6 (Entry Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(6, 'entry_execution', 'error', str(e))
 
             # Phase 7: Reconciliation (fail-open — doesn't execute trades, just records state)
+            phase_7_start = time.time()
+            logger.info(f"\n[PHASE 7] Starting at {datetime.now().isoformat()}")
             try:
                 with TimeBlock("phase_7_reconciliation"):
                     result = self.phase_7_reconcile()
                 # Phase 7 is fail-open: if reconciliation fails, we still finalize the report
                 # (positions may already be executed, so we must sync state)
-                logger.info("[OK] Phase 7 (Reconciliation) completed")
+                phase_7_elapsed = time.time() - phase_7_start
+                logger.info(f"[PHASE 7] Completed in {phase_7_elapsed:.2f}s at {datetime.now().isoformat()}")
             except Exception as e:
                 logger.error(f"✗ Phase 7 (Reconciliation) failed: {e}", exc_info=True)
                 self.log_phase_result(7, 'reconciliation', 'error', str(e))
 
-            # Log performance metrics at end
+            # Log performance metrics and total time
             log_metrics_summary()
+            total_elapsed = time.time() - run_start
+            logger.info(f"\n[TOTAL] Orchestrator run completed in {total_elapsed:.2f}s")
+            logger.info(f"[END TIME] {datetime.now().isoformat()}")
             return self._final_report()
         finally:
             self._release_run_lock()
