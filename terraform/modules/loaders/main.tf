@@ -145,6 +145,8 @@ locals {
     "quality_metrics"               = "load_quality_metrics.py"
     "value_metrics"                 = "load_value_metrics.py"
     "positioning_metrics"           = "load_positioning_metrics.py"
+    "stability_metrics"             = "load_stability_metrics.py"
+    "stock_scores"                  = "load_stock_scores.py"
     "earnings_history"              = "loadearningshistory.py"
     "earnings_revisions"            = "loadearningsrevisions.py"
     "earnings_surprise"             = "loadearningssurprise.py"
@@ -624,7 +626,8 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
   role_arn  = aws_iam_role.eventbridge_run_task.arn
 
   ecs_target {
-    launch_type         = "FARGATE"
+    # launch_type must be null when capacity_provider_strategy is set (AWS rejects both)
+    launch_type         = contains(local.critical_loaders, each.key) ? "FARGATE" : null
     task_definition_arn = aws_ecs_task_definition.loader[each.key].arn
     task_count          = 1
     platform_version    = "LATEST"
