@@ -65,6 +65,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     cp.sector, cp.industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
+                    sc.updated_at AS last_updated,
                     pd.current_close AS current_price,
                     pd.current_close AS price,
                     ROUND(CASE
@@ -74,11 +75,25 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     km.market_cap,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
-                    qm.roe AS roe_pct,
-                    qm.debt_to_equity,
+                    vm.ps_ratio AS ps_ratio_val,
+                    vm.peg_ratio AS peg_ratio_val,
                     vm.dividend_yield,
+                    qm.roe AS roe_pct,
+                    qm.roa AS roa_val,
+                    qm.debt_to_equity,
+                    qm.current_ratio AS current_ratio_val,
+                    qm.quick_ratio AS quick_ratio_val,
+                    qm.operating_margin AS operating_margin_val,
+                    qm.net_margin AS net_margin_val,
                     gm.revenue_growth_1y AS revenue_growth_yoy_pct,
-                    gm.eps_growth_1y AS eps_growth_yoy_pct
+                    gm.eps_growth_1y AS eps_growth_yoy_pct,
+                    gm.revenue_growth_3y AS rev_growth_3y_val,
+                    gm.eps_growth_3y AS eps_growth_3y_val,
+                    sm.beta AS beta_val,
+                    sm.volatility_252d AS volatility_12m_val,
+                    pm.institutional_ownership AS inst_own_val,
+                    pm.insider_ownership AS insider_own_val,
+                    pm.short_interest_percent AS short_pct_val
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
@@ -86,6 +101,8 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
+                LEFT JOIN stability_metrics sm ON sm.symbol = sc.symbol
+                LEFT JOIN positioning_metrics pm ON pm.symbol = sc.symbol
                 LEFT JOIN LATERAL (
                     SELECT
                         (SELECT close FROM price_daily p1
@@ -100,7 +117,49 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
             params_list.extend([limit, offset])
             cur.execute(query, params_list)
             scores = cur.fetchall()
-            return list_response([dict(s) for s in scores])
+
+            def _f(v):
+                return float(v) if v is not None else None
+
+            items = []
+            for row in scores:
+                d = dict(row)
+                d['quality_inputs'] = {
+                    'return_on_equity_pct': _f(d.get('roe_pct')),
+                    'return_on_assets_pct': _f(d.get('roa_val')),
+                    'debt_to_equity': _f(d.get('debt_to_equity')),
+                    'current_ratio': _f(d.get('current_ratio_val')),
+                    'quick_ratio': _f(d.get('quick_ratio_val')),
+                    'operating_margin_pct': _f(d.get('operating_margin_val')),
+                    'profit_margin_pct': _f(d.get('net_margin_val')),
+                }
+                d['value_inputs'] = {
+                    'stock_pe': _f(d.get('trailing_pe')),
+                    'stock_pb': _f(d.get('price_to_book')),
+                    'stock_ps': _f(d.get('ps_ratio_val')),
+                    'peg_ratio': _f(d.get('peg_ratio_val')),
+                    'stock_dividend_yield': _f(d.get('dividend_yield')),
+                }
+                d['growth_inputs'] = {
+                    'revenue_growth_yoy_pct': _f(d.get('revenue_growth_yoy_pct')),
+                    'eps_growth_yoy_pct': _f(d.get('eps_growth_yoy_pct')),
+                    'revenue_growth_3y_cagr': _f(d.get('rev_growth_3y_val')),
+                    'eps_growth_3y_cagr': _f(d.get('eps_growth_3y_val')),
+                }
+                d['stability_inputs'] = {
+                    'beta': _f(d.get('beta_val')),
+                    'volatility_12m': _f(d.get('volatility_12m_val')),
+                }
+                d['positioning_inputs'] = {
+                    'institutional_ownership_pct': _f(d.get('inst_own_val')),
+                    'insider_ownership_pct': _f(d.get('insider_own_val')),
+                    'short_percent_of_float': _f(d.get('short_pct_val')),
+                }
+                d['momentum_inputs'] = {
+                    'current_price': _f(d.get('current_price')),
+                }
+                items.append(d)
+            return list_response(items)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'get stock scores')

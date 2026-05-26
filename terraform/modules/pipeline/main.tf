@@ -176,7 +176,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "ParallelTechnicals"
       }
@@ -233,7 +233,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "ParallelEnrichment"
       }
@@ -268,7 +268,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "SignalGeneration"
       }
@@ -413,7 +413,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "SignalQualityScores"
       }
@@ -437,7 +437,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "AlgoMetrics"
       }
@@ -461,7 +461,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "SwingScores"
       }
@@ -485,7 +485,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "TriggerOrchestrator"
       }
@@ -527,7 +527,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          ResultPath  = null
         }]
         Next = "PipelineSuccess"
       }
