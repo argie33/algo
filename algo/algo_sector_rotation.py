@@ -29,11 +29,14 @@ from config.credential_helper import (
 
 
 
+import logging
 import os
 import json
 from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, date as _date
+
+logger = logging.getLogger(__name__)
 
 
 # Sector classifications (Mansfield/IBD)
@@ -60,14 +63,17 @@ class SectorRotationDetector:
         self.cur = None
 
     def connect(self):
+        if self.cur is not None:
+            return  # Already connected (e.g., shared cursor injected by caller)
         self.conn = get_db_connection()
         self.cur = self.conn.cursor()
-        # Note: sector_rotation_signal table created by init_database.py (schema as code)
 
     def disconnect(self):
-        if self.cur: self.cur.close()
-        if self.conn: self.conn.close()
-        self.cur = self.conn = None
+        if self.conn:  # Only close if we own the connection
+            if self.cur:
+                self.cur.close()
+            self.conn.close()
+            self.cur = self.conn = None
 
     def compute(self, eval_date=None):
         """Run sector rotation analysis for the eval_date.
