@@ -1312,11 +1312,56 @@ jobs:
   # Run: aws logs tail /aws/lambda/algo-algo-dev --follow --region us-east-1
 
   # ──────────────────────────────────────────────────────────────
+  # Cleanup Old Task Definition Versions (Prevent AWS Sprawl)
+  # ──────────────────────────────────────────────────────────────
+  cleanup-old-task-versions:
+    name: Cleanup Old ECS Task Definition Versions
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Deregister Old Task Definition Versions
+        run: |
+          echo "🧹 Cleaning up old ECS task definition versions..."
+          echo "Keeping only the 2 most recent versions per family"
+          echo ""
+
+          # Get all unique task definition families
+          families=$(aws ecs list-task-definitions --region us-east-1 --query 'taskDefinitionArns' --output text | sed 's/:.*$//' | sort | uniq)
+
+          total_deleted=0
+          for family in $families; do
+            # Get all versions of this family, sorted by version (newest first)
+            versions=$(aws ecs list-task-definitions --family-prefix "$family" --region us-east-1 --sort DESC --query 'taskDefinitionArns' --output text)
+            version_array=($versions)
+
+            # Keep only the first 2 (newest); delete the rest
+            if [ ${#version_array[@]} -gt 2 ]; then
+              echo "Family: $family"
+              for (( i = 2; i < ${#version_array[@]}; i++ )); do
+                task_def="${version_array[$i]}"
+                echo "  Deregistering: $task_def"
+                aws ecs deregister-task-definition --task-definition "$task_def" --region us-east-1 --output text > /dev/null
+                ((total_deleted++))
+              done
+            fi
+          done
+
+          echo ""
+          echo "✅ Cleanup complete. Deregistered $total_deleted old task definition versions"
+
+  # ──────────────────────────────────────────────────────────────
   # Summary & Credentials Available
   # ──────────────────────────────────────────────────────────────
   deployment-complete:
     name: Deployment Complete - Credentials Ready
-    needs: [resolve-infra, export-developer-credentials]
+    needs: [resolve-infra, export-developer-credentials, cleanup-old-task-versions]
     runs-on: ubuntu-latest
 
     steps:

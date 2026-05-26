@@ -376,6 +376,12 @@ module "monitoring" {
   sns_alerts_topic_arn         = coalesce(module.services.sns_alerts_topic_arn, "")
 }
 
+module "lifecycle" {
+  source = "./modules/lifecycle"
+
+  common_tags = local.common_tags
+}
+
 data "aws_caller_identity" "current" {}
 
 # ============================================================
