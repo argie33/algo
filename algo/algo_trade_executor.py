@@ -1056,7 +1056,6 @@ class TradeExecutor:
                 if snapshot_date and (datetime.now().date() - snapshot_date).days > 1:
                     try:
                         notify(
-                            kind='portfolio_value_stale',
                             severity='warning',
                             title='Portfolio Value Stale',
                             message=f'Using portfolio snapshot from {snapshot_date} (now using {pv:.0f})',
