@@ -3,8 +3,8 @@ import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } 
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
-import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import {
+  CheckCircle as CheckCircleIcon,
   TrendingUp as TrendingUpIcon,
   DataObject as DataObjectIcon,
   FilterList as FilterListIcon,
@@ -132,11 +132,94 @@ const ResearchInsights = () => {
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-              <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=900&h=650&fit=crop&auto=format&q=80"
-                alt="Research analytics dashboard with market data"
-                height={{ xs: '300px', md: '420px' }}
-              />
+              {/* Mock Score Card Panel */}
+              <Box
+                sx={{
+                  backgroundColor: alpha(theme.palette.background.paper, 0.95),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                  boxShadow: `0 24px 64px ${alpha('#000', 0.4)}`,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Header */}
+                <Box
+                  sx={{
+                    px: 2.5,
+                    py: 1.5,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.07),
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '2px', color: theme.palette.primary.main, textTransform: 'uppercase' }}>
+                    Research Score Card
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.secondary, fontWeight: 600 }}>NVDA — NVIDIA Corp</Typography>
+                </Box>
+                {/* Composite score */}
+                <Box
+                  sx={{
+                    px: 2.5,
+                    py: 2,
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Box>
+                    <Typography sx={{ fontSize: '0.65rem', color: theme.palette.text.secondary, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.5 }}>Composite Score</Typography>
+                    <Typography sx={{ fontSize: '2.8rem', fontWeight: 900, lineHeight: 1, color: '#22c55e' }}>94</Typography>
+                    <Typography sx={{ fontSize: '0.65rem', color: theme.palette.text.secondary, mt: 0.5 }}>out of 100</Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      px: 1.75,
+                      py: 0.75,
+                      backgroundColor: alpha('#22c55e', 0.12),
+                      border: `1px solid ${alpha('#22c55e', 0.3)}`,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#22c55e', letterSpacing: '1px', textTransform: 'uppercase' }}>All 6 Filters</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 900, color: '#22c55e', mt: 0.25 }}>PASS ✓</Typography>
+                  </Box>
+                </Box>
+                {/* Dimension scores */}
+                {[
+                  { label: 'Trend Template', score: 97, pass: true },
+                  { label: 'Fundamental Quality', score: 89, pass: true },
+                  { label: 'Earnings Momentum', score: 94, pass: true },
+                  { label: 'Market Health Gate', score: 82, pass: true },
+                  { label: 'Minervini Stage 2', score: 96, pass: true },
+                  { label: 'Sentiment & Positioning', score: 78, pass: true },
+                ].map((dim) => (
+                  <Box
+                    key={dim.label}
+                    sx={{
+                      px: 2.5,
+                      py: 1.1,
+                      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                    }}
+                  >
+                    <CheckCircleIcon sx={{ fontSize: '0.9rem', color: '#22c55e', flexShrink: 0 }} />
+                    <Typography sx={{ flex: 1, fontSize: '0.78rem', color: theme.palette.text.secondary }}>{dim.label}</Typography>
+                    <Box sx={{ width: 80, height: 4, backgroundColor: alpha(theme.palette.divider, 0.6), borderRadius: 2, overflow: 'hidden' }}>
+                      <Box sx={{ width: `${dim.score}%`, height: '100%', backgroundColor: '#22c55e', borderRadius: 2 }} />
+                    </Box>
+                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, color: theme.palette.text.primary, width: 24, textAlign: 'right' }}>{dim.score}</Typography>
+                  </Box>
+                ))}
+                {/* Footer */}
+                <Box sx={{ px: 2.5, py: 1.25 }}>
+                  <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.secondary }}>Updated pre-market &middot; 5,312 equities scored today</Typography>
+                </Box>
+              </Box>
             </Grid>
           </Grid>
         </Container>

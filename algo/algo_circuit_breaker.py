@@ -433,9 +433,23 @@ class CircuitBreaker:
         if isinstance(data_date, datetime):
             data_date = data_date.date()
         days_stale = (current_date - data_date).days
-        max_stale_days = 1  # Market stage must be from today or yesterday
-        if days_stale > max_stale_days:
-            return {'halted': True, 'reason': f'Market stage data stale ({days_stale}d old) — fail-closed'}
+
+        # Use trading-day-aware staleness check (same pattern as _check_data_freshness and Phase 1).
+        # Hardcoded calendar-day thresholds cause false halts after 3-day holiday weekends when
+        # the market_health_daily record is from Friday but current_date is Tuesday (4 days gap).
+        expected_date = current_date - timedelta(days=1)
+        try:
+            from algo.algo_market_calendar import MarketCalendar
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected_date):
+                    break
+                expected_date -= timedelta(days=1)
+        except Exception:
+            while expected_date.weekday() >= 5:
+                expected_date -= timedelta(days=1)
+
+        if data_date < expected_date:
+            return {'halted': True, 'reason': f'Market stage data stale ({days_stale}d old, expected {expected_date}) — fail-closed'}
 
         if row[1] is None:
             return {'halted': True, 'reason': 'Market stage NULL — fail-closed to prevent trading in unknown stage'}
@@ -659,6 +673,7 @@ class CircuitBreaker:
             logger.warning(f"Warning: Could not log circuit breaker halt to audit log: {e}")
         # Surface to notifications for UI
         try:
+            from algo.algo_notifications import notify
             notify(
                 severity='critical',
                 title='Trading Halted by Circuit Breaker',

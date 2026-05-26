@@ -4,38 +4,52 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
-import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
+import {
+  CheckCircle as CheckCircleIcon,
+  QueryStats as QueryStatsIcon,
+  AccountTree as AccountTreeIcon,
+  VerifiedUser as VerifiedUserIcon,
+  Visibility as VisibilityIcon,
+  GridView as GridViewIcon,
+  Autorenew as AutorenewIcon,
+} from '@mui/icons-material';
 
 const MissionValues = () => {
   const theme = useTheme();
 
   const coreValues = [
     {
+      icon: <QueryStatsIcon />,
       title: 'Quantitative Rigor',
       description:
         'Every analytical model is backtested against 10+ years of historical market data and validated for statistical significance. We document our methodology, track out-of-sample performance, and refine models when evidence demands it.',
     },
     {
+      icon: <AccountTreeIcon />,
       title: 'Integrated Analysis',
       description:
         'Superior research requires multiple analytical perspectives working together. Our six-dimension framework integrates fundamental valuation, earnings dynamics, technical structure, sentiment indicators, sector rotation, and quantitative modeling into a unified signal.',
     },
     {
+      icon: <VerifiedUserIcon />,
       title: 'Research Independence',
       description:
         'Bullseye maintains complete research independence. No investment banking relationships. No underwriting business. No pressure to maintain ratings. Our analysis reflects only the data and our analytical views&#8212;nothing else.',
     },
     {
+      icon: <VisibilityIcon />,
       title: 'Radical Transparency',
       description:
         'We document data sources, explain model assumptions, and show exactly what factors drive our scores and signals. You understand why a stock passes or fails every stage of the process. No black boxes.',
     },
     {
+      icon: <GridViewIcon />,
       title: 'Comprehensive Coverage',
       description:
         'Full-coverage research across 5,300+ US equities spanning all market capitalizations and sectors. Large-cap and micro-cap opportunities receive the same rigorous analytical attention&#8212;systematic coverage, not selective coverage.',
     },
     {
+      icon: <AutorenewIcon />,
       title: 'Continuous Improvement',
       description:
         'Market regimes evolve, and our models adapt accordingly. We continuously monitor performance, update factors, and refine our research frameworks to maintain analytical edge as conditions change.',
@@ -184,15 +198,28 @@ const MissionValues = () => {
                   }}
                 >
                   <CardContent sx={{ p: 3.5 }}>
-                    <Box sx={{ display: 'flex', gap: 1.5, mb: 2, alignItems: 'flex-start' }}>
-                      <CheckCircleIcon sx={{ color: theme.palette.primary.main, fontSize: '1.3rem', mt: 0.2, flexShrink: 0 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.text.primary, fontSize: '1.05rem', lineHeight: 1.3 }}>
-                        {value.title}
-                      </Typography>
+                    <Box
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: theme.palette.primary.main,
+                        mb: 2,
+                        '& svg': { fontSize: '1.35rem' },
+                      }}
+                    >
+                      {value.icon}
                     </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.text.primary, fontSize: '1.05rem', lineHeight: 1.3, mb: 1.5 }}>
+                      {value.title}
+                    </Typography>
                     <Typography
                       variant="body2"
-                      sx={{ color: theme.palette.text.secondary, lineHeight: 1.7, pl: 3.5 }}
+                      sx={{ color: theme.palette.text.secondary, lineHeight: 1.7 }}
                       dangerouslySetInnerHTML={{ __html: value.description }}
                     />
                   </CardContent>

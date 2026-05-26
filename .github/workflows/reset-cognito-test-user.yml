@@ -13,6 +13,9 @@ on:
         default: 'testuser@stocks.local'
         type: string
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   reset-password:
     name: Reset Cognito User Password

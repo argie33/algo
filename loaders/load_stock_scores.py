@@ -270,11 +270,11 @@ class StockScoresLoader(OptimalLoader):
                     'price_12m_ago': float(row[4]) if row[4] else None,
                 }
 
-                # Calculate returns
-                momentum_1m = ((prices['current'] / prices['price_1m_ago'] - 1) * 100) if prices['price_1m_ago'] else 0
-                momentum_3m = ((prices['current'] / prices['price_3m_ago'] - 1) * 100) if prices['price_3m_ago'] else 0
-                momentum_6m = ((prices['current'] / prices['price_6m_ago'] - 1) * 100) if prices['price_6m_ago'] else 0
-                momentum_12m = ((prices['current'] / prices['price_12m_ago'] - 1) * 100) if prices['price_12m_ago'] else 0
+                # Calculate returns; None if historical price unavailable (e.g. recent IPO)
+                momentum_1m = ((prices['current'] / prices['price_1m_ago'] - 1) * 100) if prices['price_1m_ago'] else None
+                momentum_3m = ((prices['current'] / prices['price_3m_ago'] - 1) * 100) if prices['price_3m_ago'] else None
+                momentum_6m = ((prices['current'] / prices['price_6m_ago'] - 1) * 100) if prices['price_6m_ago'] else None
+                momentum_12m = ((prices['current'] / prices['price_12m_ago'] - 1) * 100) if prices['price_12m_ago'] else None
 
                 return {
                     'momentum_1m': momentum_1m,

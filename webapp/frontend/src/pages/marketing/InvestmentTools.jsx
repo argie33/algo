@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
-import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import {
   TrendingUp as TrendingUpIcon,
   Equalizer as EqualizerIcon,
@@ -136,11 +135,85 @@ const InvestmentTools = () => {
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-              <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=900&h=650&fit=crop&auto=format&q=80"
-                alt="Trading signals and stock analysis dashboard"
-                height={{ xs: '300px', md: '420px' }}
-              />
+              {/* Mock Signals Panel */}
+              <Box
+                sx={{
+                  backgroundColor: alpha(theme.palette.background.paper, 0.95),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                  boxShadow: `0 24px 64px ${alpha('#000', 0.4)}`,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Panel header */}
+                <Box
+                  sx={{
+                    px: 2.5,
+                    py: 1.5,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.07),
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '2px', color: theme.palette.primary.main, textTransform: 'uppercase' }}>
+                    Today&apos;s Buy Signals
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 6px #22c55e' }} />
+                    <Typography sx={{ fontSize: '0.62rem', color: '#22c55e', fontWeight: 700, letterSpacing: '1px' }}>LIVE</Typography>
+                  </Box>
+                </Box>
+                {/* Column headers */}
+                <Box sx={{ px: 2.5, py: 1, borderBottom: `1px solid ${alpha(theme.palette.divider, 0.6)}`, display: 'flex', gap: 1 }}>
+                  {['Ticker', 'Sector', 'Score', 'Trend', 'Signal'].map((col, i) => (
+                    <Typography key={col} sx={{ fontSize: '0.62rem', fontWeight: 700, color: theme.palette.text.secondary, textTransform: 'uppercase', letterSpacing: '0.5px', flex: i === 1 ? 1.4 : 1, textAlign: i >= 2 ? 'center' : 'left' }}>
+                      {col}
+                    </Typography>
+                  ))}
+                </Box>
+                {/* Signal rows */}
+                {[
+                  { ticker: 'NVDA', sector: 'Semiconductors', score: 94, trend: '✓', signal: 'BUY' },
+                  { ticker: 'FICO', sector: 'Financial Tech', score: 91, trend: '✓', signal: 'BUY' },
+                  { ticker: 'PLTR', sector: 'Software', score: 88, trend: '✓', signal: 'BUY' },
+                  { ticker: 'CRWD', sector: 'Cybersecurity', score: 85, trend: '✓', signal: 'BUY' },
+                  { ticker: 'APP', sector: 'Ad Tech', score: 82, trend: '✓', signal: 'BUY' },
+                ].map((row) => (
+                  <Box
+                    key={row.ticker}
+                    sx={{
+                      px: 2.5,
+                      py: 1.25,
+                      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) },
+                    }}
+                  >
+                    <Typography sx={{ flex: 1, fontSize: '0.82rem', fontWeight: 900, color: theme.palette.text.primary, fontFamily: 'monospace' }}>{row.ticker}</Typography>
+                    <Typography sx={{ flex: 1.4, fontSize: '0.72rem', color: theme.palette.text.secondary }}>{row.sector}</Typography>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
+                      <Box sx={{ display: 'inline-block', px: 1, py: 0.25, backgroundColor: alpha('#22c55e', 0.12), fontSize: '0.75rem', fontWeight: 800, color: '#22c55e' }}>{row.score}</Box>
+                    </Box>
+                    <Typography sx={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: '#22c55e', fontWeight: 700 }}>{row.trend} Pass</Typography>
+                    <Box sx={{ flex: 1, textAlign: 'center' }}>
+                      <Box sx={{ display: 'inline-block', px: 1, py: 0.25, backgroundColor: alpha('#22c55e', 0.12), fontSize: '0.65rem', fontWeight: 800, color: '#22c55e', letterSpacing: '0.5px' }}>{row.signal}</Box>
+                    </Box>
+                  </Box>
+                ))}
+                {/* Footer */}
+                <Box sx={{ px: 2.5, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography sx={{ fontSize: '0.65rem', color: theme.palette.text.secondary }}>5 of 5,312 equities scored today</Typography>
+                  <Typography
+                    onClick={() => navigate('/app/trading-signals')}
+                    sx={{ fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                  >
+                    See all signals →
+                  </Typography>
+                </Box>
+              </Box>
             </Grid>
           </Grid>
         </Container>

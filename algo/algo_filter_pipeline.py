@@ -159,6 +159,21 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
             today = _date.today()
 
+            # Compute the most recent expected trading day (yesterday or earlier) once, outside the loop.
+            # Signal age is measured from this reference — not from date.today() — so a Friday signal
+            # evaluated on Tuesday after a 4-day holiday weekend reads as 0 days old (not 4).
+            # Hardcoding today as the reference causes false rejections after any multi-day holiday.
+            _expected_recent = today - timedelta(days=1)
+            try:
+                from algo.algo_market_calendar import MarketCalendar
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(_expected_recent):
+                        break
+                    _expected_recent -= timedelta(days=1)
+            except Exception:
+                while _expected_recent.weekday() >= 5:
+                    _expected_recent -= timedelta(days=1)
+
             for symbol, signal_date, _signal in signals:
                 blackout_check = earnings_blackout.run(symbol, signal_date)
                 if not blackout_check['pass']:
@@ -167,13 +182,15 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     tracker.log_pre_tier_rejection(eval_date, symbol, f"earnings_blackout: {blackout_check['reason']}")
                     continue
 
-                # A1: Signal Age Gate — reject signals older than max_signal_age_days (measured from TODAY, not eval_date)
+                # A1: Signal Age Gate — reject signals older than max_signal_age_days.
+                # Age is measured from the most recent expected trading day (not today) so that
+                # holiday weekends do not inflate calendar-day counts and falsely reject fresh signals.
                 max_signal_age_days = int(self.config.get('max_signal_age_days', 3))
-                signal_age = (today - signal_date).days
+                signal_age = (_expected_recent - signal_date).days
                 if signal_age > max_signal_age_days:
-                    logger.info(f"  SKIP {symbol}: Signal {signal_age}d old (max {max_signal_age_days}d)")
+                    logger.info(f"  SKIP {symbol}: Signal {signal_age}d old vs last trading day (max {max_signal_age_days}d)")
                     pre_tier_rejections['signal_age'] += 1
-                    tracker.log_pre_tier_rejection(eval_date, symbol, f"signal_age: {signal_age}d old (max {max_signal_age_days}d)")
+                    tracker.log_pre_tier_rejection(eval_date, symbol, f"signal_age: {signal_age}d old vs last trading day (max {max_signal_age_days}d)")
                     continue
 
                 # Fetch stage, trend score, and price data for signal date

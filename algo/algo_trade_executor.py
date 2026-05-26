@@ -35,7 +35,7 @@ from typing import Dict, Any, Optional
 from utils.trade_status import TradeStatus, PositionStatus
 from utils.alpaca_response_validator import AlpacaResponseValidator
 from utils.db_retry_helper import OptimisticLockRetry, RetryConfig
-from algo.algo_notifications import TradeNotificationService
+from algo.algo_notifications import TradeNotificationService, notify
 
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
@@ -417,7 +417,6 @@ class TradeExecutor:
                     if order_status in ('rejected', 'cancelled', 'expired'):
                         # B7: Alert on order rejection
                         try:
-                            from algo.algo_notifications import notify
                             notify(
                                 'critical',
                                 title=f'Order {order_status.upper()}: {symbol}',

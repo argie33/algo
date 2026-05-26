@@ -8,6 +8,9 @@ on:
         required: false
         default: 'all'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   invoke-loaders:
     runs-on: ubuntu-latest

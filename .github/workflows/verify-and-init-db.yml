@@ -11,6 +11,9 @@ permissions:
 env:
   AWS_REGION: us-east-1
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   init-db-and-verify:
     name: Initialize DB & Verify System

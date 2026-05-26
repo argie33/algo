@@ -128,14 +128,19 @@ class PipelineStatus:
 class PipelineHealth:
     """Monitor and report on data pipeline health."""
 
-    # Define critical tables and their SLA requirements
+    # Define critical tables and their SLA requirements.
+    # market_health_daily and price_daily use sla_days=5 so that a 3-day holiday
+    # weekend (e.g. Memorial Day Friday → Tuesday = 4 calendar days) or a 4-day
+    # Thanksgiving break (Wednesday → Monday = 5 days) does not trigger a VERY_STALE
+    # critical halt in Phase 1. Phase 1's explicit staleness check uses trading-day-
+    # aware comparison; PipelineHealth is a secondary check and should not over-block.
     CRITICAL_TABLES = {
         'stock_symbols': {'date_column': 'created_at', 'sla_days': 30},
-        'price_daily': {'date_column': 'date', 'sla_days': 2},
-        'buy_sell_daily': {'date_column': 'date', 'sla_days': 2},
-        'stock_scores': {'date_column': 'updated_at', 'sla_days': 2},
+        'price_daily': {'date_column': 'date', 'sla_days': 5},
+        'buy_sell_daily': {'date_column': 'date', 'sla_days': 5},
+        'stock_scores': {'date_column': 'updated_at', 'sla_days': 5},
         'economic_data': {'date_column': 'date', 'sla_days': 7},
-        'market_health_daily': {'date_column': 'date', 'sla_days': 2},
+        'market_health_daily': {'date_column': 'date', 'sla_days': 5},
         'analyst_sentiment_analysis': {'date_column': 'updated_at', 'sla_days': 7},
         'earnings_calendar': {'date_column': 'created_at', 'sla_days': 30},
     }

@@ -91,6 +91,11 @@ __pycache__/
 venv*/
 *.py[cod]
 
+# Screenshots (local dev / review only — not source code)
+webapp/frontend/screenshots/*.png
+webapp/frontend/screenshots/*.jpg
+webapp/frontend/screenshots/*.webp
+
 # Runtime artifacts (local-only)
 .algo_orchestrator.lock
 *_orchestrator.lock

@@ -21,6 +21,7 @@ from pathlib import Path
 from datetime import datetime
 from utils.trade_status import TradeStatus, PositionStatus
 from algo.algo_config import get_config
+from algo.algo_notifications import notify
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,6 @@ class DailyReconciliation:
             if not alpaca_data:
                 logger.error("CRITICAL: Alpaca account fetch failed — cannot reconcile")
                 try:
-                    from algo.algo_notifications import notify
                     notify('critical', title='Alpaca Connection Failed',
                            message='Daily reconciliation cannot proceed without Alpaca account data')
                 except Exception as e:

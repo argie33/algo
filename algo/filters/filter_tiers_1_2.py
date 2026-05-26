@@ -82,11 +82,15 @@ class FilterTiers12Mixin:
             _d, stage, dist_days, vix, trend = row
             stage = stage or 0
             dist_days = dist_days or 0
-            vix = float(vix) if vix is not None else 0.0
+            vix = float(vix) if vix is not None else None
 
             max_vix = float(self.config.get('vix_max_threshold', 35.0))
-            if vix > max_vix:
+            if vix is not None and vix > max_vix:
                 return {'pass': False, 'reason': f'VIX {vix:.1f} > {max_vix:.1f}'}
+            elif vix is None:
+                # VIX missing from market_health_daily — circuit breaker CB5 handles this
+                # with a proper fallback (SPY volatility proxy). Don't block here on None.
+                logger.warning(f'VIX unavailable for {signal_date} — skipping VIX check (CB5 covers it)')
 
             max_dd = int(self.config.get('max_distribution_days', 4))
             if dist_days > max_dd:
@@ -96,9 +100,10 @@ class FilterTiers12Mixin:
             if require_stage_2 and stage != 2:
                 return {'pass': False, 'reason': f'Market Stage {stage} != 2 (trend={trend})'}
 
+            vix_str = f'VIX {vix:.1f}' if vix is not None else 'VIX N/A'
             return {
                 'pass': True,
-                'reason': f'Stage {stage}, DD {dist_days}, VIX {vix:.1f}, {trend}',
+                'reason': f'Stage {stage}, DD {dist_days}, {vix_str}, {trend}',
             }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}'}

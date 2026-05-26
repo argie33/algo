@@ -6,6 +6,9 @@ name: Run FRED Economic Data Loader
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   load-fred:
     name: Load FRED Economic Data

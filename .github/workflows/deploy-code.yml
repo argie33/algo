@@ -28,6 +28,9 @@ permissions:
 env:
   AWS_REGION: us-east-1
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ──────────────────────────────────────────────────────────────
   # Resolve Terraform outputs once; share across jobs

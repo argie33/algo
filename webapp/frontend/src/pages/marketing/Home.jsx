@@ -15,6 +15,12 @@ import {
   Scoreboard as ScoreboardIcon,
   FilterAlt as FilterAltIcon,
   ArrowForward as ArrowForwardIcon,
+  Assessment as AssessmentIcon,
+  Timeline as TimelineIcon,
+  ShowChart as ShowChartIcon,
+  AccountBalance as AccountBalanceIcon,
+  DonutSmall as DonutSmallIcon,
+  Calculate as CalculateIcon,
 } from '@mui/icons-material';
 
 const Home = () => {
@@ -41,12 +47,12 @@ const Home = () => {
   ];
 
   const dataCapabilities = [
-    { label: 'Equity Research', detail: 'Systematic stock analysis, multi-factor valuation models, and institutional-grade comparative metrics across 5,300+ US equities' },
-    { label: 'Earnings Dynamics', detail: 'Comprehensive earnings patterns, analyst revision analysis, and historical surprise data with 10+ years of context' },
-    { label: 'Market Structure', detail: 'Real-time technical analysis, volume dynamics, advance/decline breadth, and distribution day tracking' },
-    { label: 'Macro & Economic', detail: 'Federal Reserve data integration, FRED economic indicators, and yield curve analysis updated daily' },
-    { label: 'Sector Rotation', detail: 'Industry relative performance, sector dynamics, and competitive positioning analysis with momentum filters' },
-    { label: 'Quantitative Signals', detail: 'Minervini-style trend template scoring, systematic pattern recognition, and backtested entry/exit criteria' },
+    { icon: <AssessmentIcon />, label: 'Equity Research', detail: 'Systematic stock analysis, multi-factor valuation models, and institutional-grade comparative metrics across 5,300+ US equities' },
+    { icon: <TimelineIcon />, label: 'Earnings Dynamics', detail: 'Comprehensive earnings patterns, analyst revision analysis, and historical surprise data with 10+ years of context' },
+    { icon: <ShowChartIcon />, label: 'Market Structure', detail: 'Real-time technical analysis, volume dynamics, advance/decline breadth, and distribution day tracking' },
+    { icon: <AccountBalanceIcon />, label: 'Macro & Economic', detail: 'Federal Reserve data integration, FRED economic indicators, and yield curve analysis updated daily' },
+    { icon: <DonutSmallIcon />, label: 'Sector Rotation', detail: 'Industry relative performance, sector dynamics, and competitive positioning analysis with momentum filters' },
+    { icon: <CalculateIcon />, label: 'Quantitative Signals', detail: 'Minervini-style trend template scoring, systematic pattern recognition, and backtested entry/exit criteria' },
   ];
 
   const keyFeatures = [
@@ -143,14 +149,28 @@ const Home = () => {
                     },
                   }}
                 >
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: theme.palette.primary.main,
+                      mb: 2,
+                      '& svg': { fontSize: '1.4rem' },
+                    }}
+                  >
+                    {item.icon}
+                  </Box>
                   <Typography
                     sx={{
                       fontWeight: 700,
-                      color: theme.palette.primary.main,
+                      color: theme.palette.text.primary,
                       mb: 1,
-                      fontSize: '0.95rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
+                      fontSize: '0.97rem',
                     }}
                   >
                     {item.label}

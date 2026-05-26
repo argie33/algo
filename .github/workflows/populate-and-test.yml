@@ -19,6 +19,9 @@ permissions:
 env:
   AWS_REGION: us-east-1
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   populate_and_test:
     name: Populate Data & Test Orchestrator
@@ -52,7 +55,7 @@ jobs:
           echo "Using RDS: $ENDPOINT:$PORT"
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
