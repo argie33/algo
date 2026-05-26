@@ -275,15 +275,14 @@ class StockScoresLoader(OptimalLoader):
         More robust than OFFSET which breaks on data gaps or different row counts.
         """
         try:
-            # Get recent price performance from price_daily table using date lookups
-            # ~20 trading days = 1 month, ~60 = 3 months, ~126 = 6 months, ~252 = 1 year
+            # Get recent price performance from price_daily table using calendar date lookups
             cur.execute("""
                 SELECT
                     (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '20 days' ORDER BY date DESC LIMIT 1) as price_1m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '60 days' ORDER BY date DESC LIMIT 1) as price_3m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '126 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 month' ORDER BY date DESC LIMIT 1) as price_1m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '3 months' ORDER BY date DESC LIMIT 1) as price_3m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '6 months' ORDER BY date DESC LIMIT 1) as price_6m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 year' ORDER BY date DESC LIMIT 1) as price_12m_ago
             """, (symbol, symbol, symbol, symbol, symbol))
             row = cur.fetchone()
 
