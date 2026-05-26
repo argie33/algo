@@ -41,24 +41,22 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'handle admin')
 def _get_loader_status(cur) -> Dict:
-        """Get status of all data loaders from data_loader_runs table."""
+        """Get status of all data loaders from data_loader_status table.
+
+        Reads from data_loader_status, which OptimalLoader updates after each run
+        with the table's current row count and latest watermark date.
+        """
         try:
             cur.execute("""
                 SELECT
-                    loader_name,
-                    run_date AS start_at,
-                    records_loaded AS symbol_count,
-                    duration_seconds,
-                    (status = 'completed') AS success,
-                    0 AS error_count,
-                    '' AS table_name
-                FROM data_loader_runs
-                WHERE (loader_name, run_date) IN (
-                    SELECT loader_name, MAX(run_date)
-                    FROM data_loader_runs
-                    GROUP BY loader_name
-                )
-                ORDER BY run_date DESC, loader_name
+                    table_name,
+                    row_count,
+                    latest_date,
+                    last_updated,
+                    status,
+                    error_message
+                FROM data_loader_status
+                ORDER BY last_updated DESC NULLS LAST, table_name
             """)
             rows = cur.fetchall()
 
@@ -69,23 +67,29 @@ def _get_loader_status(cur) -> Dict:
                     'loaders': []
                 })
 
+            now = datetime.now(timezone.utc)
             loaders = []
             for row in rows:
-                start_time = row['start_at']
-                age_hours = (datetime.now(timezone.utc) - start_time.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                last_updated = row['last_updated']
+                if last_updated:
+                    if last_updated.tzinfo is None:
+                        last_updated = last_updated.replace(tzinfo=timezone.utc)
+                    age_hours = (now - last_updated).total_seconds() / 3600
+                else:
+                    age_hours = 9999
                 health = 'stale' if age_hours > 24 else 'fresh'
-                status = 'success' if row['success'] else 'failed'
+                status = row['status'] or ('fresh' if age_hours <= 24 else 'stale')
 
                 loaders.append({
-                    'name': row['loader_name'],
+                    'name': row['table_name'],
                     'table': row['table_name'],
-                    'last_run': start_time.isoformat() if start_time else None,
-                    'symbols_processed': row['symbol_count'] or 0,
-                    'duration_seconds': row['duration_seconds'] or 0,
+                    'last_run': last_updated.isoformat() if last_updated else None,
+                    'row_count': row['row_count'] or 0,
+                    'latest_date': row['latest_date'].isoformat() if row['latest_date'] else None,
                     'status': status,
-                    'errors': row['error_count'] or 0,
                     'age_hours': round(age_hours, 1),
                     'health': health,
+                    'error': row['error_message'],
                 })
 
             return json_response(200, {
@@ -95,7 +99,6 @@ def _get_loader_status(cur) -> Dict:
                     'total': len(loaders),
                     'healthy': len([l for l in loaders if l['health'] == 'fresh']),
                     'stale': len([l for l in loaders if l['health'] == 'stale']),
-                    'failed': len([l for l in loaders if l['status'] == 'failed']),
                 }
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

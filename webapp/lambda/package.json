@@ -58,7 +58,7 @@
     "qrcode": "^1.5.3",
     "serverless-http": "^4.0.0",
     "speakeasy": "^2.0.0",
-    "ws": "^8.18.3"
+    "ws": "^8.20.1"
   },
   "devDependencies": {
     "axios": "^1.12.2",
@@ -86,6 +86,7 @@
   "author": "Financial Dashboard Team",
   "license": "MIT",
   "overrides": {
-    "axios": "^1.12.2"
+    "axios": "^1.12.2",
+    "qs": ">=6.15.2"
   }
 }
