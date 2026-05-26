@@ -179,8 +179,7 @@ class ExitEngine:
                 if fraction == 0 and result.get('success'):
                     logger.info(f"      -> Stop raised to ${new_stop:.2f}")
                     exits_executed += 1
-
-                if result.get('success'):
+                elif result.get('success'):
                     exits_executed += 1
                     logger.info(f"      -> {result['message']}")
                 else:

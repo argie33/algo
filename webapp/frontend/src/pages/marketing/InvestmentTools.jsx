@@ -137,7 +137,7 @@ const InvestmentTools = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=900&h=650&fit=crop&auto=format&q=80"
+                src="https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=900&h=650&fit=crop&auto=format&q=80"
                 alt="Trading signals and stock analysis dashboard"
                 height={{ xs: '300px', md: '420px' }}
               />

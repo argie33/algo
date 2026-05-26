@@ -16,12 +16,14 @@ const OurTeam = () => {
   const teamMembers = [
     {
       name: 'Erik A.',
+      initials: 'EA',
       role: 'Founder',
       bio: 'Built Bullseye from the ground up&#8212;from the trading algorithm and data pipeline to the research platform and infrastructure. Background in quantitative strategy, systematic trend-following, and financial technology. Designed the Minervini-based scoring system and the multi-phase trading orchestrator that runs the platform.',
       areas: ['Quantitative Research', 'Platform Architecture', 'Algo Trading', 'Systems Design'],
     },
     {
       name: 'Anthony Riga',
+      initials: 'AR',
       role: 'Senior Research Analyst',
       bio: 'Leads market research, macro analysis, and sector rotation coverage. Specializes in institutional capital flows, earnings dynamics, and structural market trends. Publishes research covering AI productivity cycles, market breadth analysis, and sector rotation signals.',
       areas: ['Market Research', 'Macro Analysis', 'Sector Rotation', 'Earnings Analysis'],
@@ -113,22 +115,43 @@ const OurTeam = () => {
                   }}
                 >
                   <CardContent sx={{ p: 4 }}>
-                    <Box sx={{ mb: 2.5 }}>
-                      <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5, color: theme.palette.text.primary }}>
-                        {member.name}
-                      </Typography>
-                      <Typography
-                        variant="body2"
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
+                      <Box
                         sx={{
+                          width: 56,
+                          height: 56,
+                          flexShrink: 0,
+                          borderRadius: '50%',
+                          backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                          border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1rem',
+                          fontWeight: 900,
                           color: theme.palette.primary.main,
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
-                          textTransform: 'uppercase',
                           letterSpacing: '1px',
                         }}
                       >
-                        {member.role}
-                      </Typography>
+                        {member.initials}
+                      </Box>
+                      <Box>
+                        <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.25, color: theme.palette.text.primary, fontSize: '1.15rem' }}>
+                          {member.name}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: theme.palette.primary.main,
+                            fontWeight: 700,
+                            fontSize: '0.75rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '1.5px',
+                          }}
+                        >
+                          {member.role}
+                        </Typography>
+                      </Box>
                     </Box>
 
                     <Typography

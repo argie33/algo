@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Container, Typography, Grid, alpha, useTheme, Card, CardContent, Chip } from '@mui/material';
+import { Box, Container, Typography, Grid, alpha, useTheme, Card, CardContent, Chip, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import HeroSection from '../../components/marketing/HeroSection';
@@ -11,6 +11,10 @@ import {
   Psychology as PsychologyIcon,
   Business as BusinessIcon,
   Analytics as AnalyticsIcon,
+  Storage as StorageIcon,
+  Scoreboard as ScoreboardIcon,
+  FilterAlt as FilterAltIcon,
+  ArrowForward as ArrowForwardIcon,
 } from '@mui/icons-material';
 
 const Home = () => {
@@ -221,6 +225,155 @@ const Home = () => {
         </Container>
       </Box>
 
+      {/* How It Works */}
+      <Box sx={{ py: { xs: 8, md: 10 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <Box sx={{ textAlign: 'center', mb: 7 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: theme.palette.primary.main, fontWeight: 700, letterSpacing: '3px', display: 'block', mb: 1.5 }}
+            >
+              How It Works
+            </Typography>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '1.9rem', sm: '2.3rem', md: '2.8rem' },
+                fontWeight: 800,
+                mb: 2,
+                color: theme.palette.text.primary,
+                letterSpacing: '-0.5px',
+              }}
+            >
+              From Raw Data to Actionable Signal
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '1.05rem',
+                color: theme.palette.text.secondary,
+                maxWidth: '620px',
+                mx: 'auto',
+                lineHeight: 1.8,
+              }}
+            >
+              Bullseye runs the same systematic research pipeline institutional desks run every day&#8212;automatically,
+              before market open, every trading day.
+            </Typography>
+          </Box>
+
+          <Grid container spacing={0}>
+            {[
+              {
+                step: '01',
+                icon: <StorageIcon />,
+                title: 'Data Pipeline Runs Nightly',
+                description:
+                  'Twenty-four automated loaders update prices, technicals, fundamentals, earnings, sentiment, and FRED economic data from authoritative sources before market open. No manual work required.',
+              },
+              {
+                step: '02',
+                icon: <ScoreboardIcon />,
+                title: 'Every Stock Gets Scored',
+                description:
+                  'Each of the 5,300+ equities in our universe is scored across valuation, earnings quality, momentum, trend strength, and fundamental health. Composite scores updated every trading day.',
+              },
+              {
+                step: '03',
+                icon: <FilterAltIcon />,
+                title: 'Signals Pass Six Rigorous Filters',
+                description:
+                  'Top-ranked candidates run through market health gating, Minervini trend template, fundamental quality screens, portfolio constraints, and advanced technical criteria. Only the highest-conviction setups reach your screen.',
+              },
+            ].map((item, idx) => (
+              <Grid
+                item
+                xs={12}
+                md={4}
+                key={idx}
+                sx={{
+                  position: 'relative',
+                  '&::after': {
+                    content: idx < 2 ? '""' : 'none',
+                    display: { xs: 'none', md: 'block' },
+                    position: 'absolute',
+                    top: 28,
+                    right: 0,
+                    width: '50%',
+                    height: 2,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.18),
+                    zIndex: 0,
+                  },
+                }}
+              >
+                <Box sx={{ p: { xs: 3, md: 4 }, textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                  <Box
+                    sx={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: '50%',
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      border: `2px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      mx: 'auto',
+                      mb: 2.5,
+                      color: theme.palette.primary.main,
+                      '& svg': { fontSize: '1.6rem' },
+                    }}
+                  >
+                    {item.icon}
+                  </Box>
+                  <Typography
+                    sx={{
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      letterSpacing: '2.5px',
+                      color: theme.palette.primary.main,
+                      mb: 1.5,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Step {item.step}
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 700, mb: 1.5, color: theme.palette.text.primary, fontSize: '1.05rem' }}
+                  >
+                    {item.title}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, lineHeight: 1.75 }}>
+                    {item.description}
+                  </Typography>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Box sx={{ textAlign: 'center', mt: 5 }}>
+            <Button
+              variant="outlined"
+              endIcon={<ArrowForwardIcon />}
+              onClick={() => navigate('/research-insights')}
+              sx={{
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: '0px',
+                px: 4,
+                py: 1.25,
+                borderColor: alpha(theme.palette.primary.main, 0.4),
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                  borderColor: theme.palette.primary.main,
+                },
+              }}
+            >
+              See Full Research Methodology
+            </Button>
+          </Box>
+        </Container>
+      </Box>
+
       {/* Core Research Capabilities */}
       <FeatureGrid
         title="Platform Capabilities"
@@ -263,7 +416,7 @@ const Home = () => {
             </Typography>
           </Box>
 
-          <Grid container spacing={4} justifyContent="center">
+          <Grid container spacing={4} justifyContent="center" sx={{ mb: 5 }}>
             {articlesData.map((insight, idx) => (
               <Grid item xs={12} md={6} key={idx}>
                 <Card
@@ -319,7 +472,7 @@ const Home = () => {
                     >
                       {insight.excerpt}
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2.5 }}>
                       {insight.tags.map((tag, i) => (
                         <Chip
                           key={i}
@@ -337,11 +490,45 @@ const Home = () => {
                         />
                       ))}
                     </Box>
+                    <Box
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        color: theme.palette.primary.main,
+                      }}
+                    >
+                      Read Article <ArrowForwardIcon sx={{ fontSize: '0.95rem' }} />
+                    </Box>
                   </CardContent>
                 </Card>
               </Grid>
             ))}
           </Grid>
+
+          <Box sx={{ textAlign: 'center' }}>
+            <Button
+              variant="outlined"
+              endIcon={<ArrowForwardIcon />}
+              onClick={() => navigate('/research-insights')}
+              sx={{
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: '0px',
+                px: 4,
+                py: 1.25,
+                borderColor: alpha(theme.palette.primary.main, 0.4),
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                  borderColor: theme.palette.primary.main,
+                },
+              }}
+            >
+              Explore Our Research Methodology
+            </Button>
+          </Box>
         </Container>
       </Box>
 

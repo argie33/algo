@@ -86,7 +86,7 @@ class AlgoConfig:
         # Filter Thresholds
         'min_completeness_score': ('70', 'int', 'Minimum data completeness % (Minervini standard)'),
         'min_stock_price': ('5.0', 'float', 'Minimum stock price $'),
-        'min_signal_quality_score': ('30', 'int', 'Minimum SQS 0-100 (signal quality gate)'),
+        'min_signal_quality_score': ('60', 'int', 'Minimum SQS 0-100 (signal quality gate)'),
         'min_volume_ma_50d': ('300000', 'int', 'Minimum 50-day avg volume'),
         'min_avg_daily_dollar_volume': ('500000', 'float', 'Minimum daily dollar volume for liquidity gate'),
         'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
@@ -107,7 +107,7 @@ class AlgoConfig:
         'require_sma50_above_sma200': ('true', 'bool', 'Price and MA alignment'),
         'min_percent_from_52w_low': ('30.0', 'float', 'Min % from 52w low (Minervini standard)'),
         'max_percent_from_52w_high': ('25.0', 'float', 'Max % from 52w high'),
-        'min_trend_template_score': ('6', 'int', 'Min Minervini score 0-8 (Minervini standard)'),
+        'min_trend_template_score': ('7', 'int', 'Min Minervini score 0-8 (Minervini standard: 7+ ideal, 8 perfect)'),
 
         # Entry Quality Gates (Sprint 2)
         'max_signal_age_days': ('3', 'int', 'Reject BUY signals older than N days'),

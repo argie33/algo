@@ -9,7 +9,7 @@ const articlesData = [
   {
     id: 'great-rotation',
     title: 'The Great Rotation: Capital Flows Signal Structural Market Shift Away From Concentration',
-    date: 'February 7, 2026',
+    date: 'May 12, 2026',
     author: 'Anthony Riga',
     readTime: '12 min read',
     excerpt: 'Market breadth expanding significantly as institutional capital rotates away from mega-cap concentration.',
@@ -46,7 +46,7 @@ Risk management during rotation periods emphasizes diversification and disciplin
   {
     id: 'ai-efficiencies',
     title: 'The AI Productivity Inflection: How AI Adoption is Creating a Multi-Year Economic Super-Cycle',
-    date: 'February 5, 2026',
+    date: 'May 5, 2026',
     author: 'Anthony Riga',
     readTime: '14 min read',
     excerpt: 'AI benefits spreading from software into manufacturing, logistics, healthcare sectors.',

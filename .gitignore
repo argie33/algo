@@ -93,6 +93,8 @@ venv*/
 *_orchestrator.lock
 paper_mode_reports/
 .loader-progress.json
+.claude/*.lock
+.claude/scheduled_tasks.lock
 
 # SAM build outputs
 .aws-sam/

@@ -146,7 +146,7 @@ const MarketingNav = () => {
                 setMobileMenuOpen(false);
               }}
             >
-              Enter Site
+              Launch Platform
             </Button>
           </ListItem>
         </List>
@@ -342,7 +342,7 @@ const MarketingNav = () => {
                     },
                   }}
                 >
-                  Become Client
+                  Get in Touch
                 </Button>
                 <Button
                   variant="contained"
@@ -356,7 +356,7 @@ const MarketingNav = () => {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  Enter Site
+                  Launch Platform
                 </Button>
               </Box>
             )}

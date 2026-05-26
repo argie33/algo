@@ -447,7 +447,7 @@ def run(
 
     except Exception as e:
         log_phase_result_fn(1, 'data_freshness', 'error', str(e))
-        return PhaseResult(1, 'data_freshness', 'ok', {}, False, str(e))
+        return PhaseResult(1, 'data_freshness', 'halted', {}, True, str(e))
     finally:
         if cur:
             try:

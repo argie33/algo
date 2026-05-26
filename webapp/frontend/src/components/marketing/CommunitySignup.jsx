@@ -74,9 +74,9 @@ const CommunitySignup = () => {
     <Box
       sx={{
         py: { xs: 8, md: 10 },
-        backgroundColor: alpha(theme.palette.primary.main, 0.08),
-        borderTop: `1px solid ${theme.palette.divider}`,
-        borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundColor: alpha(theme.palette.primary.main, 0.06),
+        borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+        borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
       }}
     >
       <Container maxWidth="md">
@@ -84,19 +84,18 @@ const CommunitySignup = () => {
           {/* Icon */}
           <Box
             sx={{
-              fontSize: '3rem',
-              mb: 2,
+              mb: 2.5,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              width: 60,
+              height: 60,
+              backgroundColor: alpha(theme.palette.primary.main, 0.12),
+              border: `2px solid ${alpha(theme.palette.primary.main, 0.25)}`,
               color: theme.palette.primary.main,
             }}
           >
-            <EmailIcon sx={{ fontSize: '2rem' }} />
+            <EmailIcon sx={{ fontSize: '1.7rem' }} />
           </Box>
 
           {/* Headline */}
@@ -104,13 +103,14 @@ const CommunitySignup = () => {
             variant="h3"
             component="h2"
             sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.8rem' },
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.6rem' },
               fontWeight: 800,
-              mb: 2,
+              mb: 1.5,
               color: theme.palette.text.primary,
+              letterSpacing: '-0.5px',
             }}
           >
-            Join Our Free Community for Investors
+            Stay Ahead of the Market
           </Typography>
 
           {/* Subtitle */}
@@ -120,12 +120,13 @@ const CommunitySignup = () => {
               fontSize: '1.05rem',
               color: theme.palette.text.secondary,
               mb: 4,
-              maxWidth: '600px',
+              maxWidth: '560px',
               mx: 'auto',
               lineHeight: 1.8,
             }}
           >
-            Receive our weekly newsletter and invitations to upcoming events and appearances featuring our research team and network of experts.
+            Weekly market research, sector rotation analysis, and signal commentary
+            from our research team&#8212;directly to your inbox. No spam, no paywall.
           </Typography>
 
           {/* Form */}

@@ -362,8 +362,7 @@ class SwingTraderScore:
         stage = 1
         try:
             self.cur.execute(
-                """SELECT minervini_trend_score, weinstein_stage, percent_from_52w_high,
-                          estimated_base_count FROM trend_template_data
+                """SELECT minervini_trend_score, weinstein_stage FROM trend_template_data
                    WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date),
             )
@@ -410,17 +409,9 @@ class SwingTraderScore:
             pass
 
         # Gate 4 & 5: Base count and base type
+        # estimated_base_count column does not exist in trend_template_data schema;
+        # gate is effectively disabled (count stays 0, never blocks).
         estimated_base_count = 0
-        try:
-            self.cur.execute(
-                """SELECT estimated_base_count FROM trend_template_data
-                   WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
-                (symbol, eval_date),
-            )
-            base_row = self.cur.fetchone()
-            estimated_base_count = int(base_row[0]) if base_row and base_row[0] is not None else 0
-        except Exception:
-            pass
 
         if estimated_base_count >= 4:
             return {
@@ -614,24 +605,23 @@ class SwingTraderScore:
         mt_pts = self.W_TREND * 0.6 * (mt_score / 8.0)  # 60% of 20 = 12 pts on Minervini
 
         # Phase: early=full, mid=full, late=half, climax=zero
-        # Get phase data from trend_template_data
+        # Derived from consolidation_flag (the only phase indicator in trend_template_data).
+        # consolidation_flag=True → stock is building a base (early phase), else mid.
         phase_mult = 0.5
-        phase_name = 'late'
+        phase_name = 'mid'
         estimated_base_count = 0
         weeks_uptrend = 0
 
         try:
             self.cur.execute(
-                """SELECT size_multiplier, consolidation_flag, estimated_base_count, weeks_since_30wk_uptrend
-                   FROM trend_template_data
+                """SELECT consolidation_flag FROM trend_template_data
                    WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date),
             )
             phase_row = self.cur.fetchone()
-            phase_mult = float(phase_row[0]) if phase_row and phase_row[0] is not None else 0.5
-            phase_name = 'early' if phase_mult == 1.0 else 'mid' if phase_mult >= 0.5 else 'late'
-            estimated_base_count = int(phase_row[2]) if phase_row and phase_row[2] is not None else 0
-            weeks_uptrend = int(phase_row[3]) if phase_row and phase_row[3] is not None else 0
+            if phase_row and phase_row[0]:
+                phase_mult = 1.0
+                phase_name = 'early'
         except Exception:
             pass
 

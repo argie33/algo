@@ -124,6 +124,8 @@ def _validate_and_adjust_entry_price(
             return trade
 
         current_price = float(result[0])
+        if not signal_price or signal_price <= 0:
+            return trade
         price_drift_pct = abs(current_price - signal_price) / signal_price * 100
 
         # If price drifted >2%, recalculate position size

@@ -74,8 +74,8 @@ const Firm = () => {
   return (
     <MarketingLayout>
       <PageHeader
-        title="About Bullseye Financial"
-        subtitle="Independent equity research firm delivering systematic, evidence-based analysis to professional and individual investors"
+        title="The Firm"
+        subtitle="Independent equity research delivering systematic, evidence-based analysis to every serious investor"
       />
 
       {/* Who We Are */}
@@ -491,8 +491,8 @@ const Firm = () => {
 
       <CTASection
         variant="primary"
-        title="Ready to Partner with Bullseye?"
-        subtitle="Access research-driven equity analysis designed for serious investors&#8212;free."
+        title="Ready to Get Started?"
+        subtitle="Access research-driven equity analysis designed for serious investors&#8212;completely free, no subscription required."
         primaryCTA={{ label: 'Launch Platform', link: '/app/markets' }}
         secondaryCTA={{ label: 'Meet the Team', link: '/our-team' }}
       />

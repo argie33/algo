@@ -51,7 +51,10 @@ class StockScoresLoader(OptimalLoader):
             return []
 
     def _compute_stock_score(self, symbol: str) -> Optional[Dict]:
-        """Compute composite stock score from available metrics.
+        """Compute composite stock score from REAL metrics only (no fake defaults).
+
+        Only returns a score if stock has sufficient real data (>=50% completeness).
+        Stocks without real data are skipped entirely (return None).
 
         Returns dict with keys: symbol, composite_score, quality_score, growth_score,
         value_score, momentum_score, positioning_score, stability_score, rs_percentile,
@@ -72,15 +75,7 @@ class StockScoresLoader(OptimalLoader):
             cur.close()
             conn.close()
 
-            # Compute individual factor scores (0-100)
-            quality_score = self._score_quality(quality)
-            growth_score = self._score_growth(growth)
-            value_score = self._score_value(value)
-            positioning_score = self._score_positioning(positioning)
-            stability_score = self._score_stability(stability)
-            momentum_score = self._score_momentum(momentum)
-
-            # Count data completeness
+            # Count data completeness BEFORE scoring
             data_count = sum([
                 1 if quality else 0,
                 1 if growth else 0,
@@ -90,6 +85,26 @@ class StockScoresLoader(OptimalLoader):
                 1 if momentum else 0,
             ])
             data_completeness = round((data_count / 6.0) * 100, 2)
+
+            # SKIP stocks without sufficient real data (require >=50% completeness = 3+ metrics)
+            min_required_metrics = 3
+            if data_count < min_required_metrics:
+                logger.debug(f"{symbol}: insufficient data ({data_count}/6 metrics, {data_completeness:.0f}% complete) - skipping")
+                return None
+
+            # Compute individual factor scores from REAL data only (no defaults)
+            quality_score = self._score_quality(quality)
+            growth_score = self._score_growth(growth)
+            value_score = self._score_value(value)
+            positioning_score = self._score_positioning(positioning)
+            stability_score = self._score_stability(stability)
+            momentum_score = self._score_momentum(momentum)
+
+            # Verify all scores are real (not None)
+            all_scores = [quality_score, growth_score, value_score, positioning_score, stability_score, momentum_score]
+            if any(s is None for s in all_scores):
+                logger.debug(f"{symbol}: score computation returned None for some factors - skipping")
+                return None
 
             # Compute weighted composite score (0-100), ensure all inputs are clamped
             weights = {
@@ -273,10 +288,10 @@ class StockScoresLoader(OptimalLoader):
             pass
         return None
 
-    def _score_quality(self, metrics: Optional[Dict]) -> float:
-        """Score quality metrics on 0-100 scale."""
+    def _score_quality(self, metrics: Optional[Dict]) -> Optional[float]:
+        """Score quality metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
-            return 50  # Default middle score
+            return None
 
         scores = []
 
@@ -297,12 +312,12 @@ class StockScoresLoader(OptimalLoader):
                 score = max(0, 100 - (de * 20))
                 scores.append(min(100, score))
 
-        return sum(scores) / len(scores) if scores else 50
+        return sum(scores) / len(scores) if scores else None
 
-    def _score_growth(self, metrics: Optional[Dict]) -> float:
-        """Score growth metrics on 0-100 scale."""
+    def _score_growth(self, metrics: Optional[Dict]) -> Optional[float]:
+        """Score growth metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
-            return 50
+            return None
 
         scores = []
 
@@ -316,12 +331,12 @@ class StockScoresLoader(OptimalLoader):
             rev = min(metrics['revenue_growth_1y'], 30)
             scores.append(min(100, (rev / 30) * 100))
 
-        return sum(scores) / len(scores) if scores else 50
+        return sum(scores) / len(scores) if scores else None
 
-    def _score_value(self, metrics: Optional[Dict]) -> float:
-        """Score value metrics on 0-100 scale."""
+    def _score_value(self, metrics: Optional[Dict]) -> Optional[float]:
+        """Score value metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
-            return 50
+            return None
 
         scores = []
 

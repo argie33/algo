@@ -102,7 +102,7 @@ const MissionValues = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1543286386-713bdd548da4?w=900&h=650&fit=crop&auto=format&q=80"
+                src="https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=900&h=650&fit=crop&auto=format&q=80"
                 alt="Financial research and data analysis"
                 height={{ xs: '280px', md: '420px' }}
               />

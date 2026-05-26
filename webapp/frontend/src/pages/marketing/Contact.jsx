@@ -5,35 +5,32 @@ import PageHeader from '../../components/marketing/PageHeader';
 import ContactForm from '../../components/marketing/ContactForm';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import CommunitySignup from '../../components/marketing/CommunitySignup';
-import { Email as EmailIcon, Phone as PhoneIcon, LocationOn as LocationOnIcon, Business as BusinessIcon, School as SchoolIcon } from '@mui/icons-material';
+import { Email as EmailIcon, LocationOn as LocationOnIcon, Business as BusinessIcon, School as SchoolIcon } from '@mui/icons-material';
 
 const Contact = () => {
   const theme = useTheme();
 
   const contactDepartments = [
     {
-      department: 'Sales & Partnerships',
+      department: 'Platform & Tools',
       icon: <BusinessIcon />,
-      description: 'Get a demo of our research platform. Discuss pricing and access options for your firm.',
-      email: 'sales@bullseyefinancial.com',
-      phone: '+1 (555) 123-4567',
-      hours: 'Mon-Fri, 9AM-5PM EST',
-    },
-    {
-      department: 'Support & Technical',
-      icon: <PhoneIcon />,
-      description: 'Need help with the platform? Questions about data, features, or API integration?',
-      email: 'support@bullseyefinancial.com',
-      phone: '+1 (555) 123-4568',
-      hours: 'Mon-Fri, 8AM-6PM EST',
+      description: 'Questions about platform features, data access, or how to get the most out of the research tools.',
+      email: 'info@bullseyefinancial.com',
+      hours: 'We respond within one business day',
     },
     {
       department: 'Research & Methodology',
       icon: <SchoolIcon />,
-      description: 'Questions about our research methodology, factor models, or data sources.',
-      email: 'research@bullseyefinancial.com',
-      phone: '+1 (555) 123-4569',
-      hours: 'Mon-Fri, 9AM-5PM EST',
+      description: 'Questions about our research methodology, scoring models, signal generation, or data sources.',
+      email: 'info@bullseyefinancial.com',
+      hours: 'We respond within one business day',
+    },
+    {
+      department: 'General Inquiries',
+      icon: <EmailIcon />,
+      description: 'Partnerships, media requests, or anything else? Use the form below or email us directly.',
+      email: 'info@bullseyefinancial.com',
+      hours: 'We respond within one business day',
     },
   ];
 
@@ -41,19 +38,14 @@ const Contact = () => {
     {
       icon: <LocationOnIcon />,
       title: 'Headquarters',
-      content: 'Chicago, Illinois',
-      subtitle: 'United States',
-    },
-    {
-      icon: <PhoneIcon />,
-      title: 'Main Line',
-      content: '+1 (555) 123-4567',
+      content: 'United States',
+      subtitle: 'Serving investors nationwide',
     },
     {
       icon: <EmailIcon />,
-      title: 'General Inquiry',
+      title: 'Email',
       content: 'info@bullseyefinancial.com',
-      subtitle: 'We respond within 24 hours',
+      subtitle: 'We respond within one business day',
     },
   ];
 
@@ -152,30 +144,11 @@ const Contact = () => {
                   <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, pt: 3 }}>
                     <Typography
                       variant="body2"
-                      sx={{
-                        color: theme.palette.text.primary,
-                        fontWeight: 600,
-                        mb: 0.5,
-                      }}
+                      sx={{ color: theme.palette.primary.main, fontWeight: 600, mb: 0.75 }}
                     >
                       {dept.email}
                     </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: theme.palette.text.primary,
-                        fontWeight: 600,
-                        mb: 1,
-                      }}
-                    >
-                      {dept.phone}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: theme.palette.text.secondary,
-                      }}
-                    >
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                       {dept.hours}
                     </Typography>
                   </Box>
