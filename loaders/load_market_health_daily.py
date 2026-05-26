@@ -40,6 +40,20 @@ class MarketHealthDailyLoader(OptimalLoader):
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
 
+        # If no watermark (e.g. first call after ECS restart), read the actual table max date
+        # to avoid a full 5-year recompute + expensive all-stock breadth query on every restart.
+        if since is None:
+            try:
+                conn = self._connect()
+                cur = conn.cursor()
+                cur.execute("SELECT MAX(date) FROM market_health_daily")
+                row = cur.fetchone()
+                cur.close()
+                if row and row[0]:
+                    since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+            except Exception as e:
+                logger.warning(f"Could not read market_health_daily watermark: {e}")
+
         if since is None:
             start = end - timedelta(days=5 * 365)
         else:
