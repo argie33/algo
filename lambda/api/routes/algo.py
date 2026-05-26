@@ -1117,12 +1117,42 @@ def _get_rejection_funnel(cur) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
 _TIER_CONFIG = {
-    'confirmed_uptrend':      {'description': 'Market confirmed uptrend',  'risk_mult': 1.0, 'max_new': 5, 'halt': False},
-    'healthy_uptrend':        {'description': 'Healthy uptrend',           'risk_mult': 0.8, 'max_new': 4, 'halt': False},
-    'uptrend_under_pressure': {'description': 'Uptrend under pressure',    'risk_mult': 0.6, 'max_new': 3, 'halt': False},
-    'pressure':               {'description': 'Market under pressure',     'risk_mult': 0.5, 'max_new': 2, 'halt': False},
-    'caution':                {'description': 'Caution — reduce exposure', 'risk_mult': 0.3, 'max_new': 1, 'halt': True},
-    'correction':             {'description': 'Market in correction',      'risk_mult': 0.2, 'max_new': 0, 'halt': True},
+    'confirmed_uptrend': {
+        'description': 'Confirmed uptrend — full deployment',
+        'min_pct': 70, 'max_pct': 100,
+        'risk_mult': 1.0,  'risk_multiplier': 1.0,
+        'max_new': 5,      'max_new_positions_today': 5,
+        'halt': False,     'halt_new_entries': False,
+        'min_grade': 'B',  'min_swing_grade': 'B',
+        'min_swing_score': 60.0,
+    },
+    'uptrend_under_pressure': {
+        'description': 'Uptrend under pressure — reduced exposure',
+        'min_pct': 45, 'max_pct': 70,
+        'risk_mult': 0.6,  'risk_multiplier': 0.6,
+        'max_new': 3,      'max_new_positions_today': 3,
+        'halt': False,     'halt_new_entries': False,
+        'min_grade': 'B',  'min_swing_grade': 'B',
+        'min_swing_score': 65.0,
+    },
+    'caution': {
+        'description': 'Caution — entries halted unless exceptional',
+        'min_pct': 25, 'max_pct': 45,
+        'risk_mult': 0.3,  'risk_multiplier': 0.3,
+        'max_new': 1,      'max_new_positions_today': 1,
+        'halt': True,      'halt_new_entries': True,
+        'min_grade': 'A',  'min_swing_grade': 'A',
+        'min_swing_score': 75.0,
+    },
+    'correction': {
+        'description': 'Market correction — preserve capital',
+        'min_pct': 0,  'max_pct': 25,
+        'risk_mult': 0.2,  'risk_multiplier': 0.2,
+        'max_new': 0,      'max_new_positions_today': 0,
+        'halt': True,      'halt_new_entries': True,
+        'min_grade': 'A+', 'min_swing_grade': 'A+',
+        'min_swing_score': 100.0,
+    },
 }
 
 def _get_markets(cur) -> Dict:
@@ -1163,12 +1193,26 @@ def _get_markets(cur) -> Dict:
             except Exception:
                 sectors = []
 
+            market_health = None
+            try:
+                cur.execute("""
+                    SELECT market_trend, market_stage, vix_level
+                    FROM market_health_daily
+                    ORDER BY date DESC LIMIT 1
+                """)
+                mh = cur.fetchone()
+                if mh:
+                    market_health = dict(mh)
+            except Exception:
+                pass
+
             return json_response(200, {
                 'success': True,
                 'current': current,
                 'active_tier': active_tier,
                 'history': history,
                 'sectors': sectors,
+                'market_health': market_health,
             })
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get markets'})

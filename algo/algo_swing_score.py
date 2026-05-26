@@ -1219,7 +1219,7 @@ class SwingTraderScore:
 if __name__ == "__main__":
     s = SwingTraderScore()
     s.connect()
-    eval_date = _date(2026, 4, 24)
+    eval_date = date(2026, 4, 24)
     logger.info(f"SWING TRADER SCORES — {eval_date}")
 
     candidates = ('AROC', 'CASS', 'CVV', 'EW', 'FSTR', 'LRCX', 'NATR', 'NBHC', 'NGS', 'SMTC', 'SRCE', 'CTS')

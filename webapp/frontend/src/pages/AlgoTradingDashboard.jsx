@@ -259,7 +259,7 @@ function AlgoTradingDashboard() {
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
           {[
             { label: `SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`, errors: [err2, err8] },
-            { label: `RISK${data.circuitBreakers?.any_triggered ? ' ⚠' : ''}`, errors: [err11] },
+            { label: `RISK${data.circuitBreakers?.system_halted ? ' ⚠' : ''}`, errors: [err11] },
             { label: 'PIPELINE', errors: [err7, err12, err13] },
             { label: 'CONFIG', errors: [err5] },
           ].map((tab_cfg, i) => (
