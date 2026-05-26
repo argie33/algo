@@ -192,7 +192,7 @@ class ExitEngine:
             # NEW: Audit closed trades for performance (Phase 2 integration)
             try:
                 self.cur.execute("""
-                    SELECT DISTINCT id FROM algo_trades
+                    SELECT DISTINCT trade_id FROM algo_trades
                     WHERE status = %s AND exit_date = %s
                 """, (TradeStatus.CLOSED.value, current_date))
                 closed_trades = self.cur.fetchall()
@@ -529,12 +529,12 @@ class ExitEngine:
                 rows = self.cur.fetchall()
                 if len(rows) < 21:
                     return None
+                # ORDER BY rn DESC puts oldest row first (rn=30 → rn=1)
+                # so closes is already oldest→newest; no reversal needed
                 closes = [float(r[0]) for r in rows]
-                # 21-EMA (reverse list to compute oldest→newest, not backwards)
-                closes_asc = list(reversed(closes))
                 k = 2.0 / 22.0
-                ema = closes_asc[0]
-                for c in closes_asc[1:]:
+                ema = closes[0]
+                for c in closes[1:]:
                     ema = c * k + ema * (1 - k)
                 return round(ema * 0.99, 2)
             else:

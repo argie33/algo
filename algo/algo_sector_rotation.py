@@ -300,9 +300,9 @@ if __name__ == "__main__":
         logger.info(f"Spread: {result['spread_4w']}")
         logger.info(f"Weeks persistent: {result['weeks_persistent']}/4")
         logger.info(f"Recommended exp drop: {result['reduce_exposure_pts']} pts")
-        logger.info("Per-sector RS:")
+        logger.info("Per-sector ranks:")
         for sec, d in sorted(result['sector_data'].items(),
-                              key=lambda x: x[1]['rs_excess_4w'], reverse=True):
+                              key=lambda x: x[1]['rank_improvement_4w'], reverse=True):
             tag = '[DEF]' if d['is_defensive'] else '[CYC]' if d['is_cyclical'] else '[   ]'
-            logger.info(f"  {tag} {sec:25s} {d['etf']:5s}  RS_4w={d['rs_excess_4w']:+6.2f}%  RS_12w={d['rs_excess_12w']:+6.2f}%")
+            logger.info(f"  {tag} {sec:25s}  rank={d['rank']}  imp_4w={d['rank_improvement_4w']:+.0f}  imp_12w={d['rank_improvement_12w']:+.0f}")
 
