@@ -477,9 +477,18 @@ class OptimalLoader(ABC):
             log.debug("metrics unavailable: %s", e)
 
         try:
-            from datetime import date as date_type
             conn = self._connect()
             cur = conn.cursor()
+            # Use actual table counts — not incremental delta — so the dashboard correctly
+            # shows tables as non-empty when no new rows were loaded (already up-to-date).
+            cur.execute(
+                f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+            )
+            result = cur.fetchone()
+            total_rows = result[0] if result else 0
+            latest_date = result[1] if result else None
+            if hasattr(latest_date, 'date'):
+                latest_date = latest_date.date()
             cur.execute("""
                 INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
                 VALUES (%s, %s, %s, NOW())
@@ -487,7 +496,7 @@ class OptimalLoader(ABC):
                   row_count = EXCLUDED.row_count,
                   latest_date = EXCLUDED.latest_date,
                   last_updated = NOW()
-            """, (self.table_name, self._stats['rows_inserted'], date_type.today()))
+            """, (self.table_name, total_rows, latest_date))
             conn.commit()
             cur.close()
         except Exception as e:

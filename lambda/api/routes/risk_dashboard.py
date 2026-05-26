@@ -78,7 +78,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             """)
             row = cur.fetchone()
             if row:
-                vix = float(row[0]) if row[0] else None
+                vix = float(row['vix_level']) if row['vix_level'] else None
                 risk_reduction = 1.0
                 if vix and vix > 25 and vix < 35:
                     risk_reduction = 0.75
@@ -106,11 +106,11 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             row = cur.fetchone()
             if row:
                 result['position_sizing_stats'] = {
-                    'trades_30d': row[0] or 0,
-                    'avg_cascade_multiplier': float(row[1]) if row[1] else 1.0,
-                    'min_cascade_multiplier': float(row[2]) if row[2] else 1.0,
-                    'max_cascade_multiplier': float(row[3]) if row[3] else 1.0,
-                    'avg_position_size_pct': float(row[4]) if row[4] else 0,
+                    'trades_30d': row['total_trades'] or 0,
+                    'avg_cascade_multiplier': float(row['avg_cascade']) if row['avg_cascade'] else 1.0,
+                    'min_cascade_multiplier': float(row['min_cascade']) if row['min_cascade'] else 1.0,
+                    'max_cascade_multiplier': float(row['max_cascade']) if row['max_cascade'] else 1.0,
+                    'avg_position_size_pct': float(row['avg_position_size_pct']) if row['avg_position_size_pct'] else 0,
                 }
         except Exception as e:
             logger.warning(f"Position sizing stats fetch failed: {e}")
@@ -127,7 +127,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             """)
             rules = {}
             for row in cur.fetchall():
-                rules[row[0]] = row[1]
+                rules[row['exit_rule']] = row['count']
             result['exit_rules_distribution'] = rules
         except Exception as e:
             logger.warning(f"Exit rules fetch failed: {e}")
@@ -140,17 +140,17 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
 def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     """Get current portfolio drawdown and thresholds."""
     cur.execute("""
-        SELECT MAX(total_portfolio_value) as peak,
+        SELECT MAX(total_portfolio_value) AS peak,
                (SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date DESC LIMIT 1) as current
+                ORDER BY snapshot_date DESC LIMIT 1) AS current
         FROM algo_portfolio_snapshots
     """)
     row = cur.fetchone()
-    if not row or not row[0] or not row[1]:
+    if not row or not row['peak'] or not row['current']:
         return {'current_drawdown_pct': 0, 'status': 'no_history'}
 
-    peak = float(row[0])
-    current = float(row[1])
+    peak = float(row['peak'])
+    current = float(row['current'])
     drawdown_pct = ((peak - current) / peak) * 100 if peak > 0 else 0
 
     return {
@@ -183,9 +183,9 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
         """)
         row = cur.fetchone()
         if row:
-            exposure_pct = float(row[0]) if row[0] else 100
-            tier = row[1] or 'NORMAL'
-            rationale = row[2] or 'No data'
+            exposure_pct = float(row['exposure_pct']) if row['exposure_pct'] else 100
+            tier = row['regime'] or 'NORMAL'
+            rationale = row['halt_reasons'] or 'No data'
             return {
                 'current_tier': tier,
                 'exposure_pct': exposure_pct,
@@ -242,21 +242,21 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
         items = []
         for row in cur.fetchall():
             try:
-                reasons = json.loads(row[8]) if row[8] else {}
+                reasons = json.loads(row['reasons_json']) if row['reasons_json'] else {}
             except (json.JSONDecodeError, TypeError):
                 reasons = {}
 
             items.append({
-                'symbol': row[0],
-                'signal_date': row[1].isoformat() if row[1] else None,
-                'entry_price': float(row[2]) if row[2] else None,
-                'stop_loss_price': float(row[3]) if row[3] else None,
-                'base_shares': row[4],
-                'final_shares': row[5],
-                'position_size_pct': float(row[6]) if row[6] else 0,
-                'cascade_multiplier': float(row[7]) if row[7] else 1.0,
+                'symbol': row['symbol'],
+                'signal_date': row['signal_date'].isoformat() if row['signal_date'] else None,
+                'entry_price': float(row['entry_price']) if row['entry_price'] else None,
+                'stop_loss_price': float(row['stop_loss_price']) if row['stop_loss_price'] else None,
+                'base_shares': row['base_shares'],
+                'final_shares': row['final_shares'],
+                'position_size_pct': float(row['position_size_pct']) if row['position_size_pct'] else 0,
+                'cascade_multiplier': float(row['cascade_multiplier']) if row['cascade_multiplier'] else 1.0,
                 'reasons': reasons,
-                'created_at': row[9].isoformat() if row[9] else None,
+                'created_at': row['created_at'].isoformat() if row['created_at'] else None,
             })
 
         return json_response(200, {'items': items})
@@ -279,20 +279,20 @@ def _get_stop_loss_audit(cur, days: int) -> Dict:
         items = []
         for row in cur.fetchall():
             try:
-                candidates = json.loads(row[7]) if row[7] else {}
+                candidates = json.loads(row['candidates_json']) if row['candidates_json'] else {}
             except (json.JSONDecodeError, TypeError):
                 candidates = {}
 
             items.append({
-                'symbol': row[0],
-                'signal_date': row[1].isoformat() if row[1] else None,
-                'entry_price': float(row[2]) if row[2] else None,
-                'stop_loss_price': float(row[3]) if row[3] else None,
-                'distance_pct': float(row[4]) if row[4] else 0,
-                'stop_method': row[5],
-                'stop_reasoning': row[6],
+                'symbol': row['symbol'],
+                'signal_date': row['signal_date'].isoformat() if row['signal_date'] else None,
+                'entry_price': float(row['entry_price']) if row['entry_price'] else None,
+                'stop_loss_price': float(row['stop_loss_price']) if row['stop_loss_price'] else None,
+                'distance_pct': float(row['distance_pct']) if row['distance_pct'] else 0,
+                'stop_method': row['stop_method'],
+                'stop_reasoning': row['stop_reasoning'],
                 'candidates': candidates,
-                'created_at': row[8].isoformat() if row[8] else None,
+                'created_at': row['created_at'].isoformat() if row['created_at'] else None,
             })
 
         return json_response(200, {'items': items})
@@ -317,14 +317,16 @@ def _get_exit_rules_distribution(cur, days: int) -> Dict:
 
         items = []
         for row in cur.fetchall():
+            count = row['count'] or 0
+            winning = row['winning_count'] or 0
             items.append({
-                'exit_rule': row[0],
-                'count': row[1],
-                'avg_pnl_pct': float(row[2]) if row[2] else 0,
-                'avg_r_multiple': float(row[3]) if row[3] else 0,
-                'winning_count': row[4] or 0,
-                'losing_count': row[5] or 0,
-                'win_rate_pct': (row[4] / row[1] * 100) if row[1] > 0 else 0,
+                'exit_rule': row['exit_rule'],
+                'count': count,
+                'avg_pnl_pct': float(row['avg_pnl_pct']) if row['avg_pnl_pct'] else 0,
+                'avg_r_multiple': float(row['avg_r_multiple']) if row['avg_r_multiple'] else 0,
+                'winning_count': winning,
+                'losing_count': row['losing_count'] or 0,
+                'win_rate_pct': (winning / count * 100) if count > 0 else 0,
             })
 
         return json_response(200, {'items': items})

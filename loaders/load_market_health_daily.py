@@ -61,11 +61,39 @@ class MarketHealthDailyLoader(OptimalLoader):
             m["new_highs_count"] = b.get("new_highs_count", 0)
             m["new_lows_count"] = b.get("new_lows_count", 0)
 
+        # Merge VIX data
+        vix = self._fetch_vix_data(start, end)
+        for m in health_metrics:
+            m["vix_level"] = vix.get(m["date"])
+
         if since is not None:
             since_str = since.isoformat()
             health_metrics = [m for m in health_metrics if m["date"] > since_str]
 
         return health_metrics
+
+    def _fetch_vix_data(self, start: date, end: date) -> dict:
+        """Fetch VIX close prices from yfinance. Returns {date_str: vix_close}."""
+        try:
+            import yfinance as yf
+            df = yf.download("^VIX", start=start.isoformat(), end=(end + timedelta(days=1)).isoformat(),
+                             progress=False, auto_adjust=True)
+            if df is None or df.empty:
+                logger.warning("VIX download returned no data")
+                return {}
+            result = {}
+            for idx, row in df.iterrows():
+                date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
+                close_val = row["Close"]
+                if hasattr(close_val, "__len__"):
+                    close_val = close_val.iloc[0] if len(close_val) > 0 else None
+                if close_val is not None and not (hasattr(close_val, "__float__") and float(close_val) != float(close_val)):
+                    result[date_str] = round(float(close_val), 2)
+            logger.info(f"Fetched VIX data: {len(result)} days")
+            return result
+        except Exception as e:
+            logger.warning(f"VIX fetch failed (circuit breaker will use None): {e}")
+            return {}
 
     def _fetch_breadth_data(self, start: date, end: date) -> dict:
         """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
@@ -208,7 +236,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "new_highs_count": None,         # filled from _fetch_breadth_data
                 "new_lows_count": None,          # filled from _fetch_breadth_data
                 "breadth_momentum_10d": float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else 50,
-                "vix_level": None,
+                "vix_level": None,  # populated in fetch_incremental from _fetch_vix_data
                 "put_call_ratio": None,
                 "yield_curve_slope": None,
                 "fed_rate_environment": "unknown",

@@ -533,7 +533,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
 
             cur.execute("""
                 SELECT COUNT(*) AS position_count,
-                       SUM(CASE WHEN pd.quantity > 0 THEN pd.market_value ELSE 0 END) AS invested
+                       SUM(CASE WHEN pd.quantity > 0 THEN pd.position_value ELSE 0 END) AS invested
                 FROM algo_positions pd
             """)
             portfolio_row = dict(cur.fetchone() or {})
@@ -587,8 +587,8 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             cash_ok = cash_available >= position_size_dollars
 
             cur.execute("""
-                SELECT SUM(CASE WHEN cp.sector = %s THEN pd.market_value ELSE 0 END) /
-                       NULLIF((SELECT SUM(market_value) FROM algo_positions), 0) * 100 AS sector_pct
+                SELECT SUM(CASE WHEN cp.sector = %s THEN pd.position_value ELSE 0 END) /
+                       NULLIF((SELECT SUM(position_value) FROM algo_positions), 0) * 100 AS sector_pct
                 FROM algo_positions pd
                 JOIN company_profile cp ON pd.symbol = cp.ticker
             """, (sector,))
