@@ -161,7 +161,7 @@ class PortfolioRisk:
             if not tail_losses:
                 return None
 
-            cvar_pct = np.mean(tail_losses) * 100
+            cvar_pct = abs(np.mean(tail_losses)) * 100
             current_value = values[-1]
             cvar_dollars = current_value * abs(np.mean(tail_losses))
 
@@ -344,6 +344,10 @@ class PortfolioRisk:
                                 if var > 0:
                                     estimated_beta = round(cov / var, 2)
                     except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
                         estimated_beta = 1.0
 
                 weighted_beta = estimated_beta * position_weight

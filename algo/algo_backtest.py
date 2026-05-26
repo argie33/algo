@@ -246,7 +246,7 @@ class Backtester:
 
             # Compute metrics
             if result.trades:
-                result = self._compute_metrics(result, 100000, portfolio_value, peak_value)
+                result = self._compute_metrics(result, self.config.get('initial_capital', 100000), portfolio_value, peak_value)
 
             return result
 
@@ -336,7 +336,7 @@ class Backtester:
             return {
                 'windows': windows,
                 'out_of_sample_sharpe': out_of_sample_sharpe,
-                'overfitting_ratio': out_of_sample_sharpe / max(0.01, out_of_sample_sharpe),
+                'overfitting_ratio': None,  # requires in-sample Sharpe tracking; currently not computed
                 'data_depth_days': total_days,
             }
 
@@ -403,7 +403,7 @@ class Backtester:
 
             # Simple stops/targets (for backtest, not the full exit engine)
             stop_loss = entry_price * 0.95  # -5% hard stop
-            target_1 = entry_price * 1.015  # 1.5R target
+            target_1 = entry_price * 1.075  # 1.5R target (5% stop × 1.5 = 7.5%)
             max_hold_days = self.config.get('max_hold_days', 20)
 
             exit_date = None
@@ -515,19 +515,17 @@ class Backtester:
         hold_days = [t['hold_days'] for t in result.trades]
         result.avg_hold_days = np.mean(hold_days) if hold_days else 0
 
-        # Sharpe (simplified: assumes 0% risk-free rate, annualized)
+        # Sharpe/Sortino: normalize per-trade P&L by hold duration to approximate daily returns
         if r_values and len(r_values) > 1:
-            daily_returns = np.array([t['profit_loss_pct'] / 100 for t in result.trades])
+            daily_returns = np.array([
+                (t['profit_loss_pct'] / 100) / max(1, t['hold_days']) for t in result.trades
+            ])
             if daily_returns.std() > 0:
                 result.sharpe_ratio = (
                     daily_returns.mean() / daily_returns.std() * np.sqrt(252)
                 )
 
-        # Sortino (ratio of return to downside volatility)
-        if r_values and len(r_values) > 1:
-            downside_returns = np.array(
-                [min(t['profit_loss_pct'] / 100, 0) for t in result.trades]
-            )
+            downside_returns = np.array([min(r, 0) for r in daily_returns])
             if downside_returns.std() > 0:
                 result.sortino_ratio = (
                     daily_returns.mean() / downside_returns.std() * np.sqrt(252)

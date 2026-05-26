@@ -171,15 +171,18 @@ class WeightOptimizer:
             weights_float = result.x
             weights_int = np.round(weights_float).astype(int)
 
-            # Fix sum if rounding caused drift
+            # Clamp to bounds first, then fix sum so the final sum is always 100
+            weights_int = np.clip(weights_int, self.MIN_WEIGHT, self.MAX_WEIGHT)
+
+            # Fix sum if rounding/clamping caused drift — adjust an unclamped weight
             delta = 100 - weights_int.sum()
             if delta != 0:
-                # Adjust largest weight
-                idx = np.argmax(weights_float)
+                not_at_bounds = [
+                    i for i in range(len(weights_int))
+                    if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
+                ]
+                idx = not_at_bounds[int(np.argmax(weights_float[not_at_bounds]))] if not_at_bounds else int(np.argmax(weights_float))
                 weights_int[idx] += delta
-
-            # Clamp to bounds
-            weights_int = np.clip(weights_int, self.MIN_WEIGHT, self.MAX_WEIGHT)
 
             result_dict = {comp: int(w) for comp, w in zip(self.COMPONENTS, weights_int)}
             return result_dict

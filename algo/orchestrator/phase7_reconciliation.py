@@ -114,6 +114,8 @@ def run(
 
             # Log to algo_audit_log for historical tracking
             if get_conn and put_conn:
+                conn = None
+                cur = None
                 try:
                     conn = get_conn()
                     cur = conn.cursor()
@@ -126,10 +128,16 @@ def run(
                         ('daily_report', run_date, 'PORTFOLIO', json.dumps(report)),
                     )
                     conn.commit()
-                    cur.close()
-                    put_conn(conn)
                 except Exception as e:
                     logger.warning(f"Failed to log daily report to audit log: {e}")
+                finally:
+                    if cur:
+                        try:
+                            cur.close()
+                        except Exception:
+                            pass
+                    if conn:
+                        put_conn(conn)
 
             log_phase_result_fn(7, 'daily_report', 'success',
                               f"Portfolio ${report.get('portfolio', {}).get('current_value', 0):,.0f}, "

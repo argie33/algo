@@ -353,6 +353,7 @@ class DailyReconciliation:
                 target_3 = None
                 stop_loss_method = 'imported_no_risk_calc'
 
+                self.cur.execute("SAVEPOINT import_sp")
                 try:
                     # Use pre-computed ATR from technical_data_daily (includes gap moves via
                     # max(H-L, |H-PC|, |L-PC|)). AVG(high-low) from price_daily underestimates
@@ -435,7 +436,7 @@ class DailyReconciliation:
                 imported += 1
             except Exception as e:
                 logger.warning(f"  Failed to import {sym}: {e}")
-                self.conn.rollback()
+                self.cur.execute("ROLLBACK TO SAVEPOINT import_sp")
 
         # Find orphans (in our DB but not Alpaca)
         orphans = our_symbols - set(alpaca_symbols.keys())

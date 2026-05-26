@@ -151,7 +151,7 @@ class SwingTraderScoresLoader(OptimalLoader):
             if 40 <= rsi_f <= 70:
                 momentum = (rsi_f - 40) / 30.0 * 100.0  # 0 at RSI=40, 100 at RSI=70
             elif rsi_f < 40:
-                momentum = max(0.0, rsi_f / 40.0 * 50.0)
+                momentum = 0.0  # below sweet spot = weak
             else:  # > 70 (overbought)
                 momentum = max(0.0, 100.0 - (rsi_f - 70) / 30.0 * 100.0)
 

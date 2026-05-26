@@ -141,7 +141,7 @@ class SignalTradePerformancePopulator:
                             float(stop_loss) if stop_loss else 0,
                             float(exit_price) if exit_price else 0,
                             int(entry_qty) if entry_qty else 0,
-                            ((float(entry_price) - float(stop_loss)) / float(stop_loss)) if (stop_loss and float(stop_loss) > 0) else 0,
+                            1.0,  # entry_r_multiple is always 1.0R by definition at trade entry
                             float(exit_r_multiple) if exit_r_multiple else 0,
                             float(pnl_dollars) if pnl_dollars else 0,
                             int(holding_days) if holding_days else 0,
@@ -198,6 +198,11 @@ class SignalTradePerformancePopulator:
         finally:
             self.disconnect()
 
+    _VALID_COMPONENTS = frozenset({
+        'setup_quality', 'trend_quality', 'momentum_rs',
+        'volume', 'fundamentals', 'sector_industry', 'multi_timeframe',
+    })
+
     def get_trailing_ic(self, component: str, days: int = 60) -> List[Dict[str, Any]]:
         """
         Get rolling IC for a component over trailing period.
@@ -205,7 +210,11 @@ class SignalTradePerformancePopulator:
         Returns:
             [{'date': date, 'ic': float, 'sample_size': int, 'pvalue': float}, ...]
         """
+        if component not in self._VALID_COMPONENTS:
+            logger.warning(f"get_trailing_ic: unknown component '{component}'")
+            return []
         self.connect()
+        col = f"{component}_score"
         try:
             cutoff = _date.today() - timedelta(days=days)
 
@@ -216,7 +225,7 @@ class SignalTradePerformancePopulator:
                     SELECT
                         exit_date,
                         COUNT(*) as sample_size,
-                        CORR({component}_score, exit_r_multiple) as ic_corr
+                        CORR({col}, exit_r_multiple) as ic_corr
                     FROM signal_trade_performance
                     WHERE exit_date >= %s
                     GROUP BY exit_date

@@ -7,6 +7,7 @@ Information Coefficient = Pearson r(component_score, realized_exit_r_multiple)
 Identifies alpha drivers, detects signal degradation, enables dynamic weight optimization.
 """
 
+import json
 import logging
 from datetime import date as _date, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -94,7 +95,7 @@ class SignalAttributionEngine:
                     t.exit_r_multiple, t.exit_date,
                     t.symbol, t.signal_date
                 FROM algo_trades t
-                WHERE t.status = 'closed' OR (t.exit_date IS NOT NULL AND t.exit_date <= %s)
+                WHERE t.status = 'closed' AND t.exit_date <= %s
                 ORDER BY t.exit_date DESC
                 LIMIT %s
                 """,
@@ -246,7 +247,10 @@ class SignalAttributionEngine:
 
                     for trade_id, swing_components, exit_r_multiple in regime_trades:
                         try:
-                            comp_value = swing_components.get(component)
+                            if isinstance(swing_components, str):
+                                swing_components = json.loads(swing_components)
+                            comp_data = swing_components.get(component) if isinstance(swing_components, dict) else None
+                            comp_value = comp_data.get('pts') if isinstance(comp_data, dict) else comp_data
                             if comp_value is not None:
                                 comp_scores.append(float(comp_value))
                                 r_multiples.append(float(exit_r_multiple))
@@ -377,7 +381,7 @@ class SignalAttributionEngine:
             self.cur.execute(
                 """
                 SELECT report_date, ic_value FROM algo_component_attribution
-                WHERE component = %s AND report_date >= CURRENT_DATE - INTERVAL '%d days'
+                WHERE component = %s AND report_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 ORDER BY report_date ASC
                 """,
                 (component, days),

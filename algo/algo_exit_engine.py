@@ -287,12 +287,14 @@ class ExitEngine:
                 'new_stop': entry_price,
             }
 
-        # 6. T3 — exits the rest at 4R
+        # 6. T3 — exits the rest at 4R (final target, no pullback needed)
+        # Note: T3 is the final exit target, so we exit immediately without waiting for pullback
+        # This differs from T1/T2 which require confirmation to avoid over-trading
         if t3_price is not None and cur_price >= t3_price and target_hits < 3:
             return {
                 'stage': 'target_3',
                 'fraction': 1.0,
-                'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R)',
+                'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT',
             }
 
         # 7. T2 — exit 50% of remaining (= 25% of original) on pullback; trail stop to T1

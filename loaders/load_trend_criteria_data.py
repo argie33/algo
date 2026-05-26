@@ -150,15 +150,17 @@ class TrendCriteriaLoader(OptimalLoader):
                 score += 1
 
             # Weinstein stage (1=base, 2=advancing, 3=top, 4=declining)
-            weinstein_stage = 1
+            sma200_slope_val = row["sma_200_slope"]
             if sma200 and c > sma200:
-                sma200_slope_val = row["sma_200_slope"]
-                if sma200_slope_val and pd.notna(sma200_slope_val) and sma200_slope_val > 0:
-                    weinstein_stage = 2
+                if pd.notna(sma200_slope_val) and sma200_slope_val > 0:
+                    weinstein_stage = 2  # advancing: above rising 200 MA
                 else:
-                    weinstein_stage = 3
+                    weinstein_stage = 3  # topping: above flat/falling 200 MA
             else:
-                weinstein_stage = 4
+                if pd.notna(sma200_slope_val) and sma200_slope_val < 0:
+                    weinstein_stage = 4  # declining: below falling 200 MA
+                else:
+                    weinstein_stage = 1  # basing: below flat/rising 200 MA
 
             pct_from_low = ((c - low52) / low52 * 100) if low52 else None
             pct_from_high = ((c - high52) / high52 * 100) if high52 else None

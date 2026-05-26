@@ -287,11 +287,15 @@ class CircuitBreaker:
         }
 
     def _check_win_rate_floor(self, current_date: Any) -> Dict[str, Any]:
-        """Halt if recent win rate drops below floor (e.g., 40% of last 30 closed trades)."""
+        """Halt if recent win rate drops below floor (e.g., 40% of last 30 closed trades).
+
+        Win rate = wins / (wins + losses), excluding break-even trades to avoid dilution.
+        """
         self.cur.execute(
             """
             SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
                    COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
+                   COUNT(*) FILTER (WHERE profit_loss_pct = 0) as breakeven,
                    COUNT(*) as total
             FROM (
                 SELECT profit_loss_pct
@@ -303,12 +307,18 @@ class CircuitBreaker:
             (TradeStatus.CLOSED.value,)
         )
         row = self.cur.fetchone()
-        if not row or row[2] is None or int(row[2]) < 10:
+        if not row or row[3] is None or int(row[3]) < 10:
             return {'halted': False, 'reason': 'Insufficient closed trades (< 10)'}
 
         wins = int(row[0] or 0)
-        total = int(row[2])
-        win_rate = (wins / total * 100.0) if total > 0 else 0
+        losses = int(row[1] or 0)
+        breakeven = int(row[2] or 0)
+        total = int(row[3])
+
+        # Win rate based on wins vs (wins + losses), excluding break-even trades
+        # This avoids dilution where many break-even trades inflate the denominator
+        decisive_trades = wins + losses
+        win_rate = (wins / decisive_trades * 100.0) if decisive_trades > 0 else 0
         threshold = float(self.config.get('min_win_rate_pct', 40.0))
         return {
             'halted': win_rate < threshold,

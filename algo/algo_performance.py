@@ -519,7 +519,7 @@ class LivePerformance:
                     'expectancy': expectancy,
                 })
 
-            if max_dd:
+            if max_dd is not None:
                 result['max_drawdown_pct'] = max_dd
 
             if comparison:

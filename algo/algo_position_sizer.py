@@ -345,9 +345,12 @@ class PositionSizer:
                     'reason': 'Invalid entry or stop price'
                 }
 
-            # Apply minimum risk floor so cascading multipliers never silently reduce to 0
+            # DON'T apply minimum risk floor if safety multipliers intentionally reduced exposure
+            # If system says reduce risk (low exposure%, high VIX, in drawdown), respect that decision
+            # Only apply floor in normal conditions (all multipliers near 1.0)
             min_risk_floor = float(self.config.get('min_risk_pct_floor', 0.10)) / 100
-            if adjusted_risk_pct < min_risk_floor:
+            has_safety_reduction = (exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0)
+            if adjusted_risk_pct < min_risk_floor and not has_safety_reduction:
                 adjusted_risk_pct = min_risk_floor
                 risk_dollars = portfolio_value * adjusted_risk_pct
 

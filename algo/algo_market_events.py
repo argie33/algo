@@ -14,10 +14,12 @@ from config.credential_helper import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
 import os
 
+import psycopg2
 import requests
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import logging
 
 logger = logging.getLogger(__name__)
@@ -237,7 +239,7 @@ class MarketEventHandler:
             True if in after-hours window, False otherwise
         """
         if not check_time:
-            check_time = datetime.now()
+            check_time = datetime.now(ZoneInfo("America/New_York"))
 
         check_date = check_time.date()
         check_hour = check_time.hour

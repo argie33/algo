@@ -215,9 +215,9 @@ class DailyFinanceReport:
             components = {}
             for comp, ic, pval in rows:
                 components[comp] = {
-                    'ic': round(float(ic), 3) if ic else 0,
-                    'pvalue': round(float(pval), 3) if pval else 1.0,
-                    'status': self._ic_interpretation(ic) if ic else 'unknown',
+                    'ic': round(float(ic), 3) if ic is not None else 0,
+                    'pvalue': round(float(pval), 3) if pval is not None else 1.0,
+                    'status': self._ic_interpretation(float(ic)) if ic is not None else 'unknown',
                 }
 
             return components
@@ -329,15 +329,18 @@ class DailyFinanceReport:
         warnings = []
 
         risk = report.get('risk', {})
-        if risk.get('var_95_pct', 0) > 2.0:
-            warnings.append(f"⚠️  VaR > 2% ({risk.get('var_95_pct'):.1f}%) - High daily risk")
+        var_95 = risk.get('var_95_pct') or 0
+        if var_95 > 2.0:
+            warnings.append(f"⚠️  VaR > 2% ({var_95:.1f}%) - High daily risk")
 
-        if risk.get('sharpe_ytd', 1) < 0.5:
-            warnings.append(f"⚠️  Sharpe < 0.5 ({risk.get('sharpe_ytd'):.2f}) - Strategy struggling")
+        sharpe_ytd = risk.get('sharpe_ytd')
+        if sharpe_ytd is not None and sharpe_ytd < 0.5:
+            warnings.append(f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
 
         portfolio = report.get('portfolio', {})
-        if portfolio.get('daily_pnl_pct', 0) < -2.0:
-            warnings.append(f"⚠️  Daily loss > 2% ({portfolio.get('daily_pnl_pct'):.1f}%) - Halt entries?")
+        daily_pnl = portfolio.get('daily_pnl_pct') or 0
+        if daily_pnl < -2.0:
+            warnings.append(f"⚠️  Daily loss > 2% ({daily_pnl:.1f}%) - Halt entries?")
 
         return warnings
 
@@ -349,8 +352,10 @@ class DailyFinanceReport:
             return 'moderate'
         elif ic_value >= 0.10:
             return 'weak'
-        else:
+        elif ic_value >= 0:
             return 'noise'
+        else:
+            return 'negative'  # anti-predictive — signal has inverted
 
     def _count_open_positions(self, report_date: _date) -> int:
         """Count open positions."""
