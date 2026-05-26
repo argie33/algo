@@ -270,11 +270,14 @@ class PyramidEngine:
 
         self.connect()
         try:
-            self.cur.execute("SELECT SUM(current_value) FROM portfolio WHERE status = 'active'")
+            self.cur.execute(
+                "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+                "ORDER BY snapshot_date DESC LIMIT 1"
+            )
             portfolio_row = self.cur.fetchone()
-            portfolio_value = portfolio_row[0] if portfolio_row and portfolio_row[0] else 100000
+            portfolio_value = float(portfolio_row[0]) if portfolio_row and portfolio_row[0] else 100000
         except Exception as e:
-            logger.info(f"Warning: Could not get portfolio value: {e}")
+            logger.warning(f"Could not get portfolio value for pretrade checks: {e}")
             portfolio_value = 100000
         finally:
             self.disconnect()

@@ -80,7 +80,7 @@ class PreTradeChecks:
                 cur = self.conn.cursor()
                 cur.execute(
                     "SELECT symbol FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
-                    (symbol, 'OPEN')
+                    (symbol, 'open')
                 )
                 if cur.fetchone():
                     cur.close()
