@@ -378,8 +378,9 @@ class StockScoresLoader(OptimalLoader):
             scores.append(pe_score)
 
         # Dividend yield: higher is better (target 2%+)
+        # Note: yfinance returns dividendYield already in percent (e.g., 2.29 = 2.29%)
         if metrics.get('dividend_yield'):
-            div = min(metrics['dividend_yield'] * 100, 5)  # Cap at 5%
+            div = min(metrics['dividend_yield'], 5)  # Already percent, cap at 5%
             scores.append(min(100, div * 20))
 
         return sum(scores) / len(scores) if scores else None
@@ -397,9 +398,19 @@ class StockScoresLoader(OptimalLoader):
             scores.append(io)
 
         # Short interest: lower is better (target <5%)
+        # Use piecewise scoring instead of linear (which was too harsh)
         if metrics.get('short_interest'):
             si = metrics['short_interest']
-            scores.append(max(0, 100 - (si * 10)))
+            if si < 5:
+                # Normal range: -10 points per 1% short
+                score = 100 - (si * 10)
+            elif si < 15:
+                # High range (5-15%): slower penalty (-2 per 1% above 5%)
+                score = 50 - ((si - 5) * 2)
+            else:
+                # Very high (15%+): floor at 30 (possible contrarian value, not zero)
+                score = 30
+            scores.append(max(0, min(100, score)))
 
         return sum(scores) / len(scores) if scores else None
 
