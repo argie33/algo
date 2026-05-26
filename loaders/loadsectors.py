@@ -113,6 +113,111 @@ class SectorsLoader(OptimalLoader):
         return row.get("sector") is not None and row.get("return_pct") is not None
 
 
+def _compute_sector_rankings():
+    """Compute and persist sector rankings from sector_performance data.
+
+    Ranks sectors by 20-day relative return (return_pct proxy), stores current
+    rank + historical ranks (1w/4w/12w ago) into sector_ranking for the
+    SectorRotationDetector and API /api/algo/sector-rotation endpoint.
+    """
+    from utils.db_connection import get_db_connection
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get latest sector performance rows
+            cur.execute("""
+                SELECT sector, return_pct
+                FROM sector_performance
+                WHERE date = (SELECT MAX(date) FROM sector_performance)
+                ORDER BY return_pct DESC NULLS LAST
+            """)
+            rows = cur.fetchall()
+            if not rows:
+                logger.warning("No sector_performance data — skipping sector_ranking update")
+                return
+
+            today = date.today()
+            # Rank by return_pct descending (rank 1 = best momentum)
+            ranked = [(r[0], r[1], idx + 1) for idx, r in enumerate(rows)]
+
+            for sector_name, momentum_score, current_rank in ranked:
+                # Look up historical ranks from sector_ranking itself
+                cur.execute("""
+                    SELECT current_rank
+                    FROM sector_ranking
+                    WHERE sector_name = %s
+                      AND date_recorded = (
+                          SELECT MAX(date_recorded)
+                          FROM sector_ranking
+                          WHERE sector_name = %s
+                            AND date_recorded <= %s - INTERVAL '7 days'
+                      )
+                """, (sector_name, sector_name, today))
+                r1w = cur.fetchone()
+                rank_1w_ago = r1w[0] if r1w else None
+
+                cur.execute("""
+                    SELECT current_rank
+                    FROM sector_ranking
+                    WHERE sector_name = %s
+                      AND date_recorded = (
+                          SELECT MAX(date_recorded)
+                          FROM sector_ranking
+                          WHERE sector_name = %s
+                            AND date_recorded <= %s - INTERVAL '28 days'
+                      )
+                """, (sector_name, sector_name, today))
+                r4w = cur.fetchone()
+                rank_4w_ago = r4w[0] if r4w else None
+
+                cur.execute("""
+                    SELECT current_rank
+                    FROM sector_ranking
+                    WHERE sector_name = %s
+                      AND date_recorded = (
+                          SELECT MAX(date_recorded)
+                          FROM sector_ranking
+                          WHERE sector_name = %s
+                            AND date_recorded <= %s - INTERVAL '84 days'
+                      )
+                """, (sector_name, sector_name, today))
+                r12w = cur.fetchone()
+                rank_12w_ago = r12w[0] if r12w else None
+
+                cur.execute("""
+                    INSERT INTO sector_ranking
+                        (sector_name, date_recorded, current_rank, momentum_score,
+                         rank_1w_ago, rank_4w_ago, rank_12w_ago)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (sector_name, date_recorded)
+                    DO UPDATE SET
+                        current_rank = EXCLUDED.current_rank,
+                        momentum_score = EXCLUDED.momentum_score,
+                        rank_1w_ago = EXCLUDED.rank_1w_ago,
+                        rank_4w_ago = EXCLUDED.rank_4w_ago,
+                        rank_12w_ago = EXCLUDED.rank_12w_ago
+                """, (sector_name, today, current_rank,
+                      round(float(momentum_score or 0), 4),
+                      rank_1w_ago, rank_4w_ago, rank_12w_ago))
+
+            conn.commit()
+            logger.info(f"sector_ranking updated: {len(ranked)} sectors for {today}")
+    except Exception as e:
+        logger.error(f"sector_ranking compute failed: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def main():
     load_env()
     parser = argparse.ArgumentParser(description="Optimal sectors loader")
@@ -131,6 +236,9 @@ def main():
     if fail_rate > 0.05:
         logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
         return 1
+
+    # Compute sector rankings from freshly loaded sector_performance
+    _compute_sector_rankings()
     return 0
 
 

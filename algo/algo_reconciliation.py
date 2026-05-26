@@ -45,10 +45,11 @@ class PositionReconciler:
             from alpaca_trade_api import REST
             cm = get_credential_manager()
             creds = cm.get_alpaca_credentials()
+            alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
             self.trading_client = REST(
                 key_id=creds["key"],
                 secret_key=creds["secret"],
-                base_url='https://paper-api.alpaca.markets'
+                base_url=alpaca_base_url,
             )
         except Exception as e:
             logger.error(f"  [WARN] Alpaca client init failed: {e}")

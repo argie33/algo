@@ -732,14 +732,49 @@ class TradeExecutor:
 
         Args:
             trade_id: trade to exit
-            exit_price: execution price for the exit (must be > 0)
+            exit_price: execution price for the exit (must be > 0; None when exit_fraction=0)
             exit_reason: reason text (logged in algo_trades + algo_audit_log)
-            exit_fraction: 0 < f <= 1 (1.0 = full exit)
+            exit_fraction: 0 = stop-raise-only (no exit order); 0 < f <= 1 for partial/full exits
             exit_stage: optional 'target_1' | 'target_2' | 'target_3' | 'stop' | 'time' | 'distribution'
             new_stop_price: if provided, raise the stop on the residual shares (trailing stop)
 
         Returns: { success, trade_id, shares_exited, profit_loss_dollars, profit_loss_pct, message }
         """
+        # Stop-raise-only: no exit order, just update current_stop_price on the open position.
+        # The exit engine sends fraction=0 for breakeven moves and chandelier/EMA trail raises.
+        if exit_fraction == 0:
+            if new_stop_price is None:
+                return {'success': False, 'message': 'stop-raise-only (fraction=0) requires new_stop_price'}
+            self.connect()
+            try:
+                # Only raise (never lower) the stop — idempotent guard
+                self.cur.execute(
+                    """UPDATE algo_positions p
+                       SET current_stop_price = %s
+                       FROM algo_trades t
+                       WHERE t.trade_id = ANY(p.trade_ids_arr)
+                         AND t.trade_id = %s
+                         AND p.status = %s
+                         AND %s > COALESCE(p.current_stop_price, 0)""",
+                    (new_stop_price, trade_id, PositionStatus.OPEN.value, new_stop_price),
+                )
+                updated = self.cur.rowcount > 0
+                self.conn.commit()
+                return {
+                    'success': True,
+                    'message': (
+                        f'Stop raised to ${new_stop_price:.2f}'
+                        if updated else
+                        f'Stop already at or above ${new_stop_price:.2f} (no-op)'
+                    ),
+                }
+            except Exception as e:
+                if self.conn:
+                    self.conn.rollback()
+                return {'success': False, 'message': f'Stop raise failed: {e}'}
+            finally:
+                self.disconnect()
+
         if not (0 < exit_fraction <= 1.0):
             return {'success': False, 'message': f'Invalid exit_fraction {exit_fraction}'}
 
