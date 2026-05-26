@@ -109,13 +109,14 @@ export default function PortfolioDashboard() {
 
   // status returns {run_id, last_run, current_phase, status, message} — no portfolio sub-object
   const portfolio = status?.portfolio || {};
-  // markets returns {success, current: {...}, history: [...]} — no market_health sub-object
-  const mh = markets?.current || markets?.market_health || {};
+  // markets returns {success, current: {regime, distribution_days...}, market_health: {market_trend, vix_level...}}
+  const currentExp = markets?.current || {};
+  const currentHealth = markets?.market_health || {};
   const market = {
-    trend: mh.market_trend || mh.trend,
-    stage: mh.market_stage || mh.stage,
-    vix: mh.vix_level || mh.vix,
-    distribution_days: mh.distribution_days_4w || mh.distribution_days || 0,
+    trend: currentHealth.market_trend,
+    stage: currentHealth.market_stage,
+    vix: currentHealth.vix_level,
+    distribution_days: currentExp.distribution_days_4w || currentExp.distribution_days || 0,
   };
   // Derive portfolio totals from open positions when status doesn't carry them
   const unrealizedPnl = positionsList.reduce((s, p) => s + Number(p.unrealized_pnl || 0), 0);
