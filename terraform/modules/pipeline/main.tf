@@ -153,7 +153,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Parameters = {
           "today.$" = "$$.State.EnteredTime"
         }
-        Next = "EodBulkPrices"
+        Next    = "EodBulkPrices"
         Comment = "On non-trading days (weekends/holidays), EventBridge won't trigger. If it does, pipeline succeeds harmlessly."
       }
 

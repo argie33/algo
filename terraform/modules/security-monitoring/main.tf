@@ -127,8 +127,8 @@ resource "aws_cloudtrail" "main" {
 # ============================================================
 
 resource "aws_guardduty_detector" "main" {
-  count            = var.guardduty_enabled ? 1 : 0
-  enable           = true
+  count                        = var.guardduty_enabled ? 1 : 0
+  enable                       = true
   finding_publishing_frequency = "FIFTEEN_MINUTES"
 
   tags = merge(var.common_tags, {
@@ -155,10 +155,10 @@ resource "aws_guardduty_detector_feature" "k8s_logs" {
 # ============================================================
 
 resource "aws_config_configuration_recorder" "main" {
-  count       = var.aws_config_enabled ? 1 : 0
-  name        = "${var.project_name}-config-recorder"
-  role_arn    = aws_iam_role.config_role[0].arn
-  depends_on  = [aws_iam_role_policy.config_policy]
+  count      = var.aws_config_enabled ? 1 : 0
+  name       = "${var.project_name}-config-recorder"
+  role_arn   = aws_iam_role.config_role[0].arn
+  depends_on = [aws_iam_role_policy.config_policy]
 
   recording_group {
     all_supported = true
@@ -166,17 +166,17 @@ resource "aws_config_configuration_recorder" "main" {
 }
 
 resource "aws_config_configuration_recorder_status" "main" {
-  count       = var.aws_config_enabled ? 1 : 0
-  name        = aws_config_configuration_recorder.main[0].name
-  is_enabled  = true
-  depends_on  = [aws_config_delivery_channel.main, aws_config_configuration_recorder.main]
+  count      = var.aws_config_enabled ? 1 : 0
+  name       = aws_config_configuration_recorder.main[0].name
+  is_enabled = true
+  depends_on = [aws_config_delivery_channel.main, aws_config_configuration_recorder.main]
 }
 
 resource "aws_config_delivery_channel" "main" {
-  count           = var.aws_config_enabled ? 1 : 0
-  name            = "${var.project_name}-config-channel"
-  s3_bucket_name  = aws_s3_bucket.config_bucket[0].id
-  depends_on      = [aws_config_configuration_recorder.main, aws_iam_role_policy.config_policy]
+  count          = var.aws_config_enabled ? 1 : 0
+  name           = "${var.project_name}-config-channel"
+  s3_bucket_name = aws_s3_bucket.config_bucket[0].id
+  depends_on     = [aws_config_configuration_recorder.main, aws_iam_role_policy.config_policy]
 }
 
 # Config S3 Bucket
@@ -250,11 +250,11 @@ resource "aws_config_config_rule" "lambda_vpc" {
 # ============================================================
 
 resource "aws_flow_log" "main" {
-  count                   = var.vpc_flow_logs_enabled ? 1 : 0
-  iam_role_arn            = aws_iam_role.vpc_flow_logs[0].arn
-  log_destination         = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
-  traffic_type            = "ALL"
-  vpc_id                  = var.vpc_id
+  count           = var.vpc_flow_logs_enabled ? 1 : 0
+  iam_role_arn    = aws_iam_role.vpc_flow_logs[0].arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs[0].arn
+  traffic_type    = "ALL"
+  vpc_id          = var.vpc_id
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-vpc-flow-logs"
@@ -296,9 +296,9 @@ resource "aws_iam_role" "config_role" {
 }
 
 resource "aws_iam_role_policy" "config_policy" {
-  count  = var.aws_config_enabled ? 1 : 0
-  name   = "${var.project_name}-config-policy"
-  role   = aws_iam_role.config_role[0].id
+  count = var.aws_config_enabled ? 1 : 0
+  name  = "${var.project_name}-config-policy"
+  role  = aws_iam_role.config_role[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -352,9 +352,9 @@ resource "aws_iam_role" "vpc_flow_logs" {
 }
 
 resource "aws_iam_role_policy" "vpc_flow_logs" {
-  count  = var.vpc_flow_logs_enabled ? 1 : 0
-  name   = "${var.project_name}-vpc-flow-logs-policy"
-  role   = aws_iam_role.vpc_flow_logs[0].id
+  count = var.vpc_flow_logs_enabled ? 1 : 0
+  name  = "${var.project_name}-vpc-flow-logs-policy"
+  role  = aws_iam_role.vpc_flow_logs[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

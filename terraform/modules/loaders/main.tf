@@ -128,8 +128,8 @@ locals {
   # Kept for documentation and potential future use.
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
-    "stock_prices_daily"            = "loadpricedaily.py"  # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
-    "stock_prices_weekly"           = "loadpricedaily.py"  # Uses unified loader with env vars for weekly interval
+    "stock_prices_daily"            = "loadpricedaily.py" # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
+    "stock_prices_weekly"           = "loadpricedaily.py" # Uses unified loader with env vars for weekly interval
     "etf_prices_daily"              = "loadpricedaily.py"
     "etf_prices_weekly"             = "loadpricedaily.py"
     "etf_prices_monthly"            = "loadpricedaily.py"
@@ -363,7 +363,7 @@ locals {
     # UNIFIED Price Loader (4:00am ET) — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
     # Runs sequentially for each interval+class combo, parallelizes symbol fetches (yfinance rate-limited)
     # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
-    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    "stock_prices_daily"  = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
     "stock_prices_weekly" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
 
     # ETF price loaders (daily, weekly, monthly intervals)
@@ -392,7 +392,7 @@ locals {
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 8 }
     # stock_scores: reads quality/growth/value/stability/positioning tables — must run after all metrics
-    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "stock_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
     # Earnings data (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
     # Increase timeout to 60min for sequential 5000+ symbol processing
@@ -406,11 +406,11 @@ locals {
     "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     # Sectors/industry: increased timeout for 5000+ symbol processing with parallelism=4
-    "sectors"                     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
-    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    "sectors"          = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    "industry_ranking" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
     # Market & economic data — small datasets, single-threaded fine
-    "seasonality"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "seasonality" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
     # Fixed: timeout 1800→2400→10800→14400→21600s (30min→40min→3h→4h→6h), parallelism 8→4
@@ -438,9 +438,9 @@ locals {
     "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
     # Market sentiment data — small API calls, run daily/weekly
-    "feargreed"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "aaiidata"     = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "naaim_data"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # FRED macro data — small API calls, 5 time series from FRED API
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
@@ -553,53 +553,53 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "SEC_USER_AGENT"
           value = "algo-trading argeropolos@gmail.com"
         }
-      ],
-      # Price loaders: set intervals based on task name
-      each.key == "stock_prices_daily" ? [
-        {
-          name  = "LOADER_INTERVALS"
-          value = "1d,1wk,1mo"
-        },
-        {
-          name  = "LOADER_ASSET_CLASSES"
-          value = "stock,etf"
-        }
-      ] : each.key == "eod_bulk_refresh" ? [
-        {
-          name  = "LOADER_INTERVALS"
-          value = "1d"
-        },
-        {
-          name  = "LOADER_ASSET_CLASSES"
-          value = "stock,etf"
-        }
-      ] : each.key == "stock_prices_weekly" ? [
-        {
-          name  = "LOADER_INTERVALS"
-          value = "1wk"
-        },
-        {
-          name  = "LOADER_ASSET_CLASSES"
-          value = "stock,etf"
-        }
-      ] : [],
-      # Financial loaders: determine period from task name
-      strcontains(each.key, "annual") ? [
-        {
-          name  = "LOADER_PERIOD"
-          value = "annual"
-        }
-      ] : strcontains(each.key, "quarterly") ? [
-        {
-          name  = "LOADER_PERIOD"
-          value = "quarterly"
-        }
-      ] : strcontains(each.key, "ttm") ? [
-        {
-          name  = "LOADER_PERIOD"
-          value = "quarterly"
-        }
-      ] : []
+        ],
+        # Price loaders: set intervals based on task name
+        each.key == "stock_prices_daily" ? [
+          {
+            name  = "LOADER_INTERVALS"
+            value = "1d,1wk,1mo"
+          },
+          {
+            name  = "LOADER_ASSET_CLASSES"
+            value = "stock,etf"
+          }
+          ] : each.key == "eod_bulk_refresh" ? [
+          {
+            name  = "LOADER_INTERVALS"
+            value = "1d"
+          },
+          {
+            name  = "LOADER_ASSET_CLASSES"
+            value = "stock,etf"
+          }
+          ] : each.key == "stock_prices_weekly" ? [
+          {
+            name  = "LOADER_INTERVALS"
+            value = "1wk"
+          },
+          {
+            name  = "LOADER_ASSET_CLASSES"
+            value = "stock,etf"
+          }
+        ] : [],
+        # Financial loaders: determine period from task name
+        strcontains(each.key, "annual") ? [
+          {
+            name  = "LOADER_PERIOD"
+            value = "annual"
+          }
+          ] : strcontains(each.key, "quarterly") ? [
+          {
+            name  = "LOADER_PERIOD"
+            value = "quarterly"
+          }
+          ] : strcontains(each.key, "ttm") ? [
+          {
+            name  = "LOADER_PERIOD"
+            value = "quarterly"
+          }
+        ] : []
       )
     }
   ])

@@ -29,7 +29,7 @@ data "aws_lambda_layer_version" "shared_deps" {
 
 # For compatibility with existing code
 locals {
-  api_layer_arn        = data.aws_lambda_layer_version.api_deps.arn
+  api_layer_arn         = data.aws_lambda_layer_version.api_deps.arn
   shared_deps_layer_arn = data.aws_lambda_layer_version.shared_deps.arn
 }
 
@@ -75,7 +75,7 @@ resource "aws_lambda_function" "api" {
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
 
-  layers        = [local.api_layer_arn, var.psycopg2_layer_arn]
+  layers = [local.api_layer_arn, var.psycopg2_layer_arn]
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
@@ -95,13 +95,13 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      DB_SECRET_ARN        = var.rds_credentials_secret_arn
-      DB_ENDPOINT          = var.rds_endpoint
-      DB_HOST              = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
-      DB_PORT              = "5432"
-      DB_NAME              = var.rds_database_name
-      DB_USER              = var.rds_username
-      DB_SSL               = "require"
+      DB_SECRET_ARN = var.rds_credentials_secret_arn
+      DB_ENDPOINT   = var.rds_endpoint
+      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_PORT       = "5432"
+      DB_NAME       = var.rds_database_name
+      DB_USER       = var.rds_username
+      DB_SSL        = "require"
       # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
       ALGO_SECRETS_ARN     = var.algo_secrets_arn
       APCA_API_BASE_URL    = var.alpaca_api_base_url
@@ -477,7 +477,7 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.12"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
-  layers        = [local.shared_deps_layer_arn, var.psycopg2_layer_arn]  # Orchestrator dependencies + psycopg2 for database access
+  layers        = [local.shared_deps_layer_arn, var.psycopg2_layer_arn] # Orchestrator dependencies + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
@@ -497,25 +497,25 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
-      DB_SECRET_ARN         = var.rds_credentials_secret_arn
-      DB_ENDPOINT           = var.rds_endpoint
-      DB_HOST               = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
-      DB_PORT               = "5432"
-      DB_NAME               = var.rds_database_name
-      DB_USER               = var.rds_username
-      DB_SSL                = "require"
+      DB_SECRET_ARN = var.rds_credentials_secret_arn
+      DB_ENDPOINT   = var.rds_endpoint
+      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_PORT       = "5432"
+      DB_NAME       = var.rds_database_name
+      DB_USER       = var.rds_username
+      DB_SSL        = "require"
       # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
-      ALGO_SECRETS_ARN      = var.algo_secrets_arn
-      ALERTS_SNS_TOPIC      = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
-      EXECUTION_MODE        = var.execution_mode
-      ORCHESTRATOR_DRY_RUN  = tostring(var.orchestrator_dry_run)
-      ALGO_LIVE_TRADING     = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
-      APCA_API_BASE_URL     = var.alpaca_api_base_url
-      ALPACA_PAPER_TRADING  = tostring(var.alpaca_paper_trading)
-      LOG_LEVEL             = var.orchestrator_log_level
-      DATA_PATROL_ENABLED   = tostring(var.data_patrol_enabled)
+      ALGO_SECRETS_ARN       = var.algo_secrets_arn
+      ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
+      EXECUTION_MODE         = var.execution_mode
+      ORCHESTRATOR_DRY_RUN   = tostring(var.orchestrator_dry_run)
+      ALGO_LIVE_TRADING      = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
+      APCA_API_BASE_URL      = var.alpaca_api_base_url
+      ALPACA_PAPER_TRADING   = tostring(var.alpaca_paper_trading)
+      LOG_LEVEL              = var.orchestrator_log_level
+      DATA_PATROL_ENABLED    = tostring(var.data_patrol_enabled)
       DATA_PATROL_TIMEOUT_MS = tostring(var.data_patrol_timeout_ms)
-      DEV_MODE              = var.dev_mode
+      DEV_MODE               = var.dev_mode
     }
   }
 

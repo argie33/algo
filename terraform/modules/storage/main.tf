@@ -333,9 +333,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket                  = aws_s3_bucket.frontend.id
   block_public_acls       = true
-  block_public_policy     = true  # OAC policy uses Service principal, not public
+  block_public_policy     = true # OAC policy uses Service principal, not public
   ignore_public_acls      = true
-  restrict_public_buckets = true  # CloudFront OAC accesses via signed requests, not public URLs
+  restrict_public_buckets = true # CloudFront OAC accesses via signed requests, not public URLs
 }
 
 # ============================================================

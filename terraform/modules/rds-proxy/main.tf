@@ -11,26 +11,26 @@
 # - Query caching (optional)
 
 resource "aws_db_proxy" "main" {
-  name                   = "${var.project_name}-proxy"
-  engine_family          = "POSTGRESQL"
+  name          = "${var.project_name}-proxy"
+  engine_family = "POSTGRESQL"
   auth {
     auth_scheme = "SECRETS"
     secret_arn  = var.secrets_manager_secret_arn
   }
 
-  role_arn               = aws_iam_role.proxy_role.arn
+  role_arn                  = aws_iam_role.proxy_role.arn
   db_proxy_protocol_version = "POSTGRES"
 
   # Connection pooling configuration
-  max_idle_connections_percent          = 50        # % of max connections available for idle
-  max_connections_percent               = 100       # Don't exceed RDS max_connections
-  connection_borrow_timeout             = 120       # seconds to wait for available connection
-  session_pinning_filters               = []        # No pinning = full multiplexing (better for Lambdas)
-  init_query                            = ""        # No startup queries needed
-  max_connection_lifetime_seconds       = 3600      # Recycle connections hourly
+  max_idle_connections_percent    = 50   # % of max connections available for idle
+  max_connections_percent         = 100  # Don't exceed RDS max_connections
+  connection_borrow_timeout       = 120  # seconds to wait for available connection
+  session_pinning_filters         = []   # No pinning = full multiplexing (better for Lambdas)
+  init_query                      = ""   # No startup queries needed
+  max_connection_lifetime_seconds = 3600 # Recycle connections hourly
 
-  require_tls = true
-  vpc_subnet_ids = var.vpc_subnet_ids
+  require_tls            = true
+  vpc_subnet_ids         = var.vpc_subnet_ids
   vpc_security_group_ids = [aws_security_group.proxy_sg.id]
 
   logging {
@@ -48,8 +48,8 @@ resource "aws_db_proxy" "main" {
 
 # Target group: which RDS instance(s) this proxy connects to
 resource "aws_db_proxy_target_group" "main" {
-  db_proxy_name          = aws_db_proxy.main.name
-  name                   = "default"
+  db_proxy_name           = aws_db_proxy.main.name
+  name                    = "default"
   db_parameter_group_name = "default"
 
   connection_pool_config {
@@ -62,8 +62,8 @@ resource "aws_db_proxy_target_group" "main" {
 
 # Register the RDS instance as target
 resource "aws_db_proxy_target" "main" {
-  db_proxy_name         = aws_db_proxy.main.name
-  target_group_name     = aws_db_proxy_target_group.main.name
+  db_proxy_name          = aws_db_proxy.main.name
+  target_group_name      = aws_db_proxy_target_group.main.name
   db_instance_identifier = var.rds_instance_id
 }
 

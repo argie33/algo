@@ -9,11 +9,11 @@
 # This allows for deterministic password management.
 
 resource "random_password" "rds_master" {
-  length            = 32
-  special           = false  # No special chars for reliability
-  min_upper         = 4
-  min_lower         = 4
-  min_numeric       = 4
+  length      = 32
+  special     = false # No special chars for reliability
+  min_upper   = 4
+  min_lower   = 4
+  min_numeric = 4
 
   lifecycle {
     ignore_changes = all
@@ -756,7 +756,7 @@ resource "aws_dynamodb_table" "watermarks" {
 
   # Global secondary index for querying by status (for monitoring)
   global_secondary_index {
-    name           = "StatusIndex"
+    name            = "StatusIndex"
     projection_type = "ALL"
 
     key_schema {

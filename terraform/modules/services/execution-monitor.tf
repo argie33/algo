@@ -22,8 +22,8 @@ resource "aws_lambda_function" "execution_monitor" {
 
   environment {
     variables = {
-      ALPACA_API_KEY     = var.alpaca_api_key_id
-      ALPACA_SECRET_KEY  = var.alpaca_api_secret_key
+      ALPACA_API_KEY    = var.alpaca_api_key_id
+      ALPACA_SECRET_KEY = var.alpaca_api_secret_key
       RDS_HOST          = var.rds_endpoint
       RDS_PORT          = var.rds_port
       RDS_USER          = var.rds_master_username
@@ -76,9 +76,9 @@ resource "aws_iam_role_policy_attachment" "execution_monitor_basic" {
 }
 
 resource "aws_iam_role_policy" "execution_monitor_secrets" {
-  count  = var.enable_execution_monitor ? 1 : 0
-  name   = "${var.project_name}-execution-monitor-secrets"
-  role   = aws_iam_role.execution_monitor[0].id
+  count = var.enable_execution_monitor ? 1 : 0
+  name  = "${var.project_name}-execution-monitor-secrets"
+  role  = aws_iam_role.execution_monitor[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -147,12 +147,12 @@ resource "aws_scheduler_schedule" "execution_monitor" {
 # ============================================================
 
 resource "aws_lambda_permission" "execution_monitor_scheduler" {
-  count             = var.enable_execution_monitor ? 1 : 0
-  statement_id      = "AllowExecutionMonitorScheduler"
-  action            = "lambda:InvokeFunction"
-  function_name     = aws_lambda_function.execution_monitor[0].function_name
-  principal         = "scheduler.amazonaws.com"
-  source_arn        = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
+  count         = var.enable_execution_monitor ? 1 : 0
+  statement_id  = "AllowExecutionMonitorScheduler"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.execution_monitor[0].function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
 }
 
 # ============================================================
