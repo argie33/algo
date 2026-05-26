@@ -1369,26 +1369,8 @@ jobs:
           echo ""
           echo "=========================================="
 
-      - name: Save Credentials to Artifact
-        if: always()
+      - name: Credentials Location Reminder
         run: |
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id algo/developer-credentials \
-            --region ${{ env.AWS_REGION }} \
-            --query SecretString \
-            --output text 2>/dev/null || echo "{}")
-
-          if [ "$SECRET" != "{}" ] && [ -n "$SECRET" ]; then
-            echo "$SECRET" > /tmp/dev-credentials.json
-            echo "✅ Credentials saved to artifact"
-          else
-            echo "{}" > /tmp/dev-credentials.json
-          fi
-
-      - name: Upload Credentials Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: developer-credentials
-          path: /tmp/dev-credentials.json
-          retention-days: 7
+          echo "Developer credentials are in Secrets Manager: algo/developer-credentials"
+          echo "Retrieve locally with: aws secretsmanager get-secret-value --secret-id algo/developer-credentials --region us-east-1 --query SecretString --output text"
+          echo "Do NOT export credentials to GitHub artifacts."

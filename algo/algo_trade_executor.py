@@ -1043,6 +1043,9 @@ class TradeExecutor:
                 # Alpaca API failed, will fall back to snapshot
                 logger.warning(f"Could not fetch Alpaca account value: {e}")
         try:
+            if not self.cur:
+                # Called before connect(); DB fallback unavailable — don't crash
+                return None
             self.cur.execute(
                 "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots "
                 "ORDER BY snapshot_date DESC LIMIT 1"

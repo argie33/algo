@@ -61,7 +61,7 @@ class MarketEventHandler:
             )
             self.cur = self.conn.cursor()
         except Exception as e:
-            logger.info(f"MarketEventHandler: DB connection failed: {e}")
+            logger.error(f"MarketEventHandler: DB connection failed: {e}")
             raise
 
     def disconnect(self):
@@ -104,7 +104,7 @@ class MarketEventHandler:
             return None
 
         except Exception as e:
-            logger.info(f"MarketEventHandler: check_single_stock_halt error: {e}")
+            logger.warning(f"MarketEventHandler: check_single_stock_halt error: {e}")
             return None
 
     def check_market_circuit_breaker(self) -> Optional[Dict[str, Any]]:
@@ -173,7 +173,7 @@ class MarketEventHandler:
             return None
 
         except Exception as e:
-            logger.info(f"MarketEventHandler: check_market_circuit_breaker error: {e}")
+            logger.warning(f"MarketEventHandler: check_market_circuit_breaker error: {e}")
             return None
 
     def check_early_close(self, check_date: Optional[date] = None) -> bool:
@@ -222,7 +222,7 @@ class MarketEventHandler:
             return False
 
         except Exception as e:
-            logger.info(f"MarketEventHandler: check_early_close error: {e}")
+            logger.warning(f"MarketEventHandler: check_early_close error: {e}")
             return False
 
     def check_after_hours_window(self, check_time: Optional[datetime] = None) -> bool:
@@ -302,7 +302,7 @@ class MarketEventHandler:
         except Exception as e:
             if self.conn:
                 self.conn.rollback()
-            logger.info(f"MarketEventHandler: handle_single_stock_halt error: {e}")
+            logger.error(f"MarketEventHandler: handle_single_stock_halt error: {e}")
             return {'action': 'ERROR', 'message': str(e)}
 
     def handle_market_circuit_breaker(self, level: int) -> Dict[str, Any]:
@@ -358,7 +358,7 @@ class MarketEventHandler:
         except Exception as e:
             if self.conn:
                 self.conn.rollback()
-            logger.info(f"MarketEventHandler: handle_market_circuit_breaker error: {e}")
+            logger.error(f"MarketEventHandler: handle_market_circuit_breaker error: {e}")
             return {'action': 'ERROR', 'message': str(e)}
 
     def check_delisting(self, symbol: str) -> Optional[Dict[str, Any]]:
@@ -392,7 +392,7 @@ class MarketEventHandler:
             return None
 
         except Exception as e:
-            logger.info(f"MarketEventHandler: check_delisting error: {e}")
+            logger.warning(f"MarketEventHandler: check_delisting error: {e}")
             return None
 
     def run_pre_market_checks(self) -> Dict[str, Any]:

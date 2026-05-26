@@ -336,6 +336,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                                 'industry': sector_info['industry'],
                                 'advanced_components': adv['components'],
                                 'all_tiers_pass': True,
+                                # Capture per-signal stop metadata here (not after the loop) so
+                                # each trade records its own stop method, not the last signal's.
+                                'stop_method': getattr(self, '_last_stop_method', 'unknown'),
+                                'stop_reasoning': getattr(self, '_last_stop_reasoning', 'No reasoning recorded'),
                             })
                     else:
                         advanced_blocked += 1
@@ -434,9 +438,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     trade['target_2_price'] = None
                     trade['target_3_price'] = None
 
-                # Propagate stop method and reasoning to trade dict
-                trade['stop_method'] = getattr(self, '_last_stop_method', 'unknown')
-                trade['stop_reasoning'] = getattr(self, '_last_stop_reasoning', 'No reasoning recorded')
+                # stop_method and stop_reasoning are captured per-signal inside the evaluation loop above.
 
             logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")
             logger.info("=" * 100)
@@ -545,6 +547,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][3] = t3
             result['trend_score'] = t3.get('trend_score', 0)
             result['stop_loss_price'] = t3.get('stop_loss_price')
+            result['stop_method'] = t3.get('stop_method', self._last_stop_method)
+            result['stop_reasoning'] = t3.get('stop_reasoning', self._last_stop_reasoning)
             if not t3['pass']:
                 return result
 
@@ -738,10 +742,13 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 }
 
             max_from_high = float(self.config.get('max_percent_from_52w_high', 25.0))
-            if pct_from_high > max_from_high:
+            # pct_from_high is stored as (close - high52w) / high52w * 100, always ≤ 0.
+            # A stock 30% below its 52w high has pct_from_high = -30.
+            # Reject if stock is more than max_from_high% BELOW its 52w high.
+            if pct_from_high < -max_from_high:
                 return {
                     'pass': False,
-                    'reason': f'{pct_from_high:.0f}% from 52w high (max {max_from_high:.0f})',
+                    'reason': f'{abs(pct_from_high):.0f}% below 52w high (max {max_from_high:.0f}% allowed)',
                     'trend_score': trend_score,
                 }
 
@@ -787,6 +794,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
             stop_info = self._compute_stop_loss(symbol, signal_date, sma_50, atr)
             stop_loss_price = stop_info.get('stop_price') if isinstance(stop_info, dict) else stop_info
+            stop_method = stop_info.get('method', self._last_stop_method) if isinstance(stop_info, dict) else self._last_stop_method
+            stop_reasoning = stop_info.get('reasoning', self._last_stop_reasoning) if isinstance(stop_info, dict) else self._last_stop_reasoning
 
             # Fail if no valid stop can be computed (insufficient structural levels)
             if stop_loss_price is None:
@@ -817,6 +826,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 'reason': f'Trend {trend_score}/8, {pct_from_low:.0f}% from low',
                 'trend_score': trend_score,
                 'stop_loss_price': stop_loss_price,
+                'stop_method': stop_method,
+                'stop_reasoning': stop_reasoning,
             }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}

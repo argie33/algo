@@ -302,7 +302,10 @@ def _validate_pre_trade_data_quality(
             )
             result = cur.fetchone()
             if result and result[0]:
-                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                # Strip tzinfo before subtraction — psycopg2 returns timezone-aware datetime
+                # for TIMESTAMPTZ columns, which can't be compared to naive datetime.now().
+                db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
+                age_hours = (datetime.now() - db_ts).total_seconds() / 3600
                 if age_hours > 24:
                     issues.append(f"Price data too stale: {age_hours:.1f} hours old")
                 elif age_hours > 1:
@@ -355,7 +358,8 @@ def _validate_pre_trade_data_quality(
             )
             result = cur.fetchone()
             if result and result[0]:
-                age_hours = (datetime.now() - result[0]).total_seconds() / 3600
+                db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
+                age_hours = (datetime.now() - db_ts).total_seconds() / 3600
                 # Allow 72 hours of staleness for testing/backtesting data
                 # Production: revert to 24 hours when using real-time data feeds
                 if age_hours > 72:
@@ -671,9 +675,11 @@ def run(
                 errors += 1
                 logger.error(f"  Exception on {trade['symbol']}: {e}", exc_info=True)
 
-        # Circuit breaker: if >50% of trades fail in a batch, halt
+        # Circuit breaker: if >50% of trades fail in a batch, halt.
+        # Exclude blocked (duplicates) from the denominator — they are expected
+        # idempotency blocks, not failures; including them would dilute the rate.
         if len(trades_to_enter) > 2 and errors > 0:
-            failure_rate = errors / (entered + blocked + errors)
+            failure_rate = errors / max(entered + errors, 1)
             if failure_rate > 0.5:
                 logger.critical(f"BATCH FAILURE RATE {failure_rate:.0%} exceeds 50% threshold ({errors}/{entered + blocked + errors}) — halting Phase 6")
                 log_phase_result_fn(6, 'entry_execution', 'error', f'Batch failure rate {failure_rate:.0%} ({errors} of {entered + blocked + errors})')

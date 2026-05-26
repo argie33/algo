@@ -82,7 +82,7 @@ class DailyReconciliation:
                     notify('critical', title='Alpaca Connection Failed',
                            message='Daily reconciliation cannot proceed without Alpaca account data')
                 except Exception as e:
-                    logging.warning(f"Failed to send Alpaca failure notification: {e} (proceeding with reconciliation halt)")
+                    logger.warning(f"Failed to send Alpaca failure notification: {e} (proceeding with reconciliation halt)")
                     # Note: notification failure doesn't block reconciliation halt, but we log it
                 return {'success': False, 'reason': 'Alpaca account fetch failed — reconciliation halted'}
 
@@ -293,6 +293,13 @@ class DailyReconciliation:
         self.cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
         our_symbols = {row[0] for row in self.cur.fetchall()}
 
+        # Fetch actual portfolio value for position_size_pct calculation (not a hardcoded constant).
+        self.cur.execute(
+            "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+        )
+        _pv_row = self.cur.fetchone()
+        _portfolio_value_for_pct = float(_pv_row[0]) if _pv_row and _pv_row[0] else 0.0
+
         alpaca_symbols = {}  # symbol -> qty for drift detection
         imported = 0
 
@@ -347,11 +354,13 @@ class DailyReconciliation:
                 stop_loss_method = 'imported_no_risk_calc'
 
                 try:
-                    # Try to fetch recent volatility (ATR) for better stop placement
+                    # Use pre-computed ATR from technical_data_daily (includes gap moves via
+                    # max(H-L, |H-PC|, |L-PC|)). AVG(high-low) from price_daily underestimates
+                    # true ATR for gap-prone stocks and sets stops too tight.
                     self.cur.execute("""
-                        SELECT AVG(high - low) as atr FROM price_daily
-                        WHERE symbol = %s AND date >= CURRENT_DATE - INTERVAL '20 days'
-                        LIMIT 20
+                        SELECT atr FROM technical_data_daily
+                        WHERE symbol = %s AND atr IS NOT NULL
+                        ORDER BY date DESC LIMIT 1
                     """, (sym,))
                     atr_row = self.cur.fetchone()
                     if atr_row and atr_row[0]:
@@ -365,7 +374,7 @@ class DailyReconciliation:
                         target_2 = avg_entry + (3 * r)  # 3R
                         target_3 = avg_entry + (4 * r)  # 4R
                 except Exception as e:
-                    logging.debug(f"Failed to calculate stop/targets for imported {sym}: {e}")
+                    logger.debug(f"Failed to calculate stop/targets for imported {sym}: {e}")
                     # Fall through to defaults below
 
                 # If risk calculation failed, use configured defaults
@@ -404,7 +413,7 @@ class DailyReconciliation:
                     stop_loss_method,
                     target_1, target_2, target_3,
                     PositionStatus.OPEN.value, 'external', f'ALPACA-EXT-{sym}',
-                    pos_value / 100000.0 * 100,  # rough %
+                    (pos_value / _portfolio_value_for_pct * 100) if _portfolio_value_for_pct > 0 else 0.0,
                     'imported_external',
                 ))
 
@@ -498,11 +507,14 @@ class DailyReconciliation:
                     for i, idx in enumerate(return_ranks):
                         rank_returns[idx] = i
 
-                    # Pearson correlation on ranks
+                    # Pearson correlation on ranks (= Spearman IC).
+                    # Use n-1 denominator for both covariance and stdev (sample statistics).
+                    # Using population cov (÷n) with sample stdev (÷n-1) produces a slightly-off IC.
                     mean_sr = statistics.mean(rank_scores)
                     mean_rr = statistics.mean(rank_returns)
-                    cov = sum((rank_scores[i] - mean_sr) * (rank_returns[i] - mean_rr) for i in range(len(rank_scores))) / len(rank_scores)
-                    std_sr = statistics.stdev(rank_scores) if len(rank_scores) > 1 else 1
+                    n = len(rank_scores)
+                    cov = sum((rank_scores[i] - mean_sr) * (rank_returns[i] - mean_rr) for i in range(n)) / (n - 1)
+                    std_sr = statistics.stdev(rank_scores) if n > 1 else 1
                     std_rr = statistics.stdev(rank_returns) if len(rank_returns) > 1 else 1
                     ic = cov / (std_sr * std_rr) if (std_sr * std_rr) > 0 else 0
 

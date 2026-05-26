@@ -596,25 +596,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         conn = get_db_connection()
         if not conn:
             cors_headers = get_cors_headers(event)
-            db_host = os.getenv('DB_HOST', 'NOT_SET')
-            db_port = os.getenv('DB_PORT', 'NOT_SET')
-            db_name = os.getenv('DB_NAME', 'NOT_SET')
-            db_user = os.getenv('DB_USER', 'NOT_SET')
-            db_secret_arn = os.getenv('DB_SECRET_ARN', 'NOT_SET')
+            # Log diagnostic details server-side only; never expose internal config to callers
+            logger.error('[DB UNAVAILABLE] host=%s port=%s db=%s secret_arn_set=%s',
+                         os.getenv('DB_HOST', 'NOT_SET'),
+                         os.getenv('DB_PORT', 'NOT_SET'),
+                         os.getenv('DB_NAME', 'NOT_SET'),
+                         bool(os.getenv('DB_SECRET_ARN')))
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
                     'error': 'database_unavailable',
-                    'debug': {
-                        'db_host_configured': db_host != 'NOT_SET',
-                        'db_host_value': db_host if db_host != 'NOT_SET' else 'NOT_SET',
-                        'db_port_value': db_port if db_port != 'NOT_SET' else 'NOT_SET',
-                        'db_name_value': db_name if db_name != 'NOT_SET' else 'NOT_SET',
-                        'db_user_value': db_user if db_user != 'NOT_SET' else 'NOT_SET',
-                        'db_secret_arn_configured': db_secret_arn != 'NOT_SET',
-                        'message': 'Unable to establish database connection. See values above to diagnose.'
-                    }
+                    'message': 'Service temporarily unavailable. Check CloudWatch Logs for details.'
                 })
             }
 

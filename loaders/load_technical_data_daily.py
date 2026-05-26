@@ -205,6 +205,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
                 "sma_150": float(row["sma_150"]) if pd.notna(row["sma_150"]) else None,
                 "sma_200": float(row["sma_200"]) if pd.notna(row["sma_200"]) else None,
                 "ema_12": float(row["ema_12"]) if pd.notna(row["ema_12"]) else None,
+                "ema_21": float(row["ema_21"]) if pd.notna(row["ema_21"]) else None,
                 "ema_26": float(row["ema_26"]) if pd.notna(row["ema_26"]) else None,
                 "atr": float(row["atr"]) if pd.notna(row["atr"]) else None,
                 "atr_14": float(row["atr_14"]) if pd.notna(row["atr_14"]) else None,

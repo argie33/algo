@@ -80,10 +80,13 @@ class FilterTier3Mixin:
                 }
 
             max_from_high = float(self.config.get('max_percent_from_52w_high', 25.0))
-            if pct_from_high > max_from_high:
+            # pct_from_high is stored as (close - high52w) / high52w * 100, always ≤ 0.
+            # A stock 30% below its 52w high has pct_from_high = -30.
+            # Reject if stock is more than max_from_high% BELOW its 52w high.
+            if pct_from_high < -max_from_high:
                 return {
                     'pass': False,
-                    'reason': f'{pct_from_high:.0f}% from 52w high (max {max_from_high:.0f})',
+                    'reason': f'{abs(pct_from_high):.0f}% below 52w high (max {max_from_high:.0f}% allowed)',
                     'trend_score': trend_score,
                 }
 

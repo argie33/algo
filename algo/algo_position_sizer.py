@@ -14,6 +14,7 @@ Rules:
 from config.credential_helper import get_db_config, get_db_password
 import os
 import psycopg2
+from datetime import date as _date
 from utils.db_connection import get_db_connection
 from pathlib import Path
 
@@ -201,7 +202,7 @@ class PositionSizer:
         except Exception as e:
             logger.warning(f"Could not fetch market exposure: {e}")
             return 0.5
-        return 1.0  # neutral if not computed yet
+        return 0.5  # no data → conservative (same as exception path)
 
     def get_vix_caution_multiplier(self):
         """Reduce risk if VIX is in caution zone (caution_threshold < VIX < max_threshold).

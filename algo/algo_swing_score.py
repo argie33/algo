@@ -399,10 +399,12 @@ class SwingTraderScore:
             row = self.cur.fetchone()
             if row and row[0] is not None:
                 pct_from_high = float(row[0])
-                if pct_from_high > max_extension_pct:
+                # pct_from_high is (close - high52w) / high52w * 100, always ≤ 0.
+                # -30 means 30% below the 52w high. Reject if too far below the high.
+                if pct_from_high < -max_extension_pct:
                     return {
                         'pass': False,
-                        'reason': f'Extended {pct_from_high:.1f}% from 52w high (max {max_extension_pct}%)',
+                        'reason': f'{abs(pct_from_high):.1f}% below 52w high (max {max_extension_pct}% allowed)',
                         'percent_from_52w_high': pct_from_high,
                     }
         except Exception:
