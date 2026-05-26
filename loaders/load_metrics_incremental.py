@@ -49,7 +49,9 @@ def get_missing_symbols(loader_type: str, batch_size: int) -> List[str]:
             # Symbols with no growth data (all NULL metrics)
             cur.execute("""SELECT DISTINCT s.symbol FROM stock_symbols s
                           LEFT JOIN growth_metrics m ON s.symbol = m.symbol
-                          WHERE m.revenue_growth_5y IS NULL AND m.eps_growth_5y IS NULL
+                          WHERE m.revenue_growth_1y IS NULL AND m.revenue_growth_3y IS NULL
+                            AND m.revenue_growth_5y IS NULL AND m.eps_growth_1y IS NULL
+                            AND m.eps_growth_3y IS NULL AND m.eps_growth_5y IS NULL
                           LIMIT %s""", (batch_size,))
         else:
             raise ValueError(f"Unknown loader_type: {loader_type}")
