@@ -263,6 +263,15 @@ If missing, rebuild schema via `deploy-code.yml` (loads `terraform/modules/datab
 - Paper trading: `ALPACA_PAPER_TRADING=true`, `APCA_API_BASE_URL=https://paper-api.alpaca.markets`
 - Verify in PowerShell: `$env:ALPACA_PAPER_TRADING`, `$env:APCA_API_BASE_URL`
 
+**Orchestrator Lambda timeout (600+ second hangs):**
+- NOT a cold-start issue. Root cause: RDS disk I/O contention during Phase 3b market exposure computation.
+- Phase 3b runs 11 sequential database queries (IBD state, trend, breadth, VIX, McClellan, etc.)
+- With high DiskQueueDepth (30+), each query waits for I/O → timeout after 600s.
+- **Fix:** Enable RDS Proxy in terraform.tfvars: `enable_rds_proxy = true` (connection pooling + query multiplexing).
+- RDS Proxy endpoint automatically replaces direct RDS connection in Lambda env vars (terraform/modules/services/main.tf line 502).
+- Symptoms: Lambda logs show DB connection succeeds, then hangs in Phase 3b (market exposure computation).
+- Check RDS metrics: `aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DiskQueueDepth --dimensions Name=DBInstanceIdentifier,Value=algo-db`
+
 **API Lambda cold-start timeout (500 errors on first request):**
 - Lambda in VPC takes 15-40s to initialize (ENI provisioning + imports) on cold-start
 - API Gateway timeout: 29 seconds (hard limit)
