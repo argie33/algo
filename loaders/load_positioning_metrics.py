@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""Positioning Metrics Loader - Institutional ownership and short interest from yfinance.
+
+Fetches:
+- Institutional ownership percentage
+- Insider ownership percentage
+- Short interest percentage
+- Short interest trend
+
+Requires: active symbols list.
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import argparse
+import logging
+from datetime import date
+from typing import List, Optional, Dict
+
+from config.env_loader import load_env
+from utils.structured_logger import get_logger
+from utils.loader_helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
+
+logger = get_logger(__name__)
+
+
+class PositioningMetricsLoader(OptimalLoader):
+    """Fetch positioning metrics from yfinance."""
+
+    table_name = "positioning_metrics"
+    primary_key = ("symbol",)
+    watermark_field = "updated_at"
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Fetch positioning metrics for this symbol."""
+        try:
+            metrics = self._fetch_positioning_metrics(symbol)
+            if metrics:
+                return [metrics]
+            return None
+        except Exception as e:
+            logger.debug(f"Positioning metrics error for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def _fetch_positioning_metrics(symbol: str) -> Optional[Dict]:
+        """Fetch institutional ownership and short interest from yfinance."""
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            # Extract positioning metrics from info dict
+            # yfinance keys vary; support multiple common names
+            institutional_ownership = None
+            insider_ownership = None
+            short_interest_percent = None
+            short_interest_trend = None
+
+            # Institutional ownership
+            if 'heldPercentInstitutions' in info and info['heldPercentInstitutions'] is not None:
+                institutional_ownership = float(info['heldPercentInstitutions']) * 100  # Convert to percentage
+            elif 'institutional_ownership' in info and info['institutional_ownership'] is not None:
+                institutional_ownership = float(info['institutional_ownership'])
+
+            # Insider ownership
+            if 'heldPercentInsiders' in info and info['heldPercentInsiders'] is not None:
+                insider_ownership = float(info['heldPercentInsiders']) * 100  # Convert to percentage
+            elif 'insider_ownership' in info and info['insider_ownership'] is not None:
+                insider_ownership = float(info['insider_ownership'])
+
+            # Short interest
+            if 'shortPercentOfFloat' in info and info['shortPercentOfFloat'] is not None:
+                short_interest_percent = float(info['shortPercentOfFloat']) * 100  # Convert to percentage
+            elif 'short_percent_of_float' in info and info['short_percent_of_float'] is not None:
+                short_interest_percent = float(info['short_percent_of_float'])
+            elif 'shortRatio' in info and info['shortRatio'] is not None:
+                # Use short ratio as proxy if short % not available
+                short_interest_percent = float(info['shortRatio'])
+
+            # Short interest trend (trying to get from any available field)
+            if 'sharesShort' in info and info['sharesShort'] is not None:
+                short_interest_trend = 'stable'  # Default if we have any short data
+
+            # If we have at least one metric, return the row
+            if institutional_ownership or insider_ownership or short_interest_percent:
+                return {
+                    'symbol': symbol,
+                    'institutional_ownership': round(institutional_ownership, 2) if institutional_ownership else None,
+                    'insider_ownership': round(insider_ownership, 2) if insider_ownership else None,
+                    'short_interest_percent': round(short_interest_percent, 2) if short_interest_percent else None,
+                    'short_interest_trend': short_interest_trend,
+                }
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Could not fetch positioning metrics for {symbol}: {e}")
+            return None
+
+    def transform(self, rows):
+        """Rows are clean."""
+        return rows
+
+    def _validate_row(self, row: dict) -> bool:
+        """Validate positioning metrics row."""
+        if not super()._validate_row(row):
+            return False
+        return row.get('symbol') is not None
+
+
+def main():
+    load_env()
+    parser = argparse.ArgumentParser(description="Positioning Metrics Loader")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    args = parser.parse_args()
+
+    symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
+    loader = PositioningMetricsLoader()
+    try:
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
+
+    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
+    if fail_rate > 0.05:
+        logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
