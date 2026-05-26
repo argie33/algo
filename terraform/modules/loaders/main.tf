@@ -174,6 +174,7 @@ locals {
     "market_health_daily"           = "load_market_health_daily.py"
     "swing_trader_scores"           = "load_swing_trader_scores.py"
     "eod_bulk_refresh"              = "load_stock_prices_daily.py"
+    "fred_economic_data"            = "load_fred_economic_data.py"
   }
 
   scheduled_loaders = {
@@ -440,6 +441,9 @@ locals {
     "feargreed"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "aaiidata"     = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "naaim_data"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+
+    # FRED macro data — small API calls, 5 time series from FRED API
+    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
     "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }

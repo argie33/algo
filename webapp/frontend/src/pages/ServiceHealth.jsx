@@ -154,8 +154,6 @@ export default function ServiceHealth() {
                   <thead>
                     <tr>
                       <th>Table</th>
-                      <th>Role</th>
-                      <th>Freq</th>
                       <th className="num">Latest</th>
                       <th className="num">Age</th>
                       <th className="num">Rows</th>
@@ -165,12 +163,10 @@ export default function ServiceHealth() {
                   <tbody>
                     {sources.map((s, i) => (
                       <tr key={i}>
-                        <td><span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{s.table}</span></td>
-                        <td className="muted t-xs">{(s.role || '').split(':')[0]}</td>
-                        <td className="muted t-xs">{s.frequency}</td>
-                        <td className="num mono t-xs">{s.latest ? String(s.latest).slice(0, 10) : '—'}</td>
-                        <td className={`num mono ${s.age_days > 7 ? 'down' : ''}`}>{s.age_days != null ? `${s.age_days}d` : '—'}</td>
-                        <td className="num mono t-xs muted">{s.rows ? Number(s.rows).toLocaleString('en-US') : '—'}</td>
+                        <td><span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{s.name}</span></td>
+                        <td className="num mono t-xs">{s.last_updated ? String(s.last_updated).slice(0, 10) : '—'}</td>
+                        <td className={`num mono ${s.age_hours > 168 ? 'down' : ''}`}>{s.age_hours != null ? `${s.age_hours}h` : '—'}</td>
+                        <td className="num mono t-xs muted">{s.row_count ? Number(s.row_count).toLocaleString('en-US') : '—'}</td>
                         <td>
                           <span className={`badge ${STATUS_VARIANT[s.status] || 'badge'}`}>{(s.status || '').toUpperCase()}</span>
                         </td>
@@ -217,22 +213,22 @@ export default function ServiceHealth() {
             <div className="grid grid-4">
               <div className="stile">
                 <div className="stile-label">Last Run</div>
-                <div className="stile-value">{status.last_run_at ? fmtAgo(status.last_run_at) : '—'}</div>
-                <div className="stile-sub">{status.last_run_id || '—'}</div>
+                <div className="stile-value">{status.last_run ? fmtAgo(status.last_run) : '—'}</div>
+                <div className="stile-sub">{status.run_id || '—'}</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Status</div>
-                <div className={`stile-value ${status.last_run_status === 'success' ? 'up' : 'down'}`}>
-                  {(status.last_run_status || 'UNKNOWN').toUpperCase()}
+                <div className={`stile-value ${status.status === 'success' ? 'up' : 'down'}`}>
+                  {(status.status || 'UNKNOWN').toUpperCase()}
                 </div>
               </div>
               <div className="stile">
-                <div className="stile-label">Execution Mode</div>
-                <div className="stile-value">{status.execution_mode || '—'}</div>
+                <div className="stile-label">Current Phase</div>
+                <div className="stile-value">{status.current_phase || '—'}</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Open Positions</div>
-                <div className="stile-value">{status.open_positions ?? '—'}</div>
+                <div className="stile-value">{status.portfolio?.open_positions ?? '—'}</div>
               </div>
             </div>
           ) : <Empty title="No status yet" desc="Algo orchestrator hasn't reported a run." />}
@@ -258,8 +254,8 @@ function FindingRow({ finding }) {
       <div className="flex items-center gap-3">
         {icon}
         <span className={`badge ${variant}`}>{sev}</span>
-        <span className="strong t-sm" style={{ fontWeight: 'var(--w-semibold)' }}>{finding.check_type || finding.type}</span>
-        {finding.target && <span className="muted t-xs">· {finding.target}</span>}
+        <span className="strong t-sm" style={{ fontWeight: 'var(--w-semibold)' }}>{finding.check_name}</span>
+        {finding.target_table && <span className="muted t-xs">· {finding.target_table}</span>}
         <span className="t-xs faint mono" style={{ marginLeft: 'auto' }}>{fmtAgo(finding.created_at)}</span>
       </div>
       <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>{finding.message}</div>
