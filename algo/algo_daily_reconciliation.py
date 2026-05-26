@@ -425,7 +425,7 @@ class DailyReconciliation:
                 ))
                 imported += 1
             except Exception as e:
-                logger.info(f"  Failed to import {sym}: {e}")
+                logger.warning(f"  Failed to import {sym}: {e}")
                 self.conn.rollback()
 
         # Find orphans (in our DB but not Alpaca)
@@ -440,15 +440,15 @@ class DailyReconciliation:
                 # Alert: position missing from Alpaca
                 try:
                     notify(
-                        kind='position_drift',
                         severity='critical',
                         title='CRITICAL: Position Drift Detected',
                         message=f'{sym} shows as open in DB but not found in Alpaca. '
                                 f'May indicate liquidation or external closure.',
+                        symbol=sym,
                         details={'symbol': sym, 'drift_type': 'orphaned_in_db'},
                     )
                 except Exception as e:
-                    logger.info(f"  Warning: Could not send orphan alert: {e}")
+                    logger.warning(f"  Could not send orphan alert: {e}")
 
         self.conn.commit()
         return {
