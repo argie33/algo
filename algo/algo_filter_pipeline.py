@@ -396,9 +396,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             try:
                 from algo.algo_regime_manager import RegimeManager
                 regime_mgr = RegimeManager()
-                regime_params = regime_mgr.get_regime_params(signal_date)
+                regime_params = regime_mgr.get_regime_params(eval_date)
                 min_swing_score = regime_params.get('min_swing_score', min_swing_score)
-                regime = regime_mgr.get_current_regime(signal_date)
+                regime = regime_mgr.get_current_regime(eval_date)
                 logger.info(f"Regime: {regime}, min_swing_score threshold: {min_swing_score}")
             except Exception as e:
                 logger.debug(f"Could not load regime min_swing_score: {e}. Using config default {min_swing_score}.")

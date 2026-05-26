@@ -7,6 +7,8 @@ Default: ±7 days from earnings date is a blackout period.
 
 from config.credential_helper import get_db_config, get_db_password
 import os
+import psycopg2
+import psycopg2.errors
 from utils.db_connection import get_db_connection
 from pathlib import Path
 from datetime import datetime, timedelta, date as _date
