@@ -92,6 +92,7 @@ venv*/
 *.py[cod]
 
 # Screenshots (local dev / review only — not source code)
+screenshots/
 webapp/frontend/screenshots/*.png
 webapp/frontend/screenshots/*.jpg
 webapp/frontend/screenshots/*.webp
