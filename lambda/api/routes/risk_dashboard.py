@@ -195,9 +195,9 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
                 'rationale': rationale,
                 'position_size_multiplier': {
                     'confirmed_uptrend': 1.0,
-                    'uptrend_under_pressure': 0.6,
-                    'caution': 0.3,
-                    'correction': 0.2,
+                    'uptrend_under_pressure': 0.75,
+                    'caution': 0.50,
+                    'correction': 0.0,
                 }.get(tier.lower() if tier else '', 1.0),
             }
     except Exception:

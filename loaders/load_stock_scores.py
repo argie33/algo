@@ -378,9 +378,9 @@ class StockScoresLoader(OptimalLoader):
             scores.append(pe_score)
 
         # Dividend yield: higher is better (target 2%+)
-        # Note: yfinance returns dividendYield already in percent (e.g., 2.29 = 2.29%)
+        # yfinance returns dividendYield as decimal fraction (0.0229 = 2.29%); convert to percent
         if metrics.get('dividend_yield'):
-            div = min(metrics['dividend_yield'], 5)  # Already percent, cap at 5%
+            div = min(metrics['dividend_yield'] * 100, 5)  # Decimal → percent, cap at 5%
             scores.append(min(100, div * 20))
 
         return sum(scores) / len(scores) if scores else None
