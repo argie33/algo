@@ -231,9 +231,9 @@ def _get_yield_curve_full(cur) -> Dict:
                 elif sid == 'DGS30':
                     current_curve['30Y'] = val
                 elif sid == 'T10Y3M':
-                    spreads['T10Y3M'] = val / 100 if val else None
+                    spreads['T10Y3M'] = val
                 elif sid == 'T10Y2Y':
-                    spreads['T10Y2Y'] = val / 100 if val else None
+                    spreads['T10Y2Y'] = val
                     is_inverted = (val < 0) if val else False
 
             # Add history for spreads

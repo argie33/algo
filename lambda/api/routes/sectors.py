@@ -182,6 +182,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         'stability_score': float(s.get('stability_score') or 0),
                         'current_momentum': momentum_label,
                         'current_trend': trend_label,
+                        'performance_20d': perf20d,
                         'pe': {
                             'trailing': float(s.get('avg_trailing_pe') or 0),
                             'pb_ratio': float(s.get('avg_pb_ratio') or 0),
