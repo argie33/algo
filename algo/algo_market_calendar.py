@@ -33,9 +33,21 @@ US_HOLIDAYS = {
     _date(2026, 9, 7): "Labor Day",
     _date(2026, 11, 26): "Thanksgiving",
     _date(2026, 12, 25): "Christmas",
+    # 2027
+    _date(2027, 1, 1): "New Year's Day",
+    _date(2027, 1, 18): "MLK Jr. Day",
+    _date(2027, 2, 15): "Presidents' Day",
+    _date(2027, 4, 2): "Good Friday",
+    _date(2027, 5, 31): "Memorial Day",
+    _date(2027, 6, 18): "Juneteenth (observed)",  # Jun 19 is Saturday
+    _date(2027, 7, 5): "Independence Day (observed)",  # Jul 4 is Sunday
+    _date(2027, 9, 6): "Labor Day",
+    _date(2027, 11, 25): "Thanksgiving",
+    _date(2027, 12, 24): "Christmas (observed)",  # Dec 25 is Saturday
+    _date(2027, 12, 31): "New Year's Day 2028 (observed)",  # Jan 1 2028 is Saturday
 }
 
-# Days with early closes (3:00 PM instead of 4:00 PM ET)
+# Days with early closes (1:00 PM instead of 4:00 PM ET)
 EARLY_CLOSES = {
     _date(2025, 7, 3): "Day before Independence Day",
     _date(2025, 11, 28): "Day after Thanksgiving",
@@ -43,6 +55,8 @@ EARLY_CLOSES = {
     _date(2026, 7, 2): "Day before Independence Day",
     _date(2026, 11, 27): "Day after Thanksgiving",
     _date(2026, 12, 24): "Christmas Eve",
+    # 2027
+    _date(2027, 11, 26): "Day after Thanksgiving",
 }
 
 

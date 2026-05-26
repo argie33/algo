@@ -866,8 +866,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
     def _check_rs_line_strength(self, symbol, signal_date) -> Dict[str, Any]:
         """Minervini rule: RS-line (stock vs SPY) should be strong (at/near new highs).
 
-        Checks if the 60-day RS-line (stock close / SPY close) is within 5% of its
-        52-week high. If RS-line is weak/broken, it's a warning even if price looks good.
+        Checks if the 60-day RS-line (stock close / SPY close) is within the configured
+        threshold of its 60-day peak. Uses a 60-day reference window (not 52-week) so
+        recent relative strength matters more than a stale prior-year high.
+        If RS-line is weak/broken, it's a warning even if price looks good.
         """
         try:
             self.cur.execute(

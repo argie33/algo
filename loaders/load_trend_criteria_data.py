@@ -39,9 +39,30 @@ class TrendCriteriaLoader(OptimalLoader):
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
 
+        # When since is None (e.g. first call after an ECS task restart), read the actual
+        # DB max date to skip recomputing years of already-loaded history. Without this,
+        # every ECS run would re-fetch 2 years × all symbols — matching the fix applied to
+        # MarketHealthDailyLoader in commit 97230793b.
+        if since is None:
+            try:
+                conn = self._connect()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT MAX(date) FROM trend_template_data WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                cur.close()
+                if row and row[0]:
+                    since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+            except Exception as e:
+                logger.warning(f"Could not read trend_template_data watermark for {symbol}: {e}")
+
         if since is None:
             start = end - timedelta(days=2 * 365)
         else:
+            # Keep 300-day lookback so moving averages (50d, 150d, 200d) are warm before
+            # the incremental window starts — avoids NaN MAs at the boundary.
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)

@@ -527,9 +527,14 @@ class CircuitBreaker:
         }
 
     def _check_intraday_market_health(self, current_date: Any) -> Dict[str, Any]:
-        """Intraday check: has SPY dropped >2% from yesterday's close (market crash)?
+        """Prior-day market drop check: did SPY fall >2% yesterday?
 
-        Unlike EOD circuit breakers, this catches intraday crashes early.
+        The orchestrator runs pre-market (9:30 AM ET). price_daily contains yesterday's
+        EOD prices, so the two most recent rows are yesterday vs the day before. This
+        checks the prior day's return, not a live intraday reading. Blocking on a >2%
+        decline yesterday is intentional: entering new swing positions the morning after
+        a significant sell-off is poor risk management (Minervini: wait for market to
+        stabilize before adding exposure).
         """
         try:
             self.cur.execute(
@@ -551,25 +556,26 @@ class CircuitBreaker:
             if not latest or not prior or prior <= 0:
                 return {'halted': False, 'reason': 'Invalid price data'}
 
-            intraday_change = ((latest - prior) / prior * 100.0)
+            prior_day_change = ((latest - prior) / prior * 100.0)
 
-            # Halt if down >2% from yesterday's close (market crash level)
-            if intraday_change <= -2.0:
+            # Halt if SPY dropped >2% yesterday — significant sell-off, wait for stability
+            if prior_day_change <= -2.0:
                 return {
                     'halted': True,
-                    'reason': f'Market down {intraday_change:.2f}% (intraday crash)',
-                    'market_change_pct': round(intraday_change, 2),
+                    'reason': f'Market down {prior_day_change:.2f}% yesterday (await stability)',
+                    'market_change_pct': round(prior_day_change, 2),
                 }
 
             return {
                 'halted': False,
-                'reason': f'SPY {intraday_change:+.2f}%',
-                'market_change_pct': round(intraday_change, 2),
+                'reason': f'SPY prior day {prior_day_change:+.2f}%',
+                'market_change_pct': round(prior_day_change, 2),
             }
         except Exception as e:
-            logger.debug(f'Intraday check failed: {e}')
-            # FAIL-CLOSED: If market health check fails, default to halting (safety-first)
-            return {'halted': True, 'reason': f'Intraday check error (fail-safe): {e}'}
+            logger.debug(f'Prior-day market health check failed: {e}')
+            # Fail-open on data errors — this is an observational check, not a core gate.
+            # Core gates (Phase 1 freshness, CB drawdown, VIX) handle true safety halts.
+            return {'halted': False, 'reason': f'Prior-day check skipped (data error): {e}'}
 
     def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
         """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""
