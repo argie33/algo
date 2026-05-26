@@ -35,7 +35,7 @@ class SwingTraderScoresLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Compute swing trader scores from signal_quality_scores (has real quality data)."""
+        """Compute swing trader scores from signal_quality_scores."""
         from algo.algo_market_calendar import MarketCalendar
 
         try:
@@ -57,21 +57,10 @@ class SwingTraderScoresLoader(OptimalLoader):
             try:
                 with conn.cursor() as cur:
                     # Get signal quality scores for this symbol
-                    # signal_quality_scores table has actual composite_sqs (0-100 scale)
-                    # computed by filter pipeline with real signal quality data
+                    # signal_quality_scores table has composite_sqs (0-100 scale)
+                    # Note: Only composite_sqs is populated by load_signal_quality_scores
                     cur.execute("""
-                        SELECT
-                            symbol, date,
-                            COALESCE(trend_template_score, 0) as trend_template_score,
-                            COALESCE(base_quality_score, 0) as base_quality_score,
-                            COALESCE(volume_confirmation_score, 0) as volume_confirmation_score,
-                            COALESCE(distance_from_high_score, 0) as distance_from_high_score,
-                            COALESCE(institutional_ownership_score, 0) as institutional_ownership_score,
-                            COALESCE(market_stage_score, 0) as market_stage_score,
-                            COALESCE(vcp_pattern_score, 0) as vcp_pattern_score,
-                            COALESCE(distribution_days_score, 0) as distribution_days_score,
-                            COALESCE(earnings_proximity_score, 0) as earnings_proximity_score,
-                            COALESCE(composite_sqs, 0) as composite_sqs
+                        SELECT symbol, date, COALESCE(composite_sqs, 0) as composite_sqs
                         FROM signal_quality_scores
                         WHERE symbol = %s AND date >= %s AND date <= %s
                         ORDER BY date ASC
@@ -98,25 +87,17 @@ class SwingTraderScoresLoader(OptimalLoader):
     def _compute_swing_score(self, symbol: str, signal_data: tuple) -> Optional[List[Dict]]:
         """Compute swing trader score from signal quality scores.
 
-        Input: (symbol, date, trend_template_score, base_quality_score, volume_confirmation_score,
-                distance_from_high_score, institutional_ownership_score, market_stage_score,
-                vcp_pattern_score, distribution_days_score, earnings_proximity_score, composite_sqs)
-
-        composite_sqs is already 0-100 scale from filter pipeline.
+        Input: (symbol, date, composite_sqs)
+        composite_sqs is already 0-100 scale from load_signal_quality_scores.
         """
         if not signal_data:
             return None
 
         try:
-            # Unpack all 12 columns from signal_quality_scores
-            (symbol, date,
-             trend_template_score, base_quality_score, volume_confirmation_score,
-             distance_from_high_score, institutional_ownership_score, market_stage_score,
-             vcp_pattern_score, distribution_days_score, earnings_proximity_score,
-             composite_sqs) = signal_data
+            # Unpack 3 columns: symbol, date, composite_sqs
+            symbol, date, composite_sqs = signal_data
 
-            # composite_sqs is already 0-100 score from filter pipeline
-            # which incorporates: trend template, base quality, volume, distance from high, etc.
+            # composite_sqs is already 0-100 score
             composite_score = float(composite_sqs or 0)
 
             # Determine grade based on composite score
@@ -140,15 +121,6 @@ class SwingTraderScoresLoader(OptimalLoader):
                 'components': json.dumps({
                     'grade': grade,
                     'composite_sqs': round(composite_score, 1),
-                    'trend_template': round(trend_template_score, 1),
-                    'base_quality': round(base_quality_score, 1),
-                    'volume_confirmation': round(volume_confirmation_score, 1),
-                    'distance_from_high': round(distance_from_high_score, 1),
-                    'institutional': round(institutional_ownership_score, 1),
-                    'market_stage': round(market_stage_score, 1),
-                    'vcp_pattern': round(vcp_pattern_score, 1),
-                    'distribution_days': round(distribution_days_score, 1),
-                    'earnings_proximity': round(earnings_proximity_score, 1),
                 })
             }]
         except Exception as e:
