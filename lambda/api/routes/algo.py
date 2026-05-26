@@ -836,7 +836,7 @@ def _get_sector_breadth(cur) -> Dict:
                         AVG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW) AS ma_50,
                         AVG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW) AS ma_200
                     FROM price_daily pd
-                    WHERE pd.date >= (SELECT date FROM latest_date) - INTERVAL '200 days'
+                    WHERE pd.date >= (SELECT date FROM latest_date) - INTERVAL '290 days'
                 ),
                 sector_ma AS (
                     SELECT

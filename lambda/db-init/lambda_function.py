@@ -171,6 +171,15 @@ def lambda_handler(event, context):
             except Exception as e:
                 logger.info(f"MACD columns may already exist on {table}: {e}")
 
+        # Add historical rank columns to industry_ranking (idempotent)
+        try:
+            cursor.execute("ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER")
+            cursor.execute("ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_4w_ago INTEGER")
+            cursor.execute("ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_12w_ago INTEGER")
+            logger.info("Added historical rank columns to industry_ranking")
+        except Exception as e:
+            logger.info(f"industry_ranking history columns may already exist: {e}")
+
         sql_script = ''
         try:
             with open('schema.sql', 'r') as f:

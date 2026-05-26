@@ -314,12 +314,12 @@ class DailyReconciliation:
 
             # Import this Alpaca position as a manual/external one
             try:
-                qty = float(ap.get('qty', 0))
-                avg_entry = float(ap.get('avg_entry_price', 0))
-                cur_price = float(ap.get('current_price', avg_entry))
-                pos_value = float(ap.get('market_value', qty * cur_price))
-                pnl = float(ap.get('unrealized_pl', 0))
-                pnl_pct = float(ap.get('unrealized_plpc', 0)) * 100
+                qty = float(getattr(ap, 'qty', 0) or 0)
+                avg_entry = float(getattr(ap, 'avg_entry_price', 0) or 0)
+                cur_price = float(getattr(ap, 'current_price', None) or avg_entry)
+                pos_value = float(getattr(ap, 'market_value', None) or qty * cur_price)
+                pnl = float(getattr(ap, 'unrealized_pl', 0) or 0)
+                pnl_pct = float(getattr(ap, 'unrealized_plpc', 0) or 0) * 100
 
                 if qty <= 0:
                     continue  # short or zero — skip
