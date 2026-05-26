@@ -75,15 +75,19 @@ class StockScoresLoader(OptimalLoader):
             cur.close()
             conn.close()
 
-            # Count data completeness BEFORE scoring
-            data_count = sum([
-                1 if quality else 0,
-                1 if growth else 0,
-                1 if value else 0,
-                1 if positioning else 0,
-                1 if stability else 0,
-                1 if momentum else 0,
-            ])
+            # Compute individual factor scores from REAL data only (no defaults)
+            # Scoring functions return None if metrics dict exists but has all NULL values
+            quality_score = self._score_quality(quality)
+            growth_score = self._score_growth(growth)
+            value_score = self._score_value(value)
+            positioning_score = self._score_positioning(positioning)
+            stability_score = self._score_stability(stability)
+            momentum_score = self._score_momentum(momentum)
+
+            # Count data completeness: only non-None scores count as "real data"
+            # (ignores empty rows with all NULLs which return None from scoring functions)
+            real_scores = [s for s in [quality_score, growth_score, value_score, positioning_score, stability_score, momentum_score] if s is not None]
+            data_count = len(real_scores)
             data_completeness = round((data_count / 6.0) * 100, 2)
 
             # SKIP stocks without sufficient real data (require >=50% completeness = 3+ metrics)
@@ -92,21 +96,8 @@ class StockScoresLoader(OptimalLoader):
                 logger.debug(f"{symbol}: insufficient data ({data_count}/6 metrics, {data_completeness:.0f}% complete) - skipping")
                 return None
 
-            # Compute individual factor scores from REAL data only (no defaults)
-            quality_score = self._score_quality(quality)
-            growth_score = self._score_growth(growth)
-            value_score = self._score_value(value)
-            positioning_score = self._score_positioning(positioning)
-            stability_score = self._score_stability(stability)
-            momentum_score = self._score_momentum(momentum)
-
-            # Verify all scores are real (not None)
-            all_scores = [quality_score, growth_score, value_score, positioning_score, stability_score, momentum_score]
-            if any(s is None for s in all_scores):
-                logger.debug(f"{symbol}: score computation returned None for some factors - skipping")
-                return None
-
-            # Compute weighted composite score (0-100), ensure all inputs are clamped
+            # Compute weighted composite score, using only real factors
+            # Replace None with mean of non-None factors to weight correctly
             weights = {
                 'quality': 0.25,
                 'growth': 0.20,
@@ -116,13 +107,20 @@ class StockScoresLoader(OptimalLoader):
                 'momentum': 0.08,
             }
 
-            # Clamp all factor scores to 0-100 range before weighting
-            quality_score = max(0, min(100, quality_score))
-            growth_score = max(0, min(100, growth_score))
-            value_score = max(0, min(100, value_score))
-            positioning_score = max(0, min(100, positioning_score))
-            stability_score = max(0, min(100, stability_score))
-            momentum_score = max(0, min(100, momentum_score))
+            # Replace None scores with mean of non-None scores for weighting
+            real_scores = [s for s in [quality_score, growth_score, value_score, positioning_score, stability_score, momentum_score] if s is not None]
+            if not real_scores:
+                return None  # No real data at all
+
+            mean_score = sum(real_scores) / len(real_scores)
+
+            # Clamp all factor scores to 0-100 range, using mean for None values
+            quality_score = max(0, min(100, quality_score if quality_score is not None else mean_score))
+            growth_score = max(0, min(100, growth_score if growth_score is not None else mean_score))
+            value_score = max(0, min(100, value_score if value_score is not None else mean_score))
+            positioning_score = max(0, min(100, positioning_score if positioning_score is not None else mean_score))
+            stability_score = max(0, min(100, stability_score if stability_score is not None else mean_score))
+            momentum_score = max(0, min(100, momentum_score if momentum_score is not None else mean_score))
 
             composite_score = round(
                 quality_score * weights['quality'] +
