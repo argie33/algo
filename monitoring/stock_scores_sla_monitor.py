@@ -2,7 +2,7 @@
 """SLA Monitoring for Stock Scores - Track 99.95% coverage goal.
 
 Checks:
-1. Total stocks with scores (target: 10,169+)
+1. Total stocks with scores (target: 99.95% of active universe)
 2. Average data completeness (target: 60%+)
 3. Freshness of price data (must be from the most recent trading day)
 4. Score distribution (reasonable spread across stocks)
@@ -20,7 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # SLA THRESHOLDS
-MIN_STOCKS_WITH_SCORES = 10_169      # 99.95% of 10,172
+COVERAGE_SLA_PCT = 0.9995            # 99.95% of actual stock universe
 MIN_AVG_COMPLETENESS = 60.0          # Average data completeness %
 
 class StockScoresSLAMonitor:
@@ -34,18 +34,18 @@ class StockScoresSLAMonitor:
         cur.execute('SELECT COUNT(*) FROM stock_scores WHERE composite_score > 0')
         scored = cur.fetchone()[0]
         cur.execute('SELECT COUNT(*) FROM stock_symbols')
-        total = cur.fetchone()[0] or 10_172  # fallback if table is empty
+        total = cur.fetchone()[0] or 1
         cur.close()
 
         pct = scored * 100 / total if total else 0
-        target_count = round(total * 0.9995)  # 99.95% of actual universe
-        status = 'PASS' if scored >= MIN_STOCKS_WITH_SCORES else 'FAIL'
+        target_count = round(total * COVERAGE_SLA_PCT)
+        status = 'PASS' if scored >= target_count else 'FAIL'
         print(f'[{status}] Coverage: {scored:,}/{total:,} stocks ({pct:.2f}%) target={target_count:,}')
 
-        if scored < MIN_STOCKS_WITH_SCORES:
-            self.alerts.append(f'CRITICAL: Stock coverage below SLA ({scored:,} vs target {MIN_STOCKS_WITH_SCORES:,})')
+        if scored < target_count:
+            self.alerts.append(f'CRITICAL: Stock coverage below SLA ({scored:,} vs target {target_count:,} = {COVERAGE_SLA_PCT*100:.2f}%)')
 
-        return scored >= MIN_STOCKS_WITH_SCORES
+        return scored >= target_count
 
     def check_completeness(self):
         """Check: Average data completeness >= 60%?"""
