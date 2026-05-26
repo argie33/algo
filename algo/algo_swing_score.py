@@ -726,7 +726,7 @@ class SwingTraderScore:
                     """
                     WITH d AS (
                         SELECT date, volume,
-                               AVG(volume) OVER (ORDER BY date ROWS BETWEEN 49 PRECEDING AND 1 PRECEDING) AS avg50
+                               AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg50
                         FROM price_daily WHERE symbol = %s AND date <= %s
                         ORDER BY date DESC LIMIT 1
                     )
@@ -803,7 +803,7 @@ class SwingTraderScore:
             """
             WITH d AS (
                 SELECT date, volume,
-                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 49 PRECEDING AND 1 PRECEDING) AS avg50
+                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg50
                 FROM price_daily WHERE symbol = %s AND date <= %s
                 ORDER BY date DESC LIMIT 1
             )
@@ -834,7 +834,7 @@ class SwingTraderScore:
             WITH d AS (
                 SELECT date, close, volume,
                        LAG(close) OVER (ORDER BY date) AS prev_close,
-                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 49 PRECEDING AND 1 PRECEDING) AS avg50
+                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg50
                 FROM price_daily WHERE symbol = %s AND date <= %s
                   AND date >= %s::date - INTERVAL '40 days'
             )

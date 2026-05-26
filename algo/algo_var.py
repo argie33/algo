@@ -272,10 +272,8 @@ class PortfolioRisk:
 
             cur.execute(
                 """
-                SELECT ap.symbol, ap.quantity, ap.current_price, at.entry_price
+                SELECT ap.symbol, ap.quantity, ap.current_price, ap.avg_entry_price AS entry_price
                 FROM algo_positions ap
-                LEFT JOIN algo_trades at ON at.symbol = ap.symbol
-                    AND at.status IN ('open', 'partial')
                 WHERE ap.status = 'open'
                 """
             )
@@ -396,11 +394,10 @@ class PortfolioRisk:
 
             cur.execute(
                 """
-                SELECT ap.symbol, ap.quantity, ap.current_price, at.entry_price,
-                       at.sector, at.industry
+                SELECT ap.symbol, ap.quantity, ap.current_price, ap.avg_entry_price AS entry_price,
+                       cp.sector, cp.industry
                 FROM algo_positions ap
-                LEFT JOIN algo_trades at ON at.symbol = ap.symbol
-                    AND at.status IN ('open', 'partial')
+                LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
                 WHERE ap.status = 'open'
                 ORDER BY ap.position_value DESC
                 """

@@ -128,8 +128,11 @@ All credentials rotate on fixed schedules. Update locally when rotated:
 | RDS database password | Quarterly | Manual: `terraform apply` with new password → redeploy Lambdas | Lambda env auto-updated |
 
 **Rotation reminder:** Q1=February, Q2=May, Q3=August, Q4=November
+- Automatic reminder runs first Monday of each quarter at 02:30 UTC (`.github/workflows/credential-rotation-reminder.yml`)
+- Creates actionable checklist in GitHub Actions workflow summary
+- All team members should receive summary in their notification settings
 
-**If a credential is leaked:** Rotate immediately (don't wait for quarterly schedule). For AWS keys, delete old key in IAM console and trigger `rotate-dev-credentials.yml`. For API keys, regenerate in dashboard immediately.
+**If a credential is leaked:** Rotate immediately (don't wait for quarterly schedule). For AWS keys, delete old key in IAM console and trigger `rotate-dev-credentials.yml`. For API keys, regenerate in dashboard immediately and update GitHub Secrets.
 
 ## DEPLOYMENT ARCHITECTURE
 

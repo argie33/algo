@@ -78,7 +78,8 @@ class PositionMonitor:
                 logger.info(f"\n  [ALERT] Found {len(stale_orders)} orders pending >1 hour:")
                 for row in stale_orders:
                     trade_id, symbol, price, qty, created_at = row
-                    age_minutes = int((datetime.now() - created_at).total_seconds() / 60)
+                    created_at_naive = created_at.replace(tzinfo=None) if getattr(created_at, 'tzinfo', None) else created_at
+                    age_minutes = int((datetime.utcnow() - created_at_naive).total_seconds() / 60)
                     logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
                 return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
             else:

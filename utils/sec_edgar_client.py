@@ -948,8 +948,17 @@ class SecEdgarClient:
         import random
         max_retries = 8
         for attempt in range(max_retries):
-            self._rate_limiter.wait()
-            resp = self._session.get(url, timeout=self.timeout)
+            try:
+                self._rate_limiter.wait()
+                resp = self._session.get(url, timeout=self.timeout)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt < max_retries - 1:
+                    wait_time = 4 * (2 ** attempt) + random.uniform(0, 2)
+                    log.warning(f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s")
+                    time.sleep(wait_time)
+                    continue
+                log.error(f"SEC API network error after {max_retries} retries: {e}")
+                return {}
 
             # 404 means the data doesn't exist
             if resp.status_code == 404:

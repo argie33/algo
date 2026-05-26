@@ -288,18 +288,22 @@ class ExitEngine:
                 'new_stop': entry_price,
             }
 
-        # 6. T3 — exits the rest at 4R (final target, no pullback needed)
-        # Note: T3 is the final exit target, so we exit immediately without waiting for pullback
-        # This differs from T1/T2 which require confirmation to avoid over-trading
-        if t3_price is not None and cur_price >= t3_price and target_hits < 3:
-            return {
-                'stage': 'target_3',
-                'fraction': 1.0,
-                'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT',
-            }
+        # 6-8. Tiered target exits — must scale sequentially T1 → T2 → T3
+        # target_hits: 0=no targets, 1=T1 hit, 2=T1+T2 hit, 3=all hit
+        # This ensures we scale out properly instead of jumping to final exit
 
-        # 7. T2 — exit 50% of remaining (= 25% of original) on pullback; trail stop to T1
-        if t2_price is not None and cur_price >= t2_price and target_hits < 2:
+        # First check T1 if it hasn't been hit yet
+        if target_hits == 0 and t1_price is not None and cur_price >= t1_price:
+            if self._is_pulling_back(symbol, current_date):
+                return {
+                    'stage': 'target_1',
+                    'fraction': 0.50,
+                    'reason': f'T1 pullback exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)',
+                    'new_stop': max(active_stop, entry_price),
+                }
+
+        # Then check T2 only if T1 already hit
+        if target_hits == 1 and t2_price is not None and cur_price >= t2_price:
             if self._is_pulling_back(symbol, current_date):
                 stop_for_t2 = max(active_stop, t1_price) if t1_price is not None else active_stop
                 return {
@@ -309,15 +313,13 @@ class ExitEngine:
                     'new_stop': stop_for_t2,
                 }
 
-        # 8. T1 — exit 50% on pullback; raise stop to entry (breakeven)
-        if t1_price is not None and cur_price >= t1_price and target_hits < 1:
-            if self._is_pulling_back(symbol, current_date):
-                return {
-                    'stage': 'target_1',
-                    'fraction': 0.50,
-                    'reason': f'T1 pullback exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)',
-                    'new_stop': max(active_stop, entry_price),
-                }
+        # Finally check T3 only if T1 and T2 already hit
+        if target_hits == 2 and t3_price is not None and cur_price >= t3_price:
+            return {
+                'stage': 'target_3',
+                'fraction': 1.0,
+                'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT',
+            }
 
         # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
         # Switches to 21-EMA trail after 10 days for tighter management

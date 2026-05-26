@@ -56,6 +56,51 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY pe_ratio) AS market_median_pe
                     FROM value_metrics
                     WHERE pe_ratio > 0 AND pe_ratio < 200
+                ),
+                income_ranked AS (
+                    SELECT symbol, fiscal_year, gross_profit, revenue, operating_income, net_income,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_income_statement
+                ),
+                balance_ranked AS (
+                    SELECT symbol, stockholders_equity,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_balance_sheet
+                ),
+                margin_data AS (
+                    SELECT
+                        cur.symbol,
+                        CASE WHEN cur.revenue > 0 AND cur.gross_profit IS NOT NULL
+                             THEN cur.gross_profit / cur.revenue * 100 END AS gross_margin_pct,
+                        CASE WHEN cur.revenue > 0 AND cur.operating_income IS NOT NULL
+                             THEN cur.operating_income / cur.revenue * 100 END AS op_margin_cur,
+                        CASE WHEN pri.revenue > 0 AND pri.operating_income IS NOT NULL
+                             THEN pri.operating_income / pri.revenue * 100 END AS op_margin_pri,
+                        CASE WHEN cur.revenue > 0 AND cur.gross_profit IS NOT NULL
+                             THEN cur.gross_profit / cur.revenue * 100 END AS gross_margin_cur,
+                        CASE WHEN pri.revenue > 0 AND pri.gross_profit IS NOT NULL
+                             THEN pri.gross_profit / pri.revenue * 100 END AS gross_margin_pri,
+                        CASE WHEN be.stockholders_equity > 0 AND cur.net_income IS NOT NULL
+                             THEN cur.net_income / be.stockholders_equity * 100 END AS roe_cur,
+                        CASE WHEN bp.stockholders_equity > 0 AND pri.net_income IS NOT NULL
+                             THEN pri.net_income / bp.stockholders_equity * 100 END AS roe_pri
+                    FROM income_ranked cur
+                    LEFT JOIN income_ranked pri ON pri.symbol = cur.symbol AND pri.rn = 2
+                    LEFT JOIN balance_ranked be ON be.symbol = cur.symbol AND be.rn = 1
+                    LEFT JOIN balance_ranked bp ON bp.symbol = cur.symbol AND bp.rn = 2
+                    WHERE cur.rn = 1
+                ),
+                fcf_data AS (
+                    SELECT symbol,
+                           MAX(CASE WHEN rn = 1 THEN free_cash_flow END) AS fcf_cur,
+                           MAX(CASE WHEN rn = 2 THEN free_cash_flow END) AS fcf_pri
+                    FROM (
+                        SELECT symbol, free_cash_flow,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
+                        FROM annual_cash_flow
+                        WHERE free_cash_flow IS NOT NULL
+                    ) t
+                    GROUP BY symbol
                 )
                 SELECT
                     ss.symbol,
@@ -77,7 +122,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     vm.dividend_yield,
                     ROUND(qm.roe::numeric, 2) AS roe_pct,
                     ROUND(qm.operating_margin::numeric, 2) AS op_margin_pct,
-                    NULL::numeric AS gross_margin_pct,
+                    ROUND(md.gross_margin_pct::numeric, 2) AS gross_margin_pct,
                     ROUND(qm.net_margin::numeric, 2) AS net_margin_pct,
                     ROUND(qm.roa::numeric, 2) AS roa_pct,
                     qm.debt_to_equity,
@@ -96,11 +141,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     ROUND(gm.revenue_growth_3y::numeric, 2) AS revenue_growth_3y_pct,
                     ROUND(gm.eps_growth_3y::numeric, 2) AS eps_growth_3y_pct,
                     ROUND(gm.revenue_growth_1y::numeric, 2) AS revenue_growth_yoy_pct,
-                    NULL::numeric AS fcf_growth_yoy_pct,
+                    ROUND(((fg.fcf_cur - fg.fcf_pri) / NULLIF(ABS(fg.fcf_pri), 0) * 100)::numeric, 2) AS fcf_growth_yoy_pct,
                     NULL::numeric AS sustainable_growth_pct,
-                    NULL::numeric AS op_margin_trend_pp,
-                    NULL::numeric AS gross_margin_trend_pp,
-                    NULL::numeric AS roe_trend_pp
+                    ROUND((md.op_margin_cur - md.op_margin_pri)::numeric, 2) AS op_margin_trend_pp,
+                    ROUND((md.gross_margin_cur - md.gross_margin_pri)::numeric, 2) AS gross_margin_trend_pp,
+                    ROUND((md.roe_cur - md.roe_pri)::numeric, 2) AS roe_trend_pp
                 FROM stock_symbols ss
                 LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
                 LEFT JOIN key_metrics km ON km.symbol = ss.symbol
@@ -112,6 +157,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 LEFT JOIN growth_metrics gm ON gm.symbol = ss.symbol
                 LEFT JOIN stock_scores sc ON sc.symbol = ss.symbol
                 LEFT JOIN sector_medians sm ON sm.sector = cp.sector
+                LEFT JOIN margin_data md ON md.symbol = ss.symbol
+                LEFT JOIN fcf_data fg ON fg.symbol = ss.symbol
                 CROSS JOIN market_median mm
                 WHERE ss.symbol NOT LIKE '^%%'
                 ORDER BY generational_score DESC NULLS LAST
