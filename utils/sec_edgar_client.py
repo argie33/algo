@@ -841,7 +841,16 @@ class SecEdgarClient:
             try:
                 self._rate_limiter.wait()
                 resp = self._session.get(TICKER_URL, timeout=self.timeout)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt < max_retries - 1:
+                    wait_time = 4 * (2 ** attempt) + random.uniform(0, 2)
+                    log.warning(f"SEC ticker endpoint network error: {e}. Retry in {wait_time:.1f}s")
+                    time.sleep(wait_time)
+                    continue
+                log.error(f"SEC ticker cache network error after {max_retries} retries: {e}")
+                return {}
 
+            try:
                 # Handle 429 (rate limit) and 403 (forbidden) with aggressive exponential backoff
                 if resp.status_code in (429, 403):
                     if attempt < max_retries - 1:
