@@ -97,17 +97,27 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 offset = (page - 1) * limit
 
                 cur.execute("""
-                    WITH sector_perf AS (
-                        SELECT sector,
-                               ROUND(SUM(CASE WHEN return_pct > 0 THEN return_pct ELSE 0 END) / NULLIF(COUNT(*), 0), 2) as perf_20d
+                    WITH sector_perf_latest AS (
+                        SELECT DISTINCT ON (sector) sector, return_pct AS latest_ytd
                         FROM sector_performance
-                        WHERE date >= CURRENT_DATE - INTERVAL '20 days'
-                        GROUP BY sector
+                        ORDER BY sector, date DESC
+                    ),
+                    sector_perf_prior AS (
+                        SELECT DISTINCT ON (sector) sector, return_pct AS prior_ytd
+                        FROM sector_performance
+                        WHERE date <= CURRENT_DATE - INTERVAL '20 days'
+                        ORDER BY sector, date DESC
+                    ),
+                    sector_perf AS (
+                        SELECT l.sector,
+                               ROUND((l.latest_ytd - COALESCE(p.prior_ytd, l.latest_ytd))::numeric, 2) AS perf_20d
+                        FROM sector_perf_latest l
+                        LEFT JOIN sector_perf_prior p ON p.sector = l.sector
                     ),
                     sector_scores AS (
                         SELECT
                             cp.sector as sector_name,
-                            COUNT(DISTINCT cp.symbol) as stock_count,
+                            COUNT(DISTINCT cp.ticker) as stock_count,
                             AVG(ss.composite_score) as composite_score,
                             AVG(ss.momentum_score) as momentum_score,
                             AVG(ss.value_score) as value_score,
@@ -116,7 +126,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                             AVG(ss.stability_score) as stability_score,
                             COALESCE(sp.perf_20d, 0) as perf_20d
                         FROM company_profile cp
-                        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+                        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         LEFT JOIN sector_perf sp ON sp.sector = cp.sector
                         WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
                         GROUP BY cp.sector, sp.perf_20d
@@ -130,7 +140,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         SELECT
                             cp.sector,
                             AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200) AS avg_trailing_pe,
-                            0::float AS avg_forward_pe
+                            AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50)  AS avg_pb_ratio
                         FROM value_metrics vm
                         JOIN company_profile cp ON vm.symbol = cp.ticker
                         WHERE cp.sector IS NOT NULL
@@ -141,7 +151,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                             PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
                         FROM sector_pe
                     )
-                    SELECT r.*, spe.avg_trailing_pe, spe.avg_forward_pe, spe.pe_percentile
+                    SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile
                     FROM ranked r
                     LEFT JOIN sector_pe_ranked spe ON spe.sector = r.sector_name
                     ORDER BY r.current_rank, r.stock_count DESC
@@ -174,7 +184,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         'current_trend': trend_label,
                         'pe': {
                             'trailing': float(s.get('avg_trailing_pe') or 0),
-                            'forward': float(s.get('avg_forward_pe') or 0),
+                            'pb_ratio': float(s.get('avg_pb_ratio') or 0),
                             'percentile': float(s.get('pe_percentile') or 0)
                         }
                     })
