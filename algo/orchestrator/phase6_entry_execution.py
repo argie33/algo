@@ -69,7 +69,7 @@ def _recalculate_position_size_after_exits(
 
         if current_result.get('shares', 0) > 0:
             original_shares = trade.get('shares', 0)
-            recalc_shares = int(current_result['shares'] * exposure_multiplier)
+            recalc_shares = round(current_result['shares'] * exposure_multiplier)
 
             # Only update if significantly different (>5% change)
             if original_shares > 0:

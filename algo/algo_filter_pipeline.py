@@ -120,9 +120,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """
                 SELECT b.symbol, b.date, b.signal_type
                 FROM buy_sell_daily b
-                LEFT JOIN stock_scores s ON b.symbol = s.symbol
+                LEFT JOIN swing_trader_scores ss ON b.symbol = ss.symbol AND b.date = ss.date
                 WHERE b.date = %s AND b.signal_type = 'BUY'
-                ORDER BY COALESCE(s.composite_score, 0) DESC, b.symbol
+                ORDER BY COALESCE(ss.score, 0) DESC, b.symbol
                 """,
                 (eval_date,),
             )
