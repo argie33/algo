@@ -105,11 +105,17 @@ def _industry_list(cur, params):
             SELECT *,
                 PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
             FROM industry_pe
+        ),
+        latest_ranking AS (
+            SELECT industry, rank_1w_ago, rank_4w_ago, rank_12w_ago
+            FROM industry_ranking
+            WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
         )
         SELECT r.*, ipe.avg_trailing_pe, ipe.avg_pb_ratio, ipe.pe_percentile,
-               NULL::INTEGER AS rank_12w_ago
+               lr.rank_1w_ago, lr.rank_4w_ago, lr.rank_12w_ago
         FROM ranked r
         LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
+        LEFT JOIN latest_ranking lr ON lr.industry = r.industry
         ORDER BY r.current_rank, r.stock_count DESC
         LIMIT %s OFFSET %s
     """, (limit, offset))
