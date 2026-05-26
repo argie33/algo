@@ -165,7 +165,7 @@ Phase 1 compares each table's latest date against the **previous trading day** (
 | `trend_template_data` | Phase 1 halts | Required for Minervini trend filter |
 | `signal_quality_scores` | Observe-only (logged, no halt) | Loaded by morning pipeline AFTER Lambda fires; halt would cause circular dependency |
 | `buy_sell_daily` | Observe-only (logged, no halt) | Same — loaded post-Lambda by pipeline |
-| `economic_data` | No halt | Stores FRED macro series (T10Y2Y, BAMLH0A0HYM2, ICSA etc). No pipeline loader — `algo_market_exposure.py` handles missing rows with 0.7 default factor. Run `run-fred-loader.yml` to populate. |
+| `economic_data` | No halt | Stores FRED macro series (T10Y2Y, BAMLH0A0HYM2, ICSA etc). Refreshed daily at 9:00 AM UTC (5 AM ET) Mon-Fri by `run-fred-loader.yml` cron schedule. If missing, `algo_market_exposure.py` falls back to 0.7 default factor. |
 | `company_profile`, `key_metrics` | Warning logged only | Background enrichment, 30-day SLA |
 
 **Important:** `PipelineHealth.is_critical` only halts on `stock_symbols`, `price_daily`, and `market_health_daily`. All other tables generate warnings, not halts.
