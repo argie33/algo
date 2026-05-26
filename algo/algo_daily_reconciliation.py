@@ -238,7 +238,7 @@ class DailyReconciliation:
             }
 
         except Exception as e:
-            logger.info(f"Error in reconciliation: {e}")
+            logger.error(f"Error in reconciliation: {e}", exc_info=True)
             if self.conn:
                 self.conn.rollback()
             return {'success': False, 'error': str(e)}

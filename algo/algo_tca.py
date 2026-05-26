@@ -69,7 +69,7 @@ class TCAEngine:
             )
             self.cur = self.conn.cursor()
         except Exception as e:
-            logger.info(f"TCA: DB connection failed: {e}")
+            logger.error(f"TCA: DB connection failed: {e}")
             raise
 
     def disconnect(self):
@@ -148,7 +148,7 @@ class TCAEngine:
             return result
         except Exception as e:
             self.conn.rollback() if self.conn else None
-            logger.info(f"TCA: record_fill failed: {e}")
+            logger.error(f"TCA: record_fill failed: {e}")
             raise
 
     def _check_slippage_alert(self, symbol: str, slippage_bps: float,
@@ -259,7 +259,7 @@ class TCAEngine:
                 'status': 'ok' if high_slippage_count == 0 else 'warning',
             }
         except Exception as e:
-            logger.info(f"TCA: daily_report failed: {e}")
+            logger.error(f"TCA: daily_report failed: {e}")
             return {'status': 'error', 'message': str(e)}
 
     def monthly_summary(self, year: int, month: int) -> dict:
@@ -316,5 +316,5 @@ class TCAEngine:
                 'status': 'ok' if (high_slippage_count or 0) == 0 else 'warning',
             }
         except Exception as e:
-            logger.info(f"TCA: monthly_summary failed: {e}")
+            logger.error(f"TCA: monthly_summary failed: {e}")
             return {'status': 'error', 'message': str(e)}
