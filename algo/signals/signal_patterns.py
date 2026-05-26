@@ -414,6 +414,10 @@ class SignalPatternsMixin:
             base = self.classify_base_type(symbol, eval_date)
             base_type = base.get('type', 'no_base')
 
+            # classify_base_type disconnects internally; reconnect for ATR and stop queries
+            if not hasattr(self, 'cur') or self.cur is None:
+                self.connect()
+
             if atr is None:
                 self.cur.execute(
                     "SELECT atr FROM technical_data_daily WHERE symbol = %s AND date <= %s "
