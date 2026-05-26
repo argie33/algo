@@ -91,7 +91,7 @@ class StockScoresLoader(OptimalLoader):
             ])
             data_completeness = round((data_count / 6.0) * 100, 2)
 
-            # Compute weighted composite score (0-100)
+            # Compute weighted composite score (0-100), ensure all inputs are clamped
             weights = {
                 'quality': 0.25,
                 'growth': 0.20,
@@ -100,6 +100,14 @@ class StockScoresLoader(OptimalLoader):
                 'stability': 0.12,
                 'momentum': 0.08,
             }
+
+            # Clamp all factor scores to 0-100 range before weighting
+            quality_score = max(0, min(100, quality_score))
+            growth_score = max(0, min(100, growth_score))
+            value_score = max(0, min(100, value_score))
+            positioning_score = max(0, min(100, positioning_score))
+            stability_score = max(0, min(100, stability_score))
+            momentum_score = max(0, min(100, momentum_score))
 
             composite_score = round(
                 quality_score * weights['quality'] +
@@ -110,6 +118,8 @@ class StockScoresLoader(OptimalLoader):
                 momentum_score * weights['momentum'],
                 2
             )
+            # Final clamp to ensure composite is in range
+            composite_score = max(0, min(100, composite_score))
 
             # Calculate RS percentile (dummy for now - would need full market rank)
             rs_percentile = round(momentum_score * 1.0, 2)  # Simple proxy
@@ -281,9 +291,10 @@ class StockScoresLoader(OptimalLoader):
 
         # Debt-to-equity: lower is better (target <1.0)
         if metrics.get('debt_to_equity'):
-            de = metrics['debt_to_equity']
+            de = min(metrics['debt_to_equity'], 5)  # Cap at 5.0 to prevent extreme negatives
             if de > 0:
-                scores.append(max(0, 100 - (de * 20)))
+                score = max(0, 100 - (de * 20))
+                scores.append(min(100, score))
 
         return sum(scores) / len(scores) if scores else 50
 
@@ -313,15 +324,19 @@ class StockScoresLoader(OptimalLoader):
 
         scores = []
 
-        # P/E ratio: target 15-25, lower is better but not too low
+        # P/E ratio: peak zone 15-25 for growth momentum stocks
+        # Continuous piecewise linear — no score jumps at breakpoints
         if metrics.get('pe_ratio') and metrics['pe_ratio'] > 0:
             pe = metrics['pe_ratio']
-            if pe < 10:
-                scores.append(50 + (10 - pe) * 5)
-            elif pe < 30:
-                scores.append(100 - (pe - 15) * 2)
+            if pe <= 10:
+                pe_score = 40 + pe * 2          # 40 at pe=0 → 60 at pe=10
+            elif pe <= 20:
+                pe_score = 60 + (pe - 10) * 4  # 60 at pe=10 → 100 at pe=20
+            elif pe <= 40:
+                pe_score = 100 - (pe - 20) * 2.5  # 100 at pe=20 → 50 at pe=40
             else:
-                scores.append(max(0, 100 - (pe - 30)))
+                pe_score = max(0, 50 - (pe - 40) * 1.25)  # 50 at pe=40 → 0 at pe=80
+            scores.append(pe_score)
 
         # Dividend yield: higher is better (target 2%+)
         if metrics.get('dividend_yield'):
@@ -358,17 +373,19 @@ class StockScoresLoader(OptimalLoader):
 
         # Volatility: lower is better (inverse relationship)
         if metrics.get('volatility_252d'):
-            vol = metrics['volatility_252d']
+            vol = min(metrics['volatility_252d'], 0.3)  # Cap at 30%
             # 30%+ volatility is high, <15% is low
             if vol > 0:
-                scores.append(max(0, 100 - (vol / 0.3 * 100)))
+                score = max(0, 100 - (vol / 0.3 * 100))
+                scores.append(min(100, score))
 
         # Beta: close to 1.0 is best, target 0.8-1.2
         if metrics.get('beta'):
             beta = metrics['beta']
             if beta > 0:
-                diff = abs(beta - 1.0)
-                scores.append(max(0, 100 - (diff * 50)))
+                diff = min(abs(beta - 1.0), 2.0)  # Cap difference at 2.0
+                score = max(0, 100 - (diff * 50))
+                scores.append(min(100, score))
 
         return sum(scores) / len(scores) if scores else 50
 
@@ -397,7 +414,9 @@ class StockScoresLoader(OptimalLoader):
     def _pct_to_score(pct_return: float) -> float:
         """Convert percentage return to 0-100 score."""
         # -20% = 0, 0% = 50, +20% = 100
-        return max(0, min(100, 50 + (pct_return / 0.4)))
+        # Clamp to 0-100 range
+        score = 50 + (pct_return / 0.4)
+        return max(0, min(100, score))
 
 
 def main():
