@@ -114,22 +114,40 @@ class StabilityMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _get_beta_yfinance(symbol: str) -> Optional[float]:
-        """Fetch beta from yfinance."""
-        try:
-            import yfinance as yf
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
+        """Fetch beta from yfinance with rate-limit handling."""
+        import time
+        import yfinance as yf
 
-            # yfinance returns beta, try common keys
-            if 'beta' in info and info['beta'] is not None:
-                return float(info['beta'])
-            if 'beta3Year' in info and info['beta3Year'] is not None:
-                return float(info['beta3Year'])
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                ticker = yf.Ticker(symbol)
+                info = ticker.info
 
-            return None
-        except Exception as e:
-            logger.debug(f"Could not fetch beta for {symbol}: {e}")
-            return None
+                # yfinance returns beta, try common keys
+                if 'beta' in info and info['beta'] is not None:
+                    return float(info['beta'])
+                if 'beta3Year' in info and info['beta3Year'] is not None:
+                    return float(info['beta3Year'])
+
+                return None
+
+            except Exception as e:
+                error_str = str(e).lower()
+                # Rate limit - back off exponentially
+                if 'rate' in error_str or '429' in error_str or 'too many' in error_str:
+                    if attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 2  # 2s, 4s, 8s
+                        logger.debug(f"Rate limited for {symbol}, retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    logger.debug(f"Rate limit after {max_retries} attempts for {symbol}")
+                    return None
+
+                logger.debug(f"Could not fetch beta for {symbol}: {e}")
+                return None
+
+        return None
 
     def transform(self, rows):
         """Rows are clean."""
