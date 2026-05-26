@@ -129,11 +129,7 @@ def _fetch_from_financials(symbol: str) -> Optional[Dict]:
         return None
 
 def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
-    """H1 FIX: Third fallback - Compute forward PE from market cap + earnings estimates.
-
-    This improves PE coverage from 33% to ~70% by using consensus earnings estimates
-    when historical financials aren't available.
-    """
+    """Third fallback — forward PE from current price ÷ annualized next-quarter EPS estimate."""
     try:
         conn = get_db_conn()
         with conn.cursor() as cur:
@@ -147,23 +143,35 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
                 return None
 
             cur.execute("""
-                SELECT consensus_eps FROM earnings_estimates
-                WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT 1
+                SELECT close FROM price_daily
+                WHERE symbol = %s ORDER BY date DESC LIMIT 1
+            """, (symbol,))
+            price_row = cur.fetchone()
+            current_price = float(price_row[0]) if price_row and price_row[0] else None
+
+            if not current_price:
+                return None
+
+            cur.execute("""
+                SELECT eps_estimate FROM earnings_estimates
+                WHERE symbol = %s AND eps_estimate > 0
+                ORDER BY earnings_date DESC LIMIT 1
             """, (symbol,))
             est = cur.fetchone()
-            consensus_eps = est[0] if est else None
+            quarterly_eps = float(est[0]) if est and est[0] else None
 
         conn.close()
 
-        if not consensus_eps or consensus_eps <= 0:
+        if not quarterly_eps or quarterly_eps <= 0:
             return None
 
-        forward_pe = round(mkt_cap / (consensus_eps * 1_000_000), 2) if consensus_eps > 0 else None
+        annual_eps = quarterly_eps * 4
+        forward_pe = round(current_price / annual_eps, 2)
 
         return {
             'symbol': symbol,
             'market_cap': float(mkt_cap),
-            'pe_ratio': forward_pe,  # Forward PE from estimates
+            'pe_ratio': forward_pe,
             'pb_ratio': None,
             'ps_ratio': None,
             'peg_ratio': None,
@@ -174,11 +182,11 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
         return None
 
 def fetch_symbol(symbol: str) -> Optional[Dict]:
-    """H1 FIX: Try three sources in order to maximize PE coverage.
+    """Try three sources in order to maximize PE coverage.
 
-    1. yfinance (real-time, best data)  ->  ~33% coverage
-    2. SEC financials (historical, reliable)  ->  ~55% coverage
-    3. Earnings estimates (forward-looking)  ->  ~70% coverage
+    1. yfinance (real-time, best data)
+    2. SEC financials (historical, reliable)
+    3. Earnings estimates (forward PE from price / annualized quarterly EPS)
     """
     result = _fetch_yfinance(symbol)
     if result is None:

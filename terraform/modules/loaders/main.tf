@@ -144,6 +144,7 @@ locals {
     "growth_metrics"                = "load_growth_metrics.py"
     "quality_metrics"               = "load_quality_metrics.py"
     "value_metrics"                 = "load_value_metrics.py"
+    "positioning_metrics"           = "load_positioning_metrics.py"
     "earnings_history"              = "loadearningshistory.py"
     "earnings_revisions"            = "loadearningsrevisions.py"
     "earnings_surprise"             = "loadearningssurprise.py"
@@ -280,6 +281,10 @@ locals {
       schedule    = "cron(20 4 ? * MON *)"
       description = "Company profile (sector, industry, name) - Sunday 11:20pm ET"
     }
+    "positioning_metrics" = {
+      schedule    = "cron(22 4 ? * MON *)"
+      description = "Positioning metrics (institutional ownership, short interest) - Sunday 11:22pm ET"
+    }
     "analyst_sentiment" = {
       schedule    = "cron(25 4 ? * MON *)"
       description = "Analyst recommendations - Sunday 11:25pm ET"
@@ -370,9 +375,10 @@ locals {
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
     # Computed metrics (growth, quality, value) — CPU bound, process 10K symbols, need parallelism
-    "growth_metrics"  = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "quality_metrics" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "value_metrics"   = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
 
     # Earnings data (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
     # Increase timeout to 60min for sequential 5000+ symbol processing
