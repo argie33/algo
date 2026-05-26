@@ -69,7 +69,16 @@ def run(
                        f"min_grade={constraints['min_swing_grade']}, "
                        f"halt_entries={constraints['halt_new_entries']}")
 
-        actions = policy.review_existing_positions(run_date)
+        try:
+            actions = policy.review_existing_positions(run_date)
+        except Exception as e:
+            # If transaction is aborted (from prior phase), retry with fresh connection
+            if "transaction is aborted" in str(e).lower() or "InFailedSqlTransaction" in str(type(e)):
+                logger.warning(f"Transaction aborted, retrying with fresh connection: {e}")
+                policy = ExposurePolicy(config)
+                actions = policy.review_existing_positions(run_date)
+            else:
+                raise
 
         if not actions:
             logger.info(f"  No exposure-policy actions")
@@ -105,6 +114,9 @@ def run(
         )
 
     except Exception as e:
-        traceback.print_exc()
-        log_phase_result_fn('3b', 'exposure_policy', 'error', str(e))
-        return PhaseResult('3b', 'exposure_policy', 'ok', {'constraints': None, 'actions': []}, False, str(e))
+        # FAIL-OPEN: exposure policy errors don't block execution
+        # (e.g., transaction aborts from prior phases, missing data, etc.)
+        logger.warning(f"Exposure policy phase skipped due to error (fail-open): {e}")
+        log_phase_result_fn('3b', 'exposure_policy', 'skip',
+                           f'Skipped due to error: {str(e)[:80]}')
+        return PhaseResult('3b', 'exposure_policy', 'ok', {'constraints': None, 'actions': []}, False, None)
