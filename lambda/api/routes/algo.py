@@ -535,6 +535,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                 SELECT COUNT(*) AS position_count,
                        SUM(CASE WHEN pd.quantity > 0 THEN pd.position_value ELSE 0 END) AS invested
                 FROM algo_positions pd
+                WHERE LOWER(pd.status) = 'open'
             """)
             portfolio_row = dict(cur.fetchone() or {})
             current_positions = portfolio_row.get('position_count', 0)

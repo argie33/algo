@@ -17,6 +17,8 @@ credit cycle research):
      7pt  NEW HIGHS - LOWS      regime health indicator
      7pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2) - credit leads equity
      5pt  ADVANCE-DECLINE LINE  confirmation / divergence vs index
+     4pt  AAII SENTIMENT        contrarian: extreme bearish crowd → bullish signal
+     3pt  NAAIM EXPOSURE        professional manager positioning (contrarian at extremes)
 
 PLUS HARD VETOES (cap at ≤25-35%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
@@ -72,6 +74,8 @@ class MarketExposure:
     W_NEW_HIGHS_LOWS = 7
     W_CREDIT_SPREAD = 7
     W_AD_LINE = 5
+    W_AAII = 4
+    W_NAAIM = 3
 
     def __init__(self, cur=None):
         self.cur = cur
@@ -160,12 +164,26 @@ class MarketExposure:
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
-            # --- 10. Credit spreads (HY OAS — credit leads equity) ---
+            # --- 9. Credit spreads (HY OAS — credit leads equity) ---
             cs = self._credit_spread(eval_date)
             cs_pts = self.W_CREDIT_SPREAD * cs['score_factor']
             factors['credit_spread'] = {**cs, 'pts': round(cs_pts, 1), 'max': self.W_CREDIT_SPREAD}
             score += cs_pts
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
+
+            # --- 10. AAII sentiment (contrarian at extremes) ---
+            aaii = self._aaii(eval_date)
+            aaii_pts = self.W_AAII * aaii['score_factor']
+            factors['aaii_sentiment'] = {**aaii, 'pts': round(aaii_pts, 1), 'max': self.W_AAII}
+            score += aaii_pts
+            logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
+
+            # --- 11. NAAIM professional manager exposure (contrarian at extremes) ---
+            naaim = self._naaim(eval_date)
+            naaim_pts = self.W_NAAIM * naaim['score_factor']
+            factors['naaim'] = {**naaim, 'pts': round(naaim_pts, 1), 'max': self.W_NAAIM}
+            score += naaim_pts
+            logger.debug(f"  NAAIM exposure: {naaim_pts:.1f} pts")
 
             score = max(0.0, min(100.0, score))
 
@@ -620,6 +638,93 @@ class MarketExposure:
             'ad_change_20d': int(ad_change),
             'spy_change_pct_20d': round(spy_change_pct, 2),
             'relation': relation,
+        }
+
+    def _aaii(self, eval_date):
+        """AAII investor sentiment — contrarian: extreme bearish crowd → bullish signal.
+
+        Bull-bear spread (bullish% - bearish%) is the key metric:
+        < -20: extreme fear → contrarian buy (sf=1.0)
+        > +20: extreme greed → contrarian sell (sf=0.10)
+        Linear scale in between.
+        """
+        self.cur.execute(
+            """
+            SELECT bullish, bearish
+            FROM aaii_sentiment
+            WHERE date <= %s
+            ORDER BY date DESC LIMIT 1
+            """,
+            (eval_date,),
+        )
+        row = self.cur.fetchone()
+        if not row or row[0] is None:
+            return {'score_factor': 0.5, 'value': None, 'reason': 'No AAII data'}
+
+        bullish = float(row[0])
+        bearish = float(row[1]) if row[1] is not None else 0.0
+        spread = bullish - bearish  # positive = more bulls than bears
+
+        if spread < -20:
+            sf = 1.0
+        elif spread < -10:
+            sf = 0.80
+        elif spread < 0:
+            sf = 0.65
+        elif spread < 10:
+            sf = 0.50
+        elif spread < 20:
+            sf = 0.30
+        else:
+            sf = 0.10
+
+        return {
+            'score_factor': sf,
+            'value': round(spread, 1),
+            'bull_bear_spread': round(spread, 1),
+            'bullish_pct': round(bullish, 1),
+            'bearish_pct': round(bearish, 1),
+        }
+
+    def _naaim(self, eval_date):
+        """NAAIM manager equity exposure — contrarian at extremes.
+
+        Active manager exposure scale (0-100%):
+        < 20: heavily underweight → contrarian bullish (managers will be forced to buy)
+        > 80: heavily overweight → contrarian cautious (limited buying power left)
+        """
+        self.cur.execute(
+            """
+            SELECT naaim_number_mean
+            FROM naaim
+            WHERE date <= %s
+            ORDER BY date DESC LIMIT 1
+            """,
+            (eval_date,),
+        )
+        row = self.cur.fetchone()
+        if not row or row[0] is None:
+            return {'score_factor': 0.5, 'value': None, 'reason': 'No NAAIM data'}
+
+        exposure = float(row[0])
+        clamped = max(0.0, min(100.0, exposure))
+
+        if clamped < 20:
+            sf = 0.90
+        elif clamped < 35:
+            sf = 0.75
+        elif clamped < 55:
+            sf = 0.55
+        elif clamped < 70:
+            sf = 0.40
+        elif clamped < 85:
+            sf = 0.25
+        else:
+            sf = 0.15
+
+        return {
+            'score_factor': sf,
+            'value': round(exposure, 1),
         }
 
     def _credit_spread(self, eval_date):
