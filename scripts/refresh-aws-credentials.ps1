@@ -112,8 +112,8 @@ $Updated = if ($Existing -match $Pattern) {
 
 # Trim trailing whitespace and append new block
 $Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
-# Use UTF8NoBOM to prevent BOM issues with AWS SDK
-Set-Content -Path $CredFile -Value $Updated -Encoding UTF8NoBOM
+# Write credentials file (UTF8 without BOM using .NET to be compatible with AWS SDK)
+[System.IO.File]::WriteAllText($CredFile, $Updated, [System.Text.Encoding]::UTF8)
 
 # Clean up temp dir
 Remove-Item -Recurse -Force $TmpDir
