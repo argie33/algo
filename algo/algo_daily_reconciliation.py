@@ -302,6 +302,7 @@ class DailyReconciliation:
         alpaca_symbols = {}  # symbol -> qty for drift detection
         imported = 0
 
+        self.cur.execute("BEGIN")  # Start transaction for SAVEPOINT support
         for ap in alpaca_positions:
             sym = ap.symbol
             qty = float(ap.qty)

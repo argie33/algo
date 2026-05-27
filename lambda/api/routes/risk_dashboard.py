@@ -179,11 +179,23 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
 def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
     try:
-        cur.execute("""
-            SELECT exposure_pct, regime, halt_reasons
-            FROM market_exposure_daily
-            ORDER BY date DESC LIMIT 1
-        """)
+        # Try to fetch with exposure columns (added in migrations)
+        try:
+            cur.execute("""
+                SELECT exposure_pct, regime, halt_reasons
+                FROM market_exposure_daily
+                ORDER BY date DESC LIMIT 1
+            """)
+        except psycopg2.errors.UndefinedColumn:
+            # Fallback if exposure columns don't exist
+            logger.info("exposure_pct columns not found, using market_exposure_pct")
+            cur.execute("""
+                SELECT market_exposure_pct::DECIMAL(8,4) AS exposure_pct,
+                       NULL::VARCHAR(50) AS regime, NULL::TEXT AS halt_reasons
+                FROM market_exposure_daily
+                ORDER BY date DESC LIMIT 1
+            """)
+
         row = cur.fetchone()
         if row:
             exposure_pct = float(row['exposure_pct']) if row['exposure_pct'] else 100
@@ -200,8 +212,8 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
                     'correction': 0.0,
                 }.get(tier.lower() if tier else '', 1.0),
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Could not fetch exposure tier info: {e}")
 
     return {
         'current_tier': 'NORMAL',

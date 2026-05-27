@@ -176,16 +176,31 @@ def _get_algo_status(cur) -> Dict:
 def _get_algo_trades(cur, limit: int = 200) -> Dict:
         """Get recent trades with all fields for frontend."""
         try:
-            cur.execute("""
-                SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
-                       entry_quantity, entry_reason, exit_price, exit_date, exit_time,
-                       exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
-                       status, swing_score, swing_grade, base_type, stage_phase,
-                       trade_duration_days, mfe_pct, mae_pct, created_at
-                FROM algo_trades
-                ORDER BY trade_date DESC, trade_id DESC
-                LIMIT %s
-            """, (limit,))
+            # Try to fetch with MFE/MAE columns (added in later migrations)
+            try:
+                cur.execute("""
+                    SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
+                           entry_quantity, entry_reason, exit_price, exit_date, exit_time,
+                           exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
+                           status, swing_score, swing_grade, base_type, stage_phase,
+                           trade_duration_days, mfe_pct, mae_pct, created_at
+                    FROM algo_trades
+                    ORDER BY trade_date DESC, trade_id DESC
+                    LIMIT %s
+                """, (limit,))
+            except psycopg2.errors.UndefinedColumn:
+                # If MFE/MAE columns don't exist, fetch without them
+                logger.info("MFE/MAE columns not found in algo_trades, fetching without them")
+                cur.execute("""
+                    SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
+                           entry_quantity, entry_reason, exit_price, exit_date, exit_time,
+                           exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
+                           status, swing_score, swing_grade, base_type, stage_phase,
+                           trade_duration_days, NULL AS mfe_pct, NULL AS mae_pct, created_at
+                    FROM algo_trades
+                    ORDER BY trade_date DESC, trade_id DESC
+                    LIMIT %s
+                """, (limit,))
             trades = cur.fetchall()
             items = [dict(t) for t in trades]
             return json_response(200, {
@@ -1158,13 +1173,28 @@ _TIER_CONFIG = {
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
-            cur.execute("""
-                SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
-                FROM market_exposure_daily
-                ORDER BY date DESC
-                LIMIT 1
-            """)
-            latest = cur.fetchone()
+            # Try to fetch with all exposure columns (added in migrations)
+            try:
+                cur.execute("""
+                    SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
+                    FROM market_exposure_daily
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                latest = cur.fetchone()
+            except psycopg2.errors.UndefinedColumn:
+                # If exposure columns don't exist, fetch basic columns and provide NULLs
+                logger.info("exposure_pct columns not found, fetching with NULL defaults")
+                cur.execute("""
+                    SELECT date, market_exposure_pct::DECIMAL(8,4) AS exposure_pct,
+                           NULL::DECIMAL(8,4) AS raw_score, NULL::VARCHAR(50) AS regime,
+                           NULL::INTEGER AS distribution_days, NULL::JSONB AS factors, NULL::TEXT AS halt_reasons
+                    FROM market_exposure_daily
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                latest = cur.fetchone()
+
             current = dict(latest) if latest else None
 
             active_tier = {}
@@ -1174,14 +1204,26 @@ def _get_markets(cur) -> Dict:
                 active_tier = {'name': tier_key, **tier_conf}
                 active_tier['halt'] = bool(current.get('halt_reasons')) or tier_conf.get('halt', False)
 
-            cur.execute("""
-                SELECT date, exposure_pct, regime
-                FROM market_exposure_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                ORDER BY date ASC
-                LIMIT 250
-            """)
-            history = [dict(h) for h in cur.fetchall()]
+            # Fetch history with graceful fallback
+            try:
+                cur.execute("""
+                    SELECT date, exposure_pct, regime
+                    FROM market_exposure_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                    ORDER BY date ASC
+                    LIMIT 250
+                """)
+                history = [dict(h) for h in cur.fetchall()]
+            except psycopg2.errors.UndefinedColumn:
+                # Fallback if exposure columns don't exist
+                cur.execute("""
+                    SELECT date, market_exposure_pct::DECIMAL(8,4) AS exposure_pct, NULL::VARCHAR(50) AS regime
+                    FROM market_exposure_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                    ORDER BY date ASC
+                    LIMIT 250
+                """)
+                history = [dict(h) for h in cur.fetchall()]
 
             try:
                 cur.execute("""
@@ -1321,12 +1363,25 @@ def _get_data_quality(cur) -> Dict:
 def _get_exposure_policy(cur) -> Dict:
         """Get latest market exposure from market_exposure_daily."""
         try:
-            cur.execute("""
-                SELECT date, exposure_pct, regime, halt_reasons
-                FROM market_exposure_daily
-                ORDER BY date DESC
-                LIMIT 1
-            """)
+            # Try to fetch with exposure columns (added in migrations)
+            try:
+                cur.execute("""
+                    SELECT date, exposure_pct, regime, halt_reasons
+                    FROM market_exposure_daily
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+            except psycopg2.errors.UndefinedColumn:
+                # Fallback if exposure columns don't exist
+                logger.info("exposure_pct columns not found, using market_exposure_pct")
+                cur.execute("""
+                    SELECT date, market_exposure_pct::DECIMAL(8,4) AS exposure_pct,
+                           NULL::VARCHAR(50) AS regime, NULL::TEXT AS halt_reasons
+                    FROM market_exposure_daily
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+
             row = cur.fetchone()
             if not row:
                 return json_response(200, {'current_exposure_pct': None, 'active_tier': None, 'all_tiers': list(_TIER_CONFIG.keys())})
@@ -1346,9 +1401,6 @@ def _get_exposure_policy(cur) -> Dict:
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get exposure policy'})
             return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get exposure policy'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get exposure policy'})
             return error_response(503, 'service_unavailable', 'Database unavailable')

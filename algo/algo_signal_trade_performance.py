@@ -58,11 +58,11 @@ class SignalTradePerformancePopulator:
 
             self.cur.execute(
                 """
-                SELECT t.trade_id, t.symbol, t.signal_date, t.trade_date, t.exit_date,
+                SELECT t.trade_id, t.symbol, t.signal_date, t.exit_date,
                        t.entry_price, t.stop_loss_price, t.exit_price, t.entry_quantity,
                        t.exit_r_multiple, t.profit_loss_dollars, t.swing_score,
                        t.swing_components, t.trend_template_score,
-                       (t.exit_date::date - t.trade_date::date) AS holding_days
+                       (t.exit_date::date - t.signal_date::date) AS holding_days
                 FROM algo_trades t
                 WHERE t.status = 'closed'
                   AND t.exit_date >= %s
@@ -90,7 +90,7 @@ class SignalTradePerformancePopulator:
             ]}
 
             for row in closed_trades:
-                trade_id, symbol, signal_date, trade_date, exit_date, entry_price, stop_loss, \
+                trade_id, symbol, signal_date, exit_date, entry_price, stop_loss, \
                     exit_price, entry_qty, exit_r_multiple, pnl_dollars, swing_score, \
                     swing_components_json, trend_score, holding_days = row
 
@@ -118,42 +118,29 @@ class SignalTradePerformancePopulator:
                     self.cur.execute(
                         """
                         INSERT INTO signal_trade_performance (
-                            trade_id, symbol, signal_date, trade_date, exit_date,
-                            entry_price, stop_loss_price, exit_price, shares,
-                            entry_r_multiple, exit_r_multiple, pnl_dollars,
-                            holding_days, swing_score, trend_template_score,
-                            setup_quality_score, trend_quality_score, momentum_rs_score,
-                            volume_score, fundamentals_score, sector_industry_score, multi_timeframe_score,
+                            trade_id, symbol, signal_date, entry_price, exit_price,
+                            exit_date, hold_days, swing_score, trend_score,
+                            r_multiple, realized_pnl, realized_pnl_pct,
                             created_at
                         ) VALUES (
                             %s, %s, %s, %s, %s,
                             %s, %s, %s, %s,
                             %s, %s, %s,
-                            %s, %s, %s,
-                            %s, %s, %s, %s, %s, %s, %s,
                             CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (trade_id) DO NOTHING
                         """,
                         (
-                            trade_id, symbol, signal_date, trade_date, exit_date,
+                            trade_id, symbol, signal_date,
                             float(entry_price) if entry_price else 0,
-                            float(stop_loss) if stop_loss else 0,
                             float(exit_price) if exit_price else 0,
-                            int(entry_qty) if entry_qty else 0,
-                            1.0,  # entry_r_multiple is always 1.0R by definition at trade entry
-                            float(exit_r_multiple) if exit_r_multiple else 0,
-                            float(pnl_dollars) if pnl_dollars else 0,
+                            exit_date,
                             int(holding_days) if holding_days else 0,
                             float(swing_score) if swing_score else 0,
                             float(trend_score) if trend_score else 0,
-                            component_scores.get('setup_quality', 0),
-                            component_scores.get('trend_quality', 0),
-                            component_scores.get('momentum_rs', 0),
-                            component_scores.get('volume', 0),
-                            component_scores.get('fundamentals', 0),
-                            component_scores.get('sector_industry', 0),
-                            component_scores.get('multi_timeframe', 0),
+                            float(exit_r_multiple) if exit_r_multiple else 0,
+                            float(pnl_dollars) if pnl_dollars else 0,
+                            (float(pnl_dollars) / (float(entry_price) * int(entry_qty)) * 100) if entry_price and entry_qty and pnl_dollars else 0,
                         ),
                     )
                     inserted_count += 1
