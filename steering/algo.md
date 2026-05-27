@@ -168,6 +168,24 @@ All credentials rotate on fixed schedules. Update locally when rotated:
 | RDS Database | `algo-db` | PostgreSQL database (endpoint: `algo-db.<random>.us-east-1.rds.amazonaws.com`) |
 | Secrets Manager | `algo-db-credentials-dev` | Database password (auto-synced from Terraform) |
 | ECS Task Defs | `algo-<loader>-loader` | 24 individual loaders for data (prices, technicals, fundamentals, etc.) |
+| RDS Proxy | `algo-proxy` | Connection pooling for RDS (enabled via `enable_rds_proxy = true` in terraform.tfvars) |
+
+## DATABASE CONNECTIONS (Dynamic RDS Proxy)
+
+**All database connections route through RDS Proxy (when enabled):**
+- Loaders: `DB_HOST` environment variable → RDS Proxy endpoint (set by Terraform)
+- Orchestrator: `DB_HOST` environment variable → RDS Proxy endpoint (set by Terraform)
+- Lambda functions: `DB_HOST` environment variable → RDS Proxy endpoint (set by Terraform)
+- Secrets Manager secret: `host` field → RDS Proxy endpoint (dynamically set by Terraform)
+
+**Configuration:**
+- `terraform.tfvars`: `enable_rds_proxy = true` (line 35)
+- RDS Proxy is created by `terraform/modules/database/main.tf` (lines 240-262)
+- Database module outputs `rds_proxy_endpoint` which is passed to all modules
+- Root `main.tf` uses `coalesce(rds_proxy_endpoint, rds_address)` to prefer proxy when available
+- All endpoint references are **dynamic via Terraform variables** — no hardcoded endpoints
+
+**Why RDS Proxy?** Connection pooling + query multiplexing reduces I/O contention. Eliminates orchestrator timeouts in Phase 3b (market exposure).
 
 ## SCHEDULE (EventBridge, Mon-Fri Only — UTC Times)
 
