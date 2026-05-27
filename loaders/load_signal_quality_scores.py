@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Signal Quality Scores Loader â€” Signal strength confirmation from multiple sources.
 
 Computes signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend.

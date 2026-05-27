@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 System Operational Verification Script  
 Checks: API connectivity, Frontend health, DB pools
