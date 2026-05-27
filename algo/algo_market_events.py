@@ -211,11 +211,12 @@ class MarketEventHandler:
 
             # Fallback: check known dates
             # Day after Thanksgiving (4th Thursday of November)
-            nov_dates = [d for d in range(23, 31) if datetime(check_date.year, 11, d).weekday() == 3]
-            day_after_thanksgiving = nov_dates[0] + 1 if nov_dates else None
-
-            if check_date.month == 11 and check_date.day == day_after_thanksgiving:
-                return True
+            # Find all Thursdays in November (weekday() == 3 means Thursday)
+            nov_thursdays = [d for d in range(1, 31) if datetime(check_date.year, 11, d).weekday() == 3]
+            if len(nov_thursdays) >= 4:
+                day_after_thanksgiving = nov_thursdays[3] + 1  # 4th Thursday + 1 day
+                if check_date.month == 11 and check_date.day == day_after_thanksgiving:
+                    return True
 
             # Christmas Eve (Dec 24)
             if check_date.month == 12 and check_date.day == 24:
