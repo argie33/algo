@@ -261,6 +261,8 @@ CREATE TABLE IF NOT EXISTS technical_data_monthly (
     ema_26 DECIMAL(12, 4),
     atr DECIMAL(12, 4),
     adx DECIMAL(8, 4),
+    close DECIMAL(12, 4),
+    ema_21 DECIMAL(12, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_technical_data_monthly_unique ON technical_data_monthly(symbol, date);
@@ -2315,15 +2317,8 @@ FROM fear_greed_index;
 -- (Removed 156 redundant ALTER TABLE ADD COLUMN statements)
 -- ════════════════════════════════════════════════════════════════════════════
 
-ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mfe_pct DECIMAL(8, 4);
-ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mae_pct DECIMAL(8, 4);
-
-ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
-ALTER TABLE technical_data_weekly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE technical_data_weekly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
-ALTER TABLE technical_data_monthly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE technical_data_monthly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+-- ✅ algo_trades: mfe_pct, mae_pct already in CREATE TABLE
+-- ✅ technical_data_daily/weekly/monthly: close, ema_21 already in CREATE TABLE
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- MISSING LOADER TARGET TABLES (required for market_data_batch + Step Functions)
@@ -2656,7 +2651,7 @@ WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE')
 -- SCHEMA MIGRATIONS — Ensure live tables have all required columns
 -- ════════════════════════════════════════════════════════════════════════════
 -- ✅ backtest_runs: strategy_name, start_date, end_date, *_return, sharpe/sortino, win_rate, profit_factor, num_trades/winning/losing, created_at already in CREATE TABLE
--- ⚠️ backtest_trades: quantity and profit_loss_percent STILL NEEDED (not in CREATE TABLE) - must add to CREATE TABLE
+-- ✅ backtest_trades: quantity, profit_loss_percent already in CREATE TABLE
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- FEATURE FLAGS — Control system behavior without code changes
