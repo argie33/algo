@@ -72,7 +72,9 @@ class SecEdgarClient:
     """
 
     # Comprehensive fallback ticker cache with all 10,365 SEC-registered symbols
-    # Fetched from https://www.sec.gov/files/company_tickers.json
+    # Fetched from https://www.sec.gov/files/company_tickers.json on 2025-02-01
+    # ⚠️  May become stale if new symbols are registered with SEC
+    # Used only when SEC API is unavailable (fallback for resilience)
     _FALLBACK_TICKERS = {
         "A": "0001090872", "AA": "0001675149", "AAAU": "0001708646", "AACB": "0002034334", "AACBR": "0002034334", "AACBU": "0002034334", "AACG": "0001420529", "AACI": "0002092897", "AACIU": "0002092897", "AACIW": "0002092897", "AACO": "0002099906", "AACOU": "0002099906", "AACOW": "0002099906", "AACP": "0002102123", "AACPU": "0002102123",
         "AADX": "0002118195", "AAL": "0000006201", "AAME": "0000008177", "AAMI": "0001748824", "AAMTF": "0001327899", "AAOI": "0001158114", "AAON": "0000824142", "AAP": "0001158449", "AAPG": "0002023311", "AAPI": "0001134982", "AAPL": "0000320193", "AAQL": "0001672571", "AARD": "0001774857", "AAS": "0002010218", "AASP": "0000930245",
@@ -795,6 +797,8 @@ class SecEdgarClient:
         self._cache_ttl = cache_ttl
         # File-based cache to survive across processes/containers
         self._ticker_cache_file = Path("/tmp/sec_ticker_cache.json")
+        self._fallback_ticker_timestamp = "2025-02-01"  # When fallback cache was created
+        self._fallback_usage_count = 0  # Track fallback usage for monitoring
         self._load_ticker_cache_from_file()
 
     # ----- Symbol/CIK lookups -----
@@ -906,10 +910,16 @@ class SecEdgarClient:
 
         # Fallback to hardcoded ticker list (10,365+ SEC-registered symbols)
         if symbol.upper() in self._FALLBACK_TICKERS:
-            log.debug(f"Using fallback CIK for {symbol} (SEC API unavailable)")
+            self._fallback_usage_count += 1
+            log.warning(
+                f"Using fallback CIK for {symbol} (SEC API unavailable). "
+                f"Fallback cache from {self._fallback_ticker_timestamp} "
+                f"(may be stale if symbol recently registered). Usage count: {self._fallback_usage_count}"
+            )
             return self._FALLBACK_TICKERS[symbol.upper()]
 
         # For unknown symbols, return None to skip (caller will handle gracefully)
+        log.debug(f"Unknown symbol {symbol} — not in API cache or fallback ({self._fallback_ticker_timestamp})")
         return None
 
     # ----- Core API -----

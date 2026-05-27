@@ -2,7 +2,21 @@
 """
 Load minimal seed data to unblock Phase 1 data freshness check.
 
-Populates critical tables with recent test data so orchestrator can run end-to-end.
+⚠️  **DEVELOPMENT/DEMO USE ONLY** ⚠️
+This script populates critical tables with FAKE hardcoded test data to unblock Phase 1.
+DO NOT use in production — all values below are synthetic:
+- Prices: base_price 400-480, ±5/±2/+1 offsets (FAKE)
+- Technicals: RSI=55, MACD=1.2, ATR=2.5 (FAKE for all symbols)
+- Market health: advance_decline=1.5, vix=15.5 (FAKE, always bullish)
+- Economics: rates=5.25%, inflation=3.2% (FAKE)
+- Analyst sentiment: all 'buy' at 450.0 (FAKE)
+- Earnings: EPS estimate 5.0 (FAKE)
+
+Used only in: .github/workflows/verify-and-init-db.yml (demo initialization)
+Safe because: ON CONFLICT (symbol, date) DO NOTHING prevents overwrites from real loaders
+Risk: If real loaders don't run, algo will signal on fake data (acceptable for demo)
+
+In production, real loaders (load_stock_prices_daily.py, etc.) replace seed data.
 """
 
 import sys
@@ -17,7 +31,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def load_seed_data():
-    """Load minimal test data into critical tables."""
+    """Load minimal test data into critical tables.
+
+    ⚠️  DEVELOPMENT/DEMO ONLY — All data below is FAKE hardcoded values.
+    Used to unblock Phase 1 during initial demo setup (verify-and-init-db.yml).
+    Real loaders replace this data within hours.
+    """
+    logger.warning("=" * 80)
+    logger.warning("⚠️  LOADING FAKE SEED DATA — DEVELOPMENT/DEMO ONLY")
+    logger.warning("This is hardcoded test data to unblock Phase 1 initialization.")
+    logger.warning("Real loaders will overwrite with actual market data.")
+    logger.warning("DO NOT use in production.")
+    logger.warning("=" * 80)
+
     conn = get_db_connection()
     if not conn:
         logger.error("Failed to connect to database")
