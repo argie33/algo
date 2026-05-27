@@ -1002,8 +1002,17 @@ class Orchestrator:
             self._release_run_lock()
 
     def _pid_alive(self, pid):
-        """Check if a PID is still running (cross-platform)."""
+        """Check if a PID is still running (cross-platform).
+
+        Rejects system PIDs (< 100) which are kernel processes and not real orchestrator instances.
+        """
         try:
+            if pid < 100:
+                # System/kernel PIDs (0-99) can never be orchestrator processes
+                # PID 1 = init, PID 2 = kernel scheduler, etc.
+                # Treat these as dead (stale lock)
+                return False
+
             if os.name == 'nt':
                 # Windows
                 import subprocess
