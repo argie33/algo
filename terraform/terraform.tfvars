@@ -29,9 +29,9 @@ enable_preclose_orchestrator   = true # FINAL: 3:00 PM ET last trades before clo
 cognito_enabled             = true # Authorizer exists but not used on routes (all NONE auth)
 
 # Database configuration
-rds_instance_class = "db.t3.small"    # FIXED: Upgraded from db.t3.micro to t3.small (2 vCPU, 2GB RAM) - more cost-effective for dev
-# Note: IOPS not set because current storage (61GB) < minimum required (400GB) for custom IOPS.
-# db.t3.small provides better CPU/memory which resolves the RDS bottleneck more cost-effectively.
+rds_instance_class = "db.t3.medium"   # FIXED: Upgraded from db.t3.small (2vCPU 2GB) to db.t3.medium (2vCPU 4GB) to resolve RDS I/O contention
+# Disk queue depth was 30-45 (critical), preventing Phase 1 data freshness queries from completing.
+# db.t3.medium includes more memory buffer cache which reduces disk I/O and improves query performance.
 enable_rds_proxy  = true    # Enable RDS Proxy: connection pooling reduces latency & query overhead (critical for performance)
 dev_mode         = "false" # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
