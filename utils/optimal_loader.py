@@ -40,6 +40,7 @@ import logging
 import os
 import time
 import psycopg2
+import uuid
 from abc import ABC, abstractmethod
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, List, Optional, Sequence
@@ -289,11 +290,30 @@ class OptimalLoader(ABC):
                 raise ValueError(f"No valid columns to write for {self.table_name}")
 
             import threading
-            staging = f"_stage_{self.table_name}_{int(time.time() * 1000)}_{threading.get_ident() & 0xFFFF}"
+            # Use UUID for guaranteed uniqueness across concurrent executions
+            # (avoids type name collisions in pg_type when millisecond-level timing aligns)
+            unique_id = str(uuid.uuid4()).replace('-', '')[:12]
+            staging = f"_stage_{self.table_name}_{unique_id}"
 
-            cur.execute(
-                f"CREATE UNLOGGED TABLE {staging} (LIKE {self.table_name} INCLUDING DEFAULTS)"
-            )
+            try:
+                cur.execute(
+                    f"CREATE UNLOGGED TABLE {staging} (LIKE {self.table_name} INCLUDING DEFAULTS)"
+                )
+            except psycopg2.Error as e:
+                if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
+                    # Unlikely to happen with UUID, but handle it just in case
+                    # Clean up and retry with a new UUID
+                    try:
+                        cur.execute(f"DROP TABLE IF EXISTS {staging} CASCADE")
+                    except:
+                        pass
+                    unique_id = str(uuid.uuid4()).replace('-', '')[:12]
+                    staging = f"_stage_{self.table_name}_{unique_id}"
+                    cur.execute(
+                        f"CREATE UNLOGGED TABLE {staging} (LIKE {self.table_name} INCLUDING DEFAULTS)"
+                    )
+                else:
+                    raise
 
             buf = io.StringIO()
             writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
