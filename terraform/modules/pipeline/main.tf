@@ -273,143 +273,24 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "SignalGeneration"
       }
 
-      # ── Step 5: Generate all signals in parallel ──────────────────────────
+      # ── Step 5: Generate daily signals ──────────────────────────
+      # TODO: Implement signals_weekly, signals_monthly, signals_etf_* loaders
+      # (these are planned but not yet implemented; using daily signals only for now)
       SignalGeneration = {
-        Type = "Parallel"
-        Branches = [
-          {
-            StartAt = "SignalsDaily"
-            States = {
-              SignalsDaily = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["signals_daily"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "SignalsWeekly"
-            States = {
-              SignalsWeekly = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["signals_weekly"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "SignalsMonthly"
-            States = {
-              SignalsMonthly = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["signals_monthly"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "SignalsEtfDaily"
-            States = {
-              SignalsEtfDaily = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["signals_etf_daily"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "SignalsEtfWeekly"
-            States = {
-              SignalsEtfWeekly = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["signals_etf_weekly"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
-          {
-            StartAt = "SignalsEtfMonthly"
-            States = {
-              SignalsEtfMonthly = {
-                Type     = "Task"
-                Resource = "arn:aws:states:::ecs:runTask.sync"
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["signals_etf_monthly"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          }
-        ]
+        Type = "Task"
+        Resource = "arn:aws:states:::ecs:runTask.sync"
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["signals_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
