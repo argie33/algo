@@ -26,7 +26,7 @@ class SignalsDailyLoader(OptimalLoader):
     """Daily signals loader that generates buy/sell signals from technical indicators."""
 
     table_name = "buy_sell_daily"
-    primary_key = ("symbol", "date")
+    primary_key = ("symbol", "timeframe", "date")
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
