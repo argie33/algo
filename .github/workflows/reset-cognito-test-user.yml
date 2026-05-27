@@ -1,4 +1,4 @@
-name: Reset Cognito Test User Password
+ï»¿name: Reset Cognito Test User Password
 
 on:
   workflow_dispatch:
@@ -82,7 +82,7 @@ jobs:
             --username "$USERNAME" \
             --password "${{ inputs.new_password }}" \
             --permanent
-          echo "✅ Password set permanently for ${{ inputs.user_email }}"
+          echo "Ã¢Å“â€¦ Password set permanently for ${{ inputs.user_email }}"
 
       - name: Verify user status
         run: |
@@ -94,7 +94,7 @@ jobs:
             --query 'UserStatus' --output text)
           echo "User status: $STATUS"
           if [ "$STATUS" = "CONFIRMED" ]; then
-            echo "✅ User is CONFIRMED and ready to log in"
+            echo "Ã¢Å“â€¦ User is CONFIRMED and ready to log in"
           else
-            echo "⚠️ User status is $STATUS — may need additional confirmation"
+            echo "Ã¢Å¡Â Ã¯Â¸Â User status is $STATUS Ã¢â‚¬â€ may need additional confirmation"
           fi

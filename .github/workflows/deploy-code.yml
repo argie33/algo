@@ -1,4 +1,4 @@
-name: Deploy Application Code
+ï»¿name: Deploy Application Code
 
 # Deploys Lambda functions (algo + API) and frontend to S3/CloudFront.
 # Infrastructure must already exist (run deploy-all-infrastructure first).
@@ -32,9 +32,9 @@ env:
 
 
 jobs:
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Resolve Terraform outputs once; share across jobs
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   resolve-infra:
     name: Resolve Infrastructure Outputs
     runs-on: ubuntu-latest
@@ -117,7 +117,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Terraform outputs retrieved successfully"
+          echo "Ã¢Å“â€¦ Terraform outputs retrieved successfully"
 
           # Extract all needed outputs
           API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value')
@@ -161,7 +161,7 @@ jobs:
           echo "terraform_backend_bucket=${BACKEND_BUCKET}" >> $GITHUB_OUTPUT
           echo "terraform_backend_key=${BACKEND_KEY}" >> $GITHUB_OUTPUT
 
-          echo "✅ Infrastructure outputs resolved from Terraform"
+          echo "Ã¢Å“â€¦ Infrastructure outputs resolved from Terraform"
           echo "  API Lambda:  ${API_LAMBDA}"
           echo "  Algo Lambda: ${ALGO_LAMBDA}"
           echo "  Frontend S3: ${FRONTEND_BUCKET}"
@@ -169,9 +169,9 @@ jobs:
           echo "  Algo Layer:  ${ALGO_LAYER}"
           echo "  API Layer:   ${API_LAYER}"
 
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Algo Lambda
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   deploy-algo-lambda:
     name: Deploy Algo Lambda
     needs: resolve-infra
@@ -324,7 +324,7 @@ jobs:
             # Warn (don't error) if heavy dependencies in function code - they should be in layer, but layer backup works
             has_deps = any(f.startswith(('boto', 'pandas', 'numpy', 'psycopg2', 'requests')) for f in files)
             if has_deps:
-              print("⚠️ WARNING: Dependencies found in function code (layer will provide them)")
+              print("Ã¢Å¡Â Ã¯Â¸Â WARNING: Dependencies found in function code (layer will provide them)")
 
           with zipfile.ZipFile(layer_path, 'r') as zf:
             names = zf.namelist()
@@ -344,13 +344,13 @@ jobs:
           echo "Size: ${SIZE_KB}KB"
           unzip -l algo_lambda.zip
           echo ""
-          unzip -l algo_lambda.zip | grep -q "lambda_function.py" && echo "✅ lambda_function.py found"
+          unzip -l algo_lambda.zip | grep -q "lambda_function.py" && echo "Ã¢Å“â€¦ lambda_function.py found"
 
           # Verify - warn if heavy dependencies in function code (layer will provide them)
           if unzip -l algo_lambda.zip | grep -qE 'boto|pandas|numpy|psycopg2'; then
-            echo "⚠️ WARNING: Dependencies found in function code (layer will provide them)"
+            echo "Ã¢Å¡Â Ã¯Â¸Â WARNING: Dependencies found in function code (layer will provide them)"
           else
-            echo "✅ No dependencies bundled (they come from layer)"
+            echo "Ã¢Å“â€¦ No dependencies bundled (they come from layer)"
           fi
 
           echo ""
@@ -359,13 +359,13 @@ jobs:
           echo "Size: ${SIZE_MB}MB"
           for pattern in "python/config/__init__" "python/algo/__init__" "python/utils/__init__"; do
             if unzip -l algo_layer.zip | grep -q "$pattern"; then
-              echo "✅ $pattern found"
+              echo "Ã¢Å“â€¦ $pattern found"
             else
-              echo "❌ MISSING - $pattern"
+              echo "Ã¢ÂÅ’ MISSING - $pattern"
               exit 1
             fi
           done
-          echo "✅ All required layer components present"
+          echo "Ã¢Å“â€¦ All required layer components present"
 
       - name: Publish Lambda Layer
         run: |
@@ -458,7 +458,7 @@ jobs:
           layers_data = json.loads(result.stdout)
           layer_version = int(layers_data['LayerVersions'][0]['Version'])
           layer_arn = f"arn:aws:lambda:{region}:{account_id}:layer:algo-orchestrator-layer:{layer_version}"
-          print(f"✅ Layer ARN: {layer_arn}")
+          print(f"Ã¢Å“â€¦ Layer ARN: {layer_arn}")
           func_name = os.environ['FUNC_NAME']
 
           # Retrieve RDS configuration from Secrets Manager (match Terraform-created secret)
@@ -540,13 +540,13 @@ jobs:
                     orchestrator_dry_run = val.lower() == 'true'
             print(f"  Read from tfvars: paper_trading={paper_trading}, exec_mode={exec_mode}, dry_run={orchestrator_dry_run}")
           except Exception as e:
-            print(f"WARNING: Could not read terraform.tfvars: {e} — using safe defaults (paper=True)")
+            print(f"WARNING: Could not read terraform.tfvars: {e} Ã¢â‚¬â€ using safe defaults (paper=True)")
 
           apca_base_url = "https://paper-api.alpaca.markets" if paper_trading else "https://api.alpaca.markets"
           trading_mode = "PAPER" if paper_trading else "LIVE"
 
-          print(f"✅ Credentials loaded: {db_host}:{db_port}/{db_name}")
-          print(f"📊 Trading mode: {trading_mode}")
+          print(f"Ã¢Å“â€¦ Credentials loaded: {db_host}:{db_port}/{db_name}")
+          print(f"Ã°Å¸â€œÅ  Trading mode: {trading_mode}")
 
           # Deploy function code
           print("Deploying function code...")
@@ -616,7 +616,7 @@ jobs:
             except:
               pass
 
-          print("✅ Lambda deployment complete")
+          print("Ã¢Å“â€¦ Lambda deployment complete")
           PYTHON_DEPLOY
 
           # Wait for configuration to apply
@@ -638,9 +638,9 @@ jobs:
           sleep 10
           echo "OK - Algo Lambda deployed with code, config, and layer"
 
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # API Lambda
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   deploy-api-lambda:
     name: Deploy API Lambda
     needs: resolve-infra
@@ -743,7 +743,7 @@ jobs:
             --query 'Version' \
             --output text)
 
-          echo "✅ API layer published: version $LAYER_VERSION"
+          echo "Ã¢Å“â€¦ API layer published: version $LAYER_VERSION"
           echo "API_LAYER_ARN=arn:aws:lambda:$AWS_REGION:${{ secrets.AWS_ACCOUNT_ID }}:layer:$LAYER_NAME:$LAYER_VERSION" >> $GITHUB_ENV
 
       - name: Deploy API Lambda
@@ -787,9 +787,9 @@ jobs:
           if [ -z "$SECRET_ID" ] || [ "$SECRET_ID" = "null" ] || [ "$SECRET_ID" = "***" ]; then
             # Fall back to constructed secret name
             SECRET_ID="${PROJECT}-db-credentials-${ENV}"
-            echo "⚠️ Using fallback secret ID: $SECRET_ID"
+            echo "Ã¢Å¡Â Ã¯Â¸Â Using fallback secret ID: $SECRET_ID"
           else
-            echo "✅ Using Terraform-resolved secret ID: $SECRET_ID"
+            echo "Ã¢Å“â€¦ Using Terraform-resolved secret ID: $SECRET_ID"
           fi
 
           # Retrieve database credentials from Secrets Manager
@@ -881,8 +881,8 @@ jobs:
             exit 1
           fi
 
-          echo "✅ API Lambda environment and layers updated"
-          echo "✅ API Lambda deployed with database configuration and Cognito settings"
+          echo "Ã¢Å“â€¦ API Lambda environment and layers updated"
+          echo "Ã¢Å“â€¦ API Lambda deployed with database configuration and Cognito settings"
 
       - name: Verify API Lambda Environment Variables
         run: |
@@ -893,7 +893,7 @@ jobs:
             --function-name "$FUNC" \
             --region $AWS_REGION)
 
-          echo "✓ Lambda configuration retrieved"
+          echo "Ã¢Å“â€œ Lambda configuration retrieved"
 
           DB_HOST=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_HOST // "NOT_SET"')
           DB_PORT=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_PORT // "NOT_SET"')
@@ -903,7 +903,7 @@ jobs:
           DB_SSL=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_SSL // "NOT_SET"')
 
           if [ "$DB_HOST" = "NOT_SET" ]; then
-            echo "❌ ERROR: DB_HOST not set in Lambda environment"
+            echo "Ã¢ÂÅ’ ERROR: DB_HOST not set in Lambda environment"
             exit 1
           fi
 
@@ -921,7 +921,7 @@ jobs:
           API_ENDPOINT="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
 
           if [ -z "$API_ENDPOINT" ]; then
-            echo "⚠️ API Gateway endpoint not available - skipping health check"
+            echo "Ã¢Å¡Â Ã¯Â¸Â API Gateway endpoint not available - skipping health check"
             echo "   (Check API is deployed manually)"
             exit 0
           fi
@@ -942,9 +942,9 @@ jobs:
           echo "Response body: $BODY"
 
           if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ API health check passed"
+            echo "Ã¢Å“â€¦ API health check passed"
           else
-            echo "⚠️ API health check returned $HTTP_CODE (expected 200)"
+            echo "Ã¢Å¡Â Ã¯Â¸Â API health check returned $HTTP_CODE (expected 200)"
           fi
 
       - name: Add Provisioned Concurrency to API Lambda
@@ -952,7 +952,7 @@ jobs:
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           if [ -z "$FUNC" ] || [ "$FUNC" = "null" ] || [ "$FUNC" = "***" ]; then
-            echo "⚠️ Skipping provisioned concurrency - function name not resolved"
+            echo "Ã¢Å¡Â Ã¯Â¸Â Skipping provisioned concurrency - function name not resolved"
             exit 0
           fi
 
@@ -967,7 +967,7 @@ jobs:
             --output text 2>/dev/null || echo "None")
 
           if [ "$EXISTING" != "None" ] && [ -n "$EXISTING" ]; then
-            echo "✓ Provisioned concurrency already configured: $EXISTING"
+            echo "Ã¢Å“â€œ Provisioned concurrency already configured: $EXISTING"
           else
             echo "Setting provisioned concurrency to 1 instance (keeps Lambda warm, eliminates cold starts)..."
             aws lambda put-provisioned-concurrency-config \
@@ -975,18 +975,18 @@ jobs:
               --qualifier "\$LATEST" \
               --provisioned-concurrent-executions 1 \
               --region $AWS_REGION || {
-                echo "⚠️ Could not set provisioned concurrency (optional)"
+                echo "Ã¢Å¡Â Ã¯Â¸Â Could not set provisioned concurrency (optional)"
                 echo "This may occur if the function is not yet deployed or has no alias"
               }
-            echo "✅ Provisioned concurrency configured (cost: ~$0.015/hour)"
+            echo "Ã¢Å“â€¦ Provisioned concurrency configured (cost: ~$0.015/hour)"
           fi
 
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Database Init Lambda
-  # ──────────────────────────────────────────────────────────────
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Frontend
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   deploy-frontend:
     name: Build & Deploy Frontend
     needs: resolve-infra
@@ -1035,26 +1035,26 @@ jobs:
           # Prefer CloudFront URL for API
           if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ] && [ "$WEBSITE_URL" != "***" ]; then
             FINAL_API_URL="$WEBSITE_URL"
-            echo "✅ Using CloudFront URL: $FINAL_API_URL"
+            echo "Ã¢Å“â€¦ Using CloudFront URL: $FINAL_API_URL"
           elif [ -n "$API_GATEWAY" ] && [ "$API_GATEWAY" != "null" ] && [ "$API_GATEWAY" != "***" ]; then
             FINAL_API_URL="$API_GATEWAY"
-            echo "✅ Using API Gateway URL: $FINAL_API_URL"
+            echo "Ã¢Å“â€¦ Using API Gateway URL: $FINAL_API_URL"
           else
             # Fall back to dynamic discovery (slower but always available)
-            echo "⚠️ Terraform outputs not available, discovering API Gateway..."
+            echo "Ã¢Å¡Â Ã¯Â¸Â Terraform outputs not available, discovering API Gateway..."
             API_GATEWAY=$(aws apigatewayv2 get-apis \
               --region $AWS_REGION \
               --query 'Items[?Name==`algo-api-dev`].ApiEndpoint | [0]' \
               --output text 2>/dev/null || echo "")
 
             if [ -z "$API_GATEWAY" ] || [ "$API_GATEWAY" = "None" ]; then
-              echo "❌ ERROR: Could not resolve API Gateway endpoint"
+              echo "Ã¢ÂÅ’ ERROR: Could not resolve API Gateway endpoint"
               echo "Available APIs:"
               aws apigatewayv2 get-apis --region $AWS_REGION --query 'Items[].Name' --output text || echo "No APIs found"
               exit 1
             fi
             FINAL_API_URL="$API_GATEWAY"
-            echo "✅ Using discovered API Gateway: $FINAL_API_URL"
+            echo "Ã¢Å“â€¦ Using discovered API Gateway: $FINAL_API_URL"
           fi
 
           echo "Building with VITE_API_URL=$FINAL_API_URL"
@@ -1069,7 +1069,7 @@ jobs:
           # Get environment from terraform.tfvars
           ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
 
-          # API_URL is the CloudFront website URL from Terraform — all /api/* requests go
+          # API_URL is the CloudFront website URL from Terraform Ã¢â‚¬â€ all /api/* requests go
           # through CloudFront which forwards to API Gateway (same-origin, no CORS needed).
           API_URL="${{ needs.resolve-infra.outputs.website_url }}"
           if [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
@@ -1136,7 +1136,7 @@ jobs:
 
           printf '};\n' >> webapp/frontend/dist/config.js
 
-          echo "✅ Generated dist/config.js with API_URL=$API_URL and Cognito config"
+          echo "Ã¢Å“â€¦ Generated dist/config.js with API_URL=$API_URL and Cognito config"
           cat webapp/frontend/dist/config.js
 
           # Inject build timestamp into config.js URL to bust browser cache.
@@ -1147,7 +1147,7 @@ jobs:
           BUILD_TS=$(date +%s)
           if [ -f "webapp/frontend/dist/index.html" ]; then
             sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
-            echo "✅ config.js cache buster added: /config.js?v=${BUILD_TS}"
+            echo "Ã¢Å“â€¦ config.js cache buster added: /config.js?v=${BUILD_TS}"
           fi
 
       - name: Verify Frontend Build Output
@@ -1155,16 +1155,16 @@ jobs:
         run: |
           echo "=== Checking dist folder ==="
           if [ -d dist ]; then
-            echo "✅ dist/ exists"
+            echo "Ã¢Å“â€¦ dist/ exists"
             ls -lah dist/ | head -20
             FILE_COUNT=$(find dist -type f | wc -l)
             echo "Total files: $FILE_COUNT"
             if [ "$FILE_COUNT" -eq 0 ]; then
-              echo "❌ ERROR: dist/ is empty!"
+              echo "Ã¢ÂÅ’ ERROR: dist/ is empty!"
               exit 1
             fi
           else
-            echo "❌ ERROR: dist/ does not exist"
+            echo "Ã¢ÂÅ’ ERROR: dist/ does not exist"
             exit 1
           fi
 
@@ -1179,19 +1179,19 @@ jobs:
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-            echo "❌ ERROR: frontend bucket not resolved"
+            echo "Ã¢ÂÅ’ ERROR: frontend bucket not resolved"
             echo "Available buckets:"
             aws s3api list-buckets --query 'Buckets[].Name' --output text
             exit 1
           fi
-          echo "✅ Using bucket: $BUCKET"
+          echo "Ã¢Å“â€¦ Using bucket: $BUCKET"
 
           # Verify bucket is accessible
           if ! aws s3 ls "s3://${BUCKET}/" >/dev/null 2>&1; then
-            echo "❌ ERROR: Cannot access bucket s3://${BUCKET}/"
+            echo "Ã¢ÂÅ’ ERROR: Cannot access bucket s3://${BUCKET}/"
             exit 1
           fi
-          echo "✅ Bucket is accessible"
+          echo "Ã¢Å“â€¦ Bucket is accessible"
 
           # Sync assets with correct Content-Type headers (charset=utf-8 prevents browser mojibake).
           # Must be separate sync commands because --content-type applies to all files in one run.
@@ -1229,7 +1229,7 @@ jobs:
             --cache-control "no-cache, no-store, must-revalidate" \
             --exclude "*" --include "config.js"
 
-          echo "✅ Frontend synced to s3://${BUCKET}/"
+          echo "Ã¢Å“â€¦ Frontend synced to s3://${BUCKET}/"
 
           # Verify files are in S3
           echo "Verifying S3 contents..."
@@ -1250,14 +1250,14 @@ jobs:
               --paths "/*" \
               --query 'Invalidation.Id' \
               --output text)
-            echo "✅ CloudFront invalidation created: $INVALIDATION_ID"
+            echo "Ã¢Å“â€¦ CloudFront invalidation created: $INVALIDATION_ID"
           else
-            echo "⚠️ No CloudFront distribution found to invalidate"
+            echo "Ã¢Å¡Â Ã¯Â¸Â No CloudFront distribution found to invalidate"
           fi
 
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Export Developer Credentials (for programmatic use)
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   export-developer-credentials:
     name: Export Developer Credentials
     needs: resolve-infra
@@ -1287,9 +1287,9 @@ jobs:
 
             echo "access_key_id=$ACCESS_KEY" >> $GITHUB_OUTPUT
             echo "secret_access_key=$SECRET_KEY" >> $GITHUB_OUTPUT
-            echo "✅ Developer credentials retrieved from Secrets Manager"
+            echo "Ã¢Å“â€¦ Developer credentials retrieved from Secrets Manager"
           else
-            echo "⚠️ Developer credentials not found in Secrets Manager yet"
+            echo "Ã¢Å¡Â Ã¯Â¸Â Developer credentials not found in Secrets Manager yet"
           fi
 
       - name: Save Credentials for Next Steps
@@ -1302,18 +1302,18 @@ jobs:
             "region": "${{ env.AWS_REGION }}"
           }
           EOF
-          echo "✅ Developer credentials saved"
+          echo "Ã¢Å“â€¦ Developer credentials saved"
 
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Verify Orchestrator - Skipped (test manually after deployment)
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # NOTE: AWS CLI v2 has hardcoded HTTP timeout that fires before Lambda completes.
   # Orchestrator runs asynchronously; check CloudWatch logs manually after deploy.
   # Run: aws logs tail /aws/lambda/algo-algo-dev --follow --region us-east-1
 
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Cleanup Old Task Definition Versions (Prevent AWS Sprawl)
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   cleanup-old-task-versions:
     name: Cleanup Old ECS Task Definition Versions
     runs-on: ubuntu-latest
@@ -1328,7 +1328,7 @@ jobs:
 
       - name: Deregister Old Task Definition Versions
         run: |
-          echo "🧹 Cleaning up old ECS task definition versions..."
+          echo "Ã°Å¸Â§Â¹ Cleaning up old ECS task definition versions..."
           echo "Keeping only the 2 most recent versions per family"
           echo ""
 
@@ -1354,11 +1354,11 @@ jobs:
           done
 
           echo ""
-          echo "✅ Cleanup complete. Deregistered $total_deleted old task definition versions"
+          echo "Ã¢Å“â€¦ Cleanup complete. Deregistered $total_deleted old task definition versions"
 
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   # Summary & Credentials Available
-  # ──────────────────────────────────────────────────────────────
+  # â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬â€”â‚¬
   deployment-complete:
     name: Deployment Complete - Credentials Ready
     needs: [resolve-infra, export-developer-credentials, cleanup-old-task-versions]
@@ -1376,7 +1376,7 @@ jobs:
       - name: Retrieve and Display Developer Credentials
         run: |
           echo "=========================================="
-          echo "✅ DEPLOYMENT COMPLETE"
+          echo "Ã¢Å“â€¦ DEPLOYMENT COMPLETE"
           echo "=========================================="
           echo ""
           echo "Infrastructure:"
@@ -1398,22 +1398,22 @@ jobs:
           if [ -n "$SECRET" ]; then
             KEY=$(echo "$SECRET" | jq -r '.access_key_id')
             echo "  Access Key ID: ${KEY:0:4}****${KEY: -4}"
-            echo "  ✅ Credentials available for CLI use"
+            echo "  Ã¢Å“â€¦ Credentials available for CLI use"
             echo ""
             echo "Next: Configure credentials and invoke orchestrator"
             echo "  export AWS_ACCESS_KEY_ID=<key>"
             echo "  export AWS_SECRET_ACCESS_KEY=<secret>"
             echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_function_name }} --payload '{\"source\":\"manual\"}' response.json --region ${{ env.AWS_REGION }}"
           else
-            echo "  ⚠️ Retrieving credentials..."
+            echo "  Ã¢Å¡Â Ã¯Â¸Â Retrieving credentials..."
           fi
 
           echo ""
           echo "System Status:"
-          echo "  ✅ Terraform deployed"
-          echo "  ✅ Lambda functions updated"
-          echo "  ✅ Orchestrator verified live"
-          echo "  ✅ All 7 phases executed"
+          echo "  Ã¢Å“â€¦ Terraform deployed"
+          echo "  Ã¢Å“â€¦ Lambda functions updated"
+          echo "  Ã¢Å“â€¦ Orchestrator verified live"
+          echo "  Ã¢Å“â€¦ All 7 phases executed"
           echo ""
           echo "=========================================="
 

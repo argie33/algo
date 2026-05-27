@@ -1,4 +1,4 @@
-name: Test Orchestrator Execution
+ï»¿name: Test Orchestrator Execution
 
 on:
   workflow_dispatch:
@@ -57,9 +57,9 @@ jobs:
             /tmp/response.json || {
               EXIT_CODE=$?
               if [ $EXIT_CODE -eq 124 ]; then
-                echo "⏱️  Lambda invocation timed out after 3 minutes"
+                echo "Ã¢ÂÂ±Ã¯Â¸Â  Lambda invocation timed out after 3 minutes"
               else
-                echo "❌ Lambda invocation failed with exit code: $EXIT_CODE"
+                echo "Ã¢ÂÅ’ Lambda invocation failed with exit code: $EXIT_CODE"
               fi
               exit 0
             }
@@ -114,13 +114,13 @@ jobs:
             echo "Response Status: $SUCCESS"
 
             if [ "$STATUS" = "200" ] && [ "$SUCCESS" = "success" ]; then
-              echo "✅ Orchestrator execution completed successfully"
+              echo "Ã¢Å“â€¦ Orchestrator execution completed successfully"
               exit 0
             else
-              echo "⚠️ Orchestrator returned errors - check logs above"
+              echo "Ã¢Å¡Â Ã¯Â¸Â Orchestrator returned errors - check logs above"
               exit 1
             fi
           else
-            echo "⚠️ No response file found"
+            echo "Ã¢Å¡Â Ã¯Â¸Â No response file found"
             exit 1
           fi

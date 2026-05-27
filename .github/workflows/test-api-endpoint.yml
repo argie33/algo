@@ -1,4 +1,4 @@
-name: Test API Endpoint (Real HTTP Request)
+ï»¿name: Test API Endpoint (Real HTTP Request)
 
 on:
   workflow_dispatch:
@@ -65,12 +65,12 @@ jobs:
           cat /tmp/response.json | jq . 2>/dev/null || cat /tmp/response.json
 
           if [ "$HTTP_CODE" = "500" ]; then
-            echo "❌ ERROR: API returned 500"
+            echo "Ã¢ÂÅ’ ERROR: API returned 500"
             exit 1
           elif [ "$HTTP_CODE" = "200" ]; then
-            echo "✓ API returned 200"
+            echo "Ã¢Å“â€œ API returned 200"
           else
-            echo "⚠️ Unexpected status: $HTTP_CODE"
+            echo "Ã¢Å¡Â Ã¯Â¸Â Unexpected status: $HTTP_CODE"
           fi
 
       - name: Test /api/health/detailed
@@ -85,10 +85,10 @@ jobs:
           cat /tmp/detailed.json | jq . 2>/dev/null || cat /tmp/detailed.json
 
           if [ "$HTTP_CODE" = "500" ]; then
-            echo "❌ ERROR: API returned 500"
+            echo "Ã¢ÂÅ’ ERROR: API returned 500"
             exit 1
           elif [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "503" ]; then
-            echo "✓ API responded"
+            echo "Ã¢Å“â€œ API responded"
           fi
 
       - name: Test /api/signals (Public Endpoint)
@@ -104,14 +104,14 @@ jobs:
           cat /tmp/signals.json | jq . 2>/dev/null || cat /tmp/signals.json
 
           if [ "$HTTP_CODE" = "500" ]; then
-            echo "❌ ERROR: API returned 500"
+            echo "Ã¢ÂÅ’ ERROR: API returned 500"
             exit 1
           fi
 
       - name: If No API Gateway Found
         if: steps.endpoint.outputs.endpoint == ''
         run: |
-          echo "❌ ERROR: No API Gateway endpoint found!"
+          echo "Ã¢ÂÅ’ ERROR: No API Gateway endpoint found!"
           echo "Checking what infrastructure exists..."
 
           echo ""

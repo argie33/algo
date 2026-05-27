@@ -1,4 +1,4 @@
-name: Populate Test Data & Run Orchestrator
+ï»¿name: Populate Test Data & Run Orchestrator
 
 on:
   workflow_dispatch:
@@ -106,9 +106,9 @@ jobs:
             /tmp/response.json || {
               EXIT_CODE=$?
               if [ $EXIT_CODE -eq 124 ]; then
-                echo "⏱️ Lambda invocation timed out after 3 minutes"
+                echo "Ã¢ÂÂ±Ã¯Â¸Â Lambda invocation timed out after 3 minutes"
               else
-                echo "❌ Lambda invocation failed with exit code: $EXIT_CODE"
+                echo "Ã¢ÂÅ’ Lambda invocation failed with exit code: $EXIT_CODE"
               fi
               exit 1
             }
@@ -199,5 +199,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Next Steps**:" >> $GITHUB_STEP_SUMMARY
           echo "1. Check Phase 1 execution in logs above" >> $GITHUB_STEP_SUMMARY
-          echo "2. If Phase 1 PASSES (≥70% coverage), orchestrator continues to Phase 2" >> $GITHUB_STEP_SUMMARY
+          echo "2. If Phase 1 PASSES (Ã¢â€°Â¥70% coverage), orchestrator continues to Phase 2" >> $GITHUB_STEP_SUMMARY
           echo "3. If Phase 1 FAILS, increase coverage or use different test date" >> $GITHUB_STEP_SUMMARY

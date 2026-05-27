@@ -184,7 +184,7 @@ class LivePerformance:
                                 THEN profit_loss_dollars
                                      / NULLIF((entry_price - stop_loss_price)
                                               * entry_quantity, 0)
-                            ELSE profit_loss_pct / 100.0
+                            ELSE NULL
                         END AS r_multiple
                     FROM algo_trades
                     WHERE status = 'closed'
