@@ -903,7 +903,42 @@ data "aws_iam_policy_document" "developer" {
     ]
 
     resources = [
-      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-svc-*"
+      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-svc-*",
+      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-ecs-*"
+    ]
+  }
+
+  # Step Functions (start executions and check status for manual testing)
+  statement {
+    sid    = "StepFunctionsStartExecution"
+    effect = "Allow"
+
+    actions = [
+      "states:StartExecution",
+      "states:DescribeExecution",
+      "states:GetExecutionHistory"
+    ]
+
+    resources = [
+      "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-*"
+    ]
+  }
+
+  # CloudWatch Logs (read + write for troubleshooting)
+  statement {
+    sid    = "CloudWatchLogsRead"
+    effect = "Allow"
+
+    actions = [
+      "logs:GetLogEvents",
+      "logs:DescribeLogStreams",
+      "logs:DescribeLogGroups"
+    ]
+
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/states/*"
     ]
   }
 
