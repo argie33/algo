@@ -1,4 +1,4 @@
-ï»¿name: Deploy Application Code
+name: Deploy Application Code
 
 # Deploys Lambda functions (algo + API) and frontend to S3/CloudFront.
 # Infrastructure must already exist (run deploy-all-infrastructure first).
