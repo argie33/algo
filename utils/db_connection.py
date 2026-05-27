@@ -178,10 +178,12 @@ def get_db_connection(max_retries: int = 2, timeout: int = 10):
     """
     import time
     t_start = time.time()
-    logger.info(f"[DB] get_db_connection() starting")
+    logger.info(f"[DB] *** ENTERING get_db_connection() ***")
+    logger.info(f"[DB] Getting DB config...")
     config = get_db_config()
+    logger.info(f"[DB] Got config, setting timeout to {timeout}s")
     config["connect_timeout"] = timeout
-    logger.info(f"[DB] Connection config: host={config['host']}, port={config['port']}, db={config['database']}, user={config['user']}")
+    logger.info(f"[DB] *** ABOUT TO CONNECT: host={config.get('host')}, port={config.get('port')}, db={config.get('database')} (timeout={timeout}s) ***")
 
     # In AWS Lambda, skip DNS pre-test (connection attempt will catch DNS issues)
     if not os.getenv('AWS_LAMBDA_FUNCTION_NAME'):

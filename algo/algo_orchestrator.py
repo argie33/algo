@@ -799,12 +799,17 @@ class Orchestrator:
             return {'success': False, 'error': 'Lock acquisition failed'}
 
         try:
-            logger.info("\nRunning critical data patrol checks...")
+            logger.info("\n[CRITICAL] Running critical data patrol checks...")
+            logger.info("[CRITICAL] About to call _get_conn()...")
             conn = None
             cur = None
             try:
+                logger.info("[CRITICAL] Calling _get_conn() NOW...")
                 conn = self._get_conn()
+                logger.info(f"[CRITICAL] Got connection: {conn}")
+                logger.info("[CRITICAL] Creating cursor...")
                 cur = conn.cursor()
+                logger.info("[CRITICAL] Cursor created, running _check_data_patrol()...")
                 if not self._check_data_patrol(cur):
                     return self._final_report()
             except Exception as e:
