@@ -18,7 +18,7 @@ from utils.db_connection import get_db_connection
 import requests
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.trade_status import TradeStatus, PositionStatus
 from algo.algo_config import get_config
 from algo.algo_notifications import notify
@@ -64,7 +64,7 @@ class DailyReconciliation:
     def run_daily_reconciliation(self, reconcile_date=None):
         """Run full daily reconciliation."""
         if not reconcile_date:
-            reconcile_date = datetime.now().date()
+            reconcile_date = datetime.now(timezone.utc).date()
 
         self.connect()
 
@@ -343,7 +343,7 @@ class DailyReconciliation:
                 if qty <= 0:
                     continue  # short or zero — skip
 
-                position_id = f'EXT-{sym}-{datetime.now().strftime("%Y%m%d")}'
+                position_id = f'EXT-{sym}-{datetime.now(timezone.utc).strftime("%Y%m%d")}'
                 trade_id = f'EXT-{sym}'
 
                 # For imported positions, calculate realistic stops + targets using volatility

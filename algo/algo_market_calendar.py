@@ -6,7 +6,7 @@ Prevents false alerts on market closures, early closes, and holidays.
 Uses standard US market holidays. Can be extended for other markets.
 """
 
-from datetime import datetime, date as _date, time
+from datetime import datetime, date as _date, time, timezone
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
@@ -86,7 +86,7 @@ class MarketCalendar:
         US equities: 9:30 AM - 4:00 PM ET weekdays (except holidays)
         """
         if not check_datetime:
-            check_datetime = datetime.now()
+            check_datetime = datetime.now(timezone.utc)
 
         check_date = check_datetime.date()
         check_time = check_datetime.time()
@@ -109,7 +109,7 @@ class MarketCalendar:
     def market_status(check_datetime=None):
         """Get detailed market status."""
         if not check_datetime:
-            check_datetime = datetime.now()
+            check_datetime = datetime.now(timezone.utc)
 
         check_date = check_datetime.date()
         check_time = check_datetime.time()

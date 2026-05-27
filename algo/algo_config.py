@@ -9,6 +9,7 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 from config.credential_helper import get_db_config
 import os
 import logging
+from config.api_timeouts import get_api_timeout
 
 logger = logging.getLogger(__name__)
 from utils.db_connection import get_db_connection
@@ -245,7 +246,7 @@ class AlgoConfig:
         cur = None
         try:
             t_conn_start = time.time()
-            conn = get_db_connection(timeout=15)  # RDS Proxy adds latency; 15s timeout is safer
+            conn = get_db_connection(timeout=15)  # RDS Proxy timeout (longer for batch operations)
             t_conn_done = time.time()
             logger.info(f"[AlgoConfig] database connection took {t_conn_done-t_conn_start:.2f}s")
             cur = conn.cursor()

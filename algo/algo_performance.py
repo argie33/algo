@@ -25,7 +25,7 @@ Metrics computed:
 import json
 import numpy as np
 import psycopg2
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any
 import os
 from pathlib import Path
@@ -504,7 +504,7 @@ class LivePerformance:
 
             result = {
                 'report_date': report_date,
-                'generated_at': datetime.now().isoformat(),
+                'generated_at': datetime.now(timezone.utc).isoformat(),
                 'rolling_sharpe_252d': sharpe,
                 'rolling_sortino_252d': sortino,
                 'calmar_ratio': calmar,

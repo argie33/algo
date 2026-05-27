@@ -13,7 +13,7 @@ FAIL-OPEN per trade, but FAIL-CLOSED if >50% of trades fail in batch.
 
 import logging
 import traceback
-from datetime import date as _date, timedelta
+from datetime import date as _date, timedelta, datetime, timezone
 from typing import Any, Callable, List, Dict, Tuple, Optional
 
 from utils.db_connection import get_db_connection
@@ -305,7 +305,7 @@ def _validate_pre_trade_data_quality(
                 # Strip tzinfo before subtraction — psycopg2 returns timezone-aware datetime
                 # for TIMESTAMPTZ columns, which can't be compared to naive datetime.now().
                 db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
-                age_hours = (datetime.now() - db_ts).total_seconds() / 3600
+                age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
                 if age_hours > 24:
                     issues.append(f"Price data too stale: {age_hours:.1f} hours old")
                 elif age_hours > 1:
@@ -359,7 +359,7 @@ def _validate_pre_trade_data_quality(
             result = cur.fetchone()
             if result and result[0]:
                 db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
-                age_hours = (datetime.now() - db_ts).total_seconds() / 3600
+                age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
                 # Allow 72 hours of staleness for testing/backtesting data
                 # Production: revert to 24 hours when using real-time data feeds
                 if age_hours > 72:

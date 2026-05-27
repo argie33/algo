@@ -10,7 +10,7 @@ Tracks:
 """
 
 import logging
-from datetime import datetime, date as _date
+from datetime import datetime, date as _date, timezone
 from typing import Dict, Any, Optional
 from utils.db_connection import get_db_connection
 
@@ -111,7 +111,7 @@ class TradeAuditLogger:
             """, (
                 symbol, signal_date, entry_price, stop_loss_price,
                 base_shares, final_shares, position_size_pct,
-                cascade, str(multipliers), str(reasons), datetime.now()
+                cascade, str(multipliers), str(reasons), datetime.now(timezone.utc)
             ))
             self.conn.commit()
 
@@ -175,7 +175,7 @@ class TradeAuditLogger:
             """, (
                 symbol, signal_date, entry_price, stop_loss_price,
                 distance_pct, stop_method, stop_reasoning,
-                str(candidates), datetime.now()
+                str(candidates), datetime.now(timezone.utc)
             ))
             self.conn.commit()
 
@@ -228,7 +228,7 @@ class TradeAuditLogger:
             """, (
                 symbol, position_id, exit_rule, exit_reason,
                 entry_price, exit_price, pnl_dollars, pnl_pct, r_multiple,
-                datetime.now()
+                datetime.now(timezone.utc)
             ))
             self.conn.commit()
 

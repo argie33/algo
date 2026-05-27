@@ -34,7 +34,7 @@ from config.credential_helper import (
 import os
 from utils.db_connection import get_db_connection
 from pathlib import Path
-from datetime import datetime, timedelta, date as _date
+from datetime import datetime, timedelta, date as _date, timezone
 try:
     from trade_performance_auditor import TradePerformanceAuditor
 except ImportError:
@@ -79,7 +79,7 @@ class ExitEngine:
     def check_and_execute_exits(self, current_date=None) -> int:
         """Check all open positions for exit conditions and execute."""
         if not current_date:
-            current_date = datetime.now().date()
+            current_date = datetime.now(timezone.utc).date()
 
         auditor = TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
 

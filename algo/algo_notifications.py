@@ -6,7 +6,7 @@ import psycopg2.extensions
 import os
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 
@@ -60,7 +60,7 @@ class TradeNotificationService:
 
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cutoff = datetime.now() - timedelta(minutes=minutes)
+                cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
                 cur.execute("""
                     SELECT id, action_type, symbol, action_date, details,
                            actor, status, created_at

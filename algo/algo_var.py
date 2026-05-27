@@ -21,7 +21,7 @@ from utils.db_connection import get_db_connection
 from config.credential_helper import get_db_config, get_db_password
 import os
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, Dict, Any
 from pathlib import Path
 
@@ -487,7 +487,7 @@ class PortfolioRisk:
 
             result = {
                 'report_date': report_date,
-                'generated_at': datetime.now().isoformat(),
+                'generated_at': datetime.now(timezone.utc).isoformat(),
                 'status': 'ok',
                 'var_metrics': var_metrics,
                 'cvar_metrics': cvar_metrics,

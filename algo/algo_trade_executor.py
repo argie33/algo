@@ -25,8 +25,9 @@ import json
 from utils.db_connection import get_db_connection
 import uuid
 from pathlib import Path
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 import requests
+from config.api_timeouts import get_api_timeout, get_alpaca_timeout
 import time
 from decimal import Decimal, ROUND_HALF_UP
 import logging
@@ -140,9 +141,9 @@ class TradeExecutor:
         }
         """
         if not signal_date:
-            signal_date = datetime.now().date()
+            signal_date = datetime.now(timezone.utc).date()
         if not entry_date:
-            entry_date = datetime.now().date()
+            entry_date = datetime.now(timezone.utc).date()
 
         if entry_date < signal_date:
             return {
@@ -343,7 +344,7 @@ class TradeExecutor:
                     if exit_date:
                         from datetime import date as _date
                         exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
-                        days_since_exit = (datetime.now().date() - exit_d).days
+                        days_since_exit = (datetime.now(timezone.utc).date() - exit_d).days
                         if days_since_exit < min_days_wait:
                             return {
                                 'success': False, 'trade_id': '', 'status': 'reentry_cooldown',
@@ -1032,10 +1033,14 @@ class TradeExecutor:
                     f'{self.alpaca_base_url}/v2/account',
                     headers={'APCA-API-KEY-ID': self.alpaca_key,
                              'APCA-API-SECRET-KEY': self.alpaca_secret},
-                    timeout=5,
+                    timeout=get_api_timeout(),
                 )
                 if resp.status_code == 200:
-                    data = resp.json()
+                    try:
+                        data = resp.json()
+                    except (ValueError, Exception) as e:
+                        logger.debug(f"Invalid JSON response from portfolio API: {e}")
+                        return None
                     pv = data.get('portfolio_value') or data.get('equity')
                     if pv is not None:
                         return float(pv)
@@ -1056,7 +1061,7 @@ class TradeExecutor:
                 snapshot_date = row[1]
                 # Alert if snapshot is stale (more than 1 day old)
                 from datetime import datetime, timedelta
-                if snapshot_date and (datetime.now().date() - snapshot_date).days > 1:
+                if snapshot_date and (datetime.now(timezone.utc).date() - snapshot_date).days > 1:
                     try:
                         notify(
                             severity='warning',
@@ -1129,7 +1134,7 @@ class TradeExecutor:
                 json=order_data,
                 headers={'APCA-API-KEY-ID': self.alpaca_key,
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
-                timeout=10,
+                timeout=get_api_timeout(),
             )
             logger.info(f"[SEND_ORDER] {symbol}: Alpaca responded with status {response.status_code}")
 
@@ -1182,7 +1187,7 @@ class TradeExecutor:
                 f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
                 headers={'APCA-API-KEY-ID': self.alpaca_key,
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
-                timeout=10,
+                timeout=get_api_timeout(),
             )
             if resp.status_code in (200, 204):
                 return {'success': True, 'message': f'Cancelled bracket order {alpaca_order_id}'}
@@ -1207,7 +1212,7 @@ class TradeExecutor:
                 f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
                 headers={'APCA-API-KEY-ID': self.alpaca_key,
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
-                timeout=5,
+                timeout=get_api_timeout(),
             )
             if resp.status_code == 200:
                 try:
@@ -1247,10 +1252,14 @@ class TradeExecutor:
                     f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
                     headers={'APCA-API-KEY-ID': self.alpaca_key,
                              'APCA-API-SECRET-KEY': self.alpaca_secret},
-                    timeout=5,
+                    timeout=get_api_timeout(),
                 )
                 if resp.status_code == 200:
-                    data = resp.json()
+                    try:
+                        data = resp.json()
+                    except Exception as e:
+                        logger.debug(f"Failed to parse order response: {e}")
+                        return None
                     filled_qty = data.get('filled_qty')
                     if filled_qty is not None:
                         return int(filled_qty)
@@ -1287,10 +1296,16 @@ class TradeExecutor:
                     f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
                     headers={'APCA-API-KEY-ID': self.alpaca_key,
                              'APCA-API-SECRET-KEY': self.alpaca_secret},
-                    timeout=5,
+                    timeout=get_api_timeout(),
                 )
                 if resp.status_code == 200:
-                    data = resp.json()
+                    try:
+                        data = resp.json()
+                    except Exception as e:
+                        logger.debug(f"Failed to parse status response: {e}")
+                        if attempt < max_retries - 1:
+                            time.sleep(2 ** attempt)
+                        continue
                     return data.get('status')
                 else:
                     if attempt < max_retries - 1:
@@ -1347,11 +1362,15 @@ class TradeExecutor:
                     },
                     headers={'APCA-API-KEY-ID': self.alpaca_key,
                              'APCA-API-SECRET-KEY': self.alpaca_secret},
-                    timeout=10,
+                    timeout=get_api_timeout(),
                 )
                 logger.info(f"[SEND_EXIT] {symbol}: Alpaca responded with status {resp.status_code} (attempt {attempt+1})")
                 if resp.status_code in (200, 201):
-                    data = resp.json()
+                    try:
+                        data = resp.json()
+                    except Exception as e:
+                        logger.error(f"[SEND_EXIT] {symbol}: Failed to parse exit response JSON: {e}")
+                        return {'success': False, 'message': f'Invalid response format: {e}'}
                     order_id = data.get('id')
                     filled_price = float(data.get('filled_avg_price')) if data.get('filled_avg_price') else None
                     logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")

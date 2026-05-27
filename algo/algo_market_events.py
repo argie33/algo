@@ -145,7 +145,7 @@ class MarketEventHandler:
                 return None
 
             url_bars = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
-            resp_bars = requests.get(url_bars, headers=headers, timeout=5)
+            resp_bars = requests.get(url_bars, headers=headers, timeout=get_market_data_timeout())
             if resp_bars.status_code != 200:
                 return None
 

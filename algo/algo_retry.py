@@ -7,7 +7,7 @@ Usage — decorator:
 
     @retry(max_attempts=3, exceptions=(requests.HTTPError, ConnectionError))
     def fetch_price(symbol):
-        return requests.get(f"https://api/price/{symbol}", timeout=30).json()
+        return requests.get(f"https://api/price/{symbol}", timeout=get_api_timeout()).json()
 
 Usage — rate limiter (shared across threads):
     limiter = RateLimiter(calls_per_minute=200)   # Alpaca limit
@@ -22,6 +22,7 @@ import logging
 import random
 import time
 from typing import Callable, Tuple, Type
+from config.api_timeouts import get_api_timeout
 
 log = logging.getLogger(__name__)
 

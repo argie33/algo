@@ -21,12 +21,13 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 
 from config.credential_helper import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
+from config.api_timeouts import get_alpaca_timeout
 import os
 import json
 
 import requests
 from pathlib import Path
-from datetime import datetime, timedelta, date as _date
+from datetime import datetime, timedelta, date as _date, timezone
 import logging
 from utils.db_connection_pool import get_db_pool
 
@@ -618,11 +619,16 @@ class PositionMonitor:
                         'APCA-API-KEY-ID': alpaca_key,
                         'APCA-API-SECRET-KEY': alpaca_secret,
                     }
-                    resp = requests.get(url, headers=headers, timeout=5)
+                    resp = requests.get(url, headers=headers, timeout=get_alpaca_timeout())
                     if resp.status_code != 200:
                         continue
 
-                    alpaca_pos = resp.json()
+                    try:
+                        alpaca_pos = resp.json()
+                    except (ValueError, Exception) as e:
+                        logger.debug(f"Invalid JSON response for {symbol}: {e}, skipping")
+                        continue
+
                     alpaca_qty = int(alpaca_pos.get('qty', 0))
 
                     if alpaca_qty == 0:
@@ -659,7 +665,7 @@ class PositionMonitor:
                                     ) VALUES (%s, %s, %s, %s)
                                 """, (
                                     'CORPORATE_ACTION_SPLIT_NO_STOP',
-                                    datetime.now(),
+                                    datetime.now(timezone.utc),
                                     f'Stock split detected: {symbol} {db_qty} → {alpaca_qty} shares (ratio {split_ratio:.2f}). Original stop price missing in DB. Quantity updated but STOP NOT ADJUSTED. Manual review required.',
                                     'CRITICAL'
                                 ))
@@ -680,7 +686,7 @@ class PositionMonitor:
                                 ) VALUES (%s, %s, %s, %s)
                             """, (
                                 'CORPORATE_ACTION_SPLIT',
-                                datetime.now(),
+                                datetime.now(timezone.utc),
                                 f'Stock split detected: {symbol} {db_qty} → {alpaca_qty} shares (ratio {split_ratio:.2f}). Stop adjusted from ${db_stop:.2f} to ${new_stop:.2f}',
                                 'WARN'
                             ))

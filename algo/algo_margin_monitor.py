@@ -47,13 +47,18 @@ class MarginMonitor:
                 "APCA-API-KEY-ID": self.alpaca_api_key,
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
-            resp = requests.get(f"{self.base_url}/v2/account", headers=headers, timeout=5)
+            resp = requests.get(f"{self.base_url}/v2/account", headers=headers, timeout=get_alpaca_timeout())
 
             if resp.status_code != 200:
                 logger.warning(f"Alpaca API error: {resp.status_code}, using default margin")
                 return {"margin_usage_pct": 70.0}
 
-            data = resp.json()
+            try:
+                data = resp.json()
+            except (ValueError, Exception) as e:
+                logger.warning(f"Invalid JSON response from Alpaca: {e}, using default margin")
+                return {"margin_usage_pct": 70.0}
+
             equity = float(data.get("equity", 0))
             cash = float(data.get("cash", 0))
             multiplied_positions = float(data.get("multiplied_positions", equity))
