@@ -241,7 +241,7 @@ class AlgoConfig:
         cur = None
         try:
             t_conn_start = time.time()
-            conn = get_db_connection(timeout=5)  # Short timeout for config queries
+            conn = get_db_connection(timeout=15)  # RDS Proxy adds latency; 15s timeout is safer
             t_conn_done = time.time()
             logger.info(f"[AlgoConfig] database connection took {t_conn_done-t_conn_start:.2f}s")
             cur = conn.cursor()
