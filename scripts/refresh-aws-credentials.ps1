@@ -144,17 +144,17 @@ if ($LASTEXITCODE -eq 0) {
     $Arn = $IdentityObj.Arn
     $Account = $IdentityObj.Account
 
-    Write-Host "`n✓ Credentials verified successfully" -ForegroundColor Green
-    Write-Host "  Profile: $Profile" -ForegroundColor Green
-    Write-Host "  IAM ARN: $Arn" -ForegroundColor Green
-    Write-Host "  Account: $Account" -ForegroundColor Green
-    Write-Host "  File: $CredFile" -ForegroundColor Green
-    Write-Host "  Access Key: $AccessKeyId" -ForegroundColor Green
+    Write-Host "`n[OK] Credentials verified successfully" -ForegroundColor Green
+    Write-Host ('  Profile: ' + $Profile) -ForegroundColor Green
+    Write-Host ('  IAM ARN: ' + $Arn) -ForegroundColor Green
+    Write-Host ('  Account: ' + $Account) -ForegroundColor Green
+    Write-Host ('  File: ' + $CredFile) -ForegroundColor Green
+    Write-Host ('  Access Key: ' + $AccessKeyId) -ForegroundColor Green
 } else {
-    Write-Warning "Credentials written to $CredFile but verification failed."
-    Write-Warning "Details: $Identity"
-    Write-Warning ""
-    Write-Warning "The IAM key may need a moment to propagate (usually < 1 minute)."
-    Write-Warning "Retry: aws sts get-caller-identity --profile $Profile"
+    Write-Warning ('Credentials written to ' + $CredFile + ' but verification failed.')
+    Write-Warning ('Details: ' + $Identity)
+    Write-Warning ''
+    Write-Warning 'The IAM key may need a moment to propagate (usually less than 1 minute).'
+    Write-Warning ('Retry: aws sts get-caller-identity --profile ' + $Profile)
     exit 1
 }
