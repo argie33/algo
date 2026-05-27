@@ -91,6 +91,7 @@ module "database" {
   db_instance_class               = var.rds_instance_class
   db_allocated_storage            = var.rds_allocated_storage
   db_max_allocated_storage        = var.rds_max_allocated_storage
+  db_iops                         = var.rds_iops
   db_backup_retention_days        = var.rds_backup_retention_period
   db_master_username              = var.rds_username
   rds_password                    = var.rds_password

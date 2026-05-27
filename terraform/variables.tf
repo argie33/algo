@@ -154,6 +154,16 @@ variable "rds_allocated_storage" {
   }
 }
 
+variable "rds_iops" {
+  description = "IOPS for RDS gp3 storage (3000-64000)"
+  type        = number
+  default     = 3000
+  validation {
+    condition     = var.rds_iops >= 3000 && var.rds_iops <= 64000
+    error_message = "IOPS must be between 3000 and 64000"
+  }
+}
+
 variable "rds_max_allocated_storage" {
   description = "Maximum auto-scaling storage in GB"
   type        = number

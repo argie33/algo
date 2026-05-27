@@ -29,7 +29,9 @@ enable_preclose_orchestrator   = true # FINAL: 3:00 PM ET last trades before clo
 cognito_enabled             = true # Authorizer exists but not used on routes (all NONE auth)
 
 # Database configuration
-enable_rds_proxy = true    # Enable RDS Proxy: connection pooling reduces latency & query overhead (critical for performance)
+rds_instance_class = "db.t3.small"    # FIXED: Upgraded from db.t3.micro to t3.small (2 vCPU, 2GB RAM) - more cost-effective for dev
+rds_iops          = 6000             # FIXED: Increased from 3000 to 6000 IOPS - fixes DiskQueueDepth=40 timeout issue
+enable_rds_proxy  = true    # Enable RDS Proxy: connection pooling reduces latency & query overhead (critical for performance)
 dev_mode         = "false" # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
 # Orchestrator configuration (moved from GitHub Secrets)

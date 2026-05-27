@@ -90,6 +90,7 @@ resource "aws_db_instance" "main" {
   # Performance & Optimization
   multi_az            = var.db_multi_az
   storage_type        = "gp3" # gp3 is 20% cheaper than gp2 with same or better IOPS
+  iops                = var.db_iops # IOPS for gp3 storage (resolves DiskQueueDepth timeout issues)
   publicly_accessible = false # Private subnet, no public endpoint
 
   # Encryption
