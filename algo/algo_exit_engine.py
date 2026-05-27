@@ -429,7 +429,7 @@ class ExitEngine:
             return True
         self.cur.execute(
             """
-            SELECT close, HIGH FROM price_daily
+            SELECT close, high FROM price_daily
             WHERE symbol = %s AND date <= %s
             ORDER BY date DESC LIMIT 6
             """,

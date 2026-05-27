@@ -201,6 +201,9 @@ class PipelineHealth:
                 health.error_message = f"No {date_column} values found"
                 return health
 
+            if isinstance(latest_date, datetime):
+                latest_date = latest_date.date()
+
             health.latest_date = latest_date
             health.age_days = (_date.today() - latest_date).days
 

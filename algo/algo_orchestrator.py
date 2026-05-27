@@ -923,7 +923,7 @@ class Orchestrator:
             try:
                 with TimeBlock("phase_4_exit_execution"):
                     result = self.phase_4_exit_execution()
-                    if result is False:
+                    if not result:
                         logger.critical("HALT: Phase 4 (Exit Execution) returned False — stopping pipeline")
                         return self._final_report()
                 phase_4_elapsed = time.time() - phase_4_start
@@ -959,7 +959,7 @@ class Orchestrator:
             try:
                 with TimeBlock("phase_5_signal_generation"):
                     result = self.phase_5_signal_generation()
-                    if result is False:
+                    if not result:
                         logger.critical("HALT: Phase 5 (Signal Generation) returned False — stopping pipeline")
                         return self._final_report()
                 phase_5_elapsed = time.time() - phase_5_start
@@ -974,7 +974,7 @@ class Orchestrator:
             try:
                 with TimeBlock("phase_6_entry_execution"):
                     result = self.phase_6_entry_execution()
-                    if result is False:
+                    if not result:
                         logger.critical("HALT: Phase 6 (Entry Execution) returned False — stopping pipeline")
                         return self._final_report()
                 phase_6_elapsed = time.time() - phase_6_start
