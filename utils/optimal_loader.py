@@ -509,17 +509,47 @@ class OptimalLoader(ABC):
 
     def _run_serial(self, symbols: List[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
+            # Keep connection alive by testing it periodically
+            # Long-running loaders (30+ min) need to refresh the connection to avoid idle timeout
+            if i % 50 == 0:
+                try:
+                    conn = self._connect()
+                    if conn and not conn.closed:
+                        # Execute a no-op to keep connection active
+                        cur = conn.cursor()
+                        cur.execute("SELECT 1")
+                        cur.close()
+                except Exception as e:
+                    log.debug(f"Connection health check failed: {e}. Forcing reconnect.")
+                    self._conn = None  # Force reconnect on next symbol
+
             self._safe_load_symbol(symbol)
             if i % 100 == 0:
                 log.info("  Progress: %d/%d", i, len(symbols))
 
     def _run_parallel(self, symbols: List[str], workers: int) -> None:
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0
+            last_health_check = time.time()
             for fut in as_completed(futures):
                 done += 1
+                # Periodic health check to keep main connection alive
+                now = time.time()
+                if now - last_health_check > 120:  # Every 2 minutes
+                    try:
+                        conn = self._connect()
+                        if conn and not conn.closed:
+                            cur = conn.cursor()
+                            cur.execute("SELECT 1")
+                            cur.close()
+                    except Exception as e:
+                        log.debug(f"Connection health check failed: {e}. Forcing reconnect.")
+                        self._conn = None
+                    last_health_check = now
+
                 if done % 100 == 0:
                     log.info("  Progress: %d/%d", done, len(symbols))
 
