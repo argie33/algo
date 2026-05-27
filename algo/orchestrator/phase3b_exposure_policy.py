@@ -30,13 +30,11 @@ def _is_evening_run():
     Intraday runs (morning 9:30 AM, afternoon 1 PM, pre-close 3 PM) use cached value.
     """
     try:
-        from datetime import timezone, timedelta
-        # Get current time in ET
-        et = timezone(timedelta(hours=-5))  # EST; EDT would be -4
-        now = datetime.now(et).replace(tzinfo=timezone.utc).astimezone(et)
-        hour = now.hour
+        import pytz
+        et_tz = pytz.timezone('US/Eastern')
+        now_et = datetime.now(et_tz)
         # Evening = after 5 PM (17:00)
-        return hour >= 17
+        return now_et.hour >= 17
     except Exception:
         return False
 
