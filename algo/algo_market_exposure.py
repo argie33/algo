@@ -112,9 +112,11 @@ class MarketExposure:
 
             # Reconstruct result dict from cached row
             import json
-            raw_score, exposure_pct, regime, halt_reasons_str, dist_days, factors_str = row
+            raw_score, exposure_pct, regime, halt_reasons_str, dist_days, factors_obj = row
+            # halt_reasons is stored as VARCHAR, so parse it
             halt_reasons = json.loads(halt_reasons_str) if halt_reasons_str else []
-            factors = json.loads(factors_str) if factors_str else {}
+            # factors is stored as JSONB, so it's already parsed by the driver
+            factors = factors_obj if isinstance(factors_obj, dict) else (json.loads(factors_obj) if factors_obj else {})
 
             result = {
                 'eval_date': str(eval_date),
@@ -960,7 +962,7 @@ class MarketExposure:
                 short_exp = abs(exposure_pct)
 
             factors_json = json.dumps(result.get('factors', {}))
-            halt_reasons_str = '; '.join(result.get('halt_reasons', []))
+            halt_reasons_json = json.dumps(result.get('halt_reasons', []))
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily
@@ -986,7 +988,7 @@ class MarketExposure:
                     result.get('regime', 'unknown'),
                     result.get('distribution_days', 0),
                     factors_json,
-                    halt_reasons_str,
+                    halt_reasons_json,
                     long_exp,
                     short_exp,
                     is_entry_allowed,
