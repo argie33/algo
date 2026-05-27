@@ -161,14 +161,14 @@ def _test_dns_resolution(hostname: str) -> None:
         raise
 
 
-def get_db_connection(max_retries: int = 5, timeout: int = 60):
+def get_db_connection(max_retries: int = 2, timeout: int = 10):
     """Get a PostgreSQL connection with automatic retry and credential management.
 
     Tracks connection pool utilization via connection monitor.
 
     Args:
-        max_retries: Number of connection attempts before failing
-        timeout: Connection timeout in seconds
+        max_retries: Number of connection attempts before failing (reduced to 2 from 5 to fail fast)
+        timeout: Connection timeout in seconds (reduced to 10 from 60 to prevent 120s+ hangs)
 
     Returns:
         TrackedConnection: Connected database connection (tracks pool health)
@@ -190,11 +190,11 @@ def get_db_connection(max_retries: int = 5, timeout: int = 60):
     last_error = None
     for attempt in range(max_retries):
         try:
-            logger.info(f"[DB] Connection attempt {attempt + 1}/{max_retries} starting...")
+            logger.info(f"[DB] Connection attempt {attempt + 1}/{max_retries} to {config['host']}:{config['port']} (timeout: {timeout}s)...")
             t_conn_start = time.time()
             conn = psycopg2.connect(**config)
             t_connected = time.time()
-            logger.info(f"[DB] Connection established in {t_connected-t_conn_start:.2f}s (total {t_connected-t_start:.2f}s, attempt {attempt + 1})")
+            logger.info(f"[DB] ✓ Connected in {t_connected-t_conn_start:.2f}s (total {t_connected-t_start:.2f}s)")
             return TrackedConnection(conn)
         except psycopg2.OperationalError as e:
             last_error = e
