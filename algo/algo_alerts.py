@@ -17,9 +17,10 @@ import json
 import smtplib
 import requests
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from config.api_timeouts import get_webhook_timeout
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)
@@ -98,7 +99,7 @@ class AlertManager:
 
         # Build email body
         body_lines = [
-            f'Data Patrol Alert — {datetime.now().isoformat()}',
+            f'Data Patrol Alert — {datetime.now(timezone.utc).isoformat()}',
             f'Run: {patrol_run_id}',
             '',
             f'Counts:',
@@ -143,7 +144,7 @@ class AlertManager:
         """
         subject = f'[ALGO ALERT] {alert_type}: {symbol}'
         body_lines = [
-            f'Position Alert — {datetime.now().isoformat()}',
+            f'Position Alert — {datetime.now(timezone.utc).isoformat()}',
             f'Type: {alert_type}',
             f'Symbol: {symbol}',
             '',
@@ -178,7 +179,7 @@ class AlertManager:
         subject = f'[ALGO ALERT] {severity}: Data Loader Failure'
 
         body_lines = [
-            f'Loader Health Alert — {datetime.now().isoformat()}',
+            f'Loader Health Alert — {datetime.now(timezone.utc).isoformat()}',
             '',
             f'Severity: {severity}',
             '',
@@ -202,7 +203,7 @@ class AlertManager:
             '2. Trigger loaders manually: python3 loadpricedaily.py',
             '3. Check logs: tail -f /tmp/algo_loaders.log',
             '',
-            f'Report time: {datetime.now().isoformat()}',
+            f'Report time: {datetime.now(timezone.utc).isoformat()}',
         ])
 
         body_text = '\n'.join(body_lines)
@@ -220,7 +221,7 @@ class AlertManager:
             message: Alert message
         """
         subject = '[ALGO ALERT] CRITICAL'
-        body_text = f"Critical Alert — {datetime.now().isoformat()}\n\n{message}"
+        body_text = f"Critical Alert — {datetime.now(timezone.utc).isoformat()}\n\n{message}"
 
         if self.email_to:
             self._send_email(subject, body_text)
@@ -271,10 +272,10 @@ class AlertManager:
                     'fields': [
                         {'title': 'Findings', 'value': finding_text or 'None', 'short': False}
                     ],
-                    'ts': int(datetime.now().timestamp()),
+                    'ts': int(datetime.now(timezone.utc).timestamp()),
                 }]
             }
-            requests.post(self.webhook_url, json=payload, timeout=5)
+            requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {subject}")
         except Exception as e:
             logger.error(f"Webhook failed: {e}")
@@ -288,10 +289,10 @@ class AlertManager:
                     'title': title,
                     'text': message,
                     'fields': [{'title': 'Alert Type', 'value': alert_type, 'short': True}],
-                    'ts': int(datetime.now().timestamp()),
+                    'ts': int(datetime.now(timezone.utc).timestamp()),
                 }]
             }
-            requests.post(self.webhook_url, json=payload, timeout=5)
+            requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {title}")
         except Exception as e:
             logger.error(f"Webhook failed: {e}")

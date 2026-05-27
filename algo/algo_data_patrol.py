@@ -39,6 +39,7 @@ USAGE:
 
 from config.credential_helper import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
+from config.api_timeouts import get_market_data_timeout, get_alpaca_timeout
 import os
 import json
 import argparse
@@ -46,7 +47,7 @@ from utils.db_connection import get_db_connection
 import requests
 import time
 from pathlib import Path
-from datetime import datetime, date as _date, timedelta
+from datetime import datetime, date as _date, timedelta, timezone
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 from utils.structured_logger import get_logger
 
@@ -518,11 +519,15 @@ class DataPatrol:
                     url,
                     headers={'User-Agent': 'Mozilla/5.0 (algo-patrol)'},
                     params={'interval': '1d', 'range': '5d'},
-                    timeout=5,
+                    timeout=get_market_data_timeout(),
                 )
                 if resp.status_code != 200:
                     continue
-                data = resp.json()
+                try:
+                    data = resp.json()
+                except (ValueError, Exception) as e:
+                    logger.debug(f"Invalid JSON from Yahoo API: {e}")
+                    continue
                 results = data.get('chart', {}).get('result', [])
                 if not results:
                     continue
@@ -604,11 +609,15 @@ class DataPatrol:
             try:
                 resp = requests.get(
                     f'{data_base}/v2/stocks/{sym}/bars/latest',
-                    headers=headers, timeout=5,
+                    headers=headers, timeout=get_alpaca_timeout(),
                 )
                 if resp.status_code != 200:
                     continue
-                bar = resp.json().get('bar', {})
+                try:
+                    bar = resp.json().get('bar', {})
+                except (ValueError, Exception) as e:
+                    logger.debug(f"Invalid JSON from Alpaca API: {e}")
+                    continue
                 alpaca_close = float(bar.get('c', 0))
 
                 # Compare against our DB latest close
@@ -1147,7 +1156,7 @@ class DataPatrol:
             self.log('fundamental_coverage', WARN, 'key_metrics', f'Check skipped: {e}', None)
 
     def run(self, quick=False, validate_alpaca=False):
-        self._run_id = f"PATROL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        self._run_id = f"PATROL-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
         start_time = time.time()
         self.connect()
         try:

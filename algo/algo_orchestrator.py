@@ -98,7 +98,7 @@ class Orchestrator:
         self.dry_run = dry_run
         self.verbose = verbose
         self.phase_results = {}
-        self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now().strftime('%H%M%S')}"
+        self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
         self.lock_file = Path(tempfile.gettempdir()) / 'algo_orchestrator.lock'
         self._lock_acquired = False
         self.db_failure_counter_file = Path(tempfile.gettempdir()) / 'algo_db_failures.txt'
@@ -152,12 +152,12 @@ class Orchestrator:
         if self.db_pool and conn:
             try:
                 self.db_pool.putconn(conn)
-            except Exception:
+            except Exception as pool_err:
+                logger.debug(f"Failed to return connection to pool: {pool_err}")
                 try:
                     conn.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
+                except Exception as close_err:
+                    logger.debug(f"Failed to close connection after pool error: {close_err}")
 
     def cleanup(self) -> None:
         """Close the connection pool on shutdown."""
@@ -185,9 +185,8 @@ class Orchestrator:
             if cur:
                 try:
                     cur.close()
-                except Exception as e:
-
-                    logger.error(f"Unhandled exception: {e}")
+                except Exception as close_err:
+                    logger.debug(f"Failed to close cursor: {close_err}")
             self._put_conn(conn)
 
     def _increment_db_failure_counter(self) -> int:

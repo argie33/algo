@@ -12,6 +12,7 @@ Rules:
 """
 
 from config.credential_helper import get_db_config, get_db_password
+from config.api_timeouts import get_alpaca_timeout
 import os
 import psycopg2
 from datetime import date as _date
@@ -115,10 +116,14 @@ class PositionSizer:
             response = requests.get(
                 f'{base}/v2/account',
                 headers={'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret},
-                timeout=5,
+                timeout=get_alpaca_timeout(),
             )
             if response.status_code == 200:
-                data = response.json()
+                try:
+                    data = response.json()
+                except (ValueError, Exception) as e:
+                    logger.debug(f"Invalid JSON from Alpaca portfolio API: {e}")
+                    return None
                 # Use portfolio_value (equity + cash)
                 pv = data.get('portfolio_value') or data.get('equity')
                 if pv:

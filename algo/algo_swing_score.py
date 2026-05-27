@@ -210,8 +210,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed in setup component: {rb_err}")
 
             try:
                 trend_pts, trend_detail = self._trend_component(symbol, eval_date)
@@ -221,8 +221,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed in trend component: {rb_err}")
 
             try:
                 mom_pts, mom_detail = self._momentum_component(symbol, eval_date)
@@ -232,8 +232,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed in momentum component: {rb_err}")
 
             try:
                 vol_pts, vol_detail = self._volume_component(symbol, eval_date)
@@ -243,8 +243,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed in volume component: {rb_err}")
 
             try:
                 fund_pts, fund_detail = self._fundamentals_component(symbol)
@@ -254,8 +254,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed in fundamentals component: {rb_err}")
 
             try:
                 sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry)
@@ -265,8 +265,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed in sector component: {rb_err}")
 
             try:
                 mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
@@ -276,8 +276,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed in multi-timeframe component: {rb_err}")
 
             total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 

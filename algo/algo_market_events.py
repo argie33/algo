@@ -12,12 +12,12 @@ Implements fail-safe protocols that override strategy logic.
 
 from config.credential_helper import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
-from algo_config import get_api_timeout
+from config.api_timeouts import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
 import os
 
 import psycopg2
 import requests
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -91,7 +91,11 @@ class MarketEventHandler:
             if resp.status_code != 200:
                 return None
 
-            data = resp.json()
+            try:
+                data = resp.json()
+            except (ValueError, Exception) as e:
+                logger.debug(f"Invalid JSON response from {url}: {e}")
+                return None
             status = data.get('status', '').upper()
             tradable = data.get('tradable', False)
 
@@ -101,7 +105,7 @@ class MarketEventHandler:
                     'symbol': symbol,
                     'status': status,
                     'tradable': tradable,
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                 }
 
             return None
@@ -131,7 +135,11 @@ class MarketEventHandler:
             if resp.status_code != 200:
                 return None
 
-            data = resp.json()
+            try:
+                data = resp.json()
+            except (ValueError, Exception) as e:
+                logger.debug(f"Invalid JSON response from {url}: {e}")
+                return None
             current_price = data.get('quote', {}).get('ap')  # ask price
             if not current_price:
                 return None
@@ -141,7 +149,11 @@ class MarketEventHandler:
             if resp_bars.status_code != 200:
                 return None
 
-            bars_data = resp_bars.json()
+            try:
+                bars_data = resp_bars.json()
+            except (ValueError, Exception) as e:
+                logger.debug(f"Invalid JSON response from {url_bars}: {e}")
+                return None
             open_price = bars_data.get('bar', {}).get('o')
             if not open_price:
                 return None
@@ -154,7 +166,7 @@ class MarketEventHandler:
                     'description': '20%+ down — market halted for rest of day',
                     'pct_down': round(pct_down, 2),
                     'action': 'HALT_ALL_ENTRIES',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                 }
             elif pct_down >= 13.0:
                 return {
@@ -162,7 +174,7 @@ class MarketEventHandler:
                     'description': '13%+ down — 15-minute halt',
                     'pct_down': round(pct_down, 2),
                     'action': 'PAUSE_NEW_ENTRIES_15MIN',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                 }
             elif pct_down >= 7.0:
                 return {
@@ -170,7 +182,7 @@ class MarketEventHandler:
                     'description': '7%+ down — 15-minute halt',
                     'pct_down': round(pct_down, 2),
                     'action': 'PAUSE_NEW_ENTRIES_15MIN',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                 }
 
             return None
@@ -291,7 +303,7 @@ class MarketEventHandler:
                     action_type, action_date, details, severity
                 ) VALUES (%s, %s, %s, %s)
                 """,
-                ('SINGLE_STOCK_HALT', datetime.now(), f'Symbol {symbol} halted — pending orders cancelled', 'WARN')
+                ('SINGLE_STOCK_HALT', datetime.now(timezone.utc), f'Symbol {symbol} halted — pending orders cancelled', 'WARN')
             )
 
             self.conn.commit()
@@ -300,7 +312,7 @@ class MarketEventHandler:
                 'action': 'HALT_SYMBOL',
                 'symbol': symbol,
                 'status': 'orders_cancelled',
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -333,7 +345,7 @@ class MarketEventHandler:
                         action_type, action_date, details, severity
                     ) VALUES (%s, %s, %s, %s)
                     """,
-                    ('CIRCUIT_BREAKER_L3', datetime.now(), message, 'CRITICAL')
+                    ('CIRCUIT_BREAKER_L3', datetime.now(timezone.utc), message, 'CRITICAL')
                 )
 
             elif level in (1, 2):
@@ -347,7 +359,7 @@ class MarketEventHandler:
                         action_type, action_date, details, severity
                     ) VALUES (%s, %s, %s, %s)
                     """,
-                    ('CIRCUIT_BREAKER_L' + str(level), datetime.now(), message, 'ERROR')
+                    ('CIRCUIT_BREAKER_L' + str(level), datetime.now(timezone.utc), message, 'ERROR')
                 )
 
             self.conn.commit()
@@ -356,7 +368,7 @@ class MarketEventHandler:
                 'action': action,
                 'level': level,
                 'status': 'logged',
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -390,7 +402,7 @@ class MarketEventHandler:
                     'symbol': symbol,
                     'status': status,
                     'action': 'FORCE_EXIT_MARKET',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                 }
 
             return None
@@ -406,7 +418,7 @@ class MarketEventHandler:
             dict with all checks and any alerts
         """
         result = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'checks': {},
             'alerts': [],
         }
