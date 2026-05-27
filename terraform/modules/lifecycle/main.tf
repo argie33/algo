@@ -48,6 +48,10 @@ resource "aws_cloudwatch_log_group" "ecs_loader_logs" {
   retention_in_days = 7
 
   tags = var.common_tags
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # Lambda Logs - 30 days (keep longer for debugging Lambda failures)
@@ -61,6 +65,10 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
   retention_in_days = 30
 
   tags = var.common_tags
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # RDS Database Logs - 7 days (operational debugging)
@@ -74,6 +82,10 @@ resource "aws_cloudwatch_log_group" "rds_logs" {
   retention_in_days = 7
 
   tags = var.common_tags
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # API Gateway Logs - 7 days
@@ -86,6 +98,10 @@ resource "aws_cloudwatch_log_group" "apigateway_logs" {
   retention_in_days = 7
 
   tags = var.common_tags
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # ============================================================
@@ -100,6 +116,10 @@ resource "aws_cloudwatch_log_group" "vpc_flowlogs" {
   retention_in_days = 3  # Minimal retention for active debugging only
 
   tags = var.common_tags
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # ============================================================
