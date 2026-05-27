@@ -289,7 +289,7 @@ resource "aws_secretsmanager_secret_version" "rds_credentials" {
   secret_string = jsonencode({
     username = var.db_master_username
     password = local.rds_password
-    host     = aws_db_instance.main.address
+    host     = var.enable_rds_proxy ? aws_db_proxy.main[0].endpoint : aws_db_instance.main.address
     port     = aws_db_instance.main.port
     dbname   = aws_db_instance.main.db_name
     engine   = "postgresql"
