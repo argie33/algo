@@ -925,24 +925,6 @@ data "aws_iam_policy_document" "developer" {
     ]
   }
 
-  # CloudWatch Logs (read + write for troubleshooting)
-  statement {
-    sid    = "CloudWatchLogsRead"
-    effect = "Allow"
-
-    actions = [
-      "logs:GetLogEvents",
-      "logs:DescribeLogStreams",
-      "logs:DescribeLogGroups"
-    ]
-
-    resources = [
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*",
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*",
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/states/*"
-    ]
-  }
-
   # CloudWatch Logs (full write access for troubleshooting)
   statement {
     sid    = "CloudWatchLogsWrite"
