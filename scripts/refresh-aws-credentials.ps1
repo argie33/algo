@@ -112,7 +112,8 @@ $Updated = if ($Existing -match $Pattern) {
 
 # Trim trailing whitespace and append new block
 $Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
-Set-Content -Path $CredFile -Value $Updated -Encoding UTF8
+# Use UTF8NoBOM to prevent BOM issues with AWS SDK
+Set-Content -Path $CredFile -Value $Updated -Encoding UTF8NoBOM
 
 # Clean up temp dir
 Remove-Item -Recurse -Force $TmpDir
