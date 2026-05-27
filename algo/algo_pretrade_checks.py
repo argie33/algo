@@ -46,8 +46,8 @@ class PreTradeChecks:
         if self.conn:
             try:
                 self.conn.close()
-            except Exception:
-                pass
+            except Exception as close_err:
+                logger.debug(f"Connection close failed: {close_err}")
             self.conn = None
 
     def run_all(self, symbol: str, entry_price: float, position_value: float,

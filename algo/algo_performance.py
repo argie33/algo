@@ -134,13 +134,13 @@ class LivePerformance:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug(f"Cursor close failed: {close_err}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug(f"Connection close failed: {close_err}")
 
     def win_rate(self, lookback_trades: int = 50) -> Optional[Dict[str, float]]:
         """Compute win rate and average R-multiple from closed trades.
@@ -226,13 +226,13 @@ class LivePerformance:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug(f"Cursor close failed: {close_err}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug(f"Connection close failed: {close_err}")
 
     def expectancy(self, lookback_trades: int = 50) -> Optional[float]:
         """Compute expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R).
@@ -308,13 +308,13 @@ class LivePerformance:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug(f"Cursor close failed: {close_err}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as close_err:
+                    logger.debug(f"Connection close failed: {close_err}")
 
     def rolling_sortino(self, lookback_days: int = 252) -> Optional[float]:
         """Annualized Sortino ratio — penalizes only downside volatility.

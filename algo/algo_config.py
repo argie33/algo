@@ -205,6 +205,10 @@ class AlgoConfig:
         'enable_algo': ('true', 'bool', 'Enable algo trading'),
         'enable_backtesting': ('false', 'bool', 'Enable backtest mode'),
         'verbose_logging': ('true', 'bool', 'Detailed logging'),
+
+        # Network Configuration
+        'api_request_timeout_seconds': ('5', 'int', 'HTTP request timeout (seconds) for Alpaca/FRED/market data APIs'),
+        'db_connection_timeout_seconds': ('15', 'int', 'Database connection timeout (seconds) — RDS Proxy adds latency'),
     }
 
     def __init__(self):
@@ -455,6 +459,24 @@ def get_config():
     if _instance is None:
         _instance = AlgoConfig()
     return _instance
+
+def get_api_timeout() -> int:
+    """Get API request timeout in seconds.
+
+    Can be overridden by API_TIMEOUT_SECONDS environment variable.
+    Default: 5 seconds for Alpaca/FRED/market data APIs.
+    """
+    return int(os.getenv('API_TIMEOUT_SECONDS',
+                        get_config().get('api_request_timeout_seconds', 5)))
+
+def get_db_timeout() -> int:
+    """Get database connection timeout in seconds.
+
+    Can be overridden by DB_TIMEOUT_SECONDS environment variable.
+    Default: 15 seconds (RDS Proxy adds latency).
+    """
+    return int(os.getenv('DB_TIMEOUT_SECONDS',
+                        get_config().get('db_connection_timeout_seconds', 15)))
 
 if __name__ == "__main__":
     config = get_config()

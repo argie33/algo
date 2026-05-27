@@ -169,8 +169,8 @@ class PositionMonitor:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
                     try:
                         self.conn.rollback()
-                    except Exception:
-                        pass
+                    except Exception as rollback_err:
+                        logger.debug(f"Rollback failed: {rollback_err}")
                     continue
             return recs
         finally:

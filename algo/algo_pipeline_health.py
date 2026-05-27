@@ -163,13 +163,13 @@ class PipelineHealth:
         if self.cur:
             try:
                 self.cur.close()
-            except Exception:
-                pass
+            except Exception as close_err:
+                logger.debug(f"Cursor close failed: {close_err}")
         if self.conn:
             try:
                 self.conn.close()
-            except Exception:
-                pass
+            except Exception as close_err:
+                logger.debug(f"Connection close failed: {close_err}")
 
     def check_table_health(self, table_name: str, date_column: str, sla_days: int) -> TableHealth:
         """Check health of a single table."""

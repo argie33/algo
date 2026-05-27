@@ -123,8 +123,8 @@ class PositionSizer:
                 pv = data.get('portfolio_value') or data.get('equity')
                 if pv:
                     return float(pv)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Portfolio value retrieval failed: {e}")
         return None
 
     def get_current_drawdown(self):

@@ -275,8 +275,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                             # Roll back aborted transaction so the shared connection stays usable
                             try:
                                 self.conn.rollback()
-                            except Exception:
-                                pass
+                            except Exception as rollback_err:
+                                logger.debug(f"Rollback failed after advanced filter error: {rollback_err}")
                             adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
                             result['advanced'] = adv
                     else:
@@ -1206,8 +1206,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     atr_row = self.cur.fetchone()
                     if atr_row and atr_row[0]:
                         atr_value = float(atr_row[0])
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"ATR calculation failed: {e}")
 
                 if atr_value and atr_value > 0:
                     stop_loss_price = max(0.01, entry_price - (2.0 * atr_value))
@@ -1488,8 +1488,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"  (audit log skipped for {result['symbol']}: {e})")
             try:
                 self.conn.rollback()
-            except Exception:
-                pass
+            except Exception as rollback_err:
+                logger.debug(f"Rollback after audit log skip failed: {rollback_err}")
     def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None) -> Dict[str, Any]:
         """Check if new symbol is highly correlated (>0.80) with existing open positions.
 

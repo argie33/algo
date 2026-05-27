@@ -186,8 +186,8 @@ class SwingTraderScore:
                 try:
                     if self._owned:
                         self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.debug(f"Rollback failed: {rollback_err}")
                 gates = {'pass': True}  # Soft pass to continue evaluation
 
             if not gates['pass']:
@@ -407,8 +407,8 @@ class SwingTraderScore:
                         'reason': f'{abs(pct_from_high):.1f}% below 52w high (max {max_extension_pct}% allowed)',
                         'percent_from_52w_high': pct_from_high,
                     }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"52w high extension check failed: {e}")
 
         # Gate 4 & 5: Base count and base type
         # estimated_base_count column does not exist in trend_template_data schema;
@@ -450,8 +450,8 @@ class SwingTraderScore:
                             'reason': f'Industry rank {industry_rank} > {max_industry_rank} (bottom half)',
                             'industry_rank': industry_rank,
                         }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Industry rank check failed: {e}")
 
         # Gate 7: Earnings proximity
         days_to_earn = self._days_to_earnings(symbol, eval_date)
@@ -641,8 +641,8 @@ class SwingTraderScore:
             if phase_row and phase_row[0]:
                 phase_mult = 1.0
                 phase_name = 'early'
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Phase calculation failed: {e}")
 
         # Stage phase contributes other 40% (8 pts) of trend bucket scaled by phase mult
         phase_pts = self.W_TREND * 0.4 * phase_mult
@@ -740,12 +740,13 @@ class SwingTraderScore:
                 # Trigger: SI > 15% AND volume_ratio > 1.5x AND RS percentile > 70
                 if short_interest > 15 and vol_ratio > 1.5 and rs_60 is not None and rs_60 > 70:
                     si_pts = 3.0
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Short interest momentum failed: {e}")
             try:
                 if self._owned:
                     self._owned.rollback()
-            except Exception:
-                pass
+            except Exception as rollback_err:
+                logger.debug(f"Rollback failed: {rollback_err}")
 
         # EARNINGS SURPRISE MOMENTUM removed (no earnings_metrics data source)
         earnings_pts = 0.0
@@ -1043,8 +1044,8 @@ class SwingTraderScore:
                         rotation_pts = 3.0
                     elif rotation_status in ('Weakening', 'Lagging'):
                         rotation_pts = -5.0
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Rotation status check failed: {e}")
 
         total_pts = min(self.W_SECTOR, max(0.0, ind_pts + sec_pts + accel_pts + rotation_pts))
         return total_pts, {
@@ -1130,8 +1131,8 @@ class SwingTraderScore:
             row = self.cur.fetchone()
             if row and row[0] and row[1]:
                 monthly_above_ma = float(row[0]) > float(row[1])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Monthly MA check failed: {e}")
 
         # Treat MA fallback as a softer confirmation than a fresh BUY signal
         weekly_aligned = weekly_buy or weekly_above_ma
@@ -1216,8 +1217,8 @@ class SwingTraderScore:
             if self._owned:
                 try:
                     self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.debug(f"Rollback failed: {rollback_err}")
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
 
 if __name__ == "__main__":

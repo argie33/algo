@@ -248,8 +248,8 @@ class SectorRotationDetector:
                 if def_excess and cyc_excess:
                     if sum(def_excess) / len(def_excess) > sum(cyc_excess) / len(cyc_excess):
                         weeks += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Sector rotation analysis failed: {e}")
         return weeks
 
     def _persist(self, eval_date, result):

@@ -12,6 +12,7 @@ Implements fail-safe protocols that override strategy logic.
 
 from config.credential_helper import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
+from algo_config import get_api_timeout
 import os
 
 import psycopg2
@@ -86,7 +87,7 @@ class MarketEventHandler:
                 'APCA-API-KEY-ID': self.alpaca_key,
                 'APCA-API-SECRET-KEY': self.alpaca_secret,
             }
-            resp = requests.get(url, headers=headers, timeout=5)
+            resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
                 return None
 
@@ -126,7 +127,7 @@ class MarketEventHandler:
                 'APCA-API-KEY-ID': self.alpaca_key,
                 'APCA-API-SECRET-KEY': self.alpaca_secret,
             }
-            resp = requests.get(url, headers=headers, timeout=5)
+            resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
                 return None
 
@@ -376,7 +377,7 @@ class MarketEventHandler:
                 'APCA-API-KEY-ID': self.alpaca_key,
                 'APCA-API-SECRET-KEY': self.alpaca_secret,
             }
-            resp = requests.get(url, headers=headers, timeout=5)
+            resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
                 return None
 

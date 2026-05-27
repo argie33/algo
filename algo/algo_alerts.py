@@ -73,8 +73,8 @@ class AlertManager:
             from config.credential_manager import get_credential_manager
             cm = get_credential_manager()
             return cm.get_password("smtp/password", default="")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Credential manager unavailable, falling back to env var: {e}")
         return os.getenv('ALERT_SMTP_PASSWORD', '')
 
     def send_patrol_alert(self, patrol_run_id, counts, flagged_findings):
