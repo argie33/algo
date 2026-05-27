@@ -1177,19 +1177,29 @@ def _get_markets(cur) -> Dict:
             cur.execute("""
                 SELECT date, exposure_pct, regime
                 FROM market_exposure_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '60 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
                 ORDER BY date ASC
+                LIMIT 250
             """)
             history = [dict(h) for h in cur.fetchall()]
 
             try:
                 cur.execute("""
-                    SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
-                    FROM sector_ranking
-                    WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
-                    ORDER BY current_rank
+                    SELECT MAX(date_recorded) as max_date FROM sector_ranking LIMIT 1
                 """)
-                sectors = [dict(s) for s in cur.fetchall()]
+                max_date_row = cur.fetchone()
+                max_date = max_date_row['max_date'] if max_date_row else None
+
+                if max_date:
+                    cur.execute("""
+                        SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
+                        FROM sector_ranking
+                        WHERE date_recorded = %s
+                        ORDER BY current_rank
+                    """, (max_date,))
+                    sectors = [dict(s) for s in cur.fetchall()]
+                else:
+                    sectors = []
             except Exception:
                 sectors = []
 
