@@ -1605,6 +1605,12 @@ CREATE TABLE IF NOT EXISTS market_exposure_daily (
     short_exposure_pct DECIMAL(8, 4),
     exposure_tier VARCHAR(30),
     is_entry_allowed BOOLEAN,
+    exposure_pct DECIMAL(8, 4),
+    raw_score DECIMAL(8, 4),
+    regime VARCHAR(50),
+    distribution_days INTEGER,
+    factors JSONB,
+    halt_reasons TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(date)
 );
@@ -2766,12 +2772,6 @@ CREATE TABLE IF NOT EXISTS loader_watermarks (
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- market_exposure_daily: add missing columns used by algo_market_exposure.py
-ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS exposure_pct DECIMAL(8,4);
-ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS raw_score DECIMAL(8,4);
-ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS regime VARCHAR(50);
-ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS distribution_days INTEGER;
-ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS factors JSONB;
-ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS halt_reasons TEXT;
 
 -- sector_ranking: add missing historical rank columns used by sector rotation
 ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER;
