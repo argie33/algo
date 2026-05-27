@@ -104,9 +104,9 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = var.environment == "prod"
   performance_insights_retention_period = var.environment == "prod" ? 7 : null
 
-  # Apply parameter group changes at next maintenance window (safer for static params like max_connections)
-  # Static RDS parameters cannot be applied immediately; require instance reboot
-  apply_immediately = false
+  # Apply instance class changes immediately (RDS instance upgrades require reboot anyway)
+  # This ensures the db.t3.micro → db.t3.small upgrade applies now, not next maintenance window
+  apply_immediately = true
 
   # Deletion Protection — controlled explicitly, not by environment label
   deletion_protection = var.db_deletion_protection
