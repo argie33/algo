@@ -195,8 +195,9 @@ def get_db_connection(max_retries: int = 2, timeout: int = 10):
             logger.info(f"[DB] Connection attempt {attempt + 1}/{max_retries} to {config['host']}:{config['port']} (timeout: {timeout}s)...")
             t_conn_start = time.time()
             conn = psycopg2.connect(**config)
+            conn.autocommit = True
             t_connected = time.time()
-            logger.info(f"[DB] ✓ Connected in {t_connected-t_conn_start:.2f}s (total {t_connected-t_start:.2f}s)")
+            logger.info(f"[DB] ✓ Connected in {t_connected-t_conn_start:.2f}s (total {t_connected-t_start:.2f}s) with autocommit enabled")
             return TrackedConnection(conn)
         except psycopg2.OperationalError as e:
             last_error = e

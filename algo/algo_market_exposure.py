@@ -243,8 +243,7 @@ class MarketExposure:
             try:
                 from algo.algo_sector_rotation import SectorRotationDetector
                 detector = SectorRotationDetector()
-                detector.cur = self.cur  # share connection
-                detector._owned = None
+                # Use detector's own connection (don't share) to avoid transaction abort propagation
                 rotation = detector.compute(eval_date)
                 if rotation:
                     rot_penalty = rotation.get('reduce_exposure_pts', 0)
