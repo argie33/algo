@@ -15,18 +15,14 @@ For use in dashboard and automated monitoring.
 import json
 import logging
 from datetime import datetime, date as _date, timedelta
-from typing import Dict, Any, Tuple
-
-from utils.db_connection import get_db_connection
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
 
-def get_price_coverage() -> Dict[str, Any]:
+def get_price_coverage(cur) -> Dict[str, Any]:
     """Get price_daily coverage metrics."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
 
         cur.execute("""
             SELECT
@@ -41,14 +37,14 @@ def get_price_coverage() -> Dict[str, Any]:
         """)
 
         row = cur.fetchone()
+        if not row:
+            return {'error': 'No price data found', 'status': 'error'}
+
         total_symbols, sp500_total, latest_date, total_rows, zero_vol, invalid_prices = row
 
         days_stale = (_date.today() - latest_date).days if latest_date else 999
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else 0
-
-        cur.close()
-        conn.close()
 
         return {
             'total_symbols': total_symbols,
@@ -66,11 +62,9 @@ def get_price_coverage() -> Dict[str, Any]:
         return {'error': str(e), 'status': 'error'}
 
 
-def get_technical_coverage() -> Dict[str, Any]:
+def get_technical_coverage(cur) -> Dict[str, Any]:
     """Get technical_data_daily coverage and completeness."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
 
         cur.execute("""
             SELECT
@@ -86,10 +80,10 @@ def get_technical_coverage() -> Dict[str, Any]:
         """)
 
         row = cur.fetchone()
-        symbols, latest_date, total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
+        if not row:
+            return {'error': 'No technical data found', 'status': 'error'}
 
-        cur.close()
-        conn.close()
+        symbols, latest_date, total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
         min_coverage = min(rsi_cov, ema_cov, atr_cov) if None not in (rsi_cov, ema_cov, atr_cov) else 0
 
@@ -109,12 +103,9 @@ def get_technical_coverage() -> Dict[str, Any]:
         return {'error': str(e), 'status': 'error'}
 
 
-def get_market_data_coverage() -> Dict[str, Any]:
+def get_market_data_coverage(cur) -> Dict[str, Any]:
     """Get market_health_daily and other market data coverage."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-
         # Market health
         cur.execute("""
             SELECT
@@ -136,9 +127,6 @@ def get_market_data_coverage() -> Dict[str, Any]:
 
         econ_date, econ_count = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return {
             'market_health': {
                 'latest_date': str(mh_date),
@@ -156,12 +144,9 @@ def get_market_data_coverage() -> Dict[str, Any]:
         return {'error': str(e), 'status': 'error'}
 
 
-def get_loader_health() -> Dict[str, Any]:
+def get_loader_health(cur) -> Dict[str, Any]:
     """Get recent loader execution health."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-
         cur.execute("""
             SELECT
                 loader_name,
@@ -176,8 +161,6 @@ def get_loader_health() -> Dict[str, Any]:
         """)
 
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
 
         failed_loaders = [
             row[0] for row in rows if row[1] == 'FAILED'
@@ -193,14 +176,14 @@ def get_loader_health() -> Dict[str, Any]:
         return {'error': str(e), 'status': 'error'}
 
 
-def get_overall_coverage_summary() -> Dict[str, Any]:
+def get_overall_coverage_summary(cur) -> Dict[str, Any]:
     """Get overall data coverage summary."""
     summary = {
         'timestamp': datetime.utcnow().isoformat(),
-        'price_data': get_price_coverage(),
-        'technical_data': get_technical_coverage(),
-        'market_data': get_market_data_coverage(),
-        'loaders': get_loader_health()
+        'price_data': get_price_coverage(cur),
+        'technical_data': get_technical_coverage(cur),
+        'market_data': get_market_data_coverage(cur),
+        'loaders': get_loader_health(cur)
     }
 
     # Determine overall status
@@ -227,26 +210,30 @@ def get_overall_coverage_summary() -> Dict[str, Any]:
     return summary
 
 
-def handle_request(event: Dict, context: Any) -> Tuple[int, Dict[str, Any]]:
-    """Handle API request for data coverage."""
-
-    try:
-        summary = get_overall_coverage_summary()
-        return 200, summary
-
-    except Exception as e:
-        return 500, {
-            'error': 'Data coverage check failed',
-            'message': str(e),
-            'timestamp': datetime.utcnow().isoformat()
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+    """Handle GET /api/data-coverage request."""
+    if method != 'GET':
+        return {
+            'statusCode': 405,
+            'body': json.dumps({'error': 'Method not allowed', 'allowed': ['GET']}),
+            'headers': {'Content-Type': 'application/json'}
         }
 
-
-# For FastAPI integration
-async def get_data_coverage():
-    """FastAPI endpoint for /api/data-coverage."""
-    status_code, body = handle_request({}, {})
-    return {
-        'statusCode': status_code,
-        'body': body
-    }
+    try:
+        summary = get_overall_coverage_summary(cur)
+        return {
+            'statusCode': 200,
+            'body': json.dumps(summary),
+            'headers': {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}
+        }
+    except Exception as e:
+        logger.error(f"Data coverage check error: {e}", exc_info=True)
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': 'Data coverage check failed',
+                'message': str(e)[:200],
+                'timestamp': datetime.utcnow().isoformat()
+            }),
+            'headers': {'Content-Type': 'application/json'}
+        }
