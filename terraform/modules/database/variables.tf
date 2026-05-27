@@ -64,17 +64,6 @@ variable "db_max_allocated_storage" {
   }
 }
 
-variable "db_iops" {
-  description = "IOPS for gp3 storage (3000-64000, default 3000)"
-  type        = number
-  default     = 3000
-
-  validation {
-    condition     = var.db_iops >= 3000 && var.db_iops <= 64000
-    error_message = "IOPS must be between 3000 and 64000"
-  }
-}
-
 variable "rds_db_name" {
   description = "Initial database name for RDS"
   type        = string

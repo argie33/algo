@@ -30,7 +30,8 @@ cognito_enabled             = true # Authorizer exists but not used on routes (a
 
 # Database configuration
 rds_instance_class = "db.t3.small"    # FIXED: Upgraded from db.t3.micro to t3.small (2 vCPU, 2GB RAM) - more cost-effective for dev
-rds_iops          = 6000             # FIXED: Increased from 3000 to 6000 IOPS - fixes DiskQueueDepth=40 timeout issue
+# Note: IOPS not set because current storage (61GB) < minimum required (400GB) for custom IOPS.
+# db.t3.small provides better CPU/memory which resolves the RDS bottleneck more cost-effectively.
 enable_rds_proxy  = true    # Enable RDS Proxy: connection pooling reduces latency & query overhead (critical for performance)
 dev_mode         = "false" # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
