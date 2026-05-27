@@ -14,13 +14,31 @@ FAIL-OPEN: log errors but continue.
 
 import logging
 import traceback
-from datetime import date as _date
+from datetime import date as _date, datetime
 from typing import Any, Callable, Dict, List
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
+
+
+def _is_evening_run():
+    """Check if current time is evening (after 5 PM ET, before market close next day).
+
+    Evening runs (5:30 PM ET) should recompute market exposure for next day's trading.
+    Intraday runs (morning 9:30 AM, afternoon 1 PM, pre-close 3 PM) use cached value.
+    """
+    try:
+        from datetime import timezone, timedelta
+        # Get current time in ET
+        et = timezone(timedelta(hours=-5))  # EST; EDT would be -4
+        now = datetime.now(et).replace(tzinfo=timezone.utc).astimezone(et)
+        hour = now.hour
+        # Evening = after 5 PM (17:00)
+        return hour >= 17
+    except Exception:
+        return False
 
 
 def run(
@@ -54,8 +72,14 @@ def run(
         from algo.algo_market_exposure_policy import ExposurePolicy
 
         me = MarketExposure()
-        exposure = me.compute(run_date)
-        logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
+        # Use cached market exposure (computed once per day at EOD) unless we're in evening refresh
+        # Evening refresh (after 5 PM) recomputes for next day's trading decisions
+        force_recompute = _is_evening_run()
+        exposure = me.compute(run_date, force_recompute=force_recompute)
+        cache_status = " (RECOMPUTED)" if force_recompute or exposure.get('_cached') else " (RECOMPUTED, no cache)"
+        if exposure.get('_cached'):
+            cache_status = " ✓ cached"
+        logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']}){cache_status}")
         if exposure.get('halt_reasons'):
             logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
 

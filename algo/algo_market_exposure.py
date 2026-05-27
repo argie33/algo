@@ -93,12 +93,65 @@ class MarketExposure:
             self.cur = None
             self._owned = None
 
-    def compute(self, eval_date=None):
-        """Compute full market exposure score. Returns dict."""
+    def try_load_cached(self, eval_date=None):
+        """Load cached market exposure for today. Returns dict or None if not cached."""
         if not eval_date:
             eval_date = _date.today()
 
-        logger.info(f"Computing market exposure for {eval_date}")
+        self.connect()
+        try:
+            self.cur.execute("""
+                SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors
+                FROM market_exposure_daily
+                WHERE date = %s
+                LIMIT 1
+            """, (eval_date,))
+            row = self.cur.fetchone()
+            if not row:
+                return None
+
+            # Reconstruct result dict from cached row
+            import json
+            raw_score, exposure_pct, regime, halt_reasons_str, dist_days, factors_str = row
+            halt_reasons = json.loads(halt_reasons_str) if halt_reasons_str else []
+            factors = json.loads(factors_str) if factors_str else {}
+
+            result = {
+                'eval_date': str(eval_date),
+                'raw_score': raw_score,
+                'capped_score': exposure_pct,
+                'exposure_pct': exposure_pct,
+                'regime': regime,
+                'halt_reasons': halt_reasons,
+                'distribution_days': dist_days or 0,
+                'factors': factors,
+                '_cached': True,
+            }
+            logger.info(f"✓ Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})")
+            return result
+        except Exception as e:
+            logger.debug(f"Could not load cached exposure: {e}")
+            return None
+        finally:
+            self.disconnect()
+
+    def compute(self, eval_date=None, force_recompute=False):
+        """Compute full market exposure score. Returns dict.
+
+        Args:
+            eval_date: Date to compute for (default: today)
+            force_recompute: If True, always recompute (don't use cache)
+        """
+        if not eval_date:
+            eval_date = _date.today()
+
+        # Check cache first (unless force_recompute=True)
+        if not force_recompute:
+            cached = self.try_load_cached(eval_date)
+            if cached:
+                return cached
+
+        logger.info(f"Computing market exposure for {eval_date} (11 sequential queries)")
         self.connect()
         try:
             factors = {}
