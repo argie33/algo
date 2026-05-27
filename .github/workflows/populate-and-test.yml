@@ -1,4 +1,4 @@
-ï»¿name: Populate Test Data & Run Orchestrator
+name: Populate Test Data & Run Orchestrator
 
 on:
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
       test_date:
         description: 'Test date (YYYY-MM-DD)'
         required: false
-        default: '2026-04-15'
+        default: '2026-05-26'
       coverage:
         description: 'Price data coverage percent (1-100)'
         required: false
-        default: '95'
+        default: '100'
 
 permissions:
   id-token: write
@@ -45,7 +45,6 @@ jobs:
       - name: Get RDS Endpoint from Terraform State
         id: rds_endpoint
         run: |
-          # Get RDS endpoint from terraform state
           cd terraform
           ENDPOINT=$(terraform output -raw rds_address)
           PORT=$(terraform output -raw rds_port)
@@ -106,9 +105,9 @@ jobs:
             /tmp/response.json || {
               EXIT_CODE=$?
               if [ $EXIT_CODE -eq 124 ]; then
-                echo "Ã¢Â�-Â±Ã¯Â¸Â�- Lambda invocation timed out after 3 minutes"
+                echo "⏱ Lambda invocation timed out after 3 minutes"
               else
-                echo "Ã¢Â�-Å’ Lambda invocation failed with exit code: $EXIT_CODE"
+                echo "✗ Lambda invocation failed with exit code: $EXIT_CODE"
               fi
               exit 1
             }
@@ -124,37 +123,35 @@ jobs:
           if [ -f /tmp/response.json ]; then
             echo "=== ORCHESTRATOR TEST RESULT ==="
             python3 << 'EOF'
-          import json
-          import sys
+import json
+import sys
 
-          with open('/tmp/response.json', 'r') as f:
-              response = json.load(f)
+with open('/tmp/response.json', 'r') as f:
+    response = json.load(f)
 
-          # Extract response structure
-          if isinstance(response, dict):
-              status_code = response.get('statusCode', 'unknown')
-              body = response.get('body')
+if isinstance(response, dict):
+    status_code = response.get('statusCode', 'unknown')
+    body = response.get('body')
 
-              print(f"Status Code: {status_code}")
+    print(f"Status Code: {status_code}")
 
-              if isinstance(body, str):
-                  try:
-                      body_json = json.loads(body)
-                      print(f"Response Status: {body_json.get('status', 'unknown')}")
+    if isinstance(body, str):
+        try:
+            body_json = json.loads(body)
+            print(f"Response Status: {body_json.get('status', 'unknown')}")
 
-                      # Print phases info if available
-                      if 'phases' in body_json:
-                          print(f"\nPhases Executed: {len(body_json['phases'])}")
-                          for i, phase in enumerate(body_json['phases'], 1):
-                              status = phase.get('status', 'unknown')
-                              print(f"  Phase {i}: {status}")
-                              if phase.get('halt_reason'):
-                                  print(f"    Halt: {phase['halt_reason']}")
-                  except json.JSONDecodeError:
-                      print(f"Body (raw): {body}")
-              else:
-                  print(f"Body: {body}")
-          EOF
+            if 'phases' in body_json:
+                print(f"\nPhases Executed: {len(body_json['phases'])}")
+                for i, phase in enumerate(body_json['phases'], 1):
+                    status = phase.get('status', 'unknown')
+                    print(f"  Phase {i}: {status}")
+                    if phase.get('halt_reason'):
+                        print(f"    Halt: {phase['halt_reason']}")
+        except json.JSONDecodeError:
+            print(f"Body (raw): {body}")
+    else:
+        print(f"Body: {body}")
+EOF
           else
             echo "No response file found"
           fi
@@ -196,8 +193,3 @@ jobs:
           echo "- **Test Date**: ${{ github.event.inputs.test_date }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Data Coverage**: ${{ github.event.inputs.coverage }}%" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: $([ -f /tmp/response.json ] && echo 'Response received' || echo 'No response')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps**:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Check Phase 1 execution in logs above" >> $GITHUB_STEP_SUMMARY
-          echo "2. If Phase 1 PASSES (Ã¢â€°Â¥70% coverage), orchestrator continues to Phase 2" >> $GITHUB_STEP_SUMMARY
-          echo "3. If Phase 1 FAILS, increase coverage or use different test date" >> $GITHUB_STEP_SUMMARY
