@@ -125,7 +125,7 @@ router.get("/stocks", async (req, res) => {
     }
 
     // Get signals for regular stocks (exclude major indices/ETFs)
-    // Enrich with technical data (RSI, ATR, SMA, ADX)
+    // Return all trading plan details + technical data
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -133,28 +133,46 @@ router.get("/stocks", async (req, res) => {
         '${timeframe}'::text as timeframe,
         bsd.date,
         bsd.signal,
+        bsd.signal_triggered_date,
         bsd.strength,
+        bsd.signal_quality_score,
+        bsd.entry_quality_score,
         bsd.reason,
         COALESCE(cp.short_name, bsd.symbol) as company_name,
         cp.sector,
         cp.industry,
-        tdd.rsi,
-        tdd.atr,
-        tdd.adx,
-        tdd.sma_20,
-        tdd.sma_50,
-        tdd.sma_200,
-        tdd.ema_12,
-        tdd.ema_26,
-        tdd.macd,
-        tdd.mom,
-        pd.close as current_price,
-        pd.high as high_52w,
-        pd.low as low_52w,
-        pd.volume
+        pd.close,
+        pd.volume,
+        bsd.buylevel,
+        bsd.stoplevel,
+        bsd.sell_level,
+        bsd.initial_stop,
+        bsd.trailing_stop,
+        bsd.pivot_price,
+        bsd.buy_zone_start,
+        bsd.buy_zone_end,
+        bsd.profit_target_8pct,
+        bsd.profit_target_20pct,
+        bsd.profit_target_25pct,
+        bsd.exit_trigger_1_price,
+        bsd.exit_trigger_2_price,
+        bsd.risk_reward_ratio,
+        bsd.base_type,
+        bsd.base_length_days,
+        bsd.market_stage,
+        bsd.rsi,
+        bsd.atr,
+        bsd.adx,
+        bsd.sma_50,
+        bsd.sma_200,
+        bsd.ema_21,
+        bsd.mansfield_rs,
+        bsd.rs_rating,
+        bsd.avg_volume_50d,
+        bsd.volume_surge_pct,
+        bsd.position_size_recommendation
       FROM ${tableName} bsd
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
-      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
       LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
       ${whereClause}
         AND bsd.symbol NOT IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
@@ -187,8 +205,7 @@ router.get("/etf", async (req, res) => {
       return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
-    // Get signals for major indices/ETFs with technical enrichment
-    // Note: ETF tables don't have 'reason' column
+    // Get signals for major indices/ETFs with basic enrichment
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -198,18 +215,15 @@ router.get("/etf", async (req, res) => {
         bsd.signal,
         bsd.strength,
         cp.short_name as company_name,
-        tdd.rsi,
-        tdd.atr,
-        tdd.adx,
-        tdd.sma_50,
-        tdd.sma_200,
-        tdd.ema_12,
-        tdd.ema_26,
-        pd.close as current_price,
-        pd.volume
+        pd.close,
+        pd.volume,
+        bsd.rsi,
+        bsd.atr,
+        bsd.adx,
+        bsd.sma_50,
+        bsd.sma_200
       FROM ${tableName} bsd
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
-      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
       LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
       WHERE LOWER(bsd.signal) IN ('buy', 'sell')
       ORDER BY bsd.date DESC
