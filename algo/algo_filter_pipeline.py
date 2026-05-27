@@ -461,8 +461,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 )
             if not final_trades:
                 logger.info("(no qualifying trades — gates too strict for current market)")
-            if not final_trades:
-                logger.info("(no qualifying trades)")
             logger.info(f"\n{'='*70}\n")
 
             try:
