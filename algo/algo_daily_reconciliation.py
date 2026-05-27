@@ -315,7 +315,9 @@ class DailyReconciliation:
                 row = self.cur.fetchone()
                 if row:
                     db_qty = int(row[0] or 0)
-                    if abs(db_qty - qty) > 0.1:  # Allow small rounding differences
+                    # Shares should be integers; only allow rounding error on tiny positions (<1 share)
+                    qty_int = int(round(qty))
+                    if abs(db_qty - qty_int) > 0:
                         try:
                             notify(
                                 severity='critical',

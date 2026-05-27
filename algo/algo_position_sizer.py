@@ -355,7 +355,8 @@ class PositionSizer:
                 risk_dollars = portfolio_value * adjusted_risk_pct
 
             risk_per_share = entry_price - stop_loss_price
-            shares = int(risk_dollars / risk_per_share) if risk_per_share > 0 else 0
+            # Use round() instead of int() to properly handle fractional shares
+            shares = int(round(risk_dollars / risk_per_share)) if risk_per_share > 0 else 0
 
             if shares < 1:
                 return {
@@ -369,7 +370,7 @@ class PositionSizer:
             max_position_value = portfolio_value * max_position_pct
 
             if position_value > max_position_value:
-                shares = int(max_position_value / entry_price)
+                shares = int(round(max_position_value / entry_price))
                 position_value = shares * entry_price
                 risk_dollars = risk_per_share * shares
 

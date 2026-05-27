@@ -613,7 +613,12 @@ class CircuitBreaker:
 
             # For each concentrated sector, check 5-day cumulative return
             from datetime import timedelta
-            five_days_ago = current_date - timedelta(days=7)  # 7 calendar days ≈ 5 trading days
+            from algo.algo_market_calendar import MarketCalendar
+            five_days_ago = current_date
+            for _ in range(5):
+                five_days_ago -= timedelta(days=1)
+                while not MarketCalendar.is_trading_day(five_days_ago):
+                    five_days_ago -= timedelta(days=1)
             threshold = float(self.config.get('sector_drawdown_halt_pct', -12.0))
 
             for sector, count in concentrated.items():

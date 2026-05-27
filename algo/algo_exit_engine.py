@@ -401,10 +401,12 @@ class ExitEngine:
             (symbol, current_date),
         )
         rows = self.cur.fetchall()
-        if not rows:
+        if not rows or len(rows[0]) < 2:
             return None, None
-        cur_price = float(rows[0][1])
-        prev_close = float(rows[1][1]) if len(rows) > 1 else None
+        cur_price = float(rows[0][1]) if rows[0][1] is not None else None
+        if cur_price is None:
+            return None, None
+        prev_close = float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
         return cur_price, prev_close
 
     def _fetch_market_dist_days(self, current_date) -> int:

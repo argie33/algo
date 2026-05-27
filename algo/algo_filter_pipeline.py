@@ -681,6 +681,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
           - Stage-aligned moving averages
           - Consolidation flag (Darvas/Bassal favor breakout-from-consolidation)
         """
+        # Reset state variables to prevent carryover from previous signals
+        self._last_stop_method = None
+        self._last_stop_reasoning = None
         try:
             self.cur.execute(
                 """

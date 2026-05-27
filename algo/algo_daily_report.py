@@ -253,21 +253,24 @@ class DailyFinanceReport:
                    WHERE date = %s AND signal_type = 'BUY'""",
                 (report_date,),
             )
-            candidates = self.cur.fetchone()[0]
+            result = self.cur.fetchone()
+            candidates = result[0] if result else 0
 
             self.cur.execute(
                 """SELECT COUNT(*) FROM algo_signals_evaluated
                    WHERE signal_date = %s AND filter_tier_5_pass = TRUE""",
                 (report_date,),
             )
-            tier_passed = self.cur.fetchone()[0]
+            result = self.cur.fetchone()
+            tier_passed = result[0] if result else 0
 
             self.cur.execute(
                 """SELECT COUNT(*) FROM algo_trades
                    WHERE trade_date = %s""",
                 (report_date,),
             )
-            entries = self.cur.fetchone()[0]
+            result = self.cur.fetchone()
+            entries = result[0] if result else 0
 
             return {
                 'candidates_today': candidates,
@@ -365,7 +368,8 @@ class DailyFinanceReport:
                    WHERE status = 'open' AND created_at <= %s""",
                 (report_date,),
             )
-            return self.cur.fetchone()[0]
+            result = self.cur.fetchone()
+            return result[0] if result else 0
         except Exception:
             return 0
 
