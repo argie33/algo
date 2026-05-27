@@ -406,6 +406,7 @@ class MarketExposure:
             WHERE prev_close IS NOT NULL
               AND close >= prev_close * 1.017
               AND volume > prev_vol
+            ORDER BY date DESC
             LIMIT 1
             """,
             (eval_date, eval_date),

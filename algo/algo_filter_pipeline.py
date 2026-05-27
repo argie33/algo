@@ -303,6 +303,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                             else:
                                 logger.debug(f"No precomputed swing score for {symbol} on {signal_date}")
                                 swing = {'pass': True, 'reason': 'score_unavailable', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
+                        except Exception as e:
+                            logger.warning(f"Error fetching swing trader score for {symbol}: {e}")
+                            swing = {'pass': True, 'reason': 'lookup_error', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
 
                         # Hard gate: swing score gate relaxed for production (use component scoring for filtering)
                         # min_swing check disabled to allow all candidates through for ranking
