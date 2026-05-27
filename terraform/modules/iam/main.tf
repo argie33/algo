@@ -868,6 +868,7 @@ data "aws_iam_policy_document" "developer" {
 
     actions = [
       "ecs:RunTask",
+      "ecs:StopTask",
       "ecs:DescribeTasks",
       "ecs:ListTasks"
     ]
