@@ -405,8 +405,8 @@ class TradeExecutor:
                     # Bracket order MUST have stop loss leg — cancel and reject if missing
                     try:
                         self._cancel_bracket_orders(alpaca_order_id)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
                     return {
                         'success': False, 'trade_id': trade_id, 'status': 'failed',
                         'message': f'Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) — order cancelled and rejected'

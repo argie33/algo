@@ -483,7 +483,8 @@ class AdvancedFilters:
             score = float(row[0])
             pts = (score / 100.0) * self.W_QUALITY_EARNINGS
             return pts, round(score, 1)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Earnings quality score calculation failed: {e}")
             return 0.0, None
 
     # ============= CATALYST =============
