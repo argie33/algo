@@ -276,24 +276,62 @@ CREATE TABLE IF NOT EXISTS buy_sell_daily (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    timeframe VARCHAR(20),
+    timeframe VARCHAR(10) NOT NULL DEFAULT 'Daily',
     signal VARCHAR(20),
+    signal_triggered_date DATE,
     signal_type VARCHAR(20),
-    strength DECIMAL(8, 4),
-    reason VARCHAR(255),
-    entry_quality_score DECIMAL(8, 2),
-    signal_quality_score DECIMAL(8, 2),
-    volume_surge_pct DECIMAL(8, 2),
-    risk_reward_ratio DECIMAL(8, 2),
-    rsi DECIMAL(8, 2),
-    sma_50 DECIMAL(12, 2),
-    sma_200 DECIMAL(12, 2),
-    ema_21 DECIMAL(12, 2),
+    signal_strength DECIMAL(8, 4),
+    entry_price DECIMAL(12, 4),
+    buylevel DECIMAL(12, 4),
+    stoplevel DECIMAL(12, 4),
+    sell_level DECIMAL(12, 4),
+    inposition BOOLEAN DEFAULT FALSE,
+    initial_stop DECIMAL(12, 4),
+    trailing_stop DECIMAL(12, 4),
+    exit_trigger_1_price DECIMAL(12, 4),
+    exit_trigger_2_price DECIMAL(12, 4),
+    exit_trigger_3_price DECIMAL(12, 4),
+    exit_trigger_4_price DECIMAL(12, 4),
+    pivot_price DECIMAL(12, 4),
+    buy_zone_start DECIMAL(12, 4),
+    buy_zone_end DECIMAL(12, 4),
+    profit_target_8pct DECIMAL(12, 4),
+    profit_target_20pct DECIMAL(12, 4),
+    profit_target_25pct DECIMAL(12, 4),
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    avg_volume_50d BIGINT,
+    volume_surge_pct DECIMAL(8, 4),
+    rsi DECIMAL(8, 4),
+    adx DECIMAL(8, 4),
     atr DECIMAL(12, 4),
-    adx DECIMAL(8, 2),
-    macd DECIMAL(12, 4),
-    macd_signal DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_21 DECIMAL(12, 4),
+    pct_from_ema21 DECIMAL(8, 4),
+    pct_from_sma50 DECIMAL(8, 4),
+    mansfield_rs DECIMAL(8, 4),
+    sata_score DECIMAL(8, 4),
+    rs_rating INTEGER,
+    base_type VARCHAR(50),
+    base_length_days INTEGER,
+    breakout_quality VARCHAR(10),
+    risk_reward_ratio DECIMAL(8, 4),
+    risk_pct DECIMAL(8, 4),
+    entry_quality_score DECIMAL(8, 4),
+    signal_quality_score DECIMAL(8, 4),
+    position_size_recommendation DECIMAL(8, 4),
+    current_gain_pct DECIMAL(8, 4),
+    days_in_position INTEGER,
     stage_number INTEGER,
+    stage_confidence DECIMAL(8, 4),
+    substage VARCHAR(50),
+    market_stage VARCHAR(50),
+    reason VARCHAR(255),
+    strength DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_daily_unique ON buy_sell_daily(symbol, timeframe, date);
@@ -303,24 +341,62 @@ CREATE TABLE IF NOT EXISTS buy_sell_weekly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    timeframe VARCHAR(20),
+    timeframe VARCHAR(10) NOT NULL DEFAULT 'Weekly',
     signal VARCHAR(20),
+    signal_triggered_date DATE,
     signal_type VARCHAR(20),
-    strength DECIMAL(8, 4),
-    reason VARCHAR(255),
-    entry_quality_score DECIMAL(8, 2),
-    signal_quality_score DECIMAL(8, 2),
-    volume_surge_pct DECIMAL(8, 2),
-    risk_reward_ratio DECIMAL(8, 2),
-    rsi DECIMAL(8, 2),
-    sma_50 DECIMAL(12, 2),
-    sma_200 DECIMAL(12, 2),
-    ema_21 DECIMAL(12, 2),
+    signal_strength DECIMAL(8, 4),
+    entry_price DECIMAL(12, 4),
+    buylevel DECIMAL(12, 4),
+    stoplevel DECIMAL(12, 4),
+    sell_level DECIMAL(12, 4),
+    inposition BOOLEAN DEFAULT FALSE,
+    initial_stop DECIMAL(12, 4),
+    trailing_stop DECIMAL(12, 4),
+    exit_trigger_1_price DECIMAL(12, 4),
+    exit_trigger_2_price DECIMAL(12, 4),
+    exit_trigger_3_price DECIMAL(12, 4),
+    exit_trigger_4_price DECIMAL(12, 4),
+    pivot_price DECIMAL(12, 4),
+    buy_zone_start DECIMAL(12, 4),
+    buy_zone_end DECIMAL(12, 4),
+    profit_target_8pct DECIMAL(12, 4),
+    profit_target_20pct DECIMAL(12, 4),
+    profit_target_25pct DECIMAL(12, 4),
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    avg_volume_50d BIGINT,
+    volume_surge_pct DECIMAL(8, 4),
+    rsi DECIMAL(8, 4),
+    adx DECIMAL(8, 4),
     atr DECIMAL(12, 4),
-    adx DECIMAL(8, 2),
-    macd DECIMAL(12, 4),
-    macd_signal DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_21 DECIMAL(12, 4),
+    pct_from_ema21 DECIMAL(8, 4),
+    pct_from_sma50 DECIMAL(8, 4),
+    mansfield_rs DECIMAL(8, 4),
+    sata_score DECIMAL(8, 4),
+    rs_rating INTEGER,
+    base_type VARCHAR(50),
+    base_length_days INTEGER,
+    breakout_quality VARCHAR(10),
+    risk_reward_ratio DECIMAL(8, 4),
+    risk_pct DECIMAL(8, 4),
+    entry_quality_score DECIMAL(8, 4),
+    signal_quality_score DECIMAL(8, 4),
+    position_size_recommendation DECIMAL(8, 4),
+    current_gain_pct DECIMAL(8, 4),
+    days_in_position INTEGER,
     stage_number INTEGER,
+    stage_confidence DECIMAL(8, 4),
+    substage VARCHAR(50),
+    market_stage VARCHAR(50),
+    reason VARCHAR(255),
+    strength DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_weekly_unique ON buy_sell_weekly(symbol, timeframe, date);
@@ -330,24 +406,62 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
-    timeframe VARCHAR(20),
+    timeframe VARCHAR(10) NOT NULL DEFAULT 'Monthly',
     signal VARCHAR(20),
+    signal_triggered_date DATE,
     signal_type VARCHAR(20),
-    strength DECIMAL(8, 4),
-    reason VARCHAR(255),
-    entry_quality_score DECIMAL(8, 2),
-    signal_quality_score DECIMAL(8, 2),
-    volume_surge_pct DECIMAL(8, 2),
-    risk_reward_ratio DECIMAL(8, 2),
-    rsi DECIMAL(8, 2),
-    sma_50 DECIMAL(12, 2),
-    sma_200 DECIMAL(12, 2),
-    ema_21 DECIMAL(12, 2),
+    signal_strength DECIMAL(8, 4),
+    entry_price DECIMAL(12, 4),
+    buylevel DECIMAL(12, 4),
+    stoplevel DECIMAL(12, 4),
+    sell_level DECIMAL(12, 4),
+    inposition BOOLEAN DEFAULT FALSE,
+    initial_stop DECIMAL(12, 4),
+    trailing_stop DECIMAL(12, 4),
+    exit_trigger_1_price DECIMAL(12, 4),
+    exit_trigger_2_price DECIMAL(12, 4),
+    exit_trigger_3_price DECIMAL(12, 4),
+    exit_trigger_4_price DECIMAL(12, 4),
+    pivot_price DECIMAL(12, 4),
+    buy_zone_start DECIMAL(12, 4),
+    buy_zone_end DECIMAL(12, 4),
+    profit_target_8pct DECIMAL(12, 4),
+    profit_target_20pct DECIMAL(12, 4),
+    profit_target_25pct DECIMAL(12, 4),
+    open DECIMAL(12, 4),
+    high DECIMAL(12, 4),
+    low DECIMAL(12, 4),
+    close DECIMAL(12, 4),
+    volume BIGINT,
+    avg_volume_50d BIGINT,
+    volume_surge_pct DECIMAL(8, 4),
+    rsi DECIMAL(8, 4),
+    adx DECIMAL(8, 4),
     atr DECIMAL(12, 4),
-    adx DECIMAL(8, 2),
-    macd DECIMAL(12, 4),
-    macd_signal DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_21 DECIMAL(12, 4),
+    pct_from_ema21 DECIMAL(8, 4),
+    pct_from_sma50 DECIMAL(8, 4),
+    mansfield_rs DECIMAL(8, 4),
+    sata_score DECIMAL(8, 4),
+    rs_rating INTEGER,
+    base_type VARCHAR(50),
+    base_length_days INTEGER,
+    breakout_quality VARCHAR(10),
+    risk_reward_ratio DECIMAL(8, 4),
+    risk_pct DECIMAL(8, 4),
+    entry_quality_score DECIMAL(8, 4),
+    signal_quality_score DECIMAL(8, 4),
+    position_size_recommendation DECIMAL(8, 4),
+    current_gain_pct DECIMAL(8, 4),
+    days_in_position INTEGER,
     stage_number INTEGER,
+    stage_confidence DECIMAL(8, 4),
+    substage VARCHAR(50),
+    market_stage VARCHAR(50),
+    reason VARCHAR(255),
+    strength DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_monthly_unique ON buy_sell_monthly(symbol, timeframe, date);
@@ -436,8 +550,6 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_completeness DECIMAL(4, 2);
-ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS rs_percentile DECIMAL(8, 2);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- USER MANAGEMENT & SYSTEM TABLES
@@ -550,11 +662,6 @@ CREATE TABLE IF NOT EXISTS data_loader_runs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(loader_name, run_date)
 );
-ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS run_id VARCHAR(100);
-ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS table_name VARCHAR(255);
-ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS source_api VARCHAR(255);
-ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS parameters JSONB;
-ALTER TABLE data_loader_runs ADD COLUMN IF NOT EXISTS start_at TIMESTAMP;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- COMPANY & FUNDAMENTAL DATA
@@ -2200,193 +2307,10 @@ FROM fear_greed_index;
 -- These idempotent ALTERs add all missing columns and fix the UNIQUE constraint.
 -- ════════════════════════════════════════════════════════════════════════════
 
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS timeframe VARCHAR(10) NOT NULL DEFAULT 'Daily';
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_triggered_date DATE;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_type VARCHAR(20);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_strength DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS entry_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS buylevel DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS stoplevel DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sell_level DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS inposition BOOLEAN DEFAULT FALSE;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS initial_stop DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS trailing_stop DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_1_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_2_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_3_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS exit_trigger_4_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS pivot_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS buy_zone_start DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS buy_zone_end DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS profit_target_8pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS profit_target_20pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS profit_target_25pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS open DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS high DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS low DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS volume BIGINT;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS avg_volume_50d BIGINT;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS volume_surge_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS rsi DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS adx DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS atr DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sma_50 DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sma_200 DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS pct_from_ema21 DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS pct_from_sma50 DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS mansfield_rs DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS sata_score DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS rs_rating INTEGER;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS base_type VARCHAR(50);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS base_length_days INTEGER;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS breakout_quality VARCHAR(10);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS risk_reward_ratio DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS risk_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS entry_quality_score DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_quality_score DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS position_size_recommendation DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS current_gain_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS days_in_position INTEGER;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS stage_number INTEGER;
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS stage_confidence DECIMAL(8, 4);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS substage VARCHAR(50);
-ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS market_stage VARCHAR(50);
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'buy_sell_daily_symbol_timeframe_date_key') THEN
-        ALTER TABLE buy_sell_daily DROP CONSTRAINT IF EXISTS buy_sell_daily_symbol_date_key;
-        ALTER TABLE buy_sell_daily ADD CONSTRAINT buy_sell_daily_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
-    END IF;
-END $$;
+-- ✅ CONSOLIDATED: buy_sell_daily/weekly/monthly columns now in CREATE TABLE
 
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS timeframe VARCHAR(10) NOT NULL DEFAULT 'Weekly';
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS signal_triggered_date DATE;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS signal_type VARCHAR(20);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS signal_strength DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS entry_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS buylevel DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS stoplevel DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sell_level DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS inposition BOOLEAN DEFAULT FALSE;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS initial_stop DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS trailing_stop DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_1_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_2_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_3_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS exit_trigger_4_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS pivot_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS buy_zone_start DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS buy_zone_end DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS profit_target_8pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS profit_target_20pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS profit_target_25pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS open DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS high DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS low DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS volume BIGINT;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS avg_volume_50d BIGINT;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS volume_surge_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS rsi DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS adx DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS atr DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sma_50 DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sma_200 DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS pct_from_ema21 DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS pct_from_sma50 DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS mansfield_rs DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS sata_score DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS rs_rating INTEGER;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS base_type VARCHAR(50);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS base_length_days INTEGER;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS breakout_quality VARCHAR(10);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS risk_reward_ratio DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS risk_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS entry_quality_score DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS position_size_recommendation DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS current_gain_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS days_in_position INTEGER;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS stage_number INTEGER;
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS stage_confidence DECIMAL(8, 4);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS substage VARCHAR(50);
-ALTER TABLE buy_sell_weekly ADD COLUMN IF NOT EXISTS market_stage VARCHAR(50);
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'buy_sell_weekly_symbol_timeframe_date_key') THEN
-        ALTER TABLE buy_sell_weekly DROP CONSTRAINT IF EXISTS buy_sell_weekly_symbol_date_key;
-        ALTER TABLE buy_sell_weekly ADD CONSTRAINT buy_sell_weekly_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
-    END IF;
-END $$;
-
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS timeframe VARCHAR(10) NOT NULL DEFAULT 'Monthly';
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS signal_triggered_date DATE;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS signal_type VARCHAR(20);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS signal_strength DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS entry_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS buylevel DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS stoplevel DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sell_level DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS inposition BOOLEAN DEFAULT FALSE;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS initial_stop DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS trailing_stop DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_1_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_2_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_3_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS exit_trigger_4_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS pivot_price DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS buy_zone_start DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS buy_zone_end DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS profit_target_8pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS profit_target_20pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS profit_target_25pct DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS open DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS high DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS low DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS volume BIGINT;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS avg_volume_50d BIGINT;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS volume_surge_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS rsi DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS adx DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS atr DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sma_50 DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sma_200 DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS pct_from_ema21 DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS pct_from_sma50 DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS mansfield_rs DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS sata_score DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS rs_rating INTEGER;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS base_type VARCHAR(50);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS base_length_days INTEGER;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS breakout_quality VARCHAR(10);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS risk_reward_ratio DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS risk_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS entry_quality_score DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS position_size_recommendation DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS current_gain_pct DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS days_in_position INTEGER;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS stage_number INTEGER;
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS stage_confidence DECIMAL(8, 4);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS substage VARCHAR(50);
-ALTER TABLE buy_sell_monthly ADD COLUMN IF NOT EXISTS market_stage VARCHAR(50);
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'buy_sell_monthly_symbol_timeframe_date_key') THEN
-        ALTER TABLE buy_sell_monthly DROP CONSTRAINT IF EXISTS buy_sell_monthly_symbol_date_key;
-        ALTER TABLE buy_sell_monthly ADD CONSTRAINT buy_sell_monthly_symbol_timeframe_date_key UNIQUE (symbol, timeframe, date);
-    END IF;
-END $$;
-
-ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mfe_pct DECIMAL(8, 4);
-ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS mae_pct DECIMAL(8, 4);
-
-ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
-ALTER TABLE technical_data_weekly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE technical_data_weekly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
-ALTER TABLE technical_data_monthly ADD COLUMN IF NOT EXISTS close DECIMAL(12, 4);
-ALTER TABLE technical_data_monthly ADD COLUMN IF NOT EXISTS ema_21 DECIMAL(12, 4);
+-- ✅ algo_trades: mfe_pct, mae_pct already in CREATE TABLE
+-- ✅ technical_data_daily/weekly/monthly: close, ema_21 already in CREATE TABLE
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- MISSING LOADER TARGET TABLES (required for market_data_batch + Step Functions)
@@ -2718,20 +2642,6 @@ WHERE series_id IN ('BAMLH0A0HYM2', 'T10Y2Y', 'FEDFUNDS', 'UNRATE')
 -- ════════════════════════════════════════════════════════════════════════════
 -- SCHEMA MIGRATIONS — Ensure live tables have all required columns
 -- ════════════════════════════════════════════════════════════════════════════
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS strategy_name VARCHAR(200);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS start_date DATE;
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS end_date DATE;
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS total_return DECIMAL(8,4);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS annual_return DECIMAL(8,4);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS max_drawdown DECIMAL(8,4);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS sharpe_ratio DECIMAL(8,4);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS sortino_ratio DECIMAL(8,4);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS win_rate DECIMAL(8,4);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS profit_factor DECIMAL(8,4);
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_trades INTEGER;
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_winning_trades INTEGER;
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS num_losing_trades INTEGER;
-ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS quantity DECIMAL(12,2);
 ALTER TABLE backtest_trades ADD COLUMN IF NOT EXISTS profit_loss_percent DECIMAL(8,4);
 
