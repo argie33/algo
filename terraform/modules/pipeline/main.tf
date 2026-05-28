@@ -283,7 +283,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       SignalGeneration = {
         Type            = "Task"
         Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 900
+        TimeoutSeconds  = 3000
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -308,7 +308,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       SignalQualityScores = {
         Type            = "Task"
         Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 900
+        TimeoutSeconds  = 1800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -333,7 +333,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       AlgoMetrics = {
         Type            = "Task"
         Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 900
+        TimeoutSeconds  = 1200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -358,7 +358,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       SwingScores = {
         Type            = "Task"
         Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 900
+        TimeoutSeconds  = 1800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
