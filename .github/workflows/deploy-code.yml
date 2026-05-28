@@ -1011,14 +1011,32 @@ jobs:
       - name: Install & Build
         working-directory: webapp/frontend
         run: |
+          # Try new naming convention first
           POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION \
-            --query "UserPools[?Name=='stocks-trading-pool-dev'].Id | [0]" \
+            --query "UserPools[?Name=='algo-pool-dev'].Id | [0]" \
             --output text 2>/dev/null || echo "")
+
+          # Fall back to old naming if not found
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION \
+              --query "UserPools[?Name=='stocks-trading-pool-dev'].Id | [0]" \
+              --output text 2>/dev/null || echo "")
+          fi
+
           if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+            # Try new client naming first
             CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
               --region $AWS_REGION \
-              --query "UserPoolClients[?ClientName=='stocks-web-app-dev'].ClientId | [0]" \
+              --query "UserPoolClients[?ClientName=='algo-web-app-dev'].ClientId | [0]" \
               --output text 2>/dev/null || echo "")
+
+            # Fall back to old client naming if not found
+            if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "None" ]; then
+              CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
+                --region $AWS_REGION \
+                --query "UserPoolClients[?ClientName=='stocks-web-app-dev'].ClientId | [0]" \
+                --output text 2>/dev/null || echo "")
+            fi
             echo "Cognito: pool=$POOL_ID client=$CLIENT_ID"
           else
             CLIENT_ID=""
