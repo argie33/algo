@@ -92,10 +92,11 @@ resource "aws_lambda_function" "api" {
   filename          = !local.api_lambda_use_s3 ? "${path.root}/${var.api_lambda_code_file}" : null
   source_code_hash  = !local.api_lambda_use_s3 ? filebase64sha256("${path.root}/${var.api_lambda_code_file}") : null
 
-  # FIXED Issue #15: Validate Lambda code is available either via S3 or local file
-  precondition {
-    condition     = local.api_lambda_use_s3 || fileexists("${path.root}/${var.api_lambda_code_file}")
-    error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${path.root}/${var.api_lambda_code_file})"
+  lifecycle {
+    precondition {
+      condition     = local.api_lambda_use_s3 || fileexists("${path.root}/${var.api_lambda_code_file}")
+      error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${path.root}/${var.api_lambda_code_file})"
+    }
   }
 
   ephemeral_storage {
@@ -522,6 +523,12 @@ resource "aws_lambda_function" "algo" {
   s3_object_version = local.algo_lambda_use_s3 && var.algo_lambda_s3_object_version != "" ? var.algo_lambda_s3_object_version : null
   filename          = !local.algo_lambda_use_s3 ? "${path.root}/${var.algo_lambda_code_file}" : null
   source_code_hash  = !local.algo_lambda_use_s3 ? filebase64sha256("${path.root}/${var.algo_lambda_code_file}") : null
+
+  # FIXED Issue #15: Validate Lambda code is available either via S3 or local file
+  precondition {
+    condition     = local.algo_lambda_use_s3 || fileexists("${path.root}/${var.algo_lambda_code_file}")
+    error_message = "Lambda code must be available either via S3 (algo_lambda_s3_bucket configured) or as local file (${path.root}/${var.algo_lambda_code_file})"
+  }
 
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
