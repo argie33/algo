@@ -93,21 +93,54 @@ Multiple failed deployments occurred on May 27 from 01:40-06:31 UTC, but recent 
 
 ---
 
-## To Unblock Trading
+## Timeline & Current Status (as of May 27 21:16 ET / May 28 01:16 UTC)
 
-1. **Priority 1 - Fix Signal Generation:**
-   - Access AWS CloudWatch to check Step Functions execution history
-   - Find May 26 20:00-21:30 UTC (5:00-4:30 PM ET) EOD pipeline execution
-   - Identify failure reason
-   - Fix and re-run pipeline or manually trigger signal generation
+| Time | Event | Status |
+|------|-------|--------|
+| May 27 04:00 ET | Price loader runs → May 26 prices loaded | ✓ DONE |
+| May 27 05:30 ET | Morning orchestrator runs | ? Unknown (audit log shows later runs only) |
+| May 27 13:00 ET | Afternoon orchestrator runs | ? Unknown |
+| May 27 15:00 ET | Pre-close orchestrator runs | ? Unknown |
+| May 27 17:00 ET | EOD signal pipeline starts (**CRITICAL**)  | ✗ LIKELY INCOMPLETE |
+| **May 28 04:00 ET** | **Next price loader runs → May 27 prices** | 🔄 **In ~6 hours** |
+| May 28 21:00 UTC | Next EOD signal pipeline runs → May 27 signals | 🔄 In ~20 hours |
 
-2. **Priority 2 - Verify Orchestrator Execution:**
-   - After signals are fresh, verify orchestrator runs at next scheduled time
-   - Check Phase 5 (signal generation) outputs trading signals
+## To Unblock Trading - Action Plan
 
-3. **Priority 3 - Monitor Going Forward:**
-   - Watch for Step Functions failures in CloudWatch Alarms
-   - Verify signal generation pipeline runs daily at 5 PM ET
+### Immediate (Next 2 hours)
+1. **CRITICAL:** Check AWS Step Functions execution history for May 27 EOD pipeline (21:00 UTC)
+   - Expected completion: May 27 21:30-22:00 UTC
+   - Check if it completed or failed
+   - Look for errors in "signals_daily" or "signal_quality_scores" steps
+
+2. If May 27 pipeline completed but signals are still incomplete:
+   - There's a BUG in signal generation logic (only returns subset of symbols)
+   - Need to fix the bug OR manually re-run with fixes
+
+3. If May 27 pipeline failed:
+   - Identify which step failed
+   - Fix the underlying issue
+   - Re-run the pipeline
+
+### Short-term (6-20 hours)
+4. Monitor May 28 morning price loader (04:00 ET) - should load May 27 prices
+5. Let May 28 evening EOD pipeline run (21:00 UTC) - should generate May 27 signals
+6. If May 28 signals are complete, system can resume trading
+
+### If Signals Still Incomplete on May 28
+7. Check signal generation code for:
+   - Symbol filtering logic
+   - Data quality gates that might exclude symbols
+   - SQL LIMIT clauses that truncate results
+   - Missing symbols in upstream tables (technical_data_daily, trend_template_data)
+
+## To Get AWS Access for Diagnostics
+
+Currently blocked by expired local AWS credentials. Try:
+```bash
+scripts/refresh-aws-credentials.ps1
+# Then: aws stepfunctions list-executions --state-machine-arn arn:aws:states:us-east-1:905418343597:stateMachine:algo-eod-pipeline --region us-east-1
+```
 
 ---
 
