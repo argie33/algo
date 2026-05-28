@@ -2,6 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging
+import re
 from .utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error
 
 logger = logging.getLogger(__name__)
@@ -12,6 +13,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         symbol = parts[3] if len(parts) > 3 and parts[3] not in ('deep-value',) else None
 
         if symbol and path == f'/api/stocks/{symbol}':
+            # Validate symbol format before using in query
+            if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol.upper()):
+                return error_response(400, 'bad_request', 'Invalid symbol format')
             cur.execute("""
                 SELECT ss.symbol, ss.security_name as company_name,
                        cp.sector, cp.industry, cp.website, cp.employees, cp.exchange
