@@ -198,6 +198,13 @@ locals {
       description = "Unified price loader: daily, weekly, monthly for stocks and ETFs - 4:00am ET"
     }
 
+    # 4:05am ET = 9:05am UTC Mon-Fri — FRED economic data (small API call, ~5 series)
+    # Runs after prices but before market health computation, used for market exposure calculation
+    "fred_economic_data" = {
+      schedule    = "cron(5 9 ? * MON-FRI *)"
+      description = "FRED economic indicators (T10Y2Y, yields, jobless claims) - 4:05am ET"
+    }
+
     # 4:30am ET = 9:30am UTC Mon-Fri — runs AFTER stock_prices_daily (4:00am UTC 9:00)
     # so market health is computed from freshly loaded prices, not yesterday's prices
     "market_data_batch" = {
