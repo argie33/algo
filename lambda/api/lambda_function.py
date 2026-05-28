@@ -66,6 +66,11 @@ def validate_environment():
             if not os.getenv(var):
                 errors.append(f"{var}: required for {description}")
 
+    # Issue #33: Validate DB_HOST points to proxy, not direct RDS
+    db_host = os.getenv('DB_HOST', '')
+    if 'rds.amazonaws.com' in db_host and 'rds-proxy' not in db_host.lower():
+        logger.warning(f"Issue #33: DB_HOST points to direct RDS ({db_host}), not proxy. Connection pooling disabled. Set RDS_PROXY_ENDPOINT instead.")
+
     return len(errors) == 0, errors
 
 # Rate limiting state - NOTE: Per-Lambda-instance in-memory tracking is NOT GLOBAL
@@ -78,6 +83,17 @@ else:
 RATE_LIMIT_REQUESTS = 100
 RATE_LIMIT_WINDOW = 1
 MAX_REQUEST_BODY_SIZE = 1024 * 100
+
+
+def redact_sensitive_headers(headers_dict):
+    """Issue #42: Redact sensitive headers from logs to prevent credential leakage."""
+    redacted = dict(headers_dict)
+    sensitive_keys = ['authorization', 'cookie', 'x-api-key', 'x-auth-token']
+    for key in sensitive_keys:
+        if key.lower() in [k.lower() for k in redacted.keys()]:
+            actual_key = [k for k in redacted.keys() if k.lower() == key.lower()][0]
+            redacted[actual_key] = '***REDACTED***'
+    return redacted
 
 
 def get_db_connection():
