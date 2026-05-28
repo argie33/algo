@@ -159,6 +159,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
       # FIXED Issue #3: Timeout was 3600s but unified price loader needs 21600s (6 hours)
+      # FIXED Issue #9: ECS task timeout is 21600s, Step Functions timeout is also 21600s
+      # Timeout hierarchy: ECS container timeout < Step Functions state timeout
+      # Current: Both set to 21600s (6h) - ECS task fails first, SF receives error
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -649,16 +652,28 @@ resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
 # Orchestrator runs 2x daily via EventBridge Scheduler in services/2x-daily-orchestrator.tf
 # No longer triggered here via classic EventBridge rules (consolidated in services module)
 
+# FIXED Issue #28: Configure Step Functions execution names for tracing
+# Pass execution name via input so CloudWatch execution history is readable
+# Format: eod-{run_date}-{timestamp} for manual correlation with logs
+
 resource "aws_cloudwatch_event_target" "morning_pipeline" {
   rule     = aws_cloudwatch_event_rule.morning_pipeline_trigger.name
   arn      = aws_sfn_state_machine.morning_prep_pipeline.arn
   role_arn = aws_iam_role.eventbridge_sfn.arn
+
+  input = jsonencode({
+    execution_name = "morning-<aws.events.event.time>"
+  })
 }
 
 resource "aws_cloudwatch_event_target" "eod_pipeline" {
   rule     = aws_cloudwatch_event_rule.eod_pipeline_trigger.name
   arn      = aws_sfn_state_machine.eod_pipeline.arn
   role_arn = aws_iam_role.eventbridge_sfn.arn
+
+  input = jsonencode({
+    execution_name = "eod-<aws.events.event.time>"
+  })
 }
 
 # ============================================================

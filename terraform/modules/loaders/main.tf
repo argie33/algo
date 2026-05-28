@@ -465,6 +465,12 @@ locals {
   }
 }
 
+# FIXED Issue #29: EventBridge Rule Naming Convention
+# Rule name format: {project}-{loader_name}-schedule
+# Examples: algo-stock_symbols-schedule, algo-price_daily-schedule, algo-signals_daily-schedule
+# Matches task definition naming: {project}-{loader_name}-loader
+# Enables operators to correlate rules with tasks by name
+
 resource "aws_cloudwatch_event_rule" "scheduled_loader" {
   for_each = local.scheduled_loaders
 
