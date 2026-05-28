@@ -31,33 +31,17 @@ const getAmplifyConfig = () => {
   const runtimeConfig = getRuntimeConfig();
   const userPoolId = runtimeConfig.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID || "us-east-1_DUMMY";
   const region = userPoolId.split('_')[0] || (import.meta.env.VITE_AWS_REGION || "us-east-1");
-  const domain = runtimeConfig.USER_POOL_DOMAIN || import.meta.env.VITE_COGNITO_DOMAIN;
-  const apiUrl = runtimeConfig.API_URL || import.meta.env.VITE_API_URL || window.location.origin;
+  const clientId = runtimeConfig.USER_POOL_CLIENT_ID || import.meta.env.VITE_COGNITO_CLIENT_ID || "dummy-client-id";
 
+  // Amplify Auth config for username/password authentication
+  // OAuth is not required for this flow - users sign in with username/password directly
   return {
     Auth: {
       Cognito: {
         userPoolId: userPoolId,
-        userPoolClientId:
-          runtimeConfig.USER_POOL_CLIENT_ID ||
-          import.meta.env.VITE_COGNITO_CLIENT_ID ||
-          "dummy-client-id",
+        userPoolClientId: clientId,
         region: region,
         signUpVerificationMethod: 'code',
-        // OAuth/OIDC configuration for login flow
-        ...(domain && {
-          loginWith: {
-            username: true,
-            email: true,
-          },
-          oauth: {
-            domain: domain.replace('https://', '').replace('/',''),
-            scopes: ['openid', 'email', 'profile'],
-            redirectSignIn: apiUrl,
-            redirectSignOut: apiUrl,
-            responseType: 'code',
-          },
-        }),
       },
     },
   };
