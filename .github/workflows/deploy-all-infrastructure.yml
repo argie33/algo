@@ -731,24 +731,25 @@ jobs:
         working-directory: webapp/frontend
         run: |
           npm install
-          # Use CloudFront URL as VITE_API_URL so the baked-in fallback is correct
-          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
+          # Use API Gateway endpoint as VITE_API_URL (not website URL)
           API_GW="${{ needs.terraform.outputs.api_gateway_endpoint }}"
-          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
-            FINAL_API_URL="$WEBSITE_URL"
-          else
+          if [ -n "$API_GW" ] && [ "$API_GW" != "null" ] && [ "$API_GW" != "None" ]; then
             FINAL_API_URL="$API_GW"
+          else
+            echo "ERROR: API Gateway endpoint not available"
+            exit 1
           fi
           VITE_API_URL="$FINAL_API_URL" npm run build
 
       - name: Generate Production Config
         run: |
-          API_URL="${{ needs.terraform.outputs.website_url }}"
+          API_URL="${{ needs.terraform.outputs.api_gateway_endpoint }}"
+          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
           if [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
-            API_URL=""
-            echo "WARNING: website_url not resolved, using relative paths"
+            echo "ERROR: api_gateway_endpoint not resolved"
+            exit 1
           else
-            echo "Using CloudFront URL as API base: $API_URL"
+            echo "Using API Gateway endpoint: $API_URL"
           fi
           POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
           CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
