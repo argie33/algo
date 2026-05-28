@@ -95,7 +95,7 @@ class ExitEngine:
                        t.target_1_price, t.target_2_price, t.target_3_price,
                        t.trade_date,
                        p.position_id, p.quantity, p.target_levels_hit,
-                       p.current_stop_price
+                       p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time
                 FROM algo_trades t
                 JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                 WHERE t.status IN (%s, %s) AND p.status = %s AND p.quantity > 0
@@ -114,7 +114,8 @@ class ExitEngine:
 
             for row in trades:
                 (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
-                 trade_date, _position_id, quantity, target_hits, current_stop) = row
+                 trade_date, _position_id, quantity, target_hits, current_stop,
+                 t1_hit_time, t2_hit_time, t3_hit_time) = row
 
                 try:
                     entry_price = float(entry_price)
@@ -144,6 +145,7 @@ class ExitEngine:
                     symbol, current_date,
                     cur_price, prev_close, entry_price, active_stop, init_stop,
                     t1_price, t2_price, t3_price, target_hits, days_held, dist_days_today,
+                    t1_hit_time, t2_hit_time, t3_hit_time,
                 )
 
                 if not exit_signal:
@@ -213,8 +215,13 @@ class ExitEngine:
     def _evaluate_position(self, symbol, current_date, cur_price, prev_close,
                            entry_price, active_stop, init_stop,
                            t1_price, t2_price, t3_price,
-                           target_hits, days_held, dist_days_today) -> Dict[str, Any] | None:
-        """Decide what (if any) exit to take. Returns dict or None."""
+                           target_hits, days_held, dist_days_today,
+                           t1_hit_time=None, t2_hit_time=None, t3_hit_time=None) -> Dict[str, Any] | None:
+        """Decide what (if any) exit to take. Returns dict or None.
+
+        Target hit times prevent duplicate exits when price bounces around target levels.
+        If a target was hit today, we skip the exit even if price is still above the level.
+        """
         # PHASE 1 FIX: Enforce minimum holding period (no same-day exits)
         min_hold_days = int(self.config.get('min_hold_days', 1))
         if days_held < min_hold_days:
@@ -287,10 +294,18 @@ class ExitEngine:
         # 6-8. Tiered target exits — must scale sequentially T1 → T2 → T3
         # target_hits: 0=no targets, 1=T1 hit, 2=T1+T2 hit, 3=all hit
         # This ensures we scale out properly instead of jumping to final exit
+        # target_*_hit_time prevents duplicate exits if price bounces around target levels
+
+        # Check if a target was already hit today (idempotency)
+        def _was_hit_today(hit_time):
+            if hit_time is None:
+                return False
+            hit_date = hit_time.date() if hasattr(hit_time, 'date') else hit_time
+            return hit_date == current_date
 
         # First check T1 if it hasn't been hit yet
         if target_hits == 0 and t1_price is not None and cur_price >= t1_price:
-            if self._is_pulling_back(symbol, current_date):
+            if not _was_hit_today(t1_hit_time) and self._is_pulling_back(symbol, current_date):
                 return {
                     'stage': 'target_1',
                     'fraction': 0.50,
@@ -300,7 +315,7 @@ class ExitEngine:
 
         # Then check T2 only if T1 already hit
         if target_hits == 1 and t2_price is not None and cur_price >= t2_price:
-            if self._is_pulling_back(symbol, current_date):
+            if not _was_hit_today(t2_hit_time) and self._is_pulling_back(symbol, current_date):
                 stop_for_t2 = max(active_stop, t1_price) if t1_price is not None else active_stop
                 return {
                     'stage': 'target_2',
@@ -311,11 +326,12 @@ class ExitEngine:
 
         # Finally check T3 only if T1 and T2 already hit
         if target_hits == 2 and t3_price is not None and cur_price >= t3_price:
-            return {
-                'stage': 'target_3',
-                'fraction': 1.0,
-                'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT',
-            }
+            if not _was_hit_today(t3_hit_time):
+                return {
+                    'stage': 'target_3',
+                    'fraction': 1.0,
+                    'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT',
+                }
 
         # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
         # Switches to 21-EMA trail after 10 days for tighter management

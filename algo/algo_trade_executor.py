@@ -714,15 +714,27 @@ class TradeExecutor:
                 # Only increment target_levels_hit if this exit was due to hitting a target price
                 # (exit_stage like 'target_1', 'target_2', 'target_3'), not for stop/forced/time-based exits
                 increment_targets = 1 if (exit_stage and 'target' in exit_stage.lower()) else 0
-                self.cur.execute(
-                    """UPDATE algo_positions
-                       SET quantity = %s,
-                           position_value = %s * current_price,
-                           target_levels_hit = COALESCE(target_levels_hit, 0) + %s,
-                           current_stop_price = %s
-                       WHERE position_id = %s AND quantity = %s""",
-                    (new_qty, new_qty, increment_targets, effective_stop, position_id, current_qty)
-                )
+
+                # Build update statement with conditional target_*_hit_time updates
+                update_sql = """UPDATE algo_positions
+                               SET quantity = %s,
+                                   position_value = %s * current_price,
+                                   target_levels_hit = COALESCE(target_levels_hit, 0) + %s,
+                                   current_stop_price = %s"""
+                params = [new_qty, new_qty, increment_targets, effective_stop]
+
+                # Update the appropriate target_*_hit_time column if this is a target exit
+                if exit_stage == 'target_1':
+                    update_sql += ", target_1_hit_time = CURRENT_TIMESTAMP"
+                elif exit_stage == 'target_2':
+                    update_sql += ", target_2_hit_time = CURRENT_TIMESTAMP"
+                elif exit_stage == 'target_3':
+                    update_sql += ", target_3_hit_time = CURRENT_TIMESTAMP"
+
+                update_sql += " WHERE position_id = %s AND quantity = %s"
+                params.extend([position_id, current_qty])
+
+                self.cur.execute(update_sql, params)
 
             return self.cur.rowcount > 0  # True if update succeeded
 

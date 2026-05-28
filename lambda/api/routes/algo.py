@@ -887,7 +887,8 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
         """Get data patrol findings with pagination."""
         try:
             cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
-            total = cur.fetchone()['total']
+            row = cur.fetchone()
+            total = row['total'] if row else 0
 
             cur.execute("""
                 SELECT created_at, check_name, severity, target_table, message, patrol_run_id
@@ -1121,7 +1122,8 @@ def _get_rejection_funnel(cur) -> Dict:
                 FROM buy_sell_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            initial_count = dict(cur.fetchone()).get('total_signals', 0) or 0
+            row = cur.fetchone()
+            initial_count = dict(row).get('total_signals', 0) if row else 0
 
             # Get scored candidates
             cur.execute("""
@@ -1129,7 +1131,8 @@ def _get_rejection_funnel(cur) -> Dict:
                 FROM swing_trader_scores
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            scored_count = dict(cur.fetchone()).get('scored', 0) or 0
+            row = cur.fetchone()
+            scored_count = dict(row).get('scored', 0) if row else 0
 
             # Get high-quality candidates (SQS > 60)
             cur.execute("""
@@ -1138,7 +1141,8 @@ def _get_rejection_funnel(cur) -> Dict:
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                 AND score >= 60
             """)
-            high_quality_count = dict(cur.fetchone()).get('high_quality', 0) or 0
+            row = cur.fetchone()
+            high_quality_count = dict(row).get('high_quality', 0) if row else 0
 
             # Build funnel stages with rejection reasons
             funnel = [

@@ -1597,6 +1597,12 @@ CREATE TABLE IF NOT EXISTS algo_positions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Add target level hit timestamp columns (Issue #17: idempotency for partial exits)
+ALTER TABLE algo_positions
+ADD COLUMN IF NOT EXISTS target_1_hit_time TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS target_2_hit_time TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS target_3_hit_time TIMESTAMP WITH TIME ZONE;
+
 -- Daily portfolio snapshots
 CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     id SERIAL PRIMARY KEY,
