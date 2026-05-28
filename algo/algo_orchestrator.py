@@ -313,8 +313,7 @@ class Orchestrator:
                 'technical_data_daily': "SELECT COUNT(*) FROM technical_data_daily WHERE date = %s",
                 'buy_sell_daily': "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s",
                 'signal_quality_scores': "SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s",
-                # TODO: Re-enable market_health_daily check after resolving Lambda connection pool visibility issue
-                # 'market_health_daily': f"SELECT COUNT(*) FROM market_health_daily WHERE date >= CURRENT_DATE - INTERVAL '2 days'",
+                'market_health_daily': "SELECT COUNT(*) FROM market_health_daily WHERE date >= CURRENT_DATE - INTERVAL '2 days'",
             }
 
             freshness_ok = True
