@@ -245,6 +245,47 @@ class Orchestrator:
                 logger.warning(f"  [WARN] Feature flag initialization failed: {e}")
             # Don't fail the orchestrator if flags aren't available
 
+    def _validate_required_tables(self, cur: Any) -> bool:
+        """FIXED Issue #23: Validate that all required tables exist before running phases.
+
+        Returns: True if all tables exist, False if any critical table is missing.
+        """
+        required_tables = [
+            'price_daily',
+            'technical_data_daily',
+            'buy_sell_daily',
+            'signal_quality_scores',
+            'market_health_daily',
+            'positions',
+            'algo_audit_log',
+            'algo_alerts',
+        ]
+
+        try:
+            missing_tables = []
+            for table_name in required_tables:
+                try:
+                    # Check if table exists by querying information_schema
+                    cur.execute(f"SELECT 1 FROM information_schema.tables WHERE table_name = %s LIMIT 1", (table_name,))
+                    if not cur.fetchone():
+                        missing_tables.append(table_name)
+                        logger.error(f"[TABLE-CHECK] Missing required table: {table_name}")
+                except Exception as e:
+                    logger.error(f"[TABLE-CHECK] Failed to check table {table_name}: {e}")
+                    missing_tables.append(table_name)
+
+            if missing_tables:
+                logger.error(f"[TABLE-CHECK] Cannot proceed: missing tables {missing_tables}")
+                self.log_phase_result(0, 'table_validation', 'halt', f'Missing tables: {", ".join(missing_tables)}')
+                return False
+
+            logger.info(f"[TABLE-CHECK] All {len(required_tables)} required tables exist ✓")
+            return True
+
+        except Exception as e:
+            logger.error(f"[TABLE-CHECK] Error validating tables: {e}")
+            return False
+
     def _check_data_freshness(self, cur: Any) -> bool:
         """FIXED Issue #9: Validate that all critical data is fresh (from today or yesterday).
 
@@ -821,6 +862,10 @@ class Orchestrator:
             try:
                 conn = self._get_conn()
                 cur = conn.cursor()
+
+                # FIXED Issue #23: Validate required tables exist
+                if not self._validate_required_tables(cur):
+                    return self._final_report()
 
                 # FIXED Issue #9: Check data freshness before patrol
                 if not self._check_data_freshness(cur):
