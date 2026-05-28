@@ -101,24 +101,28 @@ Multiple failed deployments occurred on May 27 from 01:40-06:31 UTC, but recent 
 
 ## CRITICAL FIX DEPLOYED - STEP FUNCTIONS UPDATE IN PROGRESS ✅
 
-**Root Cause (Identified May 28 02:33 UTC):**
-- Timeout fix created new task definition revision 29 (active, 2700s timeout)
-- Step Functions still referenced old revision 28 (now inactive)
-- Test execution failed with "TaskDefinition is inactive" error
+**Root Causes Identified & Fixed:**
 
-**Solution Applied (May 28 02:40 UTC):**
-- Updated terraform/modules/loaders/outputs.tf to output task definition family names
-- Instead of ARNs with specific revision numbers
-- This allows Step Functions to auto-resolve to latest active revision
-- Changes committed (fb4eb4e1f) and pushed to GitHub
-- GitHub Actions will automatically deploy via `terraform apply`
+1. **Loader Task Definitions (FIXED in commit fb4eb4e1f):**
+   - Step Functions was referencing task definition ARNs with specific revisions
+   - When new revisions created, pipeline failed with "TaskDefinition is inactive" error
+   - Solution: Updated loaders/outputs.tf to output family names
+   - Allows Step Functions to auto-resolve to latest active revision
 
-**Expected Outcome (after GitHub Actions deployment):**
-- Step Functions definition will update to use family names
-- Next test execution will use revision 29 (with 2700s timeout)
-- Trend template data task will complete successfully
-- Signals for May 27/28 will be generated
-- System resumes normal trading operations
+2. **Orchestrator Task Definition (NEWLY FIXED in commit 9c85257fb):**
+   - Same issue: TriggerOrchestrator was using ARN with specific revision (:22)
+   - This was NOT fixed in the previous commit!
+   - Solution: Updated loaders/outputs.tf to output family name for algo_orchestrator
+   - Step Functions will now auto-resolve to latest active revision
+
+**Changes Committed:**
+- fb4eb4e1f: Loaders task definitions → family names
+- 9c85257fb: Orchestrator task definition → family name
+
+**Next Step:**
+- Run `terraform apply` to deploy Step Functions definition changes to AWS
+- Test execution test-eod-fix-1779936995 is currently RUNNING (started 21:56:35 UTC)
+- Monitoring until completion
 
 ---
 
