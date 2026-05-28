@@ -66,10 +66,11 @@ def validate_environment():
             if not os.getenv(var):
                 errors.append(f"{var}: required for {description}")
 
-    # Issue #33: Validate DB_HOST points to proxy, not direct RDS
+    # FIXED Issue #15: Validate DB_HOST points to proxy (now required, not optional)
     db_host = os.getenv('DB_HOST', '')
     if 'rds.amazonaws.com' in db_host and 'rds-proxy' not in db_host.lower():
-        logger.warning(f"Issue #33: DB_HOST points to direct RDS ({db_host}), not proxy. Connection pooling disabled. Set RDS_PROXY_ENDPOINT instead.")
+        logger.error(f"FATAL: DB_HOST points to direct RDS ({db_host}), not proxy. Connection pooling REQUIRED for production. Set RDS_PROXY_ENDPOINT in Terraform.")
+        errors.append(f"DB_HOST: Must point to RDS Proxy (contains 'rds-proxy'), not direct RDS endpoint")
 
     return len(errors) == 0, errors
 

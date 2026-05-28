@@ -158,10 +158,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
+      # FIXED Issue #3: Timeout was 3600s but unified price loader needs 21600s (6 hours)
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 21600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -242,6 +243,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 3: Parallel enrichment (trend template only — stock_scores moved after signals) ────────
+      # FIXED Issue #2: Task definition timeout increased from 2700s to 5400s to match SF timeout
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
@@ -305,6 +307,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
+      # FIXED Issue #1: Task definition timeout increased from 3600s to 5400s to match
       SignalQualityScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -383,6 +386,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # The Lambda orchestrator (EventBridge at 9:30 AM ET) is the trading trigger.
       # This ECS step runs dry_run=true: validates all data loaded, logs phase results,
       # but does NOT place orders. Prevents double-execution vs. the 9:30 AM Lambda.
+      # FIXED Issue #7: Added explicit execution_mode=paper to prevent confusion
       TriggerOrchestrator = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -398,7 +402,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               Environment = [
                 {
                   Name  = "ORCHESTRATOR_EXECUTION_MODE"
-                  Value = var.execution_mode
+                  Value = "paper"
                 },
                 {
                   Name  = "ORCHESTRATOR_DRY_RUN"
@@ -442,6 +446,111 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type  = "Fail"
         Error = "PipelineFailed"
         Cause = "One or more pipeline steps failed. Check Step Functions execution history."
+      }
+    }
+  })
+
+  tags = var.common_tags
+}
+
+# ============================================================
+# Morning Prep Pipeline - Separate State Machine
+# FIXED Issue #5: Split morning and EOD pipelines to prevent signal double-generation
+# Morning (5:30am ET): Load prices → compute technicals → NO signal generation (reuse EOD signals)
+# ============================================================
+
+resource "aws_sfn_state_machine" "morning_prep_pipeline" {
+  name     = "${var.project_name}-morning-prep-pipeline-${var.environment}"
+  role_arn = aws_iam_role.sfn_pipeline.arn
+  type     = "STANDARD"
+
+  logging_configuration {
+    log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
+    include_execution_data = true
+    level                  = "ERROR"
+  }
+
+  definition = jsonencode({
+    Comment = "Morning data prep: prices → technicals (reuse EOD signals)"
+    StartAt = "CheckTradingDay"
+
+    States = {
+      CheckTradingDay = {
+        Type = "Pass"
+        Parameters = {
+          "today.$" = "$$.State.EnteredTime"
+        }
+        Next = "MorningPrices"
+      }
+
+      # Load only daily prices (not weekly/monthly) for morning prep
+      MorningPrices = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["stock_prices_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 120
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PipelineFailed"
+          ResultPath  = "$.error"
+        }]
+        Next = "MorningTechnicals"
+      }
+
+      MorningTechnicals = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 36000
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PipelineFailed"
+          ResultPath  = "$.error"
+        }]
+        Next = "MorningSuccess"
+      }
+
+      MorningSuccess = {
+        Type = "Succeed"
+      }
+
+      PipelineFailed = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::sns:publish"
+        Parameters = {
+          TopicArn = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:placeholder"
+          "Message.$" = "States.Format('Morning prep pipeline FAILED\n\nError: {}\n\nCheck Step Functions console: https://${var.aws_region}.console.aws.amazon.com/states/home?region=${var.aws_region}#/statemachines', $.error.Cause)"
+          Subject  = "ALERT: Morning Prep Pipeline Failed"
+        }
+        Next = "PipelineFailedEnd"
+      }
+
+      PipelineFailedEnd = {
+        Type  = "Fail"
+        Error = "PipelineFailed"
+        Cause = "Morning prep pipeline failed. Check Step Functions execution history."
       }
     }
   })
@@ -534,7 +643,7 @@ resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
 
 resource "aws_cloudwatch_event_target" "morning_pipeline" {
   rule     = aws_cloudwatch_event_rule.morning_pipeline_trigger.name
-  arn      = aws_sfn_state_machine.eod_pipeline.arn
+  arn      = aws_sfn_state_machine.morning_prep_pipeline.arn
   role_arn = aws_iam_role.eventbridge_sfn.arn
 }
 

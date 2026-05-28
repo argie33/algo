@@ -42,6 +42,54 @@ resource "aws_iam_role" "eventbridge_run_task" {
 }
 
 # ============================================================
+# DynamoDB Table for Orchestrator Distributed Locking
+# FIXED Issue #8: Replaced filesystem locks with DynamoDB for Fargate
+# ============================================================
+
+resource "aws_dynamodb_table" "orchestrator_locks" {
+  name           = "${var.project_name}-orchestrator-locks-${var.environment}"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "lock_key"
+
+  attribute {
+    name = "lock_key"
+    type = "S"
+  }
+
+  # TTL: lock entries expire after 15 minutes
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-orchestrator-locks"
+  })
+}
+
+# Grant ECS tasks permission to access the lock table
+resource "aws_iam_role_policy" "ecs_task_lock_access" {
+  name = "${var.project_name}-ecs-lock-table-access"
+  role = var.task_role_arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBOrchestrationLocks"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = aws_dynamodb_table.orchestrator_locks.arn
+      }
+    ]
+  })
+}
+
+# ============================================================
 # SQS Dead-Letter Queue for EventBridge loader failures
 # ============================================================
 
@@ -199,11 +247,12 @@ locals {
       description = "Unified price loader: daily, weekly, monthly for stocks and ETFs - 4:00am ET"
     }
 
-    # 4:05am ET = 9:05am UTC Mon-Fri — FRED economic data (small API call, ~5 series)
-    # Runs after prices but before market health computation, used for market exposure calculation
+    # FIXED Issue #14: Moved from 4:05am to 4:30pm ET to provide fresh data for EOD pipeline
+    # Previously ran 4:05am ET but EOD pipeline runs 4:05pm ET same day, making data stale
+    # 4:30pm ET = 20:30 UTC Mon-Fri — runs after market close, feeds into EOD market health
     "fred_economic_data" = {
-      schedule    = "cron(5 9 ? * MON-FRI *)"
-      description = "FRED economic indicators (T10Y2Y, yields, jobless claims) - 4:05am ET"
+      schedule    = "cron(30 20 ? * MON-FRI *)"
+      description = "FRED economic indicators (T10Y2Y, yields, jobless claims) - 4:30pm ET (before EOD pipeline)"
     }
 
     # 4:30am ET = 9:30am UTC Mon-Fri — runs AFTER stock_prices_daily (4:00am UTC 9:00)
@@ -388,8 +437,8 @@ locals {
     "etf_prices_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
-    # FIXED: Timeout was 1200s (20min) but computing trend scores for 5000+ symbols needs 45min+
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 2700, parallelism = 4 }
+    # FIXED Issue #2: Timeout was 1200s then 2700s but Step Functions allows 5400s; increased to match SF
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
 
     # Financial statements (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
     # Sequential processing needs 60min timeout to handle 5000+ symbols with SEC backoff delays
@@ -439,8 +488,9 @@ locals {
     "signals_etf_weekly"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     "signals_etf_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
-    # Algo metrics (5:15pm ET - after signals) - FARGATE: 256 CPU = min 512 MB; increase timeout for 5000+ symbol processing
-    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 10800, parallelism = 1 }
+    # Algo metrics (5:15pm ET - after signals) - FARGATE: compute metrics on 5000+ symbols
+    # FIXED Issue #4: Was 256 CPU, 512 MB (too small). Increased to 1024 CPU, 2048 MB for 3-hour computation
+    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
 
     # Market data batch — 8 tiny loaders consolidated into one task (3:30am ET)
     "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
@@ -464,8 +514,12 @@ locals {
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
-    "eod_bulk_refresh"      = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    # FIXED Issue #1: Signal quality scores timeout was 3600s but Step Functions allows 5400s
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
+    # FIXED Issue #3: EOD bulk refresh is unified price loader (same as stock_prices_daily)
+    # Maps to load_stock_prices_daily.py which runs full price load (5000+ symbols, all intervals)
+    # Requires 6-hour timeout like stock_prices_daily, not 3600s. Changed from 3600→21600.
+    "eod_bulk_refresh"      = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
   }
 
   # For backward compatibility
@@ -847,6 +901,7 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "ORCHESTRATOR_LOG_LEVEL", value = var.orchestrator_log_level },
         { name = "ORCHESTRATOR_EXECUTION_MODE", value = var.execution_mode },
         { name = "ORCHESTRATOR_DRY_RUN", value = tostring(var.orchestrator_dry_run) },
+        { name = "ORCHESTRATOR_LOCK_TABLE", value = aws_dynamodb_table.orchestrator_locks.name },
         { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" }
       ]
     }

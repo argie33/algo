@@ -28,6 +28,48 @@ from algo.orchestrator.phase_result import PhaseResult
 logger = logging.getLogger(__name__)
 
 
+def _trigger_loader_failsafe(loader_name: str, verbose: bool = False) -> bool:
+    """
+    Failsafe: trigger ECS loader via Lambda if EventBridge failed.
+
+    Returns: True if trigger succeeded, False otherwise.
+    """
+    try:
+        import boto3
+        import json
+
+        # Invoke trigger-loaders Lambda
+        lambda_client = boto3.client('lambda')
+        loader_lambda = os.getenv('LOADER_TRIGGER_LAMBDA_ARN', '')
+
+        if not loader_lambda:
+            if verbose:
+                logger.warning("[FAILSAFE] LOADER_TRIGGER_LAMBDA_ARN not configured, cannot trigger")
+            return False
+
+        response = lambda_client.invoke(
+            FunctionName=loader_lambda,
+            InvocationType='Event',  # async
+            Payload=json.dumps({
+                'loader_name': loader_name,
+                'task_count': 1,
+                'priority': 'FARGATE'  # critical, use on-demand
+            })
+        )
+
+        if response['StatusCode'] in (200, 202, 204):
+            if verbose:
+                logger.info(f"[FAILSAFE] ✓ Triggered {loader_name} loader via Lambda")
+            return True
+        else:
+            if verbose:
+                logger.warning(f"[FAILSAFE] Failed to trigger {loader_name}: {response['StatusCode']}")
+            return False
+    except Exception as e:
+        logger.warning(f"[FAILSAFE] Could not trigger loader: {e}")
+        return False
+
+
 def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_result_fn: Callable) -> bool:
     """Check data patrol results. Fail-closed if critical/error findings.
 
@@ -388,16 +430,43 @@ def run(
             _metrics.flush()
 
         if stale_items:
-            alerts.send_position_alert(
-                'DATA',
-                'STALE_DATA_HALT',
-                f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
-                {'stale_items': stale_items, 'expected_date': str(expected_date)}
-            )
-            log_phase_result_fn(1, 'data_freshness', 'fail',
-                               f'Stale: {"; ".join(stale_items)}')
-            return PhaseResult(1, 'data_freshness', 'halted', {}, True,
-                             f'Stale: {"; ".join(stale_items)}')
+            # FAILSAFE: Try to trigger loaders if EventBridge failed
+            logger.warning(f"[FAILSAFE] Data stale, attempting automatic loader trigger: {stale_items}")
+            if _trigger_loader_failsafe('stock_prices_daily', verbose=verbose):
+                # Wait for loader to run
+                import time
+                logger.info("[FAILSAFE] Waiting 30s for loader to complete...")
+                time.sleep(30)
+
+                # Re-check if prices loaded
+                try:
+                    cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'")
+                    new_price_date = cur.fetchone()[0] if cur.fetchone() else None
+                    if new_price_date and new_price_date >= expected_date:
+                        logger.info(f"[FAILSAFE] ✓ Data recovered! Prices now: {new_price_date}")
+                        # Recalculate stale items with fresh data
+                        checks['price_daily'] = new_price_date
+                        stale_items = [item for item in stale_items if 'price_daily' not in item]
+                        if not stale_items:
+                            logger.info("[FAILSAFE] All critical data now fresh, proceeding")
+                            # Continue to patrol check
+                        else:
+                            logger.warning(f"[FAILSAFE] Some items still stale: {stale_items}")
+                except Exception as e:
+                    logger.warning(f"[FAILSAFE] Could not verify data reload: {e}")
+
+            # If still stale after failsafe, halt
+            if stale_items:
+                alerts.send_position_alert(
+                    'DATA',
+                    'STALE_DATA_HALT',
+                    f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
+                    {'stale_items': stale_items, 'expected_date': str(expected_date)}
+                )
+                log_phase_result_fn(1, 'data_freshness', 'fail',
+                                   f'Stale: {"; ".join(stale_items)}')
+                return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                 f'Stale: {"; ".join(stale_items)}')
 
         patrol_ok = _check_data_patrol(cur, run_date, verbose, log_phase_result_fn)
 

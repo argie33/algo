@@ -537,6 +537,8 @@ resource "aws_lambda_function" "algo" {
       # Alert configuration (email, Slack webhooks, SMS)
       ALERT_EMAIL_TO         = var.alert_email_to
       ALERT_WEBHOOK_URL      = var.alert_webhook_url
+      # Failsafe: manually trigger loaders if EventBridge fails
+      LOADER_TRIGGER_LAMBDA_ARN = aws_lambda_function.trigger_loaders.arn
     }
   }
 
@@ -881,4 +883,13 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
   function_name = aws_lambda_function.algo.function_name
   principal     = "scheduler.amazonaws.com"
   source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
+}
+
+# Allow orchestrator Lambda to invoke trigger-loaders Lambda (failsafe)
+resource "aws_lambda_permission" "algo_invoke_trigger_loaders" {
+  statement_id  = "AllowAlgoInvokeTriggerLoaders"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.trigger_loaders.function_name
+  principal     = "lambda.amazonaws.com"
+  source_arn    = aws_lambda_function.algo.arn
 }

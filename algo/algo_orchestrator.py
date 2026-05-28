@@ -107,7 +107,9 @@ class Orchestrator:
         self.verbose = verbose
         self.phase_results = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
-        self.lock_file = Path(tempfile.gettempdir()) / 'algo_orchestrator.lock'
+        # FIXED Issue #8: Use DynamoDB lock manager instead of filesystem lock for distributed locking in Fargate
+        from utils.dynamodb_lock_manager import DynamoDBLockManager
+        self.lock_manager = DynamoDBLockManager()
         self._lock_acquired = False
         self.db_failure_counter_file = Path(tempfile.gettempdir()) / 'algo_db_failures.txt'
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
@@ -243,6 +245,64 @@ class Orchestrator:
                 logger.warning(f"  [WARN] Feature flag initialization failed: {e}")
             # Don't fail the orchestrator if flags aren't available
 
+    def _check_data_freshness(self, cur: Any) -> bool:
+        """FIXED Issue #9: Validate that all critical data is fresh (from today or yesterday).
+
+        Checks:
+        - Prices exist for today
+        - Technical indicators computed for today
+        - Signals generated for today
+        - Signal quality scores available
+        - Market health computed for today
+
+        Returns: True if data is fresh, False if critical data is stale.
+        """
+        try:
+            # Expected data date: if today is non-trading day, use yesterday
+            expected_date = self.run_date
+            from algo.algo_market_calendar import MarketCalendar
+            if not MarketCalendar.is_trading_day(expected_date):
+                # Use yesterday or most recent trading day
+                expected_date = expected_date - timedelta(days=1)
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(expected_date):
+                        break
+                    expected_date -= timedelta(days=1)
+
+            checks = {
+                'price_daily': "SELECT COUNT(*) FROM price_daily WHERE date = %s",
+                'technical_data_daily': "SELECT COUNT(*) FROM technical_data_daily WHERE date = %s",
+                'buy_sell_daily': "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s",
+                'signal_quality_scores': "SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s",
+                'market_health_daily': "SELECT COUNT(*) FROM market_health_daily WHERE date = %s",
+            }
+
+            freshness_ok = True
+            for table_name, query in checks.items():
+                try:
+                    cur.execute(query, (expected_date,))
+                    count = cur.fetchone()[0]
+                    if count == 0:
+                        logger.error(f"[FRESHNESS] {table_name} has no data for {expected_date}")
+                        freshness_ok = False
+                    else:
+                        if self.verbose:
+                            logger.info(f"[FRESHNESS] {table_name}: {count} rows for {expected_date}")
+                except Exception as e:
+                    logger.error(f"[FRESHNESS] Failed to check {table_name}: {e}")
+                    freshness_ok = False
+
+            if not freshness_ok:
+                logger.error("[FRESHNESS] Critical data is stale — blocking orchestrator")
+                self.log_phase_result(1, 'data_freshness', 'halt', 'Critical data is not fresh (missing prices, technicals, or signals)')
+                return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"[FRESHNESS] Error checking data freshness: {e}")
+            return False
+
     def _check_data_patrol(self, cur: Any) -> bool:
         """Check data patrol results. Fail-closed if critical/error findings.
 
@@ -367,75 +427,24 @@ class Orchestrator:
 
     # ---------- Logging helpers ----------
 
-    def _acquire_run_lock(self, lock_timeout_seconds: int = 300) -> bool:
-        """Acquire exclusive lock to prevent concurrent orchestrator runs.
+    def _acquire_run_lock(self, lock_timeout_seconds: int = 5) -> bool:
+        """Acquire distributed lock to prevent concurrent orchestrator runs.
 
-        Uses file-based locking with PID checking and timestamp-based expiration.
-        If another instance holds the lock but:
-        - Its PID is dead, OR
-        - The lock timestamp is older than lock_timeout_seconds
-        Then steal the lock and continue.
+        FIXED Issue #8: Uses DynamoDB conditional writes instead of filesystem locks
+        for correct distributed locking in Fargate ECS tasks (no shared filesystem).
 
         Args:
-            lock_timeout_seconds: Maximum age of lock before forcing acquisition (default 5 min)
+            lock_timeout_seconds: How long to retry acquiring lock (default 5s)
 
         Returns: True if lock acquired, False if another active instance holds it.
         """
-        import json
-
-        if self.lock_file.exists():
-            try:
-                lock_content = self.lock_file.read_text().strip()
-                if lock_content:
-                    # Lock format: JSON with pid and timestamp
-                    try:
-                        lock_data = json.loads(lock_content)
-                        old_pid = lock_data.get('pid')
-                        lock_timestamp = lock_data.get('timestamp', time.time())
-                        lock_age = time.time() - lock_timestamp
-
-                        if self._pid_alive(old_pid) and lock_age < lock_timeout_seconds:
-                            logger.error(f"ERROR: Orchestrator already running (PID {old_pid}, lock age {lock_age:.0f}s)")
-                            return False
-                        else:
-                            if not self._pid_alive(old_pid):
-                                logger.info(f"Stale lock from dead PID {old_pid} — acquiring")
-                            else:
-                                logger.warning(f"Lock timeout: PID {old_pid} lock age {lock_age:.0f}s > {lock_timeout_seconds}s limit — forcing acquisition")
-                    except (json.JSONDecodeError, ValueError):
-                        old_pid = int(lock_content)
-                        if self._pid_alive(old_pid):
-                            logger.error(f"ERROR: Orchestrator already running (PID {old_pid})")
-                            return False
-                        else:
-                            logger.info(f"Stale lock from PID {old_pid} — acquiring")
-            except Exception as e:
-                logger.warning(f"Warning: Could not read lock file: {e}")
-
-        # Acquire lock with timestamp
-        try:
-            lock_data = {
-                'pid': os.getpid(),
-                'timestamp': time.time()
-            }
-            self.lock_file.write_text(json.dumps(lock_data))
-            self._lock_acquired = True
-            if self.verbose:
-                logger.info(f"Lock acquired (PID {os.getpid()})")
-            return True
-        except Exception as e:
-            logger.error(f"ERROR: Could not create lock file: {e}")
-            return False
+        self._lock_acquired = self.lock_manager.acquire(timeout_seconds=lock_timeout_seconds)
+        return self._lock_acquired
 
     def _release_run_lock(self) -> None:
-        """Release the run lock."""
-        if self._lock_acquired and self.lock_file.exists():
-            try:
-                self.lock_file.unlink()
-                self._lock_acquired = False
-            except Exception as e:
-
-                logger.error(f"Unhandled exception: {e}")
+        """Release the distributed lock."""
+        if self._lock_acquired:
+            self.lock_manager.release()
 
     def log_phase_start(self, phase_num: int, name: str) -> None:
         if self.verbose:
@@ -806,17 +815,18 @@ class Orchestrator:
             return {'success': False, 'error': 'Lock acquisition failed'}
 
         try:
-            logger.info("\n[CRITICAL] Running critical data patrol checks...")
-            logger.info("[CRITICAL] About to call _get_conn()...")
+            logger.info("\n[CRITICAL] Running critical data checks...")
             conn = None
             cur = None
             try:
-                logger.info("[CRITICAL] Calling _get_conn() NOW...")
                 conn = self._get_conn()
-                logger.info(f"[CRITICAL] Got connection: {conn}")
-                logger.info("[CRITICAL] Creating cursor...")
                 cur = conn.cursor()
-                logger.info("[CRITICAL] Cursor created, running _check_data_patrol()...")
+
+                # FIXED Issue #9: Check data freshness before patrol
+                if not self._check_data_freshness(cur):
+                    return self._final_report()
+
+                # Check data patrol for quality issues
                 if not self._check_data_patrol(cur):
                     return self._final_report()
             except Exception as e:

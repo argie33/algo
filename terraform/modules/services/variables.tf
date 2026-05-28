@@ -697,3 +697,15 @@ variable "dev_mode" {
   type        = string
   default     = "false"
 }
+
+variable "task_execution_role_arn" {
+  description = "IAM role ARN for ECS task execution (from IAM module)"
+  type        = string
+  default     = ""
+}
+
+variable "task_role_arn" {
+  description = "IAM role ARN for ECS task (from IAM module)"
+  type        = string
+  default     = ""
+}
