@@ -62,8 +62,8 @@ output "scheduled_loader_count" {
 # ============================================================
 
 output "algo_orchestrator_task_definition_arn" {
-  description = "ARN of the algo orchestrator ECS task definition (invoked by Step Functions)"
-  value       = aws_ecs_task_definition.algo_orchestrator.arn
+  description = "Family name of the algo orchestrator ECS task definition (Step Functions will resolve to latest active revision)"
+  value       = aws_ecs_task_definition.algo_orchestrator.family
 }
 
 output "algo_orchestrator_task_definition_family" {
