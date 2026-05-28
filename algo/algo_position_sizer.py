@@ -297,7 +297,7 @@ class PositionSizer:
             return portfolio_value if portfolio_value > 0 else 999999.0
 
     def get_position_count(self):
-        """Get count of active positions.
+        """Get count of active positions (Issue #26: Now checks capital, not just count).
 
         B13: Fail-closed — on error, assume max positions to prevent over-trading.
         """
@@ -310,6 +310,25 @@ class PositionSizer:
         except Exception as e:
             logger.error(f"WARNING: Could not fetch position count: {e}")
             return int(self.config.get('max_positions', 12))
+
+    def get_active_positions_capital_pct(self):
+        """Issue #26: Get total capital invested as % of portfolio.
+
+        Returns capital-based position limit, not just count-based.
+        """
+        try:
+            portfolio_value = self.get_portfolio_value()
+            if portfolio_value <= 0:
+                return 0
+
+            self.cur.execute("""
+                SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
+            """)
+            result = self.cur.fetchone()
+            total_value = float(result[0]) if result and result[0] else 0
+            return (total_value / portfolio_value * 100) if portfolio_value > 0 else 0
+        except Exception:
+            return 0
 
     def calculate_position_size(self, symbol, entry_price, stop_loss_price, signal_date=None):
         """

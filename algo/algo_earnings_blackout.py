@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any
 import logging
+from algo.algo_market_calendar import MarketCalendar
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,19 @@ class EarningsBlackout:
         self.days_after = int(self.config.get('earnings_blackout_days_after', 7))
 
     def run(self, symbol: str, eval_date: _date) -> Dict[str, Any]:
-        """Check if eval_date is in earnings blackout window. Returns dict with 'pass' key.
+        """Check if eval_date is in earnings blackout window (Issue #27: trading day aware).
 
-        If earnings_calendar table doesn't exist (not yet implemented), passes through.
+        Uses MarketCalendar to compute trading days, not calendar days.
+        If earnings_calendar table doesn't exist, passes through.
         """
         try:
             conn = get_db_connection()
             cur = conn.cursor()
+
+            # Issue #27: Compute trading day windows instead of calendar days
+            # Count back N trading days before, forward N trading days after
+            lookback_date = eval_date - timedelta(days=self.days_before * 2)  # Conservative estimate
+            lookahead_date = eval_date + timedelta(days=self.days_after * 2)
 
             cur.execute(
                 """SELECT earnings_date FROM earnings_calendar
@@ -46,11 +53,7 @@ class EarningsBlackout:
                    AND earnings_date >= %s
                    AND earnings_date <= %s
                    ORDER BY earnings_date LIMIT 1""",
-                (
-                    symbol,
-                    eval_date - timedelta(days=self.days_before),
-                    eval_date + timedelta(days=self.days_after),
-                )
+                (symbol, lookback_date, lookahead_date)
             )
             row = cur.fetchone()
             cur.close()
@@ -58,15 +61,25 @@ class EarningsBlackout:
 
             if row:
                 earnings_date = row[0]
-                days_until = (earnings_date - eval_date).days
-                return {
-                    'pass': False,
-                    'reason': f'Earnings on {earnings_date} ({abs(days_until)}d away)',
-                }
+                # Count trading days between eval_date and earnings_date
+                trading_days_away = 0
+                current = eval_date
+                direction = 1 if earnings_date >= eval_date else -1
+                while current != earnings_date:
+                    current += timedelta(days=direction)
+                    if MarketCalendar.is_trading_day(current):
+                        trading_days_away += 1
+
+                # Check if within blackout window (in trading days, not calendar days)
+                if trading_days_away <= (self.days_after if direction > 0 else self.days_before):
+                    return {
+                        'pass': False,
+                        'reason': f'Earnings on {earnings_date} ({trading_days_away} trading days away)',
+                    }
 
             return {
                 'pass': True,
-                'reason': f'No earnings in ±{self.days_before}/{self.days_after}d window',
+                'reason': f'No earnings in ±{self.days_before}/{self.days_after} trading days',
             }
         except psycopg2.errors.UndefinedTable:
             logger.info(f"Earnings calendar not yet populated; skipping blackout for {symbol}")

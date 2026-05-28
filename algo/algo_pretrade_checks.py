@@ -50,6 +50,26 @@ class PreTradeChecks:
                 logger.debug(f"Connection close failed: {close_err}")
             self.conn = None
 
+    def apply_slippage_adjustment(self, shares: float, entry_price: float, slippage_pct: float = 1.0) -> Tuple[float, float]:
+        """Issue #28: Apply slippage model to position size.
+
+        Reduces shares by slippage percentage to account for market impact and execution slippage.
+        Default: 1% slippage (typical for mid-caps, up to 2% for illiquid stocks).
+
+        Args:
+            shares: Calculated position size
+            entry_price: Target entry price
+            slippage_pct: Expected slippage percentage (default 1%)
+
+        Returns:
+            (adjusted_shares, actual_cost_per_share)
+        """
+        slippage_factor = 1.0 - (slippage_pct / 100.0)
+        adjusted_shares = int(shares * slippage_factor)
+        actual_cost = entry_price / slippage_factor
+        logger.debug(f"Slippage adjustment: {shares} → {adjusted_shares} shares, cost ${entry_price:.2f} → ${actual_cost:.2f}")
+        return adjusted_shares, actual_cost
+
     def run_all(self, symbol: str, entry_price: float, position_value: float,
                 portfolio_value: float, side: str = 'BUY') -> Tuple[bool, Optional[str]]:
         """
