@@ -61,7 +61,7 @@ def load_signal_trade_performance():
             LEFT JOIN algo_trades at ON at.symbol = sqs.symbol
                 AND at.entry_date >= sqs.signal_date
                 AND at.entry_date < sqs.signal_date + INTERVAL '30 days'
-            WHERE sqs.signal_date > NOW() - INTERVAL '180 days'
+            WHERE sqs.signal_date >= NOW() - INTERVAL '180 days'
             GROUP BY sqs.symbol, sqs.signal_date
             LIMIT 1000
             ON CONFLICT (symbol, signal_date) DO UPDATE SET
