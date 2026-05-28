@@ -67,7 +67,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
   count                        = var.enable_morning_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-morning-${var.environment}"
   description                  = "Morning algo orchestrator run: 9:30 AM ET (market open, after price loads)"
-  schedule_expression          = "cron(30 14 ? * MON-FRI *)" # 9:30 AM ET = 2:30 PM UTC
+  schedule_expression          = "cron(30 13 ? * MON-FRI *)" # 9:30 AM EDT = 1:30 PM UTC (13:30), 9:30 AM EST = 2:30 PM UTC (14:30)
   schedule_expression_timezone = "UTC"
   state                        = "ENABLED"
 
@@ -140,7 +140,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
   count                        = var.enable_preclose_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-preclose-${var.environment}"
   description                  = "Pre-close algo orchestrator run: 3:00 PM ET (final trades before market close at 4 PM ET)"
-  schedule_expression          = "cron(0 20 ? * MON-FRI *)" # 3:00 PM ET = 8:00 PM UTC
+  schedule_expression          = "cron(0 19 ? * MON-FRI *)" # 3:00 PM EDT = 7:00 PM UTC (19:00), 3:00 PM EST = 8:00 PM UTC (20:00)
   schedule_expression_timezone = "UTC"
   state                        = "ENABLED"
 
