@@ -27,6 +27,7 @@ enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM E
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
 cognito_enabled               = true                        # Authorizer exists but not used on routes (all NONE auth)
+cognito_test_user_email       = "testuser@algo.local"      # Create test user for development
 
 # Database configuration
 rds_instance_class = "db.t3.medium" # FIXED: Upgraded from db.t3.small (2vCPU 2GB) to db.t3.medium (2vCPU 4GB) to resolve RDS I/O contention
