@@ -150,11 +150,11 @@ resource "aws_apigatewayv2_api" "main" {
     allow_origins = [
       "http://localhost:3000",
       "http://localhost:5173",
-      "https://*.cloudfront.net"  # CloudFront distributions
+      "https://d2u93283nn45h2.cloudfront.net"  # Frontend CloudFront domain (exact match required)
     ]
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
-    allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "*"]
-    expose_headers    = ["Content-Length", "Content-Type", "X-Custom-*"]
+    allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
+    expose_headers    = ["Content-Length", "Content-Type"]
     max_age          = 3600
     allow_credentials = true
   }
