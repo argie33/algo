@@ -196,8 +196,15 @@ def get_db_connection(max_retries: int = 2, timeout: int = 10):
             t_conn_start = time.time()
             conn = psycopg2.connect(**config)
             conn.autocommit = True
+
+            # Set statement timeout to prevent long-running queries (default 5 minutes)
+            stmt_timeout_ms = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', 300000))  # 5 minutes
+            cursor = conn.cursor()
+            cursor.execute(f"SET statement_timeout = {stmt_timeout_ms}")
+            cursor.close()
+
             t_connected = time.time()
-            logger.info(f"[DB] ✓ Connected in {t_connected-t_conn_start:.2f}s (total {t_connected-t_start:.2f}s) with autocommit enabled")
+            logger.info(f"[DB] ✓ Connected in {t_connected-t_conn_start:.2f}s (total {t_connected-t_start:.2f}s) with autocommit enabled (statement_timeout={stmt_timeout_ms}ms)")
             return TrackedConnection(conn)
         except psycopg2.OperationalError as e:
             last_error = e

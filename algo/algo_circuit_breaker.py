@@ -588,8 +588,10 @@ class CircuitBreaker:
             return {'halted': False, 'reason': f'Prior-day check skipped (data error): {e}'}
 
     def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
-        """Halt if any sector has 2+ open positions and is down 12%+ in last 5 days."""
+        """Halt if any sector exceeds max position cap (default 3 positions per sector)."""
         try:
+            max_sector_positions = int(self.config.get('max_sector_positions', 3))
+
             self.cur.execute(
                 """
                 SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector
@@ -607,53 +609,19 @@ class CircuitBreaker:
             for _, sector in rows:
                 sector_counts[sector] = sector_counts.get(sector, 0) + 1
 
-            concentrated = {s: n for s, n in sector_counts.items() if n >= 2 and s != 'Unknown'}
-            if not concentrated:
-                return {'halted': False, 'reason': 'No concentrated sectors'}
-
-            # For each concentrated sector, check 5-day cumulative return
-            from datetime import timedelta
-            from algo.algo_market_calendar import MarketCalendar
-            five_days_ago = current_date
-            for _ in range(5):
-                five_days_ago -= timedelta(days=1)
-                while not MarketCalendar.is_trading_day(five_days_ago):
-                    five_days_ago -= timedelta(days=1)
-            threshold = float(self.config.get('sector_drawdown_halt_pct', -12.0))
-
-            for sector, count in concentrated.items():
-                self.cur.execute(
-                    """
-                    SELECT return_pct, date FROM sector_performance
-                    WHERE sector = %s AND date >= %s
-                    ORDER BY date
-                    """,
-                    (sector, five_days_ago),
-                )
-                perf_rows = self.cur.fetchall()
-                if not perf_rows:
-                    continue
-
-                # Compound returns: (1+r1) * (1+r2) * ... - 1
-                cumulative = 1.0
-                for r_pct, _ in perf_rows:
-                    if r_pct is not None:
-                        cumulative *= (1.0 + float(r_pct) / 100.0)
-                cumulative_pct = (cumulative - 1.0) * 100.0
-
-                if cumulative_pct <= threshold:
-                    return {
-                        'halted': True,
-                        'reason': (f'Sector "{sector}" down {cumulative_pct:.1f}% in 5d '
-                                   f'with {count} open positions (threshold: {threshold:.0f}%)'),
-                        'sector': sector,
-                        'positions_in_sector': count,
-                        'sector_return_5d': round(cumulative_pct, 2),
-                    }
+            # Halt if any sector exceeds max cap (hard limit)
+            concentrated = {s: n for s, n in sector_counts.items() if n > max_sector_positions and s != 'Unknown'}
+            if concentrated:
+                # Hard halt: exceeding max sector positions blocks all new entries
+                sector_details = ', '.join(f"{s}({n})" for s, n in concentrated.items())
+                return {
+                    'halted': True,
+                    'reason': f'Sector concentration limit exceeded: {sector_details} (max {max_sector_positions} per sector)',
+                }
 
             return {
                 'halted': False,
-                'reason': f'Concentrated sectors OK: {", ".join(f"{s}({n})" for s, n in concentrated.items())}',
+                'reason': f'All sectors within limits (max {max_sector_positions} per sector)',
             }
         except Exception as e:
             logger.warning(f'Sector concentration check failed: {e}')
