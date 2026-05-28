@@ -21,7 +21,7 @@
  */
 
 # ============================================================
-# Pre-market Schedule (4:30 AM ET = 8:30 AM UTC) [OPTIONAL]
+# Pre-market Schedule (4:30 AM ET) [OPTIONAL]
 # Runs after stock_symbols, before price loads complete
 # Uses: signals from night before + previous prices
 # Purpose: Early position setup, scout for opportunities
@@ -31,8 +31,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_premarket" {
   count                        = var.enable_premarket_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-premarket-${var.environment}"
   description                  = "Pre-market algo orchestrator run: 4:30 AM ET (early prep, signals from night before)"
-  schedule_expression          = "cron(30 8 ? * MON-FRI *)" # 4:30 AM ET = 8:30 AM UTC
-  schedule_expression_timezone = "UTC"
+  schedule_expression          = "cron(30 4 ? * MON-FRI *)" # 4:30 AM ET (America/New_York auto-handles EST/EDT)
+  schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 
   flexible_time_window {
@@ -57,7 +57,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_premarket" {
 }
 
 # ============================================================
-# Morning Schedule (9:30 AM ET = 2:30 PM UTC) [PRIMARY]
+# Morning Schedule (9:30 AM ET) [PRIMARY]
 # Triggers at market open, after 4 AM price loads complete
 # Uses: prices (today) + technicals (yesterday)
 # Purpose: Primary trading execution, catch market open momentum
@@ -67,8 +67,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
   count                        = var.enable_morning_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-morning-${var.environment}"
   description                  = "Morning algo orchestrator run: 9:30 AM ET (market open, after price loads)"
-  schedule_expression          = "cron(30 13 ? * MON-FRI *)" # 9:30 AM EDT = 1:30 PM UTC (13:30), 9:30 AM EST = 2:30 PM UTC (14:30)
-  schedule_expression_timezone = "UTC"
+  schedule_expression          = "cron(30 9 ? * MON-FRI *)" # 9:30 AM ET (America/New_York auto-handles EST/EDT)
+  schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 
   flexible_time_window {
@@ -93,7 +93,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
 }
 
 # ============================================================
-# Afternoon Schedule (1:00 PM ET = 5:00 PM UTC)
+# Afternoon Schedule (1:00 PM ET)
 # Mid-day run to catch missed opportunities and rebalance
 # Uses: prices (today, fresh) + same signals as morning
 # Purpose: Intraday rebalance, execute missed signal entries, manage positions
@@ -103,8 +103,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
   count                        = var.enable_afternoon_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-afternoon-${var.environment}"
   description                  = "Afternoon algo orchestrator run: 1:00 PM ET (mid-day rebalance, same signals as morning)"
-  schedule_expression          = "cron(0 17 ? * MON-FRI *)" # 1:00 PM ET = 5:00 PM UTC
-  schedule_expression_timezone = "UTC"
+  schedule_expression          = "cron(0 13 ? * MON-FRI *)" # 1:00 PM ET (America/New_York auto-handles EST/EDT)
+  schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 
   flexible_time_window {
@@ -129,7 +129,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
 }
 
 # ============================================================
-# Pre-Close Schedule (3:00 PM ET = 8:00 PM UTC)
+# Pre-Close Schedule (3:00 PM ET)
 # Final trading run before market close (4 PM ET)
 # Uses: prices (today, fresh) + same signals as morning
 # Purpose: Last-minute position adjustments, final entries/exits BEFORE market close
@@ -140,8 +140,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
   count                        = var.enable_preclose_orchestrator ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-preclose-${var.environment}"
   description                  = "Pre-close algo orchestrator run: 3:00 PM ET (final trades before market close at 4 PM ET)"
-  schedule_expression          = "cron(0 19 ? * MON-FRI *)" # 3:00 PM EDT = 7:00 PM UTC (19:00), 3:00 PM EST = 8:00 PM UTC (20:00)
-  schedule_expression_timezone = "UTC"
+  schedule_expression          = "cron(0 15 ? * MON-FRI *)" # 3:00 PM ET (America/New_York auto-handles EST/EDT)
+  schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 
   flexible_time_window {
@@ -210,7 +210,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 }
 
 # ============================================================
-# Daily Weight Optimization (6:00 PM ET = 11:00 PM UTC)
+# Daily Weight Optimization (6:00 PM ET)
 # Runs AFTER orchestrator completion to trigger continuous improvement loop
 # Invokes: loaders/load_weight_optimization.py via ECS scheduled task
 # - Populates signal_trade_performance from closed trades
@@ -223,8 +223,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 resource "aws_scheduler_schedule" "weight_optimization" {
   name                         = "${var.project_name}-weight-optimization-${var.environment}"
   description                  = "Daily weight optimization: 6:00 PM ET (after orchestrator, continuous improvement loop)"
-  schedule_expression          = "cron(0 23 ? * MON-FRI *)" # 6:00 PM ET = 11:00 PM UTC
-  schedule_expression_timezone = "UTC"
+  schedule_expression          = "cron(0 18 ? * MON-FRI *)" # 6:00 PM ET (America/New_York auto-handles EST/EDT)
+  schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 
   flexible_time_window {
