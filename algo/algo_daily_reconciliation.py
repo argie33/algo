@@ -188,6 +188,58 @@ class DailyReconciliation:
 
             self.cur.execute("SELECT snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date = %s", (reconcile_date,))
             existing_snapshot = self.cur.fetchone()
+
+            # Calculate additional metrics
+            self.cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE profit_loss_dollars > 0) as wins,
+                    COUNT(*) FILTER (WHERE profit_loss_dollars < 0) as losses,
+                    COALESCE(SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s), 0) as realized_pnl_today,
+                    COALESCE(SUM(profit_loss_dollars), 0) as cumulative_pnl
+                FROM algo_trades
+                WHERE status = %s
+            """, (reconcile_date, 'closed'))
+            win_count, loss_count, realized_pnl_today, cumulative_pnl = self.cur.fetchone() or (0, 0, 0.0, 0.0)
+            win_count = int(win_count or 0)
+            loss_count = int(loss_count or 0)
+            realized_pnl_today = float(realized_pnl_today or 0)
+            cumulative_pnl = float(cumulative_pnl or 0)
+
+            # Get cumulative return (normalize to initial capital)
+            initial_capital = 100000.0
+            cumulative_return_pct = (cumulative_pnl / initial_capital * 100) if initial_capital > 0 else 0.0
+
+            # Calculate max drawdown from historical snapshots
+            max_drawdown_pct = 0.0
+            self.cur.execute("""
+                SELECT
+                    MAX(total_portfolio_value) as peak,
+                    MIN(total_portfolio_value) as trough
+                FROM algo_portfolio_snapshots
+            """)
+            peak_row = self.cur.fetchone()
+            if peak_row and peak_row[0] and peak_row[1]:
+                peak_val = float(peak_row[0])
+                trough_val = float(peak_row[1])
+                if peak_val > 0:
+                    max_drawdown_pct = ((peak_val - trough_val) / peak_val) * 100.0
+
+            # Calculate Sharpe ratio (simplified: std dev of daily returns * sqrt(252))
+            sharpe_ratio = 0.0
+            self.cur.execute("""
+                SELECT daily_return_pct FROM algo_portfolio_snapshots
+                WHERE daily_return_pct IS NOT NULL
+                ORDER BY snapshot_date DESC LIMIT 252
+            """)
+            returns = [float(r[0]) / 100.0 for r in self.cur.fetchall() if r[0] is not None]
+            if len(returns) > 1:
+                import statistics
+                try:
+                    std_dev = statistics.stdev(returns)
+                    sharpe_ratio = (std_dev * (252 ** 0.5)) if std_dev > 0 else 0.0
+                except Exception:
+                    sharpe_ratio = 0.0
+
             if existing_snapshot:
                 logger.warning(f"Portfolio snapshot already exists for {reconcile_date} — refusing overwrite to prevent data loss")
                 logger.info(f"WARNING: Snapshot for {reconcile_date} already exists. Skipping insertion to prevent overwrite.")
@@ -196,10 +248,13 @@ class DailyReconciliation:
                     INSERT INTO algo_portfolio_snapshots (
                         snapshot_date, total_portfolio_value, total_cash, total_equity,
                         position_count, largest_position_pct, average_position_size_pct,
-                        unrealized_pnl_total, unrealized_pnl_pct,
-                        daily_return_pct, market_health_status, created_at
+                        concentration_risk_pct,
+                        realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
+                        win_count_today, loss_count_today,
+                        daily_return_pct, cumulative_return_pct, max_drawdown_pct,
+                        sharpe_ratio, market_health_status, created_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                     )
                 """, (
                     reconcile_date,
@@ -209,9 +264,16 @@ class DailyReconciliation:
                     len(positions),
                     max_concentration,
                     (avg_position_size / total_equity * 100) if total_equity > 0 else 0,
+                    max_concentration,
+                    realized_pnl_today,
                     unrealized_pnl,
                     unrealized_pnl_pct,
+                    win_count,
+                    loss_count,
                     daily_return_pct,
+                    cumulative_return_pct,
+                    max_drawdown_pct,
+                    sharpe_ratio,
                     market_trend
                 ))
 

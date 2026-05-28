@@ -247,3 +247,10 @@ quick*.py
 quick*.js
 temp*.py
 temp*.js
+
+# Session-specific audit and analysis reports (per CLAUDE.md)
+ISSUE_REPORT_*.md
+DETAILED_ISSUES_WITH_FIXES.md
+FIXES_APPLIED_*.md
+*_STATUS.md
+EXECUTION_*.md

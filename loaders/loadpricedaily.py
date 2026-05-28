@@ -19,6 +19,7 @@ Tables: price_daily, price_weekly, price_monthly, etf_price_daily, etf_price_wee
 import argparse
 import logging
 import os
+import time
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
@@ -421,13 +422,46 @@ class PriceLoader(OptimalLoader):
 
 
 
+def log_loader_execution(loader_name, table_name, status, records_loaded=0, records_updated=0, error_msg=None, duration_seconds=0):
+    """Log loader execution to data_loader_runs table for monitoring."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO data_loader_runs (
+                loader_name, table_name, run_date, status, records_loaded, records_updated,
+                error_message, duration_seconds, started_at, completed_at
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+            )
+        """, (
+            loader_name,
+            table_name,
+            date.today(),
+            status,
+            records_loaded,
+            records_updated,
+            error_msg,
+            duration_seconds
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to log execution to data_loader_runs: {e}")
+
+
 def main():
     """Read config from environment variables (set by ECS task definition)."""
+    import time
+    start_time = time.time()
+
     try:
         load_env()
         logger.info("[MAIN] Environment loaded successfully")
     except Exception as e:
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
+        log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
         return 1
 
     # Read from environment variables (no CLI args, cleaner for containerized execution)
@@ -464,9 +498,11 @@ def main():
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database (max {max_symbols_limit} for timeout protection)")
             if len(symbols) == 0:
                 logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
+                log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg='No symbols found', duration_seconds=round(time.time() - start_time, 2))
                 return 1
     except Exception as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
+        log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
         return 1
 
     # Run price loader for each interval + asset_class combination
@@ -502,9 +538,27 @@ def main():
                 return 1
 
     logger.info(f"[MAIN] All intervals completed. Total: {total_stats}")
+
+    duration_seconds = round(time.time() - start_time, 2)
     if fail_count > 0:
         logger.error(f"[MAIN] {fail_count} interval(s) had too many failures")
+        log_loader_execution(
+            'loadpricedaily',
+            'price_daily',
+            'failed',
+            records_loaded=total_stats.get('rows_inserted', 0),
+            error_msg=f"{fail_count} interval(s) failed",
+            duration_seconds=duration_seconds
+        )
         return 1
+
+    log_loader_execution(
+        'loadpricedaily',
+        'price_daily',
+        'success',
+        records_loaded=total_stats.get('rows_inserted', 0),
+        duration_seconds=duration_seconds
+    )
     return 0
 
 
