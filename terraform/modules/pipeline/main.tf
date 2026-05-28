@@ -161,7 +161,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       EodBulkPrices = {
         Type            = "Task"
         Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 600
+        TimeoutSeconds  = 1200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -192,7 +192,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               TechnicalDataDaily = {
                 Type            = "Task"
                 Resource        = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds  = 600
+                TimeoutSeconds  = 2700
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -251,7 +251,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               TrendTemplate = {
                 Type            = "Task"
                 Resource        = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds  = 300
+                TimeoutSeconds  = 2700
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
