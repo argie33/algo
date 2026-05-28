@@ -185,13 +185,9 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
 # Uses: prices (today) + technicals (today) + all computed metrics
 # ============================================================
 
-# Original orchestrator schedule renamed for clarity
-# Keep as default for backwards compatibility
-locals {
-  # Determine which schedule to use based on variable
-  # Note: cron expressions use UTC timezone for consistency
-  orchestrator_schedule = var.enable_morning_orchestrator ? var.algo_schedule_expression : "cron(30 22 ? * MON-FRI *)"
-}
+# FIXED Issue #33: Simplified locals by removing ternary logic
+# Evening schedule is now explicit and always configured
+# (removed obsolete local.orchestrator_schedule ternary)
 
 # Update existing schedule to reflect 2x daily behavior when enabled
 resource "aws_scheduler_schedule" "algo_orchestrator" {

@@ -73,6 +73,26 @@ def query_rds_signals(credentials):
         return {'error': str(e), 'status': 'failed'}
 
 
+def get_alpaca_credentials():
+    """FIXED Issue #21: Get Alpaca credentials from Secrets Manager."""
+    try:
+        response = sm_client.get_secret_value(SecretId='algo/alpaca-credentials-dev')
+        secret = json.loads(response['SecretString'])
+        return {
+            'api_key': secret.get('APCA_API_KEY_ID'),
+            'secret_key': secret.get('APCA_API_SECRET_KEY'),
+            'base_url': secret.get('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets'),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get Alpaca credentials from Secrets Manager: {e}")
+        # Fallback to environment variables for backward compatibility
+        return {
+            'api_key': os.getenv('APCA_API_KEY_ID'),
+            'secret_key': os.getenv('APCA_API_SECRET_KEY'),
+            'base_url': os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets'),
+        }
+
+
 def get_alpaca_trades():
     """Get Alpaca trades (paper account)."""
     try:
@@ -81,13 +101,15 @@ def get_alpaca_trades():
         return {'error': 'alpaca_trade_api not installed', 'status': 'skipped'}
 
     try:
-        api_key = os.getenv('APCA_API_KEY_ID')
-        secret_key = os.getenv('APCA_API_SECRET_KEY')
+        # FIXED Issue #21: Use credential_manager pattern for Alpaca credentials
+        creds = get_alpaca_credentials()
+        api_key = creds.get('api_key')
+        secret_key = creds.get('secret_key')
+        base_url = creds.get('base_url')
 
         if not api_key or not secret_key:
-            return {'error': 'Alpaca credentials not configured', 'status': 'skipped'}
+            return {'error': 'Alpaca credentials not configured (check Secrets Manager)', 'status': 'skipped'}
 
-        base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         api = tradeapi.REST(api_key, secret_key, base_url=base_url)
 
         account = api.get_account()

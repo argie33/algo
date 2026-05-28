@@ -389,7 +389,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # The Lambda orchestrator (EventBridge at 9:30 AM ET) is the trading trigger.
       # This ECS step runs dry_run=true: validates all data loaded, logs phase results,
       # but does NOT place orders. Prevents double-execution vs. the 9:30 AM Lambda.
-      # FIXED Issue #7: Added explicit execution_mode=paper to prevent confusion
+      # FIXED Issue #15: Container overrides are intentionally STATIC for EOD pipeline
+      # (execution_mode=paper, dry_run=true). Dynamic overrides not needed since this
+      # is always a dry-run validation step, not a trading decision step.
       TriggerOrchestrator = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -459,7 +461,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 # ============================================================
 # Morning Prep Pipeline - Separate State Machine
 # FIXED Issue #5: Split morning and EOD pipelines to prevent signal double-generation
-# Morning (5:30am ET): Load prices → compute technicals → NO signal generation (reuse EOD signals)
+# Morning (3:30-4:30 AM ET): Load prices → compute technicals
+# FIXED Issue #13: Signals NOT generated here; orchestrator regenerates at 9:30 AM using fresh data
 # ============================================================
 
 resource "aws_sfn_state_machine" "morning_prep_pipeline" {
@@ -474,7 +477,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
   }
 
   definition = jsonencode({
-    Comment = "Morning data prep: prices → technicals (reuse EOD signals)"
+    Comment = "Morning data prep: load fresh prices & technicals for 9:30 AM orchestrator run"
     StartAt = "CheckTradingDay"
 
     States = {

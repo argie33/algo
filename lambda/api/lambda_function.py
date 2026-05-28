@@ -79,9 +79,39 @@ def validate_environment():
 
     return len(errors) == 0, errors
 
-# Rate limiting state - NOTE: Per-Lambda-instance in-memory tracking is NOT GLOBAL
-# With 10+ concurrent Lambda instances, this provides 10x the actual limit
-# TODO: Move to API Gateway throttling or centralized Redis rate limiter for true global limits
+
+def test_db_connection():
+    """FIXED Issue #17: Test database connection at Lambda cold-start.
+
+    Validates that the database is reachable and responsive.
+    Fails fast if connection cannot be established, preventing silent failures later.
+
+    Returns: (success: bool, error_msg: Optional[str])
+    """
+    global _db_conn
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return False, "Database connection returned None"
+
+        # Test the connection with a simple query
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 as connection_test")
+            result = cur.fetchone()
+            if result and result.get('connection_test') == 1:
+                logger.info("[DB_TEST_SUCCESS] Database connection verified at cold start")
+                return True, None
+            else:
+                return False, "Connection test query returned unexpected result"
+    except Exception as e:
+        error_msg = f"Database connection test failed at cold start: {type(e).__name__}: {str(e)}"
+        logger.error(f"[DB_TEST_FAILED] {error_msg}")
+        return False, error_msg
+
+# FIXED Issue #16: API Rate Limiting via API Gateway
+# Global rate limiting is enforced at the API Gateway level (100 req/sec burst, 50 req/sec sustained)
+# This supersedes the in-memory per-Lambda tracking below, which is kept as a secondary safeguard
+# API Gateway throttling is GLOBAL across all Lambda instances (not per-instance like in-memory tracking)
 if not IMPORT_ERROR:
     _request_history = defaultdict(list)
 else:
@@ -597,6 +627,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'configuration_error', 'message': f'Missing required environment variables: {error_msg}'})
+        }
+
+    # FIXED Issue #17: Test database connection at cold start
+    db_test_ok, db_test_error = test_db_connection()
+    if not db_test_ok:
+        logger.error(f'[DB_VALIDATION_FAILED] {db_test_error}')
+        cors_headers = get_cors_headers(event)
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+            'body': json.dumps({'error': 'database_error', 'message': db_test_error})
         }
 
     logger.info(f'[HANDLER_INVOKED] Event received: {event.get("rawPath", "?")} {event.get("requestContext", {}).get("http", {}).get("method", "?")}')

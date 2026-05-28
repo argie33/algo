@@ -836,9 +836,25 @@ def _trigger_data_patrol(cur) -> Dict:
             subnet_ids = os.getenv('PATROL_SUBNET_IDS', '').split(',') if os.getenv('PATROL_SUBNET_IDS') else []
             sg_id = os.getenv('PATROL_SECURITY_GROUP_ID', '')
 
+            # FIXED Issue #19: Validate patrol task definition before attempting to run
             if not cluster_arn or not task_def_arn:
-                logger.warning("Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)")
-                return error_response(503, 'service_unavailable', 'Patrol task not available')
+                logger.error("Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)")
+                return error_response(400, 'bad_request', 'Patrol service not configured (check environment variables)')
+
+            # Validate task definition ARN format
+            if not task_def_arn.startswith('arn:aws:ecs:'):
+                logger.error(f"Invalid patrol task definition ARN format: {task_def_arn}")
+                return error_response(400, 'bad_request', 'Invalid patrol task definition configuration')
+
+            # Attempt to validate task definition exists (early fail if misconfigured)
+            try:
+                ecs.describe_task_definition(taskDefinition=task_def_arn)
+                logger.info(f"Patrol task definition validated: {task_def_arn}")
+            except ecs.exceptions.ClientError as desc_err:
+                if desc_err.response['Error']['Code'] == 'ClientException':
+                    logger.error(f"Patrol task definition not found: {task_def_arn}")
+                    return error_response(400, 'bad_request', 'Patrol task definition not found')
+                raise  # Re-raise other errors to be caught by outer exception handler
 
             response = ecs.run_task(
                 cluster=cluster_arn,

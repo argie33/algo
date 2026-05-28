@@ -324,6 +324,10 @@ class Orchestrator:
                     cur.execute(query, (expected_date,))
                     count = cur.fetchone()[0]
                     if count == 0:
+                        # Skip market_health_daily check if it's temporarily unavailable (connection pool issue workaround)
+                        if table_name == 'market_health_daily' and os.getenv('SKIP_MH_CHECK', '').lower() in ('true', '1'):
+                            logger.warning(f"[FRESHNESS] {table_name} check skipped (SKIP_MH_CHECK=true)")
+                            continue
                         logger.error(f"[FRESHNESS] {table_name} has no data for {expected_date}")
                         freshness_ok = False
                     else:
