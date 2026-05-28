@@ -442,12 +442,21 @@ def require_auth(event: Dict, path: str) -> tuple:
     }
 
     # Check if path matches any public prefix
-    is_public = any(path == prefix or path.startswith(prefix + '/') or path.startswith(prefix + '?') for prefix in PUBLIC_PREFIXES)
+    # Match: exact, /path/subpath, ?query, -hyphenated (e.g., /api/market-health), or no separator
+    def matches_prefix(p, prefix):
+        if p == prefix:
+            return True
+        if p.startswith(prefix + '/'):
+            return True
+        if p.startswith(prefix + '?'):
+            return True
+        if p.startswith(prefix + '-'):  # Handle hyphenated endpoints like /api/market-health
+            return True
+        return False
+
+    is_public = any(matches_prefix(path, prefix) for prefix in PUBLIC_PREFIXES)
     if is_public:
-        logger.info(f"Public endpoint allowed: {path}")
         return (False, True, None, None)  # No auth required, so authorized
-    else:
-        logger.info(f"Protected endpoint (not in public list): {path}")
 
     if not path.startswith('/api/'):
         return (False, True, None, None)  # Non-API paths don't need auth
@@ -496,6 +505,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
+
         if requires_auth and not is_authorized:
             cors_headers = get_cors_headers(event)
             logger.warning(f'Unauthorized access attempt to {path}: {auth_error}')
