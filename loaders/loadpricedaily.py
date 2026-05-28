@@ -555,7 +555,7 @@ def main():
     log_loader_execution(
         'loadpricedaily',
         'price_daily',
-        'success',
+        'completed',
         records_loaded=total_stats.get('rows_inserted', 0),
         duration_seconds=duration_seconds
     )
