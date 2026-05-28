@@ -997,7 +997,7 @@ data "aws_iam_policy_document" "developer" {
 variable "developer_key_rotation_date" {
   description = "Date of last developer credential rotation (updated quarterly by automation)"
   type        = string
-  default     = "2026-05-26" # Last rotation date
+  default     = "2026-05-28" # Last rotation date
 }
 
 locals {
