@@ -184,9 +184,6 @@ class DailyReconciliation:
             market_trend = market[0] if market else 'unknown'
             dist_days = market[1] if market else 0
 
-            self.cur.execute("SELECT snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date = %s", (reconcile_date,))
-            existing_snapshot = self.cur.fetchone()
-
             # Calculate additional metrics
             self.cur.execute("""
                 SELECT
@@ -238,42 +235,56 @@ class DailyReconciliation:
                 except Exception:
                     sharpe_ratio = 0.0
 
-            if existing_snapshot:
-                logger.warning(f"Portfolio snapshot already exists for {reconcile_date} — refusing overwrite to prevent data loss")
-                logger.info(f"WARNING: Snapshot for {reconcile_date} already exists. Skipping insertion to prevent overwrite.")
-            else:
-                self.cur.execute("""
-                    INSERT INTO algo_portfolio_snapshots (
-                        snapshot_date, total_portfolio_value, total_cash, total_equity,
-                        position_count, largest_position_pct, average_position_size_pct,
-                        concentration_risk_pct,
-                        realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
-                        win_count_today, loss_count_today,
-                        daily_return_pct, cumulative_return_pct, max_drawdown_pct,
-                        sharpe_ratio, market_health_status, created_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
-                    )
-                """, (
-                    reconcile_date,
-                    total_equity,
-                    cash,
-                    total_equity,
-                    len(positions),
-                    max_concentration,
-                    (avg_position_size / total_equity * 100) if total_equity > 0 else 0,
-                    max_concentration,
-                    realized_pnl_today,
-                    unrealized_pnl,
-                    unrealized_pnl_pct,
-                    win_count,
-                    loss_count,
-                    daily_return_pct,
-                    cumulative_return_pct,
-                    max_drawdown_pct,
-                    sharpe_ratio,
-                    market_trend
-                ))
+            self.cur.execute("""
+                INSERT INTO algo_portfolio_snapshots (
+                    snapshot_date, total_portfolio_value, total_cash, total_equity,
+                    position_count, largest_position_pct, average_position_size_pct,
+                    concentration_risk_pct,
+                    realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
+                    win_count_today, loss_count_today,
+                    daily_return_pct, cumulative_return_pct, max_drawdown_pct,
+                    sharpe_ratio, market_health_status, created_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                )
+                ON CONFLICT (snapshot_date) DO UPDATE SET
+                    total_portfolio_value = EXCLUDED.total_portfolio_value,
+                    total_cash = EXCLUDED.total_cash,
+                    total_equity = EXCLUDED.total_equity,
+                    position_count = EXCLUDED.position_count,
+                    largest_position_pct = EXCLUDED.largest_position_pct,
+                    average_position_size_pct = EXCLUDED.average_position_size_pct,
+                    concentration_risk_pct = EXCLUDED.concentration_risk_pct,
+                    realized_pnl_today = EXCLUDED.realized_pnl_today,
+                    unrealized_pnl_total = EXCLUDED.unrealized_pnl_total,
+                    unrealized_pnl_pct = EXCLUDED.unrealized_pnl_pct,
+                    win_count_today = EXCLUDED.win_count_today,
+                    loss_count_today = EXCLUDED.loss_count_today,
+                    daily_return_pct = EXCLUDED.daily_return_pct,
+                    cumulative_return_pct = EXCLUDED.cumulative_return_pct,
+                    max_drawdown_pct = EXCLUDED.max_drawdown_pct,
+                    sharpe_ratio = EXCLUDED.sharpe_ratio,
+                    market_health_status = EXCLUDED.market_health_status
+            """, (
+                reconcile_date,
+                total_equity,
+                cash,
+                total_equity,
+                len(positions),
+                max_concentration,
+                (avg_position_size / total_equity * 100) if total_equity > 0 else 0,
+                max_concentration,
+                realized_pnl_today,
+                unrealized_pnl,
+                unrealized_pnl_pct,
+                win_count,
+                loss_count,
+                daily_return_pct,
+                cumulative_return_pct,
+                max_drawdown_pct,
+                sharpe_ratio,
+                market_trend
+            ))
 
             self.conn.commit()
 

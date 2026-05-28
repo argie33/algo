@@ -95,6 +95,13 @@ class Orchestrator:
     def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
         from algo.algo_config import get_config
         self.config = config or get_config()
+
+        # Override execution_mode from environment variable if set
+        env_execution_mode = os.getenv('ORCHESTRATOR_EXECUTION_MODE', '').strip().lower()
+        if env_execution_mode:
+            self.config['execution_mode'] = env_execution_mode
+            logger.info(f"[ENV] Execution mode overridden via ORCHESTRATOR_EXECUTION_MODE: {env_execution_mode}")
+
         self.run_date = run_date or _date.today()
         self.dry_run = dry_run
         self.verbose = verbose

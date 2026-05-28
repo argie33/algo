@@ -37,6 +37,37 @@ logger.setLevel(logging.INFO)
 
 _db_conn = None
 
+def validate_environment():
+    """Validate critical environment variables at cold start.
+
+    Returns: (valid: bool, errors: List[str])
+    """
+    errors = []
+    required_vars = {
+        'DB_HOST': 'Database host (RDS endpoint or proxy)',
+        'DB_PASSWORD': 'Database password (from env var or Secrets Manager via DB_SECRET_ARN)',
+        'DB_NAME': 'Database name',
+        'DB_USER': 'Database username',
+    }
+
+    missing_secret_arn = not os.getenv('DB_SECRET_ARN')
+    missing_password = not os.getenv('DB_PASSWORD')
+
+    for var, description in required_vars.items():
+        if var == 'DB_PASSWORD':
+            if missing_secret_arn and missing_password:
+                errors.append(f"{var}: Neither DB_SECRET_ARN nor DB_PASSWORD provided")
+        elif var in ['DB_NAME', 'DB_USER']:
+            if not os.getenv(var) and var == 'DB_NAME':
+                logger.info(f"{var}: using default 'stocks'")
+            elif not os.getenv(var) and var == 'DB_USER':
+                logger.info(f"{var}: using default 'stocks'")
+        else:
+            if not os.getenv(var):
+                errors.append(f"{var}: required for {description}")
+
+    return len(errors) == 0, errors
+
 # Rate limiting state (in-memory for this Lambda instance) - only if imports succeeded
 if not IMPORT_ERROR:
     _request_history = defaultdict(list)
@@ -122,6 +153,37 @@ def get_db_connection():
         return None
 
 
+def validate_query_param_type(value: str, expected_type: str) -> tuple:
+    """Validate and convert query parameter to expected type.
+
+    Args:
+        value: The string value to validate
+        expected_type: 'int', 'float', 'bool', 'string'
+
+    Returns:
+        (valid: bool, converted_value: Any)
+    """
+    if expected_type == 'int':
+        try:
+            return True, int(value)
+        except ValueError:
+            return False, None
+    elif expected_type == 'float':
+        try:
+            return True, float(value)
+        except ValueError:
+            return False, None
+    elif expected_type == 'bool':
+        if value.lower() in ('true', '1', 'yes', 'on'):
+            return True, True
+        elif value.lower() in ('false', '0', 'no', 'off'):
+            return True, False
+        else:
+            return False, None
+    else:  # string
+        return True, value
+
+
 def parse_query_params(event: Dict) -> Dict:
     """Parse query parameters from API Gateway v1 or v2 events."""
     params = {}
@@ -164,12 +226,23 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
             'Access-Control-Allow-Credentials': 'true',
         }
 
-    # In dev mode, accept any localhost origin
-    if origin and (origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:')):
-        return {
-            'Access-Control-Allow-Origin': origin,
-            'Access-Control-Allow-Credentials': 'true',
-        }
+    # In dev mode, only accept whitelisted localhost ports (3000, 5173)
+    if origin:
+        allowed_localhost_ports = {'3000', '5173'}
+        if origin.startswith('http://localhost:'):
+            port = origin.split(':')[-1]
+            if port in allowed_localhost_ports:
+                return {
+                    'Access-Control-Allow-Origin': origin,
+                    'Access-Control-Allow-Credentials': 'true',
+                }
+        elif origin.startswith('http://127.0.0.1:'):
+            port = origin.split(':')[-1]
+            if port in allowed_localhost_ports:
+                return {
+                    'Access-Control-Allow-Origin': origin,
+                    'Access-Control-Allow-Credentials': 'true',
+                }
 
     # Reject cross-origin requests from unknown sources
     return {
@@ -481,6 +554,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'import_error', 'message': f'Failed to import dependencies: {IMPORT_ERROR}'})
+        }
+
+    # Validate critical environment variables at cold start
+    env_valid, env_errors = validate_environment()
+    if not env_valid:
+        error_msg = '; '.join(env_errors)
+        logger.error(f'[ENV_VALIDATION_FAILED] {error_msg}')
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'configuration_error', 'message': f'Missing required environment variables: {error_msg}'})
         }
 
     logger.info(f'[HANDLER_INVOKED] Event received: {event.get("rawPath", "?")} {event.get("requestContext", {}).get("http", {}).get("method", "?")}')

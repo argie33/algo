@@ -177,7 +177,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "ParallelTechnicals"
       }
@@ -236,7 +236,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "ParallelEnrichment"
       }
@@ -251,7 +251,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               TrendTemplate = {
                 Type           = "Task"
                 Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 10800
+                TimeoutSeconds = 3600
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -272,7 +272,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "SignalGeneration"
       }
@@ -293,13 +293,13 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Retry = [{
           ErrorEquals     = ["States.ALL"]
           IntervalSeconds = 60
-          MaxAttempts     = 1
+          MaxAttempts     = 2
           BackoffRate     = 2.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "SignalQualityScores"
       }
@@ -324,7 +324,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "AlgoMetrics"
       }
@@ -349,7 +349,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "SwingScores"
       }
@@ -374,7 +374,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "TriggerOrchestrator"
       }
@@ -417,7 +417,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
-          ResultPath  = null
+          ResultPath  = "$.error"
         }]
         Next = "PipelineSuccess"
       }
@@ -432,7 +432,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = "arn:aws:states:::sns:publish"
         Parameters = {
           TopicArn = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:placeholder"
-          Message  = "EOD pipeline FAILED. Check Step Functions console: https://${var.aws_region}.console.aws.amazon.com/states/home?region=${var.aws_region}#/statemachines"
+          "Message.$" = "States.Format('EOD pipeline FAILED\n\nError: {}\n\nCheck Step Functions console: https://${var.aws_region}.console.aws.amazon.com/states/home?region=${var.aws_region}#/statemachines', $.error.Cause)"
           Subject  = "ALERT: EOD Pipeline Failed - Orchestrator did not run"
         }
         Next = "PipelineFailedEnd"

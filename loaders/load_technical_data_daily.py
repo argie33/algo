@@ -187,7 +187,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
                    "mom", "roc", "roc_10d", "roc_20d", "roc_60d", "roc_120d", "roc_252d",
                    "sma_20", "sma_50", "sma_150", "sma_200", "ema_12", "ema_21", "ema_26",
                    "atr", "atr_14", "bb_upper", "bb_middle", "bb_lower", "volume_ma_50",
-                   "adx", "plus_di", "minus_di", "mansfield_rs"]
+                   "adx", "plus_di", "minus_di", "mansfield_rs", "close"]
 
         df["date"] = df["date"].dt.date.astype(str)
 
