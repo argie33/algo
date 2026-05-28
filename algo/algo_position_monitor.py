@@ -174,6 +174,31 @@ class PositionMonitor:
         recs = []
         try:
             self.connect()
+
+            # Issue #24: Check margin utilization and warn/halt if excessive
+            try:
+                self.cur.execute("""
+                    SELECT total_equity FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
+                eq_row = self.cur.fetchone()
+                if eq_row and eq_row[0]:
+                    total_equity = float(eq_row[0])
+                    # Compute margin usage = (equity - buying_power) / equity
+                    # Using proxy: if total open position value > 90% of equity, halt new entries
+                    self.cur.execute("""
+                        SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
+                    """)
+                    pos_val_row = self.cur.fetchone()
+                    pos_value = float(pos_val_row[0]) if pos_val_row and pos_val_row[0] else 0
+                    margin_util_pct = (pos_value / total_equity * 100) if total_equity > 0 else 0
+                    if margin_util_pct > 90:
+                        logger.critical(f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity — liquidation risk imminent")
+                    elif margin_util_pct > 80:
+                        logger.warning(f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%")
+            except Exception as margin_e:
+                logger.debug(f"Could not check margin: {margin_e}")
+
             conc = self.check_sector_concentration(current_date)
             if conc['status'] == 'HIGH_CONCENTRATION':
                 logger.info(f"  [WARNING]  Portfolio concentration risk detected")

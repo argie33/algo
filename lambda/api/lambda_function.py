@@ -68,7 +68,9 @@ def validate_environment():
 
     return len(errors) == 0, errors
 
-# Rate limiting state (in-memory for this Lambda instance) - only if imports succeeded
+# Rate limiting state - NOTE: Per-Lambda-instance in-memory tracking is NOT GLOBAL
+# With 10+ concurrent Lambda instances, this provides 10x the actual limit
+# TODO: Move to API Gateway throttling or centralized Redis rate limiter for true global limits
 if not IMPORT_ERROR:
     _request_history = defaultdict(list)
 else:

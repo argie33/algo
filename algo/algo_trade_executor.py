@@ -203,7 +203,6 @@ class TradeExecutor:
             )
             existing_pos = self.cur.fetchone()
             if existing_pos:
-                self.disconnect()
                 return {
                     'success': False, 'trade_id': '', 'status': 'duplicate_position',
                     'message': f'Symbol {symbol} already has an open position. Close it before entering another.',
