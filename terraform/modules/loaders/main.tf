@@ -56,7 +56,7 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
     type = "S"
   }
 
-  # TTL: lock entries expire after 15 minutes
+  # TTL: lock entries expire after 15 minutes (prevents stale locks)
   ttl {
     attribute_name = "expires_at"
     enabled        = true
@@ -64,6 +64,64 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-orchestrator-locks"
+  })
+}
+
+# ============================================================
+# DynamoDB Table for Loader Execution Status
+# FIXED Issue #30: Separate loader status from lock TTL
+# ============================================================
+# Tracks successful/failed loader runs independently of locking mechanism.
+# Status retained for 1 hour (3600s), giving time for monitoring/debugging.
+# Separate from orchestrator_locks which has 15-minute TTL for distributed coordination.
+
+resource "aws_dynamodb_table" "loader_execution_status" {
+  name           = "${var.project_name}-loader-status-${var.environment}"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "loader_name"
+  range_key      = "execution_date"
+
+  attribute {
+    name = "loader_name"
+    type = "S"
+  }
+
+  attribute {
+    name = "execution_date"
+    type = "S"  # ISO8601 date string
+  }
+
+  # TTL: status entries expire after 1 hour (3600 seconds)
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-loader-status"
+  })
+}
+
+# Grant ECS tasks permission to access the loader status table
+resource "aws_iam_role_policy" "ecs_task_loader_status_access" {
+  name = "${var.project_name}-ecs-loader-status-access"
+  role = var.task_role_arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBLoaderStatus"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
+        ]
+        Resource = aws_dynamodb_table.loader_execution_status.arn
+      }
+    ]
   })
 }
 
