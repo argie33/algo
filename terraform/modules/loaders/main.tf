@@ -105,7 +105,7 @@ resource "aws_dynamodb_table" "loader_execution_status" {
 # Grant ECS tasks permission to access the loader status table
 resource "aws_iam_role_policy" "ecs_task_loader_status_access" {
   name = "${var.project_name}-ecs-loader-status-access"
-  role = var.task_role_arn
+  role = split("/", var.task_role_arn)[1]
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -128,7 +128,7 @@ resource "aws_iam_role_policy" "ecs_task_loader_status_access" {
 # Grant ECS tasks permission to access the lock table
 resource "aws_iam_role_policy" "ecs_task_lock_access" {
   name = "${var.project_name}-ecs-lock-table-access"
-  role = var.task_role_arn
+  role = split("/", var.task_role_arn)[1]
 
   policy = jsonencode({
     Version = "2012-10-17"
