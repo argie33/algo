@@ -51,20 +51,23 @@ def main():
         })
 
         try:
-            secrets.update_secret_value(
+            secrets.put_secret_value(
                 SecretId=secret_name,
                 SecretString=secret_value
             )
             print(f"✓ Updated secret: {secret_name}")
-        except secrets.exceptions.ResourceNotFoundException:
-            print(f"✗ Secret not found: {secret_name}")
-            print("Attempting to create it...")
-            secrets.create_secret(
-                Name=secret_name,
-                SecretString=secret_value,
-                Description='Developer IAM user access keys'
-            )
-            print(f"✓ Created secret: {secret_name}")
+        except Exception as e:
+            if 'ResourceNotFoundException' in str(type(e)):
+                print(f"✗ Secret not found: {secret_name}")
+                print("Attempting to create it...")
+                secrets.create_secret(
+                    Name=secret_name,
+                    SecretString=secret_value,
+                    Description='Developer IAM user access keys'
+                )
+                print(f"✓ Created secret: {secret_name}")
+            else:
+                raise
 
         # Test new credentials
         print(f"\n=== Testing New Credentials ===")
