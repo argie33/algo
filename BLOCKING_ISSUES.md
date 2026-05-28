@@ -1,36 +1,41 @@
 # Blocking Issues Found - May 27, 2026
 
 ## Summary
-The trading system is 95% operational but blocked by signal generation not running for May 26 (latest trading day).
+The trading system is operational but has incomplete signal coverage. May 26 signals exist but are only 33% coverage (913/2734 symbols).
 
-## Issue 1: CRITICAL - No Fresh Signals Since May 22
+## Issue 1: CRITICAL - May 26 Signals Are Incomplete (67% Missing)
 
-**Problem:** API returns signals from May 22, but we're on May 27 (and May 26 was a trading day).
+**Problem:** May 26 has only 913 signals vs. 2734 on May 22. Many symbols that traded on May 22 are missing May 26 signals.
 
-**Root Cause:** EOD Pipeline (Step Functions) that generates signals either failed or didn't run on May 26 at 5:00 PM ET.
+**Examples of missing May 26 signals:**
+- SPY (critical - S&P 500 benchmark)
+- QQQ (Nasdaq)
+- And 20+ others verified in database
 
-**Impact:** 
-- Orchestrator can run but has no new signals to trade on
-- System effectively halted since May 22 signals
+**Root Cause:** Signal generation pipeline either:
+1. Completed partially on May 26
+2. Filtered out symbols due to stricter criteria
+3. Failed midway through execution
+4. Has a bug that skips symbols
 
-**Investigation:**
-- ✓ Orchestrator Lambda deployed and configured 
-- ✓ EventBridge Scheduler rules enabled and configured
-- ✓ Step Functions state machine deployed
-- ✓ EOD pipeline schedule: `cron(0 21 ? * MON-FRI *)` = 5:00 PM ET (ENABLED)
-- ✓ Morning pipeline schedule: `cron(30 9 ? * MON-FRI *)` = 5:30 AM ET (ENABLED)
-- ✗ No fresh signals generated on May 26
+**Impact:**
+- Orchestrator can only trade on 1/3 of normally available symbols
+- Missing key index/benchmark signals
+- System is trading blind on most opportunities
 
 **Evidence:**
-- `curl http://localhost:3001/api/signals?symbol=SPY` returns signals dated May 22
-- Price data loaded up to May 26 (verified fresh via price loader)
-- Phase 1 & 2 orchestrator checks pass locally
+- Database buy_sell_daily table: May 22 = 2734 signals, May 26 = 913 signals
+- SPY: May 22 signals exist, May 26 signals missing (verified)
+- API: Returns May 26 signals but catalog is incomplete
+
+**Status:** 🔴 CRITICAL - System can run but signal coverage too low to trade safely
 
 **Next Steps to Fix:**
-1. Check Step Functions execution history for May 26 EOD pipeline run (requires AWS access)
-2. If pipeline ran but failed, check CloudWatch logs for error
-3. If pipeline didn't run, verify EventBridge rule was triggered
-4. Once identified, fix the root cause and re-run pipeline
+1. Check Step Functions execution logs for May 26 EOD pipeline (21:00 UTC start)
+2. Identify which step failed/incomplete (likely in signals_daily or signal_quality_scores)
+3. Verify technical_data_daily and trend_template_data have full May 26 coverage
+4. Re-run EOD pipeline or fix signal generation bug
+5. Verify May 27 signals are complete before trading
 
 ---
 
