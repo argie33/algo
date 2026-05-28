@@ -1,6 +1,7 @@
 ﻿// Standardized API Service with consistent error handling and logging
 import React from "react";
 import { getApiConfig } from "../services/api";
+import { tokenManager } from "../services/tokenManager";
 
 // Enhanced logging utility
 export const createLogger = (componentName) => ({
@@ -82,9 +83,8 @@ export const createLogger = (componentName) => ({
 // Get stored auth token for API requests (strict Cognito only)
 const getAuthToken = () => {
   try {
-    // Use tokenManager for Cognito tokens only
-    const tokens = sessionStorage.getItem("authToken");
-    return tokens ? JSON.parse(tokens).accessToken : null;
+    // Use tokenManager for consistent token retrieval
+    return tokenManager.getToken('access');
   } catch (error) {
     // Silent failure for auth token retrieval
   }
