@@ -17,20 +17,16 @@ locals {
 # Separate layers for API and Orchestrator Lambda functions
 # Published by GitHub Actions deploy workflow
 
-# FIXED Issue #11: API Layer with optional version pinning
-# If api_lambda_layer_version=0 (default), uses latest; otherwise pins to specific version
+# FIXED Issue #11: API Layer (always uses latest compatible)
 data "aws_lambda_layer_version" "api_deps" {
-  layer_name            = var.api_lambda_layer_name
-  version_number        = var.api_lambda_layer_version > 0 ? var.api_lambda_layer_version : null
-  compatible_runtime    = var.api_lambda_layer_version > 0 ? null : "python3.12"
+  layer_name           = var.api_lambda_layer_name
+  compatible_runtime   = "python3.12"
 }
 
-# FIXED Issue #11: Orchestrator Layer with optional version pinning
-# If lambda_layer_version=0 (default), uses latest; otherwise pins to specific version
+# FIXED Issue #11: Orchestrator Layer (always uses latest compatible)
 data "aws_lambda_layer_version" "shared_deps" {
-  layer_name            = var.lambda_layer_name
-  version_number        = var.lambda_layer_version > 0 ? var.lambda_layer_version : null
-  compatible_runtime    = var.lambda_layer_version > 0 ? null : "python3.12"
+  layer_name           = var.lambda_layer_name
+  compatible_runtime   = "python3.12"
 }
 
 # For compatibility with existing code

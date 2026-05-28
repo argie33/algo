@@ -21,20 +21,6 @@
  */
 
 # ============================================================
-# FIXED Issue #26: Lambda Permission for EventBridge Scheduler
-# ============================================================
-# Grant EventBridge Scheduler permission to invoke the algo Lambda function.
-# This must be defined for all EventBridge Scheduler rules to work.
-
-resource "aws_lambda_permission" "eventbridge_scheduler" {
-  statement_id  = "AllowEventBridgeSchedulerInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = "${var.project_name}-algo-${var.environment}"
-  principal     = "scheduler.amazonaws.com"
-  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*"
-}
-
-# ============================================================
 # Pre-market Schedule (4:30 AM ET) [OPTIONAL]
 # Runs after stock_symbols, before price loads complete
 # Uses: signals from night before + previous prices
@@ -187,14 +173,13 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
 
 # FIXED Issue #33: Simplified locals by removing ternary logic
 # Evening schedule is now explicit and always configured
-# (removed obsolete local.orchestrator_schedule ternary)
 
 # Update existing schedule to reflect 2x daily behavior when enabled
 resource "aws_scheduler_schedule" "algo_orchestrator" {
   count                        = var.algo_schedule_enabled ? 1 : 0
   name                         = "${var.project_name}-algo-schedule-${var.environment}"
   description                  = var.enable_morning_orchestrator ? "Evening algo orchestrator run: 5:30 PM ET (full pipeline, default)" : "Trigger algo orchestrator Lambda at scheduled time"
-  schedule_expression          = local.orchestrator_schedule
+  schedule_expression          = var.algo_schedule_expression
   schedule_expression_timezone = var.algo_schedule_timezone
   state                        = "ENABLED"
 

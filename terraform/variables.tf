@@ -544,6 +544,24 @@ variable "enable_morning_orchestrator" {
   default     = true
 }
 
+variable "enable_afternoon_orchestrator" {
+  description = "Enable afternoon (1:00 PM ET) orchestrator execution for mid-day rebalance"
+  type        = bool
+  default     = false
+}
+
+variable "enable_premarket_orchestrator" {
+  description = "Enable pre-market (4:30 AM ET) orchestrator execution for early entry prep"
+  type        = bool
+  default     = false
+}
+
+variable "enable_preclose_orchestrator" {
+  description = "Enable pre-close (4:30 AM ET) orchestrator execution for early entry prep"
+  type        = bool
+  default     = false
+}
+
 # ============================================================
 # SNS Configuration
 # ============================================================
