@@ -1024,9 +1024,12 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None) -> Dict:
                     COALESCE((s.components->>'pass_gates')::boolean, false) AS pass_gates,
                     s.components->>'fail_reason' AS fail_reason,
                     s.components AS components,
-                    cp.sector, cp.industry
+                    cp.sector, cp.industry,
+                    t.weinstein_stage AS stage, t.minervini_trend_score AS trend_template_score,
+                    jsonb_build_object('weinstein_stage', t.weinstein_stage, 'trend_template_score', t.minervini_trend_score, 'stage_substage', 'Stage ' || COALESCE(t.weinstein_stage::text, '')) AS details
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+                LEFT JOIN trend_template_data t ON s.symbol = t.symbol AND s.date = t.date
                 WHERE s.date >= CURRENT_DATE - INTERVAL '7 days'
                 {score_filter}
                 ORDER BY s.date DESC, s.score DESC
