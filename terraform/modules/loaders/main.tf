@@ -9,7 +9,8 @@
  * NOTE: 13 EOD-critical loaders are now triggered by Step Functions (modules/pipeline)
  * not by EventBridge cron rules. Task definitions remain here for Step Functions to use.
 
- * Financial/earnings loaders run weekly (Sunday night) not daily.
+ * Financial loaders run daily at 4am ET (after market close) to maximize data coverage and capture incremental updates
+ * Analyst data (sentiment, upgrades/downgrades), earnings calendar, and industry rankings now run daily for better signal coverage
  * Removed: market_overview, sector_performance, relative_performance, social_sentiment
  *   (no real data source; market_overview duplicated price_daily; others wrote zeros/wrong data).
  *
@@ -300,35 +301,35 @@ locals {
       description = "Market seasonality stats - Sunday 12am ET (weekly recompute)"
     }
 
-    # Company and analyst data — yfinance API calls, run weekly Sunday
-    # Already staggered by 10 minutes - no change needed
+    # Company and analyst data — yfinance API calls, run daily at 4am ET (after market close previous day)
+    # Data sources update frequently, daily refresh captures more coverage (analyst sentiment, earnings calendar changes, etc.)
     "company_profile" = {
-      schedule    = "cron(20 4 ? * MON *)"
-      description = "Company profile (sector, industry, name) - Sunday 11:20pm ET"
+      schedule    = "cron(20 4 ? * MON-FRI *)"
+      description = "Company profile (sector, industry, name) - Daily 4:20am ET"
     }
     "positioning_metrics" = {
-      schedule    = "cron(22 4 ? * MON *)"
-      description = "Positioning metrics (institutional ownership, short interest) - Sunday 11:22pm ET"
+      schedule    = "cron(22 4 ? * MON-FRI *)"
+      description = "Positioning metrics (institutional ownership, short interest) - Daily 4:22am ET"
     }
     "analyst_sentiment" = {
-      schedule    = "cron(25 4 ? * MON *)"
-      description = "Analyst recommendations - Sunday 11:25pm ET"
+      schedule    = "cron(25 4 ? * MON-FRI *)"
+      description = "Analyst recommendations - Daily 4:25am ET"
     }
     "analyst_upgrades_downgrades" = {
-      schedule    = "cron(30 4 ? * MON *)"
-      description = "Analyst upgrades/downgrades - Sunday 11:30pm ET"
+      schedule    = "cron(27 4 ? * MON-FRI *)"
+      description = "Analyst upgrades/downgrades - Daily 4:27am ET"
     }
     "sectors" = {
-      schedule    = "cron(5 6 ? * MON *)"
-      description = "Sector performance metrics - Monday 1:05am ET"
+      schedule    = "cron(5 6 ? * MON-FRI *)"
+      description = "Sector performance metrics - Daily 1:05am ET"
     }
     "industry_ranking" = {
-      schedule    = "cron(10 6 ? * MON *)"
-      description = "Industry rankings - Monday 1:10am ET"
+      schedule    = "cron(10 6 ? * MON-FRI *)"
+      description = "Industry rankings - Daily 1:10am ET"
     }
     "earnings_calendar" = {
-      schedule    = "cron(35 4 ? * MON *)"
-      description = "Earnings calendar (next 180 days) - Sunday 11:35pm ET"
+      schedule    = "cron(29 4 ? * MON-FRI *)"
+      description = "Earnings calendar (next 180 days) - Daily 4:29am ET"
     }
 
     # Market sentiment data — run daily (data published at irregular intervals, daily refresh is fine)

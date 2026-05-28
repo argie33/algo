@@ -174,7 +174,11 @@ class AdvancedFilters:
             days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date)
             components['days_to_earnings'] = days_to_earnings
             block_window = int(self.config.get('block_days_before_earnings', 5))
-            if days_to_earnings is not None and 0 <= days_to_earnings <= block_window:
+            if days_to_earnings is None:
+                # Conservative: block if earnings date unknown (treat as risky)
+                hard_fail = f'Earnings date unknown (treating as risky)'
+                logger.warning(f"  {symbol}: No earnings data found, treating as earnings-risky")
+            elif 0 <= days_to_earnings <= block_window:
                 hard_fail = f'Earnings in ~{days_to_earnings}d (block window {block_window}d)'
 
             # H2. Over-extended
