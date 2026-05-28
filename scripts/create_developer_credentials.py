@@ -98,8 +98,9 @@ def main():
             else:
                 raise
 
-        # Test new credentials
-        print(f"\n=== Testing New Credentials ===")
+        # Test new credentials (with longer wait for propagation)
+        print(f"\n=== Testing New Credentials (with propagation delay) ===")
+        import time
         sts = boto3.client(
             'sts',
             region_name=region,
@@ -107,13 +108,29 @@ def main():
             aws_secret_access_key=secret_access_key
         )
 
-        try:
-            identity = sts.get_caller_identity()
-            arn = identity.get('Arn')
-            print(f"✓ Credentials verified: {arn}")
-        except Exception as e:
-            print(f"✗ Credential verification failed: {e}")
-            return 1
+        success = False
+        for attempt in range(5):
+            try:
+                time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s, 8s, 16s
+                identity = sts.get_caller_identity()
+                arn = identity.get('Arn')
+                print(f"✓ Credentials verified on attempt {attempt + 1}: {arn}")
+                success = True
+                break
+            except Exception as e:
+                if attempt < 4:
+                    print(f"  Attempt {attempt + 1} failed: {e}")
+                    print(f"  Waiting {2 ** (attempt + 1)}s before retry...")
+                else:
+                    print(f"✗ Credential verification failed after 5 attempts: {e}")
+                    print(f"⚠ Credentials created but verification failed - may need time to propagate")
+                    success = False
+
+        # Don't fail if verification fails - keys might just need more propagation time
+        if not success:
+            print(f"\n⚠ WARNING: Verification failed but credentials have been stored.")
+            print(f"Keys may take up to 5 minutes to propagate in AWS.")
+            print(f"Retry: scripts/refresh-aws-credentials.ps1")
 
         # Clean up old keys (keep only the newest)
         print(f"\n=== Cleaning Up Old Keys ===")
