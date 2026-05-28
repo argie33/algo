@@ -74,6 +74,8 @@ class MarketHealthDailyLoader(OptimalLoader):
         if not health_metrics:
             return []
 
+        logger.info(f"Computed {len(health_metrics)} health metrics from {len(rows)} price rows, date range: {health_metrics[0]['date']} to {health_metrics[-1]['date']}")
+
         # Merge real breadth data (A/D ratio, new highs/lows) into health metrics
         breadth = self._fetch_breadth_data(start, end)
         for m in health_metrics:
@@ -89,7 +91,9 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         if since is not None:
             since_str = since.isoformat()
-            health_metrics = [m for m in health_metrics if m["date"] > since_str]
+            before_filter = len(health_metrics)
+            health_metrics = [m for m in health_metrics if m["date"] >= since_str]
+            logger.info(f"Filtered health_metrics: {before_filter} -> {len(health_metrics)} (keeping dates >= {since_str})")
 
         return health_metrics
 
