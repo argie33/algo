@@ -123,7 +123,7 @@ resource "aws_cloudwatch_event_rule" "data_freshness_schedule" {
   name                = "${var.project_name}-data-freshness-monitor-${var.environment}"
   description         = "Trigger data freshness check every 6 hours"
   schedule_expression = "rate(6 hours)"
-  is_enabled          = true
+  state               = "ENABLED"
 
   tags = var.common_tags
 }

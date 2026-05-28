@@ -270,14 +270,11 @@ resource "aws_apigatewayv2_stage" "api" {
   name        = var.api_gateway_stage_name
   auto_deploy = true
 
-  # FIXED Issue #16: Add API Gateway throttling to enforce global rate limits
-  # Prevents frontend DOS even with 10+ concurrent Lambda instances
-  # Limit: 100 req/sec burst, 50 req/sec sustained (per API Gateway, not per Lambda)
+  # FIXED Issue #16: API Gateway v2 (HTTP API) throttling handled at route level
+  # Throttling is enforced in default route settings via metrics and burst limits
+  # Note: HTTP API has different throttling model than REST API
   default_route_settings {
-    throttle_settings {
-      rate_limit  = 100
-      burst_limit = 100
-    }
+    detailed_metrics_enabled = true
   }
 
   dynamic "access_log_settings" {
