@@ -447,8 +447,8 @@ locals {
     # Technical indicators (EOD pipeline step 2) — compute-heavy, 5000+ symbols
     "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
-    # Market health (EOD pipeline step 2) — reads price_daily for SPY/VIX, small dataset
-    "market_health_daily" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # Market health (EOD pipeline step 2) — reads price_daily for SPY/VIX, processes 5000+ symbols
+    "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
 
     # Swing trader scores (EOD pipeline final step) — compute-heavy scoring
     "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
