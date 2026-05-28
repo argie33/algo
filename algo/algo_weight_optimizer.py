@@ -97,6 +97,12 @@ class WeightOptimizer:
         Returns:
             {component: weight (int 0-100)} or None if insufficient data
         """
+        # Issue #25: Guard against zero portfolio
+        portfolio_value = self.config.get('portfolio_value', 0)
+        if portfolio_value <= 0:
+            logger.warning("Portfolio value is 0 or negative, skipping weight optimization")
+            return None
+
         self.connect()
         try:
             # Get IC values

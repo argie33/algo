@@ -251,7 +251,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               TrendTemplate = {
                 Type           = "Task"
                 Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 3600
+                TimeoutSeconds = 5400
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -308,7 +308,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       SignalQualityScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 5400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"

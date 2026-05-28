@@ -117,6 +117,17 @@ class ExitEngine:
                  trade_date, _position_id, quantity, target_hits, current_stop,
                  t1_hit_time, t2_hit_time, t3_hit_time) = row
 
+                # Issue #22: Verify position still open (not already exited in same run)
+                self.cur.execute(
+                    "SELECT status FROM algo_positions WHERE position_id = %s",
+                    (_position_id,)
+                )
+                status_row = self.cur.fetchone()
+                status = status_row[0] if status_row else None
+                if status != 'open':
+                    logger.debug(f"Position {symbol} already closed, skipping exit check")
+                    continue
+
                 try:
                     entry_price = float(entry_price)
                     init_stop = float(init_stop)

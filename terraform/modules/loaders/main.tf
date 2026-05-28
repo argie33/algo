@@ -570,6 +570,14 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "SEC_USER_AGENT"
           value = "algo-trading argeropolos@gmail.com"
+        },
+        {
+          name  = "ORCHESTRATOR_EXECUTION_MODE"
+          value = var.execution_mode
+        },
+        {
+          name  = "ORCHESTRATOR_DRY_RUN"
+          value = tostring(var.orchestrator_dry_run)
         }
         ],
         # Price loaders: set intervals based on task name
