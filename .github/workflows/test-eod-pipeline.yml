@@ -1,0 +1,113 @@
+name: Test EOD Step Functions Pipeline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test-pipeline:
+    name: Test EOD Pipeline Execution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find EOD Pipeline State Machine
+        id: find-sm
+        run: |
+          SM_ARN=$(aws stepfunctions list-state-machines --region $AWS_REGION \
+            --query "stateMachines[?contains(name, 'eod-pipeline')].stateMachineArn" \
+            --output text | head -1)
+
+          if [ -z "$SM_ARN" ]; then
+            echo "❌ ERROR: Could not find eod-pipeline state machine"
+            exit 1
+          fi
+
+          echo "state_machine_arn=${SM_ARN}" >> $GITHUB_OUTPUT
+          echo "✓ Found: $SM_ARN"
+
+      - name: Start Pipeline Execution
+        id: execute
+        run: |
+          EXEC=$(aws stepfunctions start-execution \
+            --state-machine-arn "${{ steps.find-sm.outputs.state_machine_arn }}" \
+            --input '{"test": true}' \
+            --query 'executionArn' \
+            --output text)
+
+          echo "execution_arn=${EXEC}" >> $GITHUB_OUTPUT
+          echo "✓ Started execution: $EXEC"
+
+      - name: Poll Pipeline Status
+        run: |
+          EXEC_ARN="${{ steps.execute.outputs.execution_arn }}"
+          MAX_WAIT=300  # 5 minutes
+          ELAPSED=0
+
+          echo "Waiting for pipeline to complete..."
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STATUS=$(aws stepfunctions describe-execution \
+              --execution-arn "$EXEC_ARN" \
+              --region $AWS_REGION \
+              --query 'status' \
+              --output text)
+
+            case "$STATUS" in
+              SUCCEEDED)
+                echo "✓✓✓ PIPELINE SUCCEEDED ✓✓✓"
+                exit 0
+                ;;
+              FAILED)
+                echo "❌ PIPELINE FAILED"
+                CAUSE=$(aws stepfunctions describe-execution \
+                  --execution-arn "$EXEC_ARN" \
+                  --region $AWS_REGION \
+                  --query 'cause' \
+                  --output text)
+                echo "Cause: $CAUSE"
+                exit 1
+                ;;
+              TIMED_OUT)
+                echo "⏱ PIPELINE TIMED OUT"
+                exit 1
+                ;;
+              ABORTED)
+                echo "❌ PIPELINE ABORTED"
+                exit 1
+                ;;
+              *)
+                echo "  Status: $STATUS (waiting...)"
+                sleep 5
+                ELAPSED=$((ELAPSED + 5))
+                ;;
+            esac
+          done
+
+          echo "⏱ Timeout waiting for pipeline"
+          exit 1
+
+      - name: Get Pipeline Execution Details
+        if: always()
+        run: |
+          EXEC_ARN="${{ steps.execute.outputs.execution_arn }}"
+          echo "=== Final Execution Status ==="
+          aws stepfunctions describe-execution \
+            --execution-arn "$EXEC_ARN" \
+            --region $AWS_REGION \
+            --query '{Status: status, StartTime: startDate, StopTime: stopDate}' \
+            --output json
