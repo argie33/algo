@@ -211,6 +211,8 @@ module "loaders" {
   orchestrator_log_level      = var.orchestrator_log_level
   backfill_days               = var.backfill_days
   disable_provenance_tracking = var.disable_provenance_tracking
+  alert_email_to              = var.alert_email_to
+  alert_webhook_url           = var.alert_webhook_url
 }
 
 module "services" {
@@ -297,6 +299,8 @@ module "services" {
   algo_lambda_sg_id                       = module.vpc.algo_lambda_security_group_id
   node_env                                = local.node_env
   dev_mode                                = local.dev_mode
+  alert_email_to                          = var.alert_email_to
+  alert_webhook_url                       = var.alert_webhook_url
   common_tags                             = local.common_tags
 }
 

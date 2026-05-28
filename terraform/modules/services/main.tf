@@ -84,8 +84,8 @@ resource "aws_lambda_function" "api" {
   s3_bucket         = local.api_lambda_use_s3 ? var.api_lambda_s3_bucket : null
   s3_key            = local.api_lambda_use_s3 ? var.api_lambda_s3_key : null
   s3_object_version = local.api_lambda_use_s3 && var.api_lambda_s3_object_version != "" ? var.api_lambda_s3_object_version : null
-  filename          = !local.api_lambda_use_s3 ? "${path.module}/../../${var.api_lambda_code_file}" : null
-  source_code_hash  = !local.api_lambda_use_s3 ? filebase64sha256("${path.module}/../../${var.api_lambda_code_file}") : null
+  filename          = !local.api_lambda_use_s3 ? "${path.root}/${var.api_lambda_code_file}" : null
+  source_code_hash  = !local.api_lambda_use_s3 ? filebase64sha256("${path.root}/${var.api_lambda_code_file}") : null
 
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage
@@ -501,8 +501,8 @@ resource "aws_lambda_function" "algo" {
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
   s3_key            = local.algo_lambda_use_s3 ? var.algo_lambda_s3_key : null
   s3_object_version = local.algo_lambda_use_s3 && var.algo_lambda_s3_object_version != "" ? var.algo_lambda_s3_object_version : null
-  filename          = !local.algo_lambda_use_s3 ? "${path.module}/../../${var.algo_lambda_code_file}" : null
-  source_code_hash  = !local.algo_lambda_use_s3 ? filebase64sha256("${path.module}/../../${var.algo_lambda_code_file}") : null
+  filename          = !local.algo_lambda_use_s3 ? "${path.root}/${var.algo_lambda_code_file}" : null
+  source_code_hash  = !local.algo_lambda_use_s3 ? filebase64sha256("${path.root}/${var.algo_lambda_code_file}") : null
 
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
@@ -534,6 +534,9 @@ resource "aws_lambda_function" "algo" {
       DATA_PATROL_ENABLED    = tostring(var.data_patrol_enabled)
       DATA_PATROL_TIMEOUT_MS = tostring(var.data_patrol_timeout_ms)
       DEV_MODE               = var.dev_mode
+      # Alert configuration (email, Slack webhooks, SMS)
+      ALERT_EMAIL_TO         = var.alert_email_to
+      ALERT_WEBHOOK_URL      = var.alert_webhook_url
     }
   }
 

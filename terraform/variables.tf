@@ -564,6 +564,19 @@ variable "sns_alert_email" {
   }
 }
 
+variable "alert_email_to" {
+  description = "Email recipients for direct SMTP alerts (comma-separated, set via TF_VAR_alert_email_to)"
+  type        = string
+  default     = ""
+}
+
+variable "alert_webhook_url" {
+  description = "Webhook URL for Slack, Teams, or custom integrations (set via TF_VAR_alert_webhook_url)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ============================================================
 # Alpaca Trading Configuration
 # ============================================================

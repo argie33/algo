@@ -252,5 +252,39 @@ resource "aws_scheduler_schedule" "weight_optimization" {
   }
 }
 
+# ============================================================
+# Daily Data Patrol (6:00 AM ET = 11:00 AM UTC)
+# Runs daily to check data freshness, staleness, API status
+# ============================================================
+
+resource "aws_scheduler_schedule" "data_patrol_daily" {
+  name                         = "${var.project_name}-data-patrol-${var.environment}"
+  description                  = "Daily data patrol: 6:00 AM ET (check data freshness, API health)"
+  schedule_expression          = "cron(0 6 ? * MON-FRI *)"  # 6:00 AM ET, Mon-Fri
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "daily_patrol"
+      note           = "Daily data patrol: check loader freshness + API health"
+      trigger_type   = "data_patrol"
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
 # Cleanup: remove duplicate schedule resource if it exists
 # (The original aws_scheduler_schedule.algo_orchestrator is kept for backwards compatibility)

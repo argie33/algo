@@ -578,6 +578,14 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "ORCHESTRATOR_DRY_RUN"
           value = tostring(var.orchestrator_dry_run)
+        },
+        {
+          name  = "ALERT_EMAIL_TO"
+          value = var.alert_email_to
+        },
+        {
+          name  = "ALERT_WEBHOOK_URL"
+          value = var.alert_webhook_url
         }
         ],
         # Price loaders: set intervals based on task name

@@ -427,6 +427,19 @@ variable "sns_alert_email" {
   }
 }
 
+variable "alert_email_to" {
+  description = "Email recipients for direct SMTP alerts (comma-separated). Requires alert_smtp_* variables for SMTP setup."
+  type        = string
+  default     = ""
+}
+
+variable "alert_webhook_url" {
+  description = "Webhook URL for Slack, Teams, or custom integrations. Alerts sent here when loaders/orchestrator have critical issues."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ============================================================
 # Logging Configuration
 # ============================================================
