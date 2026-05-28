@@ -55,7 +55,7 @@ jobs:
       - name: Poll Pipeline Status
         run: |
           EXEC_ARN="${{ steps.execute.outputs.execution_arn }}"
-          MAX_WAIT=300  # 5 minutes
+          MAX_WAIT=900  # 15 minutes (loaders need time)
           ELAPSED=0
 
           echo "Waiting for pipeline to complete..."
