@@ -2460,27 +2460,10 @@ CREATE TABLE IF NOT EXISTS backtest_results (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Backtest trade details
-CREATE TABLE IF NOT EXISTS backtest_trades (
-    id SERIAL PRIMARY KEY,
-    backtest_id UUID REFERENCES backtest_results(backtest_id) ON DELETE CASCADE,
-    symbol VARCHAR(20) NOT NULL,
-    trade_date DATE NOT NULL,
-    entry_price DECIMAL(12, 4) NOT NULL,
-    entry_quantity INTEGER NOT NULL,
-    exit_date DATE,
-    exit_price DECIMAL(12, 4),
-    profit_loss_dollars DECIMAL(15, 2),
-    profit_loss_pct DECIMAL(8, 4),
-    holding_days INTEGER,
-    exit_reason VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Indexes for backtest queries
 CREATE INDEX IF NOT EXISTS idx_backtest_results_strategy ON backtest_results(strategy_name);
 CREATE INDEX IF NOT EXISTS idx_backtest_results_date ON backtest_results(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_backtest_trades_backtest_id ON backtest_trades(backtest_id);
+CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_id ON backtest_trades(run_id);
 CREATE INDEX IF NOT EXISTS idx_backtest_trades_symbol ON backtest_trades(symbol);
 
 -- Relative performance (loadrelativeperformance.py) — OHLCV per symbol for RS calculation
