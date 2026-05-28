@@ -1,0 +1,79 @@
+name: Audit Non-IaC Resources
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Audit IAM Users and Access Keys
+        run: |
+          echo "=== IAM Users in AWS Account ==="
+          aws iam list-users --query 'Users[].{UserName:UserName,CreateDate:CreateDate,Arn:Arn}' --output table
+
+          echo ""
+          echo "=== Access Keys by User ==="
+          for user in $(aws iam list-users --query 'Users[].UserName' --output text); do
+            echo "User: $user"
+            aws iam list-access-keys --user-name "$user" --query 'AccessKeyMetadata[].{AccessKeyId:AccessKeyId,Status:Status,CreateDate:CreateDate}' --output table
+          done
+
+      - name: Audit IAM Policies and Attachments
+        run: |
+          echo "=== Customer Managed Policies ==="
+          aws iam list-policies --scope Local --query 'Policies[].{PolicyName:PolicyName,CreateDate:CreateDate,Arn:Arn}' --output table
+
+          echo ""
+          echo "=== Policy Attachments to algo-developer User ==="
+          aws iam list-attached-user-policies --user-name algo-developer --query 'AttachedPolicies[].{PolicyName:PolicyName,PolicyArn:PolicyArn}' --output table
+
+      - name: Check Terraform State
+        run: |
+          echo "=== Resources in Terraform State ==="
+          terraform -chdir=terraform state list 2>/dev/null | grep -E "aws_iam_user|aws_iam_access_key|aws_iam_policy" || echo "No matching resources in Terraform state"
+
+      - name: Identify Non-IaC Resources
+        run: |
+          echo "=== POTENTIAL NON-IaC RESOURCES ==="
+          echo "Check the above outputs against Terraform state to identify:"
+          echo "1. IAM access keys not created by Terraform"
+          echo "2. IAM policies not in Terraform"
+          echo "3. User attachments not managed by Terraform"
+          echo ""
+          echo "Resources to investigate:"
+          echo "- algo-developer user"
+          echo "- All access keys (especially recent ones)"
+          echo "- ReadOnlyAccess attachment"
+
+      - name: Summary
+        run: |
+          echo "## Non-IaC Resource Audit Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Action Required:**" >> $GITHUB_STEP_SUMMARY
+          echo "Review the outputs above to identify resources not managed by Terraform." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Known Non-IaC Resources to Delete:**" >> $GITHUB_STEP_SUMMARY
+          echo "- IAM Access Key: AKIAZDTLQ2MUBSREDNMC (created directly, not via Terraform)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Delete all non-IaC resources" >> $GITHUB_STEP_SUMMARY
+          echo "2. Recreate via Terraform only" >> $GITHUB_STEP_SUMMARY
+          echo "3. Apply Terraform rotation fix (rotation_marker tag)" >> $GITHUB_STEP_SUMMARY

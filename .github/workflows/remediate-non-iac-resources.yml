@@ -1,0 +1,64 @@
+name: Remediate Non-IaC Resources (DELETE)
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Delete Non-IaC Access Keys
+        run: |
+          echo "=== Deleting Non-IaC Access Keys ==="
+
+          # List access keys for algo-developer
+          KEYS=$(aws iam list-access-keys --user-name algo-developer --query 'AccessKeyMetadata[].AccessKeyId' --output text)
+
+          for key in $KEYS; do
+            echo "Deleting access key: $key"
+            aws iam delete-access-key --user-name algo-developer --access-key-id "$key"
+            echo "Deleted: $key"
+          done
+
+          echo "All non-IaC access keys deleted"
+
+      - name: Detach Non-IaC Policies
+        run: |
+          echo "=== Detaching Non-IaC Policies from algo-developer ==="
+
+          POLICIES=$(aws iam list-attached-user-policies --user-name algo-developer --query 'AttachedPolicies[?PolicyArn==`arn:aws:iam::aws:policy/ReadOnlyAccess`].PolicyArn' --output text)
+
+          for policy in $POLICIES; do
+            echo "Detaching policy: $policy"
+            aws iam detach-user-policy --user-name algo-developer --policy-arn "$policy"
+            echo "Detached: $policy"
+          done
+
+      - name: Summary
+        run: |
+          echo "## Non-IaC Resources Remediated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deleted:**" >> $GITHUB_STEP_SUMMARY
+          echo "- All IAM access keys for algo-developer user" >> $GITHUB_STEP_SUMMARY
+          echo "- ReadOnlyAccess policy attachment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Apply Terraform to recreate credentials correctly: \`terraform apply\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Verify credentials in Secrets Manager" >> $GITHUB_STEP_SUMMARY
