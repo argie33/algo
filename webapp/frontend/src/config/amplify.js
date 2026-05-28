@@ -9,13 +9,6 @@ const getRuntimeConfig = () => {
 
 // Check if Cognito is configured
 const isCognitoConfigured = () => {
-  // CRITICAL: Force devAuth in production to avoid SRP auth conflicts
-  // Cognito is only configured for USER_PASSWORD_AUTH, not SRP
-  // devAuth provides seamless fallback with dev-admin credentials
-  if (import.meta.env.PROD) {
-    return false;
-  }
-
   const runtimeConfig = getRuntimeConfig();
   const userPoolId =
     runtimeConfig.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID;
