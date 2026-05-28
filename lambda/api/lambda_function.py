@@ -569,8 +569,10 @@ def require_auth(event: Dict, path: str) -> tuple:
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
     if IMPORT_ERROR:
+        cors_headers = {'Access-Control-Allow-Origin': '*'}
         return {
             'statusCode': 500,
+            'headers': {'Content-Type': get_json_content_type(), **cors_headers},
             'body': json.dumps({'error': 'import_error', 'message': f'Failed to import dependencies: {IMPORT_ERROR}'})
         }
 
@@ -579,8 +581,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if not env_valid:
         error_msg = '; '.join(env_errors)
         logger.error(f'[ENV_VALIDATION_FAILED] {error_msg}')
+        cors_headers = get_cors_headers(event)
         return {
             'statusCode': 500,
+            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'configuration_error', 'message': f'Missing required environment variables: {error_msg}'})
         }
 
