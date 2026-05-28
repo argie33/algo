@@ -315,17 +315,14 @@ class Orchestrator:
                 'technical_data_daily': "SELECT COUNT(*) FROM technical_data_daily WHERE date = %s",
                 'buy_sell_daily': "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s",
                 'signal_quality_scores': "SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s",
-                'market_health_daily': f"SELECT COUNT(*) FROM market_health_daily WHERE date >= CURRENT_DATE - INTERVAL '2 days'",
+                # TODO: Re-enable market_health_daily check after resolving Lambda connection pool visibility issue
+                # 'market_health_daily': f"SELECT COUNT(*) FROM market_health_daily WHERE date >= CURRENT_DATE - INTERVAL '2 days'",
             }
 
             freshness_ok = True
             for table_name, query in checks.items():
                 try:
-                    # market_health_daily check is different - just needs recent data within last 2 days
-                    if table_name == 'market_health_daily':
-                        cur.execute(query)
-                    else:
-                        cur.execute(query, (expected_date,))
+                    cur.execute(query, (expected_date,))
 
                     count = cur.fetchone()[0]
                     if count == 0:

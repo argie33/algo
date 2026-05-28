@@ -47,6 +47,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 return handle_db_error(e, logger, 'handle algo')
+        # FIXED Issue #20: Admin configuration endpoints
+        if method == 'GET' and path.startswith('/api/admin/config/'):
+            config_key = path.replace('/api/admin/config/', '')
+            return _get_runtime_config(cur, config_key, jwt_claims)
+        if method == 'POST' and path.startswith('/api/admin/config/'):
+            config_key = path.replace('/api/admin/config/', '')
+            return _set_runtime_config(cur, config_key, body, jwt_claims)
+
         if method == 'POST' and path == '/api/algo/patrol':
             logger.info("Manual patrol triggered via API")
             return json_response(200, {'status': 'triggered', 'message': 'Patrol triggered'})
@@ -1765,3 +1773,106 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch audit log')
+
+def _get_runtime_config(cur, config_key: str, jwt_claims: Dict) -> Dict:
+    """FIXED Issue #20: Get runtime configuration value."""
+    try:
+        # Require authentication for config access
+        if not jwt_claims or not jwt_claims.get('sub'):
+            return error_response(401, 'unauthorized', 'Authentication required')
+
+        cur.execute(
+            "SELECT config_key, config_value, description, updated_at, updated_by FROM algo_runtime_config WHERE config_key = %s",
+            (config_key,)
+        )
+        row = cur.fetchone()
+
+        if not row:
+            return error_response(404, 'not_found', f'Configuration key not found: {config_key}')
+
+        return json_response(200, {
+            'config_key': row['config_key'],
+            'config_value': row['config_value'],
+            'description': row['description'],
+            'updated_at': row['updated_at'].isoformat() if row['updated_at'] else None,
+            'updated_by': row['updated_by']
+        })
+    except psycopg2.errors.UndefinedTable:
+        return error_response(503, 'service_unavailable', 'Configuration table not initialized')
+    except Exception as e:
+        logger.error(f'Runtime config read error: {e}', extra={'operation': 'get runtime config', 'key': config_key})
+        return error_response(500, 'internal_error', 'Failed to read configuration')
+
+
+def _set_runtime_config(cur, config_key: str, body: Dict, jwt_claims: Dict) -> Dict:
+    """FIXED Issue #20: Set runtime configuration (admin only)."""
+    try:
+        # Require authentication for config updates
+        user_id = (jwt_claims or {}).get('sub', '')
+        if not user_id:
+            return error_response(401, 'unauthorized', 'Authentication required')
+
+        # For now, require explicit admin role (could be enhanced with RBAC)
+        # TODO: Check cognito:groups for 'admin' role
+        if not jwt_claims.get('cognito:groups') or 'admin' not in jwt_claims.get('cognito:groups', []):
+            logger.warning(f"Unauthorized config update attempt by {user_id}")
+            return error_response(403, 'forbidden', 'Admin access required')
+
+        new_value = body.get('value') if body else None
+        if new_value is None:
+            return error_response(400, 'bad_request', 'Missing "value" field')
+
+        # Get current value for audit
+        cur.execute(
+            "SELECT config_value FROM algo_runtime_config WHERE config_key = %s",
+            (config_key,)
+        )
+        row = cur.fetchone()
+        old_value = row['config_value'] if row else None
+
+        # Update config
+        cur.execute(
+            """UPDATE algo_runtime_config
+               SET config_value = %s, updated_at = NOW(), updated_by = %s
+               WHERE config_key = %s""",
+            (str(new_value), user_id, config_key)
+        )
+
+        if cur.rowcount == 0:
+            return error_response(404, 'not_found', f'Configuration key not found: {config_key}')
+
+        # Log to audit table
+        try:
+            cur.execute(
+                """INSERT INTO algo_runtime_config_audit
+                   (config_key, old_value, new_value, changed_by, change_reason)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (config_key, old_value, str(new_value), user_id, body.get('reason', ''))
+            )
+        except psycopg2.errors.UndefinedTable:
+            logger.warning("Audit table not initialized, skipping audit log")
+
+        cur.connection.commit()
+
+        # Clear cache so next read gets fresh value
+        try:
+            from algo.config.runtime_config import RuntimeConfig
+            RuntimeConfig.clear_cache()
+        except ImportError:
+            pass  # RuntimeConfig not available
+
+        logger.info(f"[CONFIG_UPDATED] {config_key}: {old_value} → {new_value} (by {user_id})")
+
+        return json_response(200, {
+            'config_key': config_key,
+            'old_value': old_value,
+            'new_value': str(new_value),
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+            'updated_by': user_id
+        })
+
+    except psycopg2.errors.UndefinedTable:
+        return error_response(503, 'service_unavailable', 'Configuration table not initialized')
+    except Exception as e:
+        logger.error(f'Runtime config update error: {e}', extra={'operation': 'set runtime config', 'key': config_key})
+        return error_response(500, 'internal_error', 'Failed to update configuration')
