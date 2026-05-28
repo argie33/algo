@@ -446,7 +446,8 @@ locals {
     "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Technical indicators (EOD pipeline step 2) — compute-heavy, 5000+ symbols
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    # FIXED: Increased CPU/memory 4x and parallelism from 4 to 8 to handle 40+ minute executions
+    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 8 }
 
     # Market health (EOD pipeline step 2) — reads price_daily for SPY/VIX, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }

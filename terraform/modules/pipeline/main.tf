@@ -192,7 +192,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               TechnicalDataDaily = {
                 Type           = "Task"
                 Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 18000
+                TimeoutSeconds = 36000
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
