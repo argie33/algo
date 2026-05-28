@@ -1106,6 +1106,7 @@ jobs:
           TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
           POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // empty' 2>/dev/null || echo "")
           CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // empty' 2>/dev/null || echo "")
+          COGNITO_DOMAIN=$(echo "$TF_OUT" | jq -r '.cognito_domain_url.value // empty' 2>/dev/null || echo "")
 
           # Fall back to AWS API if Terraform output empty
           # Try the current naming convention first: algo-pool-{ENV}
@@ -1138,21 +1139,27 @@ jobs:
             fi
           fi
 
-          # Get Cognito domain - try both naming conventions
-          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
-            COGNITO_DOMAIN=$(aws cognito-idp describe-user-pool-domain \
+          # Get Cognito domain - try AWS API if Terraform output empty
+          if [ -z "$COGNITO_DOMAIN" ] || [ "$COGNITO_DOMAIN" = "None" ]; then
+            # Try current naming convention: algo-{ENV}
+            DOMAIN_NAME=$(aws cognito-idp describe-user-pool-domain \
               --domain "algo-${ENV}" \
               --region $AWS_REGION \
               --query 'UserPoolDomain.Domain' \
               --output text 2>/dev/null || echo "")
 
             # Fallback to old domain name if needed
-            if [ -z "$COGNITO_DOMAIN" ] || [ "$COGNITO_DOMAIN" = "None" ]; then
-              COGNITO_DOMAIN=$(aws cognito-idp describe-user-pool-domain \
+            if [ -z "$DOMAIN_NAME" ] || [ "$DOMAIN_NAME" = "None" ]; then
+              DOMAIN_NAME=$(aws cognito-idp describe-user-pool-domain \
                 --domain "stocks-trading-${ENV}" \
                 --region $AWS_REGION \
                 --query 'UserPoolDomain.Domain' \
                 --output text 2>/dev/null || echo "")
+            fi
+
+            # Construct full domain URL if we found a domain name
+            if [ -n "$DOMAIN_NAME" ] && [ "$DOMAIN_NAME" != "None" ]; then
+              COGNITO_DOMAIN="https://${DOMAIN_NAME}.auth.${AWS_REGION}.amazoncognito.com"
             fi
           fi
 
