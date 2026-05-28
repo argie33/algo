@@ -373,7 +373,7 @@ locals {
   all_loaders = {
     # Reference data (3:25-3:30am ET)
     # parallelism=1: tiny list, no benefit from threads
-    "stock_symbols" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "stock_symbols"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "sp500_constituents" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # UNIFIED Price Loader (4:00am ET) — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)

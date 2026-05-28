@@ -159,9 +159,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
       EodBulkPrices = {
-        Type            = "Task"
-        Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 1200
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -190,9 +190,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             StartAt = "TechnicalDataDaily"
             States = {
               TechnicalDataDaily = {
-                Type            = "Task"
-                Resource        = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds  = 18000
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 18000
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -213,9 +213,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             StartAt = "MarketHealthDaily"
             States = {
               MarketHealthDaily = {
-                Type            = "Task"
-                Resource        = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds  = 1200
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 1200
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -249,9 +249,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             StartAt = "TrendTemplate"
             States = {
               TrendTemplate = {
-                Type            = "Task"
-                Resource        = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds  = 10800
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 10800
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -281,9 +281,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # NOTE: signals_weekly, signals_monthly, signals_etf_* loaders are planned but not yet implemented
       # Current scope: daily signals only. Upgrade path: add weekly/monthly variants if needed.
       SignalGeneration = {
-        Type            = "Task"
-        Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 3000
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3000
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -306,9 +306,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
       SignalQualityScores = {
-        Type            = "Task"
-        Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 1800
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -331,9 +331,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 7: Summarize signal quality metrics ──────────────────────────
       AlgoMetrics = {
-        Type            = "Task"
-        Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 1200
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -356,9 +356,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 8: Swing trader scores (depends on signals + metrics) ───────
       SwingScores = {
-        Type            = "Task"
-        Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 1800
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -384,9 +384,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # This ECS step runs dry_run=true: validates all data loaded, logs phase results,
       # but does NOT place orders. Prevents double-execution vs. the 9:30 AM Lambda.
       TriggerOrchestrator = {
-        Type            = "Task"
-        Resource        = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds  = 1200
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"

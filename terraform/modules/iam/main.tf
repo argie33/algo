@@ -992,21 +992,6 @@ data "aws_iam_policy_document" "developer" {
   }
 }
 
-# Access key for developer user (local CLI use)
-# Rotated quarterly per security baseline (see steering/algo.md)
-resource "aws_iam_access_key" "developer" {
-  user = aws_iam_user.developer.name
-
-  # Force key recreation when rotation date changes by adding rotation marker to tags
-  tags = {
-    rotation_marker = local.developer_key_rotation
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 # Mark access key for rotation on a schedule
 # Terraform will invalidate old key when this value changes (via scheduled rotation workflow)
 variable "developer_key_rotation_date" {
@@ -1018,6 +1003,17 @@ variable "developer_key_rotation_date" {
 locals {
   # Key ID includes rotation marker - Terraform will create new key on every apply if this changes
   developer_key_rotation = var.developer_key_rotation_date
+}
+
+# Access key for developer user (local CLI use)
+# Rotated quarterly per security baseline (see steering/algo.md)
+# Rotation workflow updates var.developer_key_rotation_date, triggering key recreation on next apply
+resource "aws_iam_access_key" "developer" {
+  user = aws_iam_user.developer.name
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Store developer credentials in Secrets Manager (IaC-managed)

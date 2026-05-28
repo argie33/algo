@@ -20,19 +20,19 @@ api_cors_allowed_origins = [
 # Afternoon (1:00 PM ET): Mid-day rebalance, catch missed opportunities [enabled]
 # Pre-close (3:00 PM ET): FINAL execution before 4 PM ET market close, SLA finish by 3:15 PM ET [enabled]
 # Evening (5:30 PM ET): AFTER CLOSE - signal prep for next day only, no trading [managed separately]
-algo_schedule_enabled          = true
-algo_schedule_expression       = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 PM ET (signal prep, not trading)
-enable_premarket_orchestrator  = false # Disabled: not during market hours
-enable_morning_orchestrator    = true # PRIMARY: 9:30 AM ET market open
-enable_afternoon_orchestrator  = true # 1:00 PM ET mid-day rebalance
-enable_preclose_orchestrator   = true # FINAL: 3:00 PM ET last trades before close
-cognito_enabled             = true # Authorizer exists but not used on routes (all NONE auth)
+algo_schedule_enabled         = true
+algo_schedule_expression      = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 PM ET (signal prep, not trading)
+enable_premarket_orchestrator = false                       # Disabled: not during market hours
+enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open
+enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
+enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
+cognito_enabled               = true                        # Authorizer exists but not used on routes (all NONE auth)
 
 # Database configuration
-rds_instance_class = "db.t3.medium"   # FIXED: Upgraded from db.t3.small (2vCPU 2GB) to db.t3.medium (2vCPU 4GB) to resolve RDS I/O contention
+rds_instance_class = "db.t3.medium" # FIXED: Upgraded from db.t3.small (2vCPU 2GB) to db.t3.medium (2vCPU 4GB) to resolve RDS I/O contention
 # Disk queue depth was 30-45 (critical), preventing Phase 1 data freshness queries from completing.
 # db.t3.medium includes more memory buffer cache which reduces disk I/O and improves query performance.
-enable_rds_proxy  = true    # Enable RDS Proxy: connection pooling reduces latency & query overhead (critical for performance)
+enable_rds_proxy = true    # Enable RDS Proxy: connection pooling reduces latency & query overhead (critical for performance)
 dev_mode         = "false" # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
 # Orchestrator configuration (moved from GitHub Secrets)
