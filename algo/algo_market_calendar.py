@@ -80,6 +80,23 @@ class MarketCalendar:
         return True
 
     @staticmethod
+    def get_market_close_time(check_date=None):
+        """Get market close time for given date.
+
+        Returns:
+            str: '14:00' for half-days (early close), '16:00' for normal days
+        """
+        if not check_date:
+            check_date = _date.today()
+
+        # Early close (half-day): 2:00 PM ET
+        if check_date in EARLY_CLOSES:
+            return '14:00'
+
+        # Normal close: 4:00 PM ET
+        return '16:00'
+
+    @staticmethod
     def is_market_open(check_datetime=None):
         """Check if market is currently open.
 
