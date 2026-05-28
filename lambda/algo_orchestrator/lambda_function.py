@@ -64,7 +64,14 @@ def lambda_handler(event, context):
         # Support both 'date' and 'run_date' fields from EventBridge; treat 'now'/'today' as None (use today's date)
         run_date_str = event.get('date') or event.get('run_date')
 
-        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}")
+        # FIXED Issue #5: Parse run_identifier from EventBridge Scheduler to set dry_run mode
+        # Evening and pre-close runs should skip trading (dry_run=true) if execution_mode=auto
+        run_identifier = event.get('run_identifier', '')
+        if run_identifier in ('evening', 'preclose'):
+            # Evening/pre-close orchestrator runs in dry-run unless explicitly overridden
+            dry_run = event.get('dry_run', True)
+
+        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, run_identifier={run_identifier}")
 
         # Get timeout from Lambda context (in seconds)
         lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 240

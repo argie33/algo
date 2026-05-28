@@ -249,25 +249,25 @@ class Orchestrator:
         """FIXED Issue #9: Validate that all critical data is fresh (from today or yesterday).
 
         Checks:
-        - Prices exist for today
-        - Technical indicators computed for today
-        - Signals generated for today
+        - Prices exist for the last trading day (loaders load previous day's close)
+        - Technical indicators computed for the last trading day
+        - Signals generated for the last trading day
         - Signal quality scores available
-        - Market health computed for today
+        - Market health computed for the last trading day
 
         Returns: True if data is fresh, False if critical data is stale.
         """
         try:
-            # Expected data date: if today is non-trading day, use yesterday
-            expected_date = self.run_date
+            # Loaders fetch data for the PREVIOUS trading day (not today).
+            # E.g., at 9:30 AM ET today, we have yesterday's close available.
             from algo.algo_market_calendar import MarketCalendar
-            if not MarketCalendar.is_trading_day(expected_date):
-                # Use yesterday or most recent trading day
-                expected_date = expected_date - timedelta(days=1)
-                for _ in range(10):
-                    if MarketCalendar.is_trading_day(expected_date):
-                        break
-                    expected_date -= timedelta(days=1)
+
+            expected_date = self.run_date - timedelta(days=1)
+            # If run_date is Monday, we need Friday's data (skip weekend)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected_date):
+                    break
+                expected_date -= timedelta(days=1)
 
             checks = {
                 'price_daily': "SELECT COUNT(*) FROM price_daily WHERE date = %s",

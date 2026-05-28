@@ -139,7 +139,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
   logging_configuration {
     log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
     include_execution_data = true
-    level                  = "ERROR"
+    level                  = "ALL"
   }
 
   definition = jsonencode({
@@ -467,7 +467,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
   logging_configuration {
     log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
     include_execution_data = true
-    level                  = "ERROR"
+    level                  = "ALL"
   }
 
   definition = jsonencode({
@@ -624,7 +624,7 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
 
 resource "aws_cloudwatch_event_rule" "morning_pipeline_trigger" {
   name                = "${var.project_name}-morning-pipeline-${var.environment}"
-  description         = "Morning data prep: technicals → signals for market open (5:30am ET)"
+  description         = "Morning data prep: load prices + technicals for market open (4:30 AM ET = 9:30 UTC)"
   schedule_expression = "cron(30 9 ? * MON-FRI *)"
   state               = "ENABLED"
   tags                = var.common_tags
@@ -632,8 +632,8 @@ resource "aws_cloudwatch_event_rule" "morning_pipeline_trigger" {
 
 resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
   name                = "${var.project_name}-eod-pipeline-${var.environment}"
-  description         = "EOD pipeline: end-of-day analysis & swing scores (5:00pm ET)"
-  schedule_expression = "cron(0 21 ? * MON-FRI *)"
+  description         = "EOD pipeline: end-of-day analysis & swing scores (4:05 PM ET = 20:05 UTC Mon-Fri, 5 min after market close)"
+  schedule_expression = "cron(5 20 ? * MON-FRI *)"
   state               = "ENABLED"
   tags                = var.common_tags
 }
