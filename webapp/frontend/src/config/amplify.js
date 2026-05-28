@@ -32,6 +32,7 @@ const getAmplifyConfig = () => {
   const userPoolId = runtimeConfig.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID || "us-east-1_DUMMY";
   const region = userPoolId.split('_')[0] || (import.meta.env.VITE_AWS_REGION || "us-east-1");
   const domain = runtimeConfig.USER_POOL_DOMAIN || import.meta.env.VITE_COGNITO_DOMAIN;
+  const apiUrl = runtimeConfig.API_URL || import.meta.env.VITE_API_URL || window.location.origin;
 
   return {
     Auth: {
@@ -42,9 +43,21 @@ const getAmplifyConfig = () => {
           import.meta.env.VITE_COGNITO_CLIENT_ID ||
           "dummy-client-id",
         region: region,
-        // OAuth domain URL for login redirects (format: https://domain-name.auth.region.amazoncognito.com)
-        ...(domain && { loginWith: { username: true, email: true } }),
         signUpVerificationMethod: 'code',
+        // OAuth/OIDC configuration for login flow
+        ...(domain && {
+          loginWith: {
+            username: true,
+            email: true,
+          },
+          oauth: {
+            domain: domain.replace('https://', '').replace('/',''),
+            scopes: ['openid', 'email', 'profile'],
+            redirectSignIn: apiUrl,
+            redirectSignOut: apiUrl,
+            responseType: 'code',
+          },
+        }),
       },
     },
   };
