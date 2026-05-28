@@ -29,27 +29,28 @@ const isCognitoConfigured = () => {
 // Amplify configuration with runtime config support
 const getAmplifyConfig = () => {
   const runtimeConfig = getRuntimeConfig();
+  const userPoolId = runtimeConfig.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID || "us-east-1_DUMMY";
+  const region = userPoolId.split('_')[0] || (import.meta.env.VITE_AWS_REGION || "us-east-1");
 
   return {
     Auth: {
       Cognito: {
-        userPoolId:
-          runtimeConfig.USER_POOL_ID ||
-          import.meta.env.VITE_COGNITO_USER_POOL_ID ||
-          "us-east-1_DUMMY",
+        userPoolId: userPoolId,
         userPoolClientId:
           runtimeConfig.USER_POOL_CLIENT_ID ||
           import.meta.env.VITE_COGNITO_CLIENT_ID ||
           "dummy-client-id",
-        region: import.meta.env.VITE_AWS_REGION || "us-east-1",
-        signUpVerificationMethod: "code",
+        region: region,
+        // Construct domain URL from pool ID if not provided
+        // Format: https://[project-env-accountid].auth.[region].amazoncognito.com
         loginWith: {
           username: true,
           email: true,
         },
-        // CRITICAL: Cognito client only allows USER_PASSWORD_AUTH (not SRP)
-        // This prevents Amplify from trying SRP first and getting a 400 error
+        // Support all secure auth methods: SRP, password, and custom
+        allowUserSrpAuth: true,
         allowUserPasswordAuth: true,
+        allowCustomAuth: true,
       },
     },
   };
