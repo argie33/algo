@@ -181,44 +181,23 @@ class TechnicalDataDailyLoader(OptimalLoader):
             df[name] = values
 
         df["volume_ma_50"] = compute_volume_ma(df["volume"], 50)
+        df["symbol"] = symbol
 
-        results = []
-        for _, row in df.iterrows():
-            results.append({
-                "symbol": symbol,
-                "date": row["date"].date().isoformat(),
-                "rsi": float(row["rsi"]) if pd.notna(row["rsi"]) else None,
-                "rsi_14": float(row["rsi_14"]) if pd.notna(row["rsi_14"]) else None,
-                "macd": float(row["macd"]) if pd.notna(row["macd"]) else None,
-                "macd_signal": float(row["macd_signal"]) if pd.notna(row["macd_signal"]) else None,
-                "macd_hist": float(row["macd_hist"]) if pd.notna(row["macd_hist"]) else None,
-                "macd_histogram": float(row["macd_histogram"]) if pd.notna(row["macd_histogram"]) else None,
-                "mom": float(row["mom"]) if pd.notna(row["mom"]) else None,
-                "roc": float(row["roc"]) if pd.notna(row["roc"]) else None,
-                "roc_10d": float(row["roc_10d"]) if pd.notna(row["roc_10d"]) else None,
-                "roc_20d": float(row["roc_20d"]) if pd.notna(row["roc_20d"]) else None,
-                "roc_60d": float(row["roc_60d"]) if pd.notna(row["roc_60d"]) else None,
-                "roc_120d": float(row["roc_120d"]) if pd.notna(row["roc_120d"]) else None,
-                "roc_252d": float(row["roc_252d"]) if pd.notna(row["roc_252d"]) else None,
-                "sma_20": float(row["sma_20"]) if pd.notna(row["sma_20"]) else None,
-                "sma_50": float(row["sma_50"]) if pd.notna(row["sma_50"]) else None,
-                "sma_150": float(row["sma_150"]) if pd.notna(row["sma_150"]) else None,
-                "sma_200": float(row["sma_200"]) if pd.notna(row["sma_200"]) else None,
-                "ema_12": float(row["ema_12"]) if pd.notna(row["ema_12"]) else None,
-                "ema_21": float(row["ema_21"]) if pd.notna(row["ema_21"]) else None,
-                "ema_26": float(row["ema_26"]) if pd.notna(row["ema_26"]) else None,
-                "atr": float(row["atr"]) if pd.notna(row["atr"]) else None,
-                "atr_14": float(row["atr_14"]) if pd.notna(row["atr_14"]) else None,
-                "bb_upper": float(row["bb_upper"]) if pd.notna(row["bb_upper"]) else None,
-                "bb_middle": float(row["bb_middle"]) if pd.notna(row["bb_middle"]) else None,
-                "bb_lower": float(row["bb_lower"]) if pd.notna(row["bb_lower"]) else None,
-                "volume_ma_50": float(row["volume_ma_50"]) if pd.notna(row["volume_ma_50"]) else None,
-                "adx": float(row["adx"]) if pd.notna(row["adx"]) else None,
-                "plus_di": float(row["plus_di"]) if pd.notna(row["plus_di"]) else None,
-                "minus_di": float(row["minus_di"]) if pd.notna(row["minus_di"]) else None,
-                "mansfield_rs": float(row["mansfield_rs"]) if pd.notna(row["mansfield_rs"]) else None,
-            })
-        return results
+        columns = ["symbol", "date", "rsi", "rsi_14", "macd", "macd_signal", "macd_hist", "macd_histogram",
+                   "mom", "roc", "roc_10d", "roc_20d", "roc_60d", "roc_120d", "roc_252d",
+                   "sma_20", "sma_50", "sma_150", "sma_200", "ema_12", "ema_21", "ema_26",
+                   "atr", "atr_14", "bb_upper", "bb_middle", "bb_lower", "volume_ma_50",
+                   "adx", "plus_di", "minus_di", "mansfield_rs"]
+
+        df["date"] = df["date"].dt.date.astype(str)
+
+        def safe_float(v):
+            return float(v) if pd.notna(v) else None
+
+        for col in columns[2:]:
+            df[col] = df[col].apply(safe_float)
+
+        return df[columns].to_dict("records")
 
 
 def main():
