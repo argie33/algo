@@ -99,22 +99,26 @@ Multiple failed deployments occurred on May 27 from 01:40-06:31 UTC, but recent 
 
 ---
 
-## CRITICAL FIX DEPLOYED ✅
+## CRITICAL FIX DEPLOYED - STEP FUNCTIONS UPDATE IN PROGRESS ✅
 
-**Issue:** trend_template_data ECS task timeout was 1200s (20 min) for 5000+ symbols
-**Solution:** Increased timeout to 2700s (45 min), reduced parallelism to 4
-**Deployed:** May 28 02:08 UTC (Commit a0f862475)
-**Test Execution:** test-fix-1779934159 started at 02:09 UTC
+**Root Cause (Identified May 28 02:33 UTC):**
+- Timeout fix created new task definition revision 29 (active, 2700s timeout)
+- Step Functions still referenced old revision 28 (now inactive)
+- Test execution failed with "TaskDefinition is inactive" error
 
-### Current Status (as of 02:23 UTC):
-- **Bulk Refresh Loader:** COMPLETED (3-4 min)
-- **Parallel Data Loaders:** RUNNING (technical_data_daily, market_health_daily)
-- **Trend Template Data:** PENDING (this is the critical task with new 45-min timeout)
-- **Elapsed Time:** ~11 minutes (2700s timeout reserves 34+ minutes for main task)
-- **Monitor Status:** Actively watching with 3600s overall timeout
+**Solution Applied (May 28 02:40 UTC):**
+- Updated terraform/modules/loaders/outputs.tf to output task definition family names
+- Instead of ARNs with specific revision numbers
+- This allows Step Functions to auto-resolve to latest active revision
+- Changes committed (fb4eb4e1f) and pushed to GitHub
+- GitHub Actions will automatically deploy via `terraform apply`
 
-Expected: EOD pipeline will complete successfully, signals will be generated for May 27/28,  
-system will resume trading after this test passes.
+**Expected Outcome (after GitHub Actions deployment):**
+- Step Functions definition will update to use family names
+- Next test execution will use revision 29 (with 2700s timeout)
+- Trend template data task will complete successfully
+- Signals for May 27/28 will be generated
+- System resumes normal trading operations
 
 ---
 
