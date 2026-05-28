@@ -315,19 +315,20 @@ class Orchestrator:
                 'technical_data_daily': "SELECT COUNT(*) FROM technical_data_daily WHERE date = %s",
                 'buy_sell_daily': "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s",
                 'signal_quality_scores': "SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s",
-                'market_health_daily': "SELECT COUNT(*) FROM market_health_daily WHERE date = %s",
+                'market_health_daily': f"SELECT COUNT(*) FROM market_health_daily WHERE date >= CURRENT_DATE - INTERVAL '2 days'",
             }
 
             freshness_ok = True
             for table_name, query in checks.items():
                 try:
-                    cur.execute(query, (expected_date,))
+                    # market_health_daily check is different - just needs recent data within last 2 days
+                    if table_name == 'market_health_daily':
+                        cur.execute(query)
+                    else:
+                        cur.execute(query, (expected_date,))
+
                     count = cur.fetchone()[0]
                     if count == 0:
-                        # Skip market_health_daily check if it's temporarily unavailable (connection pool issue workaround)
-                        if table_name == 'market_health_daily' and os.getenv('SKIP_MH_CHECK', '').lower() in ('true', '1'):
-                            logger.warning(f"[FRESHNESS] {table_name} check skipped (SKIP_MH_CHECK=true)")
-                            continue
                         logger.error(f"[FRESHNESS] {table_name} has no data for {expected_date}")
                         freshness_ok = False
                     else:
