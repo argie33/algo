@@ -387,7 +387,8 @@ locals {
     "etf_prices_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 8 }
+    # FIXED: Timeout was 1200s (20min) but computing trend scores for 5000+ symbols needs 45min+
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 2700, parallelism = 4 }
 
     # Financial statements (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
     # Sequential processing needs 60min timeout to handle 5000+ symbols with SEC backoff delays
