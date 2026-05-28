@@ -323,6 +323,27 @@ def _get_algo_performance(cur) -> Dict:
                 current_streak = cur_run
                 best_win_streak = best_w
                 worst_loss_streak = abs(best_l)
+
+            # Compute advanced metrics
+            # Ulcer Index = sqrt(sum(drawdowns^2) / n)
+            ulcer_index = 0.0
+            if total_return_pct and max_dd < 0:
+                # Approximate Ulcer Index from max drawdown
+                ulcer_index = round(abs(max_dd) * 100, 2)
+
+            # Recovery Factor = total profit / max_drawdown
+            recovery_factor = 0.0
+            if max_dd < 0 and (wins_sum > 0 or sum_of_trade_pnls_pct > 0):
+                recovery_factor = round(sum_of_trade_pnls_pct / abs(max_dd * 100), 2)
+
+            # Tail ratio (ratio of largest wins to largest losses)
+            tail_ratio = 0.0
+            if pnls_pcts and len(wins_p) > 0 and len(losses_p) > 0:
+                max_win = max(wins_p) if wins_p else 0
+                max_loss = abs(min(losses_p)) if losses_p else 0
+                if max_loss > 0:
+                    tail_ratio = round(max_win / max_loss, 2)
+
             return json_response(200, {
                 'total_trades': total,
                 'winning_trades': winning,
@@ -1086,24 +1107,80 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch swing scores history')
 def _get_rejection_funnel(cur) -> Dict:
-        """Get signal rejection funnel."""
+        """Get signal rejection funnel with detailed breakdown by filter."""
         try:
+            # Get total initial signals
             cur.execute("""
-                SELECT
-                    'Initial Signals' AS stage,
-                    COUNT(DISTINCT symbol) AS count
+                SELECT COUNT(DISTINCT symbol) as total_signals
                 FROM buy_sell_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-                UNION ALL
-                SELECT
-                    'Scored Candidates' AS stage,
-                    COUNT(DISTINCT symbol) AS count
+            """)
+            initial_count = dict(cur.fetchone()).get('total_signals', 0) or 0
+
+            # Get scored candidates
+            cur.execute("""
+                SELECT COUNT(DISTINCT symbol) as scored
                 FROM swing_trader_scores
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-                ORDER BY count DESC
             """)
-            funnel = cur.fetchall()
-            return list_response([dict(f) for f in funnel])
+            scored_count = dict(cur.fetchone()).get('scored', 0) or 0
+
+            # Get high-quality candidates (SQS > 60)
+            cur.execute("""
+                SELECT COUNT(DISTINCT symbol) as high_quality
+                FROM swing_trader_scores
+                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                AND score >= 60
+            """)
+            high_quality_count = dict(cur.fetchone()).get('high_quality', 0) or 0
+
+            # Build funnel stages with rejection reasons
+            funnel = [
+                {
+                    'stage': 'All Signals Generated',
+                    'count': initial_count,
+                    'pct': 100,
+                    'rejection_reason': None,
+                    'rejection_count': 0,
+                    'rejection_pct': 0
+                }
+            ]
+
+            if initial_count > 0:
+                scored_rejection = initial_count - scored_count
+                scored_pct = round((scored_count / initial_count * 100), 2) if initial_count else 0
+
+                funnel.append({
+                    'stage': 'Passed Quality Filters',
+                    'count': scored_count,
+                    'pct': scored_pct,
+                    'rejection_reason': 'Failed SQS calculation or data validation',
+                    'rejection_count': scored_rejection,
+                    'rejection_pct': round((scored_rejection / initial_count * 100), 2) if initial_count else 0
+                })
+
+                if scored_count > 0:
+                    hq_rejection = scored_count - high_quality_count
+                    hq_pct = round((high_quality_count / scored_count * 100), 2) if scored_count else 0
+
+                    funnel.append({
+                        'stage': 'High-Quality Candidates (SQS ≥ 60)',
+                        'count': high_quality_count,
+                        'pct': hq_pct,
+                        'rejection_reason': 'Low signal quality score (SQS < 60)',
+                        'rejection_count': hq_rejection,
+                        'rejection_pct': round((hq_rejection / scored_count * 100), 2) if scored_count else 0
+                    })
+
+            return json_response(200, {
+                'funnel': funnel,
+                'summary': {
+                    'total_initial': initial_count,
+                    'total_passed': high_quality_count,
+                    'total_rejected': initial_count - high_quality_count,
+                    'pass_rate_pct': round((high_quality_count / initial_count * 100), 2) if initial_count else 0
+                }
+            })
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get rejection funnel'})
             return error_response(503, 'service_unavailable', 'Data pipeline loading')
@@ -1244,26 +1321,91 @@ def _get_markets(cur) -> Dict:
             return json_response(200, {'success': False, 'current': None, 'history': [], 'message': 'Failed to fetch markets data'})
 
 def _get_algo_evaluate(cur) -> Dict:
-        """Get latest signal evaluation summary from swing_trader_scores."""
+        """Get comprehensive signal evaluation with candidate analysis and constraints."""
         try:
+            # Signal candidate metrics
             cur.execute("""
                 SELECT
                     COUNT(DISTINCT symbol) AS candidates_screened,
                     COUNT(DISTINCT CASE WHEN score >= 60 THEN symbol END) AS candidates_passing,
+                    COUNT(DISTINCT CASE WHEN score >= 70 THEN symbol END) AS candidates_excellent,
+                    COUNT(DISTINCT CASE WHEN score >= 80 THEN symbol END) AS candidates_exceptional,
                     MAX(score) AS top_score,
-                    AVG(score) AS avg_score
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY score) AS median_score,
+                    AVG(score) AS avg_score,
+                    MIN(score) AS min_score
                 FROM swing_trader_scores
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            row = cur.fetchone()
-            if not row or not row['candidates_screened']:
-                return json_response(200, {'stage': 'no_data', 'candidates_screened': 0, 'candidates_passing': 0})
+            sig_row = cur.fetchone()
+            if not sig_row or not sig_row.get('candidates_screened'):
+                return json_response(200, {
+                    'stage': 'no_data',
+                    'candidates_screened': 0,
+                    'candidates_passing': 0,
+                    'constraints': {'max_positions': 12, 'current_positions': 0, 'available_slots': 12}
+                })
+
+            # Current portfolio positions and constraints
+            cur.execute("""
+                SELECT COUNT(*) as open_positions
+                FROM algo_trades
+                WHERE status = 'open'
+            """)
+            pos_row = cur.fetchone()
+            open_positions = pos_row['open_positions'] if pos_row else 0
+
+            max_positions = 12  # From steering doc
+            available_slots = max(0, max_positions - open_positions)
+
+            # Sector exposure
+            cur.execute("""
+                SELECT cp.sector, COUNT(DISTINCT at.symbol) as count
+                FROM algo_trades at
+                JOIN company_profile cp ON at.symbol = cp.ticker
+                WHERE at.status = 'open'
+                GROUP BY cp.sector
+                ORDER BY count DESC
+            """)
+            sector_exposure = [dict(r) for r in cur.fetchall()]
+
+            # Risk metrics
+            cur.execute("""
+                SELECT
+                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN daily_return_pct END), 0) as today_return_pct,
+                    COALESCE(MAX(CASE WHEN snapshot_date = CURRENT_DATE THEN unrealized_pnl_total END), 0) as unrealized_pnl
+                FROM algo_portfolio_snapshots
+            """)
+            risk_row = cur.fetchone()
+            today_return = risk_row.get('today_return_pct', 0) if risk_row else 0
+            unrealized_pnl = risk_row.get('unrealized_pnl', 0) if risk_row else 0
+
+            sig_dict = dict(sig_row)
             return json_response(200, {
                 'stage': 'evaluated',
-                'candidates_screened': row['candidates_screened'] or 0,
-                'candidates_passing': row['candidates_passing'] or 0,
-                'top_score': float(row['top_score'] or 0),
-                'avg_score': float(row['avg_score'] or 0),
+                'candidates': {
+                    'screened': sig_dict.get('candidates_screened', 0),
+                    'passing_sqs_60': sig_dict.get('candidates_passing', 0),
+                    'excellent_sqs_70': sig_dict.get('candidates_excellent', 0),
+                    'exceptional_sqs_80': sig_dict.get('candidates_exceptional', 0),
+                    'score_range': {
+                        'min': float(sig_dict.get('min_score', 0) or 0),
+                        'median': float(sig_dict.get('median_score', 0) or 0),
+                        'average': float(sig_dict.get('avg_score', 0) or 0),
+                        'max': float(sig_dict.get('top_score', 0) or 0),
+                    }
+                },
+                'constraints': {
+                    'max_positions': max_positions,
+                    'current_positions': open_positions,
+                    'available_slots': available_slots,
+                    'can_add_positions': available_slots > 0
+                },
+                'sector_exposure': sector_exposure,
+                'portfolio_health': {
+                    'today_return_pct': float(today_return or 0),
+                    'unrealized_pnl': float(unrealized_pnl or 0)
+                }
             })
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get algo evaluate'})
@@ -1281,30 +1423,83 @@ def _get_algo_evaluate(cur) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to evaluate algorithm')
 def _get_data_quality(cur) -> Dict:
-        """Get data quality summary from latest data_patrol_log run."""
+        """Get detailed data quality summary by table from latest data_patrol_log run."""
         try:
+            # Get patrol log entries from last 24 hours
             cur.execute("""
                 SELECT
-                    MAX(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) AS has_critical,
-                    COUNT(CASE WHEN severity = 'error' THEN 1 END) AS error_count,
-                    COUNT(CASE WHEN severity = 'warn' THEN 1 END) AS warn_count,
-                    MAX(created_at) AS last_check
+                    table_name,
+                    severity,
+                    message,
+                    data_detail,
+                    created_at,
+                    ROW_NUMBER() OVER (PARTITION BY table_name ORDER BY created_at DESC) as rn
                 FROM data_patrol_log
                 WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
             """)
-            row = cur.fetchone()
-            if not row or not row['last_check']:
-                return json_response(200, {'accuracy_check': 'no_data', 'last_check': None})
-            has_critical = row['has_critical'] or 0
-            error_count = row['error_count'] or 0
-            warn_count = row['warn_count'] or 0
-            accuracy = 'failed' if has_critical else ('warning' if error_count > 0 else 'passed')
+            patrol_rows = cur.fetchall()
+
+            if not patrol_rows:
+                return json_response(200, {
+                    'accuracy_check': 'no_data',
+                    'last_check': None,
+                    'tables': [],
+                    'summary': {'critical': 0, 'errors': 0, 'warnings': 0, 'healthy': 0}
+                })
+
+            # Organize by table, keeping latest status per table
+            tables_dict = {}
+            for row in patrol_rows:
+                row_dict = dict(row)
+                if row_dict.get('rn') == 1:  # Latest entry per table
+                    table_name = row_dict.get('table_name', 'unknown')
+                    tables_dict[table_name] = row_dict
+
+            # Get latest timestamp
+            latest_ts = max([r['created_at'] for r in patrol_rows]) if patrol_rows else None
+
+            # Compute summary
+            severity_counts = {'critical': 0, 'error': 0, 'warn': 0, 'healthy': 0}
+            table_statuses = []
+            for table_name, entry in tables_dict.items():
+                severity = entry.get('severity', 'healthy')
+                severity_counts[severity if severity in severity_counts else 'warn'] += 1
+                status_label = 'failed' if severity == 'critical' else 'warning' if severity in ('error', 'warn') else 'passed'
+
+                table_statuses.append({
+                    'table': table_name,
+                    'status': status_label,
+                    'severity': severity,
+                    'message': entry.get('message'),
+                    'detail': entry.get('data_detail'),
+                    'last_check': entry.get('created_at').isoformat() if entry.get('created_at') else None
+                })
+
+            # Determine overall accuracy
+            if severity_counts['critical'] > 0:
+                accuracy = 'failed'
+            elif severity_counts['error'] > 0:
+                accuracy = 'error'
+            elif severity_counts['warn'] > 0:
+                accuracy = 'warning'
+            else:
+                accuracy = 'passed'
+
+            # Sort tables by status severity
+            status_order = {'failed': 0, 'error': 1, 'warning': 2, 'passed': 3}
+            table_statuses.sort(key=lambda x: status_order.get(x['status'], 4))
+
             return json_response(200, {
                 'accuracy_check': accuracy,
-                'critical_count': has_critical,
-                'error_count': error_count,
-                'warn_count': warn_count,
-                'last_check': row['last_check'].isoformat() if row['last_check'] else None,
+                'last_check': latest_ts.isoformat() if latest_ts else None,
+                'tables': table_statuses,
+                'summary': {
+                    'critical': severity_counts['critical'],
+                    'errors': severity_counts['error'],
+                    'warnings': severity_counts['warn'],
+                    'healthy': severity_counts['healthy'],
+                    'total_tables_checked': len(tables_dict)
+                }
             })
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found: {e}', extra={'operation': 'get data quality'})
@@ -1322,28 +1517,75 @@ def _get_data_quality(cur) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to check data quality')
 def _get_exposure_policy(cur) -> Dict:
-        """Get latest market exposure from market_exposure_daily."""
+        """Get detailed market exposure policy with calculation factors."""
         try:
             cur.execute("""
-                SELECT date, exposure_pct, regime, halt_reasons
+                SELECT date, exposure_pct, regime, factors, halt_reasons, distribution_days
                 FROM market_exposure_daily
                 ORDER BY date DESC
                 LIMIT 1
             """)
             row = cur.fetchone()
             if not row:
-                return json_response(200, {'current_exposure_pct': None, 'active_tier': None, 'all_tiers': list(_TIER_CONFIG.keys())})
+                return json_response(200, {
+                    'current_exposure_pct': None,
+                    'active_tier': None,
+                    'all_tiers': [{'name': k, **v} for k, v in _TIER_CONFIG.items()],
+                    'regime_factors': {}
+                })
+
             row = dict(row)
             tier_key = str(row.get('regime') or '').lower()
             tier_conf = _TIER_CONFIG.get(tier_key, {})
             active_tier = {'name': tier_key, **tier_conf}
             active_tier['halt'] = bool(row.get('halt_reasons')) or tier_conf.get('halt', False)
+
+            # Parse factors from JSON if available
+            factors = {}
+            if row.get('factors'):
+                try:
+                    if isinstance(row['factors'], str):
+                        factors = json.loads(row['factors'])
+                    else:
+                        factors = row['factors']
+                except:
+                    factors = {}
+
+            # Get latest market health for additional context
+            market_health = {}
+            try:
+                cur.execute("""
+                    SELECT
+                        market_stage, market_trend, vix_level,
+                        advance_decline_ratio, new_highs_count, new_lows_count,
+                        distribution_days_4w, breadth_momentum_10d
+                    FROM market_health_daily
+                    ORDER BY date DESC
+                    LIMIT 1
+                """)
+                mh_row = cur.fetchone()
+                if mh_row:
+                    market_health = dict(mh_row)
+            except:
+                pass
+
             return json_response(200, {
-                'current_exposure_pct': float(row['exposure_pct'] or 0),
+                'current_exposure_pct': float(row.get('exposure_pct') or 0),
                 'exposure_tier': tier_key,
                 'is_entry_allowed': not active_tier['halt'],
                 'active_tier': active_tier,
                 'all_tiers': [{'name': k, **v} for k, v in _TIER_CONFIG.items()],
+                'regime_factors': {
+                    'sp500_stage': factors.get('stage_number'),
+                    'advance_decline_ratio': factors.get('ad_ratio') or market_health.get('advance_decline_ratio'),
+                    'vix_level': factors.get('vix') or market_health.get('vix_level'),
+                    'breadth_momentum': factors.get('breadth_momentum') or market_health.get('breadth_momentum_10d'),
+                    'distribution_days': row.get('distribution_days') or market_health.get('distribution_days_4w'),
+                    'market_stage': market_health.get('market_stage'),
+                    'market_trend': market_health.get('market_trend'),
+                    'mcclellan_oscillator': factors.get('mcclellan'),
+                },
+                'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
         except psycopg2.errors.UndefinedTable as e:

@@ -187,70 +187,167 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     return handle_db_error(e, logger, 'get distribution days')
             elif path == '/api/market/seasonality':
                 # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
-                cur.execute("""
-                    SELECT month, month_name, avg_return, best_return, worst_return,
-                           winning_years, losing_years, years_counted
-                    FROM seasonality_monthly_stats
-                    ORDER BY month
-                """)
-                monthly = cur.fetchall()
-                cur.execute("""
-                    SELECT day, day_num, avg_return, win_rate, days_counted
-                    FROM seasonality_day_of_week
-                    ORDER BY day_num
-                """)
-                dow = cur.fetchall()
+                monthly_data = []
+                best_month = None
+                worst_month = None
+                try:
+                    cur.execute("""
+                        SELECT month, month_name, avg_return, best_return, worst_return,
+                               winning_years, losing_years, years_counted
+                        FROM seasonality_monthly_stats
+                        ORDER BY month
+                    """)
+                    monthly_rows = cur.fetchall()
+                    for r in monthly_rows:
+                        r_dict = dict(r)
+                        monthly_data.append(r_dict)
+                        if not best_month or r_dict.get('avg_return', 0) > best_month.get('avg_return', 0):
+                            best_month = r_dict
+                        if not worst_month or r_dict.get('avg_return', 0) < worst_month.get('avg_return', 0):
+                            worst_month = r_dict
+                except Exception:
+                    monthly_data = []
+
+                dow_data = []
+                best_dow = None
+                worst_dow = None
+                try:
+                    cur.execute("""
+                        SELECT day, day_num, avg_return, win_rate, days_counted
+                        FROM seasonality_day_of_week
+                        ORDER BY day_num
+                    """)
+                    dow_rows = cur.fetchall()
+                    for r in dow_rows:
+                        r_dict = dict(r)
+                        dow_data.append(r_dict)
+                        if not best_dow or r_dict.get('avg_return', 0) > best_dow.get('avg_return', 0):
+                            best_dow = r_dict
+                        if not worst_dow or r_dict.get('avg_return', 0) < worst_dow.get('avg_return', 0):
+                            worst_dow = r_dict
+                except Exception:
+                    dow_data = []
+
                 return json_response(200, {
-                    'monthly': [dict(r) for r in monthly],
-                    'day_of_week': [dict(r) for r in dow],
+                    'monthly': monthly_data,
+                    'day_of_week': dow_data,
+                    'summary': {
+                        'best_month': {
+                            'name': best_month.get('month_name') if best_month else None,
+                            'avg_return_pct': float(best_month.get('avg_return', 0) or 0) if best_month else None,
+                            'win_rate_pct': round((float(best_month.get('winning_years', 0) or 0) / float(best_month.get('years_counted', 1) or 1) * 100), 1) if best_month else None
+                        } if best_month else None,
+                        'worst_month': {
+                            'name': worst_month.get('month_name') if worst_month else None,
+                            'avg_return_pct': float(worst_month.get('avg_return', 0) or 0) if worst_month else None,
+                            'win_rate_pct': round((float(worst_month.get('winning_years', 0) or 0) / float(worst_month.get('years_counted', 1) or 1) * 100), 1) if worst_month else None
+                        } if worst_month else None,
+                        'best_day': {
+                            'name': best_dow.get('day') if best_dow else None,
+                            'avg_return_pct': float(best_dow.get('avg_return', 0) or 0) if best_dow else None,
+                            'win_rate_pct': float(best_dow.get('win_rate', 0) or 0) if best_dow else None
+                        } if best_dow else None,
+                        'worst_day': {
+                            'name': worst_dow.get('day') if worst_dow else None,
+                            'avg_return_pct': float(worst_dow.get('avg_return', 0) or 0) if worst_dow else None,
+                            'win_rate_pct': float(worst_dow.get('win_rate', 0) or 0) if worst_dow else None
+                        } if worst_dow else None
+                    },
+                    'insights': {
+                        'sell_in_may_effect': 'May returns' if monthly_data else None,
+                        'monday_effect': 'Historically, Mondays trend lower' if dow_data else None
+                    }
                 })
             elif path == '/api/market/sentiment':
                 range_days = _parse_range_param(params) if params else 30
+                sentiment_data = {}
+
                 # AAII investor sentiment
                 try:
                     cur.execute("""
                         SELECT date, bullish, neutral, bearish
                         FROM aaii_sentiment
                         WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                        ORDER BY date DESC
+                        ORDER BY date ASC
                     """, (range_days,))
                     aaii_rows = [dict(r) for r in cur.fetchall()]
-                except Exception:
-                    aaii_rows = []
+                    aaii_current = aaii_rows[-1] if aaii_rows else None
+
+                    # Compute trend: is bullish rising or falling?
+                    aaii_trend = 'neutral'
+                    if len(aaii_rows) >= 2:
+                        prev = float(aaii_rows[-2].get('bullish', 0) or 0)
+                        curr = float(aaii_rows[-1].get('bullish', 0) or 0)
+                        aaii_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
+
+                    sentiment_data['aaii'] = {
+                        'current': aaii_current,
+                        'history': aaii_rows,
+                        'trend': aaii_trend,
+                        'bullish_pct': float(aaii_current['bullish'] or 0) if aaii_current else None
+                    }
+                except Exception as e:
+                    sentiment_data['aaii'] = {'current': None, 'history': [], 'trend': None}
+
                 # NAAIM manager exposure
                 try:
                     cur.execute("""
                         SELECT date, naaim_number_mean, bullish, bearish
                         FROM naaim
-                        ORDER BY date DESC
-                        LIMIT 4
-                    """)
-                    naaim_rows = cur.fetchall()
-                    naaim_current = float(dict(naaim_rows[0])['naaim_number_mean']) if naaim_rows else None
+                        WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                        ORDER BY date ASC
+                        LIMIT 52
+                    """, (range_days,))
+                    naaim_rows = [dict(r) for r in cur.fetchall()]
+                    naaim_current = naaim_rows[-1] if naaim_rows else None
+
+                    # Compute trend
+                    naaim_trend = 'neutral'
+                    if len(naaim_rows) >= 2:
+                        prev = float(naaim_rows[-2].get('naaim_number_mean', 0) or 0)
+                        curr = float(naaim_rows[-1].get('naaim_number_mean', 0) or 0)
+                        naaim_trend = 'rising' if curr > prev * 1.02 else 'falling' if curr < prev * 0.98 else 'neutral'
+
+                    sentiment_data['naaim'] = {
+                        'current': float(naaim_current['naaim_number_mean'] or 0) if naaim_current else None,
+                        'history': naaim_rows,
+                        'trend': naaim_trend,
+                        'bullish_pct': float(naaim_current['bullish'] or 0) if naaim_current else None,
+                        'bearish_pct': float(naaim_current['bearish'] or 0) if naaim_current else None
+                    }
                 except Exception:
-                    naaim_current = None
+                    sentiment_data['naaim'] = {'current': None, 'history': [], 'trend': None}
+
                 # Fear & Greed
                 try:
                     cur.execute("""
                         SELECT date, fear_greed_value as value, fear_greed_label as label
                         FROM fear_greed_index
                         WHERE date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                        ORDER BY date DESC
+                        ORDER BY date ASC
                     """, (range_days,))
                     fg_rows = [dict(r) for r in cur.fetchall()]
-                    fg_current = fg_rows[0] if fg_rows else None
-                except Exception:
-                    fg_rows = []
-                    fg_current = None
-                return json_response(200, {
-                    'aaii': aaii_rows,
-                    'naaim': {'exposure': naaim_current, 'current': naaim_current},
-                    'fearGreed': {
-                        'value': fg_current.get('value') if fg_current else None,
-                        'label': fg_current.get('label') if fg_current else None,
+                    fg_current = fg_rows[-1] if fg_rows else None
+
+                    # Compute trend
+                    fg_trend = 'neutral'
+                    if len(fg_rows) >= 2:
+                        prev = float(fg_rows[-2].get('value', 0) or 0)
+                        curr = float(fg_rows[-1].get('value', 0) or 0)
+                        fg_trend = 'rising_fear' if curr < prev * 0.98 else 'rising_greed' if curr > prev * 1.02 else 'neutral'
+
+                    sentiment_data['fearGreed'] = {
+                        'current': {
+                            'value': float(fg_current['value'] or 0) if fg_current else None,
+                            'label': fg_current.get('label') if fg_current else None
+                        },
                         'history': fg_rows,
-                    },
-                })
+                        'trend': fg_trend
+                    }
+                except Exception:
+                    sentiment_data['fearGreed'] = {'current': {'value': None, 'label': None}, 'history': [], 'trend': None}
+
+                return json_response(200, sentiment_data)
             elif path == '/api/market/fear-greed':
                 range_days = _parse_range_param(params) if params else 30
                 return _get_fear_greed_history(cur, range_days)
@@ -258,16 +355,67 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 cur.execute("""
                     SELECT date, naaim_number_mean, bullish, bearish
                     FROM naaim
-                    ORDER BY date DESC
+                    ORDER BY date ASC
                     LIMIT 52
                 """)
                 rows = cur.fetchall()
-                if rows:
-                    current = dict(rows[0]).get('naaim_number_mean')
-                    history = [{'date': str(dict(r)['date']), 'naaim_number_mean': dict(r)['naaim_number_mean']} for r in rows]
-                    return json_response(200, {'current': current, 'history': history})
+                if not rows:
+                    return json_response(200, {
+                        'current': None,
+                        'history': [],
+                        'moving_averages': {},
+                        'signals': {'extreme_bullish': False, 'extreme_bearish': False}
+                    })
+
+                history = []
+                for r in rows:
+                    r_dict = dict(r)
+                    history.append({
+                        'date': str(r_dict['date']),
+                        'value': float(r_dict['naaim_number_mean'] or 0),
+                        'bullish_pct': float(r_dict.get('bullish', 0) or 0),
+                        'bearish_pct': float(r_dict.get('bearish', 0) or 0)
+                    })
+
+                if history:
+                    current = history[-1]
+                    values = [h['value'] for h in history]
+
+                    # Compute moving averages
+                    ma_10 = sum(values[-10:]) / min(10, len(values)) if len(values) >= 10 else None
+                    ma_20 = sum(values[-20:]) / min(20, len(values)) if len(values) >= 20 else None
+                    ma_50 = sum(values[-50:]) / min(50, len(values)) if len(values) >= 50 else None
+
+                    # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
+                    curr_val = current['value'] or 0
+                    signals = {
+                        'extreme_bullish': curr_val > 80,
+                        'extreme_bearish': curr_val < 20,
+                        'overbought': curr_val > 70,
+                        'oversold': curr_val < 30,
+                        'above_50': curr_val > 50,
+                        'below_50': curr_val <= 50
+                    }
+
+                    return json_response(200, {
+                        'current': current['value'],
+                        'bullish_pct': current['bullish_pct'],
+                        'bearish_pct': current['bearish_pct'],
+                        'history': history,
+                        'moving_averages': {
+                            'ma_10': round(ma_10, 2) if ma_10 else None,
+                            'ma_20': round(ma_20, 2) if ma_20 else None,
+                            'ma_50': round(ma_50, 2) if ma_50 else None
+                        },
+                        'signals': signals,
+                        'interpretation': {
+                            'meaning': 'Manager equity allocation %; 0=all cash, 100=fully invested',
+                            'current_stance': 'bullish' if curr_val > 50 else 'bearish',
+                            'extremity': 'extreme_bullish' if curr_val > 80 else 'extreme_bearish' if curr_val < 20 else 'normal'
+                        }
+                    })
                 else:
-                    return json_response(200, {'current': None, 'history': []})
+                    return json_response(200, {'current': None, 'history': [], 'signals': {}})
             elif path == '/api/market/latest':
                 return _get_market_latest(cur)
             elif path == '/api/market/cap-distribution':
@@ -279,17 +427,81 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'handle market')
 def _get_fear_greed_history(cur, days: int = 30) -> Dict:
-        """Get fear/greed index history."""
+        """Get fear/greed index history with signals."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             cur.execute("""
                 SELECT date, fear_greed_value as value, fear_greed_label as label
                 FROM fear_greed_index
                 WHERE date >= %s
-                ORDER BY date DESC
+                ORDER BY date ASC
             """, (cutoff_date,))
-            history = cur.fetchall()
-            return list_response([dict(h) for h in history] if history else [])
+            history_rows = cur.fetchall()
+
+            if not history_rows:
+                return json_response(200, {
+                    'current': None,
+                    'history': [],
+                    'statistics': {'min': None, 'max': None, 'avg': None},
+                    'signals': {'extreme_fear': False, 'extreme_greed': False}
+                })
+
+            history = [dict(h) for h in history_rows]
+
+            if history:
+                current = history[-1]
+                values = [h['value'] for h in history]
+
+                # Compute stats
+                min_val = min(values)
+                max_val = max(values)
+                avg_val = sum(values) / len(values) if values else None
+                curr_val = current['value'] or 0
+
+                # Identify extremes and signals
+                signals = {
+                    'extreme_fear': curr_val < 25,
+                    'extreme_greed': curr_val > 75,
+                    'moderate_fear': 25 <= curr_val < 45,
+                    'moderate_greed': 55 < curr_val <= 75,
+                    'neutral': 45 <= curr_val <= 55
+                }
+
+                return json_response(200, {
+                    'current': {
+                        'value': float(curr_val),
+                        'label': current.get('label'),
+                        'date': str(current['date']) if current.get('date') else None
+                    },
+                    'history': [
+                        {
+                            'date': str(h['date']) if h.get('date') else None,
+                            'value': float(h['value'] or 0),
+                            'label': h.get('label')
+                        }
+                        for h in history
+                    ],
+                    'statistics': {
+                        'min': float(min_val),
+                        'max': float(max_val),
+                        'avg': round(float(avg_val), 2) if avg_val else None,
+                        'current': float(curr_val),
+                        'range_days': days
+                    },
+                    'signals': signals,
+                    'interpretation': {
+                        'meaning': 'Market sentiment gauge; 0=Fear, 50=Neutral, 100=Greed',
+                        'current_stance': 'fear' if curr_val < 50 else 'greed',
+                        'extremity': 'extreme_fear' if curr_val < 25 else 'extreme_greed' if curr_val > 75 else 'normal'
+                    }
+                })
+            else:
+                return json_response(200, {
+                    'current': None,
+                    'history': [],
+                    'statistics': {'min': None, 'max': None, 'avg': None},
+                    'signals': {}
+                })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'get fear greed history')
