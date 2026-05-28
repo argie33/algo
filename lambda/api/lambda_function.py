@@ -654,6 +654,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
 
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        # Set query timeout to prevent long-running queries from blocking API responses
+        cur.execute("SET statement_timeout TO '10s'")
 
         params = parse_query_params(event)
         body = None

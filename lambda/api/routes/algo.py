@@ -56,7 +56,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return _get_algo_status(cur)
         elif path == '/api/algo/trades':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=100)
             return _get_algo_trades(cur, limit)
         elif path == '/api/algo/positions':
             return _get_algo_positions(cur)
@@ -74,7 +74,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return _get_notifications(cur, params)
         elif path == '/api/algo/patrol-log':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=100)
             offset_str = params.get('offset', [None])[0] if params else None
             offset = safe_offset(offset_str)
             return _get_patrol_log(cur, limit, offset)
@@ -86,7 +86,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return _get_sector_breadth(cur)
         elif path == '/api/algo/swing-scores':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=100)
             min_score_str = params.get('min_score', [None])[0] if params else None
             try:
                 min_score = float(min_score_str) if min_score_str else None
@@ -116,7 +116,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return _get_algo_config_key(cur, key)
         elif path == '/api/algo/audit-log':
             limit_str = params.get('limit', [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=100)
             offset_str = params.get('offset', [None])[0] if params else None
             offset = safe_offset(offset_str)
             action_type = params.get('action_type', [None])[0] if params else None
@@ -639,7 +639,7 @@ def _get_notifications(cur, params: Dict = None) -> Dict:
             severity = params.get('severity', [None])[0] if params.get('severity') else None
             unread = params.get('unread', [None])[0] if params.get('unread') else None
             limit_str = params.get('limit', [None])[0] if params.get('limit') else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str, max_val=50000, default=100)
 
             where_clauses = []
             where_params = []
