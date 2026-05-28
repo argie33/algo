@@ -278,8 +278,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 5: Generate daily signals ──────────────────────────
-      # TODO: Implement signals_weekly, signals_monthly, signals_etf_* loaders
-      # (these are planned but not yet implemented; using daily signals only for now)
+      # NOTE: signals_weekly, signals_monthly, signals_etf_* loaders are planned but not yet implemented
+      # Current scope: daily signals only. Upgrade path: add weekly/monthly variants if needed.
       SignalGeneration = {
         Type            = "Task"
         Resource        = "arn:aws:states:::ecs:runTask.sync"

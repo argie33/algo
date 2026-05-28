@@ -397,7 +397,7 @@ class DataPatrol:
                          {'count': len(extreme),
                           'samples': [{'symbol': r[0], 'pct_change': float(r[4])}
                                       for r in extreme[:5]]})
-            elif len(extreme) > 0:
+            elif extreme:
                 self.log('price_sanity', INFO, 'price_daily',
                          f'{len(extreme)} extreme moves (likely real events)',
                          {'samples': [{'symbol': r[0], 'pct_change': float(r[4])}

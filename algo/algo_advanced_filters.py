@@ -692,26 +692,3 @@ class AdvancedFilters:
         return (next_q_date - signal_d).days
 
 
-if __name__ == "__main__":
-    from algo.algo_config import get_config
-    f = AdvancedFilters(get_config())
-    ctx = f.load_market_context(_date(2026, 4, 24))
-    logger.info("Strong sectors: %s", ctx['strong_sectors'])
-    for sym, sec, ind in [
-        ('LRCX', 'Technology', 'Semiconductor Equipment & Materials'),
-        ('AROC', 'Energy', 'Oil & Gas Equipment & Services'),
-        ('NATR', 'Consumer Defensive', 'Packaged Foods'),
-        ('NBHC', 'Financial Services', 'Banks - Regional'),
-    ]:
-        f.cur.execute(
-            "SELECT entry_price FROM buy_sell_daily WHERE symbol=%s AND date='2026-04-24' AND signal_type='BUY'",
-            (sym,),
-        )
-        row = f.cur.fetchone()
-        if not row:
-            continue
-        entry_price = float(row[0])
-        result = f.evaluate_candidate(sym, _date(2026, 4, 24), entry_price, sec, ind)
-        logger.info(f"{sym} ({sec}/{ind}): pass={result['pass']} — {result['reason']}, composite={result['composite_score']:.1f}, subscores={result['subscores']}, components={result['components']}")
-    f.disconnect()
-

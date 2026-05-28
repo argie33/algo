@@ -574,20 +574,24 @@ class DailyReconciliation:
                     # Pearson correlation on ranks (= Spearman IC).
                     # Use n-1 denominator for both covariance and stdev (sample statistics).
                     # Using population cov (÷n) with sample stdev (÷n-1) produces a slightly-off IC.
-                    mean_sr = statistics.mean(rank_scores)
-                    mean_rr = statistics.mean(rank_returns)
                     n = len(rank_scores)
-                    cov = sum((rank_scores[i] - mean_sr) * (rank_returns[i] - mean_rr) for i in range(n)) / (n - 1)
-                    std_sr = statistics.stdev(rank_scores) if n > 1 else 1
-                    std_rr = statistics.stdev(rank_returns) if len(rank_returns) > 1 else 1
-                    ic = cov / (std_sr * std_rr) if (std_sr * std_rr) > 0 else 0
+                    if n < 2:
+                        # Not enough data points for IC calculation
+                        ic_result = {'valid': False, 'ic': 0, 'trade_count': len(trades), 'reason': 'Insufficient trades for IC'}
+                    else:
+                        mean_sr = statistics.mean(rank_scores)
+                        mean_rr = statistics.mean(rank_returns)
+                        cov = sum((rank_scores[i] - mean_sr) * (rank_returns[i] - mean_rr) for i in range(n)) / (n - 1)
+                        std_sr = statistics.stdev(rank_scores) if n > 1 else 1
+                        std_rr = statistics.stdev(rank_returns) if len(rank_returns) > 1 else 1
+                        ic = cov / (std_sr * std_rr) if (std_sr * std_rr) > 0 else 0
 
-                    ic_result = {
-                        'valid': True,
-                        'ic': round(ic, 4),
-                        'trade_count': len(trades),
-                        'alert': 'IC < 0.05 (signal quality degraded)' if ic < 0.05 else None
-                    }
+                        ic_result = {
+                            'valid': True,
+                            'ic': round(ic, 4),
+                            'trade_count': len(trades),
+                            'alert': 'IC < 0.05 (signal quality degraded)' if ic < 0.05 else None
+                        }
                 except Exception as e:
                     logger.warning(f"IC computation failed: {e}")
 
