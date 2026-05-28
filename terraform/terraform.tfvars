@@ -60,4 +60,4 @@ enable_execution_monitor          = true # Deploy execution monitor Lambda
 enable_execution_monitor_schedule = true # Run every 2 hours during trading hours
 
 # Developer IAM credential rotation - update to trigger key recreation
-developer_key_rotation_date = "2026-05-28"
+developer_key_rotation_date = "2026-05-29"
