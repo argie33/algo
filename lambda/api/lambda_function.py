@@ -68,9 +68,14 @@ def validate_environment():
 
     # FIXED Issue #15: Validate DB_HOST points to proxy (now required, not optional)
     db_host = os.getenv('DB_HOST', '')
-    if 'rds.amazonaws.com' in db_host and 'rds-proxy' not in db_host.lower():
-        logger.error(f"FATAL: DB_HOST points to direct RDS ({db_host}), not proxy. Connection pooling REQUIRED for production. Set RDS_PROXY_ENDPOINT in Terraform.")
-        errors.append(f"DB_HOST: Must point to RDS Proxy (contains 'rds-proxy'), not direct RDS endpoint")
+    # RDS Proxy endpoints contain both 'proxy' and 'rds.amazonaws.com'
+    # Direct RDS endpoints have 'db-' and 'rds.amazonaws.com' but NOT 'proxy'
+    is_likely_direct_rds = ('db-' in db_host and 'rds.amazonaws.com' in db_host and 'proxy' not in db_host.lower())
+    is_localhost = db_host.startswith('localhost') or db_host.startswith('127.')
+
+    if is_likely_direct_rds and not is_localhost:
+        logger.error(f"FATAL: DB_HOST appears to be direct RDS ({db_host}), not proxy. Connection pooling REQUIRED. Use RDS Proxy endpoint.")
+        errors.append(f"DB_HOST: Must point to RDS Proxy, not direct RDS endpoint")
 
     return len(errors) == 0, errors
 
