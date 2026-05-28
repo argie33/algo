@@ -36,9 +36,7 @@ class DailyReconciliation:
             credential_manager = get_credential_manager()
             creds = credential_manager.get_alpaca_credentials()
             if creds.get("key") and creds.get("secret"):
-                base_url = os.getenv('APCA_API_BASE_URL')
-                if not base_url:
-                    raise ValueError("APCA_API_BASE_URL environment variable is required (e.g., https://api.alpaca.markets or https://paper-api.alpaca.markets)")
+                base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
                 self.trading_client = REST(
                     key_id=creds["key"],
                     secret_key=creds["secret"],

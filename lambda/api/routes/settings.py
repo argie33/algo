@@ -40,7 +40,11 @@ def _get_settings(cur, params: Dict) -> Dict:
             """, (user_id,))
             row = cur.fetchone()
             if row:
-                stored = json.loads(row['settings_json'])
+                try:
+                    stored = json.loads(row['settings_json'])
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f'Failed to parse user settings: {e}')
+                    stored = {}
                 merged = {**_DEFAULTS, **stored}
                 return json_response(200, {'data': merged})
         return json_response(200, {'data': dict(_DEFAULTS)})

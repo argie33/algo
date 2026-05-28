@@ -120,6 +120,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             offset_str = params.get('offset', [None])[0] if params else None
             offset = safe_offset(offset_str)
             action_type = params.get('action_type', [None])[0] if params else None
+            # Validate action_type parameter
+            if action_type:
+                VALID_ACTION_TYPES = {'entry', 'exit', 'alert', 'halt', 'reconciliation', 'error',
+                                      'phase_1_data_freshness', 'phase_2_circuit_breakers', 'phase_3_position_monitor',
+                                      'phase_4_exit_execution', 'phase_5_signal_generation', 'phase_6_entry_execution',
+                                      'phase_7_reconciliation', 'halt_flag_detected'}
+                if action_type not in VALID_ACTION_TYPES:
+                    return error_response(400, 'bad_request', f'Invalid action_type: {action_type}')
             return _get_algo_audit_log(cur, limit, offset, action_type)
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')

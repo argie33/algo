@@ -2868,3 +2868,91 @@ CREATE INDEX IF NOT EXISTS idx_exit_rules_created_at
     ON algo_exit_rules_distribution(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_exit_rules_exit_rule
     ON algo_exit_rules_distribution(exit_rule, created_at DESC);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- FOREIGN KEY CONSTRAINTS FOR DATA INTEGRITY
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Add foreign key: algo_trades.symbol → stock_symbols.symbol
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_algo_trades_symbol' 
+        AND table_name = 'algo_trades'
+    ) THEN
+        ALTER TABLE algo_trades
+        ADD CONSTRAINT fk_algo_trades_symbol
+        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- Add foreign key: algo_positions.symbol → stock_symbols.symbol
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_algo_positions_symbol' 
+        AND table_name = 'algo_positions'
+    ) THEN
+        ALTER TABLE algo_positions
+        ADD CONSTRAINT fk_algo_positions_symbol
+        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- Add foreign key: buy_sell_daily.symbol → stock_symbols.symbol
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_buy_sell_daily_symbol' 
+        AND table_name = 'buy_sell_daily'
+    ) THEN
+        ALTER TABLE buy_sell_daily
+        ADD CONSTRAINT fk_buy_sell_daily_symbol
+        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- Add foreign key: technical_data_daily.symbol → stock_symbols.symbol
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_technical_data_daily_symbol' 
+        AND table_name = 'technical_data_daily'
+    ) THEN
+        ALTER TABLE technical_data_daily
+        ADD CONSTRAINT fk_technical_data_daily_symbol
+        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- Add foreign key: price_daily.symbol → stock_symbols.symbol
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_price_daily_symbol' 
+        AND table_name = 'price_daily'
+    ) THEN
+        ALTER TABLE price_daily
+        ADD CONSTRAINT fk_price_daily_symbol
+        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- Add foreign key: earnings_estimates.symbol → stock_symbols.symbol
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_earnings_estimates_symbol' 
+        AND table_name = 'earnings_estimates'
+    ) THEN
+        ALTER TABLE earnings_estimates
+        ADD CONSTRAINT fk_earnings_estimates_symbol
+        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;

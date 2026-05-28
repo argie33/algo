@@ -22,18 +22,22 @@ def get_credentials():
     """Get DB credentials from Secrets Manager or env vars."""
     secret_arn = os.environ.get('DB_SECRET_ARN')
     if secret_arn:
-        client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-        response = client.get_secret_value(SecretId=secret_arn)
-        secret = json.loads(response['SecretString'])
-        raw_host = os.environ.get('DB_ENDPOINT') or secret.get('host', '')
-        host = raw_host.split(':')[0] if ':' in raw_host else raw_host
-        return {
-            'host': host,
-            'port': int(secret.get('port', DEFAULT_DB_PORT)),
-            'database': os.environ.get('DB_NAME') or secret.get('dbname', 'stocks'),
-            'user': secret.get('username'),
-            'password': secret.get('password'),
-        }
+        try:
+            client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+            response = client.get_secret_value(SecretId=secret_arn)
+            secret = json.loads(response['SecretString'])
+            raw_host = os.environ.get('DB_ENDPOINT') or secret.get('host', '')
+            host = raw_host.split(':')[0] if ':' in raw_host else raw_host
+            return {
+                'host': host,
+                'port': int(secret.get('port', DEFAULT_DB_PORT)),
+                'database': os.environ.get('DB_NAME') or secret.get('dbname', 'stocks'),
+                'user': secret.get('username'),
+                'password': secret.get('password'),
+            }
+        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+            logger.error(f'Failed to parse secrets: {e}')
+            # Fall through to env vars
 
     return {
         'host': os.environ.get('DB_HOST'),

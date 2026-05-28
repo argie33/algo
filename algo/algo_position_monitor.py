@@ -43,19 +43,39 @@ class PositionMonitor:
         self.cur = None
 
     def connect(self):
+        """Get connection from pool with guaranteed cleanup via context manager."""
         pool = get_db_pool()
         self.conn = pool.getconn()
-        self.cur = self.conn.cursor()
-        self._pool = pool
+        try:
+            self.cur = self.conn.cursor()
+            self._pool = pool
+        except Exception:
+            # If cursor creation fails, return connection to pool immediately
+            pool.putconn(self.conn)
+            raise
 
     def disconnect(self):
+        """Return connection to pool safely."""
         if self.cur:
-            self.cur.close()
+            try:
+                self.cur.close()
+            except Exception as e:
+                logger.debug(f"Failed to close cursor: {e}")
         if self.conn:
             if hasattr(self, '_pool'):
-                self._pool.putconn(self.conn)
+                try:
+                    self._pool.putconn(self.conn)
+                except Exception as e:
+                    logger.debug(f"Failed to return connection to pool: {e}")
+                    try:
+                        self.conn.close()
+                    except Exception:
+                        pass
             else:
-                self.conn.close()
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
         self.cur = self.conn = None
 
     def check_stale_orders(self, current_date=None):
@@ -67,8 +87,8 @@ class PositionMonitor:
         if not current_date:
             current_date = _date.today()
 
-        self.connect()
         try:
+            self.connect()
             self.cur.execute("""
                 SELECT trade_id, symbol, entry_price, entry_quantity, created_at
                 FROM algo_trades
@@ -119,11 +139,10 @@ class PositionMonitor:
 
         # Track whether we created the connection for this call
         created_connection = False
-        if self.cur is None:
-            self.connect()
-            created_connection = True
-
         try:
+            if self.cur is None:
+                self.connect()
+                created_connection = True
             self.cur.execute("""
                 SELECT COALESCE(cp.sector, 'Unknown') as sector, COUNT(DISTINCT ap.symbol) as position_count
                 FROM algo_positions ap
@@ -152,9 +171,9 @@ class PositionMonitor:
         if not current_date:
             current_date = _date.today()
 
-        self.connect()
         recs = []
         try:
+            self.connect()
             conc = self.check_sector_concentration(current_date)
             if conc['status'] == 'HIGH_CONCENTRATION':
                 logger.info(f"  [WARNING]  Portfolio concentration risk detected")

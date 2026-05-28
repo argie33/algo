@@ -30,10 +30,7 @@ class MarketEventHandler:
 
     def __init__(self, config):
         self.config = config
-        self.alpaca_base_url = os.getenv('APCA_API_BASE_URL')
-        if not self.alpaca_base_url:
-            logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
-            self.alpaca_base_url = 'https://paper-api.alpaca.markets'
+        self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         try:
             cm = get_credential_manager()
             self.alpaca_key = cm.get_alpaca_credentials()["key"]
