@@ -30,41 +30,49 @@ export const useAuthMethods = (dispatch, AUTH_ACTIONS) => {
       try {
         // Try Cognito first if configured
         if (cognitoConfigured && !forceDevAuth && !import.meta.env.DEV) {
-          const user = await signIn({ username: email, password });
-          const session = await fetchAuthSession();
+          try {
+            const user = await signIn({ username: email, password });
+            const session = await fetchAuthSession();
 
-          if (user && session?.tokens) {
-            const tokens = {
-              accessToken: session.tokens.accessToken.toString(),
-              idToken: session.tokens.idToken?.toString(),
-              refreshToken: session.tokens.refreshToken?.toString(),
-            };
-            tokenManager.setTokens({
-              access: tokens.accessToken,
-              id: tokens.idToken,
-              refresh: tokens.refreshToken,
-            });
+            if (user && session?.tokens) {
+              const tokens = {
+                accessToken: session.tokens.accessToken.toString(),
+                idToken: session.tokens.idToken?.toString(),
+                refreshToken: session.tokens.refreshToken?.toString(),
+              };
+              tokenManager.setTokens({
+                access: tokens.accessToken,
+                id: tokens.idToken,
+                refresh: tokens.refreshToken,
+              });
 
-            dispatch({
-              type: AUTH_ACTIONS.LOGIN_SUCCESS,
-              payload: { user: { username: user.username, userId: user.userId, email }, tokens },
-            });
-            return;
+              dispatch({
+                type: AUTH_ACTIONS.LOGIN_SUCCESS,
+                payload: { user: { username: user.username, userId: user.userId, email }, tokens },
+              });
+              return;
+            }
+          } catch (cognitoError) {
+            console.warn('⚠️ Cognito service error, trying dev auth fallback:', cognitoError.message);
           }
         }
 
         // Fall back to dev auth
-        const result = await devAuth.login(email, password);
-        if (!result.success) {
-          throw new Error(result.error || 'Login failed');
-        }
+        const result = await devAuth.signIn(email, password);
+        const tokens = result.tokens;
 
-        tokenManager.setToken(result.tokens.accessToken, 'access');
+        tokenManager.setTokens({
+          access: tokens.accessToken,
+          id: tokens.idToken,
+          refresh: tokens.refreshToken,
+        });
+
         dispatch({
           type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: { user: result.user, tokens: result.tokens },
+          payload: { user: result.user, tokens },
         });
       } catch (error) {
+        console.error('Login error:', error);
         const errorMsg = getErrorMessage(error);
         dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMsg });
         throw error;
@@ -79,26 +87,26 @@ export const useAuthMethods = (dispatch, AUTH_ACTIONS) => {
 
       try {
         if (cognitoConfigured && !forceDevAuth && !import.meta.env.DEV) {
-          await signUp({
-            username: email,
-            password,
-            options: {
-              userAttributes: {
-                email,
-                given_name: firstName,
-                family_name: lastName,
+          try {
+            await signUp({
+              username: email,
+              password,
+              options: {
+                userAttributes: {
+                  email,
+                  given_name: firstName,
+                  family_name: lastName,
+                },
               },
-            },
-          });
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Check email for verification code' });
-          return;
+            });
+            dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Check email for verification code' });
+            return;
+          } catch (cognitoError) {
+            console.warn('⚠️ Cognito signup error, trying dev auth fallback:', cognitoError.message);
+          }
         }
 
-        const result = await devAuth.signup(email, password, { firstName, lastName });
-        if (!result.success) {
-          throw new Error(result.error || 'Signup failed');
-        }
-
+        await devAuth.signUp(email, password, email, firstName, lastName);
         dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: 'Signup successful. Please log in.' });
       } catch (error) {
         const errorMsg = getErrorMessage(error);

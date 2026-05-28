@@ -45,9 +45,12 @@ resource "aws_cognito_user_pool_client" "web_app" {
   user_pool_id    = aws_cognito_user_pool.stocks_trading.id
   generate_secret = false # No secret for public frontend apps
 
-  # Authentication flows — SRP is the secure option (never sends password in plain to Cognito)
+  # Authentication flows
+  # ALLOW_USER_PASSWORD_AUTH: username/password flow for web app
+  # ALLOW_REFRESH_TOKEN_AUTH: refresh tokens to get new access tokens
+  # ALLOW_CUSTOM_AUTH: fallback for dev auth flow
   explicit_auth_flows = [
-    "ALLOW_USER_SRP_AUTH",
+    "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
     "ALLOW_CUSTOM_AUTH"
   ]

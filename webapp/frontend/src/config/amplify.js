@@ -44,20 +44,6 @@ const getAmplifyConfig = () => {
         region: import.meta.env.VITE_AWS_REGION || "us-east-1",
         signUpVerificationMethod: "code",
         loginWith: {
-          oauth: {
-            domain:
-              runtimeConfig.USER_POOL_DOMAIN ||
-              import.meta.env.VITE_COGNITO_DOMAIN ||
-              "dummy-domain",
-            scopes: ["email", "profile", "openid"],
-            redirectSignIn:
-              import.meta.env.VITE_COGNITO_REDIRECT_SIGN_IN ||
-              (typeof window !== "undefined" ? window.location.origin : ""),
-            redirectSignOut:
-              import.meta.env.VITE_COGNITO_REDIRECT_SIGN_OUT ||
-              (typeof window !== "undefined" ? window.location.origin : ""),
-            responseType: "code",
-          },
           username: true,
           email: true,
         },
