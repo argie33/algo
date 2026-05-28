@@ -51,6 +51,7 @@ jobs:
       rds_credentials_secret_name: ${{ steps.tf_outputs.outputs.rds_credentials_secret_name }}
       cognito_user_pool_id: ${{ steps.tf_outputs.outputs.cognito_user_pool_id }}
       cognito_user_pool_client_id: ${{ steps.tf_outputs.outputs.cognito_user_pool_client_id }}
+      cognito_domain_url: ${{ steps.tf_outputs.outputs.cognito_domain_url }}
       terraform_backend_bucket: ${{ steps.tf_outputs.outputs.terraform_backend_bucket }}
       terraform_backend_key: ${{ steps.tf_outputs.outputs.terraform_backend_key }}
 
@@ -132,6 +133,7 @@ jobs:
           RDS_SECRET=$(echo "$TF_OUT" | jq -r '.rds_credentials_secret_name.value')
           POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value')
           CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value')
+          COGNITO_DOMAIN=$(echo "$TF_OUT" | jq -r '.cognito_domain_url.value // empty')
           BACKEND_BUCKET=$(echo "$TF_OUT" | jq -r '.terraform_backend_bucket.value')
           BACKEND_KEY=$(echo "$TF_OUT" | jq -r '.terraform_backend_key.value')
 
@@ -158,6 +160,7 @@ jobs:
           echo "rds_credentials_secret_name=${RDS_SECRET}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_domain_url=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
           echo "terraform_backend_bucket=${BACKEND_BUCKET}" >> $GITHUB_OUTPUT
           echo "terraform_backend_key=${BACKEND_KEY}" >> $GITHUB_OUTPUT
 
@@ -1097,16 +1100,10 @@ jobs:
             echo "WARNING: website_url not resolved from Terraform, using relative paths"
           fi
 
-          # Get Cognito credentials from Terraform outputs or AWS
-          POOL_ID=""
-          CLIENT_ID=""
-          COGNITO_DOMAIN=""
-
-          # Try Terraform output first
-          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
-          POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // empty' 2>/dev/null || echo "")
-          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // empty' 2>/dev/null || echo "")
-          COGNITO_DOMAIN=$(echo "$TF_OUT" | jq -r '.cognito_domain_url.value // empty' 2>/dev/null || echo "")
+          # Get Cognito credentials from resolve-infra job outputs
+          POOL_ID="${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
+          CLIENT_ID="${{ needs.resolve-infra.outputs.cognito_user_pool_client_id }}"
+          COGNITO_DOMAIN="${{ needs.resolve-infra.outputs.cognito_domain_url }}"
 
           # Fall back to AWS API if Terraform output empty
           # Try the current naming convention first: algo-pool-{ENV}
