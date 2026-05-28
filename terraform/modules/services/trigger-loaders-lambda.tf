@@ -1,14 +1,9 @@
 /**
- * Trigger Loaders Lambda - TEMPORARILY DISABLED
+ * Trigger Loaders Lambda
  * Emergency manual loader invocation when EventBridge fails
  * Called by: orchestrator failsafe, manual API, CloudWatch alarms
- *
- * TODO: Add build step to GitHub Actions workflow to build the Lambda ZIP
- * Currently commented out to allow deployment to proceed.
- * Loaders can still be triggered by EventBridge or manually via console.
  */
 
-/*
 # Archive the trigger-loaders code
 data "archive_file" "trigger_loaders_zip" {
   type        = "zip"
@@ -115,4 +110,3 @@ output "trigger_loaders_lambda_arn" {
   value       = aws_lambda_function.trigger_loaders.arn
   description = "ARN of trigger-loaders Lambda for emergency loader invocation"
 }
-*/

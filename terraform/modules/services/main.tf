@@ -92,13 +92,6 @@ resource "aws_lambda_function" "api" {
   filename          = !local.api_lambda_use_s3 ? "${path.root}/${var.api_lambda_code_file}" : null
   source_code_hash  = !local.api_lambda_use_s3 ? filebase64sha256("${path.root}/${var.api_lambda_code_file}") : null
 
-  lifecycle {
-    precondition {
-      condition     = local.api_lambda_use_s3 || fileexists("${path.root}/${var.api_lambda_code_file}")
-      error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${path.root}/${var.api_lambda_code_file})"
-    }
-  }
-
   ephemeral_storage {
     size = var.api_lambda_ephemeral_storage
   }
@@ -142,6 +135,10 @@ resource "aws_lambda_function" "api" {
   ]
 
   lifecycle {
+    precondition {
+      condition     = local.api_lambda_use_s3 || fileexists("${path.root}/${var.api_lambda_code_file}")
+      error_message = "Lambda code must be available either via S3 (api_lambda_s3_bucket configured) or as local file (${path.root}/${var.api_lambda_code_file})"
+    }
     ignore_changes = [filename, source_code_hash]
   }
 
