@@ -6,7 +6,7 @@ Tracks how well signals predict price movements.
 import psycopg2
 from datetime import datetime, timedelta
 import logging
-from db_utils import get_db_connection
+from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 

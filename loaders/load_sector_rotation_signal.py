@@ -5,7 +5,7 @@ Load sector rotation signals from sector_ranking momentum data.
 import psycopg2
 from datetime import date
 import logging
-from db_utils import get_db_connection
+from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 

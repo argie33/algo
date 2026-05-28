@@ -6,7 +6,7 @@ Populates the sectors table with performance metrics.
 import psycopg2
 from datetime import date, datetime, timedelta
 import logging
-from db_utils import get_db_connection, log_execution
+from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +31,12 @@ def load_sectors():
 
         # Insert sectors from latest sector_ranking data
         cur.execute("""
-            INSERT INTO sectors (sector_name, metric_date, performance_ytd, stock_count, created_at, updated_at)
+            INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at)
             SELECT
                 sr.sector_name,
                 %s::date,
-                sr.momentum_score::numeric * 100 AS performance_ytd,
-                50 AS stock_count,
+                sr.momentum_score::numeric * 100 AS return_pct,
+                50 AS relative_strength,
                 NOW(),
                 NOW()
             FROM (
@@ -44,7 +44,7 @@ def load_sectors():
                 FROM sector_ranking
                 WHERE date_recorded = %s
             ) sr
-            ON CONFLICT (sector_name, metric_date) DO UPDATE SET
+            ON CONFLICT (sector, date) DO UPDATE SET
                 performance_ytd = EXCLUDED.performance_ytd,
                 stock_count = EXCLUDED.stock_count,
                 updated_at = NOW()

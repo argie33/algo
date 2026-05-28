@@ -6,7 +6,7 @@ Currently uses placeholder data pending external API integration.
 import psycopg2
 from datetime import datetime, date
 import logging
-from db_utils import get_db_connection
+from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 

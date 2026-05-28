@@ -6,7 +6,7 @@ Identifies thematic groups among high-scoring signals.
 import psycopg2
 from datetime import datetime
 import logging
-from db_utils import get_db_connection
+from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ Load market sentiment data from available sources (AAII, market_sentiment, fear_
 import psycopg2
 from datetime import datetime
 import logging
-from db_utils import get_db_connection
+from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 
