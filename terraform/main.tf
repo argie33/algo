@@ -215,6 +215,17 @@ module "loaders" {
   alert_webhook_url           = var.alert_webhook_url
 }
 
+module "cognito" {
+  source = "./modules/cognito"
+
+  project_name               = var.project_name
+  environment                = var.environment
+  aws_region                 = var.aws_region
+  cloudfront_domain          = var.cloudfront_domain != null ? var.cloudfront_domain : ""
+  cognito_test_user_email    = var.cognito_test_user_email
+  common_tags                = local.common_tags
+}
+
 module "services" {
   source = "./modules/services"
 
