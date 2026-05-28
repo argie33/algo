@@ -20,7 +20,6 @@ import {
 import { isCognitoConfigured } from "../config/amplify";
 import { setRefreshCallback } from "../services/api";
 import { tokenManager } from "../services/tokenManager";
-import devAuth from "../services/devAuth";
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 import sessionManager from "../services/sessionManager";
 
@@ -236,9 +235,8 @@ export function AuthProvider({ children }) {
       const cognitoConfigured = isCognitoConfigured();
       const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
 
-      // Production: use ONLY Cognito (no fallback)
-      // Development: use ONLY dev auth (no Cognito)
-      if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
+      // Strict AWS Cognito only - no development auth fallback
+      if (cognitoConfigured) {
         try {
           const user = await getCurrentUser();
           const session = await fetchAuthSession();
@@ -269,39 +267,12 @@ export function AuthProvider({ children }) {
             return;
           }
         } catch (error) {
-          console.error("Cognito authentication failed (production):", error?.message);
+          console.error("❌ Cognito authentication failed:", error?.message);
           // In production with Cognito configured, we DO NOT fall back - this is an auth failure
         }
       }
 
-      // Development: use dev auth (never Cognito)
-      if (!isProductionBuild || forceDevAuth || import.meta.env.DEV) {
-        try {
-          const user = await devAuth.getCurrentUser();
-          const session = await devAuth.fetchAuthSession();
-
-          if (user && session.tokens) {
-            tokenManager.setTokens({
-              access: session.tokens.accessToken,
-              id: session.tokens.idToken,
-              refresh: session.tokens.refreshToken
-            });
-
-            dispatch({
-              type: AUTH_ACTIONS.LOGIN_SUCCESS,
-              payload: {
-                user,
-                tokens: session.tokens,
-              },
-            });
-            return;
-          }
-        } catch (error) {
-          console.log("Dev auth session not available:", error.message);
-        }
-      }
-
-      // No valid session found
+      // No valid session found (Cognito not configured or session expired)
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     } catch (error) {
       console.log("Authentication check failed:", error);
@@ -389,144 +360,60 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
-      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
 
-      // Try Cognito in production or when properly configured (unless dev auth is forced)
-      if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
-        try {
-
-          const { isSignedIn, nextStep } = await signIn({
-            username,
-            password,
-          });
-
-          if (isSignedIn) {
-            // Get user and session after successful sign in
-            const user = await getCurrentUser();
-            const session = await fetchAuthSession();
-
-            const tokens = {
-              accessToken: session.tokens.accessToken.toString(),
-              idToken: session.tokens.idToken?.toString(),
-              refreshToken: session.tokens.refreshToken?.toString(),
-            };
-
-            // Store access token for API requests
-            tokenManager.setTokens({ access: tokens.accessToken, id: tokens.idToken, refresh: tokens.refreshToken });
-
-            dispatch({
-              type: AUTH_ACTIONS.LOGIN_SUCCESS,
-              payload: {
-                user: {
-                  username: user.username,
-                  userId: user.userId,
-                  email: user.signInDetails?.loginId || user.username,
-                  firstName: user.userAttributes?.given_name || "",
-                  lastName: user.userAttributes?.family_name || "",
-                  signInDetails: user.signInDetails,
-                },
-                tokens,
-              },
-            });
-
-            return { success: true };
-          } else {
-            // Handle additional steps (MFA, password change, etc.)
-            return {
-              success: false,
-              nextStep: nextStep,
-              message: "Additional authentication step required",
-            };
-          }
-        } catch (cognitoError) {
-          // Auth failures (wrong credentials, unconfirmed account) are user errors — return immediately
-          const authFailures = ['NotAuthorizedException', 'UserNotFoundException',
-                                'UserNotConfirmedException', 'PasswordResetRequiredException'];
-          if (authFailures.includes(cognitoError.name)) {
-            const errorMessage = getErrorMessage(cognitoError);
-            dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
-            return { success: false, error: errorMessage };
-          }
-          // Service errors — fall through to dev auth fallback if available
-          console.warn("⚠️ Cognito service error, trying dev auth fallback:", cognitoError);
-        }
-      }
-
-      // Development auth fallback - always try after Cognito fails
-      console.log("Attempting dev auth fallback after Cognito failure");
-
-      try {
-        const result = await devAuth.signIn(username, password);
-
-        // Check if login was successful and has tokens
-        if (!result || !result.success || !result.tokens) {
-          const errorMsg =
-            result?.error?.message || "Login failed - no tokens received";
-          console.error("Dev auth login failed:", errorMsg);
-          dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMsg });
-          return { success: false, error: errorMsg };
-        }
-
-        // Store tokens using tokenManager (proper key handling)
-        tokenManager.setTokens({
-          access: result.tokens.accessToken,
-          id: result.tokens.idToken,
-          refresh: result.tokens.refreshToken
-        });
-
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: {
-            user: result.user,
-            tokens: result.tokens,
-          },
-        });
-
-        return { success: true };
-      } catch (error) {
-        console.error("Dev auth login error:", error);
-        const errorMessage = getErrorMessage(error);
+      // Strict AWS Cognito only - no fallbacks
+      if (!cognitoConfigured) {
+        const errorMessage = "Cognito authentication is not properly configured. Please verify credentials are set in config.js";
         dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
         return { success: false, error: errorMessage };
       }
 
-      // If we get here, neither production nor development auth is available
-      // This should not happen in normal circumstances
-      console.error("ðŸš¨ CRITICAL: Both Cognito and dev auth paths were skipped or failed");
-      console.error("Debug info:", {
-        isProductionBuild,
-        cognitoConfigured,
-        forceDevAuth,
-        isDev: import.meta.env.DEV,
-        shouldUseDevAuth: !cognitoConfigured || forceDevAuth || import.meta.env.DEV
+      const { isSignedIn, nextStep } = await signIn({
+        username,
+        password,
       });
 
-      // Force use dev auth as last resort in development or when other auth failed
-      if (import.meta.env.DEV || true) { // Allow devAuth fallback in all environments
-        try {
-          const result = await devAuth.signIn(username, password);
-          if (result && result.success && result.tokens) {
-            sessionStorage.setItem("authToken", result.tokens.accessToken);
-            dispatch({
-              type: AUTH_ACTIONS.LOGIN_SUCCESS,
-              payload: { user: result.user, tokens: result.tokens },
-            });
-            return { success: true, user: result.user };
-          }
-        } catch (fallbackError) {
-          console.error("Even fallback dev auth failed:", fallbackError);
-        }
+      if (isSignedIn) {
+        // Get user and session after successful sign in
+        const user = await getCurrentUser();
+        const session = await fetchAuthSession();
+
+        const tokens = {
+          accessToken: session.tokens.accessToken.toString(),
+          idToken: session.tokens.idToken?.toString(),
+          refreshToken: session.tokens.refreshToken?.toString(),
+        };
+
+        // Store access token for API requests
+        tokenManager.setTokens({ access: tokens.accessToken, id: tokens.idToken, refresh: tokens.refreshToken });
+
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: {
+              username: user.username,
+              userId: user.userId,
+              email: user.signInDetails?.loginId || user.username,
+              firstName: user.userAttributes?.given_name || "",
+              lastName: user.userAttributes?.family_name || "",
+              signInDetails: user.signInDetails,
+            },
+            tokens,
+          },
+        });
+
+        return { success: true };
+      } else {
+        // Handle additional steps (MFA, password change, etc.)
+        return {
+          success: false,
+          nextStep: nextStep,
+          message: "Additional authentication step required",
+        };
       }
-
-      const errorMessage = cognitoConfigured
-        ? "Authentication service is temporarily unavailable. Please try again later."
-        : "Authentication is not configured. Please contact support or use development mode.";
-
-      throw new Error(errorMessage);
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("❌ Cognito login error:", error);
       const errorMessage = getErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
       return { success: false, error: errorMessage };
@@ -538,36 +425,11 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // If Cognito is not configured, use dev auth
+      // Strict AWS Cognito only - no fallbacks
       if (!isCognitoConfigured()) {
-        console.warn(
-          "Cognito not configured - using development authentication"
-        );
-        try {
-          const result = await devAuth.signUp(
-            username,
-            password,
-            email,
-            firstName,
-            lastName
-          );
-
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-          return {
-            success: true,
-            isComplete: result.isSignUpComplete,
-            nextStep: result.nextStep,
-            message: result.isSignUpComplete
-              ? "Registration completed successfully"
-              : "Please check your email for verification code",
-          };
-        } catch (error) {
-          console.error("Dev auth registration error:", error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
+        const errorMessage = "Cognito authentication is not properly configured. Please verify credentials are set in config.js";
+        dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+        return { success: false, error: errorMessage };
       }
 
       const { isSignUpComplete, nextStep } = await signUp({
@@ -605,30 +467,11 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // If Cognito is not configured, use dev auth
+      // Strict AWS Cognito only - no fallbacks
       if (!isCognitoConfigured()) {
-        console.warn(
-          "Cognito not configured - using development authentication"
-        );
-        try {
-          const result = await devAuth.confirmSignUp(
-            username,
-            confirmationCode
-          );
-
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-          return {
-            success: true,
-            isComplete: result.isSignUpComplete,
-            message: "Account confirmed successfully. You can now sign in.",
-          };
-        } catch (error) {
-          console.error("Dev auth confirmation error:", error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
+        const errorMessage = "Cognito authentication is not properly configured. Please verify credentials are set in config.js";
+        dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+        return { success: false, error: errorMessage };
       }
 
       const { isSignUpComplete } = await confirmSignUp({
@@ -656,28 +499,11 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // If Cognito is not configured, use dev auth
+      // Strict AWS Cognito only - no fallbacks
       if (!isCognitoConfigured()) {
-        console.warn(
-          "Cognito not configured - using development authentication"
-        );
-        try {
-          // For dev auth, we simulate sending a new code
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-          return {
-            success: true,
-            message:
-              "New verification code sent to your email (development mode)",
-          };
-        } catch (error) {
-          console.error("Dev auth resend error:", error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
+        const errorMessage = "Cognito authentication is not properly configured. Please verify credentials are set in config.js";
+        dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+        return { success: false, error: errorMessage };
       }
 
       await resendSignUpCode({ username });
@@ -701,27 +527,11 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // If Cognito is not configured, use dev auth
+      // Strict AWS Cognito only - no fallbacks
       if (!isCognitoConfigured()) {
-        console.warn(
-          "Cognito not configured - using development authentication"
-        );
-        try {
-          const result = await devAuth.resetPassword(username);
-
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-          return {
-            success: true,
-            nextStep: result.nextStep,
-            message: "Password reset code sent to your email",
-          };
-        } catch (error) {
-          console.error("Dev auth password reset error:", error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
+        const errorMessage = "Cognito authentication is not properly configured. Please verify credentials are set in config.js";
+        dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+        return { success: false, error: errorMessage };
       }
 
       const output = await resetPassword({ username });
@@ -750,31 +560,11 @@ export function AuthProvider({ children }) {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      // If Cognito is not configured, use dev auth
+      // Strict AWS Cognito only - no fallbacks
       if (!isCognitoConfigured()) {
-        console.warn(
-          "Cognito not configured - using development authentication"
-        );
-        try {
-          await devAuth.confirmResetPassword(
-            username,
-            confirmationCode,
-            newPassword
-          );
-
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-
-          return {
-            success: true,
-            message:
-              "Password reset successfully. You can now sign in with your new password.",
-          };
-        } catch (error) {
-          console.error("Dev auth confirm password reset error:", error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
-          return { success: false, error: errorMessage };
-        }
+        const errorMessage = "Cognito authentication is not properly configured. Please verify credentials are set in config.js";
+        dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
+        return { success: false, error: errorMessage };
       }
 
       await confirmResetPassword({
