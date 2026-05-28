@@ -830,11 +830,22 @@ jobs:
           # Build ALLOWED_ORIGINS using CloudFront domain from Terraform outputs (fully dynamic)
           CLOUDFRONT_DOMAIN="${{ needs.resolve-infra.outputs.cloudfront_domain }}"
           ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
+
+          # Fallback: if Terraform output is empty, query AWS for CloudFront domain
+          if [ -z "$CLOUDFRONT_DOMAIN" ] || [ "$CLOUDFRONT_DOMAIN" = "None" ] || [ "$CLOUDFRONT_DOMAIN" = "null" ]; then
+            echo "Terraform cloudfront_domain empty, querying AWS..."
+            CF_ID=$(aws cloudfront list-distributions --region $AWS_REGION --query "DistributionList.Items[?Comment=='algo-frontend'].DomainName | [0]" --output text 2>/dev/null)
+            if [ -n "$CF_ID" ] && [ "$CF_ID" != "None" ]; then
+              CLOUDFRONT_DOMAIN="$CF_ID"
+              echo "Retrieved CloudFront domain from AWS: $CLOUDFRONT_DOMAIN"
+            fi
+          fi
+
           if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ] && [ "$CLOUDFRONT_DOMAIN" != "null" ]; then
             ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://$CLOUDFRONT_DOMAIN"
-            echo "Added CloudFront domain to CORS whitelist: https://$CLOUDFRONT_DOMAIN"
+            echo "✓ Added CloudFront domain to CORS whitelist: https://$CLOUDFRONT_DOMAIN"
           else
-            echo "WARNING: CloudFront domain not in Terraform outputs - CORS only allows localhost"
+            echo "⚠ WARNING: CloudFront domain not found - CORS only allows localhost"
           fi
           echo "CORS whitelist configured: $ALLOWED_ORIGINS"
 
