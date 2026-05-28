@@ -1607,6 +1607,49 @@ CREATE TABLE IF NOT EXISTS algo_positions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Alias for orchestrator compatibility (orchestrator references 'positions' table)
+-- This is a direct reference to algo_positions data
+CREATE TABLE IF NOT EXISTS positions (
+    id SERIAL PRIMARY KEY,
+    position_id VARCHAR(100) UNIQUE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    quantity INTEGER NOT NULL,
+    avg_entry_price DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    position_value DECIMAL(14, 2),
+    unrealized_pnl DECIMAL(12, 2),
+    unrealized_pnl_pct DECIMAL(8, 4),
+    trade_ids VARCHAR(1000),
+    trade_ids_arr TEXT[],
+    status VARCHAR(20),
+    stage_in_exit_plan VARCHAR(50),
+    distribution_day_count INTEGER,
+    profit_loss_dollars DECIMAL(12, 2),
+    trade_duration_days INTEGER,
+    days_since_entry INTEGER,
+    target_levels_hit INTEGER DEFAULT 0,
+    current_stop_price DECIMAL(12, 4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- System alerts (critical trading events, data issues, circuit breakers)
+CREATE TABLE IF NOT EXISTS algo_alerts (
+    id SERIAL PRIMARY KEY,
+    alert_type VARCHAR(50) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    symbol VARCHAR(20),
+    message TEXT NOT NULL,
+    phase VARCHAR(50),
+    phase_details JSONB,
+    trader_action VARCHAR(255),
+    alert_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    acknowledged_at TIMESTAMP,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Daily portfolio snapshots
 CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     id SERIAL PRIMARY KEY,
