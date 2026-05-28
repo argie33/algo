@@ -99,7 +99,19 @@ Multiple failed deployments occurred on May 27 from 01:40-06:31 UTC, but recent 
 
 ---
 
-## Timeline & Current Status (as of May 27 21:16 ET / May 28 01:16 UTC)
+## CRITICAL FIX DEPLOYED ✅
+
+**Issue:** trend_template_data ECS task timeout was 1200s (20 min) for 5000+ symbols
+**Solution:** Increased timeout to 2700s (45 min), reduced parallelism to 4
+**Deployed:** May 28 02:08 UTC
+**Test Execution:** test-fix-1779934159 started to verify fix works
+
+Expected: EOD pipeline will now complete successfully, signals will be generated,  
+system will resume trading after this test passes.
+
+---
+
+## Timeline & Current Status (as of May 28 02:10 UTC)
 
 | Time | Event | Status |
 |------|-------|--------|
