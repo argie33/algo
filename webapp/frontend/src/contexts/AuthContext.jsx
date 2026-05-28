@@ -406,6 +406,9 @@ export function AuthProvider({ children }) {
           const { isSignedIn, nextStep } = await signIn({
             username,
             password,
+            options: {
+              authFlow: 'USER_PASSWORD_AUTH',
+            },
           });
 
           if (isSignedIn) {

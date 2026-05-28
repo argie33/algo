@@ -47,6 +47,9 @@ const getAmplifyConfig = () => {
           username: true,
           email: true,
         },
+        // CRITICAL: Cognito client only allows USER_PASSWORD_AUTH (not SRP)
+        // This prevents Amplify from trying SRP first and getting a 400 error
+        allowUserPasswordAuth: true,
       },
     },
   };
