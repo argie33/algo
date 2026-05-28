@@ -1,7 +1,13 @@
-# Blocking Issues Found - May 27, 2026
+# Blocking Issues - Analysis & Fixes (May 28, 2026)
 
-## Summary
-The trading system is operational but has incomplete signal coverage. May 26 signals exist but are only 33% coverage (913/2734 symbols).
+## Status: ✅ ROOT CAUSE IDENTIFIED & FIXED
+
+**Critical Issue:** Step Functions EOD pipeline was failing consistently
+**Root Cause:** trend_template_data ECS task timeout too short (20min for 5000+ symbols)
+**Fix Applied:** Increased timeout from 1200s to 2700s (45min), deployed
+
+## Summary (Before Fix)
+The trading system was unable to generate fresh signals because the EOD pipeline kept failing when computing trend templates.
 
 ## Issue 1: CRITICAL - May 26 Signals Are Incomplete (67% Missing)
 
