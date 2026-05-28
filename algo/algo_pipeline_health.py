@@ -152,8 +152,15 @@ class PipelineHealth:
     def connect(self):
         """Establish database connection."""
         try:
-            self.conn = psycopg2.connect(**get_db_config())
+            config = get_db_config()
+            config["connect_timeout"] = 5  # Fail fast if database is unreachable
+            self.conn = psycopg2.connect(**config)
             self.cur = self.conn.cursor()
+
+            # Set statement timeout to prevent long-running queries from blocking orchestrator
+            stmt_timeout_ms = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', 30000))  # 30s for health checks (faster than default 5min)
+            self.cur.execute(f"SET statement_timeout = {stmt_timeout_ms}")
+            self.conn.commit()
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
             raise
