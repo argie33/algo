@@ -2871,3 +2871,128 @@ CREATE INDEX IF NOT EXISTS idx_exit_rules_created_at
     ON algo_exit_rules_distribution(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_exit_rules_exit_rule
     ON algo_exit_rules_distribution(exit_rule, created_at DESC);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- ADDITIONAL HISTORICAL DATA TABLES
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Dividend history for total return calculations
+CREATE TABLE IF NOT EXISTS dividend_history (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    ex_date DATE NOT NULL,
+    payment_date DATE,
+    record_date DATE,
+    dividend_amount DECIMAL(12, 4),
+    dividend_type VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, ex_date)
+);
+CREATE INDEX IF NOT EXISTS idx_dividend_symbol_date
+    ON dividend_history(symbol, ex_date DESC);
+
+-- Stock splits for price adjustment
+CREATE TABLE IF NOT EXISTS stock_splits (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    split_date DATE NOT NULL,
+    split_from INTEGER,
+    split_to INTEGER,
+    split_ratio DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, split_date)
+);
+CREATE INDEX IF NOT EXISTS idx_splits_symbol_date
+    ON stock_splits(symbol, split_date DESC);
+
+-- Insider transactions for trading signals
+CREATE TABLE IF NOT EXISTS insider_transactions (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    transaction_date DATE NOT NULL,
+    insider_name VARCHAR(255),
+    insider_title VARCHAR(255),
+    transaction_type VARCHAR(20),
+    shares BIGINT,
+    price DECIMAL(12, 4),
+    value DECIMAL(18, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_insider_symbol_date
+    ON insider_transactions(symbol, transaction_date DESC);
+
+-- Institutional ownership tracking
+CREATE TABLE IF NOT EXISTS institutional_ownership (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    institution_name VARCHAR(255),
+    shares_held BIGINT,
+    value DECIMAL(18, 2),
+    pct_float DECIMAL(8, 4),
+    position_change_pct DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date, institution_name)
+);
+CREATE INDEX IF NOT EXISTS idx_institutional_symbol_date
+    ON institutional_ownership(symbol, date DESC);
+
+-- Analyst price targets
+CREATE TABLE IF NOT EXISTS price_targets (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    analyst_firm VARCHAR(255),
+    price_target DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    upside_pct DECIMAL(8, 2),
+    rating VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_price_targets_symbol_date
+    ON price_targets(symbol, date DESC);
+
+-- Short interest tracking
+CREATE TABLE IF NOT EXISTS short_interest (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    short_volume BIGINT,
+    short_pct_float DECIMAL(8, 4),
+    short_interest_change_pct DECIMAL(8, 2),
+    days_to_cover DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+CREATE INDEX IF NOT EXISTS idx_short_interest_symbol_date
+    ON short_interest(symbol, date DESC);
+
+-- Pre-computed sector correlations
+CREATE TABLE IF NOT EXISTS sector_correlation (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    sector_1 VARCHAR(50) NOT NULL,
+    sector_2 VARCHAR(50) NOT NULL,
+    correlation_60d DECIMAL(5, 4),
+    correlation_20d DECIMAL(5, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, sector_1, sector_2)
+);
+CREATE INDEX IF NOT EXISTS idx_sector_corr_date
+    ON sector_correlation(date DESC);
+
+-- Technical support and resistance levels
+CREATE TABLE IF NOT EXISTS support_resistance_levels (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    support_level_1 DECIMAL(12, 4),
+    support_level_2 DECIMAL(12, 4),
+    resistance_level_1 DECIMAL(12, 4),
+    resistance_level_2 DECIMAL(12, 4),
+    pivot_point DECIMAL(12, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+CREATE INDEX IF NOT EXISTS idx_sr_levels_symbol_date
+    ON support_resistance_levels(symbol, date DESC);
