@@ -76,7 +76,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         ORDER BY date DESC
                     """, (sector_name, days))
                     rows = cur.fetchall()
-                    trend_data = [dict(r) for r in rows] if rows else []
+                    # Filter out any rows with NULL avgPrice (no data)
+                    trend_data = [dict(r) for r in rows if r and r.get('avgPrice') is not None] if rows else []
                     return json_response(200, {'trendData': trend_data})
                 else:
                     days_str = params.get('days', [None])[0] if params else None

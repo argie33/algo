@@ -42,19 +42,26 @@ class SignalQualityScoresLoader(OptimalLoader):
         # On ECS restart the in-memory watermark is empty, so since=None.
         # Read the actual DB max date to avoid re-querying 5 years of history.
         if since is None:
-            try:
-                conn = self._connect()
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT MAX(date) FROM signal_quality_scores WHERE symbol = %s",
-                    (symbol,),
-                )
-                row = cur.fetchone()
-                cur.close()
-                if row and row[0]:
-                    since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
-            except Exception as e:
-                logger.warning(f"Could not read signal_quality_scores watermark for {symbol}: {e}")
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    conn = self._connect()
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT MAX(date) FROM signal_quality_scores WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    row = cur.fetchone()
+                    cur.close()
+                    if row and row[0]:
+                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.debug(f"Watermark read failed (attempt {attempt + 1}/{max_retries}), retrying: {e}")
+                        continue
+                    logger.warning(f"Could not read signal_quality_scores watermark for {symbol} after {max_retries} attempts. Using full history.")
+                    break
 
         if since is None:
             start = end - timedelta(days=5 * 365)
@@ -72,9 +79,11 @@ class SignalQualityScoresLoader(OptimalLoader):
         if not scores:
             return []
 
+        # Filter to incremental range using datetime comparison (not string)
         if since is not None:
-            since_str = since.isoformat()
-            scores = [s for s in scores if s["date"] > since_str]
+            from datetime import date as _date
+            since_date = since if isinstance(since, _date) else _date.fromisoformat(str(since))
+            scores = [s for s in scores if _date.fromisoformat(s["date"]) > since_date]
 
         return scores
 

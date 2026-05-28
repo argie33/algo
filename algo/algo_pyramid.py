@@ -113,9 +113,9 @@ class PyramidEngine:
         adds_so_far = int(adds_so_far or 0)
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This causes incorrect pyramiding decisions.
-        # If current price is missing, skip this position.
-        if not cur_price or float(cur_price) <= 0:
-            logger.warning(f"SKIP {symbol}: No valid current price. Cannot compute R-multiple for pyramiding.")
+        # If current price is missing, skip this position entirely.
+        if cur_price is None or float(cur_price) <= 0:
+            logger.warning(f"SKIP {symbol}: No valid current price (got {cur_price}). Cannot compute R-multiple for pyramiding.")
             return None
 
         cur_price = float(cur_price)

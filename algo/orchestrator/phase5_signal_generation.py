@@ -31,7 +31,7 @@ from algo.algo_metrics import MetricsPublisher
 logger = logging.getLogger(__name__)
 
 
-def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
+def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool, final_count: int = 0) -> None:
     """Log signal count at each filter tier for visibility on rejections."""
     try:
         # Count total BUY signals for today
@@ -68,7 +68,6 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
             for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
                 tier_rejections[tier_name] = 0
 
-        # Note: final_count will be set by caller via _qualified_trades
         # Always log waterfall to diagnose 'no trades' situations
         logger.info(f"\n  [WATERFALL] Signal filtering on {run_date}:")
         logger.info(f"    Total BUY signals:        {total_signals:4d}")
@@ -79,7 +78,8 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool) -> None:
         logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
         logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
         logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
-        interpretation = _interpret_waterfall(total_signals, stage2_count, tier_rejections, 0)
+        logger.info(f"    Final qualified:          {final_count:4d}")
+        interpretation = _interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)
         logger.info(f"  Interpretation: {interpretation}")
 
     except Exception as e:
@@ -150,7 +150,7 @@ def run(
         try:
             conn = get_conn()
             cur = conn.cursor()
-            _report_signal_waterfall(cur, eval_date, verbose)
+            _report_signal_waterfall(cur, eval_date, verbose, len(qualified))
         finally:
             if cur:
                 try:

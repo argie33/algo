@@ -106,17 +106,17 @@ class RegimeManager:
                 (as_of_date,),
             )
             row = self.cur.fetchone()
-            regime = str(row[0]) if row and row[0] else 'confirmed_uptrend'
+            regime = str(row[0]) if row and row[0] else 'caution'
 
             if regime not in self.REGIMES:
-                logger.warning(f"Unknown regime '{regime}', defaulting to confirmed_uptrend")
-                regime = 'confirmed_uptrend'
+                logger.warning(f"Unknown regime '{regime}', defaulting to caution (conservative)")
+                regime = 'caution'
 
             return regime
 
         except Exception as e:
-            logger.warning(f"Could not fetch regime: {e}. Defaulting to confirmed_uptrend")
-            return 'confirmed_uptrend'
+            logger.warning(f"Could not fetch regime: {e}. Defaulting to caution (conservative)")
+            return 'caution'
         finally:
             self.disconnect()
 

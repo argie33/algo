@@ -134,14 +134,10 @@ class ExitEngine:
 
                 days_held = (current_date - trade_date).days
 
+                # Enforce minimum holding period (no same-day exits per Curtis Faith)
                 if days_held < 1:
                     if self.verbose:
-                        logger.info(f"  {symbol}: hold (too new, need 1d hold, held {days_held}d)")
-                    continue
-
-                # Double-check: trade_date should never equal current_date (sanity check)
-                if trade_date == current_date:
-                    logger.critical(f"  {symbol}: BLOCKED - trade_date equals current_date (same-day entry/exit prevented)")
+                        logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
                     continue
 
                 exit_signal = self._evaluate_position(

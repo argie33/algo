@@ -150,6 +150,7 @@ class TradeExecutor:
                 'success': False, 'trade_id': '', 'status': 'invalid',
                 'message': f'Invalid: entry_date {entry_date} must be >= signal_date {signal_date}'
             }
+        # Note: entry_date == signal_date is allowed (signal fires at market open, entry happens same day)
 
         if not entry_price or entry_price <= 0:
             return {
@@ -245,6 +246,17 @@ class TradeExecutor:
             if target_3_price <= entry_price:
                 return {'success': False, 'trade_id': '', 'status': 'invalid',
                         'message': f'Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}'}
+
+        # Validate target hierarchy: target_1 < target_2 < target_3
+        target_1_price = float(target_1_price) if target_1_price else None
+        target_2_price = float(target_2_price) if target_2_price else None
+        target_3_price = float(target_3_price) if target_3_price else None
+        if target_1_price and target_2_price and target_1_price >= target_2_price:
+            return {'success': False, 'trade_id': '', 'status': 'invalid',
+                    'message': f'Invalid target hierarchy: target_1 ${target_1_price:.2f} >= target_2 ${target_2_price:.2f}'}
+        if target_2_price and target_3_price and target_2_price >= target_3_price:
+            return {'success': False, 'trade_id': '', 'status': 'invalid',
+                    'message': f'Invalid target hierarchy: target_2 ${target_2_price:.2f} >= target_3 ${target_3_price:.2f}'}
 
         import hashlib
         key_source = f"{symbol}|{signal_date}|{entry_price:.4f}|{stop_loss_price:.4f}"

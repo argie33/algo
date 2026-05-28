@@ -95,18 +95,20 @@ class SignalsDailyLoader(OptimalLoader):
             cur.close()
 
     def _generate_signals(self, symbol: str, rows: List[dict]) -> List[dict]:
-        """Generate simple buy/sell signals from technical indicators."""
+        """Generate buy/sell signals from technical indicators with volume and volatility confirmation."""
         if not rows:
             return []
 
         signals = []
-        for row in rows:
+        for i, row in enumerate(rows):
             rsi = row.get("rsi")
             macd = row.get("macd")
             macd_signal = row.get("macd_signal")
             sma_50 = row.get("sma_50")
             sma_200 = row.get("sma_200")
             close = row.get("close")
+            volume = row.get("volume")
+            atr = row.get("atr")
 
             # Skip if missing critical data
             if any(v is None for v in [rsi, macd, macd_signal, close]):
@@ -116,23 +118,36 @@ class SignalsDailyLoader(OptimalLoader):
             strength = 0.0
             reason = ""
 
-            # Simple signal rules
-            if rsi < 30 and macd > macd_signal:
+            # Calculate volume confirmation (compare to previous bar average)
+            vol_confirmed = True
+            if volume is not None and i > 0:
+                prev_vol = rows[i-1].get("volume", volume)
+                vol_confirmed = volume >= prev_vol * 0.8  # At least 80% of prior bar
+
+            # Calculate volatility (ATR-based, require meaningful moves)
+            has_volatility = True
+            if atr is not None and close is not None and sma_50 is not None:
+                volatility_pct = (atr / close) * 100 if close > 0 else 0
+                # Require at least 0.5% volatility to avoid whipsaws in low-vol environments
+                has_volatility = volatility_pct >= 0.5
+
+            # Enhanced signal rules with volume and volatility confirmation
+            if rsi < 30 and macd > macd_signal and vol_confirmed and has_volatility:
                 signal_type = "BUY"
-                strength = (30 - rsi) / 30
-                reason = "Oversold with bullish MACD crossover"
-            elif rsi > 70 and macd < macd_signal:
+                strength = (30 - rsi) / 30 * (1.0 if vol_confirmed else 0.7)
+                reason = "Oversold with bullish MACD + volume confirmation"
+            elif rsi > 70 and macd < macd_signal and vol_confirmed and has_volatility:
                 signal_type = "SELL"
-                strength = (rsi - 70) / 30
-                reason = "Overbought with bearish MACD crossover"
-            elif sma_50 and sma_200 and close > sma_50 > sma_200 and macd > macd_signal:
+                strength = (rsi - 70) / 30 * (1.0 if vol_confirmed else 0.7)
+                reason = "Overbought with bearish MACD + volume confirmation"
+            elif sma_50 and sma_200 and close > sma_50 > sma_200 and macd > macd_signal and vol_confirmed:
                 signal_type = "BUY"
-                strength = 0.6
-                reason = "Bullish alignment"
-            elif sma_50 and sma_200 and close < sma_50 < sma_200 and macd < macd_signal:
+                strength = 0.6 * (1.0 if vol_confirmed else 0.7)
+                reason = "Bullish alignment + volume confirmation"
+            elif sma_50 and sma_200 and close < sma_50 < sma_200 and macd < macd_signal and vol_confirmed:
                 signal_type = "SELL"
-                strength = 0.6
-                reason = "Bearish alignment"
+                strength = 0.6 * (1.0 if vol_confirmed else 0.7)
+                reason = "Bearish alignment + volume confirmation"
 
             if signal_type:
                 signals.append({

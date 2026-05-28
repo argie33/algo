@@ -84,8 +84,14 @@ class PositionSizer:
                 from datetime import date as _date
                 age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
                 if age_days > 2:
-                    logger.warning(f"Portfolio snapshot is {age_days} days old (limit: 2 days). Using stale value.")
+                    logger.error(f"Portfolio snapshot is {age_days} days old (max allowed: 2 days). Rejecting stale value.")
+                    raise RuntimeError(
+                        f"Portfolio snapshot too stale ({age_days} days old). "
+                        "Halting entries until fresh snapshot available."
+                    )
                 return snapshot_value
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.debug(f"Error fetching portfolio snapshot: {e}")
             pass
@@ -96,8 +102,9 @@ class PositionSizer:
         )
 
     def _fetch_live_alpaca_equity(self):
-        """Fetch live portfolio equity from Alpaca. Returns None on any failure."""
+        """Fetch live portfolio equity from Alpaca with retries. Returns None on failure."""
         import requests
+        import time
         try:
             from config.credential_manager import get_credential_manager as _get_cm
             _creds = _get_cm().get_alpaca_credentials()
@@ -112,24 +119,49 @@ class PositionSizer:
             return None  # Fail gracefully by returning None; caller will use snapshot fallback
         if not key or not secret:
             return None
-        try:
-            response = requests.get(
-                f'{base}/v2/account',
-                headers={'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret},
-                timeout=get_alpaca_timeout(),
-            )
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                except (ValueError, Exception) as e:
-                    logger.debug(f"Invalid JSON from Alpaca portfolio API: {e}")
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(
+                    f'{base}/v2/account',
+                    headers={'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret},
+                    timeout=get_alpaca_timeout(),
+                )
+                if response.status_code == 200:
+                    try:
+                        data = response.json()
+                    except (ValueError, Exception) as e:
+                        logger.debug(f"Invalid JSON from Alpaca portfolio API: {e}")
+                        return None
+                    # Use portfolio_value (equity + cash)
+                    pv = data.get('portfolio_value') or data.get('equity')
+                    if pv:
+                        return float(pv)
+                elif response.status_code in (429, 503):
+                    # Rate limit or service unavailable - retry
+                    if attempt < max_retries - 1:
+                        wait_time = (2 ** attempt)
+                        logger.debug(f"Alpaca API rate limited/unavailable (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    logger.debug(f"Alpaca API unavailable after {max_retries} attempts")
                     return None
-                # Use portfolio_value (equity + cash)
-                pv = data.get('portfolio_value') or data.get('equity')
-                if pv:
-                    return float(pv)
-        except Exception as e:
-            logger.debug(f"Portfolio value retrieval failed: {e}")
+                else:
+                    logger.debug(f"Alpaca portfolio API error (status {response.status_code})")
+                    return None
+            except (requests.Timeout, requests.ConnectionError) as e:
+                # Transient network error - retry
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt)
+                    logger.debug(f"Alpaca API transient error (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                logger.debug(f"Portfolio value retrieval failed after {max_retries} attempts: {e}")
+                return None
+            except Exception as e:
+                logger.debug(f"Portfolio value retrieval failed: {e}")
+                return None
         return None
 
     def get_current_drawdown(self):

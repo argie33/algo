@@ -61,6 +61,7 @@ class PositionMonitor:
         """Check for orders stuck in pending state >1 hour. Alert if found.
 
         Stuck orders = likely API issue or rejection. Should be resolved manually.
+        Filters out orders for halted symbols (these stay pending naturally).
         """
         if not current_date:
             current_date = _date.today()
@@ -76,15 +77,31 @@ class PositionMonitor:
             """)
             stale_orders = self.cur.fetchall()
             if stale_orders:
-                logger.info(f"\n  [ALERT] Found {len(stale_orders)} orders pending >1 hour:")
-                for row in stale_orders:
-                    trade_id, symbol, price, qty, created_at = row
-                    created_at_naive = created_at.replace(tzinfo=None) if getattr(created_at, 'tzinfo', None) else created_at
-                    age_minutes = int((datetime.utcnow() - created_at_naive).total_seconds() / 60)
-                    logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
-                return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
-            else:
-                return {'status': 'OK', 'count': 0}
+                # Filter out halted symbols (halts are normal, not actionable)
+                try:
+                    from algo.algo_market_events import MarketEventHandler
+                    meh = MarketEventHandler(self.config)
+                    filtered_stale = []
+                    for row in stale_orders:
+                        trade_id, symbol, price, qty, created_at = row
+                        halt_check = meh.check_single_stock_halt(symbol)
+                        if halt_check and halt_check.get('halted'):
+                            logger.info(f"    {trade_id} {symbol} pending (but halted, expected)")
+                            continue
+                        filtered_stale.append(row)
+                    stale_orders = filtered_stale
+                except Exception as e:
+                    logger.warning(f"Could not check halts for stale orders: {e}")
+
+                if stale_orders:
+                    logger.info(f"\n  [ALERT] Found {len(stale_orders)} orders pending >1 hour (excluding halted):")
+                    for row in stale_orders:
+                        trade_id, symbol, price, qty, created_at = row
+                        created_at_naive = created_at.replace(tzinfo=None) if getattr(created_at, 'tzinfo', None) else created_at
+                        age_minutes = int((datetime.utcnow() - created_at_naive).total_seconds() / 60)
+                        logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
+                    return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
+            return {'status': 'OK', 'count': 0}
         finally:
             self.disconnect()
 
@@ -92,15 +109,18 @@ class PositionMonitor:
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
+
+        Note: Only manages its own connection if called standalone. If called from
+        review_positions() (which has an open connection), does NOT disconnect.
         """
         if not current_date:
             current_date = _date.today()
 
-        # Only create connection if we don't already have one (for safe standalone use)
-        need_disconnect = False
+        # Track whether we created the connection for this call
+        created_connection = False
         if self.cur is None:
             self.connect()
-            need_disconnect = True
+            created_connection = True
 
         try:
             self.cur.execute("""
@@ -122,7 +142,8 @@ class PositionMonitor:
         except Exception as e:
             return {'status': 'ERROR', 'error': str(e)}
         finally:
-            if need_disconnect:
+            # Only disconnect if this method created the connection
+            if created_connection:
                 self.disconnect()
 
     def review_positions(self, current_date=None):
