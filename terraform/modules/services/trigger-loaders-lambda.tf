@@ -7,7 +7,7 @@
 # Archive the trigger-loaders code
 data "archive_file" "trigger_loaders_zip" {
   type        = "zip"
-  source_file = "${path.root}/lambda/trigger-loaders/lambda_function.py"
+  source_file = "${path.root}/../lambda/trigger-loaders/lambda_function.py"
   output_path = "${path.root}/build/trigger-loaders.zip"
 }
 
