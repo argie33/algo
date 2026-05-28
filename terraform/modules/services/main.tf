@@ -75,6 +75,9 @@ resource "aws_lambda_function" "api" {
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
 
+  # Keep Lambda warm to avoid cold start timeouts (15-40s cold start would exceed 29s API Gateway timeout)
+  reserved_concurrent_executions = 2
+
   layers = [local.api_layer_arn, var.psycopg2_layer_arn]
 
   # Use S3 package if available, otherwise pre-built local ZIP from GitHub Actions workflow
@@ -477,6 +480,10 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.12"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
+
+  # Keep orchestrator Lambda warm to minimize cold starts during critical trading hours
+  reserved_concurrent_executions = 1
+
   layers        = [local.shared_deps_layer_arn, var.psycopg2_layer_arn] # Orchestrator dependencies + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
