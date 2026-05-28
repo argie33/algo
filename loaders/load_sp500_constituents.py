@@ -73,17 +73,21 @@ def mark_sp500_symbols(conn, symbols):
             reset_count = cur.rowcount
             logger.info(f"Reset is_sp500 flag for {reset_count} symbols")
 
+            # Add benchmark index symbols that aren't in constituents list
+            benchmark_symbols = ['SPY', '^GSPC']
+            all_symbols = symbols + benchmark_symbols
+
             # Now mark the S&P 500 symbols
             # Use a subquery to avoid SQL injection
-            placeholders = ",".join(["%s"] * len(symbols))
+            placeholders = ",".join(["%s"] * len(all_symbols))
             sql = f"""
                 UPDATE stock_symbols
                 SET is_sp500 = TRUE
                 WHERE symbol IN ({placeholders})
             """
-            cur.execute(sql, symbols)
+            cur.execute(sql, all_symbols)
             marked_count = cur.rowcount
-            logger.info(f"Marked {marked_count} symbols as S&P 500 members")
+            logger.info(f"Marked {marked_count} symbols as S&P 500 members (including {len(benchmark_symbols)} benchmark symbols)")
 
             # Verify: check how many symbols are now marked
             cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE")

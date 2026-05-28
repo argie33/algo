@@ -88,7 +88,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=50000, default=50000)
             min_score_str = params.get('min_score', [None])[0] if params else None
-            min_score = float(min_score_str) if min_score_str else None
+            try:
+                min_score = float(min_score_str) if min_score_str else None
+            except (ValueError, TypeError):
+                return error_response(400, 'bad_request', 'min_score must be numeric')
             return _get_swing_scores(cur, limit, min_score)
         elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None

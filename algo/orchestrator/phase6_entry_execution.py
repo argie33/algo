@@ -620,6 +620,58 @@ def run(
             # Recalculate position size based on current portfolio value (after Phase 4 exits)
             trade = _recalculate_position_size_after_exits(trade, get_conn, config, exposure_mult, verbose)
 
+            # Re-check sector limits before execution to prevent race condition
+            # where two same-sector trades could violate sector concentration limits
+            symbol = trade['symbol']
+            sector = trade.get('sector')
+            entry_price = trade.get('entry_price', 0)
+            shares = trade.get('shares', 0)
+            max_sector_pct = float(config.get('max_sector_concentration_pct', 30.0))
+
+            if sector and entry_price > 0 and shares > 0:
+                try:
+                    conn_check = get_conn()
+                    try:
+                        cur_check = conn_check.cursor()
+                        # Get current sector allocation
+                        cur_check.execute("""
+                            SELECT COALESCE(SUM(position_value), 0) as sector_value
+                            FROM algo_positions ap
+                            LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                            WHERE ap.status = 'open' AND ap.quantity > 0
+                              AND COALESCE(cp.sector, 'Unknown') = %s
+                        """, (sector,))
+                        result = cur_check.fetchone()
+                        sector_value = float(result[0] or 0) if result else 0
+
+                        # Get portfolio value
+                        cur_check.execute("""
+                            SELECT COALESCE(total_portfolio_value, 0)
+                            FROM algo_portfolio_snapshots
+                            ORDER BY snapshot_date DESC LIMIT 1
+                        """)
+                        result = cur_check.fetchone()
+                        portfolio_value = float(result[0] or 0) if result else 100000.0
+
+                        # Calculate new position value and sector percentage after this trade
+                        new_position_value = entry_price * shares
+                        new_sector_value = sector_value + new_position_value
+                        new_sector_pct = (new_sector_value / portfolio_value * 100) if portfolio_value > 0 else 0
+
+                        if new_sector_pct > max_sector_pct:
+                            blocked += 1
+                            logger.warning(f"  SKIPPED {symbol}: Sector {sector} concentration would be {new_sector_pct:.1f}% (limit: {max_sector_pct:.1f}%)")
+                            continue
+                    finally:
+                        cur_check.close()
+                except Exception as e:
+                    logger.warning(f"  Could not verify sector limits for {symbol}: {e}")
+                finally:
+                    try:
+                        put_conn(conn_check)
+                    except Exception:
+                        pass
+
             if dry_run:
                 if verbose:
                     logger.info(f"  [DRY-RUN] WOULD ENTER {trade['symbol']}: "
