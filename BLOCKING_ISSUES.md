@@ -103,15 +103,22 @@ Multiple failed deployments occurred on May 27 from 01:40-06:31 UTC, but recent 
 
 **Issue:** trend_template_data ECS task timeout was 1200s (20 min) for 5000+ symbols
 **Solution:** Increased timeout to 2700s (45 min), reduced parallelism to 4
-**Deployed:** May 28 02:08 UTC
-**Test Execution:** test-fix-1779934159 started to verify fix works
+**Deployed:** May 28 02:08 UTC (Commit a0f862475)
+**Test Execution:** test-fix-1779934159 started at 02:09 UTC
 
-Expected: EOD pipeline will now complete successfully, signals will be generated,  
+### Current Status (as of 02:23 UTC):
+- **Bulk Refresh Loader:** COMPLETED (3-4 min)
+- **Parallel Data Loaders:** RUNNING (technical_data_daily, market_health_daily)
+- **Trend Template Data:** PENDING (this is the critical task with new 45-min timeout)
+- **Elapsed Time:** ~11 minutes (2700s timeout reserves 34+ minutes for main task)
+- **Monitor Status:** Actively watching with 3600s overall timeout
+
+Expected: EOD pipeline will complete successfully, signals will be generated for May 27/28,  
 system will resume trading after this test passes.
 
 ---
 
-## Timeline & Current Status (as of May 28 02:10 UTC)
+## Timeline & Current Status (as of May 28 02:23 UTC)
 
 | Time | Event | Status |
 |------|-------|--------|
@@ -119,38 +126,39 @@ system will resume trading after this test passes.
 | May 27 05:30 ET | Morning orchestrator runs | ? Unknown (audit log shows later runs only) |
 | May 27 13:00 ET | Afternoon orchestrator runs | ? Unknown |
 | May 27 15:00 ET | Pre-close orchestrator runs | ? Unknown |
-| May 27 17:00 ET | EOD signal pipeline starts (**CRITICAL**)  | ✗ LIKELY INCOMPLETE |
-| **May 28 04:00 ET** | **Next price loader runs → May 27 prices** | 🔄 **In ~6 hours** |
+| May 27 17:00 ET | EOD signal pipeline starts (**CRITICAL**)  | ✗ PREVIOUS: FAILED due to timeout |
+| May 28 02:09 UTC | Test execution starts (test-fix-1779934159) | 🔄 **RUNNING** |
+| **May 28 02:23 UTC** | **Test: bulk_refresh DONE, parallel loaders RUNNING** | 🔄 **~11min elapsed** |
 | May 28 21:00 UTC | Next EOD signal pipeline runs → May 27 signals | 🔄 In ~20 hours |
 
-## To Unblock Trading - Action Plan
+## Action Plan - Test Execution In Progress
 
-### Immediate (Next 2 hours)
-1. **CRITICAL:** Check AWS Step Functions execution history for May 27 EOD pipeline (21:00 UTC)
-   - Expected completion: May 27 21:30-22:00 UTC
-   - Check if it completed or failed
-   - Look for errors in "signals_daily" or "signal_quality_scores" steps
+### Current Status (May 28 02:24 UTC)
+Test execution test-fix-1779934159 running for ~15 minutes:
+- [x] Bulk refresh loader: COMPLETED
+- [⏳] Parallel data loaders: IN PROGRESS (~8.5 min remaining)
+- [⏳] Trend template data: PENDING (this is the critical fix being tested)
 
-2. If May 27 pipeline completed but signals are still incomplete:
-   - There's a BUG in signal generation logic (only returns subset of symbols)
-   - Need to fix the bug OR manually re-run with fixes
+Monitor watching with 3600s timeout. Ample time remaining for trend_template_data to complete.
 
-3. If May 27 pipeline failed:
-   - Identify which step failed
-   - Fix the underlying issue
-   - Re-run the pipeline
+### When Test Completes (Expected ~15-25 min total)
 
-### Short-term (6-20 hours)
-4. Monitor May 28 morning price loader (04:00 ET) - should load May 27 prices
-5. Let May 28 evening EOD pipeline run (21:00 UTC) - should generate May 27 signals
-6. If May 28 signals are complete, system can resume trading
+**If SUCCEEDED:**
+1. Signals for May 27/28 will be generated
+2. Check API: `curl http://localhost:3001/api/signals | grep date`
+3. Run orchestrator: `python3 -c "from algo.algo_orchestrator import Orchestrator; o=Orchestrator(); o.phase_1_data_freshness(); print('OK')"`
+4. System ready to trade
 
-### If Signals Still Incomplete on May 28
-7. Check signal generation code for:
-   - Symbol filtering logic
-   - Data quality gates that might exclude symbols
-   - SQL LIMIT clauses that truncate results
-   - Missing symbols in upstream tables (technical_data_daily, trend_template_data)
+**If FAILED:**
+1. Check CloudWatch logs in `/aws/ecs/algo-trend_template_data-loader`
+2. Check Step Functions execution history for error details
+3. Possible causes: timeout still insufficient, memory issues, database contention
+4. Next: Debug and iterate on the fix
+
+### Follow-up Actions
+- Once signals generated: Commit config.js changes and BLOCKING_ISSUES.md updates
+- Monitor May 28 21:00 UTC: Next scheduled EOD pipeline run
+- Verify signal coverage is > 2700 symbols (was 913 on May 26)
 
 ## To Get AWS Access for Diagnostics
 

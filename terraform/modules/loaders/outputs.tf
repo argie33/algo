@@ -3,8 +3,8 @@
 # ============================================================
 
 output "loader_task_definition_arns" {
-  description = "ARNs of all loader ECS task definitions (keyed by loader name)"
-  value       = { for k, v in aws_ecs_task_definition.loader : k => v.arn }
+  description = "Task definition family names (Step Functions will resolve to latest active revision)"
+  value       = { for k, v in aws_ecs_task_definition.loader : k => v.family }
 }
 
 output "loader_task_definition_families" {
