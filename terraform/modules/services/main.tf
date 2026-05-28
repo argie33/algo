@@ -261,9 +261,11 @@ resource "aws_apigatewayv2_stage" "api" {
   auto_deploy = true
 
   # Issue #39: Global rate limiting via API Gateway throttling
-  throttle_settings {
-    burst_limit = 5000
-    rate_limit  = 2000
+  default_route_settings {
+    throttle_settings {
+      burst_limit = 5000
+      rate_limit  = 2000
+    }
   }
 
   dynamic "access_log_settings" {
