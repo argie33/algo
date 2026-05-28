@@ -56,6 +56,16 @@ def lambda_handler(event, context):
         # Load environment variables
         load_env()
 
+        # FIXED Issue #8: Validate incoming event structure for EventBridge
+        if not event:
+            event = {}
+        if not isinstance(event, dict):
+            logger.error(f"Invalid event type: {type(event)}. Expected dict.")
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'status': 'error', 'message': 'Event must be a JSON object'})
+            }
+
         # Parse event payload
         source = event.get('source', 'eventbridge')
         is_test = event.get('test', False)
@@ -71,10 +81,16 @@ def lambda_handler(event, context):
             # Evening/pre-close orchestrator runs in dry-run unless explicitly overridden
             dry_run = event.get('dry_run', True)
 
-        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, run_identifier={run_identifier}")
+        # FIXED Issue #12: Parse execution_mode from event (EventBridge Scheduler passes it)
+        execution_mode = event.get('execution_mode', os.getenv('ORCHESTRATOR_EXECUTION_MODE', 'auto')).strip().lower()
+        if execution_mode not in ('auto', 'paper', 'live'):
+            logger.warning(f"Invalid execution_mode: {execution_mode}. Defaulting to 'auto'.")
+            execution_mode = 'auto'
 
-        # Get timeout from Lambda context (in seconds)
-        lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 240
+        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}")
+
+        # FIXED Issue #18: Default Lambda timeout to 600s instead of 240s (close to Lambda max)
+        lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 600
 
         # Parse run date if provided (skip 'now'/'today' to use system date logic)
         run_date = None
@@ -90,6 +106,11 @@ def lambda_handler(event, context):
             dry_run=dry_run,
             verbose=not is_test,
         )
+
+        # Apply execution mode from event (overrides ORCHESTRATOR_EXECUTION_MODE env var)
+        if execution_mode != 'auto':
+            orchestrator.config['execution_mode'] = execution_mode
+            logger.info(f"Execution mode set to {execution_mode} from event")
 
         # Apply additional options
         if skip_freshness:

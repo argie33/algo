@@ -141,6 +141,18 @@ variable "api_lambda_layer_name" {
   default     = "algo-api-layer"
 }
 
+variable "api_lambda_layer_version" {
+  description = "Version number of the API Lambda layer (optional, default: latest)"
+  type        = number
+  default     = 0 # 0 means use latest
+}
+
+variable "lambda_layer_version" {
+  description = "Version number of the shared Lambda layer (optional, default: latest)"
+  type        = number
+  default     = 0 # 0 means use latest
+}
+
 # ============================================================
 # Storage Configuration
 # ============================================================

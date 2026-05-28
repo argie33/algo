@@ -17,14 +17,20 @@ locals {
 # Separate layers for API and Orchestrator Lambda functions
 # Published by GitHub Actions deploy workflow
 
-# API Layer - published as per variable configuration
+# FIXED Issue #11: API Layer with optional version pinning
+# If api_lambda_layer_version=0 (default), uses latest; otherwise pins to specific version
 data "aws_lambda_layer_version" "api_deps" {
-  layer_name = var.api_lambda_layer_name
+  layer_name            = var.api_lambda_layer_name
+  version_number        = var.api_lambda_layer_version > 0 ? var.api_lambda_layer_version : null
+  compatible_runtime    = var.api_lambda_layer_version > 0 ? null : "python3.12"
 }
 
-# Orchestrator Layer - published as "algo-orchestrator-layer"
+# FIXED Issue #11: Orchestrator Layer with optional version pinning
+# If lambda_layer_version=0 (default), uses latest; otherwise pins to specific version
 data "aws_lambda_layer_version" "shared_deps" {
-  layer_name = var.lambda_layer_name
+  layer_name            = var.lambda_layer_name
+  version_number        = var.lambda_layer_version > 0 ? var.lambda_layer_version : null
+  compatible_runtime    = var.lambda_layer_version > 0 ? null : "python3.12"
 }
 
 # For compatibility with existing code
@@ -100,6 +106,7 @@ resource "aws_lambda_function" "api" {
     variables = {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
+      # FIXED Issue #10: Use RDS Proxy endpoint if available, otherwise extract hostname from RDS endpoint
       DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
       DB_PORT       = "5432"
       DB_NAME       = var.rds_database_name
@@ -527,6 +534,7 @@ resource "aws_lambda_function" "algo" {
     variables = {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
+      # FIXED Issue #10: Use RDS Proxy endpoint if available, otherwise extract hostname from RDS endpoint
       DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
       DB_PORT       = "5432"
       DB_NAME       = var.rds_database_name

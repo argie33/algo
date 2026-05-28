@@ -21,6 +21,20 @@
  */
 
 # ============================================================
+# FIXED Issue #26: Lambda Permission for EventBridge Scheduler
+# ============================================================
+# Grant EventBridge Scheduler permission to invoke the algo Lambda function.
+# This must be defined for all EventBridge Scheduler rules to work.
+
+resource "aws_lambda_permission" "eventbridge_scheduler" {
+  statement_id  = "AllowEventBridgeSchedulerInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = "${var.project_name}-algo-${var.environment}"
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*"
+}
+
+# ============================================================
 # Pre-market Schedule (4:30 AM ET) [OPTIONAL]
 # Runs after stock_symbols, before price loads complete
 # Uses: signals from night before + previous prices

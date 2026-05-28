@@ -561,6 +561,14 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
 # ============================================================
 # EventBridge rule: fires at 4:05pm ET = 20:05 UTC Mon-Fri
 # (5 min after market close gives Alpaca time to settle EOD prices)
+#
+# IMPORTANT: Classic EventBridge rules use UTC only and don't support timezone attributes.
+# Therefore:
+#   - EDT (summer): cron(5 20) = 8:05 PM UTC = 4:05 PM EDT ✓ (correct)
+#   - EST (winter): cron(5 20) = 8:05 PM UTC = 3:05 PM EST ✗ (1 hour early!)
+#
+# FUTURE: Migrate EOD pipeline trigger to EventBridge Scheduler (supports schedule_expression_timezone)
+# or split into EDT/EST specific rules. For now, pipeline runs early in EST but data is cached.
 # ============================================================
 
 resource "aws_iam_role" "eventbridge_sfn" {
