@@ -13,11 +13,11 @@ router.get("/", async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     // Build WHERE clause
-    let whereClause = "";
+    let whereClause = "WHERE (sy.etf IS NULL OR sy.etf != 'Y')";
     const params = [];
 
     if (symbol) {
-      whereClause = "WHERE symbol = $1";
+      whereClause += " AND ss.symbol = $1";
       params.push(symbol.toUpperCase());
     }
 
@@ -28,7 +28,7 @@ router.get("/", async (req, res) => {
 
     // Get total count
     const countResult = await query(
-      `SELECT COUNT(*) as total FROM stock_scores ${whereClause}`,
+      `SELECT COUNT(*) as total FROM stock_scores ss LEFT JOIN stock_symbols sy ON sy.symbol = ss.symbol ${whereClause}`,
       params
     );
     const total = parseInt(countResult?.rows[0]?.total || 0);
@@ -37,16 +37,17 @@ router.get("/", async (req, res) => {
     const paramIndex = params.length + 1;
     const resultObj = await query(`
       SELECT
-        symbol,
-        composite_score,
-        momentum_score,
-        value_score,
-        quality_score,
-        growth_score,
-        stability_score
-      FROM stock_scores
+        ss.symbol,
+        ss.composite_score,
+        ss.momentum_score,
+        ss.value_score,
+        ss.quality_score,
+        ss.growth_score,
+        ss.stability_score
+      FROM stock_scores ss
+      LEFT JOIN stock_symbols sy ON sy.symbol = ss.symbol
       ${whereClause}
-      ORDER BY ${sortField} ${sortDir}
+      ORDER BY ss.${sortField} ${sortDir}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `, [...params, limitNum, offset]);
 
@@ -84,8 +85,8 @@ router.get("/stockscores", async (req, res) => {
     const pageNum = offset ? Math.max(parseInt(offset) / limitNum + 1, 1) : Math.max(parseInt(page) || 1, 1);
     const offsetNum = offset ? Math.max(parseInt(offset), 0) : (pageNum - 1) * limitNum;
 
-    // Build WHERE clause - only show stocks with good data coverage
-    let whereClause = "WHERE sc.composite_score > 0";
+    // Build WHERE clause - only show stocks with good data coverage, exclude ETFs
+    let whereClause = "WHERE sc.composite_score > 0 AND (ss.etf IS NULL OR ss.etf != 'Y')";
     const params = [];
 
     if (symbol) {
@@ -100,7 +101,7 @@ router.get("/stockscores", async (req, res) => {
 
     // Get total count
     const countResult = await query(
-      `SELECT COUNT(*) as total FROM stock_scores sc ${whereClause}`,
+      `SELECT COUNT(*) as total FROM stock_scores sc LEFT JOIN stock_symbols ss ON ss.symbol = sc.symbol ${whereClause}`,
       params
     );
     const total = parseInt(countResult?.rows[0]?.total || 0);
