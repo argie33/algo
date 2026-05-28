@@ -145,8 +145,19 @@ resource "aws_apigatewayv2_api" "main" {
   name          = "${var.project_name}-api-${var.environment}"
   protocol_type = "HTTP"
 
-  # CORS is handled entirely by Lambda get_cors_headers() function
-  # This avoids circular dependency and allows credentials with specific origins
+  # CORS is handled at both API Gateway level (safety net) and Lambda (primary)
+  cors_configuration {
+    allow_origins = [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "https://*.cloudfront.net"  # CloudFront distributions
+    ]
+    allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "*"]
+    expose_headers    = ["Content-Length", "Content-Type", "X-Custom-*"]
+    max_age          = 3600
+    allow_credentials = true
+  }
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-api-${var.environment}"
