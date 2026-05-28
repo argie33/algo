@@ -29,15 +29,14 @@ def load_sectors():
         # Get S&P 500 symbols count by sector from stock_symbols
         # We'll use sector_ranking as the source since stock_symbols doesn't have sector
 
-        # Insert sectors from latest sector_ranking data
+        # Insert sector performance data from latest sector_ranking data
         cur.execute("""
             INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at)
             SELECT
-                sr.sector_name,
-                %s::date,
-                sr.momentum_score::numeric * 100 AS return_pct,
-                50 AS relative_strength,
-                NOW(),
+                sr.sector_name AS sector,
+                %s::date AS date,
+                COALESCE(sr.momentum_score, 0)::numeric AS return_pct,
+                COALESCE(sr.momentum_score, 0)::numeric AS relative_strength,
                 NOW()
             FROM (
                 SELECT DISTINCT sector_name, momentum_score
@@ -45,9 +44,8 @@ def load_sectors():
                 WHERE date_recorded = %s
             ) sr
             ON CONFLICT (sector, date) DO UPDATE SET
-                performance_ytd = EXCLUDED.performance_ytd,
-                stock_count = EXCLUDED.stock_count,
-                updated_at = NOW()
+                return_pct = EXCLUDED.return_pct,
+                relative_strength = EXCLUDED.relative_strength
         """, (latest_date, latest_date))
 
         inserted = cur.rowcount

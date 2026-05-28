@@ -70,5 +70,7 @@ developer_key_rotation_date = "2026-05-29"
 # Alert system configuration (for patrol, loader, position, circuit breaker failures)
 # Email alerts require SMTP credentials (set via GitHub Secrets + GitHub Actions deploy-code.yml)
 # Slack/Teams alerts only require webhook URL (no authentication)
-alert_email_to     = "argeropolos@gmail.com" # Email recipients for critical alerts
+sns_alerts_enabled = true                    # Enable SNS topic for infrastructure alerts (Step Functions, RDS, CloudWatch)
+sns_alert_email    = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
+alert_email_to     = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
 alert_webhook_url  = ""                      # Slack webhook URL: create at api.slack.com/apps → Incoming Webhooks
