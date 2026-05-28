@@ -16,6 +16,7 @@ import json
 import logging
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, Any
+from .utils import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
 
         row = cur.fetchone()
         if not row:
-            return {'error': 'No price data found', 'status': 'error'}
+            return error_response(500, 'error', 'No price data found')
 
         total_symbols, sp500_total, latest_date, total_rows, zero_vol, invalid_prices = row
 
@@ -59,7 +60,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
             }
         }
     except Exception as e:
-        return {'error': str(e), 'status': 'error'}
+        return error_response(500, 'error', str(e))
 
 
 def get_technical_coverage(cur) -> Dict[str, Any]:
@@ -81,7 +82,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
 
         row = cur.fetchone()
         if not row:
-            return {'error': 'No technical data found', 'status': 'error'}
+            return error_response(500, 'error', 'No technical data found')
 
         symbols, latest_date, total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
@@ -100,7 +101,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
             'status': 'complete' if min_coverage >= 0.95 else 'incomplete'
         }
     except Exception as e:
-        return {'error': str(e), 'status': 'error'}
+        return error_response(500, 'error', str(e))
 
 
 def get_market_data_coverage(cur) -> Dict[str, Any]:
@@ -141,7 +142,7 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
             }
         }
     except Exception as e:
-        return {'error': str(e), 'status': 'error'}
+        return error_response(500, 'error', str(e))
 
 
 def get_loader_health(cur) -> Dict[str, Any]:
@@ -173,7 +174,7 @@ def get_loader_health(cur) -> Dict[str, Any]:
             'status': 'healthy' if not failed_loaders else 'degraded'
         }
     except Exception as e:
-        return {'error': str(e), 'status': 'error'}
+        return error_response(500, 'error', str(e))
 
 
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:
