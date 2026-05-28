@@ -65,8 +65,8 @@ class SignalsDailyLoader(OptimalLoader):
         cur = conn.cursor()
         try:
             cur.execute(
-                """SELECT t.date, t.rsi_14, t.macd, t.macd_signal,
-                          t.sma_50, t.sma_200, t.ema_12, t.atr_14,
+                """SELECT t.date, COALESCE(t.rsi_14, t.rsi), t.macd, t.macd_signal,
+                          t.sma_50, t.sma_200, t.ema_12, COALESCE(t.atr_14, t.atr),
                           p.close, p.volume
                    FROM technical_data_daily t
                    LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
