@@ -24,6 +24,7 @@ from config.credential_manager import get_credential_manager
 from config.api_timeouts import get_alpaca_timeout
 import os
 import json
+from decimal import Decimal, ROUND_HALF_UP
 
 import requests
 from pathlib import Path
@@ -229,11 +230,17 @@ class PositionMonitor:
             logger.error(f"REJECT: Position {symbol} has no valid current market price (got {cur_price}). Cannot monitor without real market data.")
             return None
 
-        # P&L
+        # P&L (using Decimal for precision)
         risk_per_share = entry_price - init_stop
         r_multiple = ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
-        unrealized_pnl = (cur_price - entry_price) * quantity
-        unrealized_pct = ((cur_price - entry_price) / entry_price * 100.0) if entry_price > 0 else 0
+
+        # Use Decimal for monetary calculations to avoid floating point precision loss
+        price_diff = Decimal(str(cur_price)) - Decimal(str(entry_price))
+        entry_price_dec = Decimal(str(entry_price))
+        quantity_dec = Decimal(str(quantity))
+
+        unrealized_pnl = float((price_diff * quantity_dec).quantize(Decimal('0.01'), ROUND_HALF_UP))
+        unrealized_pct = float((price_diff / entry_price_dec * 100).quantize(Decimal('0.01'), ROUND_HALF_UP)) if entry_price > 0 else 0
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(

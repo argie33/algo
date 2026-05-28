@@ -727,6 +727,39 @@ def run(
                 errors += 1
                 logger.error(f"  Exception on {trade['symbol']}: {e}", exc_info=True)
 
+        # Persist dry-run results if applicable
+        if dry_run and trades_to_enter:
+            try:
+                conn = get_conn()
+                try:
+                    cur = conn.cursor()
+                    # Log all proposed trades for dry-run audit
+                    for i, trade in enumerate(trades_to_enter[:open_slots]):
+                        cur.execute("""
+                            INSERT INTO algo_trades_dry_run_log
+                            (symbol, entry_price, shares, stop_loss_price,
+                             signal_date, proposed_at, status)
+                            VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                        """, (
+                            trade['symbol'],
+                            trade['entry_price'],
+                            trade['shares'],
+                            trade['stop_loss_price'],
+                            run_date,
+                            'proposed'
+                        ))
+                    conn.commit()
+                    logger.info(f"Dry-run: Persisted {len(trades_to_enter[:open_slots])} proposed trades for audit")
+                finally:
+                    cur.close()
+            except Exception as e:
+                logger.warning(f"Could not persist dry-run results: {e}")
+            finally:
+                try:
+                    put_conn(conn)
+                except Exception:
+                    pass
+
         # Circuit breaker: if >50% of trades fail in a batch, halt.
         # Exclude blocked (duplicates) from the denominator — they are expected
         # idempotency blocks, not failures; including them would dilute the rate.
