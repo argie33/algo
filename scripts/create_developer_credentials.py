@@ -24,8 +24,24 @@ def main():
     secrets = boto3.client('secretsmanager', region_name=region)
 
     try:
+        # Ensure user exists
+        print(f"=== Ensuring IAM User Exists ===")
+        try:
+            user_info = iam.get_user(UserName=username)
+            print(f"✓ User exists: {user_info['User']['Arn']}")
+        except iam.exceptions.NoSuchEntityException:
+            print(f"User '{username}' not found. Creating...")
+            user = iam.create_user(UserName=username)
+            print(f"✓ Created user: {user['User']['Arn']}")
+            # Attach read-only policy
+            iam.attach_user_policy(
+                UserName=username,
+                PolicyArn='arn:aws:iam::aws:policy/ReadOnlyAccess'
+            )
+            print(f"✓ Attached ReadOnlyAccess policy")
+
         # List current keys
-        print(f"=== Current Access Keys for {username} ===")
+        print(f"\n=== Current Access Keys for {username} ===")
         keys_response = iam.list_access_keys(UserName=username)
         current_keys = keys_response.get('AccessKeyMetadata', [])
 
