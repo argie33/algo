@@ -119,10 +119,28 @@ Multiple failed deployments occurred on May 27 from 01:40-06:31 UTC, but recent 
 - fb4eb4e1f: Loaders task definitions → family names
 - 9c85257fb: Orchestrator task definition → family name
 
-**Next Step:**
-- Run `terraform apply` to deploy Step Functions definition changes to AWS
-- Test execution test-eod-fix-1779936995 is currently RUNNING (started 21:56:35 UTC)
-- Monitoring until completion
+**Issues Discovered During Testing:**
+
+3. **signals_daily Loader Column Mismatch (NEWLY FIXED in commit 218cc8165):**
+   - Loader was querying rsi_14 column that doesn't exist in database table
+   - Error: "column t.rsi_14 does not exist" during ZYME signal processing
+   - Root cause: Database table may not have rsi_14/atr_14 columns
+   - Solution: Updated query to use COALESCE(rsi_14, rsi) and COALESCE(atr_14, atr)
+   - Makes loader resilient to schema variations
+
+**Changes Committed:**
+- fb4eb4e1f: Loaders task definitions → family names
+- 9c85257fb: Orchestrator task definition → family name
+- 218cc8165: signals_daily query → COALESCE fallbacks
+
+**Test Results:**
+- Execution test-eod-fix-1779936995: FAILED (51 min) — signals_daily loader failed on rsi_14
+- Execution should now SUCCEED with the rsi/atr COALESCE fix
+
+**Next Steps:**
+1. Run terraform apply to deploy Step Functions definition changes to AWS
+2. Manually trigger or wait for next scheduled Step Functions execution
+3. Monitor for completion and verify signal generation succeeds
 
 ---
 
