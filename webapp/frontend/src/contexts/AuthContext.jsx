@@ -155,15 +155,13 @@ export function AuthProvider({ children }) {
   const refreshSession = useCallback(async () => {
     try {
       const cognitoConfigured = isCognitoConfigured();
-      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
-      const isDev = import.meta.env.DEV;
 
-      let session;
-      if (cognitoConfigured && !forceDevAuth && !isDev) {
-        session = await fetchAuthSession({ forceRefresh: true });
-      } else {
-        session = await devAuth.fetchAuthSession();
+      // Strict AWS Cognito only - no fallbacks
+      if (!cognitoConfigured) {
+        return { success: false, error: "Cognito not configured" };
       }
+
+      const session = await fetchAuthSession({ forceRefresh: true });
 
       if (session.tokens) {
         dispatch({
@@ -179,11 +177,7 @@ export function AuthProvider({ children }) {
 
       return { success: false, error: "No valid tokens" };
     } catch (error) {
-      // Only log non-expected errors; "No active session" is expected in dev mode
-      const errorMsg = error?.message || String(error);
-      if (!errorMsg.includes('No active session')) {
-        console.error("Session refresh error:", error);
-      }
+      console.error("❌ Session refresh error:", error);
       return { success: false, error: getErrorMessage(error) };
     }
   }, []);

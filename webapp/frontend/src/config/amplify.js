@@ -31,6 +31,7 @@ const getAmplifyConfig = () => {
   const runtimeConfig = getRuntimeConfig();
   const userPoolId = runtimeConfig.USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID || "us-east-1_DUMMY";
   const region = userPoolId.split('_')[0] || (import.meta.env.VITE_AWS_REGION || "us-east-1");
+  const domain = runtimeConfig.USER_POOL_DOMAIN || import.meta.env.VITE_COGNITO_DOMAIN;
 
   return {
     Auth: {
@@ -41,16 +42,9 @@ const getAmplifyConfig = () => {
           import.meta.env.VITE_COGNITO_CLIENT_ID ||
           "dummy-client-id",
         region: region,
-        // Construct domain URL from pool ID if not provided
-        // Format: https://[project-env-accountid].auth.[region].amazoncognito.com
-        loginWith: {
-          username: true,
-          email: true,
-        },
-        // Support all secure auth methods: SRP, password, and custom
-        allowUserSrpAuth: true,
-        allowUserPasswordAuth: true,
-        allowCustomAuth: true,
+        // OAuth domain URL for login redirects (format: https://domain-name.auth.region.amazoncognito.com)
+        ...(domain && { loginWith: { username: true, email: true } }),
+        signUpVerificationMethod: 'code',
       },
     },
   };

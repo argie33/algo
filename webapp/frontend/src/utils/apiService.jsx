@@ -79,22 +79,12 @@ export const createLogger = (componentName) => ({
   },
 });
 
-// Get stored auth token for API requests
+// Get stored auth token for API requests (strict Cognito only)
 const getAuthToken = () => {
   try {
-    // Check for dev auth session
-    const devSession = localStorage.getItem("dev_session");
-    if (devSession) {
-      const session = JSON.parse(devSession);
-      if (
-        session &&
-        session.tokens &&
-        session.tokens.accessToken &&
-        Date.now() < session.expiresAt
-      ) {
-        return session.tokens.accessToken;
-      }
-    }
+    // Use tokenManager for Cognito tokens only
+    const tokens = sessionStorage.getItem("authToken");
+    return tokens ? JSON.parse(tokens).accessToken : null;
   } catch (error) {
     // Silent failure for auth token retrieval
   }
