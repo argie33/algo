@@ -236,8 +236,13 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
     """Get CORS headers based on request origin (whitelist only)."""
     origin = event.get('headers', {}).get('origin', '') or event.get('headers', {}).get('Origin', '')
 
-    # Check if origin is in whitelist
+    # Hardcoded production CloudFront domain (immediate fix)
+    PROD_CLOUDFRONT = 'https://d2u93283nn45h2.cloudfront.net'
+
+    # Check if origin is in whitelist or matches production CloudFront
     allowed_origins = _build_allowed_origins()
+    allowed_origins.add(PROD_CLOUDFRONT)  # Ensure production domain is always allowed
+
     if origin in allowed_origins:
         return {
             'Access-Control-Allow-Origin': origin,
