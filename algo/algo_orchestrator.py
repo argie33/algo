@@ -256,9 +256,7 @@ class Orchestrator:
             'buy_sell_daily',
             'signal_quality_scores',
             'market_health_daily',
-            'positions',
             'algo_audit_log',
-            'algo_alerts',
         ]
 
         try:
