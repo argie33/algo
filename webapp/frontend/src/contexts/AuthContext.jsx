@@ -235,10 +235,10 @@ export function AuthProvider({ children }) {
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
       const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
+      let cognitoAttemptFailed = false;
 
-      // Use Cognito in production or when properly configured (unless dev auth is forced)
-      if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
-
+      // Try Cognito first if configured and not forcing dev auth
+      if (cognitoConfigured && !forceDevAuth) {
         try {
           // Get current authenticated user
           const user = await getCurrentUser();
@@ -273,13 +273,13 @@ export function AuthProvider({ children }) {
             return;
           }
         } catch (error) {
-          console.log("No Cognito session found:", error);
+          console.log("Cognito session check failed, trying dev auth fallback:", error?.message);
+          cognitoAttemptFailed = true;
         }
       }
 
-      // Development fallback when Cognito is not configured OR dev auth is forced OR in DEV mode
-      // Use dev auth if Cognito isn't configured OR in DEV mode OR dev auth is forced
-      if (!cognitoConfigured || forceDevAuth || import.meta.env.DEV) {
+      // Fallback to dev auth: if Cognito not configured, failed, forced, or in DEV mode
+      if (!cognitoConfigured || forceDevAuth || import.meta.env.DEV || cognitoAttemptFailed) {
         try {
           const user = await devAuth.getCurrentUser();
           const session = await devAuth.fetchAuthSession();
