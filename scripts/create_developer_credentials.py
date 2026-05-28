@@ -34,6 +34,19 @@ def main():
             print(f"    Status: {key['Status']}")
             print(f"    Created: {key['CreateDate']}")
 
+        # Delete all existing keys first (hit limit if >1 key exists)
+        if len(current_keys) >= 2:
+            print(f"\n=== Deleting Old Access Keys (hit quota limit) ===")
+            for old_key in current_keys:
+                old_key_id = old_key['AccessKeyId']
+                print(f"Deleting: {old_key_id[:4]}...{old_key_id[-4:]}")
+                try:
+                    iam.delete_access_key(UserName=username, AccessKeyId=old_key_id)
+                    print(f"  ✓ Deleted")
+                except Exception as e:
+                    print(f"  ✗ Failed to delete: {e}")
+                    # Continue trying to delete other keys
+
         # Create new access key
         print(f"\n=== Creating New Access Key ===")
         new_key = iam.create_access_key(UserName=username)
