@@ -460,56 +460,42 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // Development auth fallback - use when:
-      // 1. Cognito not configured
-      // 2. Dev auth is explicitly forced
-      // 3. In development mode (even if Cognito is configured)
-      // 4. In production when Cognito login failed (fallback to devAuth)
-      const shouldUseDevAuth = !cognitoConfigured ||
-                               forceDevAuth ||
-                               import.meta.env.DEV;
+      // Development auth fallback - always try after Cognito fails
+      console.log("Attempting dev auth fallback after Cognito failure");
 
-      if (shouldUseDevAuth) {
-        console.log(
-          forceDevAuth
-            ? "🔧 DEVELOPMENT LOGIN - Dev auth forced via VITE_FORCE_DEV_AUTH=true"
-            : "🔧 DEVELOPMENT LOGIN - Using dev auth fallback"
-        );
+      try {
+        const result = await devAuth.signIn(username, password);
 
-        try {
-          const result = await devAuth.signIn(username, password);
-
-          // Check if login was successful and has tokens
-          if (!result || !result.success || !result.tokens) {
-            const errorMsg =
-              result.error?.message || "Login failed - no tokens received";
-            console.error("Dev auth login failed:", errorMsg);
-            dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMsg });
-            return { success: false, error: errorMsg };
-          }
-
-          // Store tokens using tokenManager (proper key handling)
-          tokenManager.setTokens({
-            access: result.tokens.accessToken,
-            id: result.tokens.idToken,
-            refresh: result.tokens.refreshToken
-          });
-
-          dispatch({
-            type: AUTH_ACTIONS.LOGIN_SUCCESS,
-            payload: {
-              user: result.user,
-              tokens: result.tokens,
-            },
-          });
-
-          return { success: true };
-        } catch (error) {
-          console.error("Dev auth login error:", error);
-          const errorMessage = getErrorMessage(error);
-          dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
-          return { success: false, error: errorMessage };
+        // Check if login was successful and has tokens
+        if (!result || !result.success || !result.tokens) {
+          const errorMsg =
+            result?.error?.message || "Login failed - no tokens received";
+          console.error("Dev auth login failed:", errorMsg);
+          dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMsg });
+          return { success: false, error: errorMsg };
         }
+
+        // Store tokens using tokenManager (proper key handling)
+        tokenManager.setTokens({
+          access: result.tokens.accessToken,
+          id: result.tokens.idToken,
+          refresh: result.tokens.refreshToken
+        });
+
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: result.user,
+            tokens: result.tokens,
+          },
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error("Dev auth login error:", error);
+        const errorMessage = getErrorMessage(error);
+        dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
+        return { success: false, error: errorMessage };
       }
 
       // If we get here, neither production nor development auth is available
