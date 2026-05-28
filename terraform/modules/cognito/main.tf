@@ -111,7 +111,7 @@ resource "aws_cognito_user_pool_client" "web_app" {
 
 # Cognito Domain for OAuth flows
 resource "aws_cognito_user_pool_domain" "main" {
-  domain       = "${var.project_name}-${var.environment}-${data.aws_caller_identity.current.account_id}"
+  domain       = "${var.project_name}-${var.environment}"
   user_pool_id = aws_cognito_user_pool.stocks_trading.id
 }
 
