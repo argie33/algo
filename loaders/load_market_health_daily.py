@@ -89,6 +89,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         for m in health_metrics:
             m["vix_level"] = vix.get(m["date"])
 
+        # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:
             since_str = since.isoformat()
             before_filter = len(health_metrics)
@@ -125,7 +126,36 @@ class MarketHealthDailyLoader(OptimalLoader):
         conn = self._connect()
         cur = conn.cursor()
         try:
-            lookback_start = start - timedelta(days=365)
+            # For efficiency: only compute breadth for the last 30 days (most recent data)
+            # For dates older than 30 days, query existing market_health_daily data to reuse
+            recent_start = max(start, end - timedelta(days=30))
+            lookback_start = recent_start - timedelta(days=365)
+
+            result = {}
+
+            # First, get cached breadth data from market_health_daily for older dates
+            if start < recent_start:
+                try:
+                    cur.execute("""
+                        SELECT date,
+                               COALESCE(advance_decline_ratio, 1.0),
+                               COALESCE(new_highs_count, 0),
+                               COALESCE(new_lows_count, 0)
+                        FROM market_health_daily
+                        WHERE date >= %s AND date < %s
+                        ORDER BY date ASC
+                    """, (start, recent_start))
+
+                    for r in cur.fetchall():
+                        result[r[0].isoformat()] = {
+                            "advance_decline_ratio": float(r[1]),
+                            "new_highs_count": int(r[2]),
+                            "new_lows_count": int(r[3]),
+                        }
+                except Exception as e:
+                    logger.warning(f"Could not fetch cached breadth data: {e}")
+
+            # Now compute breadth data only for recent dates (more efficient)
             cur.execute("""
                 WITH prices AS (
                     SELECT symbol, date, close
@@ -157,14 +187,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                 WHERE prev_close IS NOT NULL AND date >= %s
                 GROUP BY date
                 ORDER BY date ASC
-            """, (lookback_start, end, start))
-            result = {}
+            """, (lookback_start, end, recent_start))
+
             for r in cur.fetchall():
                 result[r[0].isoformat()] = {
                     "advance_decline_ratio": float(r[3]) if r[3] is not None else 1.0,
                     "new_highs_count": int(r[4]) if r[4] is not None else 0,
                     "new_lows_count": int(r[5]) if r[5] is not None else 0,
                 }
+
             return result
         finally:
             cur.close()
