@@ -58,3 +58,6 @@ alpaca_api_base_url = "https://paper-api.alpaca.markets" # PAPER API
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = true # Deploy execution monitor Lambda
 enable_execution_monitor_schedule = true # Run every 2 hours during trading hours
+
+# Developer IAM credential rotation - update to trigger key recreation
+developer_key_rotation_date = "2026-05-28"
