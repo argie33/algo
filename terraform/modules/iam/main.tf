@@ -997,6 +997,11 @@ data "aws_iam_policy_document" "developer" {
 resource "aws_iam_access_key" "developer" {
   user = aws_iam_user.developer.name
 
+  # Force key recreation when rotation date changes by adding rotation marker to tags
+  tags = {
+    rotation_marker = local.developer_key_rotation
+  }
+
   lifecycle {
     create_before_destroy = true
   }
