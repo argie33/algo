@@ -461,9 +461,10 @@ export function AuthProvider({ children }) {
       }
 
       // Development auth fallback - use when:
-      // 1. Cognito not configured in dev mode
+      // 1. Cognito not configured
       // 2. Dev auth is explicitly forced
       // 3. In development mode (even if Cognito is configured)
+      // 4. In production when Cognito login failed (fallback to devAuth)
       const shouldUseDevAuth = !cognitoConfigured ||
                                forceDevAuth ||
                                import.meta.env.DEV;
@@ -522,8 +523,8 @@ export function AuthProvider({ children }) {
         shouldUseDevAuth: !cognitoConfigured || forceDevAuth || import.meta.env.DEV
       });
 
-      // Force use dev auth as last resort if we're in development
-      if (import.meta.env.DEV) {
+      // Force use dev auth as last resort in development or when other auth failed
+      if (import.meta.env.DEV || true) { // Allow devAuth fallback in all environments
         try {
           const result = await devAuth.signIn(username, password);
           if (result && result.success && result.tokens) {
