@@ -19,6 +19,8 @@
       rel="stylesheet"
       crossorigin="anonymous"
     />
+    <!-- Load config BEFORE main app (before Vite moves module scripts to head) -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="root"></div>
@@ -53,7 +55,6 @@
         }
       })();
     </script>
-    <script src="/config.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

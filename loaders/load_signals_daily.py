@@ -42,11 +42,29 @@ class SignalsDailyLoader(OptimalLoader):
         if since is None:
             start = end - timedelta(days=30)
         else:
+            # FIXED Issue #22: Use since - 1 day for watermark (standard across all loaders)
+            # This ensures we get overlap data for cross-checking and prevents gaps
             start = since - timedelta(days=1)
+
+        # FIXED Issue #20: Validate technical data is fresh before generating signals
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            # Check if technical data exists for end date
+            cur.execute(
+                "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
+                (symbol, end)
+            )
+            if cur.fetchone()[0] == 0:
+                logger.warning(f"{symbol}: Technical data missing for {end} — signals cannot be generated")
+                return []
+        finally:
+            cur.close()
 
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)
         if not rows:
+            logger.warning(f"{symbol}: No technical data found between {start} and {end}")
             return []
 
         # Generate signals
