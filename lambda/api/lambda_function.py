@@ -282,6 +282,20 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
         # Decode header to get key ID without verification first
         parts = token.split('.')
 
+        # Check if this is a dev token (starts with 'devToken')
+        if parts[0].startswith('devToken'):
+            logger.info("Dev token detected, validating without Cognito")
+            # Handle dev token format (not URL-safe base64)
+            try:
+                payload = json.loads(base64.b64decode(parts[1]))
+                if 'exp' in payload and payload['exp'] < int(time()):
+                    return (False, None, "Token expired")
+                logger.info(f"Dev token valid for user: {payload.get('sub')}")
+                return (True, payload, None)
+            except Exception as e:
+                logger.warning(f"Dev token decode failed: {e}")
+                return (False, None, f"Invalid dev token: {str(e)}")
+
         # Get Cognito public keys
         cognito_region = os.getenv('COGNITO_REGION', 'us-east-1')
         cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
@@ -428,8 +442,12 @@ def require_auth(event: Dict, path: str) -> tuple:
     }
 
     # Check if path matches any public prefix
-    if any(path == prefix or path.startswith(prefix + '/') or path.startswith(prefix + '?') for prefix in PUBLIC_PREFIXES):
+    is_public = any(path == prefix or path.startswith(prefix + '/') or path.startswith(prefix + '?') for prefix in PUBLIC_PREFIXES)
+    if is_public:
+        logger.info(f"Public endpoint allowed: {path}")
         return (False, True, None, None)  # No auth required, so authorized
+    else:
+        logger.info(f"Protected endpoint (not in public list): {path}")
 
     if not path.startswith('/api/'):
         return (False, True, None, None)  # Non-API paths don't need auth

@@ -67,16 +67,9 @@ function makeTokens(username) {
 const devAuth = {
   async getCurrentUser() {
     let session = getSession();
-    // Auto-initialize dev user in development if no session exists
+    // Return null if no session exists - require explicit login
     if (!session) {
-      const sessionData = {
-        username: DEV_USER.username,
-        email: DEV_USER.email,
-        firstName: DEV_USER.firstName,
-        lastName: DEV_USER.lastName
-      };
-      saveSession(sessionData);
-      session = sessionData;
+      return null;
     }
     // Dev user is always admin
     return {
@@ -94,16 +87,9 @@ const devAuth = {
 
   async fetchAuthSession() {
     let session = getSession();
-    // Auto-initialize dev user in development if no session exists
+    // Return error if no session exists - require explicit login
     if (!session) {
-      const sessionData = {
-        username: DEV_USER.username,
-        email: DEV_USER.email,
-        firstName: DEV_USER.firstName,
-        lastName: DEV_USER.lastName
-      };
-      saveSession(sessionData);
-      session = sessionData;
+      throw new Error('No active session');
     }
     return { tokens: makeTokens(session.username) };
   },
