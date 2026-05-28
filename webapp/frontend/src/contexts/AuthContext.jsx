@@ -235,15 +235,12 @@ export function AuthProvider({ children }) {
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
       const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
-      let cognitoAttemptFailed = false;
 
-      // Try Cognito first if configured and not forcing dev auth
-      if (cognitoConfigured && !forceDevAuth) {
+      // Production: use ONLY Cognito (no fallback)
+      // Development: use ONLY dev auth (no Cognito)
+      if (isProductionBuild && cognitoConfigured && !forceDevAuth) {
         try {
-          // Get current authenticated user
           const user = await getCurrentUser();
-
-          // Get current session with tokens
           const session = await fetchAuthSession();
 
           if (user && session.tokens) {
@@ -253,7 +250,6 @@ export function AuthProvider({ children }) {
               refreshToken: session.tokens.refreshToken?.toString(),
             };
 
-            // Store access token for API requests
             tokenManager.setTokens({ access: tokens.accessToken, id: tokens.idToken, refresh: tokens.refreshToken });
 
             dispatch({
@@ -273,19 +269,18 @@ export function AuthProvider({ children }) {
             return;
           }
         } catch (error) {
-          console.log("Cognito session check failed, trying dev auth fallback:", error?.message);
-          cognitoAttemptFailed = true;
+          console.error("Cognito authentication failed (production):", error?.message);
+          // In production with Cognito configured, we DO NOT fall back - this is an auth failure
         }
       }
 
-      // Fallback to dev auth: if Cognito not configured, failed, forced, or in DEV mode
-      if (!cognitoConfigured || forceDevAuth || import.meta.env.DEV || cognitoAttemptFailed) {
+      // Development: use dev auth (never Cognito)
+      if (!isProductionBuild || forceDevAuth || import.meta.env.DEV) {
         try {
           const user = await devAuth.getCurrentUser();
           const session = await devAuth.fetchAuthSession();
 
           if (user && session.tokens) {
-            // Store tokens using tokenManager (proper key handling)
             tokenManager.setTokens({
               access: session.tokens.accessToken,
               id: session.tokens.idToken,
@@ -302,8 +297,7 @@ export function AuthProvider({ children }) {
             return;
           }
         } catch (error) {
-          console.log("No dev auth session found:", error.message);
-          // Fall through to logout - ensure loading state is cleared
+          console.log("Dev auth session not available:", error.message);
         }
       }
 
