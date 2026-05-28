@@ -655,7 +655,33 @@ class Orchestrator:
                 logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
                 logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
                 logger.info(f"    Final qualified trades:   {final_count:4d}")
-                logger.info(f"  Interpretation: {self._interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)}")
+
+                interpretation = self._interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)
+                logger.info(f"  Interpretation: {interpretation}")
+
+                # FIXED Issue #24: Log waterfall to database for audit trail
+                try:
+                    waterfall_data = {
+                        'total_signals': total_signals,
+                        'stage2_count': stage2_count,
+                        'tier_1_rejected': tier_rejections.get('Tier 1', 0),
+                        'tier_2_rejected': tier_rejections.get('Tier 2', 0),
+                        'tier_3_rejected': tier_rejections.get('Tier 3', 0),
+                        'tier_4_rejected': tier_rejections.get('Tier 4', 0),
+                        'tier_5_rejected': tier_rejections.get('Tier 5', 0),
+                        'tier_6_rejected': tier_rejections.get('Tier 6', 0),
+                        'final_qualified': final_count,
+                        'interpretation': interpretation,
+                    }
+                    cur.execute(
+                        """INSERT INTO algo_audit_log (run_id, phase, status, detail, created_at)
+                           VALUES (%s, %s, %s, %s, %s)""",
+                        (self.run_id, 'signal_waterfall', 'info', json.dumps(waterfall_data), datetime.now(timezone.utc))
+                    )
+                    conn.commit()
+                    logger.debug(f"[WATERFALL] Logged to algo_audit_log for persistence")
+                except Exception as e:
+                    logger.warning(f"[WATERFALL] Could not persist to database: {e}")
 
         except Exception as e:
             logger.warning(f"Signal waterfall report failed: {e}")
