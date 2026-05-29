@@ -678,29 +678,11 @@ resource "aws_ecs_task_definition" "loader" {
           value = var.alert_webhook_url
         }
         ],
-        # Price loaders: set intervals based on task name
+        # Unified price loader: handles all intervals and asset classes
         each.key == "stock_prices_daily" ? [
           {
             name  = "LOADER_INTERVALS"
             value = "1d,1wk,1mo"
-          },
-          {
-            name  = "LOADER_ASSET_CLASSES"
-            value = "stock,etf"
-          }
-          ] : each.key == "eod_bulk_refresh" ? [
-          {
-            name  = "LOADER_INTERVALS"
-            value = "1d"
-          },
-          {
-            name  = "LOADER_ASSET_CLASSES"
-            value = "stock,etf"
-          }
-          ] : each.key == "stock_prices_weekly" ? [
-          {
-            name  = "LOADER_INTERVALS"
-            value = "1wk"
           },
           {
             name  = "LOADER_ASSET_CLASSES"
