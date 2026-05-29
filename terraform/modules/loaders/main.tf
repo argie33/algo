@@ -1179,3 +1179,12 @@ resource "aws_cloudwatch_metric_alarm" "loader_dlq_messages" {
 
   tags = var.common_tags
 }
+
+# ============================================================
+# Outputs
+# ============================================================
+
+output "orchestrator_locks_table_name" {
+  value       = aws_dynamodb_table.orchestrator_locks.name
+  description = "Name of the DynamoDB table for distributed orchestrator locking"
+}

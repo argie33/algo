@@ -64,6 +64,11 @@ variable "algo_orchestrator_container_name" {
   default     = "algo-orchestrator" # Will be: project_name-algo-orchestrator
 }
 
+variable "orchestrator_locks_table_name" {
+  description = "Name of the DynamoDB table for distributed orchestrator locking"
+  type        = string
+}
+
 variable "sns_alert_topic_arn" {
   description = "SNS topic ARN for pipeline failure alerts"
   type        = string

@@ -412,6 +412,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 {
                   Name  = "ORCHESTRATOR_DRY_RUN"
                   Value = "true"
+                },
+                {
+                  Name  = "ORCHESTRATOR_LOCK_TABLE"
+                  Value = var.orchestrator_locks_table_name
                 }
               ]
             }]

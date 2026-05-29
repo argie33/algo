@@ -340,6 +340,7 @@ module "pipeline" {
   loader_task_definition_arns           = module.loaders.loader_task_definition_arns
   algo_orchestrator_task_definition_arn = module.loaders.algo_orchestrator_task_definition_arn
   algo_orchestrator_container_name      = "${var.project_name}-algo-orchestrator"
+  orchestrator_locks_table_name         = module.loaders.orchestrator_locks_table_name
   sns_alert_topic_arn                   = coalesce(module.services.sns_alerts_topic_arn, "")
   sns_alerts_enabled                    = var.sns_alerts_enabled
   cloudwatch_log_retention_days         = var.cloudwatch_log_retention_days
