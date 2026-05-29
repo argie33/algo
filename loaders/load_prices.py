@@ -169,26 +169,11 @@ class PriceLoader(OptimalLoader):
 
         from algo.algo_market_calendar import MarketCalendar
 
-        # TIER 2: Use loader_validation framework for comprehensive validation
-        validated, validation_errors = count_validation_errors(
-            rows,
-            validate_price_row,
-            logger_name="loadpricedaily"
-        )
-
-        if validation_errors > 0 and self.tracker:
-            self.tracker.record_error(
-                symbol='[batch]',
-                error_type='VALIDATION_FAILED',
-                error_message=f'{validation_errors} rows failed validation',
-                resolution='filtered',
-            )
-
-        # PHASE 1: Secondary validation via existing tick validator for provenance tracking
+        # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
         prior_close = None
 
-        for row in validated:
+        for row in rows:
             # CRITICAL: Filter out weekend/holiday data before any other validation
             # yfinance occasionally returns non-trading-day rows; we must reject them
             row_date_str = row.get('date')
