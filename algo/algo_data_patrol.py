@@ -38,12 +38,12 @@ USAGE:
 """
 
 from config.credential_manager import get_credential_manager
-from config.alpaca_config import get_alpaca_base_url
+from config.alpaca_config import get_alpaca_base_url, get_alpaca_data_url
 from algo.algo_config import get_market_data_timeout, get_alpaca_timeout
 import os
 import json
 import argparse
-from utils.database_context import DatabaseContext
+from utils.database_context import DatabaseContext, get_db_connection
 import requests
 import time
 from datetime import datetime, date as _date, timedelta, timezone
@@ -597,8 +597,7 @@ class DataPatrol:
             return
 
         # Alpaca data API (paper API doesn't have market data; use data API)
-        # The free Alpaca-Markets data API lives at data.alpaca.markets
-        data_base = 'https://data.alpaca.markets'
+        data_base = get_alpaca_data_url()
         headers = {'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret}
         mismatches = []
         for sym in symbols:
