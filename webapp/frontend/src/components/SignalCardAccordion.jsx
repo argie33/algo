@@ -11,6 +11,7 @@ import {
   alpha,
 } from '@mui/material';
 import { ExpandMore, TrendingUp, TrendingDown } from '@mui/icons-material';
+import { formatCurrency, formatPercentageChange, formatNumber } from '../utils/formatters';
 
 const SignalCardAccordion = ({ signals = [] }) => {
   const theme = useTheme();
@@ -56,11 +57,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
     let displayValue = value;
     if (format === 'currency' && value) {
-      displayValue = `$${parseFloat(value).toFixed(2)}`;
+      displayValue = formatCurrency(value);
     } else if (format === 'percent' && value !== null && value !== undefined) {
-      displayValue = `${parseFloat(value).toFixed(2)}%`;
+      displayValue = formatPercentageChange(value, 2);
     } else if (format === 'number' && value !== null && value !== undefined) {
-      displayValue = parseFloat(value).toFixed(2);
+      displayValue = formatNumber(value, 2);
     }
 
     return (
@@ -145,7 +146,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       {signal.company_name || 'N/A'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      ${currentPrice.toFixed(2)}
+                      {formatCurrency(currentPrice)}
                     </Typography>
                   </Box>
                 </Grid>
@@ -160,7 +161,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           ENTRY
                         </Typography>
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
-                          ${(signal.entry_price || signal.buylevel || 0).toFixed(2)}
+                          {formatCurrency(signal.entry_price || signal.buylevel || 0)}
                         </Typography>
                       </Box>
                     </Grid>
@@ -172,7 +173,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           RS
                         </Typography>
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
-                          {signal.rs_rating ? signal.rs_rating.toFixed(0) : '—'}
+                          {signal.rs_rating ? formatNumber(signal.rs_rating, 0) : '—'}
                         </Typography>
                       </Box>
                     </Grid>
@@ -206,7 +207,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           ATR
                         </Typography>
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
-                          {signal.atr ? signal.atr.toFixed(2) : '—'}
+                          {signal.atr ? formatNumber(signal.atr, 2) : '—'}
                         </Typography>
                       </Box>
                     </Grid>

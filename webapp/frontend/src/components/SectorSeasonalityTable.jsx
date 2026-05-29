@@ -15,6 +15,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
+import { formatPercentageChange } from "../utils/formatters";
 
 const MONTHS = [
   "Jan",
@@ -94,11 +95,7 @@ const SectorSeasonalityTable = ({ data }) => {
     };
   };
 
-  const formatReturn = (value) => {
-    if (value === undefined || value === null) return "—";
-    const sign = value > 0 ? "+" : "";
-    return `${sign}${value.toFixed(1)}%`;
-  };
+  const formatReturn = (value) => formatPercentageChange(value, 1);
 
   return (
     <Card>

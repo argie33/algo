@@ -19,6 +19,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
+import { formatNumber } from "../utils/formatters";
 
 const McClellanOscillatorChart = ({ data, isLoading = false }) => {
   const theme = useTheme();
@@ -79,7 +80,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {currentValue.toFixed(0)}
+                {formatNumber(currentValue, 0)}
               </Typography>
               {isBullish ? (
                 <Chip
@@ -137,10 +138,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
                     border: `1px solid ${theme.palette.divider}`,
                     borderRadius: "4px",
                   }}
-                  formatter={(value) => {
-                    const num = typeof value === 'number' ? value : parseFloat(value) || 0;
-                    return isNaN(num) ? '0' : num.toFixed(0);
-                  }}
+                  formatter={(value) => formatNumber(value, 0)}
                   labelStyle={{ color: theme.palette.text.primary }}
                 />
                 <ReferenceLine
