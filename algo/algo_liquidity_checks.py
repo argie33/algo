@@ -4,12 +4,12 @@ Liquidity checks for Tier 5 portfolio health filtering.
 Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
+import logging
 from datetime import datetime, timedelta
-from utils.structured_logger import get_logger
 from utils.database_context import DatabaseContext
 
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class LiquidityChecks:

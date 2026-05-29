@@ -6,10 +6,10 @@ Prevents false alerts on market closures, early closes, and holidays.
 Uses standard US market holidays. Can be extended for other markets.
 """
 
+import logging
 from datetime import datetime, date as _date, time, timezone
-from utils.structured_logger import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 # US market holidays (2025-2026)
 US_HOLIDAYS = {
     _date(2025, 1, 1): "New Year's Day",

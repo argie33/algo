@@ -19,10 +19,10 @@ import requests
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import logging
 from algo.algo_config import get_webhook_timeout
-from utils.structured_logger import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 try:
     from twilio.rest import Client as TwilioClient

@@ -48,9 +48,9 @@ import requests
 import time
 from datetime import datetime, date as _date, timedelta, timezone
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
-from utils.structured_logger import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Severity levels
 INFO, WARN, ERROR, CRIT = 'info', 'warn', 'error', 'critical'
