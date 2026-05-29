@@ -425,9 +425,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/market/latest':
                 return _get_market_latest(cur)
             elif path == '/api/market/cap-distribution':
-                return json_response(501, {'status': 'not_implemented', 'message': 'Market cap distribution requires data aggregation'})
+                return _get_cap_distribution(cur)
             elif path == '/api/market/correlation':
-                return json_response(501, {'status': 'not_implemented', 'message': 'Correlation matrix requires additional computation'})
+                return _get_correlation_matrix(cur)
             return error_response(404, 'not_found', f'No market handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -559,6 +559,271 @@ def _parse_range_param(params: Dict, default: int = 30) -> int:
         return int((params.get('range', [None])[0] or params.get('days', [default])[0]))
     except (ValueError, TypeError, IndexError):
         return default
+
+def _get_correlation_matrix(cur) -> Dict:
+        """Compute and return correlation matrix between key market indices."""
+        try:
+            symbols = ['^GSPC', '^IXIC', 'SPY', 'QQQ', 'IVV', 'TLT', 'GLD']
+
+            cur.execute("""
+                SELECT symbol, date, close
+                FROM price_daily
+                WHERE symbol = ANY(%s)
+                  AND date >= CURRENT_DATE - INTERVAL '252 days'
+                ORDER BY symbol, date
+            """, (symbols,))
+            rows = cur.fetchall()
+
+            if not rows:
+                return json_response(200, {
+                    'correlations': [],
+                    'statistics': {
+                        'avg_correlation': None,
+                        'max_correlation': {'value': None, 'pair': []},
+                        'min_correlation': {'value': None, 'pair': []}
+                    },
+                    'analysis': {
+                        'market_regime': 'insufficient_data',
+                        'diversification_score': None,
+                        'risk_assessment': {
+                            'concentration_risk': 'unknown',
+                            'diversification_benefit': 'unknown',
+                            'portfolio_stability': 'unknown'
+                        }
+                    }
+                })
+
+            prices_by_symbol = {}
+            for row in rows:
+                sym = row['symbol']
+                if sym not in prices_by_symbol:
+                    prices_by_symbol[sym] = []
+                prices_by_symbol[sym].append((row['date'], float(row['close']) if row['close'] else 0))
+
+            for sym in prices_by_symbol:
+                prices_by_symbol[sym] = [(d, p) for d, p in sorted(prices_by_symbol[sym])]
+
+            returns_by_symbol = {}
+            for sym, prices in prices_by_symbol.items():
+                if len(prices) < 2:
+                    continue
+                returns = []
+                for i in range(1, len(prices)):
+                    prev_p = prices[i-1][1]
+                    curr_p = prices[i][1]
+                    if prev_p > 0:
+                        ret = (curr_p - prev_p) / prev_p
+                        returns.append(ret)
+                returns_by_symbol[sym] = returns
+
+            valid_symbols = [s for s in symbols if s in returns_by_symbol and len(returns_by_symbol[s]) >= 10]
+            if len(valid_symbols) < 2:
+                return json_response(200, {
+                    'correlations': [],
+                    'statistics': {
+                        'avg_correlation': None,
+                        'max_correlation': {'value': None, 'pair': []},
+                        'min_correlation': {'value': None, 'pair': []}
+                    },
+                    'analysis': {
+                        'market_regime': 'insufficient_data',
+                        'diversification_score': None,
+                        'risk_assessment': {
+                            'concentration_risk': 'unknown',
+                            'diversification_benefit': 'unknown',
+                            'portfolio_stability': 'unknown'
+                        }
+                    }
+                })
+
+            def pearson_corr(x_ret, y_ret):
+                if len(x_ret) < 2 or len(y_ret) < 2:
+                    return None
+                min_len = min(len(x_ret), len(y_ret))
+                if min_len < 2:
+                    return None
+                x = x_ret[-min_len:]
+                y = y_ret[-min_len:]
+                mx = sum(x) / len(x)
+                my = sum(y) / len(y)
+                num = sum((xi - mx) * (yi - my) for xi, yi in zip(x, y))
+                dx = sum((xi - mx) ** 2 for xi in x)
+                dy = sum((yi - my) ** 2 for yi in y)
+                denom = (dx * dy) ** 0.5
+                if denom == 0:
+                    return None
+                return num / denom
+
+            correlations_data = []
+            all_corrs = []
+
+            for sym1 in valid_symbols:
+                row_corrs = []
+                for sym2 in valid_symbols:
+                    if sym1 == sym2:
+                        corr_val = 1.0
+                    else:
+                        corr_val = pearson_corr(returns_by_symbol[sym1], returns_by_symbol[sym2])
+                    row_corrs.append(corr_val)
+                    if sym1 != sym2 and corr_val is not None:
+                        all_corrs.append(corr_val)
+                correlations_data.append({
+                    'symbol': sym1,
+                    'correlations': row_corrs
+                })
+
+            max_corr = max(all_corrs) if all_corrs else None
+            min_corr = min(all_corrs) if all_corrs else None
+            avg_corr = sum(all_corrs) / len(all_corrs) if all_corrs else None
+
+            max_pair = None
+            min_pair = None
+
+            if max_corr is not None:
+                for i, sym1 in enumerate(valid_symbols):
+                    for j, sym2 in enumerate(valid_symbols):
+                        if i < j and correlations_data[i]['correlations'][j] == max_corr:
+                            max_pair = [sym1, sym2]
+                            break
+
+            if min_corr is not None:
+                for i, sym1 in enumerate(valid_symbols):
+                    for j, sym2 in enumerate(valid_symbols):
+                        if i < j and correlations_data[i]['correlations'][j] == min_corr:
+                            min_pair = [sym1, sym2]
+                            break
+
+            avg_corr_val = round(avg_corr, 2) if avg_corr else None
+
+            market_regime = 'high_correlation' if avg_corr_val and avg_corr_val > 0.5 else 'moderate_correlation' if avg_corr_val and avg_corr_val > 0.2 else 'low_correlation'
+            diversification_score = round(max(0, 1.0 - (avg_corr_val or 0)) * 100, 1) if avg_corr_val is not None else None
+
+            concentration_risk = 'high' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'low'
+            diversification_benefit = 'low' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'high'
+            portfolio_stability = 'volatile' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'stable'
+
+            return json_response(200, {
+                'correlations': correlations_data,
+                'statistics': {
+                    'avg_correlation': avg_corr_val,
+                    'max_correlation': {
+                        'value': round(max_corr, 2) if max_corr else None,
+                        'pair': max_pair or []
+                    },
+                    'min_correlation': {
+                        'value': round(min_corr, 2) if min_corr else None,
+                        'pair': min_pair or []
+                    }
+                },
+                'analysis': {
+                    'market_regime': market_regime,
+                    'diversification_score': diversification_score,
+                    'risk_assessment': {
+                        'concentration_risk': concentration_risk,
+                        'diversification_benefit': diversification_benefit,
+                        'portfolio_stability': portfolio_stability
+                    }
+                }
+            })
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get correlation matrix')
+
+def _get_cap_distribution(cur) -> Dict:
+        """Get market cap distribution across market cap buckets and sectors."""
+        try:
+            cur.execute("""
+                SELECT symbol, sector, market_cap, market_cap_category
+                FROM stock_symbols
+                WHERE market_cap IS NOT NULL
+                  AND market_cap > 0
+                  AND sector IS NOT NULL
+                ORDER BY market_cap DESC
+            """)
+            rows = cur.fetchall()
+
+            if not rows:
+                return json_response(200, {
+                    'by_category': {},
+                    'by_sector': {},
+                    'summary': {
+                        'total_stocks': 0,
+                        'total_market_cap': 0,
+                        'largest_cap': None,
+                        'category_distribution': {}
+                    }
+                })
+
+            stocks = [dict(r) for r in rows]
+            total_cap = sum(s['market_cap'] for s in stocks if s['market_cap'])
+
+            by_category = {}
+            by_sector = {}
+
+            for stock in stocks:
+                cap = stock.get('market_cap', 0)
+                category = stock.get('market_cap_category', 'unknown')
+                sector = stock.get('sector', 'unknown')
+
+                if category not in by_category:
+                    by_category[category] = {'count': 0, 'total_cap': 0, 'stocks': []}
+                by_category[category]['count'] += 1
+                by_category[category]['total_cap'] += cap
+                by_category[category]['stocks'].append(stock['symbol'])
+
+                if sector not in by_sector:
+                    by_sector[sector] = {'count': 0, 'total_cap': 0, 'pct_of_market': 0}
+                by_sector[sector]['count'] += 1
+                by_sector[sector]['total_cap'] += cap
+
+            for sector in by_sector:
+                if total_cap > 0:
+                    by_sector[sector]['pct_of_market'] = round(
+                        by_sector[sector]['total_cap'] / total_cap * 100, 2
+                    )
+
+            category_dist = {}
+            for cat in by_category:
+                if total_cap > 0:
+                    pct = by_category[cat]['total_cap'] / total_cap * 100
+                    category_dist[cat] = {
+                        'count': by_category[cat]['count'],
+                        'pct_of_market': round(pct, 2),
+                        'total_cap': by_category[cat]['total_cap'],
+                        'avg_cap': round(by_category[cat]['total_cap'] / by_category[cat]['count'], 0) if by_category[cat]['count'] > 0 else 0
+                    }
+
+            sector_dist = {}
+            for sector in sorted(by_sector.keys(), key=lambda s: by_sector[s]['total_cap'], reverse=True):
+                sector_dist[sector] = {
+                    'count': by_sector[sector]['count'],
+                    'total_cap': by_sector[sector]['total_cap'],
+                    'pct_of_market': by_sector[sector]['pct_of_market'],
+                    'avg_cap': round(by_sector[sector]['total_cap'] / by_sector[sector]['count'], 0) if by_sector[sector]['count'] > 0 else 0
+                }
+
+            return json_response(200, {
+                'by_category': {
+                    k: {
+                        'count': v['count'],
+                        'total_cap': v['total_cap'],
+                        'pct_of_market': round(v['total_cap'] / total_cap * 100, 2) if total_cap > 0 else 0,
+                        'avg_cap': round(v['total_cap'] / v['count'], 0) if v['count'] > 0 else 0
+                    }
+                    for k, v in by_category.items()
+                },
+                'by_sector': sector_dist,
+                'summary': {
+                    'total_stocks': len(stocks),
+                    'total_market_cap': total_cap,
+                    'largest_cap': max((s['market_cap'] for s in stocks), default=0),
+                    'smallest_cap': min((s['market_cap'] for s in stocks if s['market_cap'] > 0), default=0),
+                    'category_distribution': category_dist
+                }
+            })
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            return handle_db_error(e, logger, 'get cap distribution')
 
 INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^NYA', '^RUT']
 INDEX_NAMES = {
