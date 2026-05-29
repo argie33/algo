@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../services/api';
+import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
 
 export default function PreviewModal({ isOpen, onClose, onConfirm }) {
   const [symbol, setSymbol] = useState('');
@@ -87,9 +88,6 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
   };
 
   if (!isOpen) return null;
-
-  const num = (v, dp = 2) => v == null ? 'N/A' : Number(v).toFixed(dp);
-  const fmtMoney = (v) => v == null ? 'N/A' : `$${Number(v).toLocaleString()}`;
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -182,10 +180,10 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
             <div className="preview-section">
               <h3>Position Summary</h3>
               <div className="grid-2">
-                <div><span className="label">Shares</span><div className="value">{num(shares || preview.shares)} sh</div></div>
-                <div><span className="label">Position Value</span><div className="value">{fmtMoney((shares || preview.shares) * entryPrice)}</div></div>
-                {preview.pct_of_portfolio && <div><span className="label">% of Portfolio</span><div className="value">{num(preview.pct_of_portfolio)}%</div></div>}
-                {preview.risk_amount && <div><span className="label">Risk Amount</span><div className="value" style={{color: 'var(--red-400)'}}>{fmtMoney(preview.risk_amount)}</div></div>}
+                <div><span className="label">Shares</span><div className="value">{formatNumber(shares || preview.shares)} sh</div></div>
+                <div><span className="label">Position Value</span><div className="value">{formatCurrency((shares || preview.shares) * entryPrice)}</div></div>
+                {preview.pct_of_portfolio && <div><span className="label">% of Portfolio</span><div className="value">{formatPercentageChange(preview.pct_of_portfolio)}</div></div>}
+                {preview.risk_amount && <div><span className="label">Risk Amount</span><div className="value" style={{color: 'var(--red-400)'}}>{formatCurrency(preview.risk_amount)}</div></div>}
               </div>
             </div>
             {preview.targets && (
@@ -193,8 +191,8 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
                 <h3>Targets</h3>
                 {Object.entries(preview.targets).map(([k, v]) => (
                   <div key={k} className="target-item">
-                    <div><strong>{v.r_multiple}R @ ${num(v.price, 3)}</strong></div>
-                    <div>Sell {num(v.shares_to_sell)} sh = +{fmtMoney(v.profit_at_target)}</div>
+                    <div><strong>{v.r_multiple}R @ {formatCurrency(v.price, 3)}</strong></div>
+                    <div>Sell {formatNumber(v.shares_to_sell)} sh = +{formatCurrency(v.profit_at_target)}</div>
                   </div>
                 ))}
               </div>
