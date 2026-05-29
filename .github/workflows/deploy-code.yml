@@ -1105,16 +1105,15 @@ jobs:
           # Inject production CloudFront URL and environment into config.js
           WEBSITE_URL=”${{ needs.resolve-infra.outputs.website_url }}”
           if [ -n “$WEBSITE_URL” ] && [ “$WEBSITE_URL” != “null” ] && [ “$WEBSITE_URL” != “None” ] && [ “$WEBSITE_URL” != “***” ]; then
-            API_URL=”$WEBSITE_URL”
-            echo “Injecting CloudFront API_URL: $API_URL”
-            sed -i “s|\”API_URL\”: \”\”|\”API_URL\”: \”$API_URL\”|g” webapp/frontend/dist/config.js
+            echo “Injecting CloudFront API_URL: $WEBSITE_URL”
+            sed -i “s|\”API_URL\”: \”\”|\”API_URL\”: \”$WEBSITE_URL\”|g” webapp/frontend/dist/config.js
             sed -i 's|”ENVIRONMENT”: “development”|”ENVIRONMENT”: “production”|g' webapp/frontend/dist/config.js
             echo “Config injected for production deployment”
           else
             echo “WARNING: CloudFront website_url not available, using development config”
           fi
 
-          echo “Runtime config prepared”
+          echo “Runtime config prepared:”
           cat webapp/frontend/dist/config.js
 
           BUILD_TS=$(date +%s)
