@@ -5,7 +5,7 @@ import logging, re, json, os
 from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_offset, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_offset, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +180,7 @@ def _get_algo_status(cur) -> Dict:
             except Exception:
                 pass
 
+            freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
             return json_response(200, {
                 'run_id': row['run_id'],
                 'last_run': row['action_date'].isoformat() if row['action_date'] else None,
@@ -187,6 +188,7 @@ def _get_algo_status(cur) -> Dict:
                 'status': row['status'],
                 'message': row['message'],
                 'portfolio': portfolio,
+                'data_freshness': freshness,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -207,9 +209,11 @@ def _get_algo_trades(cur, limit: int = 200) -> Dict:
             """, (limit,))
             trades = cur.fetchall()
             items = [dict(t) for t in trades]
+            freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
             return json_response(200, {
                 'items': items,
-                'pagination': {'total': len(items), 'limit': limit, 'offset': 0}
+                'pagination': {'total': len(items), 'limit': limit, 'offset': 0},
+                'data_freshness': freshness
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -229,9 +233,11 @@ def _get_algo_positions(cur) -> Dict:
             """)
             positions = cur.fetchall()
             items = [dict(p) for p in positions]
+            freshness = check_data_freshness(cur, 'algo_positions', 'updated_at', warning_days=1)
             return json_response(200, {
                 'items': items,
-                'pagination': {'total': len(items), 'limit': 10000, 'offset': 0}
+                'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
+                'data_freshness': freshness
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:

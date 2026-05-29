@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging
-from .utils import error_response, list_response, json_response, safe_limit, handle_db_error
+from .utils import error_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 LIMIT %s
             """, (symbol.upper(), limit))
             rows = cur.fetchall()
-            return list_response([dict(r) for r in rows] if rows else [])
+            freshness = check_data_freshness(cur, 'earnings_history', 'earnings_date', warning_days=7)
+            return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=100)
         cur.execute("""
@@ -41,7 +42,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             LIMIT %s
         """, (limit,))
         rows = cur.fetchall()
-        return list_response([dict(r) for r in rows] if rows else [])
+        freshness = check_data_freshness(cur, 'earnings_history', 'earnings_date', warning_days=7)
+        return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'handle earnings')

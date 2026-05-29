@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     count_args.append(status_filter)
                 cur.execute(count_query, count_args)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return json_response(200, {'items': [dict(t) for t in trades], 'total': total})
+                freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
+                return json_response(200, {'items': [dict(t) for t in trades], 'total': total, 'data_freshness': freshness})
             elif path == '/api/trades/summary':
                 cur.execute("""
                     SELECT
@@ -52,7 +53,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     FROM algo_trades
                 """)
                 summary = cur.fetchone()
-                return json_response(200, dict(summary) if summary else {})
+                freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
+                result = dict(summary) if summary else {}
+                result['data_freshness'] = freshness
+                return json_response(200, result)
             return error_response(404, 'not_found', f'Unknown trade endpoint: {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:

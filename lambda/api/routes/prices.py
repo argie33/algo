@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict
 import logging
-from .utils import error_response, list_response, handle_db_error, safe_limit
+from .utils import error_response, list_response, handle_db_error, safe_limit, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             )
             cur.execute(query, qparams + [limit])
             rows = cur.fetchall()
-            return list_response([dict(r) for r in rows] if rows else [])
+            freshness = check_data_freshness(cur, table_name, 'date', warning_days=1)
+            return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
 
         return error_response(404, 'not_found', f'No prices handler for {path}')
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
