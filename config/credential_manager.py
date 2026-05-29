@@ -284,6 +284,25 @@ def get_alpaca_credentials() -> Dict[str, str]:
     return get_credential_manager().get_alpaca_credentials()
 
 
+def get_db_password() -> str:
+    """Get database password only.
+
+    Replaces credential_helper.get_db_password() after consolidation.
+    Uses DB_SECRET_ARN in AWS Lambda, falls back to environment variables.
+    """
+    creds = get_db_credentials()
+    return creds['password']
+
+
+def get_db_config() -> Dict[str, Any]:
+    """Get full database configuration dict.
+
+    Replaces credential_helper.get_db_config() after consolidation.
+    Returns host, port, user, password, database.
+    """
+    return get_db_credentials()
+
+
 if __name__ == "__main__":
     # Simple test: try to get credentials
     try:

@@ -21,6 +21,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 
 from config.credential_manager import get_credential_manager
 from config.api_timeouts import get_alpaca_timeout
+from utils.db_connection import get_db_connection
 import os
 import json
 from decimal import Decimal, ROUND_HALF_UP
@@ -28,7 +29,6 @@ from decimal import Decimal, ROUND_HALF_UP
 import requests
 from datetime import datetime, timedelta, date as _date, timezone
 import logging
-from utils.db_connection_pool import get_db_pool
 
 logger = logging.getLogger(__name__)
 
@@ -41,39 +41,22 @@ class PositionMonitor:
         self.cur = None
 
     def connect(self):
-        """Get connection from pool with guaranteed cleanup via context manager."""
-        pool = get_db_pool()
-        self.conn = pool.getconn()
-        try:
-            self.cur = self.conn.cursor()
-            self._pool = pool
-        except Exception:
-            # If cursor creation fails, return connection to pool immediately
-            pool.putconn(self.conn)
-            raise
+        """Get database connection (RDS Proxy handles pooling)."""
+        self.conn = get_db_connection()
+        self.cur = self.conn.cursor()
 
     def disconnect(self):
-        """Return connection to pool safely."""
+        """Close database connection."""
         if self.cur:
             try:
                 self.cur.close()
             except Exception as e:
                 logger.debug(f"Failed to close cursor: {e}")
         if self.conn:
-            if hasattr(self, '_pool'):
-                try:
-                    self._pool.putconn(self.conn)
-                except Exception as e:
-                    logger.debug(f"Failed to return connection to pool: {e}")
-                    try:
-                        self.conn.close()
-                    except Exception:
-                        pass
-            else:
-                try:
-                    self.conn.close()
-                except Exception:
-                    pass
+            try:
+                self.conn.close()
+            except Exception:
+                pass
         self.cur = self.conn = None
 
     def check_stale_orders(self, current_date=None):
