@@ -231,58 +231,67 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 
 locals {
   # Maps each Terraform loader key to the actual Python script filename.
-  # No longer used directly (Docker CMD specifies the loader).
-  # Kept for documentation and potential future use.
+  # This maps to the 33 actual loaders in loaders/ directory.
   loader_file_map = {
-    "stock_symbols"                 = "load_stock_symbols.py"
-    "sp500_constituents"            = "load_sp500_constituents.py"
-    "russell2000_constituents"      = "load_russell2000_constituents.py"
-    "stock_prices_daily"            = "loadpricedaily.py" # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
-    "stock_prices_weekly"           = "loadpricedaily.py" # Uses unified loader with env vars for weekly interval
-    "etf_prices_daily"              = "loadpricedaily.py"
-    "etf_prices_weekly"             = "loadpricedaily.py"
-    "etf_prices_monthly"            = "loadpricedaily.py"
-    "financials_annual_income"      = "load_income_statement.py"
-    "financials_annual_balance"     = "load_balance_sheet.py"
-    "financials_annual_cashflow"    = "load_cash_flow.py"
-    "financials_quarterly_income"   = "load_income_statement.py"
-    "financials_quarterly_balance"  = "load_balance_sheet.py"
+    # Reference data
+    "stock_symbols"             = "load_stock_symbols.py"
+    "sp500_constituents"        = "load_sp500_constituents.py"
+    "russell2000_constituents"  = "load_russell2000_constituents.py"
+
+    # Pricing data — unified loader handles all intervals/asset classes via env vars
+    "stock_prices_daily"        = "load_stock_prices_daily.py"
+
+    # Financial statements
+    "financials_annual_income"  = "load_income_statement.py"
+    "financials_annual_balance" = "load_balance_sheet.py"
+    "financials_annual_cashflow" = "load_cash_flow.py"
+    "financials_quarterly_income" = "load_income_statement.py"
+    "financials_quarterly_balance" = "load_balance_sheet.py"
     "financials_quarterly_cashflow" = "load_cash_flow.py"
-    "financials_ttm_income"         = "load_income_statement.py"
-    "financials_ttm_cashflow"       = "load_cash_flow.py"
-    "growth_metrics"                = "load_growth_metrics.py"
-    "quality_metrics"               = "load_quality_metrics.py"
-    "value_metrics"                 = "load_value_metrics.py"
-    "positioning_metrics"           = "load_positioning_metrics.py"
-    "stability_metrics"             = "load_stability_metrics.py"
-    "stock_scores"                  = "load_stock_scores.py"
-    "earnings_history"              = "load_earnings_history.py"
-    "aaiidata"                      = "load_aaii_sentiment.py"
-    "naaim_data"                    = "load_naaim.py"
-    "feargreed"                     = "load_fear_greed_index.py"
-    "earnings_calendar"             = "load_earnings_calendar.py"
-    "company_profile"               = "load_company_profile.py"
-    "analyst_sentiment"             = "load_analyst_sentiment_analysis.py"
-    "analyst_upgrades_downgrades"   = "load_analyst_upgrade_downgrade.py"
-    "industry_ranking"              = "load_industry_ranking.py"
-    "trend_template_data"           = "load_trend_criteria_data.py"
-    "buy_sell_daily"                = "load_buy_sell_daily.py"
-    "signal_quality_scores"         = "load_signal_quality_scores.py"
-    "signal_themes"                 = "load_signal_themes.py"
-    "signals_weekly"                = "load_signal_quality_scores.py"
-    "signals_monthly"               = "load_signal_quality_scores.py"
-    "signals_etf_daily"             = "load_signal_quality_scores.py"
-    "signals_etf_weekly"            = "load_signal_quality_scores.py"
-    "signals_etf_monthly"           = "load_signal_quality_scores.py"
-    "sentiment"                     = "load_sentiment.py"
-    "sentiment_social"              = "load_sentiment_social.py"
-    "algo_metrics_daily"            = "load_algo_metrics_daily.py"
-    "market_data_batch"             = "load_market_health_daily.py"
-    "technical_data_daily"          = "load_technical_data_daily.py"
-    "market_health_daily"           = "load_market_health_daily.py"
-    "swing_trader_scores"           = "load_swing_trader_scores.py"
-    "eod_bulk_refresh"              = "load_stock_prices_daily.py"
-    "fred_economic_data"            = "load_fred_economic_data.py"
+    "financials_ttm_income"     = "load_income_statement.py"
+    "financials_ttm_cashflow"   = "load_cash_flow.py"
+
+    # Computed metrics
+    "growth_metrics"            = "load_growth_metrics.py"
+    "quality_metrics"           = "load_quality_metrics.py"
+    "value_metrics"             = "load_value_metrics.py"
+    "positioning_metrics"       = "load_positioning_metrics.py"
+    "stability_metrics"         = "load_stability_metrics.py"
+    "stock_scores"              = "load_stock_scores.py"
+
+    # Earnings data
+    "earnings_history"          = "load_earnings_history.py"
+    "earnings_calendar"         = "load_earnings_calendar.py"
+
+    # Company & analyst data
+    "company_profile"           = "load_company_profile.py"
+    "analyst_sentiment"         = "load_analyst_sentiment_analysis.py"
+    "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
+    "industry_ranking"          = "load_industry_ranking.py"
+
+    # Market sentiment
+    "feargreed"                 = "load_fear_greed_index.py"
+    "aaiidata"                  = "load_aaii_sentiment.py"
+    "naaim_data"                = "load_naaim.py"
+
+    # Sentiment aggregation
+    "sentiment"                 = "load_sentiment.py"
+    "sentiment_social"          = "load_sentiment_social.py"
+
+    # Trading signals & scores
+    "signal_themes"             = "load_signal_themes.py"
+    "signal_quality_scores"     = "load_signal_quality_scores.py"
+    "buy_sell_daily"            = "load_buy_sell_daily.py"
+
+    # Technical indicators & metrics
+    "technical_data_daily"      = "load_technical_data_daily.py"
+    "algo_metrics_daily"        = "load_algo_metrics_daily.py"
+    "swing_trader_scores"       = "load_swing_trader_scores.py"
+
+    # Market health & economic data
+    "market_health_daily"       = "load_market_health_daily.py"
+    "fred_economic_data"        = "load_fred_economic_data.py"
+    "trend_template_data"       = "load_trend_criteria_data.py"
   }
 
   scheduled_loaders = {
@@ -325,9 +334,6 @@ locals {
       schedule    = "cron(30 9 ? * MON-FRI *)"
       description = "Market data batch: 8 tiny loaders in parallel - 4:30am ET"
     }
-
-    # NOTE: technicals_daily and trend_template_data are now managed by the
-    # Step Functions EOD pipeline — removed from scheduled_loaders.
 
     # Financial statements — run Sunday night only (data changes quarterly, not daily)
     # STAGGERED: 60-minute intervals to prevent concurrent SEC EDGAR rate limit cascades
@@ -395,23 +401,9 @@ locals {
     }
 
     # Earnings — run Sunday night only (data changes quarterly)
-    # STAGGERED: Spread across 3 minutes to avoid resource exhaustion
     "earnings_history" = {
       schedule    = "cron(15 4 ? * MON *)"
       description = "Earnings history - Sunday 11:15pm ET"
-    }
-    "earnings_revisions" = {
-      schedule    = "cron(16 4 ? * MON *)"
-      description = "Earnings revisions - Sunday 11:16pm ET"
-    }
-    "earnings_surprise" = {
-      schedule    = "cron(17 4 ? * MON *)"
-      description = "Earnings surprise - Sunday 11:17pm ET"
-    }
-    # Seasonality — weekly recompute Sunday night (uses price_daily history, SPY-based)
-    "seasonality" = {
-      schedule    = "cron(0 5 ? * MON *)"
-      description = "Market seasonality stats - Sunday 12am ET (weekly recompute)"
     }
 
     # Company and analyst data — yfinance API calls, run daily at 4am ET (after market close previous day)
@@ -431,10 +423,6 @@ locals {
     "analyst_upgrades_downgrades" = {
       schedule    = "cron(27 4 ? * MON-FRI *)"
       description = "Analyst upgrades/downgrades - Daily 4:27am ET"
-    }
-    "sectors" = {
-      schedule    = "cron(5 6 ? * MON-FRI *)"
-      description = "Sector performance metrics - Daily 1:05am ET"
     }
     "industry_ranking" = {
       schedule    = "cron(10 6 ? * MON-FRI *)"
@@ -470,26 +458,17 @@ locals {
       description = "Social media sentiment - Daily 4:34am ET"
     }
 
-    # Signal theme and performance — run after signals generated (by Step Functions, but these via EventBridge)
-    # Step Functions runs signals_daily around 9:00-10:00am UTC, so schedule these for 10:00am UTC (5:00am ET)
+    # Signal theme — run after signals generated
+    # 10:00am UTC = 5:00am ET Mon-Fri
     "signal_themes" = {
       schedule    = "cron(0 10 ? * MON-FRI *)"
-      description = "Signal themes (momentum/reversal/breakout) - Daily 5:00am ET (after signals_daily)"
-    }
-    "signal_trade_performance" = {
-      schedule    = "cron(5 10 ? * MON-FRI *)"
-      description = "Signal trade performance - Daily 5:05am ET (after signal_themes)"
+      description = "Signal themes (momentum/reversal/breakout) - Daily 5:00am ET"
     }
 
-    # NOTE: market_overview, relative_performance, social_sentiment deleted — no real data sources.
-    # NOTE: stock_scores runs via EventBridge at 5:30pm ET (not Step Functions pipeline).
-    # NOTE: signal_quality_scores runs via Step Functions EOD pipeline (not EventBridge).
-
-    # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
-    # signals_etf_weekly, signals_etf_monthly, etf_signals, algo_metrics_daily,
-    # and eod_bulk_refresh are now managed by the Step Functions EOD pipeline
-    # (terraform/modules/pipeline/). Their EventBridge rules are defined there.
-    # Task definitions remain in all_loaders below for Step Functions to reference.
+    # NOTE: These loaders are managed via the Step Functions EOD pipeline:
+    # - trend_template_data, signal_quality_scores, technical_data_daily,
+    #   algo_metrics_daily, swing_trader_scores, buy_sell_daily
+    # Task definitions remain in all_loaders for Step Functions to reference.
   }
 }
 
@@ -512,29 +491,16 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    # Reference data (3:25-3:35am ET)
-    # parallelism=1: tiny list, no benefit from threads
+    # Reference data — tiny lists, parallelism=1
     "stock_symbols"         = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "sp500_constituents"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # UNIFIED Price Loader (4:00am ET) — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
-    # Runs sequentially for each interval+class combo, parallelizes symbol fetches (yfinance rate-limited)
+    # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
     # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
-    "stock_prices_daily"  = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
-    "stock_prices_weekly" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
-    # ETF price loaders (daily, weekly, monthly intervals)
-    "etf_prices_daily"   = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
-    "etf_prices_weekly"  = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
-    "etf_prices_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-
-    # Trend template (4:30am ET) — compute-heavy scoring, now in Step Functions EOD pipeline
-    # FIXED Issue #2: Timeout was 1200s then 2700s but Step Functions allows 5400s; increased to match SF
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
-
-    # Financial statements (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
-    # Sequential processing needs 60min timeout to handle 5000+ symbols with SEC backoff delays
+    # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
@@ -544,77 +510,57 @@ locals {
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Computed metrics (growth, quality, value, stability) — CPU bound, process 10K symbols, need parallelism
+    # Computed metrics — CPU bound, process 5000+ symbols, need parallelism
     "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 8 }
-    # stock_scores: reads quality/growth/value/stability/positioning tables — must run after all metrics
-    "stock_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
-    # Earnings data (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
-    # Increase timeout to 60min for sequential 5000+ symbol processing
+    # Earnings data — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
     "earnings_history"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
+    # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
     "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
-    # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
-    # Fixed: timeout 1800→2400→10800→14400→21600s (30min→40min→3h→4h→6h), parallelism 8→4
-    # ETF signals: increased timeout to match heavy computation + yfinance rate limiting for 5000+ ETFs
-    "signals_weekly"      = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
-    "signals_monthly"     = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
-    "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
-    "signals_etf_weekly"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-    "signals_etf_monthly" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-
-    # Algo metrics (5:15pm ET - after signals) - FARGATE: compute metrics on 5000+ symbols
-    # FIXED Issue #4: Was 256 CPU, 512 MB (too small). Increased to 1024 CPU, 2048 MB for 3-hour computation
-    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
-
-    # Market data batch — 8 tiny loaders consolidated into one task (3:30am ET)
-    "market_data_batch" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-
-    # Technical indicators (EOD pipeline step 2) — compute-heavy, 5000+ symbols
-    # FIXED: Increased CPU/memory 4x and parallelism from 4 to 8 to handle 40+ minute executions
-    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 8 }
-
-    # Market health (EOD pipeline step 2) — reads price_daily for SPY/VIX, processes 5000+ symbols
-    "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
-
-    # Swing trader scores (EOD pipeline final step) — compute-heavy scoring
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-
-    # Market sentiment data — small API calls, run daily/weekly
+    # Market sentiment data — small API calls
     "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-
-    # FRED macro data — small API calls, 5 time series from FRED API
-    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-
-    # Signal processing — compute signal themes
-    "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Sentiment aggregation — combine multiple sentiment sources
     "sentiment"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "sentiment_social" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # BUY/SELL signals (5:00pm ET - EOD pipeline step 3) — compute trade signals for all 5000+ symbols
+    # Signal processing — compute signal themes
+    "signal_themes"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
+
+    # BUY/SELL signals — compute trade signals for all 5000+ symbols
     "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
-    # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
-    # FIXED Issue #1: Signal quality scores timeout was 3600s but Step Functions allows 5400s
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
-    # FIXED Issue #3: EOD bulk refresh is unified price loader (same as stock_prices_daily)
-    # Maps to load_stock_prices_daily.py which runs full price load (5000+ symbols, all intervals)
-    # Requires 6-hour timeout like stock_prices_daily, not 3600s. Changed from 3600→21600.
-    "eod_bulk_refresh" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    # Technical indicators — compute-heavy, 5000+ symbols
+    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 8 }
+
+    # Market health — reads price_daily, processes 5000+ symbols
+    "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+
+    # Algo metrics — compute metrics on 5000+ symbols
+    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
+
+    # Swing trader scores — compute-heavy scoring
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+
+    # FRED macro data — small API calls, 5 time series
+    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+
+    # Trend template — compute-heavy scoring
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
   }
 
   # For backward compatibility
@@ -623,12 +569,14 @@ locals {
   # Loaders that must run on on-demand FARGATE (cannot tolerate interruption)
   critical_loaders = toset([
     "stock_prices_daily",
-    "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly",
-    "algo_metrics_daily", "eod_bulk_refresh", "stock_scores", "buy_sell_daily"
+    "algo_metrics_daily",
+    "stock_scores",
+    "buy_sell_daily",
+    "signal_quality_scores"
   ])
 }
 
-# ECS Task Definitions for all 48 data loaders
+# ECS Task Definitions for all 33 data loaders
 # NOTE: CPU/memory in container definition are removed - only task-level values matter for Fargate
 resource "aws_ecs_task_definition" "loader" {
   for_each = local.all_loaders
@@ -821,7 +769,7 @@ resource "null_resource" "ensure_log_group" {
 }
 
 # ============================================================
-# EventBridge Targets - ECS Task Execution (All 40 Loaders)
+# EventBridge Targets - ECS Task Execution (Scheduled Loaders)
 # ============================================================
 
 resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
