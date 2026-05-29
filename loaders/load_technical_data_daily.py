@@ -17,7 +17,6 @@ from typing import List, Optional
 
 import pandas as pd
 
-from config.env_loader import load_env
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
@@ -202,7 +201,6 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
 def main():
     try:
-        load_env()
     except Exception as e:
         logger.error(f"Failed to load environment: {e}", exc_info=True)
         return 1

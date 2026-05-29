@@ -23,7 +23,6 @@ import time
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-from config.env_loader import load_env
 from utils.db_connection import get_db_connection
 from utils.monitoring.loader_validation import validate_price_row, count_validation_errors
 from utils.data_provenance_tracker import DataProvenanceTracker
@@ -457,7 +456,6 @@ def main():
     start_time = time.time()
 
     try:
-        load_env()
         logger.info("[MAIN] Environment loaded successfully")
     except Exception as e:
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)

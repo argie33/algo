@@ -18,7 +18,6 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 
 from utils.optimal_loader import OptimalLoader
@@ -106,7 +105,6 @@ class GrowthMetricsLoader(OptimalLoader):
 
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Growth metrics loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     parser.add_argument("--parallelism", type=int, default=8)

@@ -16,7 +16,6 @@ from typing import List, Optional
 
 import pandas as pd
 
-from config.env_loader import load_env
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
@@ -199,7 +198,6 @@ class TrendCriteriaLoader(OptimalLoader):
 
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Load trend criteria data")
     parser.add_argument("--symbols", help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")

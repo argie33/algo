@@ -24,7 +24,6 @@ import os
 from datetime import date
 from typing import List, Optional
 
-from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 
 from utils.optimal_loader import OptimalLoader
@@ -165,7 +164,6 @@ class QualityMetricsLoader(OptimalLoader):
 
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Quality metrics loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
     parser.add_argument("--parallelism", type=int, default=8)

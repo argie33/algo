@@ -28,7 +28,6 @@ import logging
 logger = get_logger(__name__)
 import os
 from utils.loader_helpers import get_active_symbols
-from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional, Dict
 import json
@@ -235,7 +234,6 @@ class SwingTraderScoresLoader(OptimalLoader):
 
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")

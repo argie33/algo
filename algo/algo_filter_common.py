@@ -64,7 +64,7 @@ def check_correlation_with_holdings(cur, new_symbol: str, existing_symbols: List
                     corr = np.corrcoef(new_returns, existing_returns)[0, 1]
                     if not np.isnan(corr):
                         max_corr = max(max_corr, abs(corr))
-                except:
+                except Exception:
                     pass
 
         if max_corr > 0.80:

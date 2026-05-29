@@ -33,7 +33,6 @@ Version: v5.3
 Last Updated: 2026-01-28 - Data loss fix deployed and ready for ECS execution
 FIXED: Removed DROP TABLE vulnerability - data now safely preserved on crash
 """
-from config.env_loader import load_env
 import time
 import logging
 import json
@@ -241,7 +240,6 @@ async def load_fear_greed_data(cur, conn):
 # Entrypoint
 # -------------------------------
 async def main():
-    load_env()
     logging.info(f"Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 

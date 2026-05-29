@@ -34,7 +34,6 @@ Version: v1.0
 Last Updated: 2026-01-28 - Data loss fix deployed - ready for ECS execution
 FIXED: DROP TABLE vulnerability removed - data safely preserved
 """
-from config.env_loader import load_env
 import time
 import logging
 import json
@@ -56,7 +55,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-load_env()
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -304,7 +302,6 @@ def load_naaim_data(cur, conn):
 # Entrypoint
 # -------------------------------
 def main():
-    load_env()
     """Main synchronous function to run NAAIM data loading."""
     logging.info(f"[RUN] Starting {SCRIPT_NAME} execution")
     log_mem("startup")

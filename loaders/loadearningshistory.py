@@ -19,7 +19,6 @@ from utils.loader_helpers import get_active_symbols
 import logging
 logger = get_logger(__name__)
 import os
-from config.env_loader import load_env
 from datetime import date
 from typing import List, Optional
 
@@ -107,7 +106,6 @@ class EarningsHistoryLoader(OptimalLoader):
         return bool(row.get("quarter")) and bool(row.get("earnings_date"))
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Optimal earnings_history loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")

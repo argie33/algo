@@ -25,10 +25,8 @@ import requests
 import psycopg2
 from psycopg2.extras import execute_values
 
-from config.env_loader import load_env
 from utils.db_connection import get_db_connection
 
-load_env()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 log = logging.getLogger(__name__)

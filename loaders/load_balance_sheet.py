@@ -24,7 +24,6 @@ logger = get_logger(__name__)
 import os
 from datetime import date
 from typing import List, Optional
-from config.env_loader import load_env
 from utils.loader_helpers import get_active_symbols
 from utils.sec_edgar_client import SecEdgarClient
 
@@ -160,7 +159,6 @@ class BalanceSheetLoader(OptimalLoader):
 
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Balance sheet loader (annual/quarterly)")
     parser.add_argument("--period", choices=["annual", "quarterly"],
                         help="Statement period (defaults to LOADER_PERIOD env var)")

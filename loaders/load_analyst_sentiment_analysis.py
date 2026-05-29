@@ -26,7 +26,6 @@ from config.credential_helper import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import os
 import sys
-from config.env_loader import load_env
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -107,7 +106,6 @@ class AnalystSentimentLoader(OptimalLoader):
 
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Optimal analyst_sentiment loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")

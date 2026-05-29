@@ -9,7 +9,6 @@ import logging
 from datetime import date
 from typing import Dict
 from utils.db_connection import get_db_connection
-from config.env_loader import load_env
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +126,6 @@ def main():
     from algo.algo_market_calendar import MarketCalendar
     from datetime import timedelta
 
-    load_env()
     run_date = date.today()
     # If today is not a trading day, use yesterday instead
     # (prevents computing metrics for non-trading days when no new data exists)

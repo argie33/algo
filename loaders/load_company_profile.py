@@ -9,7 +9,6 @@ from datetime import date
 from typing import Dict
 import yfinance as yf
 
-from config.env_loader import load_env
 from utils.db_connection import get_db_connection
 from utils.structured_logger import get_logger
 

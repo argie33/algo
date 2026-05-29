@@ -23,8 +23,6 @@ import logging
 import os
 from typing import Dict, Optional, Any
 
-logger = logging.getLogger(__name__)
-
 log = logging.getLogger(__name__)
 
 

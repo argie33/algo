@@ -33,8 +33,6 @@ OUTPUTS:
 Version: v1.0
 Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
-from config.env_loader import load_env
-load_env()
 import time
 import logging
 import json

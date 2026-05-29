@@ -22,7 +22,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import the orchestrator
 from algo.algo_orchestrator import Orchestrator
-from config.env_loader import load_env
 
 
 def lambda_handler(event, context):
@@ -54,7 +53,6 @@ def lambda_handler(event, context):
     source = "unknown"
     try:
         # Load environment variables
-        load_env()
 
         # FIXED Issue #8: Validate incoming event structure for EventBridge
         if not event:

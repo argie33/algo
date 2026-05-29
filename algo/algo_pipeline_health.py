@@ -327,7 +327,6 @@ class PipelineHealth:
 
 if __name__ == '__main__':
     import json
-    logger = logging.getLogger(__name__)
     health = PipelineHealth()
     health.connect()
     status = health.get_pipeline_status()

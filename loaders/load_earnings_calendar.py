@@ -16,7 +16,6 @@ from typing import List, Optional, Dict, Any
 
 from utils.structured_logger import get_logger
 from utils.db_connection import get_db_connection
-from config.env_loader import load_env
 
 logger = get_logger(__name__)
 
@@ -159,7 +158,6 @@ class EarningsCalendarLoader:
 
 
 def main():
-    load_env()
     parser = argparse.ArgumentParser(description="Earnings Calendar Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
