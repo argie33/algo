@@ -17,9 +17,10 @@ import json
 import numpy as np
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any
+from pathlib import Path
 import logging
 
-from utils.database_context import DatabaseContext
+from utils.database_context import DatabaseContext, database_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -86,51 +87,41 @@ class LivePerformance:
         Returns:
             dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count
         """
-        conn = None
-        cur = None
         try:
-            conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_name,
-            )
-            cur = conn.cursor()
-
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN r_multiple > 0 THEN 1 ELSE 0 END) as win_count,
-                    SUM(CASE WHEN r_multiple <= 0 THEN 1 ELSE 0 END) as loss_count,
-                    AVG(CASE WHEN r_multiple > 0 THEN r_multiple ELSE NULL END) as avg_win_r,
-                    AVG(CASE WHEN r_multiple <= 0 THEN r_multiple ELSE NULL END) as avg_loss_r,
-                    AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct ELSE NULL END) as avg_win_pct,
-                    AVG(CASE WHEN profit_loss_pct <= 0 THEN profit_loss_pct ELSE NULL END) as avg_loss_pct
-                FROM (
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
                     SELECT
-                        profit_loss_pct,
-                        CASE
-                            WHEN exit_r_multiple IS NOT NULL THEN exit_r_multiple
-                            WHEN stop_loss_price IS NOT NULL
-                                 AND stop_loss_price < entry_price
-                                 AND entry_quantity > 0
-                                THEN profit_loss_dollars
-                                     / NULLIF((entry_price - stop_loss_price)
-                                              * entry_quantity, 0)
-                            ELSE NULL
-                        END AS r_multiple
-                    FROM algo_trades
-                    WHERE status = 'closed'
-                      AND exit_date >= CURRENT_DATE - INTERVAL '365 days'
-                    ORDER BY exit_date DESC NULLS LAST
-                    LIMIT %s
-                ) closed_trades
-                """,
-                (lookback_trades,)
-            )
-            row = cur.fetchone()
+                        COUNT(*) as total,
+                        SUM(CASE WHEN r_multiple > 0 THEN 1 ELSE 0 END) as win_count,
+                        SUM(CASE WHEN r_multiple <= 0 THEN 1 ELSE 0 END) as loss_count,
+                        AVG(CASE WHEN r_multiple > 0 THEN r_multiple ELSE NULL END) as avg_win_r,
+                        AVG(CASE WHEN r_multiple <= 0 THEN r_multiple ELSE NULL END) as avg_loss_r,
+                        AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct ELSE NULL END) as avg_win_pct,
+                        AVG(CASE WHEN profit_loss_pct <= 0 THEN profit_loss_pct ELSE NULL END) as avg_loss_pct
+                    FROM (
+                        SELECT
+                            profit_loss_pct,
+                            CASE
+                                WHEN exit_r_multiple IS NOT NULL THEN exit_r_multiple
+                                WHEN stop_loss_price IS NOT NULL
+                                     AND stop_loss_price < entry_price
+                                     AND entry_quantity > 0
+                                    THEN profit_loss_dollars
+                                         / NULLIF((entry_price - stop_loss_price)
+                                                  * entry_quantity, 0)
+                                ELSE NULL
+                            END AS r_multiple
+                        FROM algo_trades
+                        WHERE status = 'closed'
+                          AND exit_date >= CURRENT_DATE - INTERVAL '365 days'
+                        ORDER BY exit_date DESC NULLS LAST
+                        LIMIT %s
+                    ) closed_trades
+                    """,
+                    (lookback_trades,)
+                )
+                row = cur.fetchone()
 
             if not row or row[0] == 0:
                 return None
@@ -157,17 +148,6 @@ class LivePerformance:
         except Exception as e:
             logger.error(f"Performance: win_rate failed: {e}")
             return None
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as close_err:
-                    logger.debug(f"Cursor close failed: {close_err}")
-            if conn:
-                try:
-                    conn.close()
-                except Exception as close_err:
-                    logger.debug(f"Connection close failed: {close_err}")
 
     def expectancy(self, lookback_trades: int = 50) -> Optional[float]:
         """Compute expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R).
@@ -200,26 +180,16 @@ class LivePerformance:
         Returns:
             Max drawdown as percentage (e.g., -15.5 = 15.5% down from peak)
         """
-        conn = None
-        cur = None
         try:
-            conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_name,
-            )
-            cur = conn.cursor()
-
-            cur.execute(
-                """
-                SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '365 days'
-                ORDER BY snapshot_date ASC
-                """
-            )
-            rows = cur.fetchall()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '365 days'
+                    ORDER BY snapshot_date ASC
+                    """
+                )
+                rows = cur.fetchall()
 
             if len(rows) < 2:
                 return None
@@ -239,17 +209,6 @@ class LivePerformance:
         except Exception as e:
             logger.error(f"Performance: max_drawdown failed: {e}")
             return None
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as close_err:
-                    logger.debug(f"Cursor close failed: {close_err}")
-            if conn:
-                try:
-                    conn.close()
-                except Exception as close_err:
-                    logger.debug(f"Connection close failed: {close_err}")
 
     def rolling_sortino(self, lookback_days: int = 252) -> Optional[float]:
         """Annualized Sortino ratio — penalizes only downside volatility.
@@ -257,22 +216,18 @@ class LivePerformance:
         More appropriate than Sharpe for directional swing strategies where
         upside volatility is desirable.
         """
-        conn = None
-        cur = None
         try:
-            conn = psycopg2.connect(
-                host=self.db_host, port=self.db_port, user=self.db_user,
-                password=self.db_password, database=self.db_name,
-            )
-            cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
-                ORDER BY snapshot_date ASC
-                """ % lookback_days,
-            )
-            rows = cur.fetchall()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
+                    ORDER BY snapshot_date ASC
+                    """,
+                    (lookback_days,)
+                )
+                rows = cur.fetchall()
+
             if len(rows) < 30:
                 return None
 
@@ -295,37 +250,24 @@ class LivePerformance:
         except Exception as e:
             logger.error(f"Performance: rolling_sortino failed: {e}")
             return None
-        finally:
-            if cur:
-                try: cur.close()
-                except Exception as e:
-                    logger.warning(f"Failed to close cursor: {e}")
-            if conn:
-                try: conn.close()
-                except Exception as e:
-                    logger.warning(f"Failed to close connection: {e}")
 
     def calmar_ratio(self, lookback_days: int = 252) -> Optional[float]:
         """Calmar ratio = annualized return / abs(max drawdown).
 
         Standard benchmark for trend-following strategies. Higher is better.
         """
-        conn = None
-        cur = None
         try:
-            conn = psycopg2.connect(
-                host=self.db_host, port=self.db_port, user=self.db_user,
-                password=self.db_password, database=self.db_name,
-            )
-            cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
-                ORDER BY snapshot_date ASC
-                """ % lookback_days,
-            )
-            rows = cur.fetchall()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
+                    ORDER BY snapshot_date ASC
+                    """,
+                    (lookback_days,)
+                )
+                rows = cur.fetchall()
+
             if len(rows) < 30:
                 return None
 
@@ -353,15 +295,6 @@ class LivePerformance:
         except Exception as e:
             logger.error(f"Performance: calmar_ratio failed: {e}")
             return None
-        finally:
-            if cur:
-                try: cur.close()
-                except Exception as e:
-                    logger.warning(f"Failed to close cursor: {e}")
-            if conn:
-                try: conn.close()
-                except Exception as e:
-                    logger.warning(f"Failed to close connection: {e}")
 
     def backtest_vs_live_comparison(self) -> Optional[Dict[str, Any]]:
         """Compare live metrics to backtest reference metrics.
@@ -466,19 +399,8 @@ class LivePerformance:
                     result['warning'] = f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
                     logger.warning(f"  Performance warning: {result['warning']}")
 
-            # Upsert into database with fresh connection (insert or replace if already exists for this date)
-            conn = None
-            cur = None
+            # Upsert into database (insert or replace if already exists for this date)
             try:
-                conn = psycopg2.connect(
-                    host=self.db_host,
-                    port=self.db_port,
-                    user=self.db_user,
-                    password=self.db_password,
-                    database=self.db_name,
-                )
-                cur = conn.cursor()
-
                 sharpe_val = float(sharpe) if sharpe is not None else None
                 sortino_val = float(sortino) if sortino is not None else None
                 calmar_val = float(calmar) if calmar is not None else None
@@ -488,46 +410,36 @@ class LivePerformance:
                 expectancy_val = float(expectancy) if expectancy is not None else None
                 max_dd_val = float(max_dd) if max_dd is not None else None
 
-                cur.execute(
-                    """
-                    INSERT INTO algo_performance_daily (
-                        report_date, rolling_sharpe_252d,
-                        win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
-                        max_drawdown_pct
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (report_date) DO UPDATE SET
-                        rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
-                        win_rate_50t = EXCLUDED.win_rate_50t,
-                        avg_win_r_50t = EXCLUDED.avg_win_r_50t,
-                        avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
-                        expectancy = EXCLUDED.expectancy,
-                        max_drawdown_pct = EXCLUDED.max_drawdown_pct
-                    """,
-                    (
-                        report_date,
-                        sharpe_val,
-                        win_rate_val,
-                        avg_win_r_val,
-                        avg_loss_r_val,
-                        expectancy_val,
-                        max_dd_val,
+                with database_transaction('write') as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO algo_performance_daily (
+                            report_date, rolling_sharpe_252d,
+                            win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
+                            max_drawdown_pct
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (report_date) DO UPDATE SET
+                            rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
+                            win_rate_50t = EXCLUDED.win_rate_50t,
+                            avg_win_r_50t = EXCLUDED.avg_win_r_50t,
+                            avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
+                            expectancy = EXCLUDED.expectancy,
+                            max_drawdown_pct = EXCLUDED.max_drawdown_pct
+                        """,
+                        (
+                            report_date,
+                            sharpe_val,
+                            win_rate_val,
+                            avg_win_r_val,
+                            avg_loss_r_val,
+                            expectancy_val,
+                            max_dd_val,
+                        )
                     )
-                )
-                conn.commit()
-                logger.info(f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%")
+                    cur.connection.commit()
+                    logger.info(f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%")
             except Exception as e:
                 logger.error(f"Failed to persist performance report: {e}", exc_info=True)
-            finally:
-                if cur:
-                    try:
-                        cur.close()
-                    except Exception:
-                        pass
-                if conn:
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
 
             return result
 
