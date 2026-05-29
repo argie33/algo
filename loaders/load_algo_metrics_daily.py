@@ -16,32 +16,21 @@ logger = logging.getLogger(__name__)
 class AlgoMetricsDailyLoader:
     """Compute and store daily algo performance metrics after orchestrator completes."""
 
-    def __init__(self):
-        self.conn = None
-
-    def connect(self):
-        self.conn = get_db_connection()
-
-    def disconnect(self):
-        if self.conn:
-            self.conn.close()
-
-    def ensure_table_exists(self):
+    def ensure_table_exists(self, cur):
         """Create algo_metrics_daily table if it doesn't exist."""
-        cursor = self.conn.cursor()
         try:
             # First check if table exists
-            cursor.execute("""
+            cur.execute("""
                 SELECT 1 FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_name = 'algo_metrics_daily'
             """)
-            if cursor.fetchone():
+            if cur.fetchone():
                 logger.info("algo_metrics_daily table exists")
                 return
 
             # Table doesn't exist, create it
             logger.info("Creating algo_metrics_daily table...")
-            cursor.execute("""
+            cur.execute("""
                 CREATE TABLE algo_metrics_daily (
                     date DATE PRIMARY KEY,
                     total_actions INTEGER,
@@ -52,23 +41,20 @@ class AlgoMetricsDailyLoader:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            self.conn.commit()
+            cur.connection.commit()
             logger.info("algo_metrics_daily table created successfully")
         except Exception as e:
             logger.error(f"Failed to ensure table: {e}", exc_info=True)
             try:
-                self.conn.rollback()
+                cur.connection.rollback()
             except Exception:
                 pass
             raise
-        finally:
-            cursor.close()
 
-    def compute_daily_metrics(self, run_date: date) -> Dict:
+    def compute_daily_metrics(self, cur, run_date: date) -> Dict:
         """Compute portfolio stats from algo_audit_log for the trading day."""
         try:
-            cursor = self.conn.cursor()
-            cursor.execute("""
+            cur.execute("""
                 SELECT
                     DATE(created_at) as trading_date,
                     COUNT(*) as total_actions,
@@ -79,8 +65,7 @@ class AlgoMetricsDailyLoader:
                 WHERE DATE(created_at) = %s
                 GROUP BY DATE(created_at)
             """, (run_date,))
-            row = cursor.fetchone()
-            cursor.close()
+            row = cur.fetchone()
             if not row:
                 return {}
             return {
@@ -94,11 +79,10 @@ class AlgoMetricsDailyLoader:
             logger.error(f"Failed to compute metrics: {e}")
             return {}
 
-    def store_metrics(self, run_date: date, metrics: Dict):
+    def store_metrics(self, cur, run_date: date, metrics: Dict):
         """Store computed metrics to algo_metrics table."""
         try:
-            cursor = self.conn.cursor()
-            cursor.execute("""
+            cur.execute("""
                 INSERT INTO algo_metrics_daily
                 (date, total_actions, entries, exits, avg_signal_score)
                 VALUES (%s, %s, %s, %s, %s)
@@ -114,10 +98,10 @@ class AlgoMetricsDailyLoader:
                 metrics.get('exits', 0),
                 metrics.get('avg_signal_score', 0.0)
             ))
-            self.conn.commit()
+            cur.connection.commit()
             logger.info(f"Stored metrics for {run_date}: {metrics}")
         except Exception as e:
-            self.conn.rollback()
+            cur.connection.rollback()
             logger.error(f"Failed to store metrics: {e}")
             raise
 
@@ -134,14 +118,11 @@ def main():
 
     loader = AlgoMetricsDailyLoader()
 
-    try:
-        loader.connect()
-        loader.ensure_table_exists()
-        metrics = loader.compute_daily_metrics(run_date)
-        loader.store_metrics(run_date, metrics)
+    with DatabaseContext('write') as cur:
+        loader.ensure_table_exists(cur)
+        metrics = loader.compute_daily_metrics(cur, run_date)
+        loader.store_metrics(cur, run_date, metrics)
         logger.info(f"Daily metrics computed and stored for {run_date}")
-    finally:
-        loader.disconnect()
 
 
 if __name__ == '__main__':

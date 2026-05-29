@@ -108,25 +108,20 @@ def main():
     # Load 2 years of history on first run; subsequent runs just update recent data
     start_date = (date.today() - timedelta(days=730)).isoformat()
 
-    conn = get_db_connection()
-    conn.autocommit = False
-    cur = conn.cursor()
+    with DatabaseContext('write') as cur:
+        total = 0
+        for series_id in SERIES:
+            log.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
+            try:
+                rows = fetch_series(series_id, api_key, start_date, end_date)
+                n = upsert_rows(cur, rows)
+                cur.connection.commit()
+                log.info(f"  {series_id}: {n} rows upserted")
+                total += n
+            except Exception as e:
+                cur.connection.rollback()
+                log.error(f"  {series_id}: FAILED — {e}")
 
-    total = 0
-    for series_id in SERIES:
-        log.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
-        try:
-            rows = fetch_series(series_id, api_key, start_date, end_date)
-            n = upsert_rows(cur, rows)
-            conn.commit()
-            log.info(f"  {series_id}: {n} rows upserted")
-            total += n
-        except Exception as e:
-            conn.rollback()
-            log.error(f"  {series_id}: FAILED — {e}")
-
-    cur.close()
-    conn.close()
     log.info(f"Done. Total rows upserted: {total}")
 
 

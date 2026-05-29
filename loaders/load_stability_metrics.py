@@ -22,7 +22,7 @@ from typing import List, Optional, Dict
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = get_logger(__name__)
 
@@ -48,19 +48,15 @@ class StabilityMetricsLoader(OptimalLoader):
     def _compute_stability_metrics(self, symbol: str) -> Optional[Dict]:
         """Compute volatility from price_daily and beta from yfinance."""
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-
-            # Fetch last 252 trading days of price data
-            cur.execute("""
-                SELECT date, close FROM price_daily
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 252
-            """, (symbol,))
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+            with DatabaseContext('read') as cur:
+                # Fetch last 252 trading days of price data
+                cur.execute("""
+                    SELECT date, close FROM price_daily
+                    WHERE symbol = %s
+                    ORDER BY date DESC
+                    LIMIT 252
+                """, (symbol,))
+                rows = cur.fetchall()
 
             if not rows or len(rows) < 30:
                 return None
