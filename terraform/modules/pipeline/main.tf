@@ -292,7 +292,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["signals_daily"]
+          TaskDefinition       = var.loader_task_definition_arns["buy_sell_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
