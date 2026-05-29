@@ -223,6 +223,57 @@ resource "aws_cloudwatch_dashboard" "main" {
         x      = 0
         y      = 24
       },
+
+      # ============================================================
+      # Loader Execution Status (Issue #5: Data Loading Reliability)
+      # ============================================================
+      {
+        type = "metric"
+        properties = {
+          metrics = [
+            ["Algo/DataLoading", "LoaderFailure", { stat = "Sum" }],
+            [".", "LoaderSuccess", { stat = "Sum" }],
+          ]
+          period = 300
+          stat   = "Sum"
+          region = var.aws_region
+          title  = "Loader Execution Status (Last 24h)"
+          yAxis = {
+            left = {
+              min = 0
+            }
+          }
+        }
+        width  = 12
+        height = 6
+        x      = 0
+        y      = 30
+      },
+
+      {
+        type = "metric"
+        properties = {
+          metrics = [
+            ["Algo/DataLoading", "LoaderFailure", { stat = "Sum", dimensions = { LoaderName = "stock_prices_daily" } }],
+            ["...", { dimensions = { LoaderName = "stock_symbols" } }],
+            ["...", { dimensions = { LoaderName = "market_health_daily" } }],
+            ["...", { dimensions = { LoaderName = "technical_data_daily" } }],
+          ]
+          period = 300
+          stat   = "Sum"
+          region = var.aws_region
+          title  = "Critical Loader Failures (Issue #4)"
+          yAxis = {
+            left = {
+              min = 0
+            }
+          }
+        }
+        width  = 12
+        height = 6
+        x      = 12
+        y      = 30
+      },
     ]
   })
 }
