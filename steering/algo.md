@@ -42,42 +42,37 @@ FRED_API_KEY (economic data)
 - Never commit `.env` files
 - CI uses OIDC (OpenID Connect) for AWS authentication, not static keys
 
-## LOCAL AWS CREDENTIALS (Reader Access)
+## LOCAL AWS CREDENTIALS (Auto-Refreshing)
 
-When troubleshooting or reading logs/resources in AWS, use the IaC-managed developer credentials:
+**NEW: Automatic credential refresh via credential_process (NO manual refresh needed)**
 
-**If you see:** `Error: The security token included in the request is invalid`
-- Your local AWS credentials have expired. Use the refresh script (below).
-
-**To refresh:**
-```powershell
-scripts/refresh-aws-credentials.ps1
+Set up once:
+```bash
+scripts/setup-credential-process.sh
 ```
 
-**What this does:**
-1. Triggers GitHub Actions workflow `refresh-dev-credentials.yml` (uses GitHub OIDC, no static keys)
-2. Workflow reads developer credentials from `algo/developer-credentials` in AWS Secrets Manager
-3. Downloads credentials artifact and updates `~/.aws/credentials` file
-4. Verifies with `aws sts get-caller-identity` before completing
+This configures your `~/.aws/config` to automatically fetch fresh credentials on-demand:
+- No static credentials file
+- No manual refresh needed
+- Credentials always fresh and valid
+- Works for all AWS CLI commands and Python boto3 calls
 
-**Why this approach:**
-- Credentials are generated fresh from IaC every refresh (never stale in Secrets Manager)
-- No need to manage static keys locally
-- GitHub OIDC = no credentials stored in git, CI environment, or PowerShell profile
-- All credential rotations happen in Terraform (centralizing security)
+**How it works:**
+1. When you run `aws s3 ls --profile algo-developer`, AWS SDK calls the credential_process script
+2. Script fetches fresh credentials from GitHub Actions workflow (via OIDC)
+3. Credentials cached locally for 50 minutes
+4. No human intervention required
 
-**If the script fails:**
-1. Verify GitHub CLI is authenticated: `gh auth status`
-2. Check workflow logs: `gh run list --workflow refresh-dev-credentials.yml --limit 5`
-3. Manually download: `gh workflow run refresh-dev-credentials.yml`, then `gh run download --name dev-credentials --dir ~/.aws-tmp`
-
-**AWS credentials profile:** `algo-developer` (read-only IAM user, created by Terraform)
+**For debugging locally:**
+```bash
+aws sts get-caller-identity --profile algo-developer
+```
 
 **Credential Rotation:** Automatic quarterly rotation (first Monday of each quarter at 02:00 UTC)
 - Workflow: `.github/workflows/rotate-dev-credentials.yml`
-- Manual trigger: `gh workflow run rotate-dev-credentials.yml`
-- After rotation: Users must refresh with `scripts/refresh-aws-credentials.ps1`
-- Procedure: Terraform invalidates old key, creates new one, stores in Secrets Manager
+- Rotates the IAM key in Secrets Manager
+- Your next AWS command automatically fetches the new key
+- No action required from you
 
 ## CREDENTIAL FLOW (IaC)
 
@@ -134,13 +129,26 @@ All credentials rotate on fixed schedules. Update locally when rotated:
 
 **If a credential is leaked:** Rotate immediately (don't wait for quarterly schedule). For AWS keys, delete old key in IAM console and trigger `rotate-dev-credentials.yml`. For API keys, regenerate in dashboard immediately and update GitHub Secrets.
 
-## DEPLOYMENT ARCHITECTURE
+## DEPLOYMENT ARCHITECTURE (THE RIGHT WAY - OIDC ONLY)
 
-**GitHub Actions → AWS:**
-- Workflow: `aws-actions/configure-aws-credentials@v4`
-- Authentication: OIDC (OpenID Connect) — GitHub token exchanges for temporary AWS credentials
-- IAM Role: `arn:aws:iam::<ACCOUNT_ID>:role/algo-svc-github-actions-dev`
-- No static AWS keys in repo
+**How to Deploy:**
+```bash
+git push main
+# That's it. GitHub Actions does everything automatically via OIDC.
+```
+
+**Authentication: GitHub Actions → AWS via OIDC (Automatic)**
+- GitHub OIDC provider exchanges GitHub token for temporary AWS credentials
+- Zero static keys stored anywhere
+- Credentials auto-expire after workflow completes
+- Implementation: `aws-actions/configure-aws-credentials@v4` with `role-to-assume`
+- IAM Role: `arn:aws:iam::<ACCOUNT_ID>:role/algo-svc-github-actions-dev` (terraform-created)
+- Required Secrets: `AWS_ACCOUNT_ID`, `AWS_GITHUB_ACTIONS_ROLE_ARN`
+
+**DO NOT:**
+- ❌ Use `scripts/refresh-aws-credentials.ps1` — it adds complexity, use only for rare local debugging
+- ❌ Store AWS static keys in GitHub Secrets — defeats entire purpose of OIDC
+- ❌ Run `terraform apply` locally — always deploy via GitHub Actions
 
 **Lambda Layer (psycopg2):**
 - Name: `algo-psycopg2-layer-dev` (created by Terraform)
@@ -153,8 +161,8 @@ All credentials rotate on fixed schedules. Update locally when rotated:
 
 | Workflow | Trigger | What It Does |
 |----------|---------|-------------|
-| `deploy-code.yml` | `git push main` (automatic) | Run tests, lint, security scan, deploy code to Lambdas |
-| `deploy-all-infrastructure.yml` | Manual dispatch | Terraform apply, rebuild Lambda layers, deploy ECS tasks |
+| `deploy-all-infrastructure.yml` | `git push main` (automatic) | Terraform apply + Lambda layer rebuild + ECS tasks + code deploy |
+| `deploy-code.yml` | `git push main` (automatic) | Tests, lint, security scan |
 | `test-orchestrator.yml` | Manual dispatch | Invoke orchestrator Lambda directly |
 | `manual-invoke-loaders.yml` | Manual dispatch | Manually run individual ECS loader tasks |
 
