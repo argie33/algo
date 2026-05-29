@@ -52,14 +52,12 @@ class SwingTraderScoresLoader(OptimalLoader):
 
             if since is None:
                 try:
-                    wm_conn = get_db_connection()
-                    with wm_conn.cursor() as wm_cur:
+                    with DatabaseContext('read') as wm_cur:
                         wm_cur.execute(
                             "SELECT MAX(date) FROM swing_trader_scores WHERE symbol = %s",
                             (symbol,),
                         )
                         wm_row = wm_cur.fetchone()
-                    wm_conn.close()
                     if wm_row and wm_row[0]:
                         since = wm_row[0] if isinstance(wm_row[0], date) else date.fromisoformat(str(wm_row[0]))
                 except Exception as e:
@@ -75,42 +73,38 @@ class SwingTraderScoresLoader(OptimalLoader):
             if start > end:
                 return None
 
-            conn = get_db_connection()
-            try:
-                with conn.cursor() as cur:
-                    # Join signal_quality_scores with trend + technical data for component breakdown
-                    cur.execute("""
-                        SELECT
-                            sqs.symbol,
-                            sqs.date,
-                            COALESCE(sqs.composite_sqs, 0) AS composite_sqs,
-                            COALESCE(td.minervini_trend_score, 0) AS minervini_score,
-                            COALESCE(td.weinstein_stage, 0) AS weinstein_stage,
-                            tdd.rsi,
-                            tdd.roc_20d,
-                            tdd.mansfield_rs
-                        FROM signal_quality_scores sqs
-                        LEFT JOIN trend_template_data td
-                            ON td.symbol = sqs.symbol AND td.date = sqs.date
-                        LEFT JOIN technical_data_daily tdd
-                            ON tdd.symbol = sqs.symbol AND tdd.date = sqs.date
-                        WHERE sqs.symbol = %s AND sqs.date >= %s AND sqs.date <= %s
-                        ORDER BY sqs.date ASC
-                    """, (symbol, start, end))
-                    rows = cur.fetchall()
+            with DatabaseContext('read') as cur:
+                # Join signal_quality_scores with trend + technical data for component breakdown
+                cur.execute("""
+                    SELECT
+                        sqs.symbol,
+                        sqs.date,
+                        COALESCE(sqs.composite_sqs, 0) AS composite_sqs,
+                        COALESCE(td.minervini_trend_score, 0) AS minervini_score,
+                        COALESCE(td.weinstein_stage, 0) AS weinstein_stage,
+                        tdd.rsi,
+                        tdd.roc_20d,
+                        tdd.mansfield_rs
+                    FROM signal_quality_scores sqs
+                    LEFT JOIN trend_template_data td
+                        ON td.symbol = sqs.symbol AND td.date = sqs.date
+                    LEFT JOIN technical_data_daily tdd
+                        ON tdd.symbol = sqs.symbol AND tdd.date = sqs.date
+                    WHERE sqs.symbol = %s AND sqs.date >= %s AND sqs.date <= %s
+                    ORDER BY sqs.date ASC
+                """, (symbol, start, end))
+                rows = cur.fetchall()
 
-                    if not rows:
-                        return None
+                if not rows:
+                    return None
 
-                    all_scores = []
-                    for row in rows:
-                        score_row = self._compute_swing_score(row)
-                        if score_row:
-                            all_scores.append(score_row)
+                all_scores = []
+                for row in rows:
+                    score_row = self._compute_swing_score(row)
+                    if score_row:
+                        all_scores.append(score_row)
 
-                    return all_scores if all_scores else None
-            finally:
-                conn.close()
+                return all_scores if all_scores else None
         except Exception as e:
             logging.debug(f"Swing score computation error for {symbol}: {e}")
             return None

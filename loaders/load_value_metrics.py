@@ -31,17 +31,10 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
-def get_db_conn():
-    return get_db_connection()
-
 def get_symbols() -> List[str]:
-    conn = get_db_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM price_daily ORDER BY symbol")
-            return [r[0] for r in cur.fetchall()]
-    finally:
-        conn.close()
+    with DatabaseContext('read') as cur:
+        cur.execute("SELECT DISTINCT symbol FROM price_daily ORDER BY symbol")
+        return [r[0] for r in cur.fetchall()]
 
 def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
     """Fetch value ratios from yfinance. Retries on rate limit. Returns None if no usable data."""
