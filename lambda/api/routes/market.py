@@ -702,6 +702,7 @@ def _get_correlation_matrix(cur) -> Dict:
             diversification_benefit = 'low' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'high'
             portfolio_stability = 'volatile' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'stable'
 
+            freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
             return json_response(200, {
                 'correlations': correlations_data,
                 'statistics': {
@@ -723,7 +724,8 @@ def _get_correlation_matrix(cur) -> Dict:
                         'diversification_benefit': diversification_benefit,
                         'portfolio_stability': portfolio_stability
                     }
-                }
+                },
+                'data_freshness': freshness
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -802,6 +804,7 @@ def _get_cap_distribution(cur) -> Dict:
                     'avg_cap': round(by_sector[sector]['total_cap'] / by_sector[sector]['count'], 0) if by_sector[sector]['count'] > 0 else 0
                 }
 
+            freshness = check_data_freshness(cur, 'stock_symbols', 'updated_at', warning_days=7)
             return json_response(200, {
                 'by_category': {
                     k: {
@@ -819,7 +822,8 @@ def _get_cap_distribution(cur) -> Dict:
                     'largest_cap': max((s['market_cap'] for s in stocks), default=0),
                     'smallest_cap': min((s['market_cap'] for s in stocks if s['market_cap'] > 0), default=0),
                     'category_distribution': category_dist
-                }
+                },
+                'data_freshness': freshness
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
