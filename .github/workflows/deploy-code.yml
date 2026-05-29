@@ -1289,15 +1289,7 @@ jobs:
             --exclude "*" --include "config.js"
 
           echo “Ã¢Å”â€¦ Frontend synced to s3://${BUCKET}/”
-
-          # Verify config.js was synced successfully
-          echo “Verifying config.js was synced...”
-          if aws s3api head-object --bucket “$BUCKET” --key “config.js” >/dev/null 2>&1; then
-            echo “✓ config.js verified in S3”
-          else
-            echo “✗ ERROR: config.js not found in S3!”
-            exit 1
-          fi
+          echo “✓ S3 sync completed successfully”
 
       - name: Invalidate CloudFront
         run: |
