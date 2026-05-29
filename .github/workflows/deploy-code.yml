@@ -61,7 +61,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -178,7 +178,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
@@ -647,7 +647,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
@@ -978,7 +978,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js 24
@@ -1237,7 +1237,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Retrieve Developer Credentials from Secrets Manager
@@ -1338,7 +1338,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Retrieve and Display Developer Credentials
