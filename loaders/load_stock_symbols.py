@@ -295,64 +295,62 @@ def parse_other_etf(text: str):
 
 
 # ─── DB Utilities ─────────────────────────────────────────────────────────────
-def init_db(conn):
+def init_db(cur):
     logger.info("Ensuring tables exist (never drop - avoid data loss)")
-    with conn.cursor() as cur:
-        # stock_symbols
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS stock_symbols (
-                symbol            VARCHAR(50) PRIMARY KEY,
-                exchange          VARCHAR(100),
-                security_name     TEXT,
-                cqs_symbol        VARCHAR(50),
-                market_category   VARCHAR(50),
-                test_issue        CHAR(1),
-                financial_status  VARCHAR(50),
-                round_lot_size    INT,
-                etf               CHAR(1),
-                secondary_symbol  VARCHAR(50),
-                is_sp500          BOOLEAN DEFAULT FALSE
-            );
+    # stock_symbols
+    cur.execute(
         """
-        )
-        # Add is_sp500 column if it doesn't exist (for existing tables)
-        cur.execute(
-            """
-            ALTER TABLE stock_symbols
-            ADD COLUMN IF NOT EXISTS is_sp500 BOOLEAN DEFAULT FALSE;
+        CREATE TABLE IF NOT EXISTS stock_symbols (
+            symbol            VARCHAR(50) PRIMARY KEY,
+            exchange          VARCHAR(100),
+            security_name     TEXT,
+            cqs_symbol        VARCHAR(50),
+            market_category   VARCHAR(50),
+            test_issue        CHAR(1),
+            financial_status  VARCHAR(50),
+            round_lot_size    INT,
+            etf               CHAR(1),
+            secondary_symbol  VARCHAR(50),
+            is_sp500          BOOLEAN DEFAULT FALSE
+        );
+    """
+    )
+    # Add is_sp500 column if it doesn't exist (for existing tables)
+    cur.execute(
         """
-        )
-        # etf_symbols
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS etf_symbols (
-                symbol            VARCHAR(50) PRIMARY KEY,
-                exchange          VARCHAR(100),
-                security_name     TEXT,
-                cqs_symbol        VARCHAR(50),
-                market_category   VARCHAR(50),
-                test_issue        CHAR(1),
-                financial_status  VARCHAR(50),
-                round_lot_size    INT,
-                etf               CHAR(1),
-                secondary_symbol  VARCHAR(50)
-            );
+        ALTER TABLE stock_symbols
+        ADD COLUMN IF NOT EXISTS is_sp500 BOOLEAN DEFAULT FALSE;
+    """
+    )
+    # etf_symbols
+    cur.execute(
         """
-        )
-        # last_updated
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS last_updated (
-                script_name   VARCHAR(255) PRIMARY KEY,
-                last_run      TIMESTAMP WITH TIME ZONE
-            );
+        CREATE TABLE IF NOT EXISTS etf_symbols (
+            symbol            VARCHAR(50) PRIMARY KEY,
+            exchange          VARCHAR(100),
+            security_name     TEXT,
+            cqs_symbol        VARCHAR(50),
+            market_category   VARCHAR(50),
+            test_issue        CHAR(1),
+            financial_status  VARCHAR(50),
+            round_lot_size    INT,
+            etf               CHAR(1),
+            secondary_symbol  VARCHAR(50)
+        );
+    """
+    )
+    # last_updated
+    cur.execute(
         """
-        )
-    conn.commit()
+        CREATE TABLE IF NOT EXISTS last_updated (
+            script_name   VARCHAR(255) PRIMARY KEY,
+            last_run      TIMESTAMP WITH TIME ZONE
+        );
+    """
+    )
 
 
-def insert_all(conn, records):
+def insert_all(cur, records):
     logger.info("Inserting %d stock records", len(records))
     sql = """
       INSERT INTO stock_symbols (
@@ -370,12 +368,10 @@ def insert_all(conn, records):
         )
         for r in records
     ]
-    with conn.cursor() as cur:
-        execute_values(cur, sql, values)
-    conn.commit()
+    execute_values(cur, sql, values)
 
 
-def insert_etfs(conn, records):
+def insert_etfs(cur, records):
     logger.info("Inserting %d ETF records", len(records))
     sql = """
       INSERT INTO stock_symbols (
@@ -393,24 +389,20 @@ def insert_etfs(conn, records):
         )
         for r in records
     ]
-    with conn.cursor() as cur:
-        execute_values(cur, sql, values)
-    conn.commit()
+    execute_values(cur, sql, values)
 
 
-def update_timestamp(conn):
+def update_timestamp(cur):
     logger.info("Updating last_updated timestamp")
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-              SET last_run = EXCLUDED.last_run;
-        """,
-            ("loadstocksymbols.py",),
-        )
-    conn.commit()
+    cur.execute(
+        """
+        INSERT INTO last_updated (script_name, last_run)
+        VALUES (%s, NOW())
+        ON CONFLICT (script_name) DO UPDATE
+          SET last_run = EXCLUDED.last_run;
+    """,
+        ("loadstocksymbols.py",),
+    )
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
