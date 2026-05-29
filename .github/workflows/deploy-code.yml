@@ -61,7 +61,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -178,7 +178,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
@@ -647,7 +647,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
@@ -978,7 +978,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js 24
@@ -1095,30 +1095,15 @@ jobs:
             print("WARNING: Cognito domain not available")
             cognito_domain = f"https://algo-dev.auth.{region}.amazoncognito.com"
 
-          # Generate config.js with dynamic values
-          config = {
-            "API_URL": website_url,
-            "USER_POOL_ID": cognito_pool_id,
-            "USER_POOL_CLIENT_ID": cognito_client_id,
-            "USER_POOL_DOMAIN": cognito_domain,
-            "AWS_REGION": region,
-            "ENVIRONMENT": environment
-          }
-
-          config_js = '''// Runtime configuration - Set by deploy-code.yml during deployment
-// All values come from Terraform outputs (no hardcoding)
-// For local development: use npm run dev (Vite proxy)
-// For production: deployed via CloudFront
-window.__CONFIG__ = {
-  "API_URL": "%s",
-  "USER_POOL_ID": "%s",
-  "USER_POOL_CLIENT_ID": "%s",
-  "USER_POOL_DOMAIN": "%s",
-  "AWS_REGION": "%s",
-  "ENVIRONMENT": "%s"
-};
-''' % (config["API_URL"], config["USER_POOL_ID"], config["USER_POOL_CLIENT_ID"],
-       config["USER_POOL_DOMAIN"], config["AWS_REGION"], config["ENVIRONMENT"])
+          # Generate config.js with string concatenation (avoids YAML parsing issues)
+          config_js = "window.__CONFIG__ = {" + "\n"
+          config_js += f'  "API_URL": "{website_url}",' + "\n"
+          config_js += f'  "USER_POOL_ID": "{cognito_pool_id}",' + "\n"
+          config_js += f'  "USER_POOL_CLIENT_ID": "{cognito_client_id}",' + "\n"
+          config_js += f'  "USER_POOL_DOMAIN": "{cognito_domain}",' + "\n"
+          config_js += f'  "AWS_REGION": "{region}",' + "\n"
+          config_js += f'  "ENVIRONMENT": "{environment}"' + "\n"
+          config_js += "};"
 
           with open('webapp/frontend/dist/config.js', 'w') as f:
             f.write(config_js)
@@ -1251,7 +1236,7 @@ window.__CONFIG__ = {
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Retrieve Developer Credentials from Secrets Manager
@@ -1352,7 +1337,7 @@ window.__CONFIG__ = {
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-{1}', secrets.AWS_ACCOUNT_ID, 'dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Retrieve and Display Developer Credentials
