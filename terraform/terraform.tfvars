@@ -45,7 +45,10 @@ orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
 alpaca_paper_trading   = true # PAPER trading mode — uses paper keys from Secrets Manager (algo/alpaca)
-api_lambda_timeout     = 300  # Increased from 120s to handle VPC cold-start (15-20s) + DNS + DB connection delays
+api_lambda_timeout                 = 300   # Increased from 120s to handle VPC cold-start (15-20s) + DNS + DB connection delays
+api_lambda_reserved_concurrency    = 50    # FIXED Issue #2: Increased from 10 to 50 to prevent 429 rate-limits with 40 loaders + API traffic
+                                            # Cost: ~$350/month for 50 reserved instances (vs $70/month for 10)
+                                            # But prevents cascading 429 errors that lose trades and cascade to auth failures
                               # COST: API Lambda reserved_concurrent_executions=2: ~$14.10/month (keeps Lambda warm to avoid cold-start timeout)
 algo_lambda_timeout    = 600  # Max Lambda timeout (10 min). RDS disk queue depth 30-45 causes Phase 1 data freshness to take 5+ minutes. Temporary fix until RDS I/O is optimized (upgrade instance class or add provisioned IOPS).
                               # COST: Algo Lambda reserved_concurrent_executions=1: ~$7.05/month (keeps orchestrator warm during trading hours)

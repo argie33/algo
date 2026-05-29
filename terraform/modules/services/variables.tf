@@ -216,6 +216,16 @@ variable "api_lambda_ephemeral_storage" {
   }
 }
 
+variable "api_lambda_reserved_concurrency" {
+  description = "Reserved concurrent executions for API Lambda (prevents 429 rate-limit cascades)"
+  type        = number
+  default     = 50
+  validation {
+    condition     = var.api_lambda_reserved_concurrency >= 1 && var.api_lambda_reserved_concurrency <= 1000
+    error_message = "Reserved concurrency must be between 1 and 1000"
+  }
+}
+
 # ============================================================
 # API Gateway Configuration
 # ============================================================

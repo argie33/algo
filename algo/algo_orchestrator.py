@@ -70,7 +70,7 @@ import tempfile
 import time
 import json
 from utils.database_context import DatabaseContext
-from utils.db_connection import get_db_connection
+import psycopg2
 import psycopg2.extensions
 from psycopg2 import pool as psycopg2_pool
 from datetime import datetime, date as _date, timedelta, timezone
@@ -147,12 +147,20 @@ class Orchestrator:
                     return self.db_pool.getconn()
                 except psycopg2_pool.PoolError as e:
                     if attempt < max_retries - 1:
-                        wait_ms = 100 * (2 ** attempt)  # 100ms, 200ms, 400ms
+                        wait_ms = 100 * (2 ** attempt)
                         logger.debug(f"Pool exhausted (attempt {attempt + 1}/{max_retries}), retrying in {wait_ms}ms")
                         time.sleep(wait_ms / 1000.0)
                     else:
                         logger.warning(f"Pool exhausted after {max_retries} retries, using direct connection")
-        return get_db_connection()
+        try:
+            config = get_db_config()
+            config["connect_timeout"] = 60
+            conn = psycopg2.connect(**config)
+            conn.autocommit = True
+            return conn
+        except Exception as e:
+            logger.error(f"Failed to create direct database connection: {e}")
+            raise
 
     def _put_conn(self, conn: Optional[psycopg2.extensions.connection]) -> None:
         """Return a connection to the pool."""
