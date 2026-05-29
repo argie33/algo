@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT 1
                 """)
                 row = cur.fetchone()
-                return json_response(200, dict(row) if row else {})
+                result = dict(row) if row else {}
+
+                # Add freshness check
+                freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
+                result['data_freshness'] = freshness
+
+                return json_response(200, result)
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':

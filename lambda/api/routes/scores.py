@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,11 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     'current_price': _f(d.get('current_price')),
                 }
                 items.append(d)
-            return list_response(items)
+
+            # Check data freshness
+            freshness = check_data_freshness(cur, 'stock_scores', 'updated_at', warning_days=7)
+
+            return list_response(items, data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'get stock scores')

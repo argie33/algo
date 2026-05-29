@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,11 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 LIMIT %s
             """, tuple(params))
             signals = cur.fetchall()
-            return list_response([dict(s) for s in signals])
+
+            # Check data freshness
+            freshness = check_data_freshness(cur, 'buy_sell_daily', 'date', warning_days=1)
+
+            return list_response([dict(s) for s in signals], data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch stock signals')

@@ -95,9 +95,59 @@ def success_response(data):
     return {"statusCode": 200, "data": data}
 
 
-def list_response(items, total=None):
-    """Standardized list response."""
-    return {"statusCode": 200, "items": items, "total": total or len(items)}
+def list_response(items, total=None, data_freshness=None):
+    """Standardized list response with optional freshness metadata."""
+    response = {"statusCode": 200, "items": items, "total": total or len(items)}
+    if data_freshness:
+        response["data_freshness"] = data_freshness
+    return response
+
+
+def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int = 1) -> dict:
+    """Check how fresh data is in a table.
+
+    Args:
+        cur: Database cursor
+        table_name: Table to check
+        date_column: Column containing date/timestamp
+        warning_days: Days beyond which data is considered stale
+
+    Returns:
+        Dict with data_age_days, is_stale, max_date, warning
+    """
+    try:
+        cur.execute(f"SELECT MAX({date_column}) FROM {table_name}")
+        result = cur.fetchone()
+
+        if not result or not result[0]:
+            return {
+                "data_age_days": None,
+                "is_stale": True,
+                "warning": f"No data in {table_name}"
+            }
+
+        from datetime import datetime, date
+        max_date = result[0]
+
+        # Handle both date and datetime objects
+        if hasattr(max_date, 'date'):
+            max_date = max_date.date()
+
+        data_age = (date.today() - max_date).days
+        is_stale = data_age > warning_days
+
+        return {
+            "data_age_days": data_age,
+            "is_stale": is_stale,
+            "max_date": str(max_date),
+            "warning": f"Data is {data_age} days old" if is_stale else None
+        }
+    except Exception as e:
+        return {
+            "data_age_days": None,
+            "is_stale": True,
+            "error": str(e)
+        }
 
 
 def json_response(code, data):
