@@ -22,7 +22,6 @@ from utils.db_connection import get_db_connection
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
-from pathlib import Path
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)

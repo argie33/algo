@@ -72,14 +72,12 @@ import json
 from utils.db_connection import get_db_connection
 import psycopg2.extensions
 from psycopg2 import pool as psycopg2_pool
-import traceback
 from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.algo_trade_executor import TradeExecutor
-from utils.trade_status import PositionStatus
 import logging
 from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 

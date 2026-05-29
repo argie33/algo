@@ -17,10 +17,8 @@ try:
 except ImportError:
     credential_manager = None
 
-from config.credential_helper import get_db_config
 import os
 from utils.db_connection import get_db_connection
-from pathlib import Path
 from datetime import datetime, date
 import logging
 from typing import Dict, List, Optional

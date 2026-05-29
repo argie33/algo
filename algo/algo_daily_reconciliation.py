@@ -14,7 +14,6 @@ from config.credential_manager import get_credential_manager
 import os
 from utils.db_connection import get_db_connection
 
-import requests
 import logging
 from datetime import datetime, timezone
 from utils.trade_status import TradeStatus, PositionStatus

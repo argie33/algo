@@ -7,7 +7,6 @@ must be dynamically constructed (cannot use parameterized queries for identifier
 All dynamic SQL patterns are validated against whitelists before execution.
 """
 
-from psycopg2 import sql
 import re
 from typing import List, Tuple, Optional
 

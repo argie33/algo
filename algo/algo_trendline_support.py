@@ -14,7 +14,6 @@ from utils.db_connection import get_db_connection
 from datetime import datetime, date, timedelta
 from typing import Dict, Optional, Tuple
 import logging
-import statistics
 
 logger = logging.getLogger(__name__)
 

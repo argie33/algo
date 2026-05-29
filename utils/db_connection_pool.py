@@ -26,7 +26,6 @@ except ImportError:
 import os
 import psycopg2
 import psycopg2.pool
-from pathlib import Path
 
 
 # Global pool instance

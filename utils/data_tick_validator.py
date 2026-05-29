@@ -25,7 +25,6 @@ USAGE:
 import logging
 from datetime import datetime, date as _date
 from typing import Dict, List, Optional, Tuple
-from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 

@@ -38,7 +38,6 @@ import psycopg2
 import psycopg2.extensions
 from datetime import datetime, date as _date
 from typing import Dict, List, Optional, Any
-from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
