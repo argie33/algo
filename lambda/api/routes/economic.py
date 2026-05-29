@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT 100
                 """)
                 rows = cur.fetchall()
-                return list_response([dict(r) for r in rows] if rows else [])
+                freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
+                return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
             elif path == '/api/economic/leading-indicators':
                 return _get_leading_indicators(cur)
             elif path == '/api/economic/indicators':
@@ -51,7 +52,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         LIMIT 200
                     """, query_params)
                     events = cur.fetchall()
-                    return list_response([dict(e) for e in events] if events else [])
+                    freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
+                    return list_response([dict(e) for e in events] if events else [], data_freshness=freshness)
                 except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable):
                     cur.connection.rollback()
                     return list_response([])

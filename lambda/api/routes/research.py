@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT %s
                 """, (limit,))
                 backtests = cur.fetchall()
-                return list_response([dict(b) for b in backtests] if backtests else [])
+                freshness = check_data_freshness(cur, 'backtest_runs', 'created_at', warning_days=7)
+                return list_response([dict(b) for b in backtests] if backtests else [], data_freshness=freshness)
             elif path.startswith('/api/research/backtests/'):
                 run_id = path.split('/api/research/backtests/')[-1]
                 try:
@@ -69,10 +70,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 
                 # Build response
                 run_dict = dict(backtest)
+                freshness = check_data_freshness(cur, 'backtest_runs', 'created_at', warning_days=7)
                 return json_response(200, {
                     'run': run_dict,
                     'trades': [dict(t) for t in trades] if trades else [],
-                    'trade_pagination': {'total': total_trades_count}
+                    'trade_pagination': {'total': total_trades_count},
+                    'data_freshness': freshness
                 })
             return error_response(404, 'not_found', f'No research handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
