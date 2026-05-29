@@ -296,6 +296,11 @@ class Orchestrator:
 
         Returns: True if data is fresh, False if critical data is stale.
         """
+        # Skip freshness check if flag is set
+        if getattr(self, 'skip_freshness', False):
+            logger.info("[FRESHNESS] Skipping data freshness check (skip_freshness flag set)")
+            return True
+
         try:
             # Loaders fetch data for the PREVIOUS trading day (not today).
             # E.g., at 9:30 AM ET today, we have yesterday's close available.

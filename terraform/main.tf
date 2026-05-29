@@ -336,6 +336,7 @@ module "pipeline" {
   ecs_tasks_sg_id                       = module.vpc.ecs_tasks_security_group_id
   task_execution_role_arn               = module.iam.ecs_task_execution_role_arn
   task_role_arn                         = module.iam.ecs_task_role_arn
+  eventbridge_scheduler_role_arn        = module.iam.eventbridge_scheduler_role_arn
   loader_task_definition_arns           = module.loaders.loader_task_definition_arns
   algo_orchestrator_task_definition_arn = module.loaders.algo_orchestrator_task_definition_arn
   algo_orchestrator_container_name      = "${var.project_name}-algo-orchestrator"
