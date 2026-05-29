@@ -84,8 +84,9 @@ class SignalsDailyLoader(OptimalLoader):
         try:
             cur.execute(
                 """SELECT t.date, t.rsi, t.macd, t.macd_signal,
-                          t.sma_50, t.sma_200, t.ema_12, t.atr,
-                          p.close, p.volume
+                          t.sma_50, t.sma_200, t.ema_12, t.ema_21, t.atr,
+                          t.adx, t.mansfield_rs,
+                          p.close, p.volume, p.open, p.high, p.low
                    FROM technical_data_daily t
                    LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
                    WHERE t.symbol = %s AND t.date >= %s AND t.date <= %s
@@ -94,7 +95,7 @@ class SignalsDailyLoader(OptimalLoader):
             )
             rows = []
             for r in cur.fetchall():
-                if r[0] is None or r[8] is None:
+                if r[0] is None or r[11] is None:
                     continue
                 rows.append({
                     "date": r[0].isoformat() if r[0] else None,
@@ -104,9 +105,15 @@ class SignalsDailyLoader(OptimalLoader):
                     "sma_50": float(r[4]) if r[4] is not None else None,
                     "sma_200": float(r[5]) if r[5] is not None else None,
                     "ema_12": float(r[6]) if r[6] is not None else None,
-                    "atr": float(r[7]) if r[7] is not None else None,
-                    "close": float(r[8]) if r[8] is not None else None,
-                    "volume": int(r[9]) if r[9] is not None else None,
+                    "ema_21": float(r[7]) if r[7] is not None else None,
+                    "atr": float(r[8]) if r[8] is not None else None,
+                    "adx": float(r[9]) if r[9] is not None else None,
+                    "mansfield_rs": float(r[10]) if r[10] is not None else None,
+                    "close": float(r[11]) if r[11] is not None else None,
+                    "volume": int(r[12]) if r[12] is not None else None,
+                    "open": float(r[13]) if r[13] is not None else None,
+                    "high": float(r[14]) if r[14] is not None else None,
+                    "low": float(r[15]) if r[15] is not None else None,
                 })
             return rows
         finally:
@@ -127,6 +134,9 @@ class SignalsDailyLoader(OptimalLoader):
             close = row.get("close")
             volume = row.get("volume")
             atr = row.get("atr")
+            ema_21 = row.get("ema_21")
+            adx = row.get("adx")
+            mansfield_rs = row.get("mansfield_rs")
 
             # Skip if missing critical data
             if any(v is None for v in [rsi, macd, macd_signal, close]):
@@ -181,14 +191,20 @@ class SignalsDailyLoader(OptimalLoader):
                     "volume_surge_pct": None,
                     "risk_reward_ratio": None,
                     "rsi": float(rsi) if rsi else None,
-                    "sma_50": row.get("sma_50"),
-                    "sma_200": row.get("sma_200"),
-                    "ema_21": None,
-                    "atr": row.get("atr"),
-                    "adx": None,
+                    "sma_50": float(sma_50) if sma_50 else None,
+                    "sma_200": float(sma_200) if sma_200 else None,
+                    "ema_21": float(ema_21) if ema_21 else None,
+                    "atr": float(atr) if atr else None,
+                    "adx": float(adx) if adx else None,
+                    "mansfield_rs": float(mansfield_rs) if mansfield_rs else None,
                     "macd": float(macd) if macd else None,
                     "macd_signal": float(macd_signal) if macd_signal else None,
                     "stage_number": None,
+                    "open": row.get("open"),
+                    "high": row.get("high"),
+                    "low": row.get("low"),
+                    "close": float(close) if close else None,
+                    "volume": row.get("volume"),
                 })
 
         return signals
