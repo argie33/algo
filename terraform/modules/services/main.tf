@@ -652,6 +652,30 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_duration" {
   tags = var.common_tags
 }
 
+# CRITICAL: API Lambda Concurrency Alarm (Issue #2)
+# Alerts when concurrent executions approach reserved limit
+# If triggered, indicates need for higher reserved concurrency or load reduction
+resource "aws_cloudwatch_metric_alarm" "api_lambda_concurrency" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${local.api_lambda_name}-concurrency"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ConcurrentExecutions"
+  namespace           = "AWS/Lambda"
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = var.api_lambda_reserved_concurrency * 0.8  # Alert at 80% of limit
+  alarm_description   = "CRITICAL: API Lambda approaching reserved concurrency limit (${var.api_lambda_reserved_concurrency}). Risk of 429 rate-limits and cascading failures."
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    FunctionName = aws_lambda_function.api.function_name
+  }
+
+  tags = var.common_tags
+}
+
 # Algo Lambda Error Alarm
 resource "aws_cloudwatch_metric_alarm" "algo_lambda_errors" {
   count               = var.sns_alerts_enabled ? 1 : 0

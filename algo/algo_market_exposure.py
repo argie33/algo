@@ -79,43 +79,34 @@ class MarketExposure:
 
     def __init__(self, cur=None):
         self.cur = cur
-        self._owned = None
 
-    def connect(self):
-        if self.cur is None:
-            self._owned = get_db_connection()
-            self.cur = self._owned.cursor()
-
-    def disconnect(self):
-        if self._owned:
-            self.cur.close()
-            self._owned.close()
-            self.cur = None
-            self._owned = None
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext('read') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
 
     def try_load_cached(self, eval_date=None):
         """Load cached market exposure for today. Returns dict or None if not cached."""
         if not eval_date:
             eval_date = _date.today()
 
-        self.connect()
-        try:
-            self.cur.execute("""
+        def fetch_cached(cur):
+            cur.execute("""
                 SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors
                 FROM market_exposure_daily
                 WHERE date = %s
                 LIMIT 1
             """, (eval_date,))
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row:
                 return None
 
-            # Reconstruct result dict from cached row
-            import json
             raw_score, exposure_pct, regime, halt_reasons_str, dist_days, factors_obj = row
-            # halt_reasons is stored as VARCHAR, so parse it
             halt_reasons = json.loads(halt_reasons_str) if halt_reasons_str else []
-            # factors is stored as JSONB, so it's already parsed by the driver
             factors = factors_obj if isinstance(factors_obj, dict) else (json.loads(factors_obj) if factors_obj else {})
 
             result = {
@@ -131,11 +122,12 @@ class MarketExposure:
             }
             logger.info(f"✓ Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})")
             return result
+
+        try:
+            return self._with_cursor(fetch_cached)
         except Exception as e:
             logger.debug(f"Could not load cached exposure: {e}")
             return None
-        finally:
-            self.disconnect()
 
     def compute(self, eval_date=None, force_recompute=False):
         """Compute full market exposure score. Returns dict.
@@ -154,8 +146,8 @@ class MarketExposure:
                 return cached
 
         logger.info(f"Computing market exposure for {eval_date} (11 sequential queries)")
-        self.connect()
-        try:
+        with DatabaseContext('read') as cur:
+            self.cur = cur
             factors = {}
             score = 0.0
 
@@ -338,8 +330,6 @@ class MarketExposure:
             }
             self._persist(eval_date, result)
             return result
-        finally:
-            self.disconnect()
 
     # ====== Factor implementations ======
 
@@ -995,8 +985,6 @@ class MarketExposure:
                     tier,
                 ),
             )
-            if self._owned:
-                self._owned.commit()
             logger.info(f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}")
         except Exception as e:
             logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
@@ -1013,13 +1001,16 @@ if __name__ == "__main__":
         eval_d = _date.fromisoformat(args.date)
     else:
         # Use latest trading date in price_daily
-        me.connect()
-        me.cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol='SPY'")
-        result = me.cur.fetchone()
-        if not result or result[0] is None:
-            logger.error("No price data available for SPY")
-            exit(1)
-        eval_d = result[0]
+        def get_latest_date(cur):
+            cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol='SPY'")
+            return cur.fetchone()
+
+        with DatabaseContext('read') as cur:
+            result = get_latest_date(cur)
+            if not result or result[0] is None:
+                logger.error("No price data available for SPY")
+                exit(1)
+            eval_d = result[0]
     result = me.compute(eval_d)
     logger.info(f"MARKET EXPOSURE — {result['eval_date']}")
     logger.info(f"Regime: {result['regime']}")
