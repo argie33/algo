@@ -26,10 +26,8 @@ in Phase 2.5 (between circuit breakers and position monitor).
 """
 
 
-import os
 import math
 from utils.db_connection import get_db_connection
-from datetime import datetime, date as _date
 import logging
 
 logger = logging.getLogger(__name__)

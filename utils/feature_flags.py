@@ -15,7 +15,6 @@ Flags stored in database (easy to toggle without deploy):
 - Queryable in real-time
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config, get_db_password
 import logging
 import os

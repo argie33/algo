@@ -5,7 +5,6 @@ Shared loader utilities - consolidates duplicated functions across loaders.
 Functions that were defined identically in 19+ loader files, now centralized here.
 """
 
-from config.env_loader import load_env
 import os
 from utils.db_connection import get_db_connection
 from typing import List
