@@ -733,17 +733,6 @@ class Orchestrator:
         self._position_recs = result.data.get('recommendations', [])
         return True  # fail-open
 
-    def phase_3a_reconciliation(self) -> Dict[str, Any]:
-        """Thin delegation to phase3a_reconciliation module."""
-        self.log_phase_start('3a', 'POSITION RECONCILIATION')
-        from algo.orchestrator.phase3a_reconciliation import run as run_phase3a
-        result = run_phase3a(
-            self.config, self._get_conn, self._put_conn,
-            self.run_date, self.dry_run, self.alerts,
-            self.verbose, self.log_phase_result
-        )
-        return True  # fail-open
-
     def phase_3b_exposure_policy(self) -> Dict[str, Any]:
         """Thin delegation to phase3b_exposure_policy module."""
         self.log_phase_start('3b', 'EXPOSURE POLICY ACTIONS')
@@ -946,7 +935,6 @@ class Orchestrator:
 
             if not phase_2_passed:
                 logger.info("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
-                self.phase_3a_reconciliation()
                 self.phase_3_position_monitor()
                 self.phase_3b_exposure_policy()
                 self.phase_4_exit_execution()
@@ -991,18 +979,6 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(4, 'exit_execution', 'error', str(e))
-
-            # Phase 3a: Reconciliation (AFTER exits, BEFORE entries, to get fresh position counts)
-            phase_3a_start = time.time()
-            logger.info(f"\n[PHASE 3a] Starting at {datetime.now(timezone.utc).isoformat()}")
-            try:
-                with TimeBlock("phase_3a_reconciliation"):
-                    self.phase_3a_reconciliation()
-                phase_3a_elapsed = time.time() - phase_3a_start
-                logger.info(f"[PHASE 3a] Completed in {phase_3a_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
-            except Exception as e:
-                logger.error(f"✗ Phase 3a (Reconciliation — post-exits) failed: {e}", exc_info=True)
-                self.log_phase_result('3a', 'reconciliation_post_exits', 'error', str(e))
 
             # Phase 4b: Pyramid Adds
             try:

@@ -458,6 +458,19 @@ def run(
                 return PhaseResult(1, 'data_freshness', 'halted', {}, True,
                                  f'Stale: {"; ".join(stale_items)}')
 
+        # Run data patrol (quick checks only for speed in orchestrator context)
+        try:
+            from algo.algo_data_patrol import DataPatrol
+            patrol = DataPatrol()
+            if verbose:
+                logger.info("  [PATROL] Running quick data integrity checks...")
+            patrol.run(quick=True, validate_alpaca=False)
+            if verbose:
+                logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
+            log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
+        except Exception as e:
+            logger.warning(f"  [WARN] Data patrol execution failed: {e} (continuing with cache)")
+
         patrol_ok = _check_data_patrol(cur, run_date, verbose, log_phase_result_fn)
 
         if not patrol_ok:
@@ -480,9 +493,9 @@ def run(
 
         # Margin health check (Phase 1 - production safeguard)
         try:
-            from algo.algo_margin_monitor import MarginMonitor
-            mm = MarginMonitor()
-            margin_info = mm.get_margin_usage()
+            from algo.algo_position_monitor import PositionMonitor
+            pm = PositionMonitor(config)
+            margin_info = pm.get_margin_usage()
             if margin_info and margin_info['margin_usage_pct'] > 70:
                 alerts.send_position_alert(
                     'ACCOUNT',
