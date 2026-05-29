@@ -596,6 +596,44 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
 }
 
 # ============================================================
+# Loader Failure Handler Lambda (Issue #4: Graceful Degradation)
+# ============================================================
+
+# FIXED Issue #4 & #5: Lambda for handling individual loader failures
+# Enables pipeline to continue with partial data when loaders fail
+# Publishes CloudWatch metrics for central visibility (Issue #5)
+
+resource "aws_lambda_function" "loader_failure_handler" {
+  count            = var.sns_alerts_enabled ? 1 : 0
+  filename         = "lambda/loader_failure_handler.zip"
+  function_name    = "${var.project_name}-loader-failure-handler-${var.environment}"
+  role             = var.algo_lambda_role_arn
+  handler          = "loader_failure_handler.lambda_handler"
+  runtime          = "python3.12"
+  timeout          = 60
+  source_code_hash = filebase64sha256("lambda/loader_failure_handler.zip")
+
+  environment {
+    variables = {
+      SNS_ALERT_TOPIC_ARN = aws_sns_topic.algo_alerts[0].arn
+    }
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-loader-failure-handler"
+  })
+}
+
+resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
+  count             = var.sns_alerts_enabled ? 1 : 0
+  statement_id      = "AllowStepFunctionsInvoke"
+  action            = "lambda:InvokeFunction"
+  function_name     = aws_lambda_function.loader_failure_handler[0].function_name
+  principal         = "states.amazonaws.com"
+  source_arn        = var.eod_pipeline_state_machine_arn
+}
+
+# ============================================================
 # NOTE: Loader scheduling is now managed by the loaders module
 # via EventBridge rules (see modules/loaders/main.tf)
 # All 40 loaders including price loaders are scheduled there

@@ -177,8 +177,31 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogSymbolLoadFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "EodBulkPrices"
+      }
+
+      LogSymbolLoadFailure = {
+        Type     = "Task"
+        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Parameters = {
+          loader_name = "stock_symbols"
+          error.$     = "$.loaderError.Error"
+          error_message.$= "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "EodBulkPrices"
+          ResultPath  = "$.logError"
         }]
         Next = "EodBulkPrices"
       }
@@ -206,8 +229,31 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogPriceLoadFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ParallelTechnicals"
+      }
+
+      LogPriceLoadFailure = {
+        Type     = "Task"
+        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Parameters = {
+          loader_name = "stock_prices_daily"
+          error.$     = "$.loaderError.Error"
+          error_message.$= "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "ParallelTechnicals"
+          ResultPath  = "$.logError"
         }]
         Next = "ParallelTechnicals"
       }
@@ -265,8 +311,32 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         ]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogLoaderFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ParallelEnrichment"
+      }
+
+      # FIXED Issue #4: Log loader failures and continue with available data (graceful degradation)
+      LogLoaderFailure = {
+        Type     = "Task"
+        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Parameters = {
+          loader_name = "parallel_technicals"
+          error.$     = "$.loaderError.Error"
+          error_message.$= "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "ParallelEnrichment"
+          ResultPath  = "$.logError"
         }]
         Next = "ParallelEnrichment"
       }
@@ -302,8 +372,31 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         ]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogEnrichmentFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "SignalGeneration"
+      }
+
+      LogEnrichmentFailure = {
+        Type     = "Task"
+        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Parameters = {
+          loader_name = "parallel_enrichment"
+          error.$     = "$.loaderError.Error"
+          error_message.$= "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SignalGeneration"
+          ResultPath  = "$.logError"
         }]
         Next = "SignalGeneration"
       }
