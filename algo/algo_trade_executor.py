@@ -19,6 +19,7 @@ from config.credential_manager import (
     DEFAULT_DB_NAME,
 )
 from config.credential_manager import get_alpaca_credentials
+from config.alpaca_config import get_alpaca_base_url
 
 import os
 import json
@@ -67,10 +68,7 @@ class TradeExecutor:
         alpaca_creds = get_alpaca_credentials()
         self.alpaca_key = alpaca_creds["key"]
         self.alpaca_secret = alpaca_creds["secret"]
-        self.alpaca_base_url = os.getenv('APCA_API_BASE_URL')
-        if not self.alpaca_base_url:
-            logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
-            self.alpaca_base_url = 'https://paper-api.alpaca.markets'
+        self.alpaca_base_url = get_alpaca_base_url()
         self.conn = None
         self.cur = None
 
@@ -99,9 +97,8 @@ class TradeExecutor:
             and not url_says_paper
         )
         if not live_intent:
-            # Force paper. If URL was somehow set to live, override it.
-            if not url_says_paper:
-                self.alpaca_base_url = 'https://paper-api.alpaca.markets'
+            # Force paper trading
+            self.alpaca_base_url = get_alpaca_base_url()
             self.is_paper = True
         else:
             self.is_paper = False
