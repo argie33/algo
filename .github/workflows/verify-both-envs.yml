@@ -1,0 +1,27 @@
+name: Verify Both Environments
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy Application Code"]
+    types: [completed]
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: node scripts/verify-environments.js --verbose 2>&1 | tee results.log
+      - run: cat results.log >> $GITHUB_STEP_SUMMARY
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-logs
+          path: results.log
+          retention-days: 7
