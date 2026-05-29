@@ -117,10 +117,10 @@ resource "aws_lambda_function" "api" {
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       NODE_ENV             = var.node_env
-      CLOUDFRONT_DOMAIN    = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
-      FRONTEND_URL         = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
-      FRONTEND_ORIGIN      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
-      ALLOWED_ORIGINS      = try("https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000", "http://localhost:5173,http://localhost:3000")
+      CLOUDFRONT_DOMAIN    = "https://d2u93283nn45h2.cloudfront.net"  # Frontend CloudFront domain
+      FRONTEND_URL         = "https://d2u93283nn45h2.cloudfront.net"   # Frontend CloudFront domain
+      FRONTEND_ORIGIN      = "https://d2u93283nn45h2.cloudfront.net"   # Frontend CloudFront domain
+      ALLOWED_ORIGINS      = "https://d2u93283nn45h2.cloudfront.net,http://localhost:5173,http://localhost:3000"
       # Data patrol task configuration (for /api/algo/patrol endpoint)
       ECS_CLUSTER_ARN            = var.ecs_cluster_arn
       PATROL_TASK_DEFINITION_ARN = var.patrol_task_definition_arn
@@ -899,6 +899,47 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
   function_name = aws_lambda_function.algo.function_name
   principal     = "scheduler.amazonaws.com"
   source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
+}
+
+# ============================================================
+# Trigger-Loaders Lambda (failsafe to manually trigger ECS loader tasks)
+# ============================================================
+resource "aws_lambda_function" "trigger_loaders" {
+  function_name = "${var.project_name}-trigger-loaders-${var.environment}"
+  role          = var.trigger_loaders_lambda_role_arn
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.12"
+  timeout       = 30
+  memory_size   = 256
+
+  filename         = "${path.root}/${var.trigger_loaders_code_file}"
+  source_code_hash = filebase64sha256("${path.root}/${var.trigger_loaders_code_file}")
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.algo_lambda_security_group_id]
+  }
+
+  environment {
+    variables = {
+      ECS_CLUSTER_ARN = var.ecs_cluster_arn
+      PROJECT_NAME   = var.project_name
+      ENVIRONMENT    = var.environment
+    }
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-trigger-loaders-${var.environment}"
+  })
+}
+
+resource "aws_cloudwatch_log_group" "trigger_loaders_lambda" {
+  name              = "/aws/lambda/${aws_lambda_function.trigger_loaders.function_name}"
+  retention_in_days = var.cloudwatch_log_retention_days
+
+  tags = merge(var.common_tags, {
+    Name = "${aws_lambda_function.trigger_loaders.function_name}-logs"
+  })
 }
 
 # Allow orchestrator Lambda to invoke trigger-loaders Lambda (failsafe)
