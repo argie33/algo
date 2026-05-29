@@ -113,8 +113,12 @@ class PositionSizer:
             secret = os.getenv("APCA_API_SECRET_KEY")
         base = os.getenv('APCA_API_BASE_URL')
         if not base:
-            logger.error("APCA_API_BASE_URL environment variable is required — must be explicitly set to https://api.alpaca.markets (live) or https://paper-api.alpaca.markets (paper)")
-            return None  # Fail gracefully by returning None; caller will use snapshot fallback
+            try:
+                from config.alpaca_config import get_alpaca_base_url
+                base = get_alpaca_base_url()
+            except Exception:
+                logger.error("APCA_API_BASE_URL not set and unable to load from unified config")
+                return None
         if not key or not secret:
             return None
 

@@ -495,29 +495,12 @@ def get_subprocess_timeout() -> int:
     return int(os.getenv('SUBPROCESS_TIMEOUT', '5'))
 
 def get_alpaca_base_url() -> str:
-    """Get Alpaca API base URL based on trading mode.
+    """Get Alpaca API base URL from unified config.
 
-    Returns:
-        str: Paper or live API endpoint URL
-
-    Raises:
-        ValueError: If ALPACA_PAPER_TRADING is explicitly set to an invalid value
+    Delegates to config/alpaca_config.py (single source of truth).
     """
-    paper_trading_raw = os.getenv("ALPACA_PAPER_TRADING", "true").lower().strip()
-
-    if paper_trading_raw in ("true", "1", "yes"):
-        url = "https://paper-api.alpaca.markets"
-        logger.debug("Using Alpaca paper trading API")
-    elif paper_trading_raw in ("false", "0", "no"):
-        url = "https://api.alpaca.markets"
-        logger.debug("Using Alpaca LIVE trading API")
-    else:
-        raise ValueError(
-            f"Invalid ALPACA_PAPER_TRADING value: {paper_trading_raw!r} "
-            f"(must be 'true'/'false')"
-        )
-
-    return url
+    from config.alpaca_config import get_alpaca_base_url as get_unified_url
+    return get_unified_url()
 
 class RuntimeConfig:
     """Thread-safe runtime configuration with 5-minute cache."""

@@ -245,7 +245,7 @@ resource "aws_batch_compute_environment" "spot" {
 }
 
 # ============================================================
-# 7. IAM Role for Spot Fleet
+# 6. IAM Role for Spot Fleet
 # ============================================================
 
 resource "aws_iam_role" "batch_spot_fleet_role" {
@@ -275,7 +275,7 @@ resource "aws_iam_role_policy_attachment" "batch_spot_fleet_policy" {
 }
 
 # ============================================================
-# 8. Job Queue
+# 7. Job Queue
 # ============================================================
 
 resource "aws_batch_job_queue" "spot" {
@@ -296,7 +296,7 @@ resource "aws_batch_job_queue" "spot" {
 }
 
 # ============================================================
-# 9. Job Definition for buyselldaily
+# 8. Job Definition for buyselldaily
 # ============================================================
 
 resource "aws_batch_job_definition" "buyselldaily" {
