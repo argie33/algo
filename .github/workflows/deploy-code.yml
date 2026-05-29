@@ -741,16 +741,17 @@ jobs:
           echo "[OK] API layer published: version $LAYER_VERSION"
           echo "API_LAYER_ARN=arn:aws:lambda:$AWS_REGION:${{ secrets.AWS_ACCOUNT_ID }}:layer:$LAYER_NAME:$LAYER_VERSION" >> $GITHUB_ENV
 
-      - name: Deploy API Lambda
+      - name: Deploy API Lambda (Code + Config + Layer)
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           API_LAYER_ARN="${{ env.API_LAYER_ARN }}"
 
-          # Get environment from terraform.tfvars
-          ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          export FUNC_NAME="$FUNC"
+          export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+          export AWS_REGION="$AWS_REGION"
 
-          # Deploy function code (handler only, ~5KB)
+          # Deploy function code
           echo "Deploying API function code..."
           aws lambda update-function-code \
             --function-name "$FUNC" \
@@ -760,135 +761,108 @@ jobs:
             --function-name "$FUNC" \
             --region $AWS_REGION
 
-          # Use layer ARN from publish step
-          echo "Using layer ARN: $API_LAYER_ARN"
+          # Use Python to retrieve all credentials and build Lambda config
+          python3 << 'PYTHON_API_DEPLOY'
+          import json
+          import subprocess
+          import os
+          import sys
 
-          # Get API Lambda current configuration (for VPC, role, etc.)
-          API_CFG=$(aws lambda get-function-configuration \
+          region = os.environ['AWS_REGION']
+          account_id = os.environ['AWS_ACCOUNT_ID']
+          func_name = os.environ['FUNC_NAME']
+
+          print("Deploying API Lambda with clean configuration...")
+
+          # Retrieve RDS configuration from Secrets Manager
+          print("Retrieving RDS configuration from Secrets Manager...")
+          try:
+            with open('terraform/terraform.tfvars') as f:
+              tfvars = f.read()
+              project = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('project_name')][0]
+              environment = [line.split('=')[1].strip().strip('"') for line in tfvars.split('\n') if line.startswith('environment')][0]
+            secret_id = f"{project}-db-credentials-{environment}"
+            result = subprocess.run(['aws', 'secretsmanager', 'get-secret-value',
+              '--secret-id', secret_id, '--region', region,
+              '--query', 'SecretString', '--output', 'text'],
+              capture_output=True, text=True, check=True)
+            db_creds = json.loads(result.stdout.strip())
+          except Exception as e:
+            print(f"ERROR: Could not retrieve database secret: {e}")
+            exit(1)
+
+          db_host = db_creds.get('host', 'localhost')
+          db_port = db_creds.get('port', 5432)
+          db_name = db_creds.get('dbname', 'stocks')
+          db_user = db_creds.get('username', 'stocks')
+
+          # Build ALLOWED_ORIGINS
+          cloudfront_domain = "${{ needs.resolve-infra.outputs.cloudfront_domain }}"
+          allowed_origins = "http://localhost:3000,http://localhost:5173"
+          if cloudfront_domain and cloudfront_domain not in ['None', 'null', '']:
+            allowed_origins = f"{allowed_origins},https://{cloudfront_domain}"
+
+          # Retrieve Cognito IDs from Terraform outputs
+          cognito_pool_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
+          cognito_client_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_client_id }}"
+
+          # Build Lambda configuration
+          # NOTE: DO NOT include DB_PASSWORD in env vars - use DB_SECRET_ARN instead
+          # This ensures Lambda always reads the latest password from Secrets Manager
+          db_secret_arn = f"arn:aws:secretsmanager:{region}:{account_id}:secret:{secret_id}"
+
+          lambda_config = {
+            "FunctionName": func_name,
+            "Environment": {
+              "Variables": {
+                "DB_SECRET_ARN": db_secret_arn,
+                "DB_HOST": str(db_host),
+                "DB_PORT": str(db_port),
+                "DB_NAME": str(db_name),
+                "DB_USER": str(db_user),
+                "DB_SSL": "prefer",
+                "ALLOWED_ORIGINS": allowed_origins,
+                "COGNITO_USER_POOL_ID": cognito_pool_id or "",
+                "COGNITO_USER_POOL_CLIENT_ID": cognito_client_id or "",
+              }
+            },
+            "Layers": ["${{ env.API_LAYER_ARN }}"]
+          }
+
+          print("Updating Lambda configuration...")
+          import tempfile
+          config_json = json.dumps(lambda_config)
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, dir='/tmp', newline='') as f:
+            f.write(config_json)
+            config_file = f.name
+
+          try:
+            subprocess.run(['aws', 'lambda', 'update-function-configuration',
+              '--cli-input-json', f'file://{config_file}',
+              '--region', region], check=True)
+          finally:
+            try:
+              os.unlink(config_file)
+            except:
+              pass
+
+          print("[OK] API Lambda deployment complete")
+          print("Configuration:")
+          print(f"  DB_HOST: {db_host}")
+          print(f"  DB_PORT: {db_port}")
+          print(f"  DB_NAME: {db_name}")
+          print(f"  DB_USER: {db_user}")
+          print(f"  DB_SECRET_ARN: {db_secret_arn}")
+          print(f"  ALLOWED_ORIGINS: {allowed_origins}")
+          PYTHON_API_DEPLOY
+
+          # Wait for configuration to apply
+          sleep 5
+          aws lambda wait function-updated \
             --function-name "$FUNC" \
-            --region $AWS_REGION)
-          ROLE_ARN=$(echo "$API_CFG" | jq -r '.Role')
+            --region $AWS_REGION 2>/dev/null || true
 
-          # Export variables for Python script BEFORE running it
-          export FUNC_NAME="$FUNC"
-          export AWS_ACCOUNT_ID="$ACCOUNT_ID"
-
-          # Get project and environment from terraform.tfvars for secret ID
-          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
-          ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
-
-          # Try to get secret name from Terraform first (more reliable)
-          SECRET_ID="${{ needs.resolve-infra.outputs.rds_credentials_secret_name }}"
-          if [ -z "$SECRET_ID" ] || [ "$SECRET_ID" = "null" ] || [ "$SECRET_ID" = "***" ]; then
-            # Fall back to constructed secret name
-            SECRET_ID="${PROJECT}-db-credentials-${ENV}"
-            echo "[ALERT] Using constructed secret ID: $SECRET_ID"
-          else
-            echo "[OK] Using Terraform-resolved secret ID: $SECRET_ID"
-          fi
-
-          # Retrieve database credentials from Secrets Manager
-          echo "Retrieving database credentials: $SECRET_ID"
-          DB_CREDS=$(aws secretsmanager get-secret-value \
-            --secret-id "$SECRET_ID" \
-            --region $AWS_REGION \
-            --query 'SecretString' \
-            --output text 2>&1)
-
-          if [ $? -ne 0 ]; then
-            echo "ERROR: Could not retrieve database secret: $SECRET_ID"
-            echo "Response: $DB_CREDS"
-            echo "Attempting to list available secrets..."
-            aws secretsmanager list-secrets --region $AWS_REGION --query 'SecretList[].Name' --output text || echo "Could not list secrets"
-            exit 1
-          fi
-
-          # Verify credentials were retrieved
-          if [ -z "$DB_CREDS" ] || [ "$DB_CREDS" = "null" ]; then
-            echo "ERROR: Retrieved empty database credentials"
-            exit 1
-          fi
-
-          # Extract database configuration from Secrets Manager
-          DB_HOST=$(echo "$DB_CREDS" | jq -r '.host // "localhost"')
-          DB_PORT=$(echo "$DB_CREDS" | jq -r '.port // 5432')
-          DB_NAME=$(echo "$DB_CREDS" | jq -r '.dbname // "stocks"')
-          DB_USER=$(echo "$DB_CREDS" | jq -r '.username // "stocks"')
-          DB_PASSWORD=$(echo "$DB_CREDS" | jq -r '.password')
-
-          # Also provide secret name as fallback (boto3 can fetch if needed)
-          DB_SECRET_ARN="$SECRET_ID"
-
-          # Build ALLOWED_ORIGINS using CloudFront domain from Terraform outputs (fully dynamic)
-          CLOUDFRONT_DOMAIN="${{ needs.resolve-infra.outputs.cloudfront_domain }}"
-          ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
-
-          # Fallback: if Terraform output is empty, query AWS for CloudFront domain
-          if [ -z "$CLOUDFRONT_DOMAIN" ] || [ "$CLOUDFRONT_DOMAIN" = "None" ] || [ "$CLOUDFRONT_DOMAIN" = "null" ]; then
-            echo "Terraform cloudfront_domain empty, querying AWS..."
-            CF_ID=$(aws cloudfront list-distributions --region $AWS_REGION --query "DistributionList.Items[?Comment=='algo-frontend'].DomainName | [0]" --output text 2>/dev/null)
-            if [ -n "$CF_ID" ] && [ "$CF_ID" != "None" ]; then
-              CLOUDFRONT_DOMAIN="$CF_ID"
-              echo "Retrieved CloudFront domain from AWS: $CLOUDFRONT_DOMAIN"
-            fi
-          fi
-
-          if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ] && [ "$CLOUDFRONT_DOMAIN" != "null" ]; then
-            ALLOWED_ORIGINS="$ALLOWED_ORIGINS,https://$CLOUDFRONT_DOMAIN"
-            echo " Added CloudFront domain to CORS whitelist: https://$CLOUDFRONT_DOMAIN"
-          else
-            echo " WARNING: CloudFront domain not found - CORS only allows localhost"
-          fi
-          echo "CORS whitelist configured: $ALLOWED_ORIGINS"
-
-          echo "Updating API Lambda configuration..."
-          echo "  DB_HOST: $DB_HOST"
-          echo "  DB_PORT: $DB_PORT"
-          echo "  DB_NAME: $DB_NAME"
-          echo "  DB_USER: $DB_USER"
-          echo "  DB_SECRET_ARN: $DB_SECRET_ARN"
-          echo "  ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
-          echo "  Layer: $API_LAYER_ARN"
-
-          # Get Cognito credentials for JWT validation
-          COGNITO_POOL_ID=""
-          COGNITO_CLIENT_ID=""
-          TF_OUT=$(terraform output -json 2>/dev/null || echo "{}")
-          COGNITO_POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // empty' 2>/dev/null || echo "")
-          COGNITO_CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // empty' 2>/dev/null || echo "")
-
-          # Fall back to AWS API if not in Terraform output
-          if [ -z "$COGNITO_POOL_ID" ]; then
-            COGNITO_POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION \
-              --query "UserPools[?Name=='stocks-trading-pool-${ENV}'].Id | [0]" \
-              --output text 2>/dev/null || echo "")
-          fi
-
-          if [ -z "$COGNITO_CLIENT_ID" ] && [ -n "$COGNITO_POOL_ID" ] && [ "$COGNITO_POOL_ID" != "None" ]; then
-            COGNITO_CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$COGNITO_POOL_ID" \
-              --region $AWS_REGION \
-              --query "UserPoolClients[?ClientName=='stocks-web-app-${ENV}'].ClientId | [0]" \
-              --output text 2>/dev/null || echo "")
-          fi
-
-          # Export variables for Python subprocess
-          export DB_SECRET_ARN DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD ALLOWED_ORIGINS
-          export COGNITO_POOL_ID COGNITO_CLIENT_ID FUNC API_LAYER_ARN AWS_REGION
-
-          # Update function configuration with environment variables using Python script
-          echo "Updating API Lambda configuration..."
-
-          python3 scripts/update_lambda_config.py \
-            "$FUNC" "$AWS_REGION" "$DB_HOST" "$DB_PORT" "$DB_NAME" "$DB_USER" \
-            "$DB_PASSWORD" "$ALLOWED_ORIGINS" "$AWS_REGION" "$API_LAYER_ARN"
-
-          if [ $? -ne 0 ]; then
-            echo "ERROR updating Lambda config"
-            exit 1
-          fi
-
-          echo "[OK] API Lambda environment and layers updated"
-          echo "[OK] API Lambda deployed with database configuration and Cognito settings"
+          echo "[OK] API Lambda deployed with code, config, and layer"
 
       - name: Verify API Lambda Environment Variables
         run: |

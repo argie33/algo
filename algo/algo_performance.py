@@ -1,11 +1,4 @@
 
-from config.credential_helper import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
 
@@ -20,19 +13,15 @@ Metrics computed:
 - Live vs. backtest comparison
 """
 
-
-
 import json
 import numpy as np
-import psycopg2
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any
-import os
-from pathlib import Path
 import logging
 
-logger = logging.getLogger(__name__)
+from utils.database_context import DatabaseContext
 
+logger = logging.getLogger(__name__)
 
 
 class LivePerformance:
@@ -40,37 +29,6 @@ class LivePerformance:
 
     def __init__(self, config):
         self.config = config
-        self.conn = None
-        self.cur = None
-
-        self.db_host = get_db_config()['host']
-        self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = get_db_config()['user']
-        self.db_password = get_db_password()
-        self.db_name = get_db_config()['database']
-
-    def connect(self):
-        """Connect to database."""
-        try:
-            self.conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_name,
-            )
-            self.cur = self.conn.cursor()
-        except Exception as e:
-            logger.error(f"Performance: DB connection failed: {e}")
-            raise
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     def rolling_sharpe(self, lookback_days: int = 252) -> Optional[float]:
         """Compute rolling Sharpe ratio from daily portfolio returns.
@@ -81,32 +39,21 @@ class LivePerformance:
         Returns:
             Annualized Sharpe ratio or None if insufficient data
         """
-        conn = None
-        cur = None
         try:
-            conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_name,
-            )
-            cur = conn.cursor()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
+                    ORDER BY snapshot_date ASC
+                    """,
+                    (lookback_days,)
+                )
+                rows = cur.fetchall()
 
-            # Fetch daily returns from portfolio snapshots
-            cur.execute(
-                """
-                SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
-                ORDER BY snapshot_date ASC
-                """ % lookback_days,
-            )
-            rows = cur.fetchall()
-
-            if len(rows) < 30:  # Need at least 30 days to estimate Sharpe
+            if len(rows) < 30:
                 return None
 
-            # Compute daily returns
             values = [float(row[1]) for row in rows]
             daily_returns = []
             for i in range(1, len(values)):
@@ -116,7 +63,6 @@ class LivePerformance:
             if not daily_returns:
                 return None
 
-            # Annualized Sharpe (assume 252 trading days, 0% risk-free rate)
             mean_return = np.mean(daily_returns)
             std_return = np.std(daily_returns)
 
@@ -128,19 +74,8 @@ class LivePerformance:
 
             return round(annualized_sharpe, 4)
         except Exception as e:
-            logger.error(f"Performance: rolling_sharpe failed: {e}")
+            logger.error(f"[PERFORMANCE_SHARPE] Failed: {e}", exc_info=True)
             return None
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as close_err:
-                    logger.debug(f"Cursor close failed: {close_err}")
-            if conn:
-                try:
-                    conn.close()
-                except Exception as close_err:
-                    logger.debug(f"Connection close failed: {close_err}")
 
     def win_rate(self, lookback_trades: int = 50) -> Optional[Dict[str, float]]:
         """Compute win rate and average R-multiple from closed trades.
