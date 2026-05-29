@@ -2,12 +2,13 @@
 import { useApiQuery } from "../hooks/useApiQuery";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { api } from "../services/api";
+import { formatNumber } from "../utils/formatters";
 
 const MetricCard = ({ label, value, unit = "", color = "var(--text)" }) => (
   <div style={{ padding: "16px", background: "var(--surface)", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}>
     <div style={{ fontSize: "var(--t-xs)", color: "var(--text-2)", marginBottom: "8px" }}>{label}</div>
     <div style={{ fontSize: "var(--t-xl)", fontWeight: "var(--w-bold)", color }}>
-      {value == null || isNaN(Number(value)) ? "—" : Number(value).toFixed(2)}{unit}
+      {formatNumber(value, 2)}{unit}
     </div>
   </div>
 );

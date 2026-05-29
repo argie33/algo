@@ -19,11 +19,12 @@ import { ArrowLeft, RefreshCw, Inbox } from 'lucide-react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
+import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
 
 // ─── format helpers ─────────────────────────────────────────────────────────
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
-const fmtMoney = (v) => v == null || isNaN(Number(v)) ? '—' : `$${Number(v).toFixed(2)}`;
-const fmtPct = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`;
+const num = (v, dp = 2) => formatNumber(v, dp);
+const fmtMoney = (v) => formatCurrency(v);
+const fmtPct = (v, dp = 2) => formatPercentageChange(v, dp);
 const fmtBig = (v) => {
   if (v == null || isNaN(Number(v))) return '—';
   const n = Number(v);
