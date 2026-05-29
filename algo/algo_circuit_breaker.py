@@ -125,6 +125,7 @@ class CircuitBreaker:
                 'checks': {}
             }
         finally:
+            logger.debug("Circuit breaker check completed, closing database connection")
             self.disconnect()
 
     # ---------- Individual checks ----------

@@ -218,6 +218,7 @@ class ExitEngine:
             traceback.print_exc()
             return 0
         finally:
+            logger.debug("Exit engine check completed, closing database connection")
             self.disconnect()
 
     # ---------- Decision logic ----------

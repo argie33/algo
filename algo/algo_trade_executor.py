@@ -195,6 +195,7 @@ class TradeExecutor:
             logger.warning(f"Failed to check for duplicate position: {e}")
             # Continue anyway, but log the warning
         finally:
+            logger.debug("Duplicate position check completed, closing database connection")
             self.disconnect()
 
         # Compute targets if missing — based on R-multiples from actual stop

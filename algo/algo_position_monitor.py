@@ -107,6 +107,7 @@ class PositionMonitor:
                     return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
             return {'status': 'OK', 'count': 0}
         finally:
+            logger.debug("Stale orders check completed, closing database connection")
             self.disconnect()
 
     def check_sector_concentration(self, current_date=None):
@@ -224,6 +225,7 @@ class PositionMonitor:
                     continue
             return recs
         finally:
+            logger.debug("Position review completed, closing database connection")
             self.disconnect()
 
     def _evaluate_position(self, row, current_date):
@@ -766,6 +768,7 @@ class PositionMonitor:
             logger.error(f"ERROR: check_corporate_actions failed: {e}")
             return []
         finally:
+            logger.debug("Corporate actions check completed, closing database connection")
             self.disconnect()
 
     def get_open_positions(self):
@@ -791,6 +794,7 @@ class PositionMonitor:
             logger.warning(f"Failed to fetch open positions: {e}")
             return []
         finally:
+            logger.debug("Open positions fetch completed") if not need_disconnect else logger.debug("Open positions fetch completed, closing database connection")
             if need_disconnect:
                 self.disconnect()
 
