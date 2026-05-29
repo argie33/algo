@@ -141,8 +141,7 @@ class AdvancedFilters:
           'subscores': {momentum, quality, catalyst, risk}
           'components': dict
         """
-        self.connect()
-        try:
+        with DatabaseContext() as cur:
             components = {}
             subscores = {'momentum': 0.0, 'quality': 0.0, 'catalyst': 0.0, 'risk': 0.0}
             max_subscores = {'momentum': 40.0, 'quality': 30.0, 'catalyst': 15.0, 'risk': 15.0}
@@ -151,7 +150,7 @@ class AdvancedFilters:
             # ===== HARD-FAIL gates (independent) =====
 
             # H1. Earnings proximity
-            days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date)
+            days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
             components['days_to_earnings'] = days_to_earnings
             block_window = int(self.config.get('block_days_before_earnings', 5))
             if days_to_earnings is None:
@@ -162,14 +161,14 @@ class AdvancedFilters:
                 hard_fail = f'Earnings in ~{days_to_earnings}d (block window {block_window}d)'
 
             # H2. Over-extended
-            ext_pct = self._extension_pct(symbol, signal_date, entry_price)
+            ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
             components['extension_pct'] = ext_pct
             max_extension = float(self.config.get('max_extension_above_50ma_pct', 15.0))
             if ext_pct is not None and ext_pct > max_extension:
                 hard_fail = hard_fail or f'{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})'
 
             # H4. Liquidity (institutional must)
-            avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date)
+            avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
             components['avg_dollar_volume'] = avg_dollar_vol
             min_liq = float(self.config.get('min_avg_daily_dollar_volume', 5_000_000))
             if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
@@ -183,7 +182,7 @@ class AdvancedFilters:
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 
             # MOMENTUM (40)
-            rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date)
+            rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date, cur)
             components['relative_strength'] = {'pts': round(rs_pts, 1), 'excess_vs_spy': rs_value}
             subscores['momentum'] += rs_pts
 
@@ -195,41 +194,41 @@ class AdvancedFilters:
             components['industry_strength'] = round(ind_pts, 1)
             subscores['momentum'] += ind_pts
 
-            vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date)
+            vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date, cur)
             components['volume_ratio'] = vol_ratio
             subscores['momentum'] += vol_pts
 
-            trend_pts = self._price_trend_score(symbol, signal_date)
+            trend_pts = self._price_trend_score(symbol, signal_date, cur)
             components['price_trend_pts'] = round(trend_pts, 1)
             subscores['momentum'] += trend_pts
 
-            setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
+            setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date, cur)
             components['setup_quality'] = setup_breakdown
             subscores['momentum'] += setup_pts
 
             # QUALITY (30)
-            ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol)
+            ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol, cur)
             components['ibd_composite'] = ibd_breakdown
             subscores['quality'] += ibd_pts
 
-            fin_pts, fin_val = self._financial_quality_score(symbol)
+            fin_pts, fin_val = self._financial_quality_score(symbol, cur)
             components['financial_quality'] = fin_val
             subscores['quality'] += fin_pts
 
-            eq_pts, eq_val = self._earnings_quality_score(symbol)
+            eq_pts, eq_val = self._earnings_quality_score(symbol, cur)
             components['earnings_quality_score'] = eq_val
             subscores['quality'] += eq_pts
 
             # CATALYST (15)
-            grw_pts, grw_breakdown = self._growth_score(symbol)
+            grw_pts, grw_breakdown = self._growth_score(symbol, cur)
             components['growth'] = grw_breakdown
             subscores['catalyst'] += grw_pts
 
-            an_pts, an_net = self._analyst_score(symbol, signal_date)
+            an_pts, an_net = self._analyst_score(symbol, signal_date, cur)
             components['analyst_net_actions'] = an_net
             subscores['catalyst'] += an_pts
 
-            in_pts, in_net = self._insider_score(symbol, signal_date)
+            in_pts, in_net = self._insider_score(symbol, signal_date, cur)
             components['insider_net_value'] = in_net
             subscores['catalyst'] += in_pts
 
@@ -251,15 +250,13 @@ class AdvancedFilters:
                 'subscore_max': max_subscores,
                 'components': components,
             }
-        finally:
-            self.disconnect()
 
     # ============= MOMENTUM =============
 
-    def _mansfield_rs_score(self, symbol, signal_date):
+    def _mansfield_rs_score(self, symbol, signal_date, cur):
         # Use proper percentile ranking instead of linear excess return
         if self._signals is None:
-            self._signals = SignalComputer(cur=self.cur)
+            self._signals = SignalComputer(cur=cur)
 
         rs_percentile = self._signals._rs_percentile_vs_spy(symbol, signal_date, lookback=60)
         if rs_percentile is None:
@@ -280,8 +277,8 @@ class AdvancedFilters:
             return 0.0
         return self.W_MOMENTUM_INDUSTRY if industry in self._strong_industries else 0.0
 
-    def _volume_confirmation_score(self, symbol, signal_date):
-        self.cur.execute(
+    def _volume_confirmation_score(self, symbol, signal_date, cur):
+        cur.execute(
             """
             WITH d AS (
                 SELECT date, volume,
@@ -294,7 +291,7 @@ class AdvancedFilters:
             """,
             (symbol, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0] or not row[1]:
             return 0.0, None
         vol = float(row[0])
@@ -306,13 +303,13 @@ class AdvancedFilters:
         pts = max(0.0, min(self.W_MOMENTUM_VOLUME, (ratio - 0.8) * self.W_MOMENTUM_VOLUME / 0.7))
         return pts, round(ratio, 2)
 
-    def _price_trend_score(self, symbol, signal_date):
+    def _price_trend_score(self, symbol, signal_date, cur):
         """Multi-timeframe alignment (Elder Triple Screen):
             +2 pts each if 5d return positive, 20d return positive,
             +1 pt if also a BUY signal on weekly timeframe (very strong combo).
         """
-        r5 = self._period_return(symbol, signal_date, 5)
-        r20 = self._period_return(symbol, signal_date, 20)
+        r5 = self._period_return(symbol, signal_date, 5, cur)
+        r20 = self._period_return(symbol, signal_date, 20, cur)
         if r5 is None or r20 is None:
             return 0.0
         score = 0.0
@@ -323,7 +320,7 @@ class AdvancedFilters:
 
         # Weekly alignment: if buy_sell_weekly also says BUY in last 30 days, bonus
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT 1 FROM buy_sell_weekly
                    WHERE symbol = %s AND signal_type = 'BUY'
                      AND date >= %s::date - INTERVAL '30 days'
@@ -331,7 +328,7 @@ class AdvancedFilters:
                    LIMIT 1""",
                 (symbol, signal_date, signal_date),
             )
-            if self.cur.fetchone():
+            if cur.fetchone():
                 score += 1.0
         except Exception as e:
             logging.debug(f"Weekly alignment check failed for {symbol}: {e} (continuing without bonus)")
@@ -339,7 +336,7 @@ class AdvancedFilters:
 
         return min(score, self.W_MOMENTUM_PRICE_TREND)
 
-    def _setup_quality_score(self, symbol, signal_date):
+    def _setup_quality_score(self, symbol, signal_date, cur):
         """Bonus pts for entering on a real base breakout / VCP (canonical swing setup).
 
         +3 pts: in identified base AND breakout imminent (within 2% of pivot)
@@ -350,7 +347,7 @@ class AdvancedFilters:
         """
         try:
             if self._signals is None:
-                self._signals = SignalComputer(cur=self.cur)
+                self._signals = SignalComputer(cur=cur)
             base = self._signals.base_detection(symbol, signal_date)
             vcp = self._signals.vcp_detection(symbol, signal_date)
             pivot = self._signals.pivot_breakout(symbol, signal_date)
@@ -382,8 +379,8 @@ class AdvancedFilters:
             'return_21d': power.get('return_21d'),
         }
 
-    def _period_return(self, symbol, end_date, lookback_days):
-        self.cur.execute(
+    def _period_return(self, symbol, end_date, lookback_days, cur):
+        cur.execute(
             """
             WITH bracket AS (
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
@@ -397,7 +394,7 @@ class AdvancedFilters:
             """,
             (symbol, end_date, end_date, lookback_days + 5),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             return None
         recent = float(row[0])
@@ -406,15 +403,15 @@ class AdvancedFilters:
 
     # ============= QUALITY =============
 
-    def _ibd_composite_score(self, symbol):
-        self.cur.execute(
+    def _ibd_composite_score(self, symbol, cur):
+        cur.execute(
             """
             SELECT composite_score, quality_score, growth_score, momentum_score
             FROM stock_scores WHERE symbol = %s LIMIT 1
             """,
             (symbol,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None:
             return 0.0, {'composite': None, 'grade': 'NA'}
         composite = float(row[0])
@@ -430,9 +427,9 @@ class AdvancedFilters:
             'momentum': round(float(row[3] or 0), 1),
         }
 
-    def _financial_quality_score(self, symbol):
+    def _financial_quality_score(self, symbol, cur):
         """Use stock_scores.quality_score as the financial quality signal."""
-        self.cur.execute(
+        cur.execute(
             """
             SELECT s.quality_score
             FROM stock_scores s
@@ -440,7 +437,7 @@ class AdvancedFilters:
             """,
             (symbol,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return 0.0, None
         q = float(row[0]) if row[0] is not None else 50.0
@@ -451,9 +448,9 @@ class AdvancedFilters:
         pts = max(0.0, min(self.W_QUALITY_FIN, (avg - 50.0) * self.W_QUALITY_FIN / 30.0))
         return pts, round(avg, 1)
 
-    def _earnings_quality_score(self, symbol):
+    def _earnings_quality_score(self, symbol, cur):
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT earnings_quality_score FROM earnings_metrics
                 WHERE symbol = %s AND earnings_quality_score IS NOT NULL
@@ -461,7 +458,7 @@ class AdvancedFilters:
                 """,
                 (symbol,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or row[0] is None:
                 return 0.0, None
             score = float(row[0])
@@ -473,8 +470,8 @@ class AdvancedFilters:
 
     # ============= CATALYST =============
 
-    def _growth_score(self, symbol):
-        self.cur.execute(
+    def _growth_score(self, symbol, cur):
+        cur.execute(
             """
             SELECT revenue_growth_3y_cagr, eps_growth_3y_cagr,
                    quarterly_growth_momentum, revenue_growth_yoy
@@ -484,7 +481,7 @@ class AdvancedFilters:
             """,
             (symbol,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return 0.0, {}
         rev_3y = float(row[0]) if row[0] is not None else 0.0
@@ -502,8 +499,8 @@ class AdvancedFilters:
             'momentum': round(mom, 1),
         }
 
-    def _analyst_score(self, symbol, signal_date):
-        self.cur.execute(
+    def _analyst_score(self, symbol, signal_date, cur):
+        cur.execute(
             """
             SELECT
                 COUNT(*) FILTER (WHERE LOWER(action) IN ('up','upgrade')),
@@ -515,7 +512,7 @@ class AdvancedFilters:
             """,
             (symbol, signal_date, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return 0.0, 0
         ups, downs = int(row[0] or 0), int(row[1] or 0)
@@ -524,8 +521,8 @@ class AdvancedFilters:
         pts = max(0.0, min(self.W_CATALYST_ANALYST, (net + 3) * self.W_CATALYST_ANALYST / 8.0))
         return pts, net
 
-    def _insider_score(self, symbol, signal_date):
-        self.cur.execute(
+    def _insider_score(self, symbol, signal_date, cur):
+        cur.execute(
             """
             SELECT
                 COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%buy%%' THEN value END), 0),
@@ -538,7 +535,7 @@ class AdvancedFilters:
             """,
             (symbol, signal_date, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return 0.0, 0
         buys = float(row[0] or 0)
@@ -551,12 +548,12 @@ class AdvancedFilters:
 
     # ============= RISK =============
 
-    def _extension_pct(self, symbol, signal_date, entry_price):
-        self.cur.execute(
+    def _extension_pct(self, symbol, signal_date, entry_price, cur):
+        cur.execute(
             "SELECT sma_50 FROM technical_data_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
             (symbol, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0] or float(row[0]) <= 0:
             return None
         sma_50 = float(row[0])
@@ -584,8 +581,8 @@ class AdvancedFilters:
             return self.W_RISK_EARNINGS_PROX
         return self.W_RISK_EARNINGS_PROX * (days_to_earnings - block_window) / (30 - block_window)
 
-    def _avg_dollar_volume(self, symbol, signal_date):
-        self.cur.execute(
+    def _avg_dollar_volume(self, symbol, signal_date, cur):
+        cur.execute(
             """
             SELECT AVG(close * volume) FROM price_daily
             WHERE symbol = %s AND date <= %s
@@ -594,14 +591,14 @@ class AdvancedFilters:
             """,
             (symbol, signal_date, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None:
             return None
         return float(row[0])
 
-    def _estimate_days_to_earnings(self, symbol, signal_date):
+    def _estimate_days_to_earnings(self, symbol, signal_date, cur):
         # First, try to get actual estimated earnings date from earnings_calendar or earnings_estimates
-        self.cur.execute(
+        cur.execute(
             """
             SELECT earnings_date FROM earnings_calendar
             WHERE symbol = %s AND earnings_date > %s
@@ -609,13 +606,13 @@ class AdvancedFilters:
             """,
             (symbol, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if row and row[0]:
             earnings_date = row[0]
             return (earnings_date - signal_date).days
 
         # Fallback: try earnings_estimates table
-        self.cur.execute(
+        cur.execute(
             """
             SELECT earnings_date FROM earnings_estimates
             WHERE symbol = %s AND earnings_date > %s AND estimated = true
@@ -623,20 +620,20 @@ class AdvancedFilters:
             """,
             (symbol, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if row and row[0]:
             earnings_date = row[0]
             return (earnings_date - signal_date).days
 
         # Fallback: estimate based on last reported earnings using proper quarter math
-        self.cur.execute(
+        cur.execute(
             """
             SELECT earnings_date FROM earnings_history
             WHERE symbol = %s AND estimated = false ORDER BY earnings_date DESC LIMIT 1
             """,
             (symbol,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0]:
             return None
 
@@ -670,5 +667,4 @@ class AdvancedFilters:
                 next_q_date = _date(next_q_date.year + 1, 1, 15)
 
         return (next_q_date - signal_d).days
-
 

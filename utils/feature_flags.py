@@ -39,21 +39,9 @@ class FeatureFlags:
     """Manage feature flags for safe signal control."""
 
     def __init__(self):
-        self.conn = None
         self._cache: Dict[str, Any] = {}
         self._cache_updated_at = None
         self._cache_ttl_seconds = 30  # Refresh cache every 30 seconds
-
-    def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            self.conn = get_db_connection()
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
 
     def set_flag(
         self,
@@ -77,12 +65,10 @@ class FeatureFlags:
             True if set successfully
         """
         try:
-            self.connect()
-
             import json
             metadata_json = json.dumps(metadata or {})
 
-            with self.conn.cursor() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("""
                     INSERT INTO feature_flags
                     (flag_name, flag_type, value, description, metadata, updated_at)
@@ -98,7 +84,7 @@ class FeatureFlags:
                     description,
                     metadata_json,
                 ))
-                self.conn.commit()
+                cur.connection.commit()
 
             # Clear cache
             self._cache.clear()
@@ -118,8 +104,6 @@ class FeatureFlags:
     def get_flag(self, flag_name: str, default: Any = None) -> Any:
         """Get a feature flag value (with TTL cache)."""
         try:
-            self.connect()
-
             from datetime import datetime as dt
             now = dt.now()
             cache_expired = (
@@ -135,7 +119,7 @@ class FeatureFlags:
                 self._cache.clear()
                 self._cache_updated_at = now
 
-            with self.conn.cursor() as cur:
+            with DatabaseContext() as cur:
                 cur.execute("""
                     SELECT value, enabled FROM feature_flags
                     WHERE flag_name = %s
@@ -181,9 +165,7 @@ class FeatureFlags:
     def list_flags(self) -> List[Dict[str, Any]]:
         """Get all feature flags."""
         try:
-            self.connect()
-
-            with self.conn.cursor() as cur:
+            with DatabaseContext() as cur:
                 cur.execute("""
                     SELECT flag_name, flag_type, value, description, enabled, updated_at
                     FROM feature_flags
@@ -264,11 +246,10 @@ def initialize_safe_defaults():
     """
     try:
         flags = FeatureFlags()
-        flags.connect()
-
         initialized_count = 0
+
         for flag_name, (flag_type, default_value, description) in DEFAULT_FEATURE_FLAGS.items():
-            with flags.conn.cursor() as cur:
+            with DatabaseContext() as cur:
                 cur.execute("""
                     SELECT value FROM feature_flags WHERE flag_name = %s
                 """, (flag_name,))
@@ -278,8 +259,6 @@ def initialize_safe_defaults():
             if not existing:
                 flags.set_flag(flag_name, flag_type, default_value, description)
                 initialized_count += 1
-
-        flags.disconnect()
 
         if initialized_count > 0:
             logger.info(f"Initialized {initialized_count} feature flags with safe defaults")
@@ -351,5 +330,3 @@ if __name__ == "__main__":
 
     else:
         parser.print_help()
-
-    flags.disconnect()
