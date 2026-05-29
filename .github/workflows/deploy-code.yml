@@ -1096,117 +1096,23 @@ jobs:
           VITE_AWS_REGION="$AWS_REGION" \
           npm run build 2>&1 | tee build.log
 
-      - name: Generate Production Config
+      - name: Prepare Runtime Config
         run: |
-          # Get environment from terraform.tfvars
-          ENV=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
-
-          # API_URL is the CloudFront website URL from Terraform Ã¢â‚¬â€�- all /api/* requests go
-          # through CloudFront which forwards to API Gateway (same-origin, no CORS needed).
-          API_URL="${{ needs.resolve-infra.outputs.website_url }}"
-          if [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
-            echo "Using CloudFront website URL as API base: $API_URL"
-          else
-            API_URL=""
-            echo "WARNING: website_url not resolved from Terraform, using relative paths"
-          fi
-
-          # Get Cognito credentials from resolve-infra job outputs
-          POOL_ID="${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
-          CLIENT_ID="${{ needs.resolve-infra.outputs.cognito_user_pool_client_id }}"
-          COGNITO_DOMAIN="${{ needs.resolve-infra.outputs.cognito_domain_url }}"
-
-          # Fall back to AWS API if Terraform output empty
-          # Try the current naming convention first: algo-pool-{ENV}
-          if [ -z "$POOL_ID" ]; then
-            POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION \
-              --query "UserPools[?Name=='algo-pool-${ENV}'].Id | [0]" \
-              --output text 2>/dev/null || echo "")
-          fi
-
-          # Fallback to old naming if needed (for backward compatibility)
-          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
-            POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 --region $AWS_REGION \
-              --query "UserPools[?Name=='stocks-trading-pool-${ENV}'].Id | [0]" \
-              --output text 2>/dev/null || echo "")
-          fi
-
-          if [ -z "$CLIENT_ID" ] && [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
-            # Try current naming: algo-web-app-{ENV}
-            CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
-              --region $AWS_REGION \
-              --query "UserPoolClients[?ClientName=='algo-web-app-${ENV}'].ClientId | [0]" \
-              --output text 2>/dev/null || echo "")
-
-            # Fallback to old naming if needed
-            if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "None" ]; then
-              CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
-                --region $AWS_REGION \
-                --query "UserPoolClients[?ClientName=='stocks-web-app-${ENV}'].ClientId | [0]" \
-                --output text 2>/dev/null || echo "")
-            fi
-          fi
-
-          # Get Cognito domain - try AWS API if Terraform output empty
-          if [ -z "$COGNITO_DOMAIN" ] || [ "$COGNITO_DOMAIN" = "None" ]; then
-            # Try current naming convention: algo-{ENV}
-            DOMAIN_NAME=$(aws cognito-idp describe-user-pool-domain \
-              --domain "algo-${ENV}" \
-              --region $AWS_REGION \
-              --query 'UserPoolDomain.Domain' \
-              --output text 2>/dev/null || echo "")
-
-            # Fallback to old domain name if needed
-            if [ -z "$DOMAIN_NAME" ] || [ "$DOMAIN_NAME" = "None" ]; then
-              DOMAIN_NAME=$(aws cognito-idp describe-user-pool-domain \
-                --domain "stocks-trading-${ENV}" \
-                --region $AWS_REGION \
-                --query 'UserPoolDomain.Domain' \
-                --output text 2>/dev/null || echo "")
-            fi
-
-            # Construct full domain URL if we found a domain name
-            if [ -n "$DOMAIN_NAME" ] && [ "$DOMAIN_NAME" != "None" ]; then
-              COGNITO_DOMAIN="https://${DOMAIN_NAME}.auth.${AWS_REGION}.amazoncognito.com"
-            fi
-          fi
-
+          # Simply copy the source config.js to dist/ with no modifications.
+          # The source file (webapp/frontend/public/config.js) contains production values
+          # and is the single source of truth. This avoids the complexity and unreliability
+          # of trying to dynamically generate config based on Terraform outputs.
           mkdir -p webapp/frontend/dist
+          cp webapp/frontend/public/config.js webapp/frontend/dist/config.js
 
-          # Build config with Cognito settings
-          printf 'window.__CONFIG__ = {\n' > webapp/frontend/dist/config.js
-          printf '  "API_URL": "%s",\n' "$API_URL" >> webapp/frontend/dist/config.js
-          printf '  "ENVIRONMENT": "production",\n' >> webapp/frontend/dist/config.js
-          printf '  "AWS_REGION": "%s",\n' "$AWS_REGION" >> webapp/frontend/dist/config.js
-
-          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
-            printf '  "USER_POOL_ID": "%s",\n' "$POOL_ID" >> webapp/frontend/dist/config.js
-          fi
-
-          if [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "None" ]; then
-            printf '  "USER_POOL_CLIENT_ID": "%s",\n' "$CLIENT_ID" >> webapp/frontend/dist/config.js
-          fi
-
-          if [ -n "$COGNITO_DOMAIN" ] && [ "$COGNITO_DOMAIN" != "None" ]; then
-            printf '  "USER_POOL_DOMAIN": "%s"\n' "$COGNITO_DOMAIN" >> webapp/frontend/dist/config.js
-          else
-            printf '  "USER_POOL_DOMAIN": ""\n' >> webapp/frontend/dist/config.js
-          fi
-
-          printf '};\n' >> webapp/frontend/dist/config.js
-
-          echo "Ã¢Å“â€¦ Generated dist/config.js with API_URL=$API_URL and Cognito config"
+          echo “✓ Runtime config prepared (using source config.js)”
           cat webapp/frontend/dist/config.js
 
           # Inject build timestamp into config.js URL to bust browser cache.
-          # config.js contains dynamic per-deploy values so it must never be
-          # served from a browser's immutable cache.  Since index.html is always
-          # fetched fresh (no-cache), a versioned URL forces every browser to
-          # download the latest config.js on the next page load.
           BUILD_TS=$(date +%s)
-          if [ -f "webapp/frontend/dist/index.html" ]; then
-            sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
-            echo "Ã¢Å“â€¦ config.js cache buster added: /config.js?v=${BUILD_TS}"
+          if [ -f “webapp/frontend/dist/index.html” ]; then
+            sed -i “s|src=\”/config\.js\”|src=\”/config.js?v=${BUILD_TS}\”|g” webapp/frontend/dist/index.html
+            echo “✓ config.js cache buster added: /config.js?v=${BUILD_TS}”
           fi
 
       - name: Verify Frontend Build Output
