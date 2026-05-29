@@ -4,10 +4,9 @@ Liquidity checks for Tier 5 portfolio health filtering.
 Ensures entry can be executed with adequate liquidity and reasonable spreads.
 """
 
-import psycopg2
 from datetime import datetime, timedelta
 from utils.structured_logger import get_logger
-from config.credential_manager import get_db_config
+from utils.database_context import DatabaseContext
 
 
 logger = get_logger(__name__)
@@ -18,21 +17,8 @@ class LiquidityChecks:
 
     def __init__(self, config: dict):
         self.config = config
-        self.conn = None
         self.min_adv_shares = config.get('min_adv_shares', 50_000)
         self.min_adv_dollars = config.get('min_adv_dollars', 500_000)
-
-    def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            config = get_db_config()
-            self.conn = psycopg2.connect(**config)
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
 
     def run_all(self, symbol: str, entry_price: float, signal_date) -> tuple:
         """
@@ -47,8 +33,6 @@ class LiquidityChecks:
             Tuple[bool, str]: (passed, reason)
         """
         try:
-            self.connect()
-
             age_passed, age_reason = self._check_price_history_age(symbol, signal_date)
             if not age_passed:
                 return False, f"IPO age check failed: {age_reason}"
@@ -68,8 +52,6 @@ class LiquidityChecks:
         except Exception as e:
             logger.warning(f"Liquidity check error for {symbol}: {e}")
             return True, "Liquidity checks skipped (error)"
-        finally:
-            self.disconnect()
 
     def _check_adv(self, symbol: str, signal_date) -> tuple:
         """
@@ -79,34 +61,34 @@ class LiquidityChecks:
             Tuple[bool, str]: (passed, reason)
         """
         try:
-            cur = self.conn.cursor()
-            cur.execute(
-                """
-                SELECT AVG(volume) as avg_vol
-                FROM (
-                    SELECT volume FROM price_daily
-                    WHERE symbol = %s
-                      AND date >= %s
-                      AND date < %s
-                    ORDER BY date DESC
-                    LIMIT 20
-                ) recent
-                """,
-                (
-                    symbol,
-                    signal_date - timedelta(days=25),
-                    signal_date,
-                ),
-            )
-            row = cur.fetchone()
-            if not row or row[0] is None:
-                return False, "No volume data available"
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT AVG(volume) as avg_vol
+                    FROM (
+                        SELECT volume FROM price_daily
+                        WHERE symbol = %s
+                          AND date >= %s
+                          AND date < %s
+                        ORDER BY date DESC
+                        LIMIT 20
+                    ) recent
+                    """,
+                    (
+                        symbol,
+                        signal_date - timedelta(days=25),
+                        signal_date,
+                    ),
+                )
+                row = cur.fetchone()
+                if not row or row[0] is None:
+                    return False, "No volume data available"
 
-            avg_vol = float(row[0])
-            if avg_vol < self.min_adv_shares:
-                return False, f"ADV {avg_vol:,.0f} < minimum {self.min_adv_shares:,.0f}"
+                avg_vol = float(row[0])
+                if avg_vol < self.min_adv_shares:
+                    return False, f"ADV {avg_vol:,.0f} < minimum {self.min_adv_shares:,.0f}"
 
-            return True, f"ADV {avg_vol:,.0f} ok"
+                return True, f"ADV {avg_vol:,.0f} ok"
 
         except Exception as e:
             logger.warning(f"ADV check error for {symbol}: {e}")
@@ -120,37 +102,37 @@ class LiquidityChecks:
             Tuple[bool, str]: (passed, reason)
         """
         try:
-            cur = self.conn.cursor()
-            cur.execute(
-                """
-                SELECT AVG(volume * close) as avg_dollar_vol
-                FROM (
-                    SELECT volume, close FROM price_daily
-                    WHERE symbol = %s
-                      AND date >= %s
-                      AND date < %s
-                    ORDER BY date DESC
-                    LIMIT 20
-                ) recent
-                """,
-                (
-                    symbol,
-                    signal_date - timedelta(days=25),
-                    signal_date,
-                ),
-            )
-            row = cur.fetchone()
-            if not row or row[0] is None:
-                return False, "No price data available"
-
-            avg_dollar_vol = float(row[0])
-            if avg_dollar_vol < self.min_adv_dollars:
-                return (
-                    False,
-                    f"Dollar vol ${avg_dollar_vol:,.0f} < minimum ${self.min_adv_dollars:,.0f}",
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT AVG(volume * close) as avg_dollar_vol
+                    FROM (
+                        SELECT volume, close FROM price_daily
+                        WHERE symbol = %s
+                          AND date >= %s
+                          AND date < %s
+                        ORDER BY date DESC
+                        LIMIT 20
+                    ) recent
+                    """,
+                    (
+                        symbol,
+                        signal_date - timedelta(days=25),
+                        signal_date,
+                    ),
                 )
+                row = cur.fetchone()
+                if not row or row[0] is None:
+                    return False, "No price data available"
 
-            return True, f"Dollar vol ${avg_dollar_vol:,.0f} ok"
+                avg_dollar_vol = float(row[0])
+                if avg_dollar_vol < self.min_adv_dollars:
+                    return (
+                        False,
+                        f"Dollar vol ${avg_dollar_vol:,.0f} < minimum ${self.min_adv_dollars:,.0f}",
+                    )
+
+                return True, f"Dollar vol ${avg_dollar_vol:,.0f} ok"
 
         except Exception as e:
             logger.warning(f"Dollar volume check error for {symbol}: {e}")
@@ -174,28 +156,28 @@ class LiquidityChecks:
         """
         try:
             min_days = int(self.config.get('min_price_history_days', 200))
-            cur = self.conn.cursor()
-            cur.execute(
-                """
-                SELECT COUNT(*) as trading_days, MIN(date) as first_date
-                FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                """,
-                (symbol, signal_date),
-            )
-            row = cur.fetchone()
-            if not row or row[0] is None or int(row[0]) == 0:
-                return False, "No price history (new listing or data missing)"
-
-            trading_days = int(row[0])
-            first_date = row[1]
-            if trading_days < min_days:
-                return (
-                    False,
-                    f"Only {trading_days} trading days of history (need {min_days}; listed ~{first_date})",
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as trading_days, MIN(date) as first_date
+                    FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                    """,
+                    (symbol, signal_date),
                 )
+                row = cur.fetchone()
+                if not row or row[0] is None or int(row[0]) == 0:
+                    return False, "No price history (new listing or data missing)"
 
-            return True, f"{trading_days} trading days of history ok"
+                trading_days = int(row[0])
+                first_date = row[1]
+                if trading_days < min_days:
+                    return (
+                        False,
+                        f"Only {trading_days} trading days of history (need {min_days}; listed ~{first_date})",
+                    )
+
+                return True, f"{trading_days} trading days of history ok"
 
         except Exception as e:
             logger.warning(f"Price history age check error for {symbol}: {e}")
