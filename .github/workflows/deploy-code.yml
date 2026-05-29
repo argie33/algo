@@ -950,7 +950,7 @@ jobs:
           if [ "$HTTP_CODE" = "200" ]; then
             echo "[OK] API health check passed"
           else
-            echo "[ALERT]"
+            echo "[ALERT] API health check failed (HTTP status: $HTTP_CODE)"
           fi
 
       - name: Add Provisioned Concurrency to API Lambda
@@ -958,7 +958,7 @@ jobs:
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           if [ -z "$FUNC" ] || [ "$FUNC" = "null" ] || [ "$FUNC" = "***" ]; then
-            echo "[ALERT]"
+            echo "[ALERT] API Lambda function name not available - skipping provisioned concurrency"
             exit 0
           fi
 
@@ -981,7 +981,7 @@ jobs:
               --qualifier "\$LATEST" \
               --provisioned-concurrent-executions 1 \
               --region $AWS_REGION || {
-                echo "[ALERT]"
+                echo "[ALERT] Could not set provisioned concurrency on API Lambda"
                 echo "This may occur if the function is not yet deployed or has no alias"
               }
             echo "[OK] Provisioned concurrency configured (cost: ~$0.015/hour)"
@@ -1065,14 +1065,14 @@ jobs:
             echo "[OK] Using API Gateway URL: $FINAL_API_URL"
           else
             # Fall back to dynamic discovery (slower but always available)
-            echo "[ALERT]"
+            echo "[ALERT] Terraform outputs empty - discovering API Gateway from AWS..."
             API_GATEWAY=$(aws apigatewayv2 get-apis \
               --region $AWS_REGION \
               --query 'Items[?Name=="algo-api-dev"].ApiEndpoint | [0]' \
               --output text 2>/dev/null || echo "")
 
             if [ -z "$API_GATEWAY" ] || [ "$API_GATEWAY" = "None" ]; then
-              echo "[ALERT]"
+              echo "[ALERT] Could not discover API Gateway from AWS"
               echo "Available APIs:"
               aws apigatewayv2 get-apis --region $AWS_REGION --query 'Items[].Name' --output text || echo "No APIs found"
               exit 1
@@ -1135,11 +1135,11 @@ jobs:
             FILE_COUNT=$(find dist -type f | wc -l)
             echo "Total files: $FILE_COUNT"
             if [ "$FILE_COUNT" -eq 0 ]; then
-              echo "[ALERT]"
+              echo "[ALERT] Frontend dist folder is empty - build may have failed"
               exit 1
             fi
           else
-            echo "[ALERT]"
+            echo "[ALERT] Frontend dist folder does not exist - build may have failed"
             exit 1
           fi
 
@@ -1154,7 +1154,7 @@ jobs:
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-            echo "[ALERT]"
+            echo "[ALERT] Could not find frontend S3 bucket"
             echo "Available buckets:"
             aws s3api list-buckets --query 'Buckets[].Name' --output text
             exit 1
@@ -1163,7 +1163,7 @@ jobs:
 
           # Verify bucket is accessible
           if ! aws s3 ls "s3://${BUCKET}/" >/dev/null 2>&1; then
-            echo "[ALERT]"
+            echo "[ALERT] Frontend bucket exists but is not accessible"
             exit 1
           fi
           echo "[OK] Bucket is accessible"
@@ -1224,7 +1224,7 @@ jobs:
               --output text)
             echo "[OK] CloudFront invalidation created: $INVALIDATION_ID"
           else
-            echo "[ALERT]"
+            echo "[ALERT] Could not find CloudFront distribution for invalidation"
           fi
 
   # ------------------------------------------------------------
@@ -1261,7 +1261,7 @@ jobs:
             echo "secret_access_key=$SECRET_KEY" >> $GITHUB_OUTPUT
             echo "[OK] Developer credentials retrieved from Secrets Manager"
           else
-            echo "[ALERT]"
+            echo "[ALERT] Could not retrieve developer credentials from Secrets Manager"
           fi
 
       - name: Save Credentials for Next Steps
@@ -1300,7 +1300,7 @@ jobs:
 
       - name: Deregister Old Task Definition Versions
         run: |
-          echo "sk definition versions..."
+          echo "Cleaning up old task definition versions..."
           echo "Keeping only the 2 most recent versions per family"
           echo ""
 
@@ -1377,7 +1377,7 @@ jobs:
             echo "  export AWS_SECRET_ACCESS_KEY=<secret>"
             echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_function_name }} --payload '{\"source\":\"manual\"}' response.json --region ${{ env.AWS_REGION }}"
           else
-            echo "  tials..."
+            echo "  Could not retrieve credentials - check AWS Secrets Manager: algo/developer-credentials"
           fi
 
           echo ""
