@@ -79,7 +79,7 @@ from algo.algo_market_calendar import MarketCalendar
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.algo_trade_executor import TradeExecutor
 import logging
-from utils.monitoring_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
+from monitoring.metrics_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +204,8 @@ class Orchestrator:
             current += 1
             self.db_failure_counter_file.write_text(str(current))
             return current
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to increment DB failure counter: {e}")
             return 1
 
     def _check_halt_flag(self) -> bool:
@@ -372,7 +373,8 @@ class Orchestrator:
                     if MarketCalendar.is_trading_day(expected_patrol_date):
                         break
                     expected_patrol_date -= timedelta(days=1)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"MarketCalendar check failed, falling back to weekday check: {e}")
                 expected_patrol_date = self.run_date - timedelta(days=1)
                 while expected_patrol_date.weekday() >= 5:
                     expected_patrol_date -= timedelta(days=1)
@@ -626,8 +628,8 @@ class Orchestrator:
                 )
                 for tier_num, count in cur.fetchall():
                     tier_rejections[f'Tier {tier_num}'] = count or 0
-            except Exception:
-                # Table may not exist or columns different; skip
+            except Exception as e:
+                logger.debug(f"Signal rejection tiers table may not exist or schema mismatch: {e}")
                 pass
 
             # Final qualified count
@@ -1066,7 +1068,8 @@ class Orchestrator:
                 # POSIX — kill -0 just checks existence
                 os.kill(pid, 0)
                 return True
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Process {pid} check failed (likely not running): {e}")
             return False
 
     def _final_report(self):

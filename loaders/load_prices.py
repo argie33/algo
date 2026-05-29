@@ -29,7 +29,7 @@ from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
 from utils.loader_helpers import get_active_symbols
 from utils.structured_logger import get_logger
-from utils.monitoring_context import TimeBlock
+from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 
 logger = get_logger(__name__)
