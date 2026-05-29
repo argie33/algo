@@ -87,7 +87,7 @@ def lambda_handler(event, context):
             logger.warning(f"Invalid execution_mode: {execution_mode}. Defaulting to 'auto'.")
             execution_mode = 'auto'
 
-        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}")
+        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, skip_freshness={skip_freshness}, execution_mode={execution_mode}, run_identifier={run_identifier}")
 
         # FIXED Issue #18: Default Lambda timeout to 600s instead of 240s (close to Lambda max)
         lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 600
