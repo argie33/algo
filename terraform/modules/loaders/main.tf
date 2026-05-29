@@ -443,13 +443,14 @@ locals {
 
     # Sentiment loaders (aggregate) — run daily at 4am ET
     "sentiment" = {
-      schedule    = "cron(32 4 ? * MON-FRI *)"
-      description = "Aggregate sentiment index - Daily 4:32am ET"
+      schedule    = "cron(4 4 ? * FRI *)"
+      description = "Aggregate sentiment index - Friday 4:04am ET (after aaii_sentiment at 4:00am)"
     }
-    "sentiment_social" = {
-      schedule    = "cron(34 4 ? * MON-FRI *)"
-      description = "Social media sentiment - Daily 4:34am ET"
-    }
+    # DELETED: sentiment_social - placeholder implementation removed
+    # "sentiment_social" = {
+    #   schedule    = "cron(34 4 ? * MON-FRI *)"
+    #   description = "Social media sentiment - Daily 4:34am ET"
+    # }
 
     # Signal theme — run after signals generated
     # 10:00am UTC = 5:00am ET Mon-Fri
