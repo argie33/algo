@@ -239,7 +239,7 @@ locals {
     "russell2000_constituents"  = "load_russell2000_constituents.py"
 
     # Pricing data — unified loader handles all intervals/asset classes via env vars
-    "stock_prices_daily"        = "load_stock_prices_daily.py"
+    "stock_prices_daily"        = "load_prices.py"
 
     # Financial statements
     "financials_annual_income"  = "load_income_statement.py"
