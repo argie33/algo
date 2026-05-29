@@ -65,7 +65,7 @@ enable_execution_monitor          = true # Deploy execution monitor Lambda
 enable_execution_monitor_schedule = true # Run every 2 hours during trading hours
 
 # Developer IAM credential rotation - update to trigger key recreation
-developer_key_rotation_date = "2026-05-28"
+developer_key_rotation_date = "2026-05-29"
 
 # Alert system configuration (for patrol, loader, position, circuit breaker failures)
 # Email alerts require SMTP credentials (set via GitHub Secrets + GitHub Actions deploy-code.yml)
