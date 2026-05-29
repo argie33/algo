@@ -77,30 +77,6 @@ output "algo_orchestrator_log_group_name" {
 }
 
 # ============================================================
-# Continuous Monitor Task Outputs
-# ============================================================
-
-output "continuous_monitor_task_definition_arn" {
-  description = "ARN of the continuous monitor ECS task definition (runs every 15 min)"
-  value       = aws_ecs_task_definition.continuous_monitor.arn
-}
-
-output "continuous_monitor_task_definition_family" {
-  description = "Family name of the continuous monitor ECS task definition"
-  value       = aws_ecs_task_definition.continuous_monitor.family
-}
-
-output "continuous_monitor_log_group_name" {
-  description = "CloudWatch log group for continuous monitor"
-  value       = "/ecs/${var.project_name}-continuous-monitor"
-}
-
-output "continuous_monitor_event_rule_arn" {
-  description = "ARN of EventBridge rule for continuous monitor (every 15 minutes)"
-  value       = aws_cloudwatch_event_rule.continuous_monitor.arn
-}
-
-# ============================================================
 # Data Patrol Task Outputs
 # ============================================================
 
@@ -119,21 +95,3 @@ output "data_patrol_log_group_name" {
   value       = "/ecs/${var.project_name}-data-patrol"
 }
 
-# ============================================================
-# Weight Optimization Task Outputs (Daily Continuous Improvement)
-# ============================================================
-
-output "weight_optimization_task_definition_arn" {
-  description = "ARN of the weight optimization ECS task definition (invoked daily at 6 PM ET)"
-  value       = aws_ecs_task_definition.weight_optimization.arn
-}
-
-output "weight_optimization_task_definition_family" {
-  description = "Family name of the weight optimization ECS task definition"
-  value       = aws_ecs_task_definition.weight_optimization.family
-}
-
-output "weight_optimization_log_group_name" {
-  description = "CloudWatch log group for weight optimization"
-  value       = "/ecs/${var.project_name}-weight-optimization"
-}
