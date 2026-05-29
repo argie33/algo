@@ -14,6 +14,8 @@ from pathlib import Path
 
 # Add lambda/api to path so routes module can be imported
 sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path for utils imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 IMPORT_ERROR = None
 
@@ -29,13 +31,13 @@ try:
     import jwt
     import requests
     import api_router
+    from utils.db_connection import get_db_connection
 except Exception as e:
     IMPORT_ERROR = f"{type(e).__name__}: {str(e)[:200]}"
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-_db_conn = None
 
 def validate_environment():
     """Validate critical environment variables at cold start.
@@ -88,7 +90,6 @@ def test_db_connection():
 
     Returns: (success: bool, error_msg: Optional[str])
     """
-    global _db_conn
     try:
         conn = get_db_connection()
         if conn is None:
@@ -130,81 +131,6 @@ def redact_sensitive_headers(headers_dict):
             actual_key = [k for k in redacted.keys() if k.lower() == key.lower()][0]
             redacted[actual_key] = '***REDACTED***'
     return redacted
-
-
-def get_db_connection():
-    """Get or create database connection."""
-    global _db_conn
-    if _db_conn and not _db_conn.closed:
-        return _db_conn
-
-    try:
-        db_secret_arn = os.getenv('DB_SECRET_ARN')
-        db_host = os.getenv('DB_HOST')
-        db_port = int(os.getenv('DB_PORT', '5432'))
-        db_name = os.getenv('DB_NAME', 'stocks')
-        db_user = os.getenv('DB_USER', 'stocks')
-        db_password = os.getenv('DB_PASSWORD')
-
-        logger.info(f'[DB CONNECT 1] Config read: secret_arn={bool(db_secret_arn)}, host={db_host}, port={db_port}, db={db_name}, user={db_user}')
-
-        if not db_host:
-            logger.error('[DB CONNECT ERROR] DB_HOST environment variable is required - CHECK LAMBDA CONFIG')
-            return None
-
-        if db_secret_arn and not db_password:
-            import boto3
-            try:
-                logger.info(f'[DB CONNECT 2] Fetching password from Secrets Manager: {db_secret_arn}')
-                secrets = boto3.client('secretsmanager', region_name='us-east-1')
-                response = secrets.get_secret_value(SecretId=db_secret_arn)
-                secret = json.loads(response['SecretString'])
-                db_password = secret.get('password')
-                db_user = secret.get('username', db_user)
-                logger.info(f'[DB CONNECT 2] Secret fetched OK, password length={len(db_password) if db_password else 0}')
-            except Exception as e:
-                logger.error(f'[DB CONNECT ERROR] Failed to fetch secret from {db_secret_arn}: {type(e).__name__}: {e}', exc_info=True)
-                return None
-
-        if not db_password:
-            logger.error('[DB CONNECT ERROR] No database password available - CHECK SECRETS MANAGER')
-            return None
-
-        # RDS Proxy requires SSL/TLS connections (but localhost dev doesn't need it)
-        db_ssl_env = os.getenv('DB_SSL', 'require').lower()
-        # Convert string "false"/"true" to "disable"/"require" for psycopg2
-        sslmode = 'disable' if db_ssl_env in ('false', '0', 'no', 'off') else db_ssl_env
-
-        logger.info(f'[DB CONNECT 3] Attempting connection: host={db_host}:{db_port}, db={db_name}, user={db_user}, ssl={sslmode}')
-        _db_conn = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            sslmode=sslmode,
-            cursor_factory=RealDictCursor,
-            connect_timeout=10
-        )
-        logger.info('[DB CONNECT 4] Connection successful - RDS ready')
-        return _db_conn
-    except psycopg2.OperationalError as e:
-        error_str = str(e)
-        if 'could not translate host name' in error_str.lower():
-            logger.error(f'[DB CONNECT ERROR] DNS RESOLUTION FAILED for {db_host} - CHECK: RDS endpoint is correct, VPC has DNS enabled')
-        elif 'connection refused' in error_str.lower():
-            logger.error(f'[DB CONNECT ERROR] CONNECTION REFUSED to {db_host}:{db_port} - CHECK: RDS is running, security groups allow connection')
-        elif 'timeout' in error_str.lower():
-            logger.error(f'[DB CONNECT ERROR] CONNECTION TIMEOUT to {db_host}:{db_port} - CHECK: Network reachability, RDS responsiveness')
-        else:
-            logger.error(f'[DB CONNECT ERROR] OperationalError: {e}')
-        return None
-    except psycopg2.ProgrammingError as e:
-        logger.error(f'[DB CONNECT ERROR] ProgrammingError: {e}')
-        return None
-    except Exception as e:
-        logger.error(f'[DB CONNECT ERROR] Unexpected error to {db_host}:{db_port}: {type(e).__name__}: {str(e)}', exc_info=True)
-        return None
 
 
 def validate_query_param_type(value: str, expected_type: str) -> tuple:
@@ -779,7 +705,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             conn.rollback()
         except Exception:
-            _db_conn = None
             conn = get_db_connection()
             if not conn:
                 cors_headers = get_cors_headers(event)
