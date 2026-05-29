@@ -17,6 +17,7 @@
 } from "@mui/material";
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
+import { formatNumber, formatPercentageChange } from "../utils/formatters";
 
 const MarketIndicators = ({ data, isLoading, error }) => {
   const theme = useTheme();
@@ -121,7 +122,7 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                             fontWeight: 600,
                           }}
                         >
-                          +{parseFloat(stock.change_percent || 0).toFixed(2)}%
+                          {formatPercentageChange(stock.change_percent)}
                         </TableCell>
                         <TableCell>
                           <Chip label={stock.sector} size="small" variant="outlined" />

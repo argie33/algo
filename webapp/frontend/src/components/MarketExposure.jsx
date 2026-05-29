@@ -13,6 +13,7 @@ import {
   alpha,
   useTheme,
 } from "@mui/material";
+import { formatPercentageChange } from "../utils/formatters";
 import {
   TrendingUp,
   TrendingDown,
@@ -392,7 +393,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
                   {exposureScore.breakdown?.breadth !== null && exposureScore.breakdown?.breadth !== undefined
                     ? (() => {
                         const val = typeof exposureScore.breakdown.breadth === 'number' ? exposureScore.breakdown.breadth : parseFloat(exposureScore.breakdown.breadth) || 0;
-                        return `${val >= 0 ? "+" : ""}${isNaN(val) ? '0.0' : val.toFixed(1)}`;
+                        return formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
                 </Typography>
@@ -414,7 +415,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
                   {exposureScore.breakdown?.sentiment !== null && exposureScore.breakdown?.sentiment !== undefined
                     ? (() => {
                         const val = typeof exposureScore.breakdown.sentiment === 'number' ? exposureScore.breakdown.sentiment : parseFloat(exposureScore.breakdown.sentiment) || 0;
-                        return `${val >= 0 ? "+" : ""}${isNaN(val) ? '0.0' : val.toFixed(1)}`;
+                        return formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
                 </Typography>
@@ -435,7 +436,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
                   {exposureScore.breakdown?.distribution !== null && exposureScore.breakdown?.distribution !== undefined
                     ? (() => {
                         const val = typeof exposureScore.breakdown.distribution === 'number' ? exposureScore.breakdown.distribution : parseFloat(exposureScore.breakdown.distribution) || 0;
-                        return `${val >= 0 ? "+" : ""}${isNaN(val) ? '0.0' : val.toFixed(1)}`;
+                        return formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
                 </Typography>
