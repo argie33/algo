@@ -13,9 +13,8 @@ Rules:
 
 from algo.algo_config import get_alpaca_timeout
 import os
-import psycopg2
 from datetime import date as _date
-from utils.database_context import DatabaseContext, get_db_connection
+from utils.database_context import DatabaseContext
 
 from utils.structured_logger import get_logger
 
@@ -28,33 +27,18 @@ class PositionSizer:
         self.config = config
         self.conn = conn
         self.cur = cur
-        self._owns_connection = conn is None  # Track if we opened the connection
+        self._owns_connection = conn is None
 
-        # Lazy-load connection on first use if not provided
-        # Don't connect during __init__ since tests may not have DB credentials
-
-    def connect(self):
-        """Lazy-load database connection on first use."""
-        if not self.conn:
-            try:
-                self.conn = get_db_connection()
-                self.cur = self.conn.cursor()
-            except Exception as e:
-                logger.warning(f"Could not connect to database: {e}. Proceeding without DB access.")
-                # Don't fail if DB isn't available - tests may not have credentials
-
-    def disconnect(self):
-        # Only close if we opened the connection
-        if self._owns_connection:
-            if self.cur:
-                self.cur.close()
-            if self.conn:
-                self.conn.close()
-
-    def _ensure_connection(self):
-        """Ensure database connection is open."""
-        if not self.conn:
-            self.connect()
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor (external or DatabaseContext)."""
+        if self.cur:
+            return operation(self.cur)
+        try:
+            with DatabaseContext('read') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
 
     def get_portfolio_value(self):
         """Get current portfolio value.
@@ -347,8 +331,31 @@ class PositionSizer:
             'status': 'ok' | 'no_room' | 'drawdown_halt'
         }
         """
-        self.connect()
+        # Use external cursor if available (for tests), else use DatabaseContext
+        if not self._owns_connection:
+            return self._calculate_with_external_cursor(symbol, entry_price, stop_loss_price, signal_date)
 
+        try:
+            with DatabaseContext('read') as cur:
+                # Temporarily set self.cur for use by helper methods
+                old_cur = self.cur
+                self.cur = cur
+                try:
+                    return self._calculate_with_external_cursor(symbol, entry_price, stop_loss_price, signal_date)
+                finally:
+                    self.cur = old_cur
+
+        except Exception as e:
+            return {
+                'shares': 0,
+                'position_size_pct': 0,
+                'risk_dollars': 0,
+                'status': 'error',
+                'reason': str(e)
+            }
+
+    def _calculate_with_external_cursor(self, symbol, entry_price, stop_loss_price, signal_date=None):
+        """Internal method that assumes self.cur is already set."""
         try:
             portfolio_value = self.get_portfolio_value()
             risk_adjustment = self.get_risk_adjustment()
@@ -477,8 +484,6 @@ class PositionSizer:
                 'status': 'error',
                 'reason': str(e)
             }
-        finally:
-            self.disconnect()
 
     def get_pyramid_split(self):
         """Get pyramid entry split percentages."""
