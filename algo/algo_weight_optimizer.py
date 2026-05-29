@@ -302,35 +302,31 @@ class WeightOptimizer:
         blend_alpha: float,
     ) -> None:
         """Log weight changes to algo_weight_history."""
-        self.connect()
         try:
-            for comp in self.COMPONENTS:
-                old_w = old_weights[comp]
-                new_w = new_weights[comp]
-                if old_w != new_w:
-                    self.cur.execute(
-                        """
-                        INSERT INTO algo_weight_history
-                        (change_date, component, old_weight, new_weight, reason,
-                         blending_factor, regime)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            report_date,
-                            comp,
-                            old_w,
-                            new_w,
-                            'ic_optimization',
-                            blend_alpha,
-                            regime,
-                        ),
-                    )
-            self.conn.commit()
+            with DatabaseContext() as cur:
+                for comp in self.COMPONENTS:
+                    old_w = old_weights[comp]
+                    new_w = new_weights[comp]
+                    if old_w != new_w:
+                        cur.execute(
+                            """
+                            INSERT INTO algo_weight_history
+                            (change_date, component, old_weight, new_weight, reason,
+                             blending_factor, regime)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """,
+                            (
+                                report_date,
+                                comp,
+                                old_w,
+                                new_w,
+                                'ic_optimization',
+                                blend_alpha,
+                                regime,
+                            ),
+                        )
         except Exception as e:
             logger.error(f"Failed to log weight changes: {e}")
-            self.conn.rollback()
-        finally:
-            self.disconnect()
 
 
 if __name__ == "__main__":
