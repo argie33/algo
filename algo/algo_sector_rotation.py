@@ -28,12 +28,10 @@ from datetime import datetime, date as _date
 logger = logging.getLogger(__name__)
 
 
-# Sector classifications (Mansfield/IBD)
 DEFENSIVE_SECTORS = ['Utilities', 'Consumer Defensive', 'Healthcare']
 CYCLICAL_SECTORS  = ['Technology', 'Consumer Cyclical', 'Communication Services',
                      'Industrials', 'Financial Services']
 
-# Sector ETF proxies (for Mansfield-style RS computation)
 SECTOR_ETF = {
     'Utilities': 'XLU', 'Consumer Defensive': 'XLP', 'Healthcare': 'XLV',
     'Technology': 'XLK', 'Consumer Cyclical': 'XLY',
@@ -60,7 +58,7 @@ class SectorRotationDetector:
             eval_date = _date.today()
 
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     SELECT sector_name, current_rank, momentum_score,
@@ -76,13 +74,12 @@ class SectorRotationDetector:
                     (eval_date,),
                 )
                 rows = cur.fetchall()
+
             sector_data = {}
             for sector_name, rank, momentum, r1w, r4w, r12w in rows:
                 if rank is None:
                     continue
                 rank = int(rank)
-                # Improvement = rank getting smaller is better
-                # rank went from 8 (4w ago) to 3 (now) = improved by +5
                 imp_4w = (int(r4w) - rank) if r4w else 0
                 imp_12w = (int(r12w) - rank) if r12w else 0
                 imp_1w = (int(r1w) - rank) if r1w else 0
@@ -97,30 +94,24 @@ class SectorRotationDetector:
                     'is_cyclical': sector_name in CYCLICAL_SECTORS,
                 }
 
-            # Compute averages from rank improvement (positive = strengthening)
             defensive = [d for d in sector_data.values() if d['is_defensive']]
             cyclical = [d for d in sector_data.values() if d['is_cyclical']]
 
             if not defensive or not cyclical:
                 return None
 
-            # Average rank improvement over 4 weeks. Defensive improving + cyclical
-            # weakening = bearish rotation.
             def_imp_4w = sum(d['rank_improvement_4w'] for d in defensive) / len(defensive)
             cyc_imp_4w = sum(d['rank_improvement_4w'] for d in cyclical) / len(cyclical)
-            spread = def_imp_4w - cyc_imp_4w  # positive spread = defensive leadership
+            spread = def_imp_4w - cyc_imp_4w
 
             def_avg_momentum = sum(d['momentum'] for d in defensive) / len(defensive)
             cyc_avg_momentum = sum(d['momentum'] for d in cyclical) / len(cyclical)
             momentum_spread = def_avg_momentum - cyc_avg_momentum
 
-            # Score: spread of +3 ranks over 4w = warning, +6 = severe
             defensive_lead_score = max(0, min(100, spread * 15 + 50))
 
             cyclical_weak_score = max(0, min(100, -cyc_imp_4w * 15 + 50))
 
-            # Persistence not easily computable without historical sector_ranking
-            # snapshots — approximate from 1w + 4w + 12w improvement direction
             weeks_persistent = sum([
                 1 if (sum(d['rank_improvement_1w'] for d in defensive) / len(defensive)) >
                      (sum(d['rank_improvement_1w'] for d in cyclical) / len(cyclical)) else 0,
@@ -129,7 +120,6 @@ class SectorRotationDetector:
                      (sum(d['rank_improvement_12w'] for d in cyclical) / len(cyclical)) else 0,
             ])
 
-            # Signal classification
             if defensive_lead_score >= 75 and weeks_persistent >= 3:
                 signal = 'severe_defensive_rotation'
             elif defensive_lead_score >= 60 and weeks_persistent >= 2:
@@ -166,70 +156,16 @@ class SectorRotationDetector:
     def _exposure_penalty(self, lead_score, weeks):
         """Recommend market exposure reduction in pts based on signal severity."""
         if lead_score >= 75 and weeks >= 3:
-            return 10  # severe — reduce 10 pts
+            return 10
         if lead_score >= 60 and weeks >= 2:
-            return 5   # warning — reduce 5 pts
+            return 5
         if lead_score >= 50:
-            return 2   # mild — reduce 2 pts
+            return 2
         return 0
-
-    def _period_return(self, symbol, end_date, lookback_days):
-        self.cur.execute(
-            """
-            WITH bracket AS (
-                SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - (%s * INTERVAL '1 day')
-            )
-            SELECT (SELECT close FROM bracket WHERE rn = 1),
-                   (SELECT close FROM bracket ORDER BY rn DESC LIMIT 1)
-            """,
-            (symbol, end_date, end_date, lookback_days + 5),
-        )
-        row = self.cur.fetchone()
-        if not row or row[0] is None or row[1] is None:
-            return None
-        recent = float(row[0])
-        oldest = float(row[1])
-        return (recent - oldest) / oldest if oldest > 0 else None
-
-    def _compute_persistence(self, eval_date):
-        """Count weeks (last 4) where defensive avg outperformed cyclical avg."""
-        weeks = 0
-        for w in range(4):
-            check_date = eval_date - (eval_date.resolution * (w * 7) if False else
-                                       _date.fromisoformat(str(eval_date)).__class__.fromordinal(
-                                           eval_date.toordinal() - w * 7))
-            check_date = _date.fromordinal(eval_date.toordinal() - w * 7)
-            try:
-                spy_4w = self._period_return('SPY', check_date, 20)
-                if spy_4w is None:
-                    continue
-                def_excess = []
-                cyc_excess = []
-                for sec in DEFENSIVE_SECTORS:
-                    etf = SECTOR_ETF.get(sec)
-                    if not etf: continue
-                    r = self._period_return(etf, check_date, 20)
-                    if r is None: continue
-                    def_excess.append(r - spy_4w)
-                for sec in CYCLICAL_SECTORS:
-                    etf = SECTOR_ETF.get(sec)
-                    if not etf: continue
-                    r = self._period_return(etf, check_date, 20)
-                    if r is None: continue
-                    cyc_excess.append(r - spy_4w)
-                if def_excess and cyc_excess:
-                    if sum(def_excess) / len(def_excess) > sum(cyc_excess) / len(cyc_excess):
-                        weeks += 1
-            except Exception as e:
-                logger.debug(f"Sector rotation analysis failed: {e}")
-        return weeks
 
     def _persist(self, eval_date, result):
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute(
                     """INSERT INTO sector_rotation_signal
                        (date, sector, signal, strength, rank, details)
@@ -244,7 +180,7 @@ class SectorRotationDetector:
                         'market_rotation',
                         result['signal'],
                         round(result.get('defensive_lead_score', 0) / 100.0, 4),
-                        1,  # single rotation signal per date
+                        1,
                         json.dumps({
                             'defensive_lead_score': result.get('defensive_lead_score'),
                             'cyclical_weak_score': result.get('cyclical_weak_score'),
@@ -279,4 +215,3 @@ if __name__ == "__main__":
                               key=lambda x: x[1]['rank_improvement_4w'], reverse=True):
             tag = '[DEF]' if d['is_defensive'] else '[CYC]' if d['is_cyclical'] else '[   ]'
             logger.info(f"  {tag} {sec:25s}  rank={d['rank']}  imp_4w={d['rank_improvement_4w']:+.0f}  imp_12w={d['rank_improvement_12w']:+.0f}")
-
