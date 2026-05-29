@@ -7,8 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import logging
 from datetime import date
-from typing import Dict, List
-from algo.algo_orchestrator import Orchestrator
+from typing import Dict
 from utils.db_connection import get_db_connection
 from config.env_loader import load_env
 

@@ -8,27 +8,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 AAII Sentiment Survey Loader - Investor Sentiment Indicators
 
 DEPLOYMENT MODES:
-  • AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
-    └─ Fetches DB credentials from AWS Secrets Manager
-    └─ Downloads AAII sentiment Excel file via HTTPS
-    └─ Extracts bullish/neutral/bearish percentages
-    └─ Writes to PostgreSQL RDS database
+  - AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
+    |- Fetches DB credentials from AWS Secrets Manager
+    |- Downloads AAII sentiment Excel file via HTTPS
+    |- Extracts bullish/neutral/bearish percentages
+    |- Writes to PostgreSQL RDS database
 
-  • Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
-    └─ Falls back if DB_SECRET_ARN not set
-    └─ Same data fetching & processing logic
-    └─ Perfect for testing without AWS infrastructure
+  - Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
+    |- Falls back if DB_SECRET_ARN not set
+    |- Same data fetching & processing logic
+    |- Perfect for testing without AWS infrastructure
 
 DATA SOURCE:
-  • AAII Sentiment Survey (https://www.aaii.com/files/surveys/sentiment.xls)
-  • Excel file with historical sentiment data
-  • Extracts: date, bullish%, neutral%, bearish%
+  - AAII Sentiment Survey (https://www.aaii.com/files/surveys/sentiment.xls)
+  - Excel file with historical sentiment data
+  - Extracts: date, bullish%, neutral%, bearish%
 
 TABLES:
-  • aaii_sentiment: Stores weekly sentiment survey results
+  - aaii_sentiment: Stores weekly sentiment survey results
 
 OUTPUTS:
-  • market page: AAII investor sentiment indicators
+  - market page: AAII investor sentiment indicators
 
 Version: v1.0
 Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
