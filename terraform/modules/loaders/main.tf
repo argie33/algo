@@ -378,6 +378,10 @@ locals {
       schedule    = "cron(4 21 ? * MON-FRI *)"
       description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:04pm ET"
     }
+    "key_metrics" = {
+      schedule    = "cron(5 21 ? * MON-FRI *)"
+      description = "Key metrics (market cap, shares outstanding) - Daily 5:05pm ET"
+    }
     "stability_metrics" = {
       schedule    = "cron(6 21 ? * MON-FRI *)"
       description = "Stability metrics (beta, volatility) - Daily 5:06pm ET"
