@@ -161,14 +161,14 @@ def _test_dns_resolution(hostname: str) -> None:
         raise
 
 
-def get_db_connection(max_retries: int = 2, timeout: int = 10):
+def get_db_connection(max_retries: int = 2, timeout: int = 30):
     """Get a PostgreSQL connection with automatic retry and credential management.
 
     Tracks connection pool utilization via connection monitor.
 
     Args:
         max_retries: Number of connection attempts before failing (reduced to 2 from 5 to fail fast)
-        timeout: Connection timeout in seconds (reduced to 10 from 60 to prevent 120s+ hangs)
+        timeout: Connection timeout in seconds (30s to allow RDS Proxy response time)
 
     Returns:
         TrackedConnection: Connected database connection (tracks pool health)
