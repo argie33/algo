@@ -11,7 +11,7 @@ import logging
 from datetime import date as _date, datetime, timedelta
 from typing import Dict, Optional, List, Tuple, Any
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

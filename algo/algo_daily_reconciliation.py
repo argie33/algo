@@ -13,7 +13,7 @@ Tasks:
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
 import os
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 import logging
 from datetime import datetime, timezone

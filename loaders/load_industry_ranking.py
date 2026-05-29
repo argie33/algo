@@ -8,7 +8,7 @@ import logging
 from datetime import date
 from typing import Dict
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)

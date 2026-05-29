@@ -12,7 +12,7 @@ import logging
 from typing import Optional, Any, Dict
 from config.credential_manager import get_credential_manager, get_db_config
 from config.credential_validator import assert_credentials
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -366,20 +366,17 @@ class AlgoConfig:
         try:
             self._validate_value(key, str(value), value_type)
 
-            conn = get_db_connection()
-            cur = conn.cursor()
-
-            cur.execute("""
-                INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 'system')
-                ON CONFLICT (key) DO UPDATE SET
-                    value = EXCLUDED.value,
-                    value_type = EXCLUDED.value_type,
-                    description = EXCLUDED.description,
-                    updated_at = CURRENT_TIMESTAMP
-            """, (key, str(value), value_type, description))
-
-            conn.commit()
+            with DatabaseContext() as cur:
+                cur.execute("""
+                    INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 'system')
+                    ON CONFLICT (key) DO UPDATE SET
+                        value = EXCLUDED.value,
+                        value_type = EXCLUDED.value_type,
+                        description = EXCLUDED.description,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (key, str(value), value_type, description))
+                cur.connection.commit()
 
             self._config[key] = self._parse_value(str(value), value_type)
 
@@ -404,20 +401,15 @@ class AlgoConfig:
 
     def initialize_defaults(self):
         """Initialize all default configs in database."""
-        conn = None
-        cur = None
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-
-            for key, (value, dtype, desc) in self.DEFAULTS.items():
-                cur.execute("""
-                    INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
-                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 'system')
-                    ON CONFLICT (key) DO NOTHING
-                """, (key, value, dtype, desc))
-
-            conn.commit()
+            with DatabaseContext() as cur:
+                for key, (value, dtype, desc) in self.DEFAULTS.items():
+                    cur.execute("""
+                        INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 'system')
+                        ON CONFLICT (key) DO NOTHING
+                    """, (key, value, dtype, desc))
+                cur.connection.commit()
             logger.info(f"[OK] Initialized {len(self.DEFAULTS)} config defaults")
             return True
         except Exception as e:

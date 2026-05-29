@@ -33,7 +33,7 @@ from typing import List, Optional, Dict
 import json
 
 from utils.optimal_loader import OptimalLoader
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 
 class SwingTraderScoresLoader(OptimalLoader):

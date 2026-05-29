@@ -43,7 +43,7 @@ from algo.algo_config import get_market_data_timeout, get_alpaca_timeout
 import os
 import json
 import argparse
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 import requests
 import time
 from datetime import datetime, date as _date, timedelta, timezone

@@ -18,7 +18,7 @@ Flags stored in database (easy to toggle without deploy):
 from config.credential_manager import get_db_config, get_db_password
 import logging
 import os
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum

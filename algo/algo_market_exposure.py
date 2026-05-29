@@ -54,7 +54,7 @@ from config.credential_manager import (
 import os
 import json
 import logging
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import date as _date
 
 logger = logging.getLogger(__name__)

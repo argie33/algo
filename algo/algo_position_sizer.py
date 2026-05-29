@@ -15,7 +15,7 @@ from algo.algo_config import get_alpaca_timeout
 import os
 import psycopg2
 from datetime import date as _date
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 from utils.structured_logger import get_logger
 

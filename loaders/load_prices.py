@@ -23,7 +23,7 @@ import time
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
@@ -243,20 +243,21 @@ class PriceLoader(OptimalLoader):
 
     def start_provenance_tracking(self):
         """Initialize Phase 1 data integrity components."""
-        db_conn = get_db_connection()
-        self.tracker = DataProvenanceTracker(
-            loader_name="loadpricedaily",
-            table_name="price_daily",
-            db_conn=db_conn,
-        )
-        self.watermark_mgr = WatermarkManager(
-            loader_name="loadpricedaily",
-            table_name="price_daily",
-            db_conn=db_conn,
-            granularity="symbol",
-        )
-        self.run_id = self.tracker.start_run(source_api="yfinance")
-        logger.info(f"[Phase 1] Started provenance tracking: run_id={self.run_id}")
+        with DatabaseContext() as cur:
+            db_conn = cur.connection
+            self.tracker = DataProvenanceTracker(
+                loader_name="loadpricedaily",
+                table_name="price_daily",
+                db_conn=db_conn,
+            )
+            self.watermark_mgr = WatermarkManager(
+                loader_name="loadpricedaily",
+                table_name="price_daily",
+                db_conn=db_conn,
+                granularity="symbol",
+            )
+            self.run_id = self.tracker.start_run(source_api="yfinance")
+            logger.info(f"[Phase 1] Started provenance tracking: run_id={self.run_id}")
 
     def end_provenance_tracking(self, success: bool = True):
         """Finalize Phase 1 data integrity tracking."""
@@ -408,28 +409,25 @@ class PriceLoader(OptimalLoader):
 def log_loader_execution(loader_name, table_name, status, records_loaded=0, records_updated=0, error_msg=None, duration_seconds=0):
     """Log loader execution to data_loader_runs table for monitoring."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO data_loader_runs (
-                loader_name, table_name, run_date, status, records_loaded, records_updated,
-                error_message, duration_seconds, started_at, completed_at
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
-            )
-        """, (
-            loader_name,
-            table_name,
-            date.today(),
-            status,
-            records_loaded,
-            records_updated,
-            error_msg,
-            duration_seconds
-        ))
-        conn.commit()
-        cur.close()
-        conn.close()
+        with DatabaseContext('write') as cur:
+            cur.execute("""
+                INSERT INTO data_loader_runs (
+                    loader_name, table_name, run_date, status, records_loaded, records_updated,
+                    error_message, duration_seconds, started_at, completed_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                )
+            """, (
+                loader_name,
+                table_name,
+                date.today(),
+                status,
+                records_loaded,
+                records_updated,
+                error_msg,
+                duration_seconds
+            ))
+            cur.connection.commit()
     except Exception as e:
         logger.warning(f"Failed to log execution to data_loader_runs: {e}")
 

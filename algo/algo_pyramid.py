@@ -33,7 +33,7 @@ so add-decisions don't conflict with new-entry decisions.
 """
 
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import datetime, date as _date
 from algo.algo_pretrade_checks import PreTradeChecks
 import logging

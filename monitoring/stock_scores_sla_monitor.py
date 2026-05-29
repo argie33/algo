@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta
 import logging
 

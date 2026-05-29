@@ -12,7 +12,7 @@ Tracks:
 import logging
 from datetime import datetime, date as _date, timezone
 from typing import Dict, Any, Optional
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

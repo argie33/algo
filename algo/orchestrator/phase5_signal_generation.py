@@ -23,7 +23,7 @@ import traceback
 from datetime import date as _date
 from typing import Any, Callable, List, Dict
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 from algo.algo_metrics import MetricsPublisher

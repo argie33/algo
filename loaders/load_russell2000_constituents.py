@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 import pandas as pd
 import requests
 from io import StringIO

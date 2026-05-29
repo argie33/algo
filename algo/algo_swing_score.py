@@ -42,7 +42,7 @@ from config.credential_manager import (
 )
 import os
 import json
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Tuple, Any, Optional

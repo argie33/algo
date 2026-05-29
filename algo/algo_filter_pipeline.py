@@ -13,7 +13,7 @@ Only signals passing ALL tiers reach the final trade list, ranked by SQS.
 """
 
 import os
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
 

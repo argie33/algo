@@ -13,7 +13,7 @@ from typing import Dict, Optional, List, Tuple
 import numpy as np
 from scipy.optimize import minimize
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from algo.algo_config import AlgoConfig
 from algo.algo_signal_attribution import SignalAttributionEngine
 

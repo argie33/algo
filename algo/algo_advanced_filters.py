@@ -27,7 +27,7 @@ Design notes:
 """
 
 import logging
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import date as _date
 from algo.algo_signals import SignalComputer
 

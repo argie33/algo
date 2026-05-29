@@ -18,6 +18,8 @@ from psycopg2.extras import RealDictCursor
 from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
+# Re-export get_db_connection for backward compatibility during migration
+__all__ = ['DatabaseContext', 'database_transaction', 'get_db_connection']
 
 
 class DatabaseContext:

@@ -25,7 +25,7 @@ import requests
 import psycopg2
 from psycopg2.extras import execute_values
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)

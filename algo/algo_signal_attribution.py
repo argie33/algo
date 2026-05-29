@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from scipy import stats
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from algo.algo_regime_manager import RegimeManager
 
 logger = logging.getLogger(__name__)

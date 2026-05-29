@@ -20,7 +20,7 @@ from datetime import date
 from typing import Dict, List, Optional
 
 from utils.yfinance_wrapper import get_ticker
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 try:
     from config.credential_manager import get_credential_manager

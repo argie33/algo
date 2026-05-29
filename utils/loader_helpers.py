@@ -6,7 +6,7 @@ Functions that were defined identically in 19+ loader files, now centralized her
 """
 
 import os
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from typing import List
 import time
 import threading

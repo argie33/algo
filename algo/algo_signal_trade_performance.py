@@ -15,7 +15,7 @@ from datetime import date as _date, timedelta
 from typing import Dict, Any, Optional, List
 from scipy.stats import pearsonr
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

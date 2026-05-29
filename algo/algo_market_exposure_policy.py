@@ -27,7 +27,7 @@ in Phase 2.5 (between circuit breakers and position monitor).
 
 
 import math
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 import logging
 
 logger = logging.getLogger(__name__)

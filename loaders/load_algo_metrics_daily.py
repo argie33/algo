@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 from datetime import date
 from typing import Dict
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

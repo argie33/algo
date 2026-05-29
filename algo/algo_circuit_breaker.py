@@ -25,7 +25,7 @@ When a circuit breaker fires:
 
 import psycopg2
 import psycopg2.extensions
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext, get_db_connection
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any, List, Optional
 from utils.trade_status import TradeStatus, PositionStatus

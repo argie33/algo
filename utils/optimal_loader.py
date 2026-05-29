@@ -157,7 +157,7 @@ class OptimalLoader(ABC):
         conn = getattr(self._tls, "conn", None)
         if conn is not None and not conn.closed:
             return conn
-        from utils.db_connection import get_db_connection
+        from utils.database_context import DatabaseContext
         conn = get_db_connection()
         self._tls.conn = conn
         # Track for close() �� keep most recent for the main thread fallback.

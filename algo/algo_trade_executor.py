@@ -24,7 +24,7 @@ from algo.algo_config import get_api_timeout, get_alpaca_timeout
 
 import os
 import json
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 import uuid
 from datetime import datetime, date, timedelta, timezone
 import requests

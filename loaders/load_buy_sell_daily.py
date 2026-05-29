@@ -16,7 +16,7 @@ from typing import List, Optional
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = get_logger(__name__)
 

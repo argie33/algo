@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -22,8 +22,7 @@ logger = logging.getLogger(__name__)
 
 def validate_trade_position_links():
     """Check for orphaned filled trades not linked to positions."""
-    conn = get_db_connection()
-    cur = conn.cursor()
+    with DatabaseContext() as cur:
 
     try:
         # Check for filled trades with no position links
@@ -55,8 +54,7 @@ def validate_trade_position_links():
 
 def validate_position_trade_count():
     """Check that positions have valid trade counts."""
-    conn = get_db_connection()
-    cur = conn.cursor()
+    with DatabaseContext() as cur:
 
     try:
         cur.execute("""

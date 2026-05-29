@@ -18,7 +18,7 @@ except ImportError:
     credential_manager = None
 
 import os
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import datetime, date
 import logging
 from typing import Dict, List, Optional

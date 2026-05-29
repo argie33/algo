@@ -45,7 +45,7 @@ try:
 except ImportError:
     resource = None  # Windows doesn't have resource module
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
@@ -198,17 +198,17 @@ def get_aaii_sentiment_data():
 # -------------------------------
 # Main loader with batched inserts
 # -------------------------------
-def load_sentiment_data(cur, conn):
+def load_sentiment_data(cur):
     logging.info("Loading AAII sentiment data")
-    
+
     try:
         # Download the sentiment data
         df = get_aaii_sentiment_data()
-        
+
         if df.empty:
             logging.warning("No sentiment data downloaded")
             return 0, 0, []
-        
+
         # Convert DataFrame to list of tuples for batch insert
         rows = []
         for _, row in df.iterrows():
@@ -218,21 +218,21 @@ def load_sentiment_data(cur, conn):
                 None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
                 None if pd.isna(row["Bearish"]) else float(row["Bearish"])
             ])
-        
+
         if not rows:
             logging.warning("No valid rows after processing")
             return 0, 0, []
-        
+
         # Batch insert the data with conflict handling
         sql = f"INSERT INTO aaii_sentiment ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET bullish=EXCLUDED.bullish, neutral=EXCLUDED.neutral, bearish=EXCLUDED.bearish"
         execute_values(cur, sql, rows)
-        conn.commit()
-        
+        cur.connection.commit()
+
         inserted = len(rows)
         logging.info(f"Successfully inserted {inserted} sentiment records")
-        
+
         return len(df), inserted, []
-        
+
     except Exception as e:
         logging.error(f"Error loading sentiment data: {e}")
         return 0, 0, [str(e)]
@@ -245,41 +245,35 @@ if __name__ == "__main__":
         logging.info(f"Starting {SCRIPT_NAME} execution")
         log_mem("startup")
 
-        # Connect to DB
-        logging.info("Connecting to database...")
-        conn = get_db_connection()
-        logging.info("Database connection established")
-        conn.autocommit = False
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with DatabaseContext('write') as cur:
+            # Ensure aaii_sentiment table exists (never drop - avoid data loss)
+            logging.info("Ensuring aaii_sentiment table...")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS aaii_sentiment (
+                    id          SERIAL PRIMARY KEY,
+                    date        DATE         NOT NULL UNIQUE,
+                    bullish     DOUBLE PRECISION,
+                    neutral     DOUBLE PRECISION,
+                    bearish     DOUBLE PRECISION,
+                    fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            cur.connection.commit()
 
-        # Ensure aaii_sentiment table exists (never drop - avoid data loss)
-        logging.info("Ensuring aaii_sentiment table...")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS aaii_sentiment (
-                id          SERIAL PRIMARY KEY,
-                date        DATE         NOT NULL UNIQUE,
-                bullish     DOUBLE PRECISION,
-                neutral     DOUBLE PRECISION,
-                bearish     DOUBLE PRECISION,
-                fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        conn.commit()
+            # Load sentiment data
+            import time as _time
+            _t0 = _time.monotonic()
+            total, inserted, failed = load_sentiment_data(cur)
+            _duration = _time.monotonic() - _t0
 
-        # Load sentiment data
-        import time as _time
-        _t0 = _time.monotonic()
-        total, inserted, failed = load_sentiment_data(cur, conn)
-        _duration = _time.monotonic() - _t0
-
-        # Record last run
-        cur.execute("""
-          INSERT INTO last_updated (script_name, last_run)
-          VALUES (%s, NOW())
-          ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-        conn.commit()
+            # Record last run
+            cur.execute("""
+              INSERT INTO last_updated (script_name, last_run)
+              VALUES (%s, NOW())
+              ON CONFLICT (script_name) DO UPDATE
+                SET last_run = EXCLUDED.last_run;
+            """, (SCRIPT_NAME,))
+            cur.connection.commit()
 
         peak = get_rss_mb()
         logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
@@ -296,8 +290,6 @@ if __name__ == "__main__":
         except Exception as _me:
             logging.debug(f"Metrics unavailable: {_me}")
 
-        cur.close()
-        conn.close()
         logging.info("All done.")
     except Exception as e:
         logging.error(f"❌ CRITICAL ERROR in AAII loader: {e}")

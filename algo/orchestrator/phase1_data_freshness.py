@@ -19,7 +19,7 @@ import logging
 from datetime import date as _date, timedelta
 from typing import Any, Callable, Optional, Dict
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from algo.algo_alerts import AlertManager
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.orchestrator.phase_result import PhaseResult

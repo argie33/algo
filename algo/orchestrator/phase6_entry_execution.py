@@ -16,7 +16,7 @@ import traceback
 from datetime import date as _date, timedelta, datetime, timezone
 from typing import Any, Callable, List, Dict, Tuple, Optional
 
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from utils.trade_status import PositionStatus
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.orchestrator.phase_result import PhaseResult
