@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 audits = cur.fetchall()
                 cur.execute("SELECT COUNT(*) FROM algo_audit_log")
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return list_response([dict(a) for a in audits] if audits else [], total=total)
+                freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
+                return list_response([dict(a) for a in audits] if audits else [], total=total, data_freshness=freshness)
 
             elif path == '/api/audit/trades' or path.startswith('/api/audit/trades?'):
                 cur.execute("""
@@ -43,7 +44,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     WHERE action_type IN ('entry', 'exit', 'partial_exit', 'pyramid')
                 """)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return list_response([dict(a) for a in audits] if audits else [], total=total)
+                freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
+                return list_response([dict(a) for a in audits] if audits else [], total=total, data_freshness=freshness)
 
             elif path == '/api/audit/config' or path.startswith('/api/audit/config?'):
                 cur.execute("""
@@ -60,7 +62,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
                 """)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return list_response([dict(a) for a in audits] if audits else [], total=total)
+                freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
+                return list_response([dict(a) for a in audits] if audits else [], total=total, data_freshness=freshness)
 
             elif path == '/api/audit/safeguards' or path.startswith('/api/audit/safeguards?'):
                 cur.execute("""
@@ -77,7 +80,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     WHERE action_type IN ('circuit_breaker_halt', 'circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                 """)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
-                return list_response([dict(a) for a in audits] if audits else [], total=total)
+                freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
+                return list_response([dict(a) for a in audits] if audits else [], total=total, data_freshness=freshness)
 
             return error_response(404, 'not_found', f'No audit handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

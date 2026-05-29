@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_page, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_page, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
                 sentiment = cur.fetchall()
-                return list_response([dict(s) for s in sentiment] if sentiment else [])
+                freshness = check_data_freshness(cur, 'analyst_sentiment_analysis', 'date', warning_days=7)
+                return list_response([dict(s) for s in sentiment] if sentiment else [], data_freshness=freshness)
             elif path == '/api/sentiment/divergence':
                 cur.execute("""
                     SELECT asa.symbol, asa.date,
