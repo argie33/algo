@@ -6,17 +6,16 @@
  * all signal data is actually ready, not on a fixed timer.
  *
  * Pipeline DAG:
- *   eod_bulk_refresh
+ *   stock_prices_daily (unified price loader for all intervals/assets)
  *     → [parallel] technical_data_daily + market_health_daily
  *       → [parallel] trend_template_data
- *         → [parallel] signals_daily + signals_weekly + signals_monthly
- *                     + signals_etf_daily + signals_etf_weekly + signals_etf_monthly
- *           → signal_quality_scores (depends on buy_sell_daily from signals_daily)
- *             → algo_metrics_daily
- *               → swing_trader_scores
- *                 → Invoke algo orchestrator ECS task
+ *         → [parallel] buy_sell_daily + signal_quality_scores
+ *           → algo_metrics_daily
+ *             → swing_trader_scores
+ *               → Invoke algo orchestrator ECS task
  *
- * Note: technicals_daily was removed from this pipeline (moved to async processing elsewhere)
+ * Note: stock_prices_daily runs ~6h for all 5000+ symbols across all intervals (1d, 1wk, 1mo).
+ * technicals_daily uses cached prices; runs in parallel with market_health_daily.
  */
 
 locals {
@@ -169,7 +168,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["eod_bulk_refresh"]
+          TaskDefinition       = var.loader_task_definition_arns["stock_prices_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
