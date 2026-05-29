@@ -71,6 +71,11 @@ def lambda_handler(event, context):
         is_test = event.get('test', False)
         dry_run = event.get('dry_run', False)
         skip_freshness = event.get('skip_freshness', False)
+        # Ensure skip_freshness is boolean
+        if isinstance(skip_freshness, str):
+            skip_freshness = skip_freshness.lower() in ('true', '1', 'yes')
+        else:
+            skip_freshness = bool(skip_freshness)
         # Support both 'date' and 'run_date' fields from EventBridge; treat 'now'/'today' as None (use today's date)
         run_date_str = event.get('date') or event.get('run_date')
 
@@ -115,7 +120,9 @@ def lambda_handler(event, context):
         # Apply additional options
         if skip_freshness:
             orchestrator.skip_freshness = True
-            logger.warning("WARNING: skip_freshness set. Data may be stale.")
+            logger.warning(f"WARNING: skip_freshness=True set on orchestrator. Data may be stale.")
+        else:
+            logger.info(f"skip_freshness is False or not set")
 
         # Run the orchestrator
         logger.info(f"Starting orchestrator run")
