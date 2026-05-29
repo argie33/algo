@@ -82,7 +82,7 @@ class ExitEngine:
                     """,
                     (TradeStatus.OPEN.value, TradeStatus.PENDING.value, PositionStatus.OPEN.value)
                 )
-                    trades = cur.fetchall()
+                trades = cur.fetchall()
                 if not trades:
                     logger.info("No open positions.\n")
                     return 0
