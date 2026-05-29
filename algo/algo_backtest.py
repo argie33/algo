@@ -10,16 +10,11 @@ Writes to backtest_runs, backtest_trades, backtest_results tables.
 
 import logging
 from datetime import date as _date, datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
-import uuid
-import json
+from typing import Dict, List, Any, Optional
 import numpy as np
-from decimal import Decimal
 from scipy.optimize import minimize
 
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_config, get_db_password
 from algo.algo_config import get_config
 
 logger = logging.getLogger(__name__)

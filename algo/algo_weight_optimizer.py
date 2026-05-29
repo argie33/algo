@@ -14,7 +14,6 @@ import numpy as np
 from scipy.optimize import minimize
 
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_config, get_db_password
 from algo.algo_config import AlgoConfig
 from algo.algo_signal_attribution import SignalAttributionEngine
 

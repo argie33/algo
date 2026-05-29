@@ -24,7 +24,6 @@ import os
 import json
 from utils.db_connection import get_db_connection
 import uuid
-from pathlib import Path
 from datetime import datetime, date, timedelta, timezone
 import requests
 from config.api_timeouts import get_api_timeout, get_alpaca_timeout

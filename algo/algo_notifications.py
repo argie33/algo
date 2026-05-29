@@ -7,7 +7,6 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Optional, Dict, List
 
 from algo.algo_alerts import AlertManager

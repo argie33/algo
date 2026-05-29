@@ -33,7 +33,6 @@ import logging
 import os
 import json
 from utils.db_connection import get_db_connection
-from pathlib import Path
 from datetime import datetime, date as _date
 
 logger = logging.getLogger(__name__)

@@ -17,7 +17,6 @@ from datetime import date as _date
 from typing import Dict, Any, List, Optional
 
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_config, get_db_password
 from algo.algo_regime_manager import RegimeManager
 
 logger = logging.getLogger(__name__)

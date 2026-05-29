@@ -23,7 +23,6 @@ from config.credential_helper import get_db_config
 import os
 import logging
 import psycopg2
-from pathlib import Path
 from datetime import date as _date, datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional

@@ -18,12 +18,10 @@ Alerts:
 """
 
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_config, get_db_password
 import os
 import logging
 from datetime import datetime, date, timezone
 from typing import Optional, Dict, Any
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

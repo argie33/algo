@@ -19,7 +19,6 @@ from config.credential_manager import get_credential_manager
 import os
 import json
 from utils.db_connection import get_db_connection
-from pathlib import Path
 
 import logging
 

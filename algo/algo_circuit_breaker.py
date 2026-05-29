@@ -23,15 +23,11 @@ When a circuit breaker fires:
   - persists state until cleared (e.g., recovery threshold met)
 """
 
-from config.credential_helper import get_db_config, get_db_password
-import os
-import json
 import psycopg2
 import psycopg2.extensions
 from utils.db_connection import get_db_connection
-from pathlib import Path
 from datetime import datetime, timedelta, date as _date
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Optional
 from utils.trade_status import TradeStatus, PositionStatus
 import logging
 

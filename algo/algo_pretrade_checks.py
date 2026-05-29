@@ -16,7 +16,6 @@ from typing import Dict, Any, Tuple, Optional
 import os
 import psycopg2
 
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

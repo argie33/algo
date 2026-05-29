@@ -37,7 +37,6 @@ USAGE:
   python3 algo_data_patrol.py --validate-alpaca  # cross-source check vs Alpaca
 """
 
-from config.credential_helper import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
 from config.api_timeouts import get_market_data_timeout, get_alpaca_timeout
 import os
@@ -46,7 +45,6 @@ import argparse
 from utils.db_connection import get_db_connection
 import requests
 import time
-from pathlib import Path
 from datetime import datetime, date as _date, timedelta, timezone
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column, safe_select_count
 from utils.structured_logger import get_logger

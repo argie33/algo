@@ -26,11 +26,8 @@ Design notes:
     - Failures gracefully default to neutral when data is missing.
 """
 
-from config.credential_helper import get_db_config
-import os
 import logging
 from utils.db_connection import get_db_connection
-from pathlib import Path
 from datetime import date as _date
 from algo.algo_signals import SignalComputer
 

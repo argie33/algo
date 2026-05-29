@@ -10,14 +10,12 @@ Tasks:
 5. Audit and log discrepancies
 """
 
-from config.credential_helper import get_db_config
 from config.credential_manager import get_credential_manager
 import os
 from utils.db_connection import get_db_connection
 
 import requests
 import logging
-from pathlib import Path
 from datetime import datetime, timezone
 from utils.trade_status import TradeStatus, PositionStatus
 from algo.algo_config import get_config

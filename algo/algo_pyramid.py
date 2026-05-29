@@ -32,11 +32,9 @@ Designed to be called from orchestrator phase 4 (after exits, before entries)
 so add-decisions don't conflict with new-entry decisions.
 """
 
-from config.credential_helper import get_db_config
 
 import os
 from utils.db_connection import get_db_connection
-from pathlib import Path
 from datetime import datetime, date as _date
 from algo.algo_pretrade_checks import PreTradeChecks
 import logging

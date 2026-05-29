@@ -18,7 +18,6 @@ import os
 import logging
 from datetime import date as _date, timedelta
 from typing import Any, Callable, Optional, Dict
-from pathlib import Path
 
 from utils.db_connection import get_db_connection
 from algo.algo_alerts import AlertManager

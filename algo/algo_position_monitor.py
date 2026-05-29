@@ -19,7 +19,6 @@ The monitor PROPOSES adjustments — actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
-from config.credential_helper import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
 from config.api_timeouts import get_alpaca_timeout
 import os
@@ -27,7 +26,6 @@ import json
 from decimal import Decimal, ROUND_HALF_UP
 
 import requests
-from pathlib import Path
 from datetime import datetime, timedelta, date as _date, timezone
 import logging
 from utils.db_connection_pool import get_db_pool

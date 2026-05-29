@@ -12,7 +12,6 @@ from datetime import date as _date, datetime, timedelta
 from typing import Dict, Optional, List, Tuple, Any
 
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_config, get_db_password
 
 logger = logging.getLogger(__name__)
 

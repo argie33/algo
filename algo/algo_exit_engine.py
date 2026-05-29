@@ -33,7 +33,6 @@ from config.credential_helper import (
 
 import os
 from utils.db_connection import get_db_connection
-from pathlib import Path
 from datetime import datetime, timedelta, date as _date, timezone
 try:
     from trade_performance_auditor import TradePerformanceAuditor

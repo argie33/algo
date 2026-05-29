@@ -44,7 +44,6 @@ import os
 import json
 from utils.db_connection import get_db_connection
 import logging
-from pathlib import Path
 from datetime import datetime, date, timedelta
 from typing import Dict, Tuple, Any, Optional
 from algo.algo_signals import SignalComputer

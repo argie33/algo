@@ -16,7 +16,6 @@ import os
 import json
 import smtplib
 import requests
-from pathlib import Path
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart

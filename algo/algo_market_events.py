@@ -19,7 +19,6 @@ import psycopg2
 import requests
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any, List
-from pathlib import Path
 from zoneinfo import ZoneInfo
 import logging
 

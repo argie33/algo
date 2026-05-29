@@ -16,7 +16,6 @@ from typing import Dict, Any, Optional, List
 from scipy.stats import pearsonr
 
 from utils.db_connection import get_db_connection
-from config.credential_helper import get_db_config, get_db_password
 
 logger = logging.getLogger(__name__)
 

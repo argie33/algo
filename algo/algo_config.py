@@ -13,7 +13,6 @@ from config.api_timeouts import get_api_timeout
 
 logger = logging.getLogger(__name__)
 from utils.db_connection import get_db_connection
-from pathlib import Path
 
 
 # Try to import credential manager, but gracefully handle CI/test environments
