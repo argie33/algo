@@ -271,11 +271,15 @@ locals {
     "trend_template_data"           = "load_trend_criteria_data.py"
     "signals_daily"                 = "load_signals_daily.py"
     "signal_quality_scores"         = "load_signal_quality_scores.py"
+    "signal_themes"                 = "load_signal_themes.py"
+    "signal_trade_performance"      = "load_signal_trade_performance.py"
     "signals_weekly"                = "load_signal_quality_scores.py"
     "signals_monthly"               = "load_signal_quality_scores.py"
     "signals_etf_daily"             = "load_signal_quality_scores.py"
     "signals_etf_weekly"            = "load_signal_quality_scores.py"
     "signals_etf_monthly"           = "load_signal_quality_scores.py"
+    "sentiment"                     = "load_sentiment.py"
+    "sentiment_social"              = "load_sentiment_social.py"
     "algo_metrics_daily"            = "load_algo_metrics_daily.py"
     "market_data_batch"             = "load_market_health_daily.py"
     "technical_data_daily"          = "load_technical_data_daily.py"
@@ -454,8 +458,30 @@ locals {
       description = "NAAIM exposure index - Weekly Friday 12:05am ET (publishes Wednesdays)"
     }
 
+    # Sentiment loaders (aggregate) — run daily at 4am ET
+    "sentiment" = {
+      schedule    = "cron(32 4 ? * MON-FRI *)"
+      description = "Aggregate sentiment index - Daily 4:32am ET"
+    }
+    "sentiment_social" = {
+      schedule    = "cron(34 4 ? * MON-FRI *)"
+      description = "Social media sentiment - Daily 4:34am ET"
+    }
+
+    # Signal theme and performance — run after signals generated (by Step Functions, but these via EventBridge)
+    # Step Functions runs signals_daily around 9:00-10:00am UTC, so schedule these for 10:00am UTC (5:00am ET)
+    "signal_themes" = {
+      schedule    = "cron(0 10 ? * MON-FRI *)"
+      description = "Signal themes (momentum/reversal/breakout) - Daily 5:00am ET (after signals_daily)"
+    }
+    "signal_trade_performance" = {
+      schedule    = "cron(5 10 ? * MON-FRI *)"
+      description = "Signal trade performance - Daily 5:05am ET (after signal_themes)"
+    }
+
     # NOTE: market_overview, relative_performance, social_sentiment deleted — no real data sources.
     # NOTE: stock_scores runs via EventBridge at 5:30pm ET (not Step Functions pipeline).
+    # NOTE: signal_quality_scores runs via Step Functions EOD pipeline (not EventBridge).
 
     # NOTE: signals_daily, signals_weekly, signals_monthly, signals_etf_daily,
     # signals_etf_weekly, signals_etf_monthly, etf_signals, algo_metrics_daily,
@@ -576,6 +602,14 @@ locals {
 
     # FRED macro data — small API calls, 5 time series from FRED API
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+
+    # Signal processing — compute signal themes and track performance
+    "signal_themes"            = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "signal_trade_performance" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+
+    # Sentiment aggregation — combine multiple sentiment sources
+    "sentiment"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "sentiment_social" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
     # FIXED Issue #1: Signal quality scores timeout was 3600s but Step Functions allows 5400s
