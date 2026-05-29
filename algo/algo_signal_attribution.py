@@ -41,21 +41,7 @@ class SignalAttributionEngine:
     }
 
     def __init__(self):
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        """Close connection."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
+        pass
 
     def compute_ic(self, report_date: _date, lookback_trades: int = 40) -> Dict[str, Dict[str, float]]:
         """
@@ -84,96 +70,96 @@ class SignalAttributionEngine:
                 }
             }
         """
-        self.connect()
         try:
-            # Fetch last N closed trades with component scores
-            self.cur.execute(
-                """
-                SELECT
-                    t.trade_id, t.swing_score, t.swing_components,
-                    t.exit_r_multiple, t.exit_date,
-                    t.symbol, t.signal_date
-                FROM algo_trades t
-                WHERE t.status = 'closed' AND t.exit_date <= %s
-                ORDER BY t.exit_date DESC
-                LIMIT %s
-                """,
-                (report_date, lookback_trades),
-            )
-            trades = self.cur.fetchall()
+            with DatabaseContext('read') as cur:
+                # Fetch last N closed trades with component scores
+                cur.execute(
+                    """
+                    SELECT
+                        t.trade_id, t.swing_score, t.swing_components,
+                        t.exit_r_multiple, t.exit_date,
+                        t.symbol, t.signal_date
+                    FROM algo_trades t
+                    WHERE t.status = 'closed' AND t.exit_date <= %s
+                    ORDER BY t.exit_date DESC
+                    LIMIT %s
+                    """,
+                    (report_date, lookback_trades),
+                )
+                trades = cur.fetchall()
 
-            if not trades or len(trades) < 10:
-                logger.warning(f"Insufficient closed trades ({len(trades) if trades else 0}) for IC calculation")
-                return {comp: {'ic_value': 0, 'ic_pvalue': 1.0, 'sample_size': 0} for comp in self.COMPONENTS}
+                if not trades or len(trades) < 10:
+                    logger.warning(f"Insufficient closed trades ({len(trades) if trades else 0}) for IC calculation")
+                    return {comp: {'ic_value': 0, 'ic_pvalue': 1.0, 'sample_size': 0} for comp in self.COMPONENTS}
 
-            # Extract component scores and P&Ls
-            ic_results = {}
+                # Extract component scores and P&Ls
+                ic_results = {}
 
-            for component in self.COMPONENTS:
-                comp_scores = []
-                r_multiples = []
+                for component in self.COMPONENTS:
+                    comp_scores = []
+                    r_multiples = []
 
-                for trade in trades:
-                    trade_id, swing_score, swing_components_json, r_multiple, exit_date, symbol, signal_date = trade
+                    for trade in trades:
+                        trade_id, swing_score, swing_components_json, r_multiple, exit_date, symbol, signal_date = trade
 
-                    try:
-                        import json
+                        try:
+                            import json
 
-                        swing_components = json.loads(swing_components_json) if swing_components_json else {}
-                        comp_data = swing_components.get(component, {})
-                        comp_score = comp_data.get('pts', 0)
-                        r_mult = float(r_multiple) if r_multiple is not None else 0
+                            swing_components = json.loads(swing_components_json) if swing_components_json else {}
+                            comp_data = swing_components.get(component, {})
+                            comp_score = comp_data.get('pts', 0)
+                            r_mult = float(r_multiple) if r_multiple is not None else 0
 
-                        if comp_score is not None and r_mult is not None:
-                            comp_scores.append(float(comp_score))
-                            r_multiples.append(r_mult)
-                    except Exception as e:
-                        logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
-                        continue
+                            if comp_score is not None and r_mult is not None:
+                                comp_scores.append(float(comp_score))
+                                r_multiples.append(r_mult)
+                        except Exception as e:
+                            logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
+                            continue
 
-                # Calculate IC
-                if len(comp_scores) >= 10:
-                    comp_scores_arr = np.array(comp_scores)
-                    r_mult_arr = np.array(r_multiples)
+                    # Calculate IC
+                    if len(comp_scores) >= 10:
+                        comp_scores_arr = np.array(comp_scores)
+                        r_mult_arr = np.array(r_multiples)
 
-                    # Pearson correlation
-                    if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
-                        ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
+                        # Pearson correlation
+                        if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
+                            ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
+                        else:
+                            ic_value, ic_pvalue = 0.0, 1.0
+
+                        # Interpretation
+                        interpretation = 'noise'
+                        if ic_value >= self.IC_THRESHOLDS['strong']:
+                            interpretation = 'strong'
+                        elif ic_value >= self.IC_THRESHOLDS['moderate']:
+                            interpretation = 'moderate'
+                        elif ic_value >= self.IC_THRESHOLDS['weak']:
+                            interpretation = 'weak'
+
+                        ic_results[component] = {
+                            'ic_value': round(float(ic_value), 4),
+                            'ic_pvalue': round(float(ic_pvalue), 4),
+                            'sample_size': len(comp_scores),
+                            'avg_component_score': round(float(comp_scores_arr.mean()), 2),
+                            'avg_realized_pnl': round(float(r_mult_arr.mean()), 2),
+                            'interpretation': interpretation,
+                        }
                     else:
-                        ic_value, ic_pvalue = 0.0, 1.0
+                        ic_results[component] = {
+                            'ic_value': 0.0,
+                            'ic_pvalue': 1.0,
+                            'sample_size': len(comp_scores),
+                            'avg_component_score': 0,
+                            'avg_realized_pnl': 0,
+                            'interpretation': 'insufficient_data',
+                        }
 
-                    # Interpretation
-                    interpretation = 'noise'
-                    if ic_value >= self.IC_THRESHOLDS['strong']:
-                        interpretation = 'strong'
-                    elif ic_value >= self.IC_THRESHOLDS['moderate']:
-                        interpretation = 'moderate'
-                    elif ic_value >= self.IC_THRESHOLDS['weak']:
-                        interpretation = 'weak'
-
-                    ic_results[component] = {
-                        'ic_value': round(float(ic_value), 4),
-                        'ic_pvalue': round(float(ic_pvalue), 4),
-                        'sample_size': len(comp_scores),
-                        'avg_component_score': round(float(comp_scores_arr.mean()), 2),
-                        'avg_realized_pnl': round(float(r_mult_arr.mean()), 2),
-                        'interpretation': interpretation,
-                    }
-                else:
-                    ic_results[component] = {
-                        'ic_value': 0.0,
-                        'ic_pvalue': 1.0,
-                        'sample_size': len(comp_scores),
-                        'avg_component_score': 0,
-                        'avg_realized_pnl': 0,
-                        'interpretation': 'insufficient_data',
-                    }
-
-            logger.info(f"IC computation complete for {report_date}. Samples: {len(trades)}")
-            return ic_results
-
-        finally:
-            self.disconnect()
+                logger.info(f"IC computation complete for {report_date}. Samples: {len(trades)}")
+                return ic_results
+        except Exception as e:
+            logger.error(f"IC computation failed: {e}")
+            return {comp: {'ic_value': 0, 'ic_pvalue': 1.0, 'sample_size': 0} for comp in self.COMPONENTS}
 
     def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> Dict[str, Dict]:
         """
@@ -189,109 +175,109 @@ class SignalAttributionEngine:
                 'correction': {component: ic_data},
             }
         """
-        self.connect()
         regime_mgr = RegimeManager()
         regime_results = {regime: {} for regime in RegimeManager.REGIMES}
 
         try:
-            # Fetch last N closed trades with component scores
-            self.cur.execute(
-                """
-                SELECT
-                    t.trade_id, t.swing_score, t.swing_components,
-                    t.exit_r_multiple, t.exit_date, t.signal_date,
-                    t.symbol
-                FROM algo_trades t
-                WHERE (t.status = 'closed' OR (t.exit_date IS NOT NULL AND t.exit_date <= %s))
-                ORDER BY t.exit_date DESC
-                LIMIT %s
-                """,
-                (report_date, lookback_trades),
-            )
-            trades = self.cur.fetchall()
+            with DatabaseContext('read') as cur:
+                # Fetch last N closed trades with component scores
+                cur.execute(
+                    """
+                    SELECT
+                        t.trade_id, t.swing_score, t.swing_components,
+                        t.exit_r_multiple, t.exit_date, t.signal_date,
+                        t.symbol
+                    FROM algo_trades t
+                    WHERE (t.status = 'closed' OR (t.exit_date IS NOT NULL AND t.exit_date <= %s))
+                    ORDER BY t.exit_date DESC
+                    LIMIT %s
+                    """,
+                    (report_date, lookback_trades),
+                )
+                trades = cur.fetchall()
 
-            if not trades:
-                logger.info(f"No closed trades found for regime IC computation.")
+                if not trades:
+                    logger.info(f"No closed trades found for regime IC computation.")
+                    return regime_results
+
+                # Group trades by regime at entry date
+                trades_by_regime = {regime: [] for regime in RegimeManager.REGIMES}
+
+                for trade in trades:
+                    trade_id, swing_score, swing_components, exit_r_multiple, exit_date, signal_date, symbol = trade
+
+                    if not swing_components or not exit_r_multiple:
+                        continue
+
+                    # Determine regime at signal_date (entry)
+                    try:
+                        signal_regime = regime_mgr.get_current_regime(signal_date) or 'unknown'
+                        if signal_regime not in trades_by_regime:
+                            signal_regime = 'caution'  # Default if unknown
+                    except Exception as e:
+                        logger.debug(f"Could not determine regime for {signal_date}: {e}")
+                        signal_regime = 'caution'
+
+                    trades_by_regime[signal_regime].append((trade_id, swing_components, exit_r_multiple))
+
+                # Compute IC for each regime
+                for regime, regime_trades in trades_by_regime.items():
+                    if not regime_trades:
+                        continue
+
+                    ic_data = {}
+                    for component in self.COMPONENTS:
+                        comp_scores = []
+                        r_multiples = []
+
+                        for trade_id, swing_components, exit_r_multiple in regime_trades:
+                            try:
+                                if isinstance(swing_components, str):
+                                    swing_components = json.loads(swing_components)
+                                comp_data = swing_components.get(component) if isinstance(swing_components, dict) else None
+                                comp_value = comp_data.get('pts') if isinstance(comp_data, dict) else comp_data
+                                if comp_value is not None:
+                                    comp_scores.append(float(comp_value))
+                                    r_multiples.append(float(exit_r_multiple))
+                            except Exception as e:
+                                logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
+                                continue
+
+                        # Calculate IC for this component in this regime
+                        if len(comp_scores) >= 5:  # Lower threshold for regime splits
+                            comp_scores_arr = np.array(comp_scores)
+                            r_mult_arr = np.array(r_multiples)
+
+                            if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
+                                ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
+                            else:
+                                ic_value, ic_pvalue = 0.0, 1.0
+
+                            # Interpretation
+                            interpretation = 'noise'
+                            if ic_value >= self.IC_THRESHOLDS['strong']:
+                                interpretation = 'strong'
+                            elif ic_value >= self.IC_THRESHOLDS['moderate']:
+                                interpretation = 'moderate'
+                            elif ic_value >= self.IC_THRESHOLDS['weak']:
+                                interpretation = 'weak'
+
+                            ic_data[component] = {
+                                'ic_value': round(float(ic_value), 4),
+                                'ic_pvalue': round(float(ic_pvalue), 4),
+                                'sample_size': len(comp_scores),
+                                'avg_component_score': round(float(comp_scores_arr.mean()), 2),
+                                'avg_realized_pnl': round(float(r_mult_arr.mean()), 2),
+                                'interpretation': interpretation,
+                            }
+
+                    regime_results[regime] = ic_data
+
+                logger.info(f"IC by regime computation complete for {report_date}.")
                 return regime_results
-
-            # Group trades by regime at entry date
-            trades_by_regime = {regime: [] for regime in RegimeManager.REGIMES}
-
-            for trade in trades:
-                trade_id, swing_score, swing_components, exit_r_multiple, exit_date, signal_date, symbol = trade
-
-                if not swing_components or not exit_r_multiple:
-                    continue
-
-                # Determine regime at signal_date (entry)
-                try:
-                    signal_regime = regime_mgr.get_current_regime(signal_date) or 'unknown'
-                    if signal_regime not in trades_by_regime:
-                        signal_regime = 'caution'  # Default if unknown
-                except Exception as e:
-                    logger.debug(f"Could not determine regime for {signal_date}: {e}")
-                    signal_regime = 'caution'
-
-                trades_by_regime[signal_regime].append((trade_id, swing_components, exit_r_multiple))
-
-            # Compute IC for each regime
-            for regime, regime_trades in trades_by_regime.items():
-                if not regime_trades:
-                    continue
-
-                ic_data = {}
-                for component in self.COMPONENTS:
-                    comp_scores = []
-                    r_multiples = []
-
-                    for trade_id, swing_components, exit_r_multiple in regime_trades:
-                        try:
-                            if isinstance(swing_components, str):
-                                swing_components = json.loads(swing_components)
-                            comp_data = swing_components.get(component) if isinstance(swing_components, dict) else None
-                            comp_value = comp_data.get('pts') if isinstance(comp_data, dict) else comp_data
-                            if comp_value is not None:
-                                comp_scores.append(float(comp_value))
-                                r_multiples.append(float(exit_r_multiple))
-                        except Exception as e:
-                            logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
-                            continue
-
-                    # Calculate IC for this component in this regime
-                    if len(comp_scores) >= 5:  # Lower threshold for regime splits
-                        comp_scores_arr = np.array(comp_scores)
-                        r_mult_arr = np.array(r_multiples)
-
-                        if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
-                            ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
-                        else:
-                            ic_value, ic_pvalue = 0.0, 1.0
-
-                        # Interpretation
-                        interpretation = 'noise'
-                        if ic_value >= self.IC_THRESHOLDS['strong']:
-                            interpretation = 'strong'
-                        elif ic_value >= self.IC_THRESHOLDS['moderate']:
-                            interpretation = 'moderate'
-                        elif ic_value >= self.IC_THRESHOLDS['weak']:
-                            interpretation = 'weak'
-
-                        ic_data[component] = {
-                            'ic_value': round(float(ic_value), 4),
-                            'ic_pvalue': round(float(ic_pvalue), 4),
-                            'sample_size': len(comp_scores),
-                            'avg_component_score': round(float(comp_scores_arr.mean()), 2),
-                            'avg_realized_pnl': round(float(r_mult_arr.mean()), 2),
-                            'interpretation': interpretation,
-                        }
-
-                regime_results[regime] = ic_data
-
-            logger.info(f"IC by regime computation complete for {report_date}.")
+        except Exception as e:
+            logger.error(f"IC by regime computation failed: {e}")
             return regime_results
-
-        finally:
-            self.disconnect()
 
     def compute_ic_decay(
         self, report_date: _date, horizons: List[int] = None
