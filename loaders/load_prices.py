@@ -24,7 +24,6 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from utils.db_connection import get_db_connection
-from utils.monitoring.loader_validation import validate_price_row, count_validation_errors
 from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
