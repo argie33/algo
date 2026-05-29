@@ -1288,11 +1288,16 @@ jobs:
             --cache-control "no-cache, no-store, must-revalidate" \
             --exclude "*" --include "config.js"
 
-          echo "Ã¢Å“â€¦ Frontend synced to s3://${BUCKET}/"
+          echo “Ã¢Å”â€¦ Frontend synced to s3://${BUCKET}/”
 
-          # Verify files are in S3
-          echo "Verifying S3 contents..."
-          aws s3 ls "s3://${BUCKET}/" --recursive | head -20
+          # Verify config.js was synced successfully
+          echo “Verifying config.js was synced...”
+          if aws s3api head-object --bucket “$BUCKET” --key “config.js” >/dev/null 2>&1; then
+            echo “✓ config.js verified in S3”
+          else
+            echo “✗ ERROR: config.js not found in S3!”
+            exit 1
+          fi
 
       - name: Invalidate CloudFront
         run: |
