@@ -535,13 +535,13 @@ jobs:
                     orchestrator_dry_run = val.lower() == 'true'
             print(f"  Read from tfvars: paper_trading={paper_trading}, exec_mode={exec_mode}, dry_run={orchestrator_dry_run}")
           except Exception as e:
-            print(f"WARNING: Could not read terraform.tfvars: {e} paper=True)")
+            print(f"WARNING: Could not read terraform.tfvars: {e} (defaulting to paper=True)")
 
           apca_base_url = "https://paper-api.alpaca.markets" if paper_trading else "https://api.alpaca.markets"
           trading_mode = "PAPER" if paper_trading else "LIVE"
 
           print(f"[OK] Credentials loaded: {db_host}:{db_port}/{db_name}")
-          print(f"g_mode}")
+          print(f"[OK] Trading mode: {trading_mode}")
 
           # Deploy function code
           print("Deploying function code...")

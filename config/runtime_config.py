@@ -99,7 +99,7 @@ class RuntimeConfig:
         """
         try:
             # Import here to avoid circular dependency
-            from algo.models.database import get_db_connection
+            from utils.db_connection import get_db_connection
 
             conn = get_db_connection()
             if not conn:

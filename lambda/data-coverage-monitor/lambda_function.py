@@ -31,9 +31,11 @@ cloudwatch = boto3.client('cloudwatch')
 def get_db_connection():
     """Get database connection from Secrets Manager."""
     import logging
+    import os
     logger = logging.getLogger(__name__)
     try:
-        secret = sm_client.get_secret_value(SecretId='algo-db-credentials-dev')
+        secret_arn = os.getenv('DB_SECRET_ARN', 'algo-db-credentials-dev')
+        secret = sm_client.get_secret_value(SecretId=secret_arn)
         credentials = json.loads(secret['SecretString'])
 
         conn = psycopg2.connect(

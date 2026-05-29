@@ -18,7 +18,9 @@ sm_client = boto3.client('secretsmanager', region_name='us-east-1')
 def get_rds_credentials():
     """Get RDS credentials from Secrets Manager."""
     try:
-        response = sm_client.get_secret_value(SecretId='algo-db-credentials-dev')
+        import os
+        secret_arn = os.getenv('DB_SECRET_ARN', 'algo-db-credentials-dev')
+        response = sm_client.get_secret_value(SecretId=secret_arn)
         secret = json.loads(response['SecretString'])
         return {
             'host': secret.get('host'),
@@ -76,7 +78,9 @@ def query_rds_signals(credentials):
 def get_alpaca_credentials():
     """FIXED Issue #21: Get Alpaca credentials from Secrets Manager."""
     try:
-        response = sm_client.get_secret_value(SecretId='algo/alpaca-credentials-dev')
+        import os
+        alpaca_secret_arn = os.getenv('ALPACA_SECRET_ARN', 'algo/alpaca-credentials-dev')
+        response = sm_client.get_secret_value(SecretId=alpaca_secret_arn)
         secret = json.loads(response['SecretString'])
         return {
             'api_key': secret.get('APCA_API_KEY_ID'),

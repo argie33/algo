@@ -206,7 +206,8 @@ class CredentialManager:
             try:
                 client = self._get_secrets_client()
                 if client:
-                    response = client.get_secret_value(SecretId='algo/alpaca')
+                    alpaca_secret_id = os.getenv('ALPACA_LEGACY_SECRET_ID', 'algo/alpaca')
+                    response = client.get_secret_value(SecretId=alpaca_secret_id)
                     creds = _json.loads(response.get('SecretString', '{}'))
                     key = creds.get('api_key')
                     secret = creds.get('api_secret')
@@ -287,13 +288,13 @@ if __name__ == "__main__":
     # Simple test: try to get credentials
     try:
         db_creds = get_db_credentials()
-        logger.info("[OK] DB credentials loaded")
+        log.info("[OK] DB credentials loaded")
     except ValueError as e:
-        logger.info(f"[ERROR] DB credentials: {e}")
+        log.info(f"[ERROR] DB credentials: {e}")
 
     try:
         alpaca_creds = get_alpaca_credentials()
         if alpaca_creds['key']:
-            logger.info("[OK] Alpaca credentials loaded")
+            log.info("[OK] Alpaca credentials loaded")
     except ValueError as e:
-        logger.info(f"[ERROR] Alpaca credentials: {e}")
+        log.info(f"[ERROR] Alpaca credentials: {e}")
