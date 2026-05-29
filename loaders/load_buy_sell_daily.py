@@ -49,14 +49,23 @@ class SignalsDailyLoader(OptimalLoader):
         conn = self._connect()
         cur = conn.cursor()
         try:
-            # Check if technical data exists for end date
+            # Check if technical data exists for end date, fall back to most recent available date
             cur.execute(
                 "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
                 (symbol, end)
             )
             if cur.fetchone()[0] == 0:
-                logger.warning(f"{symbol}: Technical data missing for {end} — signals cannot be generated")
-                return []
+                # Fall back: find most recent date with technical data for this symbol
+                cur.execute(
+                    "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s AND date < %s",
+                    (symbol, end)
+                )
+                fallback_date = cur.fetchone()[0]
+                if fallback_date:
+                    end = fallback_date
+                else:
+                    logger.warning(f"{symbol}: Technical data missing for {end} — signals cannot be generated")
+                    return []
         finally:
             cur.close()
 

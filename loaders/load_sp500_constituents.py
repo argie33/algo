@@ -60,45 +60,44 @@ def get_sp500_symbols():
         logger.error(f"Error fetching S&P 500 list: {e}")
         return None
 
-def mark_sp500_symbols(conn, symbols):
+def mark_sp500_symbols(cur, symbols):
     """Mark symbols in stock_symbols table as S&P 500 members."""
     if not symbols:
         logger.warning("No S&P 500 symbols to mark")
         return 0
 
     try:
-        with conn.cursor() as cur:
-            # First, reset all is_sp500 flags to FALSE
-            cur.execute("UPDATE stock_symbols SET is_sp500 = FALSE")
-            reset_count = cur.rowcount
-            logger.info(f"Reset is_sp500 flag for {reset_count} symbols")
+        # First, reset all is_sp500 flags to FALSE
+        cur.execute("UPDATE stock_symbols SET is_sp500 = FALSE")
+        reset_count = cur.rowcount
+        logger.info(f"Reset is_sp500 flag for {reset_count} symbols")
 
-            # Add benchmark index symbols that aren't in constituents list
-            benchmark_symbols = ['SPY', '^GSPC']
-            all_symbols = symbols + benchmark_symbols
+        # Add benchmark index symbols that aren't in constituents list
+        benchmark_symbols = ['SPY', '^GSPC']
+        all_symbols = symbols + benchmark_symbols
 
-            # Now mark the S&P 500 symbols
-            # Use a subquery to avoid SQL injection
-            placeholders = ",".join(["%s"] * len(all_symbols))
-            sql = f"""
-                UPDATE stock_symbols
-                SET is_sp500 = TRUE
-                WHERE symbol IN ({placeholders})
-            """
-            cur.execute(sql, all_symbols)
-            marked_count = cur.rowcount
-            logger.info(f"Marked {marked_count} symbols as S&P 500 members (including {len(benchmark_symbols)} benchmark symbols)")
+        # Now mark the S&P 500 symbols
+        # Use a subquery to avoid SQL injection
+        placeholders = ",".join(["%s"] * len(all_symbols))
+        sql = f"""
+            UPDATE stock_symbols
+            SET is_sp500 = TRUE
+            WHERE symbol IN ({placeholders})
+        """
+        cur.execute(sql, all_symbols)
+        marked_count = cur.rowcount
+        logger.info(f"Marked {marked_count} symbols as S&P 500 members (including {len(benchmark_symbols)} benchmark symbols)")
 
-            # Verify: check how many symbols are now marked
-            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE")
-            total_marked = cur.fetchone()[0]
-            logger.info(f"Total symbols marked as S&P 500: {total_marked}")
+        # Verify: check how many symbols are now marked
+        cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE")
+        total_marked = cur.fetchone()[0]
+        logger.info(f"Total symbols marked as S&P 500: {total_marked}")
 
-            conn.commit()
-            return marked_count
+        cur.connection.commit()
+        return marked_count
     except Exception as e:
         logger.error(f"Error marking S&P 500 symbols: {e}")
-        conn.rollback()
+        cur.connection.rollback()
         return 0
 
 def main():
@@ -109,9 +108,8 @@ def main():
         return False
 
     try:
-        conn = get_db_connection()
-        marked = mark_sp500_symbols(conn, symbols)
-        conn.close()
+        with DatabaseContext('write') as cur:
+            marked = mark_sp500_symbols(cur, symbols)
 
         if marked > 0:
             logger.info(f"Successfully marked {marked} symbols as S&P 500 constituents")

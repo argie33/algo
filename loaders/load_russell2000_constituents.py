@@ -85,49 +85,48 @@ def get_russell2000_symbols():
         return None
 
 
-def mark_russell2000_symbols(conn, symbols):
+def mark_russell2000_symbols(cur, symbols):
     """Mark symbols in stock_symbols table as Russell 2000 members."""
     if not symbols:
         logger.warning("No Russell 2000 symbols to mark")
         return 0
 
     try:
-        with conn.cursor() as cur:
-            # First, reset all is_russell2000 flags to FALSE
-            cur.execute("UPDATE stock_symbols SET is_russell2000 = FALSE")
-            reset_count = cur.rowcount
-            logger.info(f"Reset is_russell2000 flag for {reset_count} symbols")
+        # First, reset all is_russell2000 flags to FALSE
+        cur.execute("UPDATE stock_symbols SET is_russell2000 = FALSE")
+        reset_count = cur.rowcount
+        logger.info(f"Reset is_russell2000 flag for {reset_count} symbols")
 
-            # Now mark the Russell 2000 symbols
-            placeholders = ",".join(["%s"] * len(symbols))
-            sql = f"""
-                UPDATE stock_symbols
-                SET is_russell2000 = TRUE
-                WHERE symbol IN ({placeholders})
-            """
-            cur.execute(sql, symbols)
-            marked_count = cur.rowcount
-            logger.info(f"Marked {marked_count} symbols as Russell 2000 members")
+        # Now mark the Russell 2000 symbols
+        placeholders = ",".join(["%s"] * len(symbols))
+        sql = f"""
+            UPDATE stock_symbols
+            SET is_russell2000 = TRUE
+            WHERE symbol IN ({placeholders})
+        """
+        cur.execute(sql, symbols)
+        marked_count = cur.rowcount
+        logger.info(f"Marked {marked_count} symbols as Russell 2000 members")
 
-            # Verify: check how many symbols are now marked
-            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE is_russell2000 = TRUE")
-            total_marked = cur.fetchone()[0]
-            logger.info(f"Total symbols marked as Russell 2000: {total_marked}")
+        # Verify: check how many symbols are now marked
+        cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE is_russell2000 = TRUE")
+        total_marked = cur.fetchone()[0]
+        logger.info(f"Total symbols marked as Russell 2000: {total_marked}")
 
-            # Also track Russell 2000 in universe column for filtering
-            sql_universe = f"""
-                UPDATE stock_symbols
-                SET universe = 'Russell 2000'
-                WHERE symbol IN ({placeholders})
-            """
-            cur.execute(sql_universe, symbols)
-            logger.info(f"Updated universe field for {cur.rowcount} symbols")
+        # Also track Russell 2000 in universe column for filtering
+        sql_universe = f"""
+            UPDATE stock_symbols
+            SET universe = 'Russell 2000'
+            WHERE symbol IN ({placeholders})
+        """
+        cur.execute(sql_universe, symbols)
+        logger.info(f"Updated universe field for {cur.rowcount} symbols")
 
-            conn.commit()
-            return marked_count
+        cur.connection.commit()
+        return marked_count
     except Exception as e:
         logger.error(f"Error marking Russell 2000 symbols: {e}")
-        conn.rollback()
+        cur.connection.rollback()
         return 0
 
 
@@ -139,9 +138,8 @@ def main():
         return False
 
     try:
-        conn = get_db_connection()
-        marked = mark_russell2000_symbols(conn, symbols)
-        conn.close()
+        with DatabaseContext('write') as cur:
+            marked = mark_russell2000_symbols(cur, symbols)
 
         if marked > 0:
             logger.info(f"Successfully marked {marked} symbols as Russell 2000 constituents")
