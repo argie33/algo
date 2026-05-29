@@ -1,20 +1,14 @@
 #!/usr/bin/env python3
 """Trade & Risk Notifications - Alert on entries, exits, rejections, and risk events."""
 
-import psycopg2
-import psycopg2.extensions
-import os
 import json
+import os
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Dict, List
 
 from algo.algo_alerts import AlertManager
-
-try:
-    from psycopg2.extras import RealDictCursor
-except ImportError:
-    psycopg2 = None
+from utils.database_context import database_transaction
 
 
 logger = logging.getLogger(__name__)
@@ -24,40 +18,14 @@ class TradeNotificationService:
     """Monitor trade events and send notifications."""
 
     def __init__(self, config: Dict = None):
-        self.config = config or DATABASE_CONFIG
+        self.config = config or {}
         self.alert_manager = AlertManager()
         self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
-        self.conn: Optional[Any] = None
-
-    def connect(self):
-        """Connect to database."""
-        if psycopg2 is None:
-            raise ImportError("psycopg2 required for notifications")
-        try:
-            self.conn = psycopg2.connect(
-                host=self.config["host"],
-                port=self.config["port"],
-                database=self.config["database"],
-                user=self.config["user"],
-                password=self.config["password"]
-            )
-            logger.info("[NOTIF] Connected to database")
-        except Exception as e:
-            logger.error(f"[NOTIF] Connection failed: {e}")
-            raise
-
-    def close(self):
-        """Close database connection."""
-        if self.conn:
-            self.conn.close()
 
     def get_recent_events(self, minutes: int = 5) -> List[Dict]:
         """Fetch recent audit log events."""
-        if not self.conn:
-            self.connect()
-
         try:
-            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with database_transaction('read') as cur:
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
                 cur.execute("""
                     SELECT id, action_type, symbol, action_date, details,
@@ -162,11 +130,8 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
     def _save_notification(self, kind: str, severity: str, title: str,
                            message: str, symbol: Optional[str] = None, details: Optional[dict] = None):
         """Save notification to database."""
-        if not self.conn:
-            self.connect()
-
         try:
-            with self.conn.cursor() as cur:
+            with database_transaction('write') as cur:
                 cur.execute("""
                     INSERT INTO algo_notifications
                     (kind, severity, title, message, symbol, details, seen, created_at)
@@ -179,15 +144,10 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                     symbol,
                     json.dumps(details) if details else None
                 ))
-                self.conn.commit()
+                cur.connection.commit()
                 logger.info(f"[NOTIF] Saved to DB: {title}")
         except Exception as e:
             logger.error(f"[NOTIF] DB save failed: {e}")
-            if self.conn:
-                try:
-                    self.conn.rollback()
-                except Exception:
-                    pass  # Connection already broken
 
     def _send_notification(self, subject: str, message: str, kind: str = "trade",
                           severity: str = "info", symbol: Optional[str] = None, details: Optional[dict] = None):
