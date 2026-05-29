@@ -23,11 +23,10 @@ When a circuit breaker fires:
   - persists state until cleared (e.g., recovery threshold met)
 """
 
-import psycopg2
-import psycopg2.extensions
-from utils.database_context import DatabaseContext, get_db_connection
+import json
+from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from utils.trade_status import TradeStatus, PositionStatus
 import logging
 
@@ -38,107 +37,90 @@ class CircuitBreaker:
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
-        self.conn: Optional[psycopg2.extensions.connection] = None
-        self.cur: Optional[psycopg2.extensions.cursor] = None
-
-    def connect(self) -> None:
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-
-    def disconnect(self) -> None:
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     def check_all(self, current_date: Any = None) -> Dict[str, Any]:
         """Run all circuit breakers. Returns dict with per-check status."""
         if not current_date:
             current_date = _date.today()
 
-        self.connect()
-        try:
-            results = {
-                'halted': False,
-                'halt_reasons': [],
-                'checks': {},
-            }
-
-            for name, fn in [
-                ('daily_loss', self._check_daily_loss),
-                ('drawdown', self._check_drawdown),
-                ('drawdown_re_engagement', self._check_drawdown_re_engagement),
-                ('consecutive_losses', self._check_consecutive_losses),
-                ('total_risk', self._check_total_risk),
-                ('vix_spike', self._check_vix_spike),
-                ('market_stage', self._check_market_stage),
-                ('weekly_loss', self._check_weekly_loss),
-                ('sector_concentration', self._check_sector_concentration),
-                ('intraday_market_health', self._check_intraday_market_health),
-                ('win_rate_floor', self._check_win_rate_floor),
-                ('daily_profit_cap', self._check_daily_profit_cap),
-                ('data_freshness', self._check_data_freshness),
-            ]:
-                try:
-                    state = fn(current_date)
-                except Exception as e:
-                    error_msg = str(e).lower()
-                    # Differentiate between transient errors and real failures
-                    if any(x in error_msg for x in ['timeout', 'connection', 'refused', 'unavailable']):
-                        # Transient error: log and skip check, don't halt entire system
-                        logger.warning(f"Circuit breaker {name} skipped (transient error): {e}")
-                        state = {'halted': False, 'reason': f'check skipped (transient error)'}
-                    else:
-                        # Real error: fail-closed, halt trading
-                        logger.error(f"Circuit breaker {name} failed (logic error): {e}")
-                        state = {'halted': True, 'reason': f'check error (fail-closed): {e}'}
-                results['checks'][name] = state
-                if state.get('halted'):
-                    results['halted'] = True
-                    results['halt_reasons'].append(f"{name}: {state['reason']}")
-
-            # Persist if halted
-            if results['halted']:
-                self._log_halt(results)
-
-            return results
-        except Exception as e:
-            logger.error(f"CRITICAL ERROR in circuit breaker check: {e}")
-            import traceback
-            traceback.print_exc()
-            # B12: Fail-closed — if circuit breaker logic itself fails, halt trading
-            # Do NOT allow trading when we can't verify safety checks
+        with DatabaseContext('write') as cur:
             try:
-                from algo.algo_notifications import notify
-                notify(
-                    'critical',
-                    title='CIRCUIT BREAKER CHECK FAILED',
-                    message=f'Circuit breaker logic crashed: {e}. Trading halted until resolved.'
-                )
-            except Exception as e:
+                results = {
+                    'halted': False,
+                    'halt_reasons': [],
+                    'checks': {},
+                }
 
-                logger.error(f"Unhandled exception: {e}")
-            return {
-                'halted': True,
-                'halt_reasons': [f'Circuit breaker check failed: {e}'],
-                'checks': {}
-            }
-        finally:
-            logger.debug("Circuit breaker check completed, closing database connection")
-            self.disconnect()
+                for name, fn in [
+                    ('daily_loss', self._check_daily_loss),
+                    ('drawdown', self._check_drawdown),
+                    ('drawdown_re_engagement', self._check_drawdown_re_engagement),
+                    ('consecutive_losses', self._check_consecutive_losses),
+                    ('total_risk', self._check_total_risk),
+                    ('vix_spike', self._check_vix_spike),
+                    ('market_stage', self._check_market_stage),
+                    ('weekly_loss', self._check_weekly_loss),
+                    ('sector_concentration', self._check_sector_concentration),
+                    ('intraday_market_health', self._check_intraday_market_health),
+                    ('win_rate_floor', self._check_win_rate_floor),
+                    ('daily_profit_cap', self._check_daily_profit_cap),
+                    ('data_freshness', self._check_data_freshness),
+                ]:
+                    try:
+                        state = fn(current_date, cur)
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        # Differentiate between transient errors and real failures
+                        if any(x in error_msg for x in ['timeout', 'connection', 'refused', 'unavailable']):
+                            # Transient error: log and skip check, don't halt entire system
+                            logger.warning(f"Circuit breaker {name} skipped (transient error): {e}")
+                            state = {'halted': False, 'reason': f'check skipped (transient error)'}
+                        else:
+                            # Real error: fail-closed, halt trading
+                            logger.error(f"Circuit breaker {name} failed (logic error): {e}")
+                            state = {'halted': True, 'reason': f'check error (fail-closed): {e}'}
+                    results['checks'][name] = state
+                    if state.get('halted'):
+                        results['halted'] = True
+                        results['halt_reasons'].append(f"{name}: {state['reason']}")
+
+                # Persist if halted
+                if results['halted']:
+                    self._log_halt(results, cur)
+
+                return results
+            except Exception as e:
+                logger.error(f"CRITICAL ERROR in circuit breaker check: {e}")
+                import traceback
+                traceback.print_exc()
+                # B12: Fail-closed — if circuit breaker logic itself fails, halt trading
+                # Do NOT allow trading when we can't verify safety checks
+                try:
+                    from algo.algo_notifications import notify
+                    notify(
+                        'critical',
+                        title='CIRCUIT BREAKER CHECK FAILED',
+                        message=f'Circuit breaker logic crashed: {e}. Trading halted until resolved.'
+                    )
+                except Exception as e:
+                    logger.error(f"Unhandled exception: {e}")
+                return {
+                    'halted': True,
+                    'halt_reasons': [f'Circuit breaker check failed: {e}'],
+                    'checks': {}
+                }
 
     # ---------- Individual checks ----------
 
-    def _check_drawdown(self, current_date: Any) -> Dict[str, Any]:
-        self.cur.execute(
+    def _check_drawdown(self, current_date: Any, cur) -> Dict[str, Any]:
+        cur.execute(
             """
             SELECT MAX(total_portfolio_value),
                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
             FROM algo_portfolio_snapshots
             """
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         # Bootstrap path: if table is empty (first ever run), allow through
         if not row or not row[0] or not row[1]:
             return {'halted': False, 'reason': 'First run — no portfolio history yet'}
@@ -155,7 +137,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_drawdown_re_engagement(self, current_date: Any) -> Dict[str, Any]:
+    def _check_drawdown_re_engagement(self, current_date: Any, cur) -> Dict[str, Any]:
         """C2: Drawdown Re-engagement Protocol.
 
         After a drawdown halt, require conditions to resume:
@@ -166,14 +148,14 @@ class CircuitBreaker:
         threshold = float(self.config.get('halt_drawdown_pct', 20.0))
 
         # First check: is current drawdown >= threshold? If not, no re-engagement needed
-        self.cur.execute(
+        cur.execute(
             """
             SELECT MAX(total_portfolio_value),
                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
             FROM algo_portfolio_snapshots
             """
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0] or not row[1]:
             return {'halted': False, 'reason': 'No halt history'}
 
@@ -201,14 +183,14 @@ class CircuitBreaker:
 
         # Find the date of the latest drawdown halt event
         days_elapsed = 0
-        self.cur.execute(
+        cur.execute(
             """
             SELECT created_at FROM algo_audit_log
             WHERE action_type = 'circuit_breaker_halt' AND details ILIKE '%drawdown%'
             ORDER BY created_at DESC LIMIT 1
             """
         )
-        halt_row = self.cur.fetchone()
+        halt_row = cur.fetchone()
         if halt_row:
             halt_date = halt_row[0]
             days_elapsed = (current_date - halt_date.date()).days if isinstance(halt_date, datetime) else (current_date - halt_date).days
@@ -221,10 +203,10 @@ class CircuitBreaker:
         if require_ftd:
             # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction
             # For now, simplified check: market is in Stage 2
-            self.cur.execute(
+            cur.execute(
                 "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1"
             )
-            market_row = self.cur.fetchone()
+            market_row = cur.fetchone()
             if not market_row or market_row[0] != 2:
                 return {
                     'halted': True,
@@ -237,12 +219,12 @@ class CircuitBreaker:
             'reason': f'Re-engagement approved: recovered to {recovery_pct:.1f}%, {days_elapsed}d elapsed, market Stage 2',
         }
 
-    def _check_daily_loss(self, current_date: Any) -> Dict[str, Any]:
-        self.cur.execute(
+    def _check_daily_loss(self, current_date: Any, cur) -> Dict[str, Any]:
+        cur.execute(
             "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
             (current_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None:
             return {'halted': False, 'reason': 'No today snapshot yet'}
         daily = float(row[0])
@@ -254,8 +236,8 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_consecutive_losses(self, current_date: Any) -> Dict[str, Any]:
-        self.cur.execute(
+    def _check_consecutive_losses(self, current_date: Any, cur) -> Dict[str, Any]:
+        cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
@@ -283,12 +265,12 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_win_rate_floor(self, current_date: Any) -> Dict[str, Any]:
+    def _check_win_rate_floor(self, current_date: Any, cur) -> Dict[str, Any]:
         """Halt if recent win rate drops below floor (e.g., 40% of last 30 closed trades).
 
         Win rate = wins / (wins + losses), excluding break-even trades to avoid dilution.
         """
-        self.cur.execute(
+        cur.execute(
             """
             SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
                    COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
@@ -303,7 +285,7 @@ class CircuitBreaker:
             """,
             (TradeStatus.CLOSED.value,)
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[3] is None or int(row[3]) < 10:
             return {'halted': False, 'reason': 'Insufficient closed trades (< 10)'}
 
@@ -325,9 +307,9 @@ class CircuitBreaker:
             'trades_sampled': total,
         }
 
-    def _check_total_risk(self, current_date: Any) -> Dict[str, Any]:
+    def _check_total_risk(self, current_date: Any, cur) -> Dict[str, Any]:
         """Sum of (entry - stop) * qty across open positions vs portfolio value."""
-        self.cur.execute(
+        cur.execute(
             """
             SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
             FROM algo_positions p
@@ -342,7 +324,7 @@ class CircuitBreaker:
         self.cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0]:
             return {'halted': False, 'reason': 'No portfolio value'}
         portfolio = float(row[0])
@@ -358,16 +340,16 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_vix_spike(self, current_date: Any) -> Dict[str, Any]:
-        self.cur.execute(
+    def _check_vix_spike(self, current_date: Any, cur) -> Dict[str, Any]:
+        cur.execute(
             "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         vix = float(row[0]) if row and row[0] is not None else None
 
         if vix is None:
-            vix = self._compute_vix_fallback(current_date)
+            vix = self._compute_vix_fallback(current_date, cur)
             logger.info(f'VIX missing, using fallback estimate: {vix:.1f}')
 
         threshold = float(self.config.get('vix_max_threshold', 35.0))
@@ -378,7 +360,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _compute_vix_fallback(self, current_date: Any) -> float:
+    def _compute_vix_fallback(self, current_date: Any, cur) -> float:
         """H2 FIX: Compute implied volatility from SPY price changes when VIX missing.
 
         Uses 20-day rolling standard deviation of SPY returns as approximation
@@ -386,7 +368,7 @@ class CircuitBreaker:
         """
         try:
             twenty_days_ago = current_date - timedelta(days=25)
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT close FROM price_daily
                 WHERE symbol = 'SPY'
@@ -423,16 +405,16 @@ class CircuitBreaker:
             logger.warning(f"VIX fallback computation failed: {e}, using neutral 20")
             return 20.0
 
-    def _check_market_stage(self, current_date: Any) -> Dict[str, Any]:
+    def _check_market_stage(self, current_date: Any, cur) -> Dict[str, Any]:
         """H7 FIX: Market stage validation with data freshness check.
 
         Ensures we don't use stale market stage data from days ago.
         """
-        self.cur.execute(
+        cur.execute(
             "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return {'halted': True, 'reason': 'Market health data missing — fail-closed'}
 
@@ -472,10 +454,10 @@ class CircuitBreaker:
             'value': stage,
         }
 
-    def _check_weekly_loss(self, current_date: Any) -> Dict[str, Any]:
+    def _check_weekly_loss(self, current_date: Any, cur) -> Dict[str, Any]:
         """7-day return on portfolio."""
         week_ago = current_date - timedelta(days=7)
-        self.cur.execute(
+        cur.execute(
             """
             SELECT
                 (SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1),
@@ -483,7 +465,7 @@ class CircuitBreaker:
             """,
             (current_date, week_ago),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0] or not row[1]:
             return {'halted': False, 'reason': 'Insufficient history'}
         cur_val, week_ago_val = float(row[0]), float(row[1])
@@ -496,16 +478,16 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_data_freshness(self, current_date: Any) -> Dict[str, Any]:
+    def _check_data_freshness(self, current_date: Any, cur) -> Dict[str, Any]:
         """Block if our market data is too stale.
 
         Compares against the previous trading day (not a fixed calendar threshold)
         so 3-day holiday weekends don't cause false halts.
         """
-        self.cur.execute(
+        cur.execute(
             "SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'"
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0]:
             return {'halted': True, 'reason': 'No SPY data at all'}
         latest = row[0]
@@ -535,7 +517,7 @@ class CircuitBreaker:
             'value': days_stale,
         }
 
-    def _check_intraday_market_health(self, current_date: Any) -> Dict[str, Any]:
+    def _check_intraday_market_health(self, current_date: Any, cur) -> Dict[str, Any]:
         """Prior-day market drop check: did SPY fall >2% yesterday?
 
         The orchestrator runs pre-market (9:30 AM ET). price_daily contains yesterday's
@@ -546,7 +528,7 @@ class CircuitBreaker:
         stabilize before adding exposure).
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT close FROM price_daily
                 WHERE symbol = 'SPY'
@@ -586,12 +568,12 @@ class CircuitBreaker:
             # Core gates (Phase 1 freshness, CB drawdown, VIX) handle true safety halts.
             return {'halted': False, 'reason': f'Prior-day check skipped (data error): {e}'}
 
-    def _check_sector_concentration(self, current_date: Any) -> Dict[str, Any]:
+    def _check_sector_concentration(self, current_date: Any, cur) -> Dict[str, Any]:
         """Halt if any sector exceeds max position cap (default 3 positions per sector)."""
         try:
             max_sector_positions = int(self.config.get('max_sector_positions', 3))
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector
                 FROM algo_positions ap
@@ -626,13 +608,13 @@ class CircuitBreaker:
             logger.warning(f'Sector concentration check failed: {e}')
             return {'halted': False, 'reason': f'Check error: {e}'}
 
-    def _check_daily_profit_cap(self, current_date: Any) -> Dict[str, Any]:
+    def _check_daily_profit_cap(self, current_date: Any, cur) -> Dict[str, Any]:
         """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries."""
-        self.cur.execute(
+        cur.execute(
             "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
             (current_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None:
             return {'halted': False, 'reason': 'No today snapshot yet'}
         daily = float(row[0])
@@ -647,16 +629,16 @@ class CircuitBreaker:
             'exceed_profit_cap': daily >= threshold,
         }
 
-    def _log_halt(self, results):
+    def _log_halt(self, results, cur):
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 INSERT INTO algo_audit_log (action_type, action_date, details, actor, status, created_at)
                 VALUES ('circuit_breaker_halt', CURRENT_TIMESTAMP, %s, 'circuit_breaker', 'halt', CURRENT_TIMESTAMP)
                 """,
                 (json.dumps(results),),
             )
-            self.conn.commit()
+            cur.connection.commit()
         except Exception as e:
             logger.warning(f"Warning: Could not log circuit breaker halt to audit log: {e}")
         # Surface to notifications for UI
