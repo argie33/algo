@@ -24,15 +24,13 @@ State tracked on algo_positions:
 from config.credential_manager import (
     get_db_password,
     get_db_config,
-    get_db_connection,
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
 )
 
-
-
 import os
+from utils.db_connection import get_db_connection
 from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date, timezone
 try:
