@@ -356,19 +356,20 @@ class SignalAttributionEngine:
 
         Returns: [(date, ic_value), ...]
         """
-        self.connect()
         try:
-            self.cur.execute(
-                """
-                SELECT report_date, ic_value FROM algo_component_attribution
-                WHERE component = %s AND report_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                ORDER BY report_date ASC
-                """,
-                (component, days),
-            )
-            return [(row[0], float(row[1])) for row in self.cur.fetchall()]
-        finally:
-            self.disconnect()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT report_date, ic_value FROM algo_component_attribution
+                    WHERE component = %s AND report_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    ORDER BY report_date ASC
+                    """,
+                    (component, days),
+                )
+                return [(row[0], float(row[1])) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to get trailing IC: {e}")
+            return []
 
 
 if __name__ == "__main__":
