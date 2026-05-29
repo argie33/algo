@@ -2942,8 +2942,8 @@ END $$;
 -- Add foreign key: earnings_estimates.symbol → stock_symbols.symbol
 DO $$ BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints 
-        WHERE constraint_name = 'fk_earnings_estimates_symbol' 
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_earnings_estimates_symbol'
         AND table_name = 'earnings_estimates'
     ) THEN
         ALTER TABLE earnings_estimates
@@ -2952,3 +2952,50 @@ DO $$ BEGIN
         ON DELETE RESTRICT ON UPDATE CASCADE;
     END IF;
 END $$;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- RUNTIME CONFIGURATION & AUDIT (Issue #20)
+-- ════════════════════════════════════════════════════════════════════════════
+-- FIXED Issue #20: Create runtime configuration table for Alpaca trading mode
+-- Allows switching trading modes without requiring Terraform redeploy
+
+CREATE TABLE IF NOT EXISTS algo_runtime_config (
+    config_key VARCHAR(100) PRIMARY KEY,
+    config_value VARCHAR(1000) NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100) DEFAULT 'system',
+
+    CONSTRAINT valid_config_key CHECK (config_key ~ '^[a-z_]+$')
+);
+
+CREATE INDEX IF NOT EXISTS idx_runtime_config_updated_at ON algo_runtime_config(updated_at DESC);
+
+-- Initial configuration data
+INSERT INTO algo_runtime_config (config_key, config_value, description, updated_by) VALUES
+    ('alpaca_trading_mode', 'paper', 'Trading mode: paper | live | disabled', 'system'),
+    ('max_position_size_usd', '5000', 'Maximum position size in USD per symbol', 'system'),
+    ('circuit_breaker_vix_threshold', '50', 'VIX level to halt trading', 'system'),
+    ('data_freshness_sla_hours', '24', 'Maximum hours before Phase 1 data freshness halt', 'system'),
+    ('orchestrator_enabled', 'true', 'Enable/disable orchestrator execution', 'system'),
+    ('execution_monitor_enabled', 'true', 'Enable/disable execution monitor checks', 'system')
+ON CONFLICT (config_key) DO NOTHING;
+
+-- Create audit table for configuration changes
+CREATE TABLE IF NOT EXISTS algo_runtime_config_audit (
+    id SERIAL PRIMARY KEY,
+    config_key VARCHAR(100) NOT NULL,
+    old_value VARCHAR(1000),
+    new_value VARCHAR(1000) NOT NULL,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    changed_by VARCHAR(100),
+    change_reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_config_audit_changed_at ON algo_runtime_config_audit(changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_config_audit_key ON algo_runtime_config_audit(config_key);
+
+GRANT SELECT ON algo_runtime_config TO stocks;
+GRANT SELECT ON algo_runtime_config_audit TO stocks;
+
+-- Note: INSERT/UPDATE requires dedicated service role with audit logging
