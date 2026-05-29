@@ -662,8 +662,8 @@ class TradeExecutor:
                                 title='ORPHANED ORDER PREVENTION TRIGGERED',
                                 message=f'DB write failed after Alpaca fill for {symbol}. Order {alpaca_order_id} {"cancelled" if cancel_result["success"] else "FAILED TO CANCEL"}. Manual review required.'
                             )
-                        except Exception:
-                            pass
+                        except Exception as alert_e:
+                            logger.debug(f"Failed to send orphaned order alert: {alert_e}")
                     except Exception as cancel_e:
                         logger.critical(f"Exception during orphaned order cancellation: {cancel_e}")
             if self.conn:
@@ -1002,8 +1002,8 @@ class TradeExecutor:
                         'success',
                     ),
                 )
-            except Exception:
-                pass  # audit best-effort
+            except Exception as audit_e:
+                logger.debug(f"Failed to audit log exit: {audit_e}")  # audit best-effort
 
             # Send trade exit notification
             try:
@@ -1095,8 +1095,8 @@ class TradeExecutor:
                             title='Portfolio Value Stale',
                             message=f'Using portfolio snapshot from {snapshot_date} (now using {pv:.0f})',
                         )
-                    except Exception:
-                        pass
+                    except Exception as notif_e:
+                        logger.debug(f"Failed to send portfolio staleness notification: {notif_e}")
                 return pv
         except Exception as e:
             logger.warning(f"Could not fetch portfolio snapshot: {e}")

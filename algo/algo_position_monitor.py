@@ -57,8 +57,8 @@ class PositionMonitor:
         if self.conn:
             try:
                 self.conn.close()
-            except Exception:
-                pass
+            except Exception as conn_err:
+                logger.debug(f"Failed to close connection: {conn_err}")
         self.cur = self.conn = None
 
     def check_stale_orders(self, current_date=None):

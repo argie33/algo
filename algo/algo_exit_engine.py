@@ -52,27 +52,7 @@ class ExitEngine:
     def __init__(self, config):
         self.config = config
         self.executor = TradeExecutor(config)
-        self.conn = None
-        self.cur = None
         self.verbose = True
-
-    def connect(self) -> None:
-        """Connect to database if not already connected."""
-        if self.conn is not None:
-            # Already connected (or mocked in tests)
-            return
-        try:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-        except Exception as e:
-            logger.debug(f"Could not connect to database: {e}. Tests may use mocks instead.")
-
-    def disconnect(self) -> None:
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     def check_and_execute_exits(self, current_date=None) -> int:
         """Check all open positions for exit conditions and execute."""
@@ -81,13 +61,14 @@ class ExitEngine:
 
         auditor = TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
 
-        self.connect()
-        try:
-            logger.info(f"\n{'='*70}")
-            logger.info(f"EXIT ENGINE CHECK - {current_date}")
-            logger.info(f"{'='*70}\n")
+        with DatabaseContext(self.config) as db:
+            cur = db.cursor()
+            try:
+                logger.info(f"\n{'='*70}")
+                logger.info(f"EXIT ENGINE CHECK - {current_date}")
+                logger.info(f"{'='*70}\n")
 
-            self.cur.execute(
+                cur.execute(
                 """
                 SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
                        t.target_1_price, t.target_2_price, t.target_3_price,
