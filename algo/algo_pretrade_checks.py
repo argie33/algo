@@ -13,7 +13,6 @@ Validates:
 from config.credential_helper import get_db_config
 import logging
 from typing import Dict, Any, Tuple, Optional
-import os
 import psycopg2
 
 

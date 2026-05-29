@@ -8,7 +8,6 @@ import psycopg2
 from datetime import datetime, timedelta
 from utils.structured_logger import get_logger
 from config.credential_helper import get_db_config
-import os
 
 
 logger = get_logger(__name__)
