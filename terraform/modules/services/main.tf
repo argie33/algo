@@ -156,11 +156,11 @@ resource "aws_apigatewayv2_api" "main" {
   protocol_type = "HTTP"
 
   # CORS is handled at both API Gateway level (safety net) and Lambda (primary)
+  # CloudFront (if enabled) forwards requests to API Gateway; CORS origin not needed here
   cors_configuration {
     allow_origins = [
       "http://localhost:3000",
-      "http://localhost:5173",
-      try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
+      "http://localhost:5173"
     ]
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
@@ -901,52 +901,3 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
   source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
 }
 
-# ============================================================
-# Trigger-Loaders Lambda (failsafe to manually trigger ECS loader tasks)
-# ============================================================
-resource "aws_lambda_function" "trigger_loaders" {
-  function_name = "${var.project_name}-trigger-loaders-${var.environment}"
-  role          = var.trigger_loaders_lambda_role_arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.12"
-  timeout       = 30
-  memory_size   = 256
-
-  filename         = "${path.root}/${var.trigger_loaders_code_file}"
-  source_code_hash = filebase64sha256("${path.root}/${var.trigger_loaders_code_file}")
-
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.algo_lambda_security_group_id]
-  }
-
-  environment {
-    variables = {
-      ECS_CLUSTER_ARN = var.ecs_cluster_arn
-      PROJECT_NAME   = var.project_name
-      ENVIRONMENT    = var.environment
-    }
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-trigger-loaders-${var.environment}"
-  })
-}
-
-resource "aws_cloudwatch_log_group" "trigger_loaders_lambda" {
-  name              = "/aws/lambda/${aws_lambda_function.trigger_loaders.function_name}"
-  retention_in_days = var.cloudwatch_log_retention_days
-
-  tags = merge(var.common_tags, {
-    Name = "${aws_lambda_function.trigger_loaders.function_name}-logs"
-  })
-}
-
-# Allow orchestrator Lambda to invoke trigger-loaders Lambda (failsafe)
-resource "aws_lambda_permission" "algo_invoke_trigger_loaders" {
-  statement_id  = "AllowAlgoInvokeTriggerLoaders"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.trigger_loaders.function_name
-  principal     = "lambda.amazonaws.com"
-  source_arn    = aws_lambda_function.algo.arn
-}
