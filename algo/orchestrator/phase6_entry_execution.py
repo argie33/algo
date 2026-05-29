@@ -21,7 +21,7 @@ from utils.trade_status import PositionStatus
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
-from algo.algo_margin_monitor import MarginMonitor
+from algo.algo_position_monitor import PositionMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -567,8 +567,8 @@ def run(
 
         # Margin entry gate (Phase 6 - production safeguard)
         try:
-            mm = MarginMonitor()
-            can_enter, margin_reason = mm.can_enter_new_position()
+            pm = PositionMonitor(config)
+            can_enter, margin_reason = pm.can_enter_new_position()
             if not can_enter:
                 log_phase_result_fn(
                     6, 'entry_execution', 'success',
