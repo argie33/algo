@@ -318,42 +318,37 @@ class SignalAttributionEngine:
 
         Also updates algo_information_coefficient for historical tracking.
         """
-        self.connect()
         try:
-            for component, ic_data in ic_values.items():
-                self.cur.execute(
-                    """
-                    INSERT INTO algo_component_attribution
-                    (report_date, component, ic_value, ic_pvalue, sample_size,
-                     lookback_trades, avg_component_score, avg_realized_pnl, regime)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (report_date, component) DO UPDATE SET
-                        ic_value = EXCLUDED.ic_value,
-                        ic_pvalue = EXCLUDED.ic_pvalue,
-                        sample_size = EXCLUDED.sample_size,
-                        avg_realized_pnl = EXCLUDED.avg_realized_pnl
-                    """,
-                    (
-                        report_date,
-                        component,
-                        ic_data.get('ic_value'),
-                        ic_data.get('ic_pvalue'),
-                        ic_data.get('sample_size'),
-                        40,  # Standard lookback
-                        ic_data.get('avg_component_score'),
-                        ic_data.get('avg_realized_pnl'),
-                        regime,
-                    ),
-                )
+            with DatabaseContext('write') as cur:
+                for component, ic_data in ic_values.items():
+                    cur.execute(
+                        """
+                        INSERT INTO algo_component_attribution
+                        (report_date, component, ic_value, ic_pvalue, sample_size,
+                         lookback_trades, avg_component_score, avg_realized_pnl, regime)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (report_date, component) DO UPDATE SET
+                            ic_value = EXCLUDED.ic_value,
+                            ic_pvalue = EXCLUDED.ic_pvalue,
+                            sample_size = EXCLUDED.sample_size,
+                            avg_realized_pnl = EXCLUDED.avg_realized_pnl
+                        """,
+                        (
+                            report_date,
+                            component,
+                            ic_data.get('ic_value'),
+                            ic_data.get('ic_pvalue'),
+                            ic_data.get('sample_size'),
+                            40,
+                            ic_data.get('avg_component_score'),
+                            ic_data.get('avg_realized_pnl'),
+                            regime,
+                        ),
+                    )
 
-            self.conn.commit()
-            logger.info(f"Persisted IC for {len(ic_values)} components on {report_date}")
-
+                logger.info(f"Persisted IC for {len(ic_values)} components on {report_date}")
         except Exception as e:
             logger.error(f"Failed to persist IC: {e}")
-            self.conn.rollback()
-        finally:
-            self.disconnect()
 
     def get_trailing_ic(self, component: str, days: int = 60) -> List[Tuple[_date, float]]:
         """
