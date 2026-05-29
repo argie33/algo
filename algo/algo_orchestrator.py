@@ -110,7 +110,6 @@ class Orchestrator:
         self._lock_acquired = False
         self.db_failure_counter_file = Path(tempfile.gettempdir()) / 'algo_db_failures.txt'
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
-        self.skip_freshness = False  # Latent feature: skip data freshness checks
         self.alerts = AlertManager()
 
         # maxconn=100 supports 40+ concurrent loaders with buffer
@@ -293,11 +292,6 @@ class Orchestrator:
 
         Returns: True if data is fresh, False if critical data is stale.
         """
-        # Skip freshness check if flag is set
-        if getattr(self, 'skip_freshness', False):
-            logger.info("[FRESHNESS] Skipping data freshness check (skip_freshness flag set)")
-            return True
-
         try:
             # Loaders fetch data for the PREVIOUS trading day (not today).
             # E.g., at 9:30 AM ET today, we have yesterday's close available.
@@ -717,8 +711,7 @@ class Orchestrator:
         result = run_phase1(
             self.config, self._get_conn, self._put_conn,
             self.run_date, self.dry_run, self.alerts,
-            self.verbose, self.log_phase_result,
-            self.skip_freshness
+            self.verbose, self.log_phase_result
         )
         return not result.halted
 
@@ -946,12 +939,7 @@ class Orchestrator:
                 self.log_phase_result(1, 'planning_mode', 'success', 'Dry-run mode with unavailable database')
                 return self._final_report()
 
-            if getattr(self, 'skip_freshness', False):
-                logger.info("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
-                self.log_phase_result(1, 'freshness_bypassed', 'override',
-                                     '--skip-freshness flag used — data freshness check skipped')
-            else:
-                try:
+            try:
                     phase_1_start = time.time()
                     logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
                     with TimeBlock("phase_1_data_freshness"):
@@ -1190,8 +1178,6 @@ if __name__ == "__main__":
     parser.add_argument('--dry-run', action='store_true', help='Plan only, no real trades')
     parser.add_argument('--init-only', action='store_true', help='Run loaders only, no trading')
     parser.add_argument('--quiet', action='store_true', help='Reduce output')
-    parser.add_argument('--skip-freshness', action='store_true',
-                        help='Skip phase 1 data freshness gate (testing only — never use for live trading)')
     args = parser.parse_args()
 
     run_date = _date.fromisoformat(args.date) if args.date else None
@@ -1214,9 +1200,6 @@ if __name__ == "__main__":
 
     orch = Orchestrator(run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
     try:
-        if args.skip_freshness:
-            orch.skip_freshness = True
-            logger.warning("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
         final = orch.run()
         sys.exit(0 if final['success'] else 1)
     finally:

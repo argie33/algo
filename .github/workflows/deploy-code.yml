@@ -899,7 +899,7 @@ jobs:
             --function-name "$FUNC" \
             --region $AWS_REGION)
 
-          echo "[ALERT]"- Lambda configuration retrieved"
+          echo "[ALERT] Lambda configuration retrieved"
 
           DB_HOST=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_HOST // "NOT_SET"')
           DB_PORT=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_PORT // "NOT_SET"')
@@ -973,7 +973,7 @@ jobs:
             --output text 2>/dev/null || echo "None")
 
           if [ "$EXISTING" != "None" ] && [ -n "$EXISTING" ]; then
-            echo "[ALERT]"- Provisioned concurrency already configured: $EXISTING"
+            echo "[ALERT] Provisioned concurrency already configured: $EXISTING"
           else
             echo "Setting provisioned concurrency to 1 instance (keeps Lambda warm, eliminates cold starts)..."
             aws lambda put-provisioned-concurrency-config \

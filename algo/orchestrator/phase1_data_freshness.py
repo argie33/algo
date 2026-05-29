@@ -272,7 +272,6 @@ def run(
     alerts: AlertManager,
     verbose: bool,
     log_phase_result_fn: Callable,
-    skip_freshness: bool = False,
 ) -> PhaseResult:
     """Execute Phase 1: Data Freshness Check.
 
@@ -285,7 +284,6 @@ def run(
         alerts: AlertManager instance
         verbose: Whether to log verbose output
         log_phase_result_fn: Function to log phase results
-        skip_freshness: If True, skip all freshness checks (latent feature)
 
     Returns:
         PhaseResult with status and data
