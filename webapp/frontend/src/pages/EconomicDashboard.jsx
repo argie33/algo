@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
+import { formatNumber, formatPercentageChange } from '../utils/formatters';
 
 const TT = {
   background: 'var(--surface)', border: '1px solid var(--border)',
@@ -17,8 +18,8 @@ const TT = {
   padding: 'var(--space-2) var(--space-3)',
 };
 
-const _num   = (v, dp = 2) => (v == null || isNaN(+v)) ? '—' : (+v).toFixed(dp);
-const pct   = (v, dp = 2) => (v == null || isNaN(+v)) ? '—' : `${(+v).toFixed(dp)}%`;
+const _num   = (v, dp = 2) => formatNumber(v, dp);
+const pct   = (v, dp = 2) => formatPercentageChange(v, dp);
 const bps   = (v)         => (v == null || isNaN(+v)) ? '—' : `${Math.round(+v * 100)} bps`;
 const fmtD  = (s)         => s ? new Date(s).toLocaleDateString() : '—';
 const fmtM  = (s)         => s ? new Date(s).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '';

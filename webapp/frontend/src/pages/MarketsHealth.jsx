@@ -39,6 +39,7 @@ import {
   RefreshCw, ShieldCheck, TrendingUp, TrendingDown, AlertTriangle, Inbox,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // TOKENS (mirror tokens.css for chart colors)
@@ -74,10 +75,9 @@ const REGIME_COLOR = {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // HELPERS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
-const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toFixed(2)}`;
-const fmtPct = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—'
-  : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(dp)}%`;
+const num = (v, dp = 2) => formatNumber(v, dp);
+const fmtMoney = (v) => formatCurrency(v);
+const fmtPct = (v, dp = 2) => formatPercentageChange(v, dp);
 const fmtDate = (d) => {
   if (!d) return '—';
   const dt = new Date(d);
