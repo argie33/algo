@@ -34,7 +34,6 @@ so add-decisions don't conflict with new-entry decisions.
 
 
 from utils.database_context import DatabaseContext
-from utils.db_connection import get_db_connection
 from datetime import datetime, date as _date
 from algo.algo_pretrade_checks import PreTradeChecks
 import logging
@@ -47,18 +46,6 @@ class PyramidEngine:
 
     def __init__(self, config):
         self.config = config
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-        # Note: algo_trade_adds table created by init_database.py (schema as code)
-
-    def disconnect(self):
-        if self.cur: self.cur.close()
-        if self.conn: self.conn.close()
-        self.cur = self.conn = None
 
     def evaluate_pyramid_adds(self, current_date=None):
         """Review every open winning position for pyramid-add opportunities.
@@ -72,32 +59,33 @@ class PyramidEngine:
         if not self.config.get('enable_pyramiding', True):
             return []
 
-        self.connect()
         try:
-            self.cur.execute(
-                """
-                SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-                       t.entry_quantity,
-                       p.position_id, p.quantity, p.current_price,
-                       p.current_stop_price, p.target_levels_hit,
-                       (SELECT COUNT(*) FROM algo_trade_adds WHERE trade_id = t.trade_id) AS adds_so_far
-                FROM algo_trades t
-                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN ('open','pending')
-                  AND p.status = 'open'
-                  AND p.quantity > 0
-                """
-            )
-            positions = self.cur.fetchall()
-            recommendations = []
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """
+                    SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                           t.entry_quantity,
+                           p.position_id, p.quantity, p.current_price,
+                           p.current_stop_price, p.target_levels_hit,
+                           (SELECT COUNT(*) FROM algo_trade_adds WHERE trade_id = t.trade_id) AS adds_so_far
+                    FROM algo_trades t
+                    JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                    WHERE t.status IN ('open','pending')
+                      AND p.status = 'open'
+                      AND p.quantity > 0
+                    """
+                )
+                positions = cur.fetchall()
 
+            recommendations = []
             for row in positions:
                 rec = self._evaluate_one(row, current_date)
                 if rec:
                     recommendations.append(rec)
             return recommendations
-        finally:
-            self.disconnect()
+        except Exception as e:
+            logger.error(f"Failed to evaluate pyramid adds: {e}")
+            return []
 
     def _evaluate_one(self, row, current_date):
         (trade_id, symbol, entry_price, init_stop, init_qty, position_id,
