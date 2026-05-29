@@ -18,16 +18,15 @@ USAGE:
   logger.info(status.is_healthy)  # True if all critical data fresh
 """
 
-from config.credential_manager import get_db_config
-
 import os
 import logging
-import psycopg2
 from datetime import date as _date, datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from enum import Enum
+
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
+from utils.database_context import database_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -145,39 +144,9 @@ class PipelineHealth:
     }
 
     def __init__(self):
-        self.conn = None
-        self.cur = None
+        pass
 
-    def connect(self):
-        """Establish database connection."""
-        try:
-            config = get_db_config()
-            config["connect_timeout"] = 5  # Fail fast if database is unreachable
-            self.conn = psycopg2.connect(**config)
-            self.cur = self.conn.cursor()
-
-            # Set statement timeout to prevent long-running queries from blocking orchestrator
-            stmt_timeout_ms = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', 30000))  # 30s for health checks (faster than default 5min)
-            self.cur.execute(f"SET statement_timeout = {stmt_timeout_ms}")
-            self.conn.commit()
-        except Exception as e:
-            logger.error(f"Failed to connect to database: {e}")
-            raise
-
-    def disconnect(self):
-        """Close database connection."""
-        if self.cur:
-            try:
-                self.cur.close()
-            except Exception as close_err:
-                logger.debug(f"Cursor close failed: {close_err}")
-        if self.conn:
-            try:
-                self.conn.close()
-            except Exception as close_err:
-                logger.debug(f"Connection close failed: {close_err}")
-
-    def check_table_health(self, table_name: str, date_column: str, sla_days: int) -> TableHealth:
+    def check_table_health(self, cur, table_name: str, date_column: str, sla_days: int) -> TableHealth:
         """Check health of a single table."""
         health = TableHealth(
             table_name=table_name,
@@ -189,8 +158,8 @@ class PipelineHealth:
             safe_table = assert_safe_table(table_name)
             safe_date_col = assert_safe_column(date_column)
 
-            self.cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
-            result = self.cur.fetchone()
+            cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
+            result = cur.fetchone()
             health.row_count = result[0] if result else 0
 
             if health.row_count == 0:
@@ -198,8 +167,8 @@ class PipelineHealth:
                 health.error_message = "Table is empty"
                 return health
 
-            self.cur.execute(f"SELECT MAX({safe_date_col})::DATE FROM {safe_table}")
-            result = self.cur.fetchone()
+            cur.execute(f"SELECT MAX({safe_date_col})::DATE FROM {safe_table}")
+            result = cur.fetchone()
             latest_date = result[0] if result else None
 
             if not latest_date:
@@ -229,48 +198,50 @@ class PipelineHealth:
 
     def get_pipeline_status(self) -> PipelineStatus:
         """Get complete pipeline health status."""
-        if not self.conn or not self.cur:
-            try:
-                self.connect()
-            except Exception as e:
-                logger.error(f"Cannot check pipeline status: {e}")
-                status = PipelineStatus()
-                status.is_healthy = False
-                status.critical_alerts.append(f"Database connection failed: {e}")
-                return status
-
         status = PipelineStatus()
 
-        for table_name, config in self.CRITICAL_TABLES.items():
-            try:
-                health = self.check_table_health(
-                    table_name,
-                    config['date_column'],
-                    config['sla_days']
-                )
-                status.tables[table_name] = health
+        try:
+            with database_transaction('read') as cur:
+                # Set statement timeout for health checks (fail fast)
+                stmt_timeout_ms = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', 30000))
+                cur.execute(f"SET statement_timeout = {stmt_timeout_ms}")
 
-                # Alert on critical issues
-                if health.is_critical:
-                    if health.status == HealthStatus.MISSING:
-                        status.critical_alerts.append(
-                            f"CRITICAL: {table_name} is empty - no trades can execute"
+                for table_name, config in self.CRITICAL_TABLES.items():
+                    try:
+                        health = self.check_table_health(
+                            cur,
+                            table_name,
+                            config['date_column'],
+                            config['sla_days']
                         )
-                    elif health.status == HealthStatus.VERY_STALE:
-                        status.critical_alerts.append(
-                            f"CRITICAL: {table_name} is very stale ({health.age_days} days old)"
+                        status.tables[table_name] = health
+
+                        # Alert on critical issues
+                        if health.is_critical:
+                            if health.status == HealthStatus.MISSING:
+                                status.critical_alerts.append(
+                                    f"CRITICAL: {table_name} is empty - no trades can execute"
+                                )
+                            elif health.status == HealthStatus.VERY_STALE:
+                                status.critical_alerts.append(
+                                    f"CRITICAL: {table_name} is very stale ({health.age_days} days old)"
+                                )
+                            elif health.status == HealthStatus.STALE:
+                                status.warnings.append(
+                                    f"WARNING: {table_name} is stale ({health.age_days} days old)"
+                                )
+                    except Exception as e:
+                        logger.error(f"Error checking {table_name}: {e}")
+                        status.tables[table_name] = TableHealth(
+                            table_name=table_name,
+                            status=HealthStatus.ERROR,
+                            error_message=str(e)
                         )
-                    elif health.status == HealthStatus.STALE:
-                        status.warnings.append(
-                            f"WARNING: {table_name} is stale ({health.age_days} days old)"
-                        )
-            except Exception as e:
-                logger.error(f"Error checking {table_name}: {e}")
-                status.tables[table_name] = TableHealth(
-                    table_name=table_name,
-                    status=HealthStatus.ERROR,
-                    error_message=str(e)
-                )
+        except Exception as e:
+            logger.error(f"Cannot check pipeline status: {e}")
+            status.is_healthy = False
+            status.critical_alerts.append(f"Database connection failed: {e}")
+            return status
 
         # Overall health determination
         has_critical_issues = any(
@@ -284,32 +255,32 @@ class PipelineHealth:
     def log_health_check(self, status: PipelineStatus):
         """Log pipeline health to database for historical tracking."""
         try:
-            for table_health in status.tables.values():
-                self.cur.execute(
-                    """
-                    INSERT INTO data_loader_status
-                    (table_name, status, row_count, latest_date, age_days, last_updated)
-                    VALUES (%s, %s, %s, %s, %s, NOW())
-                    ON CONFLICT (table_name)
-                    DO UPDATE SET
-                        status = EXCLUDED.status,
-                        row_count = EXCLUDED.row_count,
-                        latest_date = EXCLUDED.latest_date,
-                        age_days = EXCLUDED.age_days,
-                        last_updated = NOW()
-                    """,
-                    (
-                        table_health.table_name,
-                        table_health.status.value,
-                        table_health.row_count,
-                        table_health.latest_date,
-                        table_health.age_days
+            with database_transaction('write') as cur:
+                for table_health in status.tables.values():
+                    cur.execute(
+                        """
+                        INSERT INTO data_loader_status
+                        (table_name, status, row_count, latest_date, age_days, last_updated)
+                        VALUES (%s, %s, %s, %s, %s, NOW())
+                        ON CONFLICT (table_name)
+                        DO UPDATE SET
+                            status = EXCLUDED.status,
+                            row_count = EXCLUDED.row_count,
+                            latest_date = EXCLUDED.latest_date,
+                            age_days = EXCLUDED.age_days,
+                            last_updated = NOW()
+                        """,
+                        (
+                            table_health.table_name,
+                            table_health.status.value,
+                            table_health.row_count,
+                            table_health.latest_date,
+                            table_health.age_days
+                        )
                     )
-                )
-            self.conn.commit()
+                cur.connection.commit()
         except Exception as e:
             logger.warning(f"Failed to log health check: {e}")
-            self.conn.rollback()
 
     def assert_pipeline_ready(self) -> bool:
         """Check if pipeline is ready for trading.
@@ -328,7 +299,5 @@ class PipelineHealth:
 if __name__ == '__main__':
     import json
     health = PipelineHealth()
-    health.connect()
     status = health.get_pipeline_status()
     logger.info(json.dumps(status.to_dict(), indent=2, default=str))
-    health.disconnect()
