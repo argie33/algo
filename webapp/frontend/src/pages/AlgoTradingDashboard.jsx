@@ -17,6 +17,7 @@ import {
   Tooltip as RechartTooltip, ResponsiveContainer,
 } from 'recharts';
 import RiskTab from './components/RiskTab';
+import { formatPercentageChange, formatNumber } from '../utils/formatters';
 
 // ============================================================================
 // THEME / COLOR UTILITIES
@@ -177,8 +178,7 @@ function AlgoTradingDashboard() {
                   color: (Number(portfolio.unrealized_pnl_pct) || 0) >= 0 ? 'var(--success)' : 'var(--danger)',
                   fontWeight: 'var(--w-semibold)',
                 }}>
-                  {(Number(portfolio.unrealized_pnl_pct) || 0) >= 0 ? '+' : ''}
-                  {(Number(portfolio.unrealized_pnl_pct) || 0).toFixed(2)}% unrealized
+                  {formatPercentageChange(portfolio.unrealized_pnl_pct)} unrealized
                 </span>
               }
             />
@@ -186,7 +186,7 @@ function AlgoTradingDashboard() {
             <div className="flex gap-4">
               <Stat label="Daily" value={
                 <span style={{ color: (Number(portfolio.daily_return_pct) || 0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {(Number(portfolio.daily_return_pct) || 0) >= 0 ? '+' : ''}{(Number(portfolio.daily_return_pct) || 0).toFixed(2)}%
+                  {formatPercentageChange(portfolio.daily_return_pct)}
                 </span>
               } />
               <Stat label="Positions" value={`${openPositions}/${data.config?.max_positions?.value || 6}`} />
