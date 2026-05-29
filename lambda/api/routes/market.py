@@ -89,9 +89,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         JOIN yesterday y ON t.symbol = y.symbol
                     """)
                     brow = cur.fetchone()
-                    base['breadth'] = dict(brow) if brow else {}
+                    base['data'] = dict(brow) if brow else {}
                 except Exception:
-                    base['breadth'] = {}
+                    base['data'] = {}
                 # Build 30-day McClellan Oscillator history from market_exposure_daily.
                 # The factors JSONB column stores the true McClellan value (19-EMA minus
                 # 39-EMA of net advances) computed by algo_market_exposure._mcclellan().
@@ -144,7 +144,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                                 key=lambda x: (x.get('pct_change') or 0))[:10]
                 return json_response(200, {'gainers': gainers, 'losers': losers})
             elif path == '/api/market/distribution-days':
-                INDEX_NAMES = {'^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^NYA': 'NYSE Composite', '^DJI': 'Dow Jones'}
+                DIST_INDEX_NAMES = {'^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^NYA': 'NYSE Composite', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000'}
                 try:
                     cur.execute("""
                         WITH sessions AS (
@@ -187,7 +187,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         signal = ('DANGER' if count >= 5 else
                                   'CAUTION' if count >= 3 else
                                   'WATCH' if count >= 1 else 'NORMAL')
-                        result[sym] = {'name': INDEX_NAMES.get(sym, sym), 'count': count, 'signal': signal, 'days': days}
+                        result[sym] = {'name': DIST_INDEX_NAMES.get(sym, sym), 'count': count, 'signal': signal, 'days': days}
                     return json_response(200, result)
                 except Exception as e:
                     return handle_db_error(e, logger, 'get distribution days')
@@ -561,16 +561,43 @@ def _parse_range_param(params: Dict, default: int = 30) -> int:
         return default
 
 INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^NYA', '^RUT']
+INDEX_NAMES = {
+    '^GSPC': 'S&P 500',
+    '^IXIC': 'Nasdaq Composite',
+    '^NYA': 'NYSE Composite',
+    '^DJI': 'Dow Jones',
+    '^RUT': 'Russell 2000'
+}
 
 def _get_markets(cur) -> Dict:
         try:
             cur.execute("""
-                SELECT symbol, date, open, high, low, close, volume
-                FROM price_daily
-                WHERE symbol = ANY(%s)
-                  AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = ANY(%s))
-                ORDER BY symbol
-            """, (INDEX_SYMBOLS, INDEX_SYMBOLS))
+                WITH latest_date AS (
+                    SELECT MAX(date) AS d FROM price_daily WHERE symbol = ANY(%s)
+                ),
+                prev_date AS (
+                    SELECT MAX(date) AS d FROM price_daily
+                    WHERE symbol = ANY(%s)
+                      AND date < (SELECT d FROM latest_date)
+                ),
+                today AS (
+                    SELECT symbol, date, close
+                    FROM price_daily
+                    WHERE symbol = ANY(%s)
+                      AND date = (SELECT d FROM latest_date)
+                ),
+                yesterday AS (
+                    SELECT symbol, close AS prev_close
+                    FROM price_daily
+                    WHERE symbol = ANY(%s)
+                      AND date = (SELECT d FROM prev_date)
+                )
+                SELECT t.symbol, t.date, t.close,
+                       COALESCE(y.prev_close, t.close) AS prev_close
+                FROM today t
+                LEFT JOIN yesterday y ON t.symbol = y.symbol
+                ORDER BY t.symbol
+            """, (INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS, INDEX_SYMBOLS))
             latest = cur.fetchall()
 
             cur.execute("""
@@ -589,8 +616,25 @@ def _get_markets(cur) -> Dict:
                     history[sym] = []
                 history[sym].append({'date': str(row['date']), 'close': float(row['close']) if row['close'] else None})
 
+            indices = []
+            for row in latest:
+                price = float(row['close']) if row['close'] else 0
+                prev_price = float(row['prev_close']) if row['prev_close'] else price
+                change = price - prev_price if prev_price > 0 else 0
+                change_pct = (change / prev_price * 100) if prev_price > 0 else 0
+
+                indices.append({
+                    'symbol': row['symbol'],
+                    'name': INDEX_NAMES.get(row['symbol'], row['symbol']),
+                    'date': str(row['date']),
+                    'price': round(price, 2),
+                    'change': round(change, 2),
+                    'changePercent': round(change_pct, 2),
+                    'pe': {}  # Valuation metrics not available in current schema
+                })
+
             result = {
-                'indices': [dict(r) for r in latest] if latest else [],
+                'indices': indices,
                 'history': history,
             }
             return json_response(200, result)

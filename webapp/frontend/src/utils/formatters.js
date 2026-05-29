@@ -1,5 +1,13 @@
 ﻿import numeral from "numeral";
 
+// Format null/undefined values as "-" (for clean UI display)
+export const formatValue = (value) => {
+  if (value === null || value === undefined || value === "null" || value === "undefined") {
+    return "-";
+  }
+  return value;
+};
+
 // Format currency values
 export const formatCurrency = (value, decimals = 2) => {
   if (value === null || value === undefined) return "N/A";

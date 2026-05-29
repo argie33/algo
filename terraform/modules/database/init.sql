@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS price_weekly (
     low DECIMAL(12, 4),
     close DECIMAL(12, 4),
     volume BIGINT,
+    adj_close DECIMAL(12, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_weekly_unique ON price_weekly(symbol, date);
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS price_monthly (
     low DECIMAL(12, 4),
     close DECIMAL(12, 4),
     volume BIGINT,
+    adj_close DECIMAL(12, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_monthly_unique ON price_monthly(symbol, date);
