@@ -13,7 +13,7 @@ import psycopg2, json
 from typing import Dict, Any
 import logging
 from datetime import datetime, timedelta, date
-from .utils import error_response, success_response, json_response, safe_limit, handle_db_error
+from .utils import error_response, success_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +135,8 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         except Exception as e:
             logger.warning(f"Exit rules fetch failed: {e}")
 
+        freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
+        result['data_freshness'] = freshness
         return json_response(200, result)
     except Exception as e:
         return handle_db_error(e, logger, 'fetch comprehensive risk dashboard')
