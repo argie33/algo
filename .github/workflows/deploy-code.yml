@@ -1098,12 +1098,21 @@ jobs:
 
       - name: Prepare Runtime Config
         run: |
-          # Simply copy the source config.js to dist/ with no modifications.
-          # The source file (webapp/frontend/public/config.js) contains production values
-          # and is the single source of truth. This avoids the complexity and unreliability
-          # of trying to dynamically generate config based on Terraform outputs.
+          # Copy source config and inject production values for AWS deployment
           mkdir -p webapp/frontend/dist
           cp webapp/frontend/public/config.js webapp/frontend/dist/config.js
+
+          # Inject production CloudFront URL and environment into config.js
+          WEBSITE_URL=”${{ needs.resolve-infra.outputs.website_url }}”
+          if [ -n “$WEBSITE_URL” ] && [ “$WEBSITE_URL” != “null” ] && [ “$WEBSITE_URL” != “None” ] && [ “$WEBSITE_URL” != “***” ]; then
+            API_URL=”$WEBSITE_URL”
+            echo “Injecting CloudFront API_URL: $API_URL”
+            sed -i “s|\”API_URL\”: \”\”|\”API_URL\”: \”$API_URL\”|g” webapp/frontend/dist/config.js
+            sed -i 's|”ENVIRONMENT”: “development”|”ENVIRONMENT”: “production”|g' webapp/frontend/dist/config.js
+            echo “Config injected for production deployment”
+          else
+            echo “WARNING: CloudFront website_url not available, using development config”
+          fi
 
           echo “Runtime config prepared”
           cat webapp/frontend/dist/config.js
