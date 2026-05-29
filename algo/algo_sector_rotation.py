@@ -19,16 +19,6 @@ When defensive_lead_score >= 60, the market exposure model reduces the
 composite score by 5-10 points (handled in algo_market_exposure.py).
 """
 
-from config.credential_manager import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-
-
-
 import logging
 import os
 import json
@@ -58,21 +48,6 @@ class SectorRotationDetector:
 
     def __init__(self, config=None):
         self.config = config
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        if self.cur is not None:
-            return  # Already connected (e.g., shared cursor injected by caller)
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        if self.conn:  # Only close if we own the connection
-            if self.cur:
-                self.cur.close()
-            self.conn.close()
-            self.cur = self.conn = None
 
     def compute(self, eval_date=None):
         """Run sector rotation analysis for the eval_date.
@@ -83,24 +58,24 @@ class SectorRotationDetector:
         """
         if eval_date is None:
             eval_date = _date.today()
-        self.connect()
 
         try:
-            self.cur.execute(
-                """
-                SELECT sector_name, current_rank, momentum_score,
-                       rank_1w_ago, rank_4w_ago, rank_12w_ago
-                FROM sector_ranking
-                WHERE date_recorded = (
-                    SELECT MAX(date_recorded) FROM sector_ranking
-                    WHERE date_recorded <= %s
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """
+                    SELECT sector_name, current_rank, momentum_score,
+                           rank_1w_ago, rank_4w_ago, rank_12w_ago
+                    FROM sector_ranking
+                    WHERE date_recorded = (
+                        SELECT MAX(date_recorded) FROM sector_ranking
+                        WHERE date_recorded <= %s
+                    )
+                    AND sector_name <> '' AND sector_name IS NOT NULL
+                    AND sector_name <> 'Benchmark'
+                    """,
+                    (eval_date,),
                 )
-                AND sector_name <> '' AND sector_name IS NOT NULL
-                AND sector_name <> 'Benchmark'
-                """,
-                (eval_date,),
-            )
-            rows = self.cur.fetchall()
+                rows = cur.fetchall()
             sector_data = {}
             for sector_name, rank, momentum, r1w, r4w, r12w in rows:
                 if rank is None:
@@ -181,8 +156,9 @@ class SectorRotationDetector:
             }
             self._persist(eval_date, result)
             return result
-        finally:
-            self.disconnect()
+        except Exception as e:
+            logger.error(f"Sector rotation compute failed: {e}", exc_info=True)
+            return None
 
     def log_phase_result_skip(self):
         pass
@@ -253,36 +229,35 @@ class SectorRotationDetector:
 
     def _persist(self, eval_date, result):
         try:
-            self.cur.execute(
-                """INSERT INTO sector_rotation_signal
-                   (date, sector, signal, strength, rank, details)
-                   VALUES (%s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (date, sector) DO UPDATE SET
-                       signal = EXCLUDED.signal,
-                       strength = EXCLUDED.strength,
-                       rank = EXCLUDED.rank,
-                       details = EXCLUDED.details""",
-                (
-                    eval_date,
-                    'market_rotation',
-                    result['signal'],
-                    round(result.get('defensive_lead_score', 0) / 100.0, 4),
-                    1,  # single rotation signal per date
-                    json.dumps({
-                        'defensive_lead_score': result.get('defensive_lead_score'),
-                        'cyclical_weak_score': result.get('cyclical_weak_score'),
-                        'defensive_rank_improvement_4w': result.get('defensive_rank_improvement_4w'),
-                        'cyclical_rank_improvement_4w': result.get('cyclical_rank_improvement_4w'),
-                        'spread_4w': result.get('spread_4w'),
-                        'weeks_persistent': result.get('weeks_persistent'),
-                        'reduce_exposure_pts': result.get('reduce_exposure_pts'),
-                        'sector_data': result.get('sector_data', {}),
-                    }),
-                ),
-            )
-            self.conn.commit()
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """INSERT INTO sector_rotation_signal
+                       (date, sector, signal, strength, rank, details)
+                       VALUES (%s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (date, sector) DO UPDATE SET
+                           signal = EXCLUDED.signal,
+                           strength = EXCLUDED.strength,
+                           rank = EXCLUDED.rank,
+                           details = EXCLUDED.details""",
+                    (
+                        eval_date,
+                        'market_rotation',
+                        result['signal'],
+                        round(result.get('defensive_lead_score', 0) / 100.0, 4),
+                        1,  # single rotation signal per date
+                        json.dumps({
+                            'defensive_lead_score': result.get('defensive_lead_score'),
+                            'cyclical_weak_score': result.get('cyclical_weak_score'),
+                            'defensive_rank_improvement_4w': result.get('defensive_rank_improvement_4w'),
+                            'cyclical_rank_improvement_4w': result.get('cyclical_rank_improvement_4w'),
+                            'spread_4w': result.get('spread_4w'),
+                            'weeks_persistent': result.get('weeks_persistent'),
+                            'reduce_exposure_pts': result.get('reduce_exposure_pts'),
+                            'sector_data': result.get('sector_data', {}),
+                        }),
+                    ),
+                )
         except Exception as e:
-            self.conn.rollback()
             logger.error(f"persist sector_rotation failed for {eval_date}: {e}", exc_info=True)
 
 
