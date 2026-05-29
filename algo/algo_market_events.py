@@ -288,38 +288,33 @@ class MarketEventHandler:
             dict with action taken
         """
         try:
-            if not self.cur:
-                self.connect()
+            from utils.database_context import database_transaction
 
             if level == 3:
                 # L3: Full halt, no new orders, close positions
                 action = 'HALT_ALL_ENTRIES'
                 message = 'Market circuit breaker L3 (20%+ down) — halting all new entries and preparing for forced exit'
-
-                self.cur.execute(
-                    """
-                    INSERT INTO algo_audit_log (
-                        action_type, action_date, details, severity
-                    ) VALUES (%s, %s, %s, %s)
-                    """,
-                    ('CIRCUIT_BREAKER_L3', datetime.now(timezone.utc), message, 'CRITICAL')
-                )
-
+                severity = 'CRITICAL'
+                action_type = 'CIRCUIT_BREAKER_L3'
             elif level in (1, 2):
                 # L1/L2: Pause new entries for 15 minutes, tighten stops
                 action = 'PAUSE_ENTRIES_15MIN'
                 message = f'Market circuit breaker L{level} ({"7" if level == 1 else "13"}%+ down) — pausing new entries for 15 minutes'
+                severity = 'ERROR'
+                action_type = f'CIRCUIT_BREAKER_L{level}'
+            else:
+                return {'action': 'ERROR', 'message': f'Invalid circuit breaker level: {level}'}
 
-                self.cur.execute(
+            with database_transaction() as cur:
+                cur.execute(
                     """
                     INSERT INTO algo_audit_log (
                         action_type, action_date, details, severity
                     ) VALUES (%s, %s, %s, %s)
                     """,
-                    ('CIRCUIT_BREAKER_L' + str(level), datetime.now(timezone.utc), message, 'ERROR')
+                    (action_type, datetime.now(timezone.utc), message, severity)
                 )
-
-            self.conn.commit()
+                cur.connection.commit()
 
             return {
                 'action': action,
@@ -329,8 +324,6 @@ class MarketEventHandler:
             }
 
         except Exception as e:
-            if self.conn:
-                self.conn.rollback()
             logger.error(f"MarketEventHandler: handle_market_circuit_breaker error: {e}")
             return {'action': 'ERROR', 'message': str(e)}
 

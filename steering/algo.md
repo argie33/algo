@@ -417,6 +417,18 @@ If missing, rebuild schema via `deploy-code.yml` (loads `terraform/modules/datab
 - Alpaca API calls have 30-second thread-based timeout wrapper (since May 26 fix)
 - If orchestrator still hangs: check if Alpaca API endpoint is reachable, network issues
 
+**Terraform plan fails with "Invalid index" error (orphaned loaders in state):**
+- Error: "Error: Invalid index — the given key does not identify an element in this collection value"
+- Root cause: Terraform state contains deleted loaders (e.g., "market_data_batch") but current `all_loaders` config doesn't include them
+- Fix: Before approving terraform apply in GitHub Actions, remove stale state entries:
+```bash
+# From repo root, run this BEFORE terraform apply:
+terraform state rm "module.loaders.aws_ecs_task_definition.loader[\"market_data_batch\"]" 2>/dev/null || echo "Already removed"
+terraform plan -var-file=terraform.tfvars  # Should succeed now
+```
+- Or use the provided helper: see CLAUDE.md for refresh-aws-credentials.ps1 usage pattern
+- This is a one-time cleanup for state drift; once applied, future plans will not have this issue
+
 ## ORCHESTRATOR PHASES
 
 1. **Phase 1 — Data Freshness:** Verify price_daily, technical_data_daily recent (< 7 days). Halt if stale.
