@@ -42,9 +42,34 @@ FRED_API_KEY (economic data)
 - Never commit `.env` files
 - CI uses OIDC (OpenID Connect) for AWS authentication, not static keys
 
+## DEPLOYMENT FLOW (2026-05-29: OIDC Verified & Working)
+
+**THE RIGHT WAY - Production deployments use GitHub Actions OIDC:**
+```
+git push main
+    ↓
+GitHub Actions triggers deploy-code.yml or deploy-all-infrastructure.yml
+    ↓
+GitHub token automatically exchanged for temporary AWS credentials (OIDC)
+    ↓
+Terraform/Lambda/S3 deployments execute with transient credentials
+    ↓
+Zero static keys, credentials auto-expire after 1 hour
+```
+
+**Status:** ✅ VERIFIED WORKING (2026-05-29 run 26637955418)
+- Frontend deployment succeeded
+- All Lambda functions updated
+- CloudFront cache invalidated
+- Zero authentication errors
+
+**NEVER use local terraform apply or credential refresh scripts for production work.** Those are only for local development/debugging.
+
+---
+
 ## LOCAL AWS CREDENTIALS (Auto-Refreshing)
 
-**NEW: Automatic credential refresh via credential_process (NO manual refresh needed)**
+**For local development only (not production deployment):**
 
 Set up once:
 ```bash
@@ -59,13 +84,19 @@ This configures your `~/.aws/config` to automatically fetch fresh credentials on
 
 **How it works:**
 1. When you run `aws s3 ls --profile algo-developer`, AWS SDK calls the credential_process script
-2. Script fetches fresh credentials from GitHub Actions workflow (via OIDC)
+2. Script fetches fresh credentials from AWS STS
 3. Credentials cached locally for 50 minutes
 4. No human intervention required
 
 **For debugging locally:**
 ```bash
 aws sts get-caller-identity --profile algo-developer
+```
+
+**When credentials expire (error: "The security token included in the request is invalid"):**
+```powershell
+# Run this to refresh:
+scripts/refresh-aws-credentials.ps1
 ```
 
 **Credential Rotation:** Automatic quarterly rotation (first Monday of each quarter at 02:00 UTC)
