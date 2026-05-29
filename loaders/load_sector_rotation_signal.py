@@ -36,7 +36,7 @@ def load_sector_rotation_signals():
             INSERT INTO sector_rotation_signal (date, sector, signal, strength, created_at)
             SELECT
                 %s::date,
-                sr.sector_name,
+                sr.sector_name AS sector,
                 CASE
                     WHEN sr.momentum_score > 0.1 THEN 'up'
                     WHEN sr.momentum_score < -0.1 THEN 'down'
