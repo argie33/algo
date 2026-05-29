@@ -636,47 +636,53 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
   })
 }
 
-resource "aws_cloudwatch_event_rule" "morning_pipeline_trigger" {
-  name                = "${var.project_name}-morning-pipeline-${var.environment}"
-  description         = "Morning data prep: load prices + technicals for market open (4:30 AM ET = 9:30 UTC)"
-  schedule_expression = "cron(30 9 ? * MON-FRI *)"
-  state               = "ENABLED"
-  tags                = var.common_tags
+# FIXED Issue #2, #3: Migrate to EventBridge Scheduler for timezone-aware cron
+# Classic EventBridge rules use UTC only; Scheduler supports schedule_expression_timezone
+# This fixes the "pipeline runs 1h early in winter (EST)" bug
+#
+# Morning: 4:30 AM ET (not dependent on EST/EDT)
+# EOD: 4:05 PM ET (not dependent on EST/EDT, 5 min after market close)
+
+resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
+  name                         = "${var.project_name}-morning-pipeline-${var.environment}"
+  description                  = "Morning data prep: load prices + technicals for market open (4:30 AM ET)"
+  schedule_expression          = "cron(30 4 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_sfn_state_machine.morning_prep_pipeline.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      execution_name = "morning-<aws.scheduler.execution-id>"
+    })
+  }
 }
 
-resource "aws_cloudwatch_event_rule" "eod_pipeline_trigger" {
-  name                = "${var.project_name}-eod-pipeline-${var.environment}"
-  description         = "EOD pipeline: end-of-day analysis & swing scores (4:05 PM ET = 20:05 UTC Mon-Fri, 5 min after market close)"
-  schedule_expression = "cron(5 20 ? * MON-FRI *)"
-  state               = "ENABLED"
-  tags                = var.common_tags
-}
+resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
+  name                         = "${var.project_name}-eod-pipeline-${var.environment}"
+  description                  = "EOD pipeline: end-of-day analysis & swing scores (4:05 PM ET, 5 min after market close)"
+  schedule_expression          = "cron(5 16 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
 
-# Orchestrator runs 2x daily via EventBridge Scheduler in services/2x-daily-orchestrator.tf
-# No longer triggered here via classic EventBridge rules (consolidated in services module)
+  flexible_time_window {
+    mode = "OFF"
+  }
 
-# FIXED Issue #28: Configure Step Functions execution names for tracing
-# Pass execution name via input so CloudWatch execution history is readable
-# Format: eod-{run_date}-{timestamp} for manual correlation with logs
+  target {
+    arn      = aws_sfn_state_machine.eod_pipeline.arn
+    role_arn = var.eventbridge_scheduler_role_arn
 
-resource "aws_cloudwatch_event_target" "morning_pipeline" {
-  rule     = aws_cloudwatch_event_rule.morning_pipeline_trigger.name
-  arn      = aws_sfn_state_machine.morning_prep_pipeline.arn
-  role_arn = aws_iam_role.eventbridge_sfn.arn
-
-  input = jsonencode({
-    execution_name = "morning-<aws.events.event.time>"
-  })
-}
-
-resource "aws_cloudwatch_event_target" "eod_pipeline" {
-  rule     = aws_cloudwatch_event_rule.eod_pipeline_trigger.name
-  arn      = aws_sfn_state_machine.eod_pipeline.arn
-  role_arn = aws_iam_role.eventbridge_sfn.arn
-
-  input = jsonencode({
-    execution_name = "eod-<aws.events.event.time>"
-  })
+    input = jsonencode({
+      execution_name = "eod-<aws.scheduler.execution-id>"
+    })
+  }
 }
 
 # ============================================================
