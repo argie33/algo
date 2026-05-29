@@ -2454,21 +2454,17 @@ CREATE TABLE IF NOT EXISTS relative_performance (
 CREATE INDEX IF NOT EXISTS idx_relative_performance_symbol_date ON relative_performance(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_relative_performance_date ON relative_performance(date);
 
--- Social sentiment (loadsentiment.py) — stub loader; stores OHLCV passthrough until real
--- sentiment source is wired. Table required so loader does not crash on LIKE staging.
+-- Market sentiment aggregates by symbol/market
 CREATE TABLE IF NOT EXISTS sentiment (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    open DECIMAL(12, 4),
-    high DECIMAL(12, 4),
-    low DECIMAL(12, 4),
-    close DECIMAL(12, 4),
-    volume BIGINT,
+    sentiment_score DECIMAL(8, 4),
+    sentiment_label VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, date)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol)
 );
-CREATE INDEX IF NOT EXISTS idx_sentiment_symbol_date ON sentiment(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_sentiment_symbol ON sentiment(symbol);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- LOADER TRACKING & MONITORING

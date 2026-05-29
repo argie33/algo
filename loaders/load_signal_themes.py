@@ -35,29 +35,27 @@ def load_signal_themes():
         # Insert signal themes based on top stock scores
         # Group high-scoring stocks by patterns
         cur.execute("""
-            INSERT INTO signal_themes (symbol, date, sector_theme, thematic_group, correlation_cluster, created_at, updated_at)
+            INSERT INTO signal_themes (symbol, date, sector_theme, thematic_group, correlation_cluster, created_at)
             SELECT
                 sqs.symbol,
                 %s::date,
                 'high_momentum'::text AS sector_theme,
                 CASE
-                    WHEN sqs.signal_score > 85 THEN 'Elite'
-                    WHEN sqs.signal_score > 75 THEN 'Premium'
-                    WHEN sqs.signal_score > 65 THEN 'Standard'
+                    WHEN sqs.composite_sqs > 85 THEN 'Elite'
+                    WHEN sqs.composite_sqs > 75 THEN 'Premium'
+                    WHEN sqs.composite_sqs > 65 THEN 'Standard'
                     ELSE 'Monitor'
                 END AS thematic_group,
                 'Primary'::text AS correlation_cluster,
-                NOW(),
                 NOW()
             FROM signal_quality_scores sqs
-            WHERE sqs.signal_date = %s
-            AND sqs.signal_score > 50
-            ORDER BY sqs.signal_score DESC
+            WHERE sqs.date = %s
+            AND sqs.composite_sqs > 50
+            ORDER BY sqs.composite_sqs DESC
             LIMIT 500
             ON CONFLICT (symbol, date) DO UPDATE SET
                 sector_theme = EXCLUDED.sector_theme,
-                thematic_group = EXCLUDED.thematic_group,
-                updated_at = NOW()
+                thematic_group = EXCLUDED.thematic_group
         """, (latest_date, latest_date))
 
         inserted = cur.rowcount

@@ -33,27 +33,26 @@ def load_sector_rotation_signals():
 
         # Insert sector rotation signals based on momentum
         cur.execute("""
-            INSERT INTO sector_rotation_signal (sector_name, direction, strength, created_at, updated_at)
+            INSERT INTO sector_rotation_signal (date, sector, signal, strength, created_at)
             SELECT
+                %s::date,
                 sr.sector_name,
                 CASE
                     WHEN sr.momentum_score > 0.1 THEN 'up'
                     WHEN sr.momentum_score < -0.1 THEN 'down'
                     ELSE 'neutral'
-                END AS direction,
+                END AS signal,
                 ABS(sr.momentum_score)::numeric AS strength,
-                NOW(),
                 NOW()
             FROM (
                 SELECT DISTINCT sector_name, momentum_score
                 FROM sector_ranking
                 WHERE date_recorded = %s
             ) sr
-            ON CONFLICT (sector_name) DO UPDATE SET
-                direction = EXCLUDED.direction,
-                strength = EXCLUDED.strength,
-                updated_at = NOW()
-        """, (latest_date,))
+            ON CONFLICT (date, sector) DO UPDATE SET
+                signal = EXCLUDED.signal,
+                strength = EXCLUDED.strength
+        """, (latest_date, latest_date))
 
         inserted = cur.rowcount
         conn.commit()
