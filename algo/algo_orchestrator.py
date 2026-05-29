@@ -347,11 +347,6 @@ class Orchestrator:
         trading day, old findings are not representative of current data quality.
         Returns: True if patrol OK, False if critical/error issues found.
         """
-        # In DEV mode, skip strict patrol checks to allow testing with partial data
-        if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
-            logger.info("DEV MODE: Skipping strict data patrol checks")
-            return True
-
         try:
             cur.execute("""
                 SELECT patrol_run_id, MAX(created_at) AS run_at FROM data_patrol_log
@@ -850,18 +845,6 @@ class Orchestrator:
         logger.info(f"#   run_id: {self.run_id}")
         logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
         logger.info(f"{'#'*70}")
-
-        # Loudly warn if DEV_MODE is active — this bypasses all data freshness and patrol gates
-        if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
-            logger.critical("=" * 70)
-            logger.critical("[WARNING]  DEV_MODE=true IS ACTIVE — ALL DATA QUALITY GATES ARE BYPASSED")
-            logger.critical("   Do NOT run with DEV_MODE in production or with real capital.")
-            logger.critical("=" * 70)
-            if not self.dry_run:
-                raise RuntimeError(
-                    "ABORT: DEV_MODE=true with ORCHESTRATOR_DRY_RUN=false is not allowed. "
-                    "Set ORCHESTRATOR_DRY_RUN=true or disable DEV_MODE before running live trading."
-                )
 
         if not MarketCalendar.is_trading_day(self.run_date):
             status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))

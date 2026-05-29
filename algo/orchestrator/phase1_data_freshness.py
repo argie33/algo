@@ -329,11 +329,6 @@ def run(
         cur = conn.cursor()
         logger.debug("Phase 1: Database connection established")
 
-        # In DEV mode, skip strict SLA/loader health checks
-        if os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes'):
-            logger.debug("Phase 1: Running in DEV mode - skipping strict SLA checks")
-            logger.info("  [DEV MODE] Skipping SLA and loader health checks")
-
         cur.execute(
             """
             SELECT
@@ -372,8 +367,6 @@ def run(
             'Signal quality scores': 'signal_quality_scores',
             'Buy/sell signals': 'buy_sell_daily',
         }
-        # In DEV_MODE, be lenient about data staleness (allow up to 7 days old)
-        is_dev_mode = os.getenv('DEV_MODE', '').lower() in ('true', '1', 'yes')
         stale_items = []
 
         # Compute the most recent trading day before run_date as the expected data date.
@@ -400,7 +393,7 @@ def run(
 
         for name, d in checks.items():
             is_halt_check = name in halt_checks
-            if d is None and not is_dev_mode:
+            if d is None:
                 if is_halt_check:
                     stale_items.append(f"{name}: missing")
                 else:
@@ -411,7 +404,7 @@ def run(
                 age = (run_date - d).days
                 if _metrics:
                     _metrics.put_data_freshness(table_keys[name], age)
-                is_stale = d < expected_date and not is_dev_mode
+                is_stale = d < expected_date
                 if is_stale and is_halt_check:
                     stale_items.append(f"{name}: {age}d old (expected {expected_date})")
                 if verbose:

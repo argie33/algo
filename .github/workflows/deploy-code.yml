@@ -782,7 +782,7 @@ jobs:
           if [ -z "$SECRET_ID" ] || [ "$SECRET_ID" = "null" ] || [ "$SECRET_ID" = "***" ]; then
             # Fall back to constructed secret name
             SECRET_ID="${PROJECT}-db-credentials-${ENV}"
-            echo "[ALERT]"
+            echo "[ALERT] Using constructed secret ID: $SECRET_ID"
           else
             echo "[OK] Using Terraform-resolved secret ID: $SECRET_ID"
           fi
@@ -899,7 +899,7 @@ jobs:
             --function-name "$FUNC" \
             --region $AWS_REGION)
 
-          echo "[ALERT] Lambda configuration retrieved"
+          echo "[OK] Lambda configuration retrieved"
 
           DB_HOST=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_HOST // "NOT_SET"')
           DB_PORT=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_PORT // "NOT_SET"')
@@ -909,7 +909,7 @@ jobs:
           DB_SSL=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_SSL // "NOT_SET"')
 
           if [ "$DB_HOST" = "NOT_SET" ]; then
-            echo "[ALERT]"
+            echo "[ALERT] DB_HOST not set in Lambda configuration"
             exit 1
           fi
 
@@ -927,8 +927,8 @@ jobs:
           API_ENDPOINT="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
 
           if [ -z "$API_ENDPOINT" ]; then
-            echo "[ALERT]"
-            echo "   (Check API is deployed manually)"
+            echo "[ALERT] No API endpoint available - check Terraform output"
+            echo "   (You can check API is deployed manually via AWS console)"
             exit 0
           fi
 

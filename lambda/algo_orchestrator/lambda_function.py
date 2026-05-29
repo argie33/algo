@@ -34,7 +34,6 @@ def lambda_handler(event, context):
         "test": "true",
         "timeout": 120,
         "dry_run": false,
-        "skip_freshness": false,
         "date": "2026-05-23"
     }
 
@@ -68,12 +67,6 @@ def lambda_handler(event, context):
         source = event.get('source', 'eventbridge')
         is_test = event.get('test', False)
         dry_run = event.get('dry_run', False)
-        skip_freshness = event.get('skip_freshness', False)
-        # Ensure skip_freshness is boolean
-        if isinstance(skip_freshness, str):
-            skip_freshness = skip_freshness.lower() in ('true', '1', 'yes')
-        else:
-            skip_freshness = bool(skip_freshness)
         # Support both 'date' and 'run_date' fields from EventBridge; treat 'now'/'today' as None (use today's date)
         run_date_str = event.get('date') or event.get('run_date')
 
@@ -90,7 +83,7 @@ def lambda_handler(event, context):
             logger.warning(f"Invalid execution_mode: {execution_mode}. Defaulting to 'auto'.")
             execution_mode = 'auto'
 
-        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, skip_freshness={skip_freshness}, execution_mode={execution_mode}, run_identifier={run_identifier}")
+        logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}")
 
         # FIXED Issue #18: Default Lambda timeout to 600s instead of 240s (close to Lambda max)
         lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 600
@@ -114,13 +107,6 @@ def lambda_handler(event, context):
         if execution_mode != 'auto':
             orchestrator.config['execution_mode'] = execution_mode
             logger.info(f"Execution mode set to {execution_mode} from event")
-
-        # Apply additional options
-        if skip_freshness:
-            orchestrator.skip_freshness = True
-            logger.warning(f"WARNING: skip_freshness=True set on orchestrator. Data may be stale.")
-        else:
-            logger.info(f"skip_freshness is False or not set")
 
         # Run the orchestrator
         logger.info(f"Starting orchestrator run")
