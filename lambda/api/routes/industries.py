@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging
-from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_page, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -170,11 +170,13 @@ def _industry_list(cur, params):
             },
         })
 
+    freshness = check_data_freshness(cur, 'industry_ranking', 'date', warning_days=1)
     return json_response(200, {
         'items': industries,
         'total': total,
         'page':  page,
         'limit': limit,
+        'data_freshness': freshness,
     })
 
 
