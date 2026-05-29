@@ -59,21 +59,8 @@ class DataPatrol:
     """Comprehensive data integrity patrol."""
 
     def __init__(self):
-        self.conn = None
-        self.cur = None
         self.results = []
         self.check_timings = {}  # track execution time per check
-
-    def connect(self):
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        if self.cur: self.cur.close()
-        if self.conn: self.conn.close()
-        self.cur = self.conn = None
-
-    # Note: data_patrol_log table created by init_database.py (schema as code)
 
     def _timed_check(self, check_name, check_func):
         """Run a check and track execution time."""
@@ -91,7 +78,7 @@ class DataPatrol:
             self.check_timings[check_name] = elapsed
             raise
 
-    def _log_configuration(self):
+    def _log_configuration(self, cur):
         """Log all patrol configuration at start of run.
 
         Captures thresholds, timeouts, and check settings. If someone silently
@@ -126,39 +113,39 @@ class DataPatrol:
             },
         }
         try:
-            self.cur.execute("""
+            cur.execute("""
                 INSERT INTO data_patrol_log (patrol_run_id, check_name, severity,
                                             target_table, message, details)
                 VALUES (%s, 'configuration_audit', 'info', 'patrol_config',
                         'Patrol configuration snapshot', %s)
             """, (self._run_id, json.dumps(config)))
-            self.conn.commit()
+            cur.connection.commit()
         except Exception as e:
 
             logger.error(f"Unhandled exception: {e}")
 
-    def log(self, name, severity, target, message, details=None):
+    def log(self, cur, name, severity, target, message, details=None):
         self.results.append({
             'check': name, 'severity': severity, 'target': target,
             'message': message, 'details': details,
         })
         try:
-            self.cur.execute(
+            cur.execute(
                 """INSERT INTO data_patrol_log (patrol_run_id, check_name, severity,
                                                 target_table, message, details)
                    VALUES (%s, %s, %s, %s, %s, %s)""",
                 (self._run_id, name, severity, target, message,
                  json.dumps(details) if details else None),
             )
-            self.conn.commit()
+            cur.connection.commit()
         except Exception as e:
             try:
-                self.conn.rollback()
+                cur.connection.rollback()
             except Exception as rb_e:
 
                 logger.error(f"Unhandled exception: {rb_e}")
 
-    def check_staleness(self):
+    def check_staleness(self, cur):
         """P1. Latest data within expected window."""
         sources = [
             ('price_daily', 'date', 'daily', 7, CRIT),
@@ -181,11 +168,11 @@ class DataPatrol:
             try:
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_column(col)
-                count, latest_str = safe_select_count(self.cur, tbl_safe, date_column=col_safe)
+                count, latest_str = safe_select_count(cur, tbl_safe, date_column=col_safe)
                 if not latest_str:
                     # Empty tables log as INFO/WARN, never CRITICAL (loaders may not have run yet)
                     empty_severity = INFO if sev_on_stale == CRIT else sev_on_stale
-                    self.log('staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
+                    self.log(cur, 'staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
                     continue
                 # Handle both date and datetime formats
                 try:
@@ -197,20 +184,20 @@ class DataPatrol:
                         latest = None
 
                 if not latest:
-                    self.log('staleness', WARN, tbl, f'{tbl} timestamp parse failed: {latest_str}', {'latest': latest_str})
+                    self.log(cur, 'staleness', WARN, tbl, f'{tbl} timestamp parse failed: {latest_str}', {'latest': latest_str})
                     continue
 
                 age = (today - latest).days
                 if age > max_days:
-                    self.log('staleness', sev_on_stale, tbl,
+                    self.log(cur, 'staleness', sev_on_stale, tbl,
                              f'{tbl} stale: {age}d > {max_days}d threshold',
                              {'latest': str(latest), 'age_days': age, 'freq': freq})
                 else:
-                    self.log('staleness', INFO, tbl,
+                    self.log(cur, 'staleness', INFO, tbl,
                              f'{tbl} fresh ({age}d old)',
                              {'latest': str(latest), 'age_days': age})
             except Exception as e:
-                self.log('staleness', ERROR, tbl, f'Check failed: {e}', None)
+                self.log(cur, 'staleness', ERROR, tbl, f'Check failed: {e}', None)
 
     def check_null_anomalies(self):
         """P2. Sudden spike in NULL values vs historical."""

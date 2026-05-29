@@ -39,27 +39,6 @@ class PositionMonitor:
 
     def __init__(self, config):
         self.config = config
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        """Get database connection (RDS Proxy handles pooling)."""
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        """Close database connection."""
-        if self.cur:
-            try:
-                self.cur.close()
-            except Exception as e:
-                logger.debug(f"Failed to close cursor: {e}")
-        if self.conn:
-            try:
-                self.conn.close()
-            except Exception as conn_err:
-                logger.debug(f"Failed to close connection: {conn_err}")
-        self.cur = self.conn = None
 
     def check_stale_orders(self, current_date=None):
         """Check for orders stuck in pending state >1 hour. Alert if found.
@@ -70,16 +49,17 @@ class PositionMonitor:
         if not current_date:
             current_date = _date.today()
 
-        try:
-            self.connect()
-            self.cur.execute("""
-                SELECT trade_id, symbol, entry_price, entry_quantity, created_at
-                FROM algo_trades
-                WHERE status = 'pending'
-                  AND created_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'
-                ORDER BY created_at ASC
-            """)
-            stale_orders = self.cur.fetchall()
+        with DatabaseContext(self.config) as db:
+            cur = db.cursor()
+            try:
+                cur.execute("""
+                    SELECT trade_id, symbol, entry_price, entry_quantity, created_at
+                    FROM algo_trades
+                    WHERE status = 'pending'
+                      AND created_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'
+                    ORDER BY created_at ASC
+                """)
+                stale_orders = cur.fetchall()
             if stale_orders:
                 # Filter out halted symbols (halts are normal, not actionable)
                 try:
@@ -105,50 +85,66 @@ class PositionMonitor:
                         age_minutes = int((datetime.now(timezone.utc) - created_at_naive).total_seconds() / 60)
                         logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
                     return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
-            return {'status': 'OK', 'count': 0}
-        finally:
-            logger.debug("Stale orders check completed, closing database connection")
-            self.disconnect()
+                return {'status': 'OK', 'count': 0}
+            except Exception:
+                raise
+            finally:
+                logger.debug("Stale orders check completed")
 
-    def check_sector_concentration(self, current_date=None):
+    def check_sector_concentration(self, current_date=None, cur=None):
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
 
-        Note: Only manages its own connection if called standalone. If called from
-        review_positions() (which has an open connection), does NOT disconnect.
+        If cur is provided, uses that cursor. Otherwise creates its own DatabaseContext.
         """
         if not current_date:
             current_date = _date.today()
 
-        # Track whether we created the connection for this call
-        created_connection = False
-        try:
-            if self.cur is None:
-                self.connect()
-                created_connection = True
-            self.cur.execute("""
-                SELECT COALESCE(cp.sector, 'Unknown') as sector, COUNT(DISTINCT ap.symbol) as position_count
-                FROM algo_positions ap
-                LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
-                WHERE ap.status = 'open' AND ap.quantity > 0
-                GROUP BY COALESCE(cp.sector, 'Unknown')
-                HAVING COUNT(DISTINCT ap.symbol) > 3
-                ORDER BY position_count DESC
-            """)
-            concentrated = self.cur.fetchall()
-            if concentrated:
-                logger.info(f"\n  [CONCENTRATION ALERT]")
-                for sector, count in concentrated:
-                    logger.info(f"    {sector}: {count} positions (>3 is risky)")
-                return {'status': 'HIGH_CONCENTRATION', 'sectors': concentrated}
-            return {'status': 'OK', 'sectors': []}
-        except Exception as e:
-            return {'status': 'ERROR', 'error': str(e)}
-        finally:
-            # Only disconnect if this method created the connection
-            if created_connection:
-                self.disconnect()
+        # If cursor provided, use it directly
+        if cur is not None:
+            try:
+                cur.execute("""
+                    SELECT COALESCE(cp.sector, 'Unknown') as sector, COUNT(DISTINCT ap.symbol) as position_count
+                    FROM algo_positions ap
+                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                    WHERE ap.status = 'open' AND ap.quantity > 0
+                    GROUP BY COALESCE(cp.sector, 'Unknown')
+                    HAVING COUNT(DISTINCT ap.symbol) > 3
+                    ORDER BY position_count DESC
+                """)
+                concentrated = cur.fetchall()
+                if concentrated:
+                    logger.info(f"\n  [CONCENTRATION ALERT]")
+                    for sector, count in concentrated:
+                        logger.info(f"    {sector}: {count} positions (>3 is risky)")
+                    return {'status': 'HIGH_CONCENTRATION', 'sectors': concentrated}
+                return {'status': 'OK', 'sectors': []}
+            except Exception as e:
+                return {'status': 'ERROR', 'error': str(e)}
+
+        # Otherwise create our own context
+        with DatabaseContext(self.config) as db:
+            try:
+                cursor = db.cursor()
+                cursor.execute("""
+                    SELECT COALESCE(cp.sector, 'Unknown') as sector, COUNT(DISTINCT ap.symbol) as position_count
+                    FROM algo_positions ap
+                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                    WHERE ap.status = 'open' AND ap.quantity > 0
+                    GROUP BY COALESCE(cp.sector, 'Unknown')
+                    HAVING COUNT(DISTINCT ap.symbol) > 3
+                    ORDER BY position_count DESC
+                """)
+                concentrated = cursor.fetchall()
+                if concentrated:
+                    logger.info(f"\n  [CONCENTRATION ALERT]")
+                    for sector, count in concentrated:
+                        logger.info(f"    {sector}: {count} positions (>3 is risky)")
+                    return {'status': 'HIGH_CONCENTRATION', 'sectors': concentrated}
+                return {'status': 'OK', 'sectors': []}
+            except Exception as e:
+                return {'status': 'ERROR', 'error': str(e)}
 
     def review_positions(self, current_date=None):
         """Review every open position. Returns list of recommendations."""
@@ -156,16 +152,17 @@ class PositionMonitor:
             current_date = _date.today()
 
         recs = []
-        try:
-            self.connect()
-
-            # Issue #24: Check margin utilization and warn/halt if excessive
+        with DatabaseContext(self.config) as db:
+            cur = db.cursor()
             try:
-                self.cur.execute("""
-                    SELECT total_equity FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date DESC LIMIT 1
-                """)
-                eq_row = self.cur.fetchone()
+
+                # Issue #24: Check margin utilization and warn/halt if excessive
+                try:
+                    cur.execute("""
+                        SELECT total_equity FROM algo_portfolio_snapshots
+                        ORDER BY snapshot_date DESC LIMIT 1
+                    """)
+                    eq_row = cur.fetchone()
                 if eq_row and eq_row[0]:
                     total_equity = float(eq_row[0])
                     # Compute margin usage = (equity - buying_power) / equity

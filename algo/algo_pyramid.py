@@ -212,7 +212,8 @@ class PyramidEngine:
             if not row or row[0] is None or row[1] is None:
                 return False
             return float(row[0]) >= float(row[1]) * 1.001
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Check failed: {e}")
             return False
 
     def _is_volume_confirmed(self, symbol, current_date, mult=1.2):
@@ -234,7 +235,8 @@ class PyramidEngine:
             if not row or not row[0] or not row[1]:
                 return False
             return float(row[0]) > float(row[1]) * mult
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Check failed: {e}")
             return False
 
     def _is_pivot_breakout(self, symbol, current_date, lookback=20):
@@ -258,7 +260,8 @@ class PyramidEngine:
             close = float(row[0])
             pivot = float(row[1])
             return close > pivot * 1.005  # 0.5% buffer
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Check failed: {e}")
             return False
 
     def execute_add(self, recommendation):

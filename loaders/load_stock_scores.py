@@ -186,8 +186,8 @@ class StockScoresLoader(OptimalLoader):
                     'net_margin': float(row[3]) if row[3] else None,
                     'debt_to_equity': float(row[4]) if row[4] else None,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to fetch metrics: {e}")
         return None
 
     def _get_growth_metrics(self, cur, symbol: str) -> Optional[Dict]:
@@ -205,8 +205,8 @@ class StockScoresLoader(OptimalLoader):
                     'eps_growth_1y': float(row[2]) if row[2] else None,
                     'eps_growth_3y': float(row[3]) if row[3] else None,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to fetch metrics: {e}")
         return None
 
     def _get_value_metrics(self, cur, symbol: str) -> Optional[Dict]:
@@ -224,8 +224,8 @@ class StockScoresLoader(OptimalLoader):
                     'ps_ratio': float(row[2]) if row[2] else None,
                     'dividend_yield': float(row[3]) if row[3] else None,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to fetch metrics: {e}")
         return None
 
     def _get_positioning_metrics(self, cur, symbol: str) -> Optional[Dict]:
@@ -241,8 +241,8 @@ class StockScoresLoader(OptimalLoader):
                     'institutional_ownership': float(row[0]) if row[0] else None,
                     'short_interest': float(row[1]) if row[1] else None,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to fetch metrics: {e}")
         return None
 
     def _get_stability_metrics(self, cur, symbol: str) -> Optional[Dict]:
@@ -258,8 +258,8 @@ class StockScoresLoader(OptimalLoader):
                     'volatility_252d': float(row[0]) if row[0] else None,
                     'beta': float(row[1]) if row[1] else None,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to fetch metrics: {e}")
         return None
 
     def _get_momentum_metrics(self, cur, symbol: str) -> Optional[Dict]:
@@ -301,8 +301,8 @@ class StockScoresLoader(OptimalLoader):
                     'momentum_6m': momentum_6m,
                     'momentum_12m': momentum_12m,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to fetch metrics: {e}")
         return None
 
     def _score_quality(self, metrics: Optional[Dict]) -> Optional[float]:

@@ -160,8 +160,8 @@ class SignalMomentumMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to disconnect: {e}")
 
     def power_trend(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -180,8 +180,8 @@ class SignalMomentumMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to disconnect: {e}")
 
     def pivot_breakout(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -220,13 +220,14 @@ class SignalMomentumMixin:
                 'pct_above_pivot': round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0,
                 'volume_ratio': round(volume / avg_vol, 2) if avg_vol > 0 else None,
             }
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Pivot breakout check failed: {e}")
             return {'breakout': False}
         finally:
             try:
                 self.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to disconnect: {e}")
 
     def pocket_pivot(self, symbol: str, eval_date, lookback_days: int = 10) -> Dict[str, Any]:
         """
@@ -316,8 +317,8 @@ class SignalMomentumMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to disconnect: {e}")
 
     def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> Dict[str, Any]:
         """
@@ -353,5 +354,5 @@ class SignalMomentumMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to disconnect: {e}")

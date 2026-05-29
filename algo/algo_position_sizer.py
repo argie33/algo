@@ -108,7 +108,8 @@ class PositionSizer:
             _creds = _get_cm().get_alpaca_credentials()
             key = _creds.get("key")
             secret = _creds.get("secret")
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to get credentials from credential manager, falling back to env vars: {e}")
             key = os.getenv("APCA_API_KEY_ID")
             secret = os.getenv("APCA_API_SECRET_KEY")
         base = os.getenv('APCA_API_BASE_URL')
@@ -116,8 +117,8 @@ class PositionSizer:
             try:
                 from config.alpaca_config import get_alpaca_base_url
                 base = get_alpaca_base_url()
-            except Exception:
-                logger.error("APCA_API_BASE_URL not set and unable to load from unified config")
+            except Exception as cfg_e:
+                logger.error(f"APCA_API_BASE_URL not set and unable to load from unified config: {cfg_e}")
                 return None
         if not key or not secret:
             return None
@@ -261,7 +262,8 @@ class PositionSizer:
             if vix > caution_threshold and vix <= max_threshold:
                 return float(self.config.get('vix_caution_risk_reduction', 0.75))
             return 1.0
-        except Exception:
+        except Exception as vix_e:
+            logger.debug(f"VIX multiplier calculation failed: {vix_e}")
             return 1.0
 
     def get_phase_size_multiplier(self, symbol, signal_date=None):
@@ -329,7 +331,8 @@ class PositionSizer:
             result = self.cur.fetchone()
             total_value = float(result[0]) if result and result[0] else 0
             return (total_value / portfolio_value * 100) if portfolio_value > 0 else 0
-        except Exception:
+        except Exception as calc_e:
+            logger.debug(f"Failed to calculate short exposure: {calc_e}")
             return 0
 
     def calculate_position_size(self, symbol, entry_price, stop_loss_price, signal_date=None):

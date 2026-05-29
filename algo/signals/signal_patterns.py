@@ -130,8 +130,8 @@ class SignalPatternsMixin:
             if self._owned:
                 try:
                     self._owned.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_e:
+                    logger.debug(f"Failed to rollback: {rb_e}")
             logger.error(f"Unexpected error in base_detection({symbol}): {e}")
             return {'in_base': False, 'reason': 'Unexpected error'}
 

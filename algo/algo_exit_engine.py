@@ -69,141 +69,138 @@ class ExitEngine:
                 logger.info(f"{'='*70}\n")
 
                 cur.execute(
-                """
-                SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-                       t.target_1_price, t.target_2_price, t.target_3_price,
-                       t.trade_date,
-                       p.position_id, p.quantity, p.target_levels_hit,
-                       p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time
-                FROM algo_trades t
-                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN (%s, %s) AND p.status = %s AND p.quantity > 0
-                ORDER BY t.trade_date ASC
-                """,
-                (TradeStatus.OPEN.value, TradeStatus.PENDING.value, PositionStatus.OPEN.value)
-            )
-            trades = self.cur.fetchall()
-            if not trades:
-                logger.info("No open positions.\n")
-                return 0
-
-            # Cache market distribution-day status once for the run
-            dist_days_today = self._fetch_market_dist_days(current_date)
-            exits_executed = 0
-
-            for row in trades:
-                (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
-                 trade_date, _position_id, quantity, target_hits, current_stop,
-                 t1_hit_time, t2_hit_time, t3_hit_time) = row
-
-                # Issue #22: Verify position still open (not already exited in same run)
-                self.cur.execute(
-                    "SELECT status FROM algo_positions WHERE position_id = %s",
-                    (_position_id,)
+                    """
+                    SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                           t.target_1_price, t.target_2_price, t.target_3_price,
+                           t.trade_date,
+                           p.position_id, p.quantity, p.target_levels_hit,
+                           p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time
+                    FROM algo_trades t
+                    JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                    WHERE t.status IN (%s, %s) AND p.status = %s AND p.quantity > 0
+                    ORDER BY t.trade_date ASC
+                    """,
+                    (TradeStatus.OPEN.value, TradeStatus.PENDING.value, PositionStatus.OPEN.value)
                 )
-                status_row = self.cur.fetchone()
-                status = status_row[0] if status_row else None
-                if status != 'open':
-                    logger.debug(f"Position {symbol} already closed, skipping exit check")
-                    continue
+                    trades = cur.fetchall()
+                if not trades:
+                    logger.info("No open positions.\n")
+                    return 0
 
+                # Cache market distribution-day status once for the run
+                dist_days_today = self._fetch_market_dist_days(cur, current_date)
+                exits_executed = 0
+
+                for row in trades:
+                    (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
+                     trade_date, _position_id, quantity, target_hits, current_stop,
+                     t1_hit_time, t2_hit_time, t3_hit_time) = row
+
+                    # Issue #22: Verify position still open (not already exited in same run)
+                    cur.execute(
+                        "SELECT status FROM algo_positions WHERE position_id = %s",
+                        (_position_id,)
+                    )
+                    status_row = cur.fetchone()
+                    status = status_row[0] if status_row else None
+                    if status != 'open':
+                        logger.debug(f"Position {symbol} already closed, skipping exit check")
+                        continue
+
+                    try:
+                        entry_price = float(entry_price)
+                        init_stop = float(init_stop)
+                        active_stop = float(current_stop) if current_stop else init_stop
+                        t1_price = float(t1_price) if t1_price else None
+                        t2_price = float(t2_price) if t2_price else None
+                        t3_price = float(t3_price) if t3_price else None
+                        target_hits = int(target_hits or 0)
+                    except (TypeError, ValueError) as e:
+                        logger.warning(f"  {symbol}: skip (invalid price data: {e})")
+                        continue
+
+                    cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
+                    if cur_price is None:
+                        continue
+
+                    days_held = (current_date - trade_date).days
+
+                    # Enforce minimum holding period (no same-day exits per Curtis Faith)
+                    if days_held < 1:
+                        if self.verbose:
+                            logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
+                        continue
+
+                    exit_signal = self._evaluate_position(
+                        cur, symbol, current_date,
+                        cur_price, prev_close, entry_price, active_stop, init_stop,
+                        t1_price, t2_price, t3_price, target_hits, days_held, dist_days_today,
+                        t1_hit_time, t2_hit_time, t3_hit_time,
+                    )
+
+                    if not exit_signal:
+                        t1_str = f'${t1_price:.2f}' if t1_price is not None else '—'
+                        logger.info(f"  {symbol}: hold (cur ${cur_price:.2f}, "
+                                    f"stop ${active_stop:.2f}, t1 {t1_str}, "
+                                    f"day {days_held}, hits {target_hits})")
+                        continue
+
+                    fraction = exit_signal['fraction']
+                    stage = exit_signal['stage']
+                    new_stop = exit_signal.get('new_stop')
+
+                    # Route exit through executor (atomicity + audit logging)
+                    # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
+                    logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
+                    if fraction > 0:
+                        logger.info(f"      (exit {int(fraction*100)}%)")
+
+                    # Route through executor for all cases (stop-raise-only when fraction=0)
+                    # This ensures audit logging and atomic updates for all position changes
+                    result = self.executor.exit_trade(
+                        trade_id=trade_id,
+                        exit_price=cur_price if fraction > 0 else None,
+                        exit_reason=exit_signal['reason'],
+                        exit_fraction=fraction,  # 0 for stop-raise-only
+                        exit_stage=stage,
+                        new_stop_price=new_stop,
+                    )
+                    if fraction == 0 and result.get('success'):
+                        logger.info(f"      -> Stop raised to ${new_stop:.2f}")
+                        exits_executed += 1
+                    elif result.get('success'):
+                        exits_executed += 1
+                        logger.info(f"      -> {result['message']}")
+                    else:
+                        logger.error(f"      -> FAILED: {result.get('message')}")
+
+                logger.info(f"\n{'='*70}")
+                logger.info(f"Exits executed: {exits_executed}/{len(trades)} positions")
+                logger.info(f"{'='*70}\n")
+
+                # NEW: Audit closed trades for performance (Phase 2 integration)
                 try:
-                    entry_price = float(entry_price)
-                    init_stop = float(init_stop)
-                    active_stop = float(current_stop) if current_stop else init_stop
-                    t1_price = float(t1_price) if t1_price else None
-                    t2_price = float(t2_price) if t2_price else None
-                    t3_price = float(t3_price) if t3_price else None
-                    target_hits = int(target_hits or 0)
-                except (TypeError, ValueError) as e:
-                    logger.warning(f"  {symbol}: skip (invalid price data: {e})")
-                    continue
+                    cur.execute("""
+                        SELECT DISTINCT trade_id FROM algo_trades
+                        WHERE status = %s AND exit_date = %s
+                    """, (TradeStatus.CLOSED.value, current_date))
+                    closed_trades = cur.fetchall()
+                    for (trade_id,) in closed_trades:
+                        if auditor:
+                            auditor.audit_exit(trade_id)
+                except Exception as audit_err:
+                    logger.error(f"Warning: Failed to audit closed trades: {audit_err}")
 
-                cur_price, prev_close = self._fetch_recent_prices(symbol, current_date)
-                if cur_price is None:
-                    continue
-
-                days_held = (current_date - trade_date).days
-
-                # Enforce minimum holding period (no same-day exits per Curtis Faith)
-                if days_held < 1:
-                    if self.verbose:
-                        logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
-                    continue
-
-                exit_signal = self._evaluate_position(
-                    symbol, current_date,
-                    cur_price, prev_close, entry_price, active_stop, init_stop,
-                    t1_price, t2_price, t3_price, target_hits, days_held, dist_days_today,
-                    t1_hit_time, t2_hit_time, t3_hit_time,
-                )
-
-                if not exit_signal:
-                    t1_str = f'${t1_price:.2f}' if t1_price is not None else '—'
-                    logger.info(f"  {symbol}: hold (cur ${cur_price:.2f}, "
-                                f"stop ${active_stop:.2f}, t1 {t1_str}, "
-                                f"day {days_held}, hits {target_hits})")
-                    continue
-
-                fraction = exit_signal['fraction']
-                stage = exit_signal['stage']
-                new_stop = exit_signal.get('new_stop')
-
-                # Route exit through executor (atomicity + audit logging)
-                # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
-                logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
-                if fraction > 0:
-                    logger.info(f"      (exit {int(fraction*100)}%)")
-
-                # Route through executor for all cases (stop-raise-only when fraction=0)
-                # This ensures audit logging and atomic updates for all position changes
-                result = self.executor.exit_trade(
-                    trade_id=trade_id,
-                    exit_price=cur_price if fraction > 0 else None,
-                    exit_reason=exit_signal['reason'],
-                    exit_fraction=fraction,  # 0 for stop-raise-only
-                    exit_stage=stage,
-                    new_stop_price=new_stop,
-                )
-                if fraction == 0 and result.get('success'):
-                    logger.info(f"      -> Stop raised to ${new_stop:.2f}")
-                    exits_executed += 1
-                elif result.get('success'):
-                    exits_executed += 1
-                    logger.info(f"      -> {result['message']}")
-                else:
-                    logger.error(f"      -> FAILED: {result.get('message')}")
-
-            logger.info(f"\n{'='*70}")
-            logger.info(f"Exits executed: {exits_executed}/{len(trades)} positions")
-            logger.info(f"{'='*70}\n")
-
-            # NEW: Audit closed trades for performance (Phase 2 integration)
-            try:
-                self.cur.execute("""
-                    SELECT DISTINCT trade_id FROM algo_trades
-                    WHERE status = %s AND exit_date = %s
-                """, (TradeStatus.CLOSED.value, current_date))
-                closed_trades = self.cur.fetchall()
-                for (trade_id,) in closed_trades:
-                    if auditor:
-                        auditor.audit_exit(trade_id)
-            except Exception as audit_err:
-                logger.error(f"Warning: Failed to audit closed trades: {audit_err}")
-
-            return exits_executed
-        except Exception as e:
-            logger.error(f"Error in exit engine: {e}")
-            import traceback
-            traceback.print_exc()
-            return 0
-        finally:
-            logger.debug("Exit engine check completed, closing database connection")
-            self.disconnect()
+                return exits_executed
+            except Exception as e:
+                logger.error(f"Error in exit engine: {e}")
+                import traceback
+                traceback.print_exc()
+                return 0
 
     # ---------- Decision logic ----------
 
-    def _evaluate_position(self, symbol, current_date, cur_price, prev_close,
+    def _evaluate_position(self, cur, symbol, current_date, cur_price, prev_close,
                            entry_price, active_stop, init_stop,
                            t1_price, t2_price, t3_price,
                            target_hits, days_held, dist_days_today,
@@ -236,7 +233,7 @@ class ExitEngine:
             }
 
         # 2. MINERVINI BREAK — close < 21-EMA on volume, OR clean break of 50-DMA
-        if self._is_minervini_break(symbol, current_date, cur_price):
+        if self._is_minervini_break(cur, symbol, current_date, cur_price):
             return {
                 'stage': 'stop',
                 'fraction': 1.0,
@@ -245,7 +242,7 @@ class ExitEngine:
 
         # 3. RS-LINE BREAK vs SPY (O'Neil) — exit if relative strength deteriorates
         if self.config.get('exit_on_rs_line_break_50dma', True):
-            if self._rs_line_breaking(symbol, current_date):
+            if self._rs_line_breaking(cur, symbol, current_date):
                 return {
                     'stage': 'stop',
                     'fraction': 1.0,
@@ -259,7 +256,7 @@ class ExitEngine:
             eight_wk_threshold = float(self.config.get('eight_week_rule_threshold_pct', 20.0))
             eight_wk_window = int(self.config.get('eight_week_rule_window_days', 21))
             eight_wk_ext = self._eight_week_rule_active(
-                symbol, current_date, entry_price, days_held,
+                cur, symbol, current_date, entry_price, days_held,
                 eight_wk_threshold, eight_wk_window,
             )
             if eight_wk_ext and days_held < 56:  # 8 weeks = 40 trading days; calendar 56
@@ -296,7 +293,7 @@ class ExitEngine:
 
         # First check T1 if it hasn't been hit yet
         if target_hits == 0 and t1_price is not None and cur_price >= t1_price:
-            if not _was_hit_today(t1_hit_time) and self._is_pulling_back(symbol, current_date):
+            if not _was_hit_today(t1_hit_time) and self._is_pulling_back(cur, symbol, current_date):
                 return {
                     'stage': 'target_1',
                     'fraction': 0.50,
@@ -306,7 +303,7 @@ class ExitEngine:
 
         # Then check T2 only if T1 already hit
         if target_hits == 1 and t2_price is not None and cur_price >= t2_price:
-            if not _was_hit_today(t2_hit_time) and self._is_pulling_back(symbol, current_date):
+            if not _was_hit_today(t2_hit_time) and self._is_pulling_back(cur, symbol, current_date):
                 stop_for_t2 = max(active_stop, t1_price) if t1_price is not None else active_stop
                 return {
                     'stage': 'target_2',
@@ -327,7 +324,7 @@ class ExitEngine:
         # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
         # Switches to 21-EMA trail after 10 days for tighter management
         if self.config.get('use_chandelier_trail', True) and r_mult >= 1.0:
-            chand_stop = self._chandelier_or_ema_stop(symbol, current_date, days_held)
+            chand_stop = self._chandelier_or_ema_stop(cur, symbol, current_date, days_held)
             if chand_stop and chand_stop > active_stop:
                 return {
                     'stage': 'raise_stop_trail',
@@ -338,7 +335,7 @@ class ExitEngine:
 
         if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
             if r_mult >= 0.5:
-                td_state = self._get_td_state(symbol, current_date)
+                td_state = self._get_td_state(cur, symbol, current_date)
                 if td_state.get('combo_13_complete') and td_state.get('setup_type') == 'sell':
                     return {
                         'stage': 'td_combo_13',
@@ -358,7 +355,7 @@ class ExitEngine:
         if r_mult >= 2.5 and prev_close is not None and prev_close > 0:
             down_pct = (prev_close - cur_price) / prev_close * 100.0
             if down_pct >= 1.5:  # Close < prior close * 0.985 = 1.5% down
-                vol_check = self._check_volume_spike(symbol, current_date, 1.5)
+                vol_check = self._check_volume_spike(cur, symbol, current_date, 1.5)
                 if vol_check:
                     return {
                         'stage': 'first_red_day',
@@ -370,7 +367,7 @@ class ExitEngine:
         # 13. CLIMAX RUN EXHAUSTION — parabolic moves exhaust and reverse sharply
         # Trigger: 30+ days held, 5R+ gain, 20%+ gain in last 10 days = institutional climax distribution
         if days_held > 30 and r_mult >= 5.0:
-            gain_10d = self._compute_gain_last_n_days(symbol, current_date, 10)
+            gain_10d = self._compute_gain_last_n_days(cur, symbol, current_date, 10)
             if gain_10d is not None and gain_10d >= 20.0:
                 return {
                     'stage': 'climax_exhaustion',
@@ -393,9 +390,9 @@ class ExitEngine:
 
     # ---------- Data helpers ----------
 
-    def _fetch_recent_prices(self, symbol, current_date) -> tuple[float | None, float | None]:
+    def _fetch_recent_prices(self, cur, symbol, current_date) -> tuple[float | None, float | None]:
         """Return (current_close, previous_close) using closest available price <= current_date."""
-        self.cur.execute(
+        cur.execute(
             """
             SELECT date, close FROM price_daily
             WHERE symbol = %s AND date <= %s
@@ -403,7 +400,7 @@ class ExitEngine:
             """,
             (symbol, current_date),
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         if not rows or len(rows[0]) < 2:
             return None, None
         cur_price = float(rows[0][1]) if rows[0][1] is not None else None
@@ -412,25 +409,25 @@ class ExitEngine:
         prev_close = float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
         return cur_price, prev_close
 
-    def _fetch_market_dist_days(self, current_date) -> int:
-        self.cur.execute(
+    def _fetch_market_dist_days(self, cur, current_date) -> int:
+        cur.execute(
             """
             SELECT distribution_days_4w FROM market_health_daily
             WHERE date <= %s ORDER BY date DESC LIMIT 1
             """,
             (current_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
-    def _is_pulling_back(self, symbol, current_date) -> bool:
+    def _is_pulling_back(self, cur, symbol, current_date) -> bool:
         """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.
 
         Real pullbacks show clear consolidation, not just a 0.5% afternoon dip.
         This prevents hair-trigger exits on winners."""
-        if self.cur is None:
+        if cur is None:
             return True
-        self.cur.execute(
+        cur.execute(
             """
             SELECT close, high FROM price_daily
             WHERE symbol = %s AND date <= %s
@@ -438,7 +435,7 @@ class ExitEngine:
             """,
             (symbol, current_date),
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         if len(rows) < 3:
             return False
 
@@ -453,12 +450,12 @@ class ExitEngine:
         days_below_high = sum(1 for r in rows[:5] if float(r[0]) < recent_high * 0.98)
         return days_below_high >= 2
 
-    def _rs_line_breaking(self, symbol, current_date) -> bool:
+    def _rs_line_breaking(self, cur, symbol, current_date) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
-        if self.cur is None:
+        if cur is None:
             return False
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 WITH ratio AS (
                     SELECT s.date,
@@ -477,7 +474,7 @@ class ExitEngine:
                 """,
                 (symbol, current_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or row[0] is None or row[1] is None:
                 return False
             cur_rs, rs_50 = float(row[0]), float(row[1])
@@ -487,13 +484,13 @@ class ExitEngine:
             logger.error(f"Warning: _rs_line_breaking({symbol}) failed: {e}")
             return False
 
-    def _eight_week_rule_active(self, symbol, current_date, entry_price, days_held,
+    def _eight_week_rule_active(self, cur, symbol, current_date, entry_price, days_held,
                                  threshold_pct, window_days) -> bool:
         """O'Neil 8-week rule: if stock gained 20%+ in first 3 weeks, hold for 8 weeks."""
-        if self.cur is None or days_held < window_days:
+        if cur is None or days_held < window_days:
             return False
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT MAX(high) FROM price_daily
                 WHERE symbol = %s
@@ -502,7 +499,7 @@ class ExitEngine:
                 """,
                 (symbol, current_date, days_held, current_date, max(0, days_held - window_days)),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or not row[0]:
                 return False
             max_high_in_window = float(row[0])
@@ -514,16 +511,16 @@ class ExitEngine:
             logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
             return False
 
-    def _chandelier_or_ema_stop(self, symbol, current_date, days_held) -> float | None:
+    def _chandelier_or_ema_stop(self, cur, symbol, current_date, days_held) -> float | None:
         """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
         then 21-EMA after."""
-        if self.cur is None:
+        if cur is None:
             return None
         try:
             switch_days = int(self.config.get('switch_to_21ema_after_days', 10))
             if days_held >= switch_days:
                 # 21-EMA trail
-                self.cur.execute(
+                cur.execute(
                     """
                     WITH d AS (
                         SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
@@ -534,7 +531,7 @@ class ExitEngine:
                     """,
                     (symbol, current_date),
                 )
-                rows = self.cur.fetchall()
+                rows = cur.fetchall()
                 if len(rows) < 21:
                     return None
                 # ORDER BY rn DESC puts oldest row first (rn=30 → rn=1)
@@ -547,7 +544,7 @@ class ExitEngine:
                 return round(ema * 0.99, 2)
             else:
                 # Chandelier 3×ATR from highest high since entry
-                self.cur.execute(
+                cur.execute(
                     """
                     WITH d AS (
                         SELECT pd.high, td.atr,
@@ -563,7 +560,7 @@ class ExitEngine:
                     """,
                     (symbol, current_date, max(days_held, 5)),
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 if not row or not row[0] or not row[1]:
                     return None
                 hh = float(row[0])
@@ -574,34 +571,34 @@ class ExitEngine:
             logger.error(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
             return None
 
-    def _is_td_sequential_top(self, symbol, current_date) -> bool:
+    def _is_td_sequential_top(self, cur, symbol, current_date) -> bool:
         """Use rigorous DeMark TD Sequential — fires when sell-setup count = 9."""
-        if self.cur is None:
+        if cur is None:
             return False
         try:
-            sc = SignalComputer(cur=self.cur)
+            sc = SignalComputer(cur=cur)
             td = sc.td_sequential(symbol, current_date)
             return td.get('completed_9', False) and td.get('setup_type') == 'sell'
         except Exception as e:
             logger.error(f"Warning: _is_td_sequential_top({symbol}) failed: {e}")
             return False
 
-    def _get_td_state(self, symbol, current_date) -> Dict[str, Any]:
+    def _get_td_state(self, cur, symbol, current_date) -> Dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection)."""
-        if self.cur is None:
+        if cur is None:
             return {}
         try:
-            sc = SignalComputer(cur=self.cur)
+            sc = SignalComputer(cur=cur)
             return sc.td_sequential(symbol, current_date)
         except Exception as e:
             logger.error(f"Warning: _get_td_state({symbol}) failed: {e}")
             return {}
 
-    def _is_minervini_break(self, symbol, current_date, cur_price) -> bool:
+    def _is_minervini_break(self, cur, symbol, current_date, cur_price) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
-        if self.cur is None:
+        if cur is None:
             return False
-        self.cur.execute(
+        cur.execute(
             """
             SELECT td.sma_50, td.ema_21,
                    (SELECT volume FROM price_daily p WHERE p.symbol = td.symbol AND p.date = td.date) AS vol,
@@ -631,12 +628,12 @@ class ExitEngine:
             return True
         return False
 
-    def _check_volume_spike(self, symbol, current_date, volume_multiplier) -> bool:
+    def _check_volume_spike(self, cur, symbol, current_date, volume_multiplier) -> bool:
         """Check if today's volume is >= volume_multiplier * average volume."""
-        if self.cur is None:
+        if cur is None:
             return False
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT pd.volume,
                        (SELECT AVG(volume) FROM price_daily p
@@ -648,7 +645,7 @@ class ExitEngine:
                 """,
                 (symbol, current_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or row[0] is None or row[1] is None:
                 return False
             today_vol = float(row[0])
@@ -658,12 +655,12 @@ class ExitEngine:
             logger.warning(f"Warning: _check_volume_spike({symbol}) failed: {e}")
             return False
 
-    def _compute_gain_last_n_days(self, symbol, current_date, n_days) -> float | None:
+    def _compute_gain_last_n_days(self, cur, symbol, current_date, n_days) -> float | None:
         """Compute % gain over the last N days (from close N days ago to current close)."""
-        if self.cur is None:
+        if cur is None:
             return None
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 WITH prices AS (
                     SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
@@ -677,7 +674,7 @@ class ExitEngine:
                 """,
                 (symbol, current_date, n_days + 1, n_days + 1),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or row[0] is None or row[1] is None:
                 return None
             current = float(row[0])
@@ -696,7 +693,7 @@ class ExitEngine:
                                 days_held, eval_date) -> Dict[str, Any]:
         """Pure-function exit check used by FULL_BUILD_VERIFICATION.py."""
         signal = self._evaluate_position(
-            symbol, eval_date,
+            None, symbol, eval_date,
             cur_price=current_price, prev_close=current_price,
             entry_price=entry_price, active_stop=stop_price, init_stop=stop_price,
             t1_price=t1_price, t2_price=t2_price, t3_price=t3_price,

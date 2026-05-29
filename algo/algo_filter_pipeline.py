@@ -166,7 +166,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     if MarketCalendar.is_trading_day(_expected_recent):
                         break
                     _expected_recent -= timedelta(days=1)
-            except Exception:
+            except Exception as cal_e:
+                logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
                 while _expected_recent.weekday() >= 5:
                     _expected_recent -= timedelta(days=1)
 
@@ -1271,7 +1272,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             if not row or not row[0]:
                 return None
             return {'sector': row[0], 'industry': row[1] or ''}
-        except Exception:
+        except Exception as si_e:
+            logger.debug(f"Failed to fetch sector/industry: {si_e}")
             return None
 
     def _count_sector_industry_overlap(self, new_info, existing_symbols) -> int:

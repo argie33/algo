@@ -108,13 +108,13 @@ class PortfolioRisk:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close cursor: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close connection: {e}")
 
     def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, float]]:
         """Compute Conditional VaR (Expected Shortfall) — mean loss beyond VaR.
@@ -178,13 +178,13 @@ class PortfolioRisk:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close cursor: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close connection: {e}")
 
     def stressed_var(self, confidence: float = 0.99) -> Optional[Dict[str, float]]:
         """Compute stressed VaR using worst 12-month rolling window.
@@ -248,13 +248,13 @@ class PortfolioRisk:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close cursor: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close connection: {e}")
 
     def beta_exposure(self) -> Optional[Dict[str, Any]]:
         """Compute portfolio beta exposure vs. S&P 500.
@@ -370,13 +370,13 @@ class PortfolioRisk:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close cursor: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close connection: {e}")
 
     def concentration_report(self) -> Optional[Dict[str, Any]]:
         """Generate concentration report: top holdings, sectors, industries.
@@ -447,13 +447,13 @@ class PortfolioRisk:
             if cur:
                 try:
                     cur.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close cursor: {e}")
             if conn:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to close connection: {e}")
 
     def generate_daily_risk_report(self, report_date: Optional[date] = None) -> Dict[str, Any]:
         """Generate comprehensive daily risk report.
