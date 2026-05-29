@@ -14,8 +14,8 @@ The context manager tracks duration and logs to logger. Integration points:
 
 import logging
 import time
-from datetime import datetime
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
