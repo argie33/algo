@@ -23,7 +23,6 @@ from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
 from algo.algo_config import get_alpaca_timeout
 from utils.database_context import DatabaseContext
-from utils.db_connection import get_db_connection
 import os
 import json
 from decimal import Decimal, ROUND_HALF_UP
