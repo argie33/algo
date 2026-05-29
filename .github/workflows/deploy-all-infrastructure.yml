@@ -534,7 +534,7 @@ jobs:
           if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
             echo "ECR URL not available from Terraform, discovering via AWS CLI..."
             ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION \
-              --query 'repositories[?starts_with(repositoryName, `algo`)].repositoryUri | [0]' \
+              --query 'repositories[?starts_with(repositoryName, "algo")].repositoryUri | [0]' \
               --output text 2>/dev/null)
             if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
               echo "No ECR repository found, skipping image build"
@@ -792,7 +792,7 @@ jobs:
           BUCKET="${{ needs.terraform.outputs.frontend_bucket }}"
           if [ -z "$BUCKET" ]; then
             BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?starts_with(Name, `algo-frontend`)].Name | [0]' \
+              --query 'Buckets[?starts_with(Name, "algo-frontend")].Name | [0]' \
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then

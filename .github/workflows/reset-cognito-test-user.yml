@@ -36,12 +36,12 @@ jobs:
         run: |
           # The active frontend pool is stocks-trading-pool-dev (us-east-1_VBNqfLbSp)
           POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 \
-            --query 'UserPools[?Name==`stocks-trading-pool-dev`].Id | [0]' \
+            --query 'UserPools[?Name=="stocks-trading-pool-dev"].Id | [0]' \
             --output text 2>/dev/null || echo "")
           if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
             # Fallback: read pool ID from deployed config.js on S3
             BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?starts_with(Name, `algo-frontend`)].Name | [0]' \
+              --query 'Buckets[?starts_with(Name, "algo-frontend")].Name | [0]' \
               --output text 2>/dev/null || echo "")
             if [ -n "$BUCKET" ] && [ "$BUCKET" != "None" ]; then
               POOL_ID=$(aws s3 cp "s3://${BUCKET}/config.js" - 2>/dev/null | grep -oP '"USER_POOL_ID":\s*"\K[^"]+' || echo "")

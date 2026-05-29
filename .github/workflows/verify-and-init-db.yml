@@ -30,7 +30,7 @@ jobs:
       - name: Find db-init Lambda
         id: db-init
         run: |
-          DB_INIT=$(aws lambda list-functions --region us-east-1 --query 'Functions[?contains(FunctionName, `db-init`)].FunctionName' --output text)
+          DB_INIT=$(aws lambda list-functions --region us-east-1 --query 'Functions[?contains(FunctionName, "db-init")].FunctionName' --output text)
           echo "db_init_func=$DB_INIT" >> $GITHUB_OUTPUT
           echo "[OK] Found db-init Lambda: $DB_INIT"
 

@@ -142,7 +142,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
   }
 
   definition = jsonencode({
-    Comment = "EOD data loading pipeline: prices → technicals → scores → signals → orchestrator"
+    Comment = "EOD data loading pipeline: symbols → prices → technicals → scores → signals → orchestrator"
     StartAt = "CheckTradingDay"
 
     States = {
@@ -152,8 +152,34 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Parameters = {
           "today.$" = "$$.State.EnteredTime"
         }
-        Next    = "EodBulkPrices"
+        Next    = "StockSymbols"
         Comment = "On non-trading days (weekends/holidays), EventBridge won't trigger. If it does, pipeline succeeds harmlessly."
+      }
+
+      # ── Step 0: Load reference data (symbols) first ──────────
+      # Must run before prices to ensure new symbols are included
+      StockSymbols = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["stock_symbols"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PipelineFailed"
+          ResultPath  = "$.error"
+        }]
+        Next = "EodBulkPrices"
       }
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────

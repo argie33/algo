@@ -119,7 +119,7 @@ jobs:
           # List all Lambda functions
           FUNCTIONS=$(aws lambda list-functions \
             --region $AWS_REGION \
-            --query 'Functions[?contains(FunctionName, `algo`)].FunctionName' \
+            --query 'Functions[?contains(FunctionName, "algo")].FunctionName' \
             --output text)
 
           echo "Found Lambda functions: $FUNCTIONS"

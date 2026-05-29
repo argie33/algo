@@ -54,7 +54,7 @@ jobs:
 
           # Try to find the actual repo; fall back to constructed name
           ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION \
-            --query 'repositories[?starts_with(repositoryName, `algo`)].repositoryUri | [0]' \
+            --query 'repositories[?starts_with(repositoryName, "algo")].repositoryUri | [0]' \
             --output text 2>/dev/null || echo "")
 
           if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
