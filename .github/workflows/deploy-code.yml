@@ -94,83 +94,75 @@ jobs:
         id: tf_outputs
         working-directory: terraform
         run: |
-          echo "Reading Terraform outputs..."
-          TF_OUT=$(terraform output -json 2>&1)
+          python3 << 'EOF'
+          import json
+          import subprocess
+          import sys
+          import os
 
-          # Check if output is valid JSON
-          if ! echo "$TF_OUT" | jq empty 2>/dev/null; then
-            echo "ERROR: Terraform output is not valid JSON:"
-            echo "$TF_OUT"
-            echo "Debugging: attempting terraform refresh..."
-            terraform refresh || true
-            TF_OUT=$(terraform output -json 2>&1)
-            if ! echo "$TF_OUT" | jq empty 2>/dev/null; then
-              echo "ERROR: Terraform refresh did not fix output parsing"
-              exit 1
-            fi
-          fi
+          print("Reading Terraform outputs...")
+          result = subprocess.run(['terraform', 'output', '-json'], capture_output=True, text=True)
+
+          if result.returncode != 0:
+            print(f"ERROR: terraform output failed: {result.stderr}")
+            sys.exit(1)
+
+          try:
+            tf_out = json.loads(result.stdout)
+          except json.JSONDecodeError as e:
+            print(f"ERROR: Terraform output is not valid JSON: {e}")
+            print(f"Output: {result.stdout}")
+            print("Attempting terraform refresh...")
+            subprocess.run(['terraform', 'refresh'], capture_output=True)
+            result = subprocess.run(['terraform', 'output', '-json'], capture_output=True, text=True)
+            try:
+              tf_out = json.loads(result.stdout)
+            except json.JSONDecodeError:
+              print("ERROR: Terraform refresh did not fix output parsing")
+              sys.exit(1)
 
           # Validate outputs exist
-          if [ -z "$TF_OUT" ] || [ "$TF_OUT" = "{}" ]; then
-            echo "ERROR: Terraform outputs are empty. Infrastructure may not be deployed."
-            echo "Available terraform outputs:"
-            terraform output || echo "No outputs available"
-            exit 1
-          fi
+          if not tf_out:
+            print("ERROR: Terraform outputs are empty. Infrastructure may not be deployed.")
+            subprocess.run(['terraform', 'output'])
+            sys.exit(1)
 
-          echo "Ã¢Å"â€¦ Terraform outputs retrieved successfully"
+          print("✓ Terraform outputs retrieved successfully")
 
-          # Extract all needed outputs
-          API_LAMBDA=$(echo "$TF_OUT" | jq -r '.api_lambda_function_name.value')
-          ALGO_LAMBDA=$(echo "$TF_OUT" | jq -r '.algo_lambda_function_name.value')
-          FRONTEND_BUCKET=$(echo "$TF_OUT" | jq -r '.frontend_bucket_name.value')
-          CF_ID=$(echo "$TF_OUT" | jq -r '.cloudfront_distribution_id.value')
-          CF_DOMAIN=$(echo "$TF_OUT" | jq -r '.cloudfront_domain.value // empty')
-          WEBSITE_URL=$(echo "$TF_OUT" | jq -r '.website_url.value // empty')
-          API_GATEWAY=$(echo "$TF_OUT" | jq -r '.api_gateway_endpoint.value')
-          ALGO_LAYER=$(echo "$TF_OUT" | jq -r '.algo_orchestrator_layer_name.value')
-          API_LAYER=$(echo "$TF_OUT" | jq -r '.api_lambda_layer_name.value')
-          RDS_SECRET=$(echo "$TF_OUT" | jq -r '.rds_credentials_secret_name.value')
-          POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value')
-          CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value')
-          COGNITO_DOMAIN=$(echo "$TF_OUT" | jq -r '.cognito_domain_url.value // empty')
-          BACKEND_BUCKET=$(echo "$TF_OUT" | jq -r '.terraform_backend_bucket.value')
-          BACKEND_KEY=$(echo "$TF_OUT" | jq -r '.terraform_backend_key.value')
+          # Extract all outputs
+          outputs = {}
+          for key in ['api_lambda_function_name', 'algo_lambda_function_name', 'frontend_bucket_name',
+                      'cloudfront_distribution_id', 'cloudfront_domain', 'website_url',
+                      'api_gateway_endpoint', 'algo_orchestrator_layer_name', 'api_lambda_layer_name',
+                      'rds_credentials_secret_name', 'cognito_user_pool_id', 'cognito_user_pool_client_id',
+                      'cognito_domain_url', 'terraform_backend_bucket', 'terraform_backend_key']:
+            value = tf_out.get(key, {}).get('value', '')
+            outputs[key] = value if value else ''
 
           # Validate critical outputs
-          if [ -z "$API_LAMBDA" ] || [ "$API_LAMBDA" = "null" ]; then
-            echo "ERROR: api_lambda_function_name output missing"
-            exit 1
-          fi
-          if [ -z "$ALGO_LAMBDA" ] || [ "$ALGO_LAMBDA" = "null" ]; then
-            echo "ERROR: algo_lambda_function_name output missing"
-            exit 1
-          fi
+          if not outputs.get('api_lambda_function_name'):
+            print("ERROR: api_lambda_function_name output missing")
+            sys.exit(1)
+          if not outputs.get('algo_lambda_function_name'):
+            print("ERROR: algo_lambda_function_name output missing")
+            sys.exit(1)
 
-          # Export outputs
-          echo "api_lambda_function_name=${API_LAMBDA}" >> $GITHUB_OUTPUT
-          echo "algo_lambda_function_name=${ALGO_LAMBDA}" >> $GITHUB_OUTPUT
-          echo "frontend_bucket_name=${FRONTEND_BUCKET}" >> $GITHUB_OUTPUT
-          echo "cloudfront_distribution_id=${CF_ID}" >> $GITHUB_OUTPUT
-          echo "cloudfront_domain=${CF_DOMAIN}" >> $GITHUB_OUTPUT
-          echo "website_url=${WEBSITE_URL}" >> $GITHUB_OUTPUT
-          echo "api_gateway_endpoint=${API_GATEWAY}" >> $GITHUB_OUTPUT
-          echo "algo_orchestrator_layer_name=${ALGO_LAYER}" >> $GITHUB_OUTPUT
-          echo "api_lambda_layer_name=${API_LAYER}" >> $GITHUB_OUTPUT
-          echo "rds_credentials_secret_name=${RDS_SECRET}" >> $GITHUB_OUTPUT
-          echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
-          echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
-          echo "cognito_domain_url=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
-          echo "terraform_backend_bucket=${BACKEND_BUCKET}" >> $GITHUB_OUTPUT
-          echo "terraform_backend_key=${BACKEND_KEY}" >> $GITHUB_OUTPUT
+          # Export all outputs to GitHub Actions
+          github_output = os.environ.get('GITHUB_OUTPUT')
+          if github_output:
+            with open(github_output, 'a') as f:
+              for key, value in outputs.items():
+                f.write(f"{key}={value}\n")
 
-          echo "Ã¢Å"â€¦ Infrastructure outputs resolved from Terraform"
-          echo "  API Lambda:  ${API_LAMBDA}"
-          echo "  Algo Lambda: ${ALGO_LAMBDA}"
-          echo "  Frontend S3: ${FRONTEND_BUCKET}"
-          echo "  CloudFront:  ${CF_ID}"
-          echo "  Algo Layer:  ${ALGO_LAYER}"
-          echo "  API Layer:   ${API_LAYER}"
+          # Print summary
+          print("✓ Infrastructure outputs resolved from Terraform")
+          print(f"  API Lambda:  {outputs.get('api_lambda_function_name', 'N/A')}")
+          print(f"  Algo Lambda: {outputs.get('algo_lambda_function_name', 'N/A')}")
+          print(f"  Frontend S3: {outputs.get('frontend_bucket_name', 'N/A')}")
+          print(f"  CloudFront:  {outputs.get('cloudfront_distribution_id', 'N/A')}")
+          print(f"  Algo Layer:  {outputs.get('algo_orchestrator_layer_name', 'N/A')}")
+          print(f"  API Layer:   {outputs.get('api_lambda_layer_name', 'N/A')}")
+          EOF
 
   # â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬
   # Algo Lambda
