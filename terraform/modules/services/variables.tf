@@ -529,24 +529,6 @@ variable "algo_lambda_code_file" {
   default     = "lambda_algo.zip"
 }
 
-variable "trigger_loaders_lambda_role_arn" {
-  description = "IAM role ARN for Trigger-Loaders Lambda"
-  type        = string
-  default     = ""
-}
-
-variable "trigger_loaders_code_file" {
-  description = "Local path to trigger-loaders Lambda deployment package (fallback if S3 not configured)"
-  type        = string
-  default     = "lambda-trigger-loaders.zip"
-}
-
-variable "ecs_cluster_arn" {
-  description = "ARN of the ECS cluster for triggering loaders"
-  type        = string
-  default     = ""
-}
-
 # ============================================================
 # Orchestrator Configuration (passed to algo Lambda env vars)
 # ============================================================
