@@ -1128,7 +1128,8 @@ class SecEdgarClient:
         # Fetch all facts for this company in a single API call
         try:
             all_facts = self.get_company_facts(cik)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             all_facts = {}
 
         if not all_facts:

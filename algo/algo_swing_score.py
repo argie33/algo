@@ -509,7 +509,8 @@ class SwingTraderScore:
                 return val_str.lower() in ('true', '1', 'yes')
             else:
                 return val_str or default
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             return default
 
     # ============= COMPONENTS =============

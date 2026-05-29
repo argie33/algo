@@ -207,7 +207,8 @@ class SignalPatternsMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Exception (expected): {e}")
                 pass
 
     def classify_base_type(self, symbol: str, eval_date) -> Dict[str, Any]:
@@ -386,7 +387,8 @@ class SignalPatternsMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Exception (expected): {e}")
                 pass
 
     def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: Optional[float] = None) -> Dict[str, Any]:
@@ -569,7 +571,8 @@ class SignalPatternsMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Exception (expected): {e}")
                 pass
 
     def three_weeks_tight(self, symbol: str, eval_date) -> Dict[str, Any]:
@@ -657,7 +660,8 @@ class SignalPatternsMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Exception (expected): {e}")
                 pass
 
     def high_tight_flag(self, symbol: str, eval_date) -> Dict[str, Any]:
@@ -758,5 +762,6 @@ class SignalPatternsMixin:
         finally:
             try:
                 self.disconnect()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Exception (expected): {e}")
                 pass

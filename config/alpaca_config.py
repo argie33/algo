@@ -30,7 +30,8 @@ def get_alpaca_base_url() -> str:
         trading_mode = os.getenv('ALPACA_TRADING_MODE', 'paper')
         if trading_mode.lower() == 'live':
             return 'https://api.alpaca.markets'
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Exception (expected): {e}")
         pass
 
     return 'https://paper-api.alpaca.markets'

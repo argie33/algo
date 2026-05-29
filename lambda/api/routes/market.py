@@ -90,7 +90,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     """)
                     brow = cur.fetchone()
                     base['data'] = dict(brow) if brow else {}
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Exception: {e}")
                     base['data'] = {}
                 # Build 30-day McClellan Oscillator history from market_exposure_daily.
                 # The factors JSONB column stores the true McClellan value (19-EMA minus
@@ -109,7 +110,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     """)
                     adrows = cur.fetchall()
                     base['mcclellan_oscillator'] = [dict(r) for r in adrows]
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Exception: {e}")
                     base['mcclellan_oscillator'] = []
                 return json_response(200, base)
             elif path == '/api/market/top-movers':
@@ -211,7 +213,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                             best_month = r_dict
                         if not worst_month or r_dict.get('avg_return', 0) < worst_month.get('avg_return', 0):
                             worst_month = r_dict
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Exception: {e}")
                     monthly_data = []
 
                 dow_data = []
@@ -231,7 +234,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                             best_dow = r_dict
                         if not worst_dow or r_dict.get('avg_return', 0) < worst_dow.get('avg_return', 0):
                             worst_dow = r_dict
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Exception: {e}")
                     dow_data = []
 
                 return json_response(200, {
@@ -321,7 +325,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         'bullish_pct': float(naaim_current['bullish'] or 0) if naaim_current else None,
                         'bearish_pct': float(naaim_current['bearish'] or 0) if naaim_current else None
                     }
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Exception: {e}")
                     sentiment_data['naaim'] = {'current': None, 'history': [], 'trend': None}
 
                 # Fear & Greed
@@ -350,7 +355,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         'history': fg_rows,
                         'trend': fg_trend
                     }
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Exception: {e}")
                     sentiment_data['fearGreed'] = {'current': {'value': None, 'label': None}, 'history': [], 'trend': None}
 
                 return json_response(200, sentiment_data)

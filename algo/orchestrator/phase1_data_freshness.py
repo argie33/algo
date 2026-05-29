@@ -98,7 +98,8 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                 if MarketCalendar.is_trading_day(expected_patrol_date):
                     break
                 expected_patrol_date -= timedelta(days=1)
-        except Exception:
+        except Exception as cal_e:
+            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             expected_patrol_date = run_date - timedelta(days=1)
             while expected_patrol_date.weekday() >= 5:
                 expected_patrol_date -= timedelta(days=1)
@@ -379,7 +380,8 @@ def run(
                 if MarketCalendar.is_trading_day(expected_date):
                     break
                 expected_date -= timedelta(days=1)
-        except Exception:
+        except Exception as cal_e:
+            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             # Fallback: step back over weekends only
             expected_date = run_date - timedelta(days=1)
             while expected_date.weekday() >= 5:
@@ -388,7 +390,8 @@ def run(
         try:
             from algo.algo_metrics import MetricsPublisher
             _metrics = MetricsPublisher(dry_run=dry_run)
-        except Exception:
+        except Exception as mp_e:
+            logger.debug(f"MetricsPublisher unavailable: {mp_e}")
             _metrics = None
 
         for name, d in checks.items():

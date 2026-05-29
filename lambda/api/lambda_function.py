@@ -624,7 +624,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         )
                         cur.execute(query)
                         table_counts[table] = cur.fetchone()[0]
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"API exception: {e}")
                         table_counts[table] = 0
                 cur.close()
 
@@ -661,7 +662,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         FROM data_loader_status ORDER BY table_name
                     """)
                     rows = cur.fetchall()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"API exception: {e}")
                     rows = []
                 tables = []
                 for row in rows:
@@ -705,7 +707,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Reset any failed transaction state from a previous Lambda invocation
         try:
             conn.rollback()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"API exception: {e}")
             conn = get_db_connection()
             if not conn:
                 cors_headers = get_cors_headers(event)
@@ -743,7 +746,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                     'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
                 }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Exception caught: {e}")
                 pass
 
         # Route request to appropriate handler

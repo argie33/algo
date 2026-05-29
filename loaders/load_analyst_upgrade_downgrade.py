@@ -92,7 +92,8 @@ class AnalystRatingsLoader(OptimalLoader):
                 })
 
             return results if results else None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             # Any error - skip this symbol gracefully
             return None
 

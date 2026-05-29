@@ -440,11 +440,13 @@ class DataSourceRouter:
                             # Newer yfinance returns dict
                             return cal
                         df = cal
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Exception (expected): {e}")
                     pass
                 try:
                     df = ticker.earnings_dates
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Exception (expected): {e}")
                     pass
                 return df
             result = _call_with_timeout(fetch, timeout_sec=30)

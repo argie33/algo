@@ -339,10 +339,12 @@ class PortfolioRisk:
                                 var = sum((r - m_mean) ** 2 for r in m_rets) / n
                                 if var > 0:
                                     estimated_beta = round(cov / var, 2)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Exception: {e}")
                         try:
                             conn.rollback()
-                        except Exception:
+                        except Exception as e:
+                            logger.debug(f"Exception (expected): {e}")
                             pass
                         estimated_beta = 1.0
 
@@ -554,12 +556,14 @@ class PortfolioRisk:
                 if cur:
                     try:
                         cur.close()
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Exception (expected): {e}")
                         pass
                 if conn:
                     try:
                         conn.close()
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Exception (expected): {e}")
                         pass
 
             return result

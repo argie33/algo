@@ -177,7 +177,8 @@ def _get_algo_status(cur) -> Dict:
                         'unrealized_pnl_pct': round((float(snap[2] or 0) / pv * 100) if pv > 0 else 0, 2),
                         'open_positions': int(snap[3] or 0),
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Exception caught: {e}")
                 pass
 
             freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
@@ -433,7 +434,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     'current': dd, 'threshold': threshold_dd, 'unit': '%',
                     'description': f'Halt when drawdown from peak ≥ {threshold_dd:.0f}%',
                 })
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 breakers.append({'id': 'drawdown', 'label': 'Portfolio Drawdown',
                     'triggered': False, 'current': 0, 'threshold': 20, 'unit': '%',
                     'description': 'No portfolio data yet'})
@@ -454,7 +456,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     'current': daily_loss, 'threshold': threshold_dl, 'unit': '%',
                     'description': f'Halt when today\'s loss ≥ {threshold_dl:.0f}%',
                 })
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 breakers.append({'id': 'daily_loss', 'label': 'Daily Loss',
                     'triggered': False, 'current': 0, 'threshold': 2, 'unit': '%',
                     'description': 'No today snapshot yet'})
@@ -481,7 +484,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     'current': streak, 'threshold': threshold_cl, 'unit': '',
                     'description': f'Halt after {threshold_cl} consecutive losing trades',
                 })
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 breakers.append({'id': 'consecutive_losses', 'label': 'Consecutive Losses',
                     'triggered': False, 'current': 0, 'threshold': 3, 'unit': '',
                     'description': 'No closed trades yet'})
@@ -498,7 +502,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     'current': vix, 'threshold': threshold_vix, 'unit': '',
                     'description': f'Halt when VIX ≥ {threshold_vix:.0f} (extreme fear)',
                 })
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 breakers.append({'id': 'vix_spike', 'label': 'VIX Spike',
                     'triggered': False, 'current': 0, 'threshold': 35, 'unit': '',
                     'description': 'No market data yet'})
@@ -531,7 +536,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     'current': weekly_loss, 'threshold': threshold_wl, 'unit': '%',
                     'description': f'Halt when 7-day loss ≥ {threshold_wl:.0f}%',
                 })
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 breakers.append({'id': 'weekly_loss', 'label': 'Weekly Loss',
                     'triggered': False, 'current': 0, 'threshold': 5, 'unit': '%',
                     'description': 'No weekly data yet'})
@@ -547,7 +553,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     'current': stage, 'threshold': 4, 'unit': '',
                     'description': 'Halt when market enters Stage 4 (confirmed downtrend)',
                 })
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 breakers.append({'id': 'market_stage', 'label': 'Market Stage',
                     'triggered': False, 'current': 0, 'threshold': 4, 'unit': '',
                     'description': 'No market data yet'})
@@ -761,7 +768,8 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                     WHERE key IN ('max_positions', 'max_position_pct', 'max_sector_pct')
                 """)
                 cfg = {row['key']: row['value'] for row in cur.fetchall()}
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 cfg = {}
             max_positions = int(cfg.get('max_positions', 12))
             max_position_pct = float(cfg.get('max_position_pct', 8.0))
@@ -1328,7 +1336,8 @@ def _get_markets(cur) -> Dict:
                     sectors = [dict(s) for s in cur.fetchall()]
                 else:
                     sectors = []
-            except Exception:
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
                 sectors = []
 
             market_health = None
@@ -1341,7 +1350,8 @@ def _get_markets(cur) -> Dict:
                 mh = cur.fetchone()
                 if mh:
                     market_health = dict(mh)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Exception caught: {e}")
                 pass
 
             return json_response(200, {

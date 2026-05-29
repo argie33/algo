@@ -69,7 +69,8 @@ class EarningsHistoryLoader(OptimalLoader):
                         q = (dt.month - 1) // 3 + 1
                         qstart_month = (q - 1) * 3 + 1
                         quarter_str = f"{dt.year}-{qstart_month:02d}-01"
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Exception: {e}")
                         quarter_str = ed[:10]
 
                     rows.append({

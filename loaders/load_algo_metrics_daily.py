@@ -47,7 +47,8 @@ class AlgoMetricsDailyLoader:
             logger.error(f"Failed to ensure table: {e}", exc_info=True)
             try:
                 cur.connection.rollback()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Exception (expected): {e}")
                 pass
             raise
 

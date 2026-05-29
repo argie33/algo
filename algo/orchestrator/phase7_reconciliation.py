@@ -139,7 +139,8 @@ def run(
                     if cur:
                         try:
                             cur.close()
-                        except Exception:
+                        except Exception as e:
+                            logger.debug(f"Exception (expected): {e}")
                             pass
                     if conn:
                         put_conn(conn)

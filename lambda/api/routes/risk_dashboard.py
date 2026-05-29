@@ -202,7 +202,8 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
                     'correction': 0.0,
                 }.get(tier.lower() if tier else '', 1.0),
             }
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Exception (expected): {e}")
         pass
 
     return {

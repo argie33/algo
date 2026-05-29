@@ -63,7 +63,8 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool, final_cou
                 result = cur.fetchone()
                 rejected = result[0] if result else 0
                 tier_rejections[tier_name] = rejected
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             # Table may not exist or columns different; skip
             for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
                 tier_rejections[tier_name] = 0

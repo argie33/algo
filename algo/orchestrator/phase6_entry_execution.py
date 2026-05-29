@@ -529,7 +529,8 @@ def run(
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
             open_count = cur.fetchone()[0] or 0
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             open_count = 0
         finally:
             if cur:
@@ -669,7 +670,8 @@ def run(
                 finally:
                     try:
                         put_conn(conn_check)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Exception (expected): {e}")
                         pass
 
             if dry_run:
@@ -757,7 +759,8 @@ def run(
             finally:
                 try:
                     put_conn(conn)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Exception (expected): {e}")
                     pass
 
         # Circuit breaker: if >50% of trades fail in a batch, halt.

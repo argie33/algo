@@ -217,7 +217,8 @@ class DailyReconciliation:
                     try:
                         std_dev = statistics.stdev(returns)
                         sharpe_ratio = (std_dev * (252 ** 0.5)) if std_dev > 0 else 0.0
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Exception: {e}")
                         sharpe_ratio = 0.0
 
                 cur.execute("""

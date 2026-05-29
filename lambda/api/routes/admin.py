@@ -136,7 +136,8 @@ def _get_system_health(cur) -> Dict:
                             break
                         expected -= timedelta(days=1)
                     is_fresh = last_price_date >= expected
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Exception: {e}")
                     is_fresh = age_days <= 3
                 health_data['components']['data_freshness'] = 'ok' if is_fresh else 'stale'
                 health_data['last_data_update'] = last_price_date.isoformat()

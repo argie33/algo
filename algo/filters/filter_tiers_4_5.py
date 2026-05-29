@@ -102,7 +102,8 @@ class FilterTiers45Mixin:
                     atr_row = self.cur.fetchone()
                     if atr_row and atr_row[0]:
                         atr_value = float(atr_row[0])
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Exception (expected): {e}")
                     pass
 
                 if atr_value and atr_value > 0:
@@ -170,7 +171,8 @@ class FilterTiers45Mixin:
             if not row or not row[0]:
                 return None
             return {'sector': row[0], 'industry': row[1] or ''}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             return None
 
     def _count_sector_industry_overlap(self, new_info, existing_symbols) -> int:
@@ -402,5 +404,6 @@ class FilterTiers45Mixin:
             logger.info(f"  (audit log skipped for {result['symbol']}: {e})")
             try:
                 self.conn.rollback()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Exception (expected): {e}")
                 pass

@@ -360,7 +360,8 @@ class OptimalLoader(ABC):
 
             conn.commit()
             return inserted
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             conn.rollback()
             raise
         finally:

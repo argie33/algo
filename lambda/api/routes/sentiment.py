@@ -32,8 +32,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         LIMIT 1
                     """)
                     aaii_row = cur.fetchone()
-                except Exception:
-                    pass
+                except Exception as e:
+                logger.warning(f"Exception caught: {e}")
+                pass
 
                 naaim_row = None
                 try:
@@ -44,8 +45,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         LIMIT 1
                     """)
                     naaim_row = cur.fetchone()
-                except Exception:
-                    pass
+                except Exception as e:
+                logger.warning(f"Exception caught: {e}")
+                pass
 
                 analyst_row = None
                 try:
@@ -58,8 +60,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         WHERE date = (SELECT MAX(date) FROM analyst_sentiment_analysis)
                     """)
                     analyst_row = cur.fetchone()
-                except Exception:
-                    pass
+                except Exception as e:
+                logger.warning(f"Exception caught: {e}")
+                pass
 
                 return json_response(200, {
                     'fear_greed': {'value': fg_value, 'label': fg_label} if fg_value is not None else None,

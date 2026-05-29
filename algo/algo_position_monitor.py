@@ -86,7 +86,8 @@ class PositionMonitor:
                         logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
                     return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
                 return {'status': 'OK', 'count': 0}
-            except Exception:
+            except Exception as e:
+                logger.error(f"Stale orders check failed: {e}")
                 raise
             finally:
                 logger.debug("Stale orders check completed")

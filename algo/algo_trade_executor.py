@@ -241,16 +241,17 @@ class TradeExecutor:
         key_source = f"{symbol}|{signal_date}|{entry_price:.4f}|{stop_loss_price:.4f}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
-        self.connect()
-        try:
-            # B10: Entire entry sequence is wrapped in a single transaction.
-            # If any step fails, the transaction rolls back and no partial state is left.
+        with DatabaseContext(self.config) as db:
+            cur = db.cursor()
+            try:
+                # B10: Entire entry sequence is wrapped in a single transaction.
+                # If any step fails, the transaction rolls back and no partial state is left.
 
-            self.cur.execute(
+                cur.execute(
                 "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
                 (idempotency_key,)
             )
-            existing_idempotent = self.cur.fetchone()
+                existing_idempotent = cur.fetchone()
             if existing_idempotent:
                 logger.warning(f"DUPLICATE EXECUTION BLOCKED: Idempotency key exists for {symbol} (trade_id: {existing_idempotent[0]})")
                 return {
@@ -258,17 +259,17 @@ class TradeExecutor:
                     'message': f'Trade already exists for {symbol} on {signal_date} (idempotent duplicate)'
                 }
 
-            self.cur.execute(
+                cur.execute(
                 "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
                 (symbol, PositionStatus.OPEN.value),
             )
-            if self.cur.fetchone():
+                if cur.fetchone():
                 return {
                     'success': False, 'trade_id': '', 'status': 'duplicate', 'duplicate': True,
                     'message': f'Already have open position in {symbol}'
                 }
 
-            self.cur.execute(
+                cur.execute(
                 """
                 SELECT trade_id FROM algo_trades
                 WHERE symbol = %s AND COALESCE(signal_date, '1900-01-01') = COALESCE(%s, '1900-01-01')
@@ -277,7 +278,7 @@ class TradeExecutor:
                 """,
                 (symbol, signal_date, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
             )
-            existing = self.cur.fetchone()
+                existing = cur.fetchone()
             if existing:
                 # B9: Log duplicate with visibility for pattern monitoring
                 signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
@@ -288,7 +289,7 @@ class TradeExecutor:
                 }
 
             # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
-            self.cur.execute(
+                cur.execute(
                 """
                 SELECT COUNT(*) FROM algo_trades
                 WHERE symbol = %s AND status IN (%s, %s)
@@ -304,7 +305,7 @@ class TradeExecutor:
                 }
 
             # Find most recent CLOSED trade for this symbol in the last 30 days
-            self.cur.execute(
+                cur.execute(
                 """
                 SELECT trade_id, exit_date, exit_reason, profit_loss_pct,
                        COALESCE(reentry_count, 0) AS reentry_count
@@ -457,7 +458,7 @@ class TradeExecutor:
             entry_reason = ' | '.join(entry_reason_parts)
 
             # Insert with FULL reasoning and idempotency key
-            self.cur.execute(
+                cur.execute(
                 """
                 INSERT INTO algo_trades (
                     trade_id, idempotency_key, symbol, signal_date, trade_date,
@@ -541,7 +542,7 @@ class TradeExecutor:
                         'success': False, 'trade_id': trade_id, 'status': 'invalid',
                         'message': f'Invalid position value: {actual_shares} shares @ ${executed_price:.2f} = ${position_value:.2f}'
                     }
-                self.cur.execute(
+                    cur.execute(
                     """
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
@@ -664,7 +665,7 @@ class TradeExecutor:
 
         def do_update():
             # Re-read current quantity and stop (fresh for each retry)
-            self.cur.execute(
+                cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
                 (position_id,)
             )
@@ -683,7 +684,7 @@ class TradeExecutor:
 
             # Attempt update
             if full_exit or new_qty <= 0:
-                self.cur.execute(
+                    cur.execute(
                     """UPDATE algo_positions
                        SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP
                        WHERE position_id = %s AND quantity = %s""",
@@ -713,7 +714,7 @@ class TradeExecutor:
                 update_sql += " WHERE position_id = %s AND quantity = %s"
                 params.extend([position_id, current_qty])
 
-                self.cur.execute(update_sql, params)
+                    cur.execute(update_sql, params)
 
             return self.cur.rowcount > 0  # True if update succeeded
 
@@ -752,7 +753,7 @@ class TradeExecutor:
             self.connect()
             try:
                 # Only raise (never lower) the stop — idempotent guard
-                self.cur.execute(
+                    cur.execute(
                     """UPDATE algo_positions p
                        SET current_stop_price = %s
                        FROM algo_trades t
@@ -787,7 +788,7 @@ class TradeExecutor:
 
         self.connect()
         try:
-            self.cur.execute(
+                cur.execute(
                 """
                 SELECT status FROM algo_trades WHERE trade_id = %s
                 """,
@@ -801,7 +802,7 @@ class TradeExecutor:
                     'duplicate': True
                 }
 
-            self.cur.execute(
+                cur.execute(
                 """
                 SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
@@ -898,7 +899,7 @@ class TradeExecutor:
                 pnl_pct = 0.0
 
             if full_exit:
-                self.cur.execute(
+                    cur.execute(
                     """
                     UPDATE algo_trades
                     SET exit_date = CURRENT_DATE,
@@ -915,7 +916,7 @@ class TradeExecutor:
                 )
             else:
                 # Partial exit — append to exit log column, keep status active
-                self.cur.execute(
+                    cur.execute(
                     """
                     UPDATE algo_trades
                     SET partial_exits_log = COALESCE(partial_exits_log, '') ||
@@ -956,7 +957,7 @@ class TradeExecutor:
 
             # Audit log
             try:
-                self.cur.execute(
+                    cur.execute(
                     """
                     INSERT INTO algo_audit_log (action_type, symbol, action_date,
                                                 details, actor, status, created_at)
@@ -1054,7 +1055,7 @@ class TradeExecutor:
             if not self.cur:
                 # Called before connect(); DB fallback unavailable — don't crash
                 return None
-            self.cur.execute(
+                cur.execute(
                 "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots "
                 "ORDER BY snapshot_date DESC LIMIT 1"
             )

@@ -35,7 +35,8 @@ def _is_evening_run():
         now_et = datetime.now(et_tz)
         # Evening = after 5 PM (17:00)
         return now_et.hour >= 17
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Exception: {e}")
         return False
 
 

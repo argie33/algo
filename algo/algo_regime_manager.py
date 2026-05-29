@@ -237,7 +237,8 @@ class RegimeManager:
                 score = float(row[0])
                 return min(1.0, max(0.0, score / 100.0))
             return 0.5  # Default to neutral confidence
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             return 0.5
 
 

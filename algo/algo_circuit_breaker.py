@@ -523,7 +523,8 @@ class CircuitBreaker:
                 if MarketCalendar.is_trading_day(expected):
                     break
                 expected -= timedelta(days=1)
-        except Exception:
+        except Exception as cal_e:
+            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             while expected.weekday() >= 5:
                 expected -= timedelta(days=1)
         is_stale = latest < expected

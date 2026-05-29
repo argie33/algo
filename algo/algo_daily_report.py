@@ -350,7 +350,8 @@ class DailyFinanceReport:
             )
             result = cur.fetchone()
             return result[0] if result else 0
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception: {e}")
             return 0
 
 
