@@ -14,22 +14,11 @@ Alerts if slippage exceeds thresholds:
 This is what institutional traders use to validate their edge isn't eroded by fees/slippage.
 """
 
-
-from config.credential_manager import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-import psycopg2
-
-
-
 from datetime import date
 from typing import Optional
-import os
 import logging
+
+from utils.database_context import database_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -39,45 +28,6 @@ class TCAEngine:
 
     def __init__(self, config):
         self.config = config
-        self.conn = None
-        self.cur = None
-        # Lazy-load DB config when connect() is called, not at init time
-        self.db_host = None
-        self.db_port = None
-        self.db_user = None
-        self.db_password = None
-        self.db_name = None
-
-    def connect(self):
-        """Connect to database."""
-        try:
-            # Lazy-load DB config on first connection
-            if self.db_host is None:
-                self.db_host = get_db_config()['host']
-                self.db_port = int(os.getenv('DB_PORT', 5432))
-                self.db_user = get_db_config()['user']
-                self.db_password = get_db_password()
-                self.db_name = get_db_config()['database']
-
-            self.conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_name,
-            )
-            self.cur = self.conn.cursor()
-        except Exception as e:
-            logger.error(f"TCA: DB connection failed: {e}")
-            raise
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     def record_fill(self, trade_id: int, symbol: str, signal_price: float,
                    fill_price: float, shares_requested: int, shares_filled: int,
@@ -98,55 +48,52 @@ class TCAEngine:
             dict with tca_id, slippage_bps, fill_rate, etc.
         """
         try:
-            if not self.cur:
-                self.connect()
+            with database_transaction('write') as cur:
+                # Compute slippage in basis points
+                if side == 'BUY':
+                    # For buy, adverse if fill_price > signal_price
+                    slippage_bps = (fill_price - signal_price) / signal_price * 10000
+                else:
+                    # For sell, adverse if fill_price < signal_price
+                    slippage_bps = (signal_price - fill_price) / signal_price * 10000
 
-            # Compute slippage in basis points
-            if side == 'BUY':
-                # For buy, adverse if fill_price > signal_price
-                slippage_bps = (fill_price - signal_price) / signal_price * 10000
-            else:
-                # For sell, adverse if fill_price < signal_price
-                slippage_bps = (signal_price - fill_price) / signal_price * 10000
+                # Compute fill rate
+                fill_rate_pct = (shares_filled / shares_requested * 100) if shares_requested > 0 else 0
 
-            # Compute fill rate
-            fill_rate_pct = (shares_filled / shares_requested * 100) if shares_requested > 0 else 0
-
-            # Insert into algo_tca table
-            self.cur.execute(
-                """
-                INSERT INTO algo_tca (
-                    trade_id, symbol, signal_date, signal_price, fill_price,
-                    shares_requested, shares_filled, fill_rate_pct,
-                    slippage_bps, side, execution_latency_ms
+                # Insert into algo_tca table
+                cur.execute(
+                    """
+                    INSERT INTO algo_tca (
+                        trade_id, symbol, signal_date, signal_price, fill_price,
+                        shares_requested, shares_filled, fill_rate_pct,
+                        slippage_bps, side, execution_latency_ms
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING tca_id
+                    """,
+                    (trade_id, symbol, date.today(), signal_price, fill_price,
+                     shares_requested, shares_filled, round(fill_rate_pct, 2),
+                     round(slippage_bps, 2), side, execution_latency_ms)
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING tca_id
-                """,
-                (trade_id, symbol, date.today(), signal_price, fill_price,
-                 shares_requested, shares_filled, round(fill_rate_pct, 2),
-                 round(slippage_bps, 2), side, execution_latency_ms)
-            )
-            tca_id = self.cur.fetchone()[0]
-            self.conn.commit()
+                tca_id = cur.fetchone()[0]
+                cur.connection.commit()
 
-            result = {
-                'tca_id': tca_id,
-                'symbol': symbol,
-                'signal_price': signal_price,
-                'fill_price': fill_price,
-                'slippage_bps': round(slippage_bps, 2),
-                'fill_rate_pct': round(fill_rate_pct, 2),
-                'execution_latency_ms': execution_latency_ms,
-            }
+                result = {
+                    'tca_id': tca_id,
+                    'symbol': symbol,
+                    'signal_price': signal_price,
+                    'fill_price': fill_price,
+                    'slippage_bps': round(slippage_bps, 2),
+                    'fill_rate_pct': round(fill_rate_pct, 2),
+                    'execution_latency_ms': execution_latency_ms,
+                }
 
-            alert = self._check_slippage_alert(symbol, slippage_bps, side)
-            if alert:
-                result['alert'] = alert
+                alert = self._check_slippage_alert(symbol, slippage_bps, side)
+                if alert:
+                    result['alert'] = alert
 
-            return result
+                return result
         except Exception as e:
-            self.conn.rollback() if self.conn else None
             logger.error(f"TCA: record_fill failed: {e}")
             raise
 
@@ -190,73 +137,71 @@ class TCAEngine:
             dict with daily metrics: avg slippage, worst fills, alert count, etc.
         """
         try:
-            if not self.cur:
-                self.connect()
-
             if not report_date:
                 report_date = date.today()
 
-            self.cur.execute(
-                """
-                SELECT
-                    COUNT(*) as fill_count,
-                    AVG(ABS(slippage_bps)) as avg_abs_slippage_bps,
-                    MIN(slippage_bps) as best_slippage_bps,
-                    MAX(slippage_bps) as worst_slippage_bps,
-                    AVG(fill_rate_pct) as avg_fill_rate_pct,
-                    AVG(execution_latency_ms) as avg_latency_ms
-                FROM algo_tca
-                WHERE signal_date = %s
-                """,
-                (report_date,)
-            )
-            row = self.cur.fetchone()
+            with database_transaction('read') as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) as fill_count,
+                        AVG(ABS(slippage_bps)) as avg_abs_slippage_bps,
+                        MIN(slippage_bps) as best_slippage_bps,
+                        MAX(slippage_bps) as worst_slippage_bps,
+                        AVG(fill_rate_pct) as avg_fill_rate_pct,
+                        AVG(execution_latency_ms) as avg_latency_ms
+                    FROM algo_tca
+                    WHERE signal_date = %s
+                    """,
+                    (report_date,)
+                )
+                row = cur.fetchone()
 
-            if not row or row[0] == 0:
+                if not row or row[0] == 0:
+                    return {
+                        'report_date': report_date,
+                        'fill_count': 0,
+                        'status': 'no_trades',
+                    }
+
+                (fill_count, avg_abs_slippage, best_slippage, worst_slippage,
+                 avg_fill_rate, avg_latency) = row
+
+                # Count adverse fills > 100 bps
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM algo_tca
+                    WHERE signal_date = %s AND ABS(slippage_bps) > 100
+                    """,
+                    (report_date,)
+                )
+                high_slippage_count = cur.fetchone()[0]
+
+                cur.execute(
+                    """
+                    SELECT symbol, ABS(slippage_bps) FROM algo_tca
+                    WHERE signal_date = %s
+                    ORDER BY ABS(slippage_bps) DESC
+                    LIMIT 1
+                    """,
+                    (report_date,)
+                )
+                worst_row = cur.fetchone()
+                worst_symbol = worst_row[0] if worst_row else None
+
                 return {
                     'report_date': report_date,
-                    'fill_count': 0,
-                    'status': 'no_trades',
+                    'fill_count': fill_count,
+                    'avg_abs_slippage_bps': round(avg_abs_slippage or 0, 2),
+                    'best_slippage_bps': round(best_slippage or 0, 2),
+                    'worst_slippage_bps': round(worst_slippage or 0, 2),
+                    'worst_symbol': worst_symbol,
+                    'high_slippage_fills': high_slippage_count,
+                    'high_slippage_pct': round(high_slippage_count / fill_count * 100 if fill_count > 0 else 0, 1),
+                    'avg_fill_rate_pct': round(avg_fill_rate or 0, 2),
+                    'avg_execution_latency_ms': round(avg_latency or 0),
+                    'status': 'ok' if high_slippage_count == 0 else 'warning',
                 }
-
-            (fill_count, avg_abs_slippage, best_slippage, worst_slippage,
-             avg_fill_rate, avg_latency) = row
-
-            # Count adverse fills > 100 bps
-            self.cur.execute(
-                """
-                SELECT COUNT(*) FROM algo_tca
-                WHERE signal_date = %s AND ABS(slippage_bps) > 100
-                """,
-                (report_date,)
-            )
-            high_slippage_count = self.cur.fetchone()[0]
-
-            self.cur.execute(
-                """
-                SELECT symbol, ABS(slippage_bps) FROM algo_tca
-                WHERE signal_date = %s
-                ORDER BY ABS(slippage_bps) DESC
-                LIMIT 1
-                """,
-                (report_date,)
-            )
-            worst_row = self.cur.fetchone()
-            worst_symbol = worst_row[0] if worst_row else None
-
-            return {
-                'report_date': report_date,
-                'fill_count': fill_count,
-                'avg_abs_slippage_bps': round(avg_abs_slippage or 0, 2),
-                'best_slippage_bps': round(best_slippage or 0, 2),
-                'worst_slippage_bps': round(worst_slippage or 0, 2),
-                'worst_symbol': worst_symbol,
-                'high_slippage_fills': high_slippage_count,
-                'high_slippage_pct': round(high_slippage_count / fill_count * 100 if fill_count > 0 else 0, 1),
-                'avg_fill_rate_pct': round(avg_fill_rate or 0, 2),
-                'avg_execution_latency_ms': round(avg_latency or 0),
-                'status': 'ok' if high_slippage_count == 0 else 'warning',
-            }
         except Exception as e:
             logger.error(f"TCA: daily_report failed: {e}")
             return {'status': 'error', 'message': str(e)}
@@ -272,48 +217,46 @@ class TCAEngine:
             Monthly aggregated metrics
         """
         try:
-            if not self.cur:
-                self.connect()
+            with database_transaction('read') as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        COUNT(*) as fill_count,
+                        AVG(ABS(slippage_bps)) as avg_abs_slippage_bps,
+                        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ABS(slippage_bps))
+                            as p95_abs_slippage_bps,
+                        MAX(ABS(slippage_bps)) as worst_slippage_bps,
+                        AVG(fill_rate_pct) as avg_fill_rate_pct,
+                        SUM(CASE WHEN ABS(slippage_bps) > 100 THEN 1 ELSE 0 END)
+                            as high_slippage_count
+                    FROM algo_tca
+                    WHERE EXTRACT(YEAR FROM signal_date) = %s
+                      AND EXTRACT(MONTH FROM signal_date) = %s
+                    """,
+                    (year, month)
+                )
+                row = cur.fetchone()
 
-            self.cur.execute(
-                """
-                SELECT
-                    COUNT(*) as fill_count,
-                    AVG(ABS(slippage_bps)) as avg_abs_slippage_bps,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ABS(slippage_bps))
-                        as p95_abs_slippage_bps,
-                    MAX(ABS(slippage_bps)) as worst_slippage_bps,
-                    AVG(fill_rate_pct) as avg_fill_rate_pct,
-                    SUM(CASE WHEN ABS(slippage_bps) > 100 THEN 1 ELSE 0 END)
-                        as high_slippage_count
-                FROM algo_tca
-                WHERE EXTRACT(YEAR FROM signal_date) = %s
-                  AND EXTRACT(MONTH FROM signal_date) = %s
-                """,
-                (year, month)
-            )
-            row = self.cur.fetchone()
+                if not row or row[0] == 0:
+                    return {
+                        'period': f'{year}-{month:02d}',
+                        'status': 'no_trades',
+                    }
 
-            if not row or row[0] == 0:
+                (fill_count, avg_abs_slippage, p95_slippage, worst_slippage,
+                 avg_fill_rate, high_slippage_count) = row
+
                 return {
                     'period': f'{year}-{month:02d}',
-                    'status': 'no_trades',
+                    'fill_count': fill_count,
+                    'avg_abs_slippage_bps': round(avg_abs_slippage or 0, 2),
+                    'p95_abs_slippage_bps': round(p95_slippage or 0, 2),
+                    'worst_slippage_bps': round(worst_slippage or 0, 2),
+                    'avg_fill_rate_pct': round(avg_fill_rate or 0, 2),
+                    'high_slippage_fills': high_slippage_count or 0,
+                    'high_slippage_pct': round((high_slippage_count or 0) / fill_count * 100, 1),
+                    'status': 'ok' if (high_slippage_count or 0) == 0 else 'warning',
                 }
-
-            (fill_count, avg_abs_slippage, p95_slippage, worst_slippage,
-             avg_fill_rate, high_slippage_count) = row
-
-            return {
-                'period': f'{year}-{month:02d}',
-                'fill_count': fill_count,
-                'avg_abs_slippage_bps': round(avg_abs_slippage or 0, 2),
-                'p95_abs_slippage_bps': round(p95_slippage or 0, 2),
-                'worst_slippage_bps': round(worst_slippage or 0, 2),
-                'avg_fill_rate_pct': round(avg_fill_rate or 0, 2),
-                'high_slippage_fills': high_slippage_count or 0,
-                'high_slippage_pct': round((high_slippage_count or 0) / fill_count * 100, 1),
-                'status': 'ok' if (high_slippage_count or 0) == 0 else 'warning',
-            }
         except Exception as e:
             logger.error(f"TCA: monthly_summary failed: {e}")
             return {'status': 'error', 'message': str(e)}
