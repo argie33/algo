@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging
 import re
-from .utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error
+from .utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +169,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 LIMIT %s
             """, (limit,))
             rows = cur.fetchall()
-            return list_response([dict(r) for r in rows])
+            freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
+            return list_response([dict(r) for r in rows], data_freshness=freshness)
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=50000, default=500)
         offset = safe_offset(params.get('offset', [None])[0] if params else None)

@@ -191,11 +191,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         }
                     })
 
+                freshness = check_data_freshness(cur, 'sector_ranking', 'date', warning_days=1)
                 return json_response(200, {
                     'items': sectors,
                     'total': total,
                     'page': page,
                     'limit': limit,
+                    'data_freshness': freshness,
                 })
             elif '/trend' in path:
                 parts = path.split('/')
