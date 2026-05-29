@@ -266,7 +266,7 @@ locals {
     "analyst_upgrades_downgrades"   = "load_analyst_upgrade_downgrade.py"
     "industry_ranking"              = "load_industry_ranking.py"
     "trend_template_data"           = "load_trend_criteria_data.py"
-    "buy_sell_daily"                = "load_signals_daily.py"
+    "buy_sell_daily"                = "load_buy_sell_daily.py"
     "signal_quality_scores"         = "load_signal_quality_scores.py"
     "signal_themes"                 = "load_signal_themes.py"
     "signals_weekly"                = "load_signal_quality_scores.py"
