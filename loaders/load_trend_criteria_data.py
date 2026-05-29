@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trend Criteria Data Loader â€” Minervini 8-point, Weinstein stage, consolidation.
+"""Trend Criteria Data Loader -” Minervini 8-point, Weinstein stage, consolidation.
 
 Computes trend confirmation metrics from price and technical data.
 Required by Phase 1 data freshness check.

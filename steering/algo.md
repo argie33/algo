@@ -7,7 +7,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | Component | Code | Deployment | Trigger |
 |-----------|------|------------|---------|
 | Orchestrator (main loop) | `algo/algo_orchestrator.py` | Lambda (algo-algo-dev) | EventBridge schedule: 9:30 AM ET, 5:30 PM ET Mon-Fri |
-| Loaders (data fetchers) | `loaders/load_*.py` (30 scripts: 9 essential + 21 supporting) | ECS Fargate tasks | Step Functions EOD pipeline + EventBridge schedules |
+| Loaders (data fetchers) | `loaders/load_*.py` (49 scripts: 9 essential + 40 supporting) | ECS Fargate tasks | Step Functions EOD pipeline + EventBridge schedules |
 | API (REST endpoints) | `lambda/api/lambda_function.py` | Lambda (algo-api-dev) | API Gateway HTTP requests |
 | Frontend (dashboard) | `webapp/frontend/src/` | S3 + CloudFront | npm run build (React app) |
 | Signals (Phase 5) | `algo/algo_signals.py` | Lambda Phase 5 | Called by orchestrator |
@@ -167,7 +167,7 @@ All credentials rotate on fixed schedules. Update locally when rotated:
 | Lambda Function | `algo-api-dev` | HTTP REST API endpoints |
 | RDS Database | `algo-db` | PostgreSQL database (endpoint: `algo-db.<random>.us-east-1.rds.amazonaws.com`) |
 | Secrets Manager | `algo-db-credentials-dev` | Database password (auto-synced from Terraform) |
-| ECS Task Defs | `algo-<loader>-loader` | 30 individual loaders (9 essential in Step Functions pipeline, 21 supporting on EventBridge) |
+| ECS Task Defs | `algo-<loader>-loader` | 49 individual loaders (9 essential in Step Functions pipeline, 40 supporting on EventBridge) |
 | RDS Proxy | `algo-proxy` | Connection pooling for RDS (enabled via `enable_rds_proxy = true` in terraform.tfvars) |
 
 ## DATABASE CONNECTIONS (Dynamic RDS Proxy)
@@ -209,25 +209,30 @@ after any multi-day weekend because the calendar gap exceeds the staleness thres
 
 ## LOADERS
 
-30 loader scripts in `loaders/load_*.py`:
+49 loader scripts in `loaders/load_*.py`:
 
 **ESSENTIAL (9 loaders — Step Functions EOD pipeline):**
-- eod_bulk_refresh: Load daily OHLCV for all 5000+ symbols
-- technical_data_daily: RSI, SMA, EMA, ATR, ADX, Bollinger Bands
-- market_health_daily: Market stage, distribution days, advance/decline, breadth, VIX
-- trend_template_data: Minervini 8-point, Weinstein stage
-- buy_sell_daily: BUY/SELL signals from technicals
-- signal_quality_scores: Win rate, profit factor, expectancy
-- algo_metrics_daily: Daily portfolio stats
-- swing_trader_scores: Final swing scoring
+1. stock_symbols: Reference data for all tradable symbols
+2. eod_bulk_refresh: Load daily OHLCV for all 5000+ symbols (maps to stock_prices_daily)
+3. technical_data_daily: RSI, SMA, EMA, ATR, ADX, Bollinger Bands
+4. market_health_daily: Market stage, distribution days, advance/decline, breadth, VIX
+5. trend_template_data: Minervini 8-point, Weinstein stage
+6. buy_sell_daily: BUY/SELL signals from technicals
+7. signal_quality_scores: Win rate, profit factor, expectancy
+8. algo_metrics_daily: Daily portfolio stats
+9. swing_trader_scores: Final swing scoring
 
-**SUPPORTING (21 loaders — EventBridge schedules):**
-- Price loaders: stock_prices_weekly, etf_prices_daily/weekly/monthly
-- Financial statements: financials_annual/quarterly_income/balance/cashflow, ttm variants
+**SUPPORTING (40 loaders — EventBridge schedules + parallel workflows):**
+- Reference: sp500_constituents, russell2000_constituents
+- Price data: stock_prices_daily, stock_prices_weekly, etf_prices_daily, etf_prices_weekly, etf_prices_monthly
+- Technical: (covered by technical_data_daily in EOD pipeline)
+- Financial statements: financials_annual_income, financials_annual_balance, financials_annual_cashflow, financials_quarterly_income, financials_quarterly_balance, financials_quarterly_cashflow, financials_ttm_income, financials_ttm_cashflow
 - Metrics: growth_metrics, quality_metrics, value_metrics, positioning_metrics, stability_metrics, stock_scores
-- Earnings: earnings_history, earnings_revisions, earnings_surprise, earnings_calendar
-- Sentiment/Economic: aaiidata, naaim_data, feargreed, sentiment, analyst_sentiment, analyst_upgrades_downgrades, industry_ranking, fred_economic_data
-- Reference: stock_symbols, sp500_constituents, russell2000_constituents
+- Earnings: earnings_history, earnings_calendar
+- Analyst/Sentiment: analyst_sentiment, analyst_upgrades_downgrades, aaiidata, naaim_data, feargreed, sentiment, sentiment_social, company_profile, industry_ranking
+- Signal processing: signal_themes
+- Economic: fred_economic_data
+- Market batch: market_data_batch
 
 **SEC/EDGAR Request Header:** `User-Agent: algo-trading argeropolos@gmail.com` (required for SEC rate limits, hardcoded in `loaders/loader_loop.py`)
 

@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
-Cash Flow Loader â€” annual and quarterly from SEC EDGAR.
+Cash Flow Loader -” annual and quarterly from SEC EDGAR.
 
 Period determined by LOADER_PERIOD env var (financials_annual_cashflow / financials_quarterly_cashflow)
 or --period CLI flag for manual runs.

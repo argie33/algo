@@ -555,26 +555,18 @@ locals {
 
     # Earnings data (SEC EDGAR) — reduce parallelism to 1 to prevent rate limit cascade
     # Increase timeout to 60min for sequential 5000+ symbol processing
-    "earnings_history"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "earnings_revisions" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "earnings_surprise"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "earnings_calendar"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
     # Company & analyst data (11:30am ET) — I/O bound, yfinance API calls, 5000+ symbols
     "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
     "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    # Sectors/industry: increased timeout for 5000+ symbol processing with parallelism=4
-    "sectors"          = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
-    "industry_ranking" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
-
-    # Market & economic data — small datasets, single-threaded fine
-    "seasonality" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
     # Trading signals (5:00pm ET) — MOST CRITICAL, compute-heavy on 5000+ symbols
     # Fixed: timeout 1800→2400→10800→14400→21600s (30min→40min→3h→4h→6h), parallelism 8→4
     # ETF signals: increased timeout to match heavy computation + yfinance rate limiting for 5000+ ETFs
-    "signals_daily"       = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
     "signals_weekly"      = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_monthly"     = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 4 }
     "signals_etf_daily"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
@@ -606,13 +598,15 @@ locals {
     # FRED macro data — small API calls, 5 time series from FRED API
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Signal processing — compute signal themes and track performance
-    "signal_themes"            = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "signal_trade_performance" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    # Signal processing — compute signal themes
+    "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
 
     # Sentiment aggregation — combine multiple sentiment sources
     "sentiment"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "sentiment_social" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+
+    # BUY/SELL signals (5:00pm ET - EOD pipeline step 3) — compute trade signals for all 5000+ symbols
+    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
     # Step Functions EOD pipeline tasks (defined in pipeline module, not scheduled directly)
     # FIXED Issue #1: Signal quality scores timeout was 3600s but Step Functions allows 5400s
@@ -629,12 +623,12 @@ locals {
   # Loaders that must run on on-demand FARGATE (cannot tolerate interruption)
   critical_loaders = toset([
     "stock_prices_daily",
-    "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly",
-    "algo_metrics_daily", "eod_bulk_refresh", "stock_scores"
+    "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly",
+    "algo_metrics_daily", "eod_bulk_refresh", "stock_scores", "buy_sell_daily"
   ])
 }
 
-# ECS Task Definitions for all 40 data loaders
+# ECS Task Definitions for all 48 data loaders
 # NOTE: CPU/memory in container definition are removed - only task-level values matter for Fargate
 resource "aws_ecs_task_definition" "loader" {
   for_each = local.all_loaders
