@@ -47,9 +47,9 @@ resource "aws_iam_role" "eventbridge_run_task" {
 # ============================================================
 
 resource "aws_dynamodb_table" "orchestrator_locks" {
-  name           = "${var.project_name}-orchestrator-locks-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "lock_key"
+  name         = "${var.project_name}-orchestrator-locks-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "lock_key"
 
   attribute {
     name = "lock_key"
@@ -76,10 +76,10 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
 # Separate from orchestrator_locks which has 15-minute TTL for distributed coordination.
 
 resource "aws_dynamodb_table" "loader_execution_status" {
-  name           = "${var.project_name}-loader-status-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "loader_name"
-  range_key      = "execution_date"
+  name         = "${var.project_name}-loader-status-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "loader_name"
+  range_key    = "execution_date"
 
   attribute {
     name = "loader_name"
@@ -88,7 +88,7 @@ resource "aws_dynamodb_table" "loader_execution_status" {
 
   attribute {
     name = "execution_date"
-    type = "S"  # ISO8601 date string
+    type = "S" # ISO8601 date string
   }
 
   # TTL: status entries expire after 1 hour (3600 seconds)
@@ -378,10 +378,6 @@ locals {
       schedule    = "cron(4 21 ? * MON-FRI *)"
       description = "Value metrics (P/E, P/B, P/S ratios) - Daily 5:04pm ET"
     }
-    "key_metrics" = {
-      schedule    = "cron(5 21 ? * MON-FRI *)"
-      description = "Key metrics (market cap, shares outstanding) - Daily 5:05pm ET"
-    }
     "stability_metrics" = {
       schedule    = "cron(6 21 ? * MON-FRI *)"
       description = "Stability metrics (beta, volatility) - Daily 5:06pm ET"
@@ -587,7 +583,7 @@ locals {
     # FIXED Issue #3: EOD bulk refresh is unified price loader (same as stock_prices_daily)
     # Maps to load_stock_prices_daily.py which runs full price load (5000+ symbols, all intervals)
     # Requires 6-hour timeout like stock_prices_daily, not 3600s. Changed from 3600→21600.
-    "eod_bulk_refresh"      = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    "eod_bulk_refresh" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
   }
 
   # For backward compatibility
@@ -762,10 +758,10 @@ resource "aws_ecs_task_definition" "loader" {
       # ECS will mark task as unhealthy if loader doesn't report within timeout period
       healthCheck = {
         command     = ["CMD-SHELL", "ps aux | grep -q '[p]ython.*${each.key}' || exit 1"]
-        interval    = 30       # Check every 30 seconds
-        timeout     = 5        # Timeout for health check command
-        retries     = 2        # Mark unhealthy after 2 failed checks (60s)
-        startPeriod = 60       # Grace period before first health check (let loader startup)
+        interval    = 30 # Check every 30 seconds
+        timeout     = 5  # Timeout for health check command
+        retries     = 2  # Mark unhealthy after 2 failed checks (60s)
+        startPeriod = 60 # Grace period before first health check (let loader startup)
       }
     }
   ])
