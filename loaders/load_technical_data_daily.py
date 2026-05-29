@@ -200,11 +200,6 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
 
 def main():
-    try:
-    except Exception as e:
-        logger.error(f"Failed to load environment: {e}", exc_info=True)
-        return 1
-
     parser = argparse.ArgumentParser(description="Load technical indicators")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
     parser.add_argument("--parallelism", type=int, default=8, help="Parallel workers")
