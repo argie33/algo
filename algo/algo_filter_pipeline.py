@@ -39,7 +39,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
     def __init__(self, exposure_risk_multiplier=1.0):
         self.config = get_config()
         self.exposure_risk_multiplier = exposure_risk_multiplier  # From exposure policy tier
-        self.conn = None
         self.cur = None
         self._market_health_cache = None
         self._market_health_date = None
@@ -51,29 +50,17 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         self._last_stop_method = None
         self._last_stop_reasoning = None
 
-    def connect(self) -> None:
-        try:
-            config = get_db_config()
-            config["connect_timeout"] = 60
-            self.conn = psycopg2.connect(**config)
-            self.conn.autocommit = True
-            self.cur = self.conn.cursor()
-        except Exception as e:
-            logger.error(f"Failed to connect to database: {e}")
-            raise
+    def _enter_database(self):
+        """Enter DatabaseContext for this operation. Called from evaluate_signals."""
+        self._db_context = DatabaseContext('write')
+        self.cur = self._db_context.__enter__()
 
-    def disconnect(self) -> None:
-        if self.cur:
-            try:
-                self.cur.close()
-            except Exception as e:
-                logger.debug(f"Error closing cursor: {e}")
-        if self.conn:
-            try:
-                self.conn.close()
-            except Exception as e:
-                logger.debug(f"Error closing connection: {e}")
-        self.cur = self.conn = None
+    def _exit_database(self):
+        """Exit DatabaseContext. Called from evaluate_signals finally block."""
+        if hasattr(self, '_db_context') and self._db_context:
+            self._db_context.__exit__(None, None, None)
+            self._db_context = None
+            self.cur = None
 
     def _apply_tier_multiplier(self, base_size: float, tier: str, base_risk_pct: float) -> float:
         """Apply exposure tier multiplier to position size.
@@ -112,7 +99,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         coverage. This avoids evaluating today when no fresh data has been loaded.
         """
         try:
-            self.connect()
+            self._enter_database()
 
             if not eval_date:
                 eval_date = self._resolve_evaluation_date()
@@ -286,11 +273,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         except Exception as e:
                             # Advanced filters failed (missing tables), use default pass
                             logger.warning(f"Advanced filters failed for {symbol}: {e} (using default)")
-                            # Roll back aborted transaction so the shared connection stays usable
-                            try:
-                                self.conn.rollback()
-                            except Exception as rollback_err:
-                                logger.debug(f"Rollback failed after advanced filter error: {rollback_err}")
                             adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
                             result['advanced'] = adv
                     else:
@@ -477,12 +459,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 logger.info("(no qualifying trades — gates too strict for current market)")
             logger.info(f"\n{'='*70}\n")
 
-            try:
-                self.conn.commit()
-            except Exception as e:
-                logger.error(f"WARNING: Failed to commit evaluated signals: {e}")
-                # Continue anyway - data loss is worse than incomplete commit log
-
             return final_trades
 
         except Exception as e:
@@ -491,7 +467,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             traceback.print_exc()
             return []
         finally:
-            self.disconnect()
+            self._exit_database()
 
     def _resolve_evaluation_date(self) -> _date:
         """Pick the most recent date that has BUY signals + market health + trend data."""
@@ -1501,10 +1477,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception as e:
             # Don't fail the pipeline because of audit logging
             logger.info(f"  (audit log skipped for {result['symbol']}: {e})")
-            try:
-                self.conn.rollback()
-            except Exception as rollback_err:
-                logger.debug(f"Rollback after audit log skip failed: {rollback_err}")
+
     def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None) -> Dict[str, Any]:
         """Check if new symbol is highly correlated (>0.80) with existing open positions.
 
