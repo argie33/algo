@@ -77,11 +77,12 @@ resource "aws_lambda_function" "api" {
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
 
-  # FIXED Issue #22: Keep Lambda warm to avoid cold-start timeouts
+  # FIXED Issue #22: Keep Lambda warm to avoid cold-start timeouts AND allow concurrent requests
   # VPC cold-start risk: 15-40s start + DNS + DB connection can exceed 29s API Gateway timeout
-  # Solution: reserved_concurrent_executions = 2 keeps instances warm in memory
-  # Cost: ~$14/month for 2 reserved instances, but prevents timeout errors during trading
-  reserved_concurrent_executions = 2
+  # Reserved concurrency prevents 429 "Too Many Requests" errors when multiple requests arrive
+  # Setting to 10 allows 10 concurrent requests before Lambda provisioning new instances
+  # Cost: ~$70/month for 10 reserved instances, reasonable for trading system performance
+  reserved_concurrent_executions = 10
 
   layers = [local.api_layer_arn, var.psycopg2_layer_arn]
 
