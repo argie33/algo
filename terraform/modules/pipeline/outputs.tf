@@ -9,6 +9,6 @@ output "state_machine_name" {
 }
 
 output "eventbridge_rule_name" {
-  description = "EventBridge rule that triggers the pipeline at 4:05pm ET"
-  value       = aws_cloudwatch_event_rule.eod_pipeline_trigger.name
+  description = "EventBridge Scheduler rule that triggers the EOD pipeline at 4:05pm ET"
+  value       = aws_scheduler_schedule.eod_pipeline_trigger.name
 }

@@ -43,6 +43,11 @@ variable "task_role_arn" {
   type        = string
 }
 
+variable "eventbridge_scheduler_role_arn" {
+  description = "EventBridge Scheduler role ARN (for executing Step Functions state machines)"
+  type        = string
+}
+
 variable "loader_task_definition_arns" {
   description = "Map of loader name → task definition ARN (from loaders module output)"
   type        = map(string)
