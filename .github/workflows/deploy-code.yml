@@ -1146,7 +1146,7 @@ jobs:
             echo "Terraform output masked/empty, discovering bucket..."
             # Find the first bucket starting with 'algo-frontend' (may include masked suffix like algo-frontend-***)
             BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?contains(Name, `algo-frontend`)].Name | [0]' \
+              --query 'Buckets[?contains(Name, "algo-frontend")].Name | [0]' \
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
