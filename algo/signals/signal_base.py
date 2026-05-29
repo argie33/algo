@@ -32,29 +32,23 @@ class SignalBase:
 
     def __init__(self, cur=None):
         self.cur = cur
-        self._owned = None
-        self._nesting_level = 0
+        self._db_context = None
         self._price_cache = {}  # Cache for N+1 query optimization
         self._rs_percentile_cache = {}  # {(eval_date, lookback): {symbol: percentile}}
 
     def connect(self):
+        """Create a database connection via DatabaseContext if not already provided."""
         if self.cur is None:
-            self._owned = get_db_connection()
-            self.cur = self._owned.cursor()
-            self._nesting_level = 1
-        else:
-            self._nesting_level += 1
+            self._db_context = DatabaseContext('read')
+            self.cur = self._db_context.__enter__()
 
     def disconnect(self):
-        if self._nesting_level <= 1 and self._owned:
-            self.cur.close()
-            self._owned.close()
+        """Clean up DatabaseContext if we own it."""
+        if self._db_context:
+            self._db_context.__exit__(None, None, None)
+            self._db_context = None
             self.cur = None
-            self._owned = None
-            self._nesting_level = 0
             self._price_cache = {}
-        elif self._nesting_level > 1:
-            self._nesting_level -= 1
 
     def clear_cache(self):
         """Clear price cache to prevent stale data."""
