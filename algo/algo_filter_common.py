@@ -8,6 +8,7 @@ Imported by: algo_filter_pipeline, filters/, position_monitor, etc.
 
 from typing import Dict, Any, List, Optional
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +51,14 @@ def check_correlation_with_holdings(cur, new_symbol: str, existing_symbols: List
             return {'pass': True, 'reason': 'Insufficient data for correlation'}
 
         new_returns = np.diff(new_prices) / new_prices[:-1]
-
         max_corr = 0.0
+
         for existing_symbol in existing_symbols:
             existing_prices = np.array(prices_by_symbol.get(existing_symbol, []))
             if len(existing_prices) < 2:
                 continue
 
             existing_returns = np.diff(existing_prices) / existing_prices[:-1]
-
             if len(new_returns) == len(existing_returns):
                 try:
                     corr = np.corrcoef(new_returns, existing_returns)[0, 1]
@@ -129,3 +129,40 @@ def get_db_config_dict(db_host: str, db_port: int, db_user: str, db_name: str, d
         'database': db_name,
         'connect_timeout': 5,
     }
+
+
+def fetch_market_dist_days(cur, symbol: str, lookback_days: int = 60) -> Optional[int]:
+    """Get distribution days in symbol's trend over lookback period."""
+    try:
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM price_daily
+            WHERE symbol = %s
+              AND date >= CURRENT_DATE - INTERVAL '%d days'
+              AND close < open * 0.98
+            """,
+            (symbol, lookback_days)
+        )
+        result = cur.fetchone()
+        return result[0] if result else 0
+    except Exception as e:
+        logger.debug(f"Distribution days lookup failed for {symbol}: {e}")
+        return None
+
+
+def evaluate_position(cur, symbol: str, entry_price: float, current_price: float, stop_loss: float) -> Dict[str, Any]:
+    """Evaluate position P&L and risk status."""
+    try:
+        pnl_pct = ((current_price - entry_price) / entry_price) * 100
+        risk_pct = ((entry_price - stop_loss) / entry_price) * 100
+        r_multiple = pnl_pct / risk_pct if risk_pct > 0 else 0
+
+        return {
+            'pnl_pct': round(pnl_pct, 2),
+            'risk_pct': round(risk_pct, 2),
+            'r_multiple': round(r_multiple, 2),
+            'status': 'winning' if pnl_pct > 0 else 'losing'
+        }
+    except Exception as e:
+        logger.debug(f"Position evaluation failed for {symbol}: {e}")
+        return {'pnl_pct': 0, 'risk_pct': 0, 'r_multiple': 0, 'status': 'error'}
