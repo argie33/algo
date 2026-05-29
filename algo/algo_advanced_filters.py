@@ -55,34 +55,19 @@ class AdvancedFilters:
     W_RISK_EXTENSION = 13
     W_RISK_EARNINGS_PROX = 2
 
-    def __init__(self, config, cur=None):
+    def __init__(self, config):
         self.config = config
-        self.cur = cur
-        self._owned_conn = None
         self._strong_sectors = None
         self._strong_industries = None
         self._market_breadth = None
         self._sector_full_ranking = None
         self._signals = None  # SignalComputer, lazy-init
 
-    def connect(self):
-        if self.cur is None:
-            self._owned_conn = get_db_connection()
-            self.cur = self._owned_conn.cursor()
-
-    def disconnect(self):
-        if self._owned_conn:
-            self.cur.close()
-            self._owned_conn.close()
-            self.cur = None
-            self._owned_conn = None
-
     # ---------- Pre-load: market context ----------
 
     def load_market_context(self, eval_date):
-        self.connect()
-        try:
-            self.cur.execute(
+        with DatabaseContext() as cur:
+            cur.execute(
                 """
                 SELECT sector_name, current_rank, momentum_score
                 FROM sector_ranking
@@ -96,7 +81,7 @@ class AdvancedFilters:
                 """,
                 (eval_date,),
             )
-            sectors = self.cur.fetchall()
+            sectors = cur.fetchall()
             top_n = int(self.config.get('strong_sector_top_n', 5))
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
             self._strong_sectors = {row[0]: float(row[2] or 0) for row in sectors[:top_n]}
@@ -105,7 +90,7 @@ class AdvancedFilters:
             if not self._strong_sectors:
                 logger.warning(f"No sector ranking data available for {eval_date} — sector filters disabled")
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT industry, momentum_score
                 FROM industry_ranking
@@ -119,18 +104,18 @@ class AdvancedFilters:
                 """,
                 (eval_date,),
             )
-            industries = self.cur.fetchall()
+            industries = cur.fetchall()
             if industries:
                 cutoff_idx = max(1, len(industries) // 4)
                 self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
             else:
                 self._strong_industries = {}
 
-            self.cur.execute(
+            cur.execute(
                 "SELECT bullish, bearish, neutral FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
-            sent = self.cur.fetchone()
+            sent = cur.fetchone()
             if sent:
                 self._market_breadth = {
                     'bullish': float(sent[0] or 0),
@@ -143,8 +128,6 @@ class AdvancedFilters:
                 'strong_industries_count': len(self._strong_industries),
                 'market_breadth': self._market_breadth,
             }
-        finally:
-            self.disconnect()
 
     # ---------- Per-candidate evaluation ----------
 

@@ -241,24 +241,21 @@ def main():
 
 def _sync_scores_to_buy_sell():
     """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score."""
-    from utils.db_connection import get_db_connection
+    from utils.database_context import DatabaseContext
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE buy_sell_daily bsd
-            SET signal_quality_score = COALESCE(sqs.composite_sqs, bsd.signal_quality_score)
-            FROM signal_quality_scores sqs
-            WHERE bsd.symbol = sqs.symbol
-            AND bsd.date = sqs.date
-            AND bsd.signal_quality_score IS NULL
-            AND sqs.composite_sqs IS NOT NULL
-        """)
-        rows = cur.rowcount
-        conn.commit()
-        cur.close()
-        if rows > 0:
-            logger.info(f"Synced {rows} signal quality scores to buy_sell_daily")
+        with DatabaseContext('write') as cur:
+            cur.execute("""
+                UPDATE buy_sell_daily bsd
+                SET signal_quality_score = COALESCE(sqs.composite_sqs, bsd.signal_quality_score)
+                FROM signal_quality_scores sqs
+                WHERE bsd.symbol = sqs.symbol
+                AND bsd.date = sqs.date
+                AND bsd.signal_quality_score IS NULL
+                AND sqs.composite_sqs IS NOT NULL
+            """)
+            rows = cur.rowcount
+            if rows > 0:
+                logger.info(f"Synced {rows} signal quality scores to buy_sell_daily")
     except Exception as e:
         logger.warning(f"Failed to sync signal quality scores: {e}")
 

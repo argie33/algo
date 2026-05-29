@@ -12,7 +12,7 @@ import logging
 from typing import Optional, Any, Dict
 from config.credential_manager import get_credential_manager, get_db_config
 from config.credential_validator import assert_credentials
-from utils.database_context import DatabaseContext, get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -549,12 +549,7 @@ class RuntimeConfig:
     def _refresh_cache(cls) -> bool:
         """Refresh configuration cache from RDS."""
         try:
-            conn = get_db_connection()
-            if not conn:
-                logger.error("[RUNTIME_CONFIG_DB_ERROR] No database connection")
-                return False
-
-            with conn.cursor() as cur:
+            with DatabaseContext() as cur:
                 cur.execute(
                     """SELECT config_key, config_value FROM algo_runtime_config
                        ORDER BY config_key"""

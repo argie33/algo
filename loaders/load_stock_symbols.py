@@ -433,15 +433,12 @@ def main():
     logger.info("Total stock records after filtering: %d", len(all_records))
     logger.info("Total ETF records: %d", len(all_etf_records))
 
-    conn = get_db_connection()
-    try:
+    with DatabaseContext('write') as conn:
         init_db(conn)
         insert_all(conn, all_records)
         insert_etfs(conn, all_etf_records)
         update_timestamp(conn)
         logger.info("Load complete")
-    finally:
-        conn.close()
 
 
 if __name__ == "__main__":

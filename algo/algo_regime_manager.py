@@ -67,23 +67,7 @@ class RegimeManager:
     }
 
     def __init__(self):
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        """Close connection."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = None
-        self.conn = None
+        pass
 
     def get_current_regime(self, as_of_date: Optional[_date] = None) -> str:
         """
@@ -93,18 +77,19 @@ class RegimeManager:
 
         Returns: 'confirmed_uptrend'|'uptrend_under_pressure'|'caution'|'correction'
         """
-        self.connect()
         try:
             if as_of_date is None:
                 as_of_date = _date.today()
 
-            self.cur.execute(
-                """SELECT regime FROM market_exposure_daily
-                   WHERE date <= %s AND regime IS NOT NULL
-                   ORDER BY date DESC LIMIT 1""",
-                (as_of_date,),
-            )
-            row = self.cur.fetchone()
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """SELECT regime FROM market_exposure_daily
+                       WHERE date <= %s AND regime IS NOT NULL
+                       ORDER BY date DESC LIMIT 1""",
+                    (as_of_date,),
+                )
+                row = cur.fetchone()
+
             regime = str(row[0]) if row and row[0] else 'caution'
 
             if regime not in self.REGIMES:
@@ -116,8 +101,6 @@ class RegimeManager:
         except Exception as e:
             logger.warning(f"Could not fetch regime: {e}. Defaulting to caution (conservative)")
             return 'caution'
-        finally:
-            self.disconnect()
 
     def get_regime_params(self, as_of_date: Optional[_date] = None) -> Dict[str, Any]:
         """Get parameter overrides for current regime."""
@@ -188,19 +171,19 @@ class RegimeManager:
                 ...
             ]
         """
-        self.connect()
         try:
             start_date = _date.today() - timedelta(days=days)
 
-            self.cur.execute(
-                """
-                SELECT DISTINCT ON (date) date, regime FROM market_exposure_daily
-                WHERE date >= %s AND regime IS NOT NULL
-                ORDER BY date DESC, created_at DESC
-                """,
-                (start_date,),
-            )
-            rows = self.cur.fetchall()
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (date) date, regime FROM market_exposure_daily
+                    WHERE date >= %s AND regime IS NOT NULL
+                    ORDER BY date DESC, created_at DESC
+                    """,
+                    (start_date,),
+                )
+                rows = cur.fetchall()
 
             history = []
             prev_regime = None
@@ -229,8 +212,6 @@ class RegimeManager:
         except Exception as e:
             logger.warning(f"Could not fetch regime history: {e}")
             return []
-        finally:
-            self.disconnect()
 
     def get_regime_strength(self, as_of_date: Optional[_date] = None) -> float:
         """
@@ -239,26 +220,25 @@ class RegimeManager:
         Reads from market_exposure_daily.raw_score (0-100 scale).
         Returns: 0-1 confidence.
         """
-        self.connect()
         try:
             if as_of_date is None:
                 as_of_date = _date.today()
 
-            self.cur.execute(
-                """SELECT raw_score FROM market_exposure_daily
-                   WHERE date <= %s AND raw_score IS NOT NULL
-                   ORDER BY date DESC LIMIT 1""",
-                (as_of_date,),
-            )
-            row = self.cur.fetchone()
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """SELECT raw_score FROM market_exposure_daily
+                       WHERE date <= %s AND raw_score IS NOT NULL
+                       ORDER BY date DESC LIMIT 1""",
+                    (as_of_date,),
+                )
+                row = cur.fetchone()
+
             if row and row[0]:
                 score = float(row[0])
                 return min(1.0, max(0.0, score / 100.0))
             return 0.5  # Default to neutral confidence
         except Exception:
             return 0.5
-        finally:
-            self.disconnect()
 
 
 if __name__ == "__main__":

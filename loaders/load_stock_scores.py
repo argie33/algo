@@ -26,7 +26,7 @@ import logging
 from utils.structured_logger import get_logger
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 
 logger = get_logger(__name__)
 
@@ -60,19 +60,14 @@ class StockScoresLoader(OptimalLoader):
         data_completeness
         """
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-
-            # Fetch all available metrics for this symbol
-            quality = self._get_quality_metrics(cur, symbol)
-            growth = self._get_growth_metrics(cur, symbol)
-            value = self._get_value_metrics(cur, symbol)
-            positioning = self._get_positioning_metrics(cur, symbol)
-            stability = self._get_stability_metrics(cur, symbol)
-            momentum = self._get_momentum_metrics(cur, symbol)
-
-            cur.close()
-            conn.close()
+            with DatabaseContext('read') as cur:
+                # Fetch all available metrics for this symbol
+                quality = self._get_quality_metrics(cur, symbol)
+                growth = self._get_growth_metrics(cur, symbol)
+                value = self._get_value_metrics(cur, symbol)
+                positioning = self._get_positioning_metrics(cur, symbol)
+                stability = self._get_stability_metrics(cur, symbol)
+                momentum = self._get_momentum_metrics(cur, symbol)
 
             # Compute individual factor scores from REAL data only (no defaults)
             # Scoring functions return None if metrics dict exists but has all NULL values
@@ -474,9 +469,8 @@ class StockScoresLoader(OptimalLoader):
         Uses PERCENT_RANK() so a stock scoring higher than 90% of peers gets rs_percentile=90.
         Must run after all per-symbol scores are loaded.
         """
-        conn = get_db_connection()
         try:
-            with conn.cursor() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("""
                     UPDATE stock_scores ss
                     SET rs_percentile = ranked.pct
@@ -490,12 +484,9 @@ class StockScoresLoader(OptimalLoader):
                     ) ranked
                     WHERE ss.symbol = ranked.symbol
                 """)
-                conn.commit()
             logger.info("RS percentiles updated via batch rank")
         except Exception as e:
             logger.warning(f"RS percentile batch update failed: {e}")
-        finally:
-            conn.close()
 
 
 def main():

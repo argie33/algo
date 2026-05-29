@@ -31,7 +31,7 @@ try:
     import jwt
     import requests
     import api_router
-    from utils.database_context import DatabaseContext, get_db_connection
+    from utils.database_context import DatabaseContext
 except Exception as e:
     IMPORT_ERROR = f"{type(e).__name__}: {str(e)[:200]}"
 

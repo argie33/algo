@@ -10,7 +10,6 @@ HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 
 import os
 from utils.database_context import DatabaseContext
-
 from datetime import datetime, date, timedelta
 from typing import Dict, Optional, Tuple
 import logging
@@ -20,43 +19,28 @@ logger = logging.getLogger(__name__)
 class TrendlineSupport:
     """Detect and validate 2-point support trendlines."""
 
-    def __init__(self, cur=None, lookback_days=130):
+    def __init__(self, lookback_days=130):
         """
         Args:
-            cur: psycopg2 cursor (if None, will create own connection)
             lookback_days: how far back to look for support line (default 130 = 6 months)
         """
-        self.cur = cur
-        self.conn = None
         self.lookback_days = lookback_days
-
-    def connect(self):
-        """Create own database connection if needed."""
-        if not self.cur:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        """Close own connection if created."""
-        if self.conn:
-            self.cur.close()
-            self.conn.close()
-            self.cur = self.conn = None
 
     def get_price_history(self, symbol: str, end_date: date, days: int = 130) -> list:
         """Get closing prices for the lookback period."""
         try:
-            self.cur.execute(
-                """
-                SELECT date, low, close FROM price_daily
-                WHERE symbol = %s
-                  AND date >= %s
-                  AND date <= %s
-                ORDER BY date ASC
-                """,
-                (symbol, end_date - timedelta(days=days), end_date),
-            )
-            return self.cur.fetchall()
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """
+                    SELECT date, low, close FROM price_daily
+                    WHERE symbol = %s
+                      AND date >= %s
+                      AND date <= %s
+                    ORDER BY date ASC
+                    """,
+                    (symbol, end_date - timedelta(days=days), end_date),
+                )
+                return cur.fetchall()
         except Exception as e:
             logger.warning(f"Error fetching price history for {symbol}: {e}")
             return []

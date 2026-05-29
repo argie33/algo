@@ -8,7 +8,7 @@ Default: ±7 days from earnings date is a blackout period.
 import os
 import psycopg2
 import psycopg2.errors
-from utils.db_connection import get_db_connection
+from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any
 import logging
@@ -37,25 +37,21 @@ class EarningsBlackout:
         If earnings_calendar table doesn't exist, passes through.
         """
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
+            with DatabaseContext() as cur:
+                # Issue #27: Compute trading day windows instead of calendar days
+                # Count back N trading days before, forward N trading days after
+                lookback_date = eval_date - timedelta(days=self.days_before * 2)  # Conservative estimate
+                lookahead_date = eval_date + timedelta(days=self.days_after * 2)
 
-            # Issue #27: Compute trading day windows instead of calendar days
-            # Count back N trading days before, forward N trading days after
-            lookback_date = eval_date - timedelta(days=self.days_before * 2)  # Conservative estimate
-            lookahead_date = eval_date + timedelta(days=self.days_after * 2)
-
-            cur.execute(
-                """SELECT earnings_date FROM earnings_calendar
-                   WHERE symbol = %s
-                   AND earnings_date >= %s
-                   AND earnings_date <= %s
-                   ORDER BY earnings_date LIMIT 1""",
-                (symbol, lookback_date, lookahead_date)
-            )
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
+                cur.execute(
+                    """SELECT earnings_date FROM earnings_calendar
+                       WHERE symbol = %s
+                       AND earnings_date >= %s
+                       AND earnings_date <= %s
+                       ORDER BY earnings_date LIMIT 1""",
+                    (symbol, lookback_date, lookahead_date)
+                )
+                row = cur.fetchone()
 
             if row:
                 earnings_date = row[0]
@@ -89,24 +85,20 @@ class EarningsBlackout:
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
         """Get upcoming earnings for symbol."""
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-
-            cur.execute(
-                """SELECT earnings_date FROM earnings_calendar
-                   WHERE symbol = %s
-                   AND earnings_date >= %s
-                   AND earnings_date <= %s
-                   ORDER BY earnings_date""",
-                (
-                    symbol,
-                    _date.today(),
-                    _date.today() + timedelta(days=days_ahead),
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """SELECT earnings_date FROM earnings_calendar
+                       WHERE symbol = %s
+                       AND earnings_date >= %s
+                       AND earnings_date <= %s
+                       ORDER BY earnings_date""",
+                    (
+                        symbol,
+                        _date.today(),
+                        _date.today() + timedelta(days=days_ahead),
+                    )
                 )
-            )
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+                rows = cur.fetchall()
 
             return [{'date': row[0]} for row in rows]
         except Exception as e:
