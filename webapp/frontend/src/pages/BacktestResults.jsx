@@ -14,10 +14,11 @@ import {
 } from 'recharts';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
+import { formatNumber, formatPercentageChange } from '../utils/formatters';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
-const pct = (v, dp = 1) => v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`;
+const num = (v, dp = 2) => formatNumber(v, dp);
+const pct = (v, dp = 1) => formatPercentageChange(v, dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',

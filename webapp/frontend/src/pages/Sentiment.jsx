@@ -11,6 +11,7 @@ import {
   BarChart, Bar, FunnelChart, Funnel, LabelList,
 } from 'recharts';
 import { api } from '../services/api';
+import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
 
 const TT_STYLE = {
   background: 'var(--surface)',
@@ -24,9 +25,9 @@ const fmtDate = (d) => {
   if (!d) return '—';
   try { return new Date(d).toLocaleDateString(); } catch { return String(d); }
 };
-const num = (v, dp = 2) => (v == null || isNaN(Number(v))) ? '—' : Number(v).toFixed(dp);
-const pct = (v, dp = 2) => (v == null || isNaN(Number(v))) ? '—' : `${Number(v).toFixed(dp)}%`;
-const money = (v) => (v == null || isNaN(Number(v))) ? '—' : `$${Number(v).toFixed(2)}`;
+const num = (v, dp = 2) => formatNumber(v, dp);
+const pct = (v, dp = 2) => formatPercentageChange(v, dp);
+const money = (v) => formatCurrency(v);
 
 const sentimentLabel = (score) => {
   if (score == null) return { label: 'Unknown', cls: '' };

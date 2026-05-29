@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { api } from '../services/api';
 import { AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
+import { formatNumber } from '../utils/formatters';
 
 const PreTradeSimulator = () => {
   const [symbol, setSymbol] = useState('');
@@ -46,7 +47,7 @@ const PreTradeSimulator = () => {
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{label}</div>
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          Current: {typeof value === 'number' ? value.toFixed(2) : value}{unit}
+          Current: {typeof value === 'number' ? formatNumber(value, 2) : value}{unit}
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

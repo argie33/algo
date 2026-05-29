@@ -23,7 +23,7 @@ import {
   AreaChart, Area,
 } from 'recharts';
 import { api } from '../services/api';
-import { formatPercentageChange } from '../utils/formatters';
+import { formatPercentageChange, formatNumber } from '../utils/formatters';
 import { formatXAxisDate } from '../utils/dateFormatters';
 
 const TT_STYLE = {
@@ -55,7 +55,7 @@ const FALLBACK_PALETTE = [
 const colorFor = (name, idx) =>
   SECTOR_COLORS[name] || FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
 
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const num = (v, dp = 2) => formatNumber(v, dp);
 const fmtPct = (v) => formatPercentageChange(v);
 const pctClass = (v) => {
   const n = Number(v);
