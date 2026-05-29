@@ -44,25 +44,11 @@ class DailyReconciliation:
         except Exception as e:
             logger.warning(f"Alpaca client initialization failed: {e}")
             self.trading_client = None
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
 
     def run_daily_reconciliation(self, reconcile_date=None):
         """Run full daily reconciliation."""
         if not reconcile_date:
             reconcile_date = datetime.now(timezone.utc).date()
-
-        self.connect()
 
         try:
             logger.info(f"\n{'='*70}")
@@ -86,205 +72,204 @@ class DailyReconciliation:
             logger.info(f"   Cash: ${alpaca_data.get('cash', 0):,.2f}")
             logger.info(f"   Equity: ${alpaca_data.get('equity', 0):,.2f}")
 
-            # 1b. Sync Alpaca positions into our DB (imports any external positions)
-            sync_result = self.sync_alpaca_positions()
-            logger.info(f"\n1b. Position Sync:")
-            logger.info(f"   {sync_result['message']}")
-            if sync_result.get('orphan_symbols'):
-                logger.info(f"   Orphans flagged: {', '.join(sync_result['orphan_symbols'][:5])}")
+            with DatabaseContext('write') as cur:
+                # 1b. Sync Alpaca positions into our DB (imports any external positions)
+                sync_result = self.sync_alpaca_positions(cur)
+                logger.info(f"\n1b. Position Sync:")
+                logger.info(f"   {sync_result['message']}")
+                if sync_result.get('orphan_symbols'):
+                    logger.info(f"   Orphans flagged: {', '.join(sync_result['orphan_symbols'][:5])}")
 
-            # 1c. Compute MAE/MFE metrics for recently closed trades (E3 analytics)
-            mae_result = self.compute_closed_trade_metrics()
-            logger.info(f"\n1c. MAE/MFE Metrics:")
-            logger.info(f"   {mae_result['reason']}")
+                # 1c. Compute MAE/MFE metrics for recently closed trades (E3 analytics)
+                mae_result = self.compute_closed_trade_metrics(cur)
+                logger.info(f"\n1c. MAE/MFE Metrics:")
+                logger.info(f"   {mae_result['reason']}")
 
-            # 1d. Compute analytics metrics: IC and expectancy (E4-E5)
-            analytics = self.compute_analytics_metrics()
-            logger.info(f"\n1d. Analytics Metrics:")
-            if analytics['ic'].get('valid'):
-                logger.info(f"   IC (Information Coefficient): {analytics['ic']['ic']:.4f} ({analytics['ic']['trade_count']} trades)")
-                if analytics['ic']['alert']:
-                    logger.info(f"   ⚠ {analytics['ic']['alert']}")
-            if analytics['expectancy'].get('valid'):
-                logger.info(f"   Expectancy: {analytics['expectancy']['expectancy']:+.4f}% (win rate {analytics['expectancy']['win_rate']:.1f}%)")
-                logger.info(f"   Kelly Fraction (25% conservative): {analytics['expectancy']['kelly_fraction']:.4f}")
-                if analytics['expectancy']['alert']:
-                    logger.info(f"   [FAIL] {analytics['expectancy']['alert']}")
+                # 1d. Compute analytics metrics: IC and expectancy (E4-E5)
+                analytics = self.compute_analytics_metrics(cur)
+                logger.info(f"\n1d. Analytics Metrics:")
+                if analytics['ic'].get('valid'):
+                    logger.info(f"   IC (Information Coefficient): {analytics['ic']['ic']:.4f} ({analytics['ic']['trade_count']} trades)")
+                    if analytics['ic']['alert']:
+                        logger.info(f"   ⚠ {analytics['ic']['alert']}")
+                if analytics['expectancy'].get('valid'):
+                    logger.info(f"   Expectancy: {analytics['expectancy']['expectancy']:+.4f}% (win rate {analytics['expectancy']['win_rate']:.1f}%)")
+                    logger.info(f"   Kelly Fraction (25% conservative): {analytics['expectancy']['kelly_fraction']:.4f}")
+                    if analytics['expectancy']['alert']:
+                        logger.info(f"   [FAIL] {analytics['expectancy']['alert']}")
 
-            self.cur.execute("""
-                SELECT position_id, symbol, quantity, avg_entry_price, current_price, position_value
-                FROM algo_positions
-                WHERE status = %s
-                ORDER BY symbol
-            """, (PositionStatus.OPEN.value,))
+                cur.execute("""
+                    SELECT position_id, symbol, quantity, avg_entry_price, current_price, position_value
+                    FROM algo_positions
+                    WHERE status = %s
+                    ORDER BY symbol
+                """, (PositionStatus.OPEN.value,))
 
-            positions = self.cur.fetchall()
-            logger.info(f"\n2. Database Positions: {len(positions)} open")
+                positions = cur.fetchall()
+                logger.info(f"\n2. Database Positions: {len(positions)} open")
 
-            total_position_value = 0.0
-            unrealized_pnl = 0.0
-            unrealized_pnl_pct = 0.0
+                total_position_value = 0.0
+                unrealized_pnl = 0.0
+                unrealized_pnl_pct = 0.0
 
-            for pos_id, symbol, qty, entry, current, pos_value in positions:
-                # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
-                qty_f = float(qty or 0)
-                entry_f = float(entry or 0)
-                current_f = float(current or entry_f)
-                pos_value_f = float(pos_value or 0)
-                pnl = (current_f - entry_f) * qty_f
-                pnl_pct = ((current_f - entry_f) / entry_f * 100.0) if entry_f > 0 else 0.0
-                total_position_value += pos_value_f
-                unrealized_pnl += pnl
+                for pos_id, symbol, qty, entry, current, pos_value in positions:
+                    # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
+                    qty_f = float(qty or 0)
+                    entry_f = float(entry or 0)
+                    current_f = float(current or entry_f)
+                    pos_value_f = float(pos_value or 0)
+                    pnl = (current_f - entry_f) * qty_f
+                    pnl_pct = ((current_f - entry_f) / entry_f * 100.0) if entry_f > 0 else 0.0
+                    total_position_value += pos_value_f
+                    unrealized_pnl += pnl
 
-                logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
+                    logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
 
-            # 3. Calculate metrics
-            cash = alpaca_data.get('cash', 0)
-            # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
-            # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
-            alpaca_portfolio_value = float(alpaca_data.get('portfolio_value', 0) or 0)
-            # DB-computed total (kept for drift reporting)
-            total_equity_db = cash + total_position_value
-            # Prefer Alpaca's live value; fall back to DB sum only if Alpaca value is missing/zero
-            total_equity = alpaca_portfolio_value if alpaca_portfolio_value > 0 else total_equity_db
+                # 3. Calculate metrics
+                cash = alpaca_data.get('cash', 0)
+                # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
+                # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
+                alpaca_portfolio_value = float(alpaca_data.get('portfolio_value', 0) or 0)
+                # DB-computed total (kept for drift reporting)
+                total_equity_db = cash + total_position_value
+                # Prefer Alpaca's live value; fall back to DB sum only if Alpaca value is missing/zero
+                total_equity = alpaca_portfolio_value if alpaca_portfolio_value > 0 else total_equity_db
 
-            if total_equity_db > 0:
-                drift_pct = ((alpaca_portfolio_value - total_equity_db) / total_equity_db) * 100
-                if abs(drift_pct) > 1.0:
-                    logger.warning(f"Position value drift: Alpaca ${alpaca_portfolio_value:,.2f} vs DB-computed ${total_equity_db:,.2f} ({drift_pct:+.1f}%)")
+                if total_equity_db > 0:
+                    drift_pct = ((alpaca_portfolio_value - total_equity_db) / total_equity_db) * 100
+                    if abs(drift_pct) > 1.0:
+                        logger.warning(f"Position value drift: Alpaca ${alpaca_portfolio_value:,.2f} vs DB-computed ${total_equity_db:,.2f} ({drift_pct:+.1f}%)")
 
-            if total_equity > 0:
-                unrealized_pnl_pct = (unrealized_pnl / total_equity) * 100
+                if total_equity > 0:
+                    unrealized_pnl_pct = (unrealized_pnl / total_equity) * 100
 
-            largest_position = float(max([p[5] for p in positions], default=0) or 0)
-            max_concentration = (largest_position / total_equity * 100.0) if total_equity > 0 else 0.0
+                largest_position = float(max([p[5] for p in positions], default=0) or 0)
+                max_concentration = (largest_position / total_equity * 100.0) if total_equity > 0 else 0.0
 
-            avg_position_size = (total_position_value / len(positions)) if positions else 0.0
+                avg_position_size = (total_position_value / len(positions)) if positions else 0.0
 
-            self.cur.execute("""
-                SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date DESC LIMIT 1
-            """)
+                cur.execute("""
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
 
-            prev_snapshot = self.cur.fetchone()
-            prev_value = float(prev_snapshot[0]) if prev_snapshot else total_equity
-            daily_return = total_equity - prev_value
-            daily_return_pct = (daily_return / prev_value * 100) if prev_value > 0 else 0
+                prev_snapshot = cur.fetchone()
+                prev_value = float(prev_snapshot[0]) if prev_snapshot else total_equity
+                daily_return = total_equity - prev_value
+                daily_return_pct = (daily_return / prev_value * 100) if prev_value > 0 else 0
 
-            self.cur.execute("""
-                SELECT market_trend, distribution_days_4w
-                FROM market_health_daily
-                WHERE date <= %s
-                ORDER BY date DESC LIMIT 1
-            """, (reconcile_date,))
+                cur.execute("""
+                    SELECT market_trend, distribution_days_4w
+                    FROM market_health_daily
+                    WHERE date <= %s
+                    ORDER BY date DESC LIMIT 1
+                """, (reconcile_date,))
 
-            market = self.cur.fetchone()
-            market_trend = market[0] if market else 'unknown'
-            dist_days = market[1] if market else 0
+                market = cur.fetchone()
+                market_trend = market[0] if market else 'unknown'
+                dist_days = market[1] if market else 0
 
-            # Calculate additional metrics
-            self.cur.execute("""
-                SELECT
-                    COUNT(*) FILTER (WHERE profit_loss_dollars > 0) as wins,
-                    COUNT(*) FILTER (WHERE profit_loss_dollars < 0) as losses,
-                    COALESCE(SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s), 0) as realized_pnl_today,
-                    COALESCE(SUM(profit_loss_dollars), 0) as cumulative_pnl
-                FROM algo_trades
-                WHERE status = %s
-            """, (reconcile_date, 'closed'))
-            win_count, loss_count, realized_pnl_today, cumulative_pnl = self.cur.fetchone() or (0, 0, 0.0, 0.0)
-            win_count = int(win_count or 0)
-            loss_count = int(loss_count or 0)
-            realized_pnl_today = float(realized_pnl_today or 0)
-            cumulative_pnl = float(cumulative_pnl or 0)
+                # Calculate additional metrics
+                cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE profit_loss_dollars > 0) as wins,
+                        COUNT(*) FILTER (WHERE profit_loss_dollars < 0) as losses,
+                        COALESCE(SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s), 0) as realized_pnl_today,
+                        COALESCE(SUM(profit_loss_dollars), 0) as cumulative_pnl
+                    FROM algo_trades
+                    WHERE status = %s
+                """, (reconcile_date, 'closed'))
+                win_count, loss_count, realized_pnl_today, cumulative_pnl = cur.fetchone() or (0, 0, 0.0, 0.0)
+                win_count = int(win_count or 0)
+                loss_count = int(loss_count or 0)
+                realized_pnl_today = float(realized_pnl_today or 0)
+                cumulative_pnl = float(cumulative_pnl or 0)
 
-            # Get cumulative return (normalize to initial capital)
-            initial_capital = 100000.0
-            cumulative_return_pct = (cumulative_pnl / initial_capital * 100) if initial_capital > 0 else 0.0
+                # Get cumulative return (normalize to initial capital)
+                initial_capital = 100000.0
+                cumulative_return_pct = (cumulative_pnl / initial_capital * 100) if initial_capital > 0 else 0.0
 
-            # Calculate max drawdown from historical snapshots
-            max_drawdown_pct = 0.0
-            self.cur.execute("""
-                SELECT
-                    MAX(total_portfolio_value) as peak,
-                    MIN(total_portfolio_value) as trough
-                FROM algo_portfolio_snapshots
-            """)
-            peak_row = self.cur.fetchone()
-            if peak_row and peak_row[0] and peak_row[1]:
-                peak_val = float(peak_row[0])
-                trough_val = float(peak_row[1])
-                if peak_val > 0:
-                    max_drawdown_pct = ((peak_val - trough_val) / peak_val) * 100.0
+                # Calculate max drawdown from historical snapshots
+                max_drawdown_pct = 0.0
+                cur.execute("""
+                    SELECT
+                        MAX(total_portfolio_value) as peak,
+                        MIN(total_portfolio_value) as trough
+                    FROM algo_portfolio_snapshots
+                """)
+                peak_row = cur.fetchone()
+                if peak_row and peak_row[0] and peak_row[1]:
+                    peak_val = float(peak_row[0])
+                    trough_val = float(peak_row[1])
+                    if peak_val > 0:
+                        max_drawdown_pct = ((peak_val - trough_val) / peak_val) * 100.0
 
-            # Calculate Sharpe ratio (simplified: std dev of daily returns * sqrt(252))
-            sharpe_ratio = 0.0
-            self.cur.execute("""
-                SELECT daily_return_pct FROM algo_portfolio_snapshots
-                WHERE daily_return_pct IS NOT NULL
-                ORDER BY snapshot_date DESC LIMIT 252
-            """)
-            returns = [float(r[0]) / 100.0 for r in self.cur.fetchall() if r[0] is not None]
-            if len(returns) > 1:
-                import statistics
-                try:
-                    std_dev = statistics.stdev(returns)
-                    sharpe_ratio = (std_dev * (252 ** 0.5)) if std_dev > 0 else 0.0
-                except Exception:
-                    sharpe_ratio = 0.0
+                # Calculate Sharpe ratio (simplified: std dev of daily returns * sqrt(252))
+                sharpe_ratio = 0.0
+                cur.execute("""
+                    SELECT daily_return_pct FROM algo_portfolio_snapshots
+                    WHERE daily_return_pct IS NOT NULL
+                    ORDER BY snapshot_date DESC LIMIT 252
+                """)
+                returns = [float(r[0]) / 100.0 for r in cur.fetchall() if r[0] is not None]
+                if len(returns) > 1:
+                    import statistics
+                    try:
+                        std_dev = statistics.stdev(returns)
+                        sharpe_ratio = (std_dev * (252 ** 0.5)) if std_dev > 0 else 0.0
+                    except Exception:
+                        sharpe_ratio = 0.0
 
-            self.cur.execute("""
-                INSERT INTO algo_portfolio_snapshots (
-                    snapshot_date, total_portfolio_value, total_cash, total_equity,
-                    position_count, largest_position_pct, average_position_size_pct,
-                    concentration_risk_pct,
-                    realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
-                    win_count_today, loss_count_today,
-                    daily_return_pct, cumulative_return_pct, max_drawdown_pct,
-                    sharpe_ratio, market_health_status, created_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (snapshot_date) DO UPDATE SET
-                    total_portfolio_value = EXCLUDED.total_portfolio_value,
-                    total_cash = EXCLUDED.total_cash,
-                    total_equity = EXCLUDED.total_equity,
-                    position_count = EXCLUDED.position_count,
-                    largest_position_pct = EXCLUDED.largest_position_pct,
-                    average_position_size_pct = EXCLUDED.average_position_size_pct,
-                    concentration_risk_pct = EXCLUDED.concentration_risk_pct,
-                    realized_pnl_today = EXCLUDED.realized_pnl_today,
-                    unrealized_pnl_total = EXCLUDED.unrealized_pnl_total,
-                    unrealized_pnl_pct = EXCLUDED.unrealized_pnl_pct,
-                    win_count_today = EXCLUDED.win_count_today,
-                    loss_count_today = EXCLUDED.loss_count_today,
-                    daily_return_pct = EXCLUDED.daily_return_pct,
-                    cumulative_return_pct = EXCLUDED.cumulative_return_pct,
-                    max_drawdown_pct = EXCLUDED.max_drawdown_pct,
-                    sharpe_ratio = EXCLUDED.sharpe_ratio,
-                    market_health_status = EXCLUDED.market_health_status
-            """, (
-                reconcile_date,
-                total_equity,
-                cash,
-                total_equity,
-                len(positions),
-                max_concentration,
-                (avg_position_size / total_equity * 100) if total_equity > 0 else 0,
-                max_concentration,
-                realized_pnl_today,
-                unrealized_pnl,
-                unrealized_pnl_pct,
-                win_count,
-                loss_count,
-                daily_return_pct,
-                cumulative_return_pct,
-                max_drawdown_pct,
-                sharpe_ratio,
-                market_trend
-            ))
-
-            self.conn.commit()
+                cur.execute("""
+                    INSERT INTO algo_portfolio_snapshots (
+                        snapshot_date, total_portfolio_value, total_cash, total_equity,
+                        position_count, largest_position_pct, average_position_size_pct,
+                        concentration_risk_pct,
+                        realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
+                        win_count_today, loss_count_today,
+                        daily_return_pct, cumulative_return_pct, max_drawdown_pct,
+                        sharpe_ratio, market_health_status, created_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (snapshot_date) DO UPDATE SET
+                        total_portfolio_value = EXCLUDED.total_portfolio_value,
+                        total_cash = EXCLUDED.total_cash,
+                        total_equity = EXCLUDED.total_equity,
+                        position_count = EXCLUDED.position_count,
+                        largest_position_pct = EXCLUDED.largest_position_pct,
+                        average_position_size_pct = EXCLUDED.average_position_size_pct,
+                        concentration_risk_pct = EXCLUDED.concentration_risk_pct,
+                        realized_pnl_today = EXCLUDED.realized_pnl_today,
+                        unrealized_pnl_total = EXCLUDED.unrealized_pnl_total,
+                        unrealized_pnl_pct = EXCLUDED.unrealized_pnl_pct,
+                        win_count_today = EXCLUDED.win_count_today,
+                        loss_count_today = EXCLUDED.loss_count_today,
+                        daily_return_pct = EXCLUDED.daily_return_pct,
+                        cumulative_return_pct = EXCLUDED.cumulative_return_pct,
+                        max_drawdown_pct = EXCLUDED.max_drawdown_pct,
+                        sharpe_ratio = EXCLUDED.sharpe_ratio,
+                        market_health_status = EXCLUDED.market_health_status
+                """, (
+                    reconcile_date,
+                    total_equity,
+                    cash,
+                    total_equity,
+                    len(positions),
+                    max_concentration,
+                    (avg_position_size / total_equity * 100) if total_equity > 0 else 0,
+                    max_concentration,
+                    realized_pnl_today,
+                    unrealized_pnl,
+                    unrealized_pnl_pct,
+                    win_count,
+                    loss_count,
+                    daily_return_pct,
+                    cumulative_return_pct,
+                    max_drawdown_pct,
+                    sharpe_ratio,
+                    market_trend
+                ))
 
             logger.info(f"\n3. Portfolio Summary:")
             logger.info(f"   Total Value: ${total_equity:,.2f}")
@@ -307,13 +292,9 @@ class DailyReconciliation:
 
         except Exception as e:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
-            if self.conn:
-                self.conn.rollback()
             return {'success': False, 'error': str(e)}
-        finally:
-            self.disconnect()
 
-    def sync_alpaca_positions(self):
+    def sync_alpaca_positions(self, cur):
         """Pull live positions from Alpaca and import any not in algo_positions.
 
         Best practice: our DB should reflect what Alpaca actually holds.
@@ -358,14 +339,14 @@ class DailyReconciliation:
         except Exception as e:
             return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {e}'}
 
-        self.cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
-        our_symbols = {row[0] for row in self.cur.fetchall()}
+        cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
+        our_symbols = {row[0] for row in cur.fetchall()}
 
         # Fetch actual portfolio value for position_size_pct calculation (not a hardcoded constant).
-        self.cur.execute(
+        cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
-        _pv_row = self.cur.fetchone()
+        _pv_row = cur.fetchone()
         _portfolio_value_for_pct = float(_pv_row[0]) if _pv_row and _pv_row[0] else 0.0
 
         alpaca_symbols = {}  # symbol -> qty for drift detection
@@ -377,11 +358,11 @@ class DailyReconciliation:
             alpaca_symbols[sym] = qty
 
             if sym in our_symbols:
-                self.cur.execute(
+                cur.execute(
                     "SELECT quantity FROM algo_positions WHERE symbol = %s AND status = %s",
                     (sym, PositionStatus.OPEN.value)
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 if row:
                     db_qty = int(row[0] or 0)
                     # Shares should be integers; only allow rounding error on tiny positions (<1 share)
@@ -423,17 +404,17 @@ class DailyReconciliation:
                 target_3 = None
                 stop_loss_method = 'imported_no_risk_calc'
 
-                self.cur.execute("SAVEPOINT import_sp")
+                cur.execute("SAVEPOINT import_sp")
                 try:
                     # Use pre-computed ATR from technical_data_daily (includes gap moves via
                     # max(H-L, |H-PC|, |L-PC|)). AVG(high-low) from price_daily underestimates
                     # true ATR for gap-prone stocks and sets stops too tight.
-                    self.cur.execute("""
+                    cur.execute("""
                         SELECT atr FROM technical_data_daily
                         WHERE symbol = %s AND atr IS NOT NULL
                         ORDER BY date DESC LIMIT 1
                     """, (sym,))
-                    atr_row = self.cur.fetchone()
+                    atr_row = cur.fetchone()
                     if atr_row and atr_row[0]:
                         atr = float(atr_row[0])
                         # Stop = 2 * ATR below entry (standard risk management)
@@ -463,7 +444,7 @@ class DailyReconciliation:
                     target_2 = avg_entry * (1.0 + target_2_pct / 100.0)
                     target_3 = avg_entry * (1.0 + target_3_pct / 100.0)
 
-                self.cur.execute("""
+                cur.execute("""
                     INSERT INTO algo_trades (
                         trade_id, symbol, signal_date, trade_date,
                         entry_time, entry_price, entry_quantity, entry_reason,
@@ -489,7 +470,7 @@ class DailyReconciliation:
                 ))
 
                 # Insert position (use same stop as calculated in trade above)
-                self.cur.execute("""
+                cur.execute("""
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, unrealized_pnl,
@@ -506,7 +487,7 @@ class DailyReconciliation:
                 imported += 1
             except Exception as e:
                 logger.warning(f"  Failed to import {sym}: {e}")
-                self.cur.execute("ROLLBACK TO SAVEPOINT import_sp")
+                cur.execute("ROLLBACK TO SAVEPOINT import_sp")
 
         # Find orphans (in our DB but not Alpaca)
         orphans = our_symbols - set(alpaca_symbols.keys())

@@ -69,8 +69,6 @@ class TradeExecutor:
         self.alpaca_key = alpaca_creds["key"]
         self.alpaca_secret = alpaca_creds["secret"]
         self.alpaca_base_url = get_alpaca_base_url()
-        self.conn = None
-        self.cur = None
 
         # Wire TCA engine for execution quality tracking
         from algo.algo_tca import TCAEngine
@@ -102,17 +100,6 @@ class TradeExecutor:
             self.is_paper = True
         else:
             self.is_paper = False
-
-    def connect(self) -> None:
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-
-    def disconnect(self) -> None:
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     # ---------- Entry ----------
 

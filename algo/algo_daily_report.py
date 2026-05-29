@@ -26,22 +26,7 @@ class DailyFinanceReport:
     """Generate institutional daily finance report."""
 
     def __init__(self):
-        self.conn = None
-        self.cur = None
         self.regime_mgr = RegimeManager()
-
-    def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        """Close connection."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
 
     def generate(self, report_date: _date = None) -> Dict[str, Any]:
         """
@@ -59,19 +44,18 @@ class DailyFinanceReport:
                 'warnings': [...],
             }
         """
-        self.connect()
         if report_date is None:
             report_date = _date.today()
 
-        try:
+        with DatabaseContext('read') as cur:
             report = {
                 'date': str(report_date),
-                'portfolio': self._fetch_portfolio(report_date),
-                'risk': self._fetch_risk(report_date),
-                'strategy': self._fetch_strategy(report_date),
-                'components': self._fetch_components(report_date),
+                'portfolio': self._fetch_portfolio(cur, report_date),
+                'risk': self._fetch_risk(cur, report_date),
+                'strategy': self._fetch_strategy(cur, report_date),
+                'components': self._fetch_components(cur, report_date),
                 'regime': self._fetch_regime(report_date),
-                'signals': self._fetch_signals(report_date),
+                'signals': self._fetch_signals(cur, report_date),
                 'warnings': [],
             }
 
@@ -81,20 +65,17 @@ class DailyFinanceReport:
             logger.info(f"Daily report generated for {report_date}")
             return report
 
-        finally:
-            self.disconnect()
-
-    def _fetch_portfolio(self, report_date: _date) -> Dict[str, Any]:
+    def _fetch_portfolio(self, cur, report_date: _date) -> Dict[str, Any]:
         """Portfolio value, P&L, drawdown."""
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
                 WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 2
                 """,
                 (report_date,),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
 
             if not rows:
                 return {}
@@ -105,13 +86,13 @@ class DailyFinanceReport:
             daily_pnl_pct = ((current_value - prior_value) / prior_value * 100) if prior_value > 0 else 0
 
             # YTD P&L (simplified)
-            self.cur.execute(
+            cur.execute(
                 """SELECT total_portfolio_value FROM algo_portfolio_snapshots
                    WHERE EXTRACT(YEAR FROM snapshot_date) = EXTRACT(YEAR FROM %s)
                    ORDER BY snapshot_date ASC LIMIT 1""",
                 (report_date,),
             )
-            ytd_row = self.cur.fetchone()
+            ytd_row = cur.fetchone()
             ytd_start = float(ytd_row[0]) if ytd_row and ytd_row[0] else current_value
             ytd_pnl_pct = ((current_value - ytd_start) / ytd_start * 100) if ytd_start > 0 else 0
 
@@ -119,23 +100,23 @@ class DailyFinanceReport:
                 'current_value': round(current_value, 2),
                 'daily_pnl_pct': round(daily_pnl_pct, 2),
                 'ytd_pnl_pct': round(ytd_pnl_pct, 2),
-                'open_positions': self._count_open_positions(report_date),
+                'open_positions': self._count_open_positions(cur, report_date),
             }
         except Exception as e:
             logger.debug(f"Portfolio fetch failed: {e}")
             return {}
 
-    def _fetch_risk(self, report_date: _date) -> Dict[str, Any]:
+    def _fetch_risk(self, cur, report_date: _date) -> Dict[str, Any]:
         """VaR, beta, Sharpe, Sortino."""
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT var_95_pct, cvar_95_pct, portfolio_beta, sharpe_252d, sortino_252d
                    FROM algo_risk_daily
                    WHERE report_date <= %s
                    ORDER BY report_date DESC LIMIT 1""",
                 (report_date,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
 
             if not row:
                 return {}
@@ -151,17 +132,17 @@ class DailyFinanceReport:
             logger.debug(f"Risk fetch failed: {e}")
             return {}
 
-    def _fetch_strategy(self, report_date: _date) -> Dict[str, Any]:
+    def _fetch_strategy(self, cur, report_date: _date) -> Dict[str, Any]:
         """Win rate, profit factor, expectancy, best setup."""
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy
                    FROM algo_performance_daily
                    WHERE report_date <= %s
                    ORDER BY report_date DESC LIMIT 1""",
                 (report_date,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
 
             if not row:
                 return {}
@@ -173,7 +154,7 @@ class DailyFinanceReport:
 
             # Get average hold days from recent closed trades
             avg_hold_days = 0
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT AVG(trade_duration_days)
                 FROM (
@@ -184,7 +165,7 @@ class DailyFinanceReport:
                 """,
                 (report_date,),
             )
-            hold_row = self.cur.fetchone()
+            hold_row = cur.fetchone()
             if hold_row and hold_row[0]:
                 avg_hold_days = round(float(hold_row[0]), 1)
 
@@ -198,10 +179,10 @@ class DailyFinanceReport:
             logger.debug(f"Strategy fetch failed: {e}")
             return {}
 
-    def _fetch_components(self, report_date: _date) -> Dict[str, Any]:
+    def _fetch_components(self, cur, report_date: _date) -> Dict[str, Any]:
         """IC and weight for each component."""
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT component, ic_value, ic_pvalue FROM algo_component_attribution
                 WHERE report_date = %s
@@ -209,7 +190,7 @@ class DailyFinanceReport:
                 """,
                 (report_date,),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
 
             components = {}
             for comp, ic, pval in rows:
@@ -244,31 +225,31 @@ class DailyFinanceReport:
             logger.debug(f"Regime fetch failed: {e}")
             return {}
 
-    def _fetch_signals(self, report_date: _date) -> Dict[str, Any]:
+    def _fetch_signals(self, cur, report_date: _date) -> Dict[str, Any]:
         """Signal counts for today."""
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT COUNT(*) FROM buy_sell_daily
                    WHERE date = %s AND signal_type = 'BUY'""",
                 (report_date,),
             )
-            result = self.cur.fetchone()
+            result = cur.fetchone()
             candidates = result[0] if result else 0
 
-            self.cur.execute(
+            cur.execute(
                 """SELECT COUNT(*) FROM algo_signals_evaluated
                    WHERE signal_date = %s AND filter_tier_5_pass = TRUE""",
                 (report_date,),
             )
-            result = self.cur.fetchone()
+            result = cur.fetchone()
             tier_passed = result[0] if result else 0
 
-            self.cur.execute(
+            cur.execute(
                 """SELECT COUNT(*) FROM algo_trades
                    WHERE trade_date = %s""",
                 (report_date,),
             )
-            result = self.cur.fetchone()
+            result = cur.fetchone()
             entries = result[0] if result else 0
 
             return {
@@ -359,15 +340,15 @@ class DailyFinanceReport:
         else:
             return 'negative'  # anti-predictive — signal has inverted
 
-    def _count_open_positions(self, report_date: _date) -> int:
+    def _count_open_positions(self, cur, report_date: _date) -> int:
         """Count open positions."""
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT COUNT(*) FROM algo_positions
                    WHERE status = 'open' AND created_at <= %s""",
                 (report_date,),
             )
-            result = self.cur.fetchone()
+            result = cur.fetchone()
             return result[0] if result else 0
         except Exception:
             return 0
