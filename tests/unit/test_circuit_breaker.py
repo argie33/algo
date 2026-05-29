@@ -51,15 +51,13 @@ class TestCircuitBreakerBasic:
 
     def test_check_all(self, circuit_breaker):
         """Test overall circuit breaker check."""
-        with patch.object(circuit_breaker, "connect"):
-            with patch.object(circuit_breaker, "disconnect"):
-                with patch.object(circuit_breaker, "_check_drawdown", return_value={"halted": False}):
-                    with patch.object(circuit_breaker, "_check_daily_loss", return_value={"halted": False}):
-                        with patch.object(circuit_breaker, "_check_consecutive_losses", return_value={"halted": False}):
-                            with patch.object(circuit_breaker, "_check_vix_spike", return_value={"halted": False}):
-                                with patch.object(circuit_breaker, "_check_market_stage", return_value={"halted": False}):
-                                    result = circuit_breaker.check_all()
-                                    assert isinstance(result, dict) or result is None
+        with patch.object(circuit_breaker, "_check_drawdown", return_value={"halted": False}):
+            with patch.object(circuit_breaker, "_check_daily_loss", return_value={"halted": False}):
+                with patch.object(circuit_breaker, "_check_consecutive_losses", return_value={"halted": False}):
+                    with patch.object(circuit_breaker, "_check_vix_spike", return_value={"halted": False}):
+                        with patch.object(circuit_breaker, "_check_market_stage", return_value={"halted": False}):
+                            result = circuit_breaker.check_all()
+                            assert isinstance(result, dict) or result is None
 
 
 class TestCircuitBreakerVIX:
@@ -67,14 +65,12 @@ class TestCircuitBreakerVIX:
 
     def test_vix_spike_check(self, circuit_breaker):
         """Test VIX spike detection."""
-        with patch.object(circuit_breaker, "connect"):
-            with patch.object(circuit_breaker, "disconnect"):
-                with patch.object(circuit_breaker, "_check_vix_spike") as mock_vix:
-                    mock_vix.return_value = {"halted": False, "vix_level": 20, "threshold": 30}
-                    result = circuit_breaker._check_vix_spike()
-                    assert isinstance(result, dict)
-                    assert "halted" in result
-                    assert "vix_level" in result
+        with patch.object(circuit_breaker, "_check_vix_spike") as mock_vix:
+            mock_vix.return_value = {"halted": False, "vix_level": 20, "threshold": 30}
+            result = circuit_breaker._check_vix_spike()
+            assert isinstance(result, dict)
+            assert "halted" in result
+            assert "vix_level" in result
 
 
 class TestCircuitBreakerAll:
