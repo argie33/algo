@@ -43,7 +43,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     # In AWS, can come from DB_SECRET_ARN (JSON blob in Secrets Manager)
     # or from DB_PASSWORD env var (legacy)
     db_password = os.getenv("DB_PASSWORD")
-    database_secret_arn = os.getenv("DB_SECRET_ARN") or os.getenv("DB_SECRET_ARN")
+    database_secret_arn = os.getenv("DB_SECRET_ARN")
 
     if not db_password and not database_secret_arn and not is_aws:
         errors.append(

@@ -1596,7 +1596,8 @@ def _get_exposure_policy(cur) -> Dict:
                         factors = json.loads(row['factors'])
                     else:
                         factors = row['factors']
-                except:
+                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                    logger.warning(f"Failed to parse factors: {e}")
                     factors = {}
 
             # Get latest market health for additional context
@@ -1614,8 +1615,8 @@ def _get_exposure_policy(cur) -> Dict:
                 mh_row = cur.fetchone()
                 if mh_row:
                     market_health = dict(mh_row)
-            except:
-                pass
+            except psycopg2.Error as e:
+                logger.warning(f"Failed to fetch market health: {e}")
 
             return json_response(200, {
                 'current_exposure_pct': float(row.get('exposure_pct') or 0),
@@ -1818,10 +1819,10 @@ def _set_runtime_config(cur, config_key: str, body: Dict, jwt_claims: Dict) -> D
         if not user_id:
             return error_response(401, 'unauthorized', 'Authentication required')
 
-        # For now, require explicit admin role (could be enhanced with RBAC)
-        # TODO: Check cognito:groups for 'admin' role
-        if not jwt_claims.get('cognito:groups') or 'admin' not in jwt_claims.get('cognito:groups', []):
-            logger.warning(f"Unauthorized config update attempt by {user_id}")
+        # Verify admin role is present
+        cognito_groups = jwt_claims.get('cognito:groups', [])
+        if not cognito_groups or 'admin' not in cognito_groups:
+            logger.warning(f"Unauthorized config update attempt by {user_id} - missing admin role. Groups: {cognito_groups}")
             return error_response(403, 'forbidden', 'Admin access required')
 
         new_value = body.get('value') if body else None

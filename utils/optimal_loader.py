@@ -305,8 +305,8 @@ class OptimalLoader(ABC):
                     # Clean up and retry with a new UUID
                     try:
                         cur.execute(f"DROP TABLE IF EXISTS {staging} CASCADE")
-                    except:
-                        pass
+                    except psycopg2.Error as drop_err:
+                        logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
                     unique_id = str(uuid.uuid4()).replace('-', '')[:12]
                     staging = f"_stage_{self.table_name}_{unique_id}"
                     cur.execute(

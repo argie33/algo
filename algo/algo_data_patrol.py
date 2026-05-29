@@ -162,7 +162,7 @@ class DataPatrol:
         sources = [
             ('price_daily', 'date', 'daily', 7, CRIT),
             ('technical_data_daily', 'date', 'daily', 7, CRIT),
-            ('buy_sell_daily', 'date', 'daily', 7, WARN),  # Demo: downgrade to WARN to allow Phase 1 to pass
+            ('buy_sell_daily', 'date', 'daily', 7, CRIT),
             ('trend_template_data', 'date', 'daily', 7, CRIT),
             ('signal_quality_scores', 'date', 'daily', 7, WARN),
             ('market_health_daily', 'date', 'daily', 7, ERROR),
