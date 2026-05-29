@@ -12,6 +12,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
 import { useTheme, alpha } from "@mui/material/styles";
+import { formatPercentageChange } from "../utils/formatters";
 
 const MarketVolatility = ({ data, isLoading, error }) => {
   const theme = useTheme();
@@ -103,7 +104,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                     mb: 1,
                   }}
                 >
-                  {(typeof market_volatility === 'number' ? market_volatility : 0).toFixed(2)}%
+                  {formatPercentageChange(market_volatility, 2)}
                 </Typography>
                 <Typography
                   variant="body1"
@@ -128,7 +129,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                       Average Daily Change
                     </Typography>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      {(typeof avg_absolute_change === 'number' ? avg_absolute_change : 0).toFixed(3)}%
+                      {formatPercentageChange(avg_absolute_change, 3)}
                     </Typography>
                   </Box>
                 </Box>
@@ -151,11 +152,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <Tooltip formatter={(value) => {
-                        if (value === null || value === undefined) return "N/A";
-                        const num = typeof value === 'number' ? value : parseFloat(value) || 0;
-                        return isNaN(num) ? "N/A" : `${num.toFixed(3)}%`;
-                      }} />
+                      <Tooltip formatter={(value) => formatPercentageChange(value, 3)} />
                       <Bar dataKey="value" fill={theme.palette.primary.main} />
                     </BarChart>
                   </ResponsiveContainer>

@@ -29,6 +29,7 @@ import {
   WarningAmber,
   CheckCircle,
 } from "@mui/icons-material";
+import { formatPercentageChange } from "../utils/formatters";
 
 const MarketInternals = ({ data, isLoading, error }) => {
   const [_expandedSection, _setExpandedSection] = useState(null);
@@ -263,10 +264,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis domain={[0, 100]} />
-                    <Tooltip formatter={(value) => {
-                      const num = typeof value === 'number' ? value : parseFloat(value) || 0;
-                      return `${isNaN(num) ? '0.0' : num.toFixed(1)}%`;
-                    }} />
+                    <Tooltip formatter={(value) => formatPercentageChange(value, 1)} />
                     <Bar dataKey="value" fill="#3b82f6" />
                   </BarChart>
                 </ResponsiveContainer>

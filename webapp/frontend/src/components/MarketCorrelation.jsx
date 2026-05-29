@@ -9,6 +9,7 @@
   Paper,
 } from "@mui/material";
 import { useTheme, alpha } from "@mui/material/styles";
+import { formatNumber } from "../utils/formatters";
 
 const MarketCorrelation = ({ data, isLoading, error }) => {
   const theme = useTheme();
@@ -131,10 +132,7 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                             >
                               {corrValue === null || corrValue === undefined
                                 ? "—"
-                                : (() => {
-                                    const num = typeof corrValue === 'number' ? corrValue : parseFloat(corrValue) || 0;
-                                    return isNaN(num) ? "—" : num.toFixed(2);
-                                  })()}
+                                : formatNumber(corrValue, 2)}
                             </td>
                           ))}
                         </tr>
