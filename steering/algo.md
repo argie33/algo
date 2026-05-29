@@ -7,7 +7,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | Component | Code | Deployment | Trigger |
 |-----------|------|------------|---------|
 | Orchestrator (main loop) | `algo/algo_orchestrator.py` | Lambda (algo-algo-dev) | EventBridge schedule: 9:30 AM ET, 5:30 PM ET Mon-Fri |
-| Loaders (data fetchers) | `loaders/load_*.py` (49 scripts: 9 essential + 40 supporting) | ECS Fargate tasks | Step Functions EOD pipeline + EventBridge schedules |
+| Loaders (data fetchers) | `loaders/load_*.py` (33 loaders) | ECS Fargate tasks | EventBridge schedules + Step Functions EOD pipeline |
 | API (REST endpoints) | `lambda/api/lambda_function.py` | Lambda (algo-api-dev) | API Gateway HTTP requests |
 | Frontend (dashboard) | `webapp/frontend/src/` | S3 + CloudFront | npm run build (React app) |
 | Signals (Phase 5) | `algo/algo_signals.py` | Lambda Phase 5 | Called by orchestrator |

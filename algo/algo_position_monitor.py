@@ -20,6 +20,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
 from config.credential_manager import get_credential_manager
+from config.alpaca_config import get_alpaca_base_url
 from config.api_timeouts import get_alpaca_timeout
 from utils.db_connection import get_db_connection
 import os
@@ -647,10 +648,7 @@ class PositionMonitor:
             """)
             positions = self.cur.fetchall()
 
-            alpaca_base_url = os.getenv('APCA_API_BASE_URL')
-            if not alpaca_base_url:
-                logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
-                alpaca_base_url = 'https://paper-api.alpaca.markets'
+            alpaca_base_url = get_alpaca_base_url()
             try:
                 cm = get_credential_manager()
                 creds = cm.get_alpaca_credentials()

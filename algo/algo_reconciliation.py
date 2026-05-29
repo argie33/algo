@@ -16,6 +16,7 @@ from config.credential_manager import (
     DEFAULT_DB_NAME,
 )
 from config.credential_manager import get_credential_manager
+from config.alpaca_config import get_alpaca_base_url
 import os
 import json
 from utils.db_connection import get_db_connection
@@ -44,7 +45,7 @@ class PositionReconciler:
             from alpaca_trade_api import REST
             cm = get_credential_manager()
             creds = cm.get_alpaca_credentials()
-            alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+            alpaca_base_url = get_alpaca_base_url()
             self.trading_client = REST(
                 key_id=creds["key"],
                 secret_key=creds["secret"],

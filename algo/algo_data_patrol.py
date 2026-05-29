@@ -38,6 +38,7 @@ USAGE:
 """
 
 from config.credential_manager import get_credential_manager
+from config.alpaca_config import get_alpaca_base_url
 from config.api_timeouts import get_market_data_timeout, get_alpaca_timeout
 import os
 import json
@@ -579,10 +580,7 @@ class DataPatrol:
             logger.debug(f"Alpaca credentials not available: {e}")
             self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
             return
-        base = os.getenv('APCA_API_BASE_URL')
-        if not base:
-            logger.warning("APCA_API_BASE_URL not set; using paper trading as fallback")
-            base = 'https://paper-api.alpaca.markets'
+        base = get_alpaca_base_url()
         if not key or not secret:
             self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
             return

@@ -13,6 +13,7 @@ Implements fail-safe protocols that override strategy logic.
 from config.credential_manager import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
 from config.api_timeouts import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
+from config.alpaca_config import get_alpaca_base_url
 import os
 
 import psycopg2
@@ -29,7 +30,7 @@ class MarketEventHandler:
 
     def __init__(self, config):
         self.config = config
-        self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+        self.alpaca_base_url = get_alpaca_base_url()
         try:
             cm = get_credential_manager()
             self.alpaca_key = cm.get_alpaca_credentials()["key"]

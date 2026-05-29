@@ -11,6 +11,7 @@ Tasks:
 """
 
 from config.credential_manager import get_credential_manager
+from config.alpaca_config import get_alpaca_base_url
 import os
 from utils.db_connection import get_db_connection
 
@@ -33,7 +34,7 @@ class DailyReconciliation:
             credential_manager = get_credential_manager()
             creds = credential_manager.get_alpaca_credentials()
             if creds.get("key") and creds.get("secret"):
-                base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+                base_url = get_alpaca_base_url()
                 self.trading_client = REST(
                     key_id=creds["key"],
                     secret_key=creds["secret"],

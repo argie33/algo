@@ -76,24 +76,26 @@ def query_rds_signals(credentials):
 
 
 def get_alpaca_credentials():
-    """FIXED Issue #21: Get Alpaca credentials from Secrets Manager."""
+    """Get Alpaca credentials from Secrets Manager or environment."""
+    paper_trading = os.getenv('ALPACA_PAPER_TRADING', 'true').lower() in ('true', '1', 'yes')
+    base_url = 'https://paper-api.alpaca.markets' if paper_trading else 'https://api.alpaca.markets'
+
     try:
-        import os
         alpaca_secret_arn = os.getenv('ALPACA_SECRET_ARN', 'algo/alpaca-credentials-dev')
         response = sm_client.get_secret_value(SecretId=alpaca_secret_arn)
         secret = json.loads(response['SecretString'])
         return {
             'api_key': secret.get('APCA_API_KEY_ID'),
             'secret_key': secret.get('APCA_API_SECRET_KEY'),
-            'base_url': secret.get('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets'),
+            'base_url': base_url,
         }
     except Exception as e:
         logger.error(f"Failed to get Alpaca credentials from Secrets Manager: {e}")
-        # Fallback to environment variables for backward compatibility
+        # Fallback to environment variables
         return {
             'api_key': os.getenv('APCA_API_KEY_ID'),
             'secret_key': os.getenv('APCA_API_SECRET_KEY'),
-            'base_url': os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets'),
+            'base_url': base_url,
         }
 
 

@@ -9,6 +9,7 @@ import os
 from typing import Dict, Tuple
 import logging
 from config.api_timeouts import get_alpaca_timeout
+from config.alpaca_config import get_alpaca_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class MarginMonitor:
         self.alert_threshold = float(self.config.get('margin_alert_pct', 70.0))
         self.halt_threshold = float(self.config.get('margin_halt_pct', 80.0))
         self._load_alpaca_credentials()
-        self.base_url = "https://paper-api.alpaca.markets" if os.getenv("ALPACA_PAPER_TRADING", "false").lower() == "true" else "https://api.alpaca.markets"
+        self.base_url = get_alpaca_base_url()
 
     def _load_alpaca_credentials(self):
         """Load Alpaca credentials from credential_manager with fallback to env vars."""
