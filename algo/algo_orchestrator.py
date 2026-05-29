@@ -923,19 +923,19 @@ class Orchestrator:
                 return self._final_report()
 
             try:
-                    phase_1_start = time.time()
-                    logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
-                    with TimeBlock("phase_1_data_freshness"):
-                        if not self.phase_1_data_freshness():
-                            logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
-                            self.log_phase_result(1, 'data_freshness', 'fail', 'Stale or missing critical data')
-                            return self._final_report()
-                    phase_1_elapsed = time.time() - phase_1_start
-                    logger.info(f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
-                except Exception as e:
-                    logger.error(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
-                    self.log_phase_result(1, 'data_freshness', 'error', str(e))
-                    return self._final_report()
+                phase_1_start = time.time()
+                logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
+                with TimeBlock("phase_1_data_freshness"):
+                    if not self.phase_1_data_freshness():
+                        logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
+                        self.log_phase_result(1, 'data_freshness', 'fail', 'Stale or missing critical data')
+                        return self._final_report()
+                phase_1_elapsed = time.time() - phase_1_start
+                logger.info(f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
+            except Exception as e:
+                logger.error(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
+                self.log_phase_result(1, 'data_freshness', 'error', str(e))
+                return self._final_report()
 
             phase_2_start = time.time()
             logger.info(f"\n[PHASE 2] Starting at {datetime.now(timezone.utc).isoformat()}")
