@@ -193,80 +193,90 @@ class PyramidEngine:
     # ---- Helpers ----
 
     def _is_new_closing_high(self, symbol, current_date, days=5):
-        self.cur.execute(
-            """
-            WITH d AS (
-                SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                FROM price_daily WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT %s
-            )
-            SELECT
-                (SELECT close FROM d WHERE rn = 1) AS today,
-                (SELECT MAX(close) FROM d WHERE rn > 1) AS prior_max
-            """,
-            (symbol, current_date, days + 1),
-        )
-        row = self.cur.fetchone()
-        if not row or row[0] is None or row[1] is None:
+        try:
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """
+                    WITH d AS (
+                        SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                        FROM price_daily WHERE symbol = %s AND date <= %s
+                        ORDER BY date DESC LIMIT %s
+                    )
+                    SELECT
+                        (SELECT close FROM d WHERE rn = 1) AS today,
+                        (SELECT MAX(close) FROM d WHERE rn > 1) AS prior_max
+                    """,
+                    (symbol, current_date, days + 1),
+                )
+                row = cur.fetchone()
+            if not row or row[0] is None or row[1] is None:
+                return False
+            return float(row[0]) >= float(row[1]) * 1.001
+        except Exception:
             return False
-        return float(row[0]) >= float(row[1]) * 1.001
 
     def _is_volume_confirmed(self, symbol, current_date, mult=1.2):
-        self.cur.execute(
-            """
-            WITH d AS (
-                SELECT date, volume,
-                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg50
-                FROM price_daily WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT 1
-            )
-            SELECT volume, avg50 FROM d
-            """,
-            (symbol, current_date),
-        )
-        row = self.cur.fetchone()
-        if not row or not row[0] or not row[1]:
+        try:
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """
+                    WITH d AS (
+                        SELECT date, volume,
+                               AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg50
+                        FROM price_daily WHERE symbol = %s AND date <= %s
+                        ORDER BY date DESC LIMIT 1
+                    )
+                    SELECT volume, avg50 FROM d
+                    """,
+                    (symbol, current_date),
+                )
+                row = cur.fetchone()
+            if not row or not row[0] or not row[1]:
+                return False
+            return float(row[0]) > float(row[1]) * mult
+        except Exception:
             return False
-        return float(row[0]) > float(row[1]) * mult
 
     def _is_pivot_breakout(self, symbol, current_date, lookback=20):
-        self.cur.execute(
-            f"""
-            WITH d AS (
-                SELECT close, high,
-                       MAX(high) OVER (ORDER BY date ROWS BETWEEN {lookback + 1} PRECEDING AND 1 PRECEDING) AS pivot
-                FROM price_daily WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT 1
-            )
-            SELECT close, pivot FROM d
-            """,
-            (symbol, current_date),
-        )
-        row = self.cur.fetchone()
-        if not row or row[1] is None:
+        try:
+            with DatabaseContext() as cur:
+                cur.execute(
+                    f"""
+                    WITH d AS (
+                        SELECT close, high,
+                               MAX(high) OVER (ORDER BY date ROWS BETWEEN {lookback + 1} PRECEDING AND 1 PRECEDING) AS pivot
+                        FROM price_daily WHERE symbol = %s AND date <= %s
+                        ORDER BY date DESC LIMIT 1
+                    )
+                    SELECT close, pivot FROM d
+                    """,
+                    (symbol, current_date),
+                )
+                row = cur.fetchone()
+            if not row or row[1] is None:
+                return False
+            close = float(row[0])
+            pivot = float(row[1])
+            return close > pivot * 1.005  # 0.5% buffer
+        except Exception:
             return False
-        close = float(row[0])
-        pivot = float(row[1])
-        return close > pivot * 1.005  # 0.5% buffer
 
     def execute_add(self, recommendation):
         """Execute pyramid add: send order to Alpaca + persist locally."""
         from algo.algo_trade_executor import TradeExecutor
         r = recommendation
 
-        self.connect()
         try:
-            self.cur.execute(
-                "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
-                "ORDER BY snapshot_date DESC LIMIT 1"
-            )
-            portfolio_row = self.cur.fetchone()
-            portfolio_value = float(portfolio_row[0]) if portfolio_row and portfolio_row[0] else 100000
+            with DatabaseContext() as cur:
+                cur.execute(
+                    "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+                    "ORDER BY snapshot_date DESC LIMIT 1"
+                )
+                portfolio_row = cur.fetchone()
+                portfolio_value = float(portfolio_row[0]) if portfolio_row and portfolio_row[0] else 100000
         except Exception as e:
             logger.warning(f"Could not get portfolio value for pretrade checks: {e}")
             portfolio_value = 100000
-        finally:
-            self.disconnect()
 
         pretrade_checks = PreTradeChecks(self.config)
         position_value = r['add_size_shares'] * r['add_price']
@@ -296,37 +306,34 @@ class PyramidEngine:
         if not alpaca_result.get('success'):
             return {'success': False, 'message': f"Alpaca order failed: {alpaca_result.get('message')}"}
 
-        self.connect()
         try:
-            self.cur.execute(
-                """UPDATE algo_positions
-                   SET quantity = quantity + %s,
-                       position_value = (quantity + %s) * current_price,
-                       updated_at = CURRENT_TIMESTAMP
-                   WHERE position_id = %s AND status = 'open'""",
-                (r['add_size_shares'], r['add_size_shares'], r['position_id']),
-            )
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """UPDATE algo_positions
+                       SET quantity = quantity + %s,
+                           position_value = (quantity + %s) * current_price,
+                           updated_at = CURRENT_TIMESTAMP
+                       WHERE position_id = %s AND status = 'open'""",
+                    (r['add_size_shares'], r['add_size_shares'], r['position_id']),
+                )
 
-            # Record the add
-            self.cur.execute(
-                """INSERT INTO algo_trade_adds (trade_id, add_number, add_date,
-                       add_price, add_quantity, fraction_of_original,
-                       r_multiple_at_add, trigger_reason)
-                   VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s)
-                   ON CONFLICT (trade_id, add_number) DO NOTHING""",
-                (r['trade_id'], r['add_number'], r['add_price'],
-                 r['add_size_shares'], r['fraction_of_original'],
-                 r['r_at_add'], r['reason']),
-            )
-            self.conn.commit()
+                # Record the add
+                cur.execute(
+                    """INSERT INTO algo_trade_adds (trade_id, add_number, add_date,
+                           add_price, add_quantity, fraction_of_original,
+                           r_multiple_at_add, trigger_reason)
+                       VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s)
+                       ON CONFLICT (trade_id, add_number) DO NOTHING""",
+                    (r['trade_id'], r['add_number'], r['add_price'],
+                     r['add_size_shares'], r['fraction_of_original'],
+                     r['r_at_add'], r['reason']),
+                )
+
             return {'success': True, 'message':
                 f"Added {r['add_size_shares']}sh of {r['symbol']} (#{r['add_number']}) @ ${r['add_price']:.2f} "
                 f"to Alpaca (order_id={alpaca_result.get('order_id')})"}
         except Exception as e:
-            self.conn.rollback()
             return {'success': False, 'message': f'DB update failed: {str(e)}'}
-        finally:
-            self.disconnect()
 
 
 if __name__ == "__main__":
