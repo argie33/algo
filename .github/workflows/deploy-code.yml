@@ -1102,14 +1102,22 @@ jobs:
           mkdir -p webapp/frontend/dist
           cp webapp/frontend/public/config.js webapp/frontend/dist/config.js
 
-          # Inject production CloudFront URL and environment into config.js
+          # Inject production CloudFront URL and environment into config.js using Python
           WEBSITE_URL=”${{ needs.resolve-infra.outputs.website_url }}”
           if [ -n “$WEBSITE_URL” ] && [ “$WEBSITE_URL” != “null” ] && [ “$WEBSITE_URL” != “None” ] && [ “$WEBSITE_URL” != “***” ]; then
             echo “Injecting CloudFront API_URL: $WEBSITE_URL”
-            # Use single quotes for sed pattern, concatenate variable outside quotes
-            sed -i 's|”API_URL”: “”|”API_URL”: “'$WEBSITE_URL'”|g' webapp/frontend/dist/config.js
-            sed -i 's|”ENVIRONMENT”: “development”|”ENVIRONMENT”: “production”|g' webapp/frontend/dist/config.js
-            echo “Config injected for production deployment”
+            python3 << PYSCRIPT
+          import sys
+          with open('webapp/frontend/dist/config.js', 'r') as f:
+              content = f.read()
+          # Replace empty API_URL with production URL
+          content = content.replace('”API_URL”: “”', '”API_URL”: “$WEBSITE_URL”')
+          # Replace development environment with production
+          content = content.replace('”ENVIRONMENT”: “development”', '”ENVIRONMENT”: “production”')
+          with open('webapp/frontend/dist/config.js', 'w') as f:
+              f.write(content)
+          print(“Config injected for production deployment”)
+          PYSCRIPT
           else
             echo “WARNING: CloudFront website_url not available, using development config”
           fi
