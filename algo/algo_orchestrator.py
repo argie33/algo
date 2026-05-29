@@ -70,6 +70,7 @@ import tempfile
 import time
 import json
 from utils.database_context import DatabaseContext
+from utils.db_connection import get_db_connection
 import psycopg2.extensions
 from psycopg2 import pool as psycopg2_pool
 from datetime import datetime, date as _date, timedelta, timezone

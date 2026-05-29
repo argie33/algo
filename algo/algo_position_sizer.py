@@ -15,6 +15,7 @@ from algo.algo_config import get_alpaca_timeout
 import os
 from datetime import date as _date
 from utils.database_context import DatabaseContext
+from utils.db_connection import get_db_connection
 
 from utils.structured_logger import get_logger
 
@@ -28,6 +29,15 @@ class PositionSizer:
         self.conn = conn
         self.cur = cur
         self._owns_connection = conn is None
+
+    def _ensure_connection(self):
+        """Ensure cursor is available for executing queries."""
+        if self.cur is None:
+            if self._owns_connection and self.conn is None:
+                self.conn = get_db_connection()
+                self.cur = self.conn.cursor()
+            else:
+                raise RuntimeError("No cursor available. Use with DatabaseContext or provide cursor to __init__.")
 
     def _with_cursor(self, operation):
         """Execute an operation with a cursor (external or DatabaseContext)."""
