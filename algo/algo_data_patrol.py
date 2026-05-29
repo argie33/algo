@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 
 """
-Data Patrol — Continuous integrity watchdog
+Data Patrol â€” Continuous integrity watchdog
 
 Beyond simple staleness checks, validates that loaded data is actually USABLE
-for finance decisions. Real-money trading needs real data — this catches the
+for finance decisions. Real-money trading needs real data â€” this catches the
 silent failures that mock and sample-based testing miss:
 
   P1. STALENESS         latest data within expected window per source
@@ -43,7 +43,7 @@ from algo.algo_config import get_market_data_timeout, get_alpaca_timeout
 import os
 import json
 import argparse
-from utils.database_context import DatabaseContext, get_db_connection
+from utils.database_context import DatabaseContext
 import requests
 import time
 from datetime import datetime, date as _date, timedelta, timezone
@@ -70,7 +70,7 @@ class DataPatrol:
             elapsed = time.time() - start
             self.check_timings[check_name] = elapsed
             if elapsed > 5:  # alert if check takes >5 seconds
-                self.log('perf_slow', 'warn', 'patrol_perf',
+                self.log(cur, 'perf_slow', 'warn', 'patrol_perf',
                         f'{check_name} took {elapsed:.1f}s (slow)',
                         {'check': check_name, 'seconds': round(elapsed, 1)})
         except Exception as e:
@@ -172,7 +172,7 @@ class DataPatrol:
                 if not latest_str:
                     # Empty tables log as INFO/WARN, never CRITICAL (loaders may not have run yet)
                     empty_severity = INFO if sev_on_stale == CRIT else sev_on_stale
-                    self.log(cur, 'staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
+                    self.log(cur, cur, 'staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
                     continue
                 # Handle both date and datetime formats
                 try:
@@ -184,26 +184,26 @@ class DataPatrol:
                         latest = None
 
                 if not latest:
-                    self.log(cur, 'staleness', WARN, tbl, f'{tbl} timestamp parse failed: {latest_str}', {'latest': latest_str})
+                    self.log(cur, cur, 'staleness', WARN, tbl, f'{tbl} timestamp parse failed: {latest_str}', {'latest': latest_str})
                     continue
 
                 age = (today - latest).days
                 if age > max_days:
-                    self.log(cur, 'staleness', sev_on_stale, tbl,
+                    self.log(cur, cur, 'staleness', sev_on_stale, tbl,
                              f'{tbl} stale: {age}d > {max_days}d threshold',
                              {'latest': str(latest), 'age_days': age, 'freq': freq})
                 else:
-                    self.log(cur, 'staleness', INFO, tbl,
+                    self.log(cur, cur, 'staleness', INFO, tbl,
                              f'{tbl} fresh ({age}d old)',
                              {'latest': str(latest), 'age_days': age})
             except Exception as e:
-                self.log(cur, 'staleness', ERROR, tbl, f'Check failed: {e}', None)
+                self.log(cur, cur, 'staleness', ERROR, tbl, f'Check failed: {e}', None)
 
-    def check_null_anomalies(self):
+    def check_null_anomalies(self, cur):
         """P2. Sudden spike in NULL values vs historical."""
         # Sample most-recent day vs prior 30 days for price_daily
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT
                     SUM(CASE WHEN close IS NULL THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)) AS today_nulls,
@@ -211,22 +211,22 @@ class DataPatrol:
                 FROM price_daily
                 WHERE date >= (SELECT MAX(date) FROM price_daily) - INTERVAL '30 days'
             """)
-            today_nulls, today_total = self.cur.fetchone()
+            today_nulls, today_total = cur.fetchone()
             today_nulls = int(today_nulls or 0)
             today_total = int(today_total or 1)
             null_pct = today_nulls / today_total * 100 if today_total else 0
             if null_pct > 5:
-                self.log('null_anomaly', ERROR, 'price_daily',
+                self.log(cur, cur, 'null_anomaly', ERROR, 'price_daily',
                          f'{null_pct:.1f}% NULL closes on latest date',
                          {'today_nulls': today_nulls, 'today_total': today_total})
             else:
-                self.log('null_anomaly', INFO, 'price_daily',
+                self.log(cur, cur, 'null_anomaly', INFO, 'price_daily',
                          f'NULL rate {null_pct:.2f}% acceptable',
                          {'today_nulls': today_nulls, 'today_total': today_total})
         except Exception as e:
-            self.log('null_anomaly', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, cur, 'null_anomaly', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_zero_or_identical(self):
+    def check_zero_or_identical(self, cur):
         """P3. Rows with all zeros or identical OHLC (sign of API limit hit).
 
         Uses baseline anomaly detection to avoid false positives on penny stocks
@@ -234,70 +234,70 @@ class DataPatrol:
         rather than flagging the same penny stocks repeatedly.
         """
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT DISTINCT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
                   AND (volume = 0 OR open = 0 OR close = 0)
                 ORDER BY symbol
             """)
-            today_zero_symbols = {row[0] for row in self.cur.fetchall()}
+            today_zero_symbols = {row[0] for row in cur.fetchall()}
             today_zero_count = len(today_zero_symbols)
 
-            self.cur.execute("""
+            cur.execute("""
                 SELECT DISTINCT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
                   AND (volume = 0 OR open = 0 OR close = 0)
                 ORDER BY symbol
             """)
-            yesterday_zero_symbols = {row[0] for row in self.cur.fetchall()}
+            yesterday_zero_symbols = {row[0] for row in cur.fetchall()}
 
             # NEW zero symbols = potential loader regression (actual problem)
             new_zeros = today_zero_symbols - yesterday_zero_symbols
             recurring_zeros = today_zero_symbols & yesterday_zero_symbols
 
             if len(new_zeros) > 30:
-                self.log('zero_data', ERROR, 'price_daily',
+                self.log(cur, 'zero_data', ERROR, 'price_daily',
                          f'{len(new_zeros)} NEW symbols with zero OHLC/volume (loader regression)',
                          {'new_zeros': len(new_zeros), 'today_total': today_zero_count,
                           'recurring': len(recurring_zeros),
                           'sample_new': sorted(list(new_zeros))[:5]})
             elif len(new_zeros) > 5:
-                self.log('zero_data', WARN, 'price_daily',
+                self.log(cur, 'zero_data', WARN, 'price_daily',
                          f'{len(new_zeros)} new zero-volume symbols (watch for pattern)',
                          {'new_zeros': len(new_zeros), 'today_total': today_zero_count,
                           'recurring': len(recurring_zeros)})
             else:
-                self.log('zero_data', INFO, 'price_daily',
+                self.log(cur, 'zero_data', INFO, 'price_daily',
                          f'{today_zero_count} zero-volume symbols ({len(recurring_zeros)} recurring, {len(new_zeros)} new)',
                          {'today_total': today_zero_count, 'recurring': len(recurring_zeros),
                           'new': len(new_zeros)})
 
             # Identical OHLC = high==low==open==close (often API-limit fallback)
-            self.cur.execute("""
+            cur.execute("""
                 SELECT COUNT(*) FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
                   AND open = high AND high = low AND low = close
                   AND volume > 0
             """)
-            ident_count = int(self.cur.fetchone()[0] or 0)
+            ident_count = int(cur.fetchone()[0] or 0)
             if ident_count > 30:
-                self.log('identical_ohlc', WARN, 'price_daily',
+                self.log(cur, 'identical_ohlc', WARN, 'price_daily',
                          f'{ident_count} symbols with identical OHLC (suspicious)',
                          {'count': ident_count})
             else:
-                self.log('identical_ohlc', INFO, 'price_daily',
+                self.log(cur, 'identical_ohlc', INFO, 'price_daily',
                          f'{ident_count} symbols with identical OHLC', None)
         except Exception as e:
-            self.log('zero_data', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'zero_data', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_volume_sanity(self):
-        """P5. Volume within realistic range — catches zero-volume and halted symbols.
+    def check_volume_sanity(self, cur):
+        """P5. Volume within realistic range â€” catches zero-volume and halted symbols.
 
         Penny stocks legitimately have low volume; halted symbols have zero volume.
         This check flags UNUSUAL patterns: symbols trading <1M or >100M on same day.
         """
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT
                     SUM(CASE WHEN volume < 1000000 THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -309,58 +309,58 @@ class DataPatrol:
                     COUNT(*) FILTER (WHERE date = (SELECT MAX(date) FROM price_daily)) AS total
                 FROM price_daily
             """)
-            low_new, high_vol, total = self.cur.fetchone()
+            low_new, high_vol, total = cur.fetchone()
             low_new = int(low_new or 0)
             high_vol = int(high_vol or 0)
             total = int(total or 1)
 
             issues = []
             if low_new > 50:
-                issues.append(f'{low_new} symbols NEW low-volume (<1M) — possible data source issue')
-                self.log('volume_sanity', WARN, 'price_daily',
+                issues.append(f'{low_new} symbols NEW low-volume (<1M) â€” possible data source issue')
+                self.log(cur, 'volume_sanity', WARN, 'price_daily',
                          f'{low_new} symbols with <1M volume (new pattern)',
                          {'new_low_volume': low_new, 'total': total})
             if high_vol > 5:
                 issues.append(f'{high_vol} symbols with extreme volume (>100M)')
-                self.log('volume_sanity', INFO, 'price_daily',
+                self.log(cur, 'volume_sanity', INFO, 'price_daily',
                          f'{high_vol} symbols with >100M volume', {'extreme_count': high_vol})
             if not issues:
-                self.log('volume_sanity', INFO, 'price_daily', 'Volume patterns normal', None)
+                self.log(cur, 'volume_sanity', INFO, 'price_daily', 'Volume patterns normal', None)
         except Exception as e:
-            self.log('volume_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'volume_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_ohlc_sanity(self):
+    def check_ohlc_sanity(self, cur):
         """P5b. OHLC relationships: High >= Open/Close/Low, open/close >= low."""
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT COUNT(*) FILTER (WHERE high < open OR high < close OR high < low) AS bad_high,
                        COUNT(*) FILTER (WHERE low > open OR low > close OR low > high) AS bad_low,
                        COUNT(*) FILTER (WHERE open < 0 OR close < 0 OR high < 0 OR low < 0) AS negative
                 FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
             """)
-            bad_high, bad_low, negative = self.cur.fetchone()
+            bad_high, bad_low, negative = cur.fetchone()
             bad_high = int(bad_high or 0)
             bad_low = int(bad_low or 0)
             negative = int(negative or 0)
 
             if negative > 0:
-                self.log('ohlc_sanity', CRIT, 'price_daily',
-                         f'{negative} rows with NEGATIVE prices — data corruption',
+                self.log(cur, 'ohlc_sanity', CRIT, 'price_daily',
+                         f'{negative} rows with NEGATIVE prices â€” data corruption',
                          {'negative_count': negative})
             elif bad_high > 0 or bad_low > 0:
-                self.log('ohlc_sanity', ERROR, 'price_daily',
+                self.log(cur, 'ohlc_sanity', ERROR, 'price_daily',
                          f'OHLC violation: {bad_high} high<OHLC, {bad_low} low>OHLC',
                          {'bad_high': bad_high, 'bad_low': bad_low})
             else:
-                self.log('ohlc_sanity', INFO, 'price_daily', 'OHLC relationships valid', None)
+                self.log(cur, 'ohlc_sanity', INFO, 'price_daily', 'OHLC relationships valid', None)
         except Exception as e:
-            self.log('ohlc_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'ohlc_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_price_sanity(self):
+    def check_price_sanity(self, cur):
         """P4. Day-over-day moves within reasonable range (no >50% moves without reason)."""
         try:
-            self.cur.execute("""
+            cur.execute("""
                 WITH d AS (
                     SELECT pd.symbol, pd.date, pd.close,
                            LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev
@@ -376,27 +376,27 @@ class DataPatrol:
                 ORDER BY pct_change DESC
                 LIMIT 20
             """)
-            extreme = self.cur.fetchall()
+            extreme = cur.fetchall()
             if len(extreme) > 10:
-                self.log('price_sanity', WARN, 'price_daily',
+                self.log(cur, 'price_sanity', WARN, 'price_daily',
                          f'{len(extreme)} symbols with >50% day-over-day move',
                          {'count': len(extreme),
                           'samples': [{'symbol': r[0], 'pct_change': float(r[4])}
                                       for r in extreme[:5]]})
             elif extreme:
-                self.log('price_sanity', INFO, 'price_daily',
+                self.log(cur, 'price_sanity', INFO, 'price_daily',
                          f'{len(extreme)} extreme moves (likely real events)',
                          {'samples': [{'symbol': r[0], 'pct_change': float(r[4])}
                                       for r in extreme[:5]]})
             else:
-                self.log('price_sanity', INFO, 'price_daily', 'No extreme moves detected', None)
+                self.log(cur, 'price_sanity', INFO, 'price_daily', 'No extreme moves detected', None)
         except Exception as e:
-            self.log('price_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'price_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_universe_coverage(self):
+    def check_universe_coverage(self, cur):
         """P7. % symbols updated today (catches loader drop-offs)."""
         try:
-            self.cur.execute("""
+            cur.execute("""
                 WITH latest_date AS (
                     SELECT MAX(date) AS max_date FROM price_daily
                 )
@@ -406,29 +406,29 @@ class DataPatrol:
                 FROM price_daily pd
                 CROSS JOIN latest_date ld
             """)
-            today_count, total_count = self.cur.fetchone()
+            today_count, total_count = cur.fetchone()
             today_count = int(today_count or 0)
             total_count = int(total_count or 1)
             pct = today_count / total_count * 100 if total_count else 0
 
             if pct < 0.1:
-                self.log('coverage', WARN, 'price_daily',
+                self.log(cur, 'coverage', WARN, 'price_daily',
                          f'Only {pct:.1f}% of universe updated on latest date (yfinance limitation)',
                          {'today': today_count, 'total': total_count, 'pct': round(pct, 2)})
             elif pct < 10:
-                self.log('coverage', INFO, 'price_daily',
+                self.log(cur, 'coverage', INFO, 'price_daily',
                          f'{pct:.1f}% coverage on latest date (within yfinance expected range)',
                          {'today': today_count, 'total': total_count})
             else:
-                self.log('coverage', INFO, 'price_daily',
+                self.log(cur, 'coverage', INFO, 'price_daily',
                          f'{pct:.1f}% universe coverage', None)
         except Exception as e:
-            self.log('coverage', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'coverage', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_sequence_continuity(self):
+    def check_sequence_continuity(self, cur):
         """P8. Trading-day sequence: no gaps in price_daily for SPY (canary)."""
         try:
-            self.cur.execute("""
+            cur.execute("""
                 WITH d AS (
                     SELECT date, LAG(date) OVER (ORDER BY date) AS prev
                     FROM price_daily
@@ -441,49 +441,49 @@ class DataPatrol:
                 ORDER BY date DESC
                 LIMIT 5
             """)
-            gaps = self.cur.fetchall()
+            gaps = cur.fetchall()
             if gaps:
-                self.log('sequence', WARN, 'price_daily',
+                self.log(cur, 'sequence', WARN, 'price_daily',
                          f'{len(gaps)} sequence gaps in SPY (last 60 days)',
                          {'gaps': [{'date': str(r[0]), 'days': int(r[2])} for r in gaps]})
             else:
-                self.log('sequence', INFO, 'price_daily',
+                self.log(cur, 'sequence', INFO, 'price_daily',
                          'SPY price sequence contiguous', None)
         except Exception as e:
-            self.log('sequence', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'sequence', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_score_freshness(self):
+    def check_score_freshness(self, cur):
         """P10. Computed scores should be updated AFTER raw data."""
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT
                     (SELECT MAX(date) FROM price_daily) AS price_latest,
                     (SELECT MAX(date) FROM trend_template_data) AS trend_latest,
                     (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest
             """)
-            price_d, trend_d, sqs_d = self.cur.fetchone()
+            price_d, trend_d, sqs_d = cur.fetchone()
             for name, comp_date in [('trend_template_data', trend_d),
                                      ('signal_quality_scores', sqs_d)]:
                 if comp_date and price_d:
                     if comp_date < price_d:
-                        self.log('score_freshness', WARN, name,
+                        self.log(cur, 'score_freshness', WARN, name,
                                  f'{name} ({comp_date}) older than price_daily ({price_d})',
                                  {'lag_days': (price_d - comp_date).days})
                     else:
-                        self.log('score_freshness', INFO, name,
+                        self.log(cur, 'score_freshness', INFO, name,
                                  f'{name} aligned with price data', None)
         except Exception as e:
-            self.log('score_freshness', ERROR, 'computed_scores', f'Check failed: {e}', None)
+            self.log(cur, 'score_freshness', ERROR, 'computed_scores', f'Check failed: {e}', None)
 
     def check_yahoo_cross_validate(self, top_n=10):
         """P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
 
-        Second-source verification — if our DB matches Alpaca but disagrees with
+        Second-source verification â€” if our DB matches Alpaca but disagrees with
         Yahoo, that's a real signal something's off. Yahoo's chart endpoint
         accepts unauthenticated requests for basic OHLC.
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -491,9 +491,9 @@ class DataPatrol:
                 """,
                 (top_n,),
             )
-            symbols = [r[0] for r in self.cur.fetchall()]
+            symbols = [r[0] for r in cur.fetchall()]
         except Exception as e:
-            self.log('yahoo_xval', ERROR, 'price_daily', f"Couldn't pick symbols: {e}", None)
+            self.log(cur, 'yahoo_xval', ERROR, 'price_daily', f"Couldn't pick symbols: {e}", None)
             return
 
         mismatches = []
@@ -526,11 +526,11 @@ class DataPatrol:
                     continue
 
                 # Compare to our DB
-                self.cur.execute(
+                cur.execute(
                     "SELECT close, date FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
                     (sym,),
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 if not row or not row[0]:
                     continue
                 our_close = float(row[0])
@@ -549,11 +549,11 @@ class DataPatrol:
                 continue
 
         if mismatches:
-            self.log('yahoo_xval', WARN, 'price_daily',
+            self.log(cur, 'yahoo_xval', WARN, 'price_daily',
                      f'{len(mismatches)}/{len(symbols)} top symbols mismatch Yahoo > 5%',
                      {'mismatches': mismatches})
         else:
-            self.log('yahoo_xval', INFO, 'price_daily',
+            self.log(cur, 'yahoo_xval', INFO, 'price_daily',
                      f'All {len(symbols)} top symbols match Yahoo within 5%', None)
 
     def check_alpaca_cross_validate(self, top_n=10):
@@ -565,22 +565,22 @@ class DataPatrol:
             secret = creds.get("secret")
         except Exception as e:
             logger.debug(f"Alpaca credentials not available: {e}")
-            self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
+            self.log(cur, 'alpaca_xval', INFO, 'alpaca', 'No Alpaca creds â€” skipping cross-validate', None)
             return
         base = get_alpaca_base_url()
         if not key or not secret:
-            self.log('alpaca_xval', INFO, 'alpaca', 'No Alpaca creds — skipping cross-validate', None)
+            self.log(cur, 'alpaca_xval', INFO, 'alpaca', 'No Alpaca creds â€” skipping cross-validate', None)
             return
 
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
                 ORDER BY volume DESC LIMIT %s
             """, (top_n,))
-            symbols = [r[0] for r in self.cur.fetchall()]
+            symbols = [r[0] for r in cur.fetchall()]
         except Exception as e:
-            self.log('alpaca_xval', ERROR, 'price_daily', f'Couldn\'t pick symbols: {e}', None)
+            self.log(cur, 'alpaca_xval', ERROR, 'price_daily', f'Couldn\'t pick symbols: {e}', None)
             return
 
         # Alpaca data API (paper API doesn't have market data; use data API)
@@ -603,11 +603,11 @@ class DataPatrol:
                 alpaca_close = float(bar.get('c', 0))
 
                 # Compare against our DB latest close
-                self.cur.execute(
+                cur.execute(
                     "SELECT close, date FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
                     (sym,),
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 if not row or not row[0] or alpaca_close <= 0:
                     continue
                 our_close = float(row[0])
@@ -625,15 +625,15 @@ class DataPatrol:
                 continue
 
         if mismatches:
-            self.log('alpaca_xval', WARN, 'price_daily',
+            self.log(cur, 'alpaca_xval', WARN, 'price_daily',
                      f'{len(mismatches)}/{len(symbols)} symbols mismatch Alpaca >5%',
                      {'mismatches': mismatches})
         else:
-            self.log('alpaca_xval', INFO, 'price_daily',
+            self.log(cur, 'alpaca_xval', INFO, 'price_daily',
                      f'All {len(symbols)} top-volume symbols match Alpaca within 5%', None)
 
-    def check_loader_contracts(self):
-        """P11. Per-loader contracts — each loader has expected output thresholds.
+    def check_loader_contracts(self, cur):
+        """P11. Per-loader contracts â€” each loader has expected output thresholds.
 
         Catches silent loader regressions where the loader runs (no error) but
         produces dramatically less data than expected (API limit, source change,
@@ -647,7 +647,7 @@ class DataPatrol:
             ('price_daily',
              "date >= CURRENT_DATE - INTERVAL '14 days'",
              40000, ERROR,
-             'Daily price data should be ~5000 symbols × 14 days = 70K+ rows (threshold: 40K for safety)'),
+             'Daily price data should be ~5000 symbols Ã— 14 days = 70K+ rows (threshold: 40K for safety)'),
             ('technical_data_daily',
              "date >= CURRENT_DATE - INTERVAL '14 days'",
              40000, ERROR,
@@ -659,11 +659,11 @@ class DataPatrol:
             ('buy_sell_daily',
              "date >= CURRENT_DATE - INTERVAL '14 days' AND signal_type IN ('BUY', 'SELL')",
              700, ERROR,
-             'NO null/None signals — ratio of clean BUY/SELL must be >80%'),
+             'NO null/None signals â€” ratio of clean BUY/SELL must be >80%'),
             ('trend_template_data',
              "date >= CURRENT_DATE - INTERVAL '14 days'",
              16000, ERROR,
-             'Trend template covers 4900+ symbols × 14 days (80% threshold)'),
+             'Trend template covers 4900+ symbols Ã— 14 days (80% threshold)'),
             ('signal_quality_scores',
              "date >= CURRENT_DATE - INTERVAL '14 days'",
              16000, WARN,
@@ -710,50 +710,50 @@ class DataPatrol:
 
         # Buy/sell ratio specific check
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT
                     COUNT(*) FILTER (WHERE signal_type IN ('BUY', 'SELL')) AS clean,
                     COUNT(*) AS total
                 FROM buy_sell_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
             """)
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[1] > 0:
                 clean_pct = (row[0] / row[1]) * 100
                 if clean_pct < 80:
-                    self.log('contract_signal_quality', ERROR, 'buy_sell_daily',
+                    self.log(cur, 'contract_signal_quality', ERROR, 'buy_sell_daily',
                              f'Only {clean_pct:.1f}% of recent signals are clean BUY/SELL '
                              f'({row[1] - row[0]} NULL/None of {row[1]} total)',
                              {'clean_pct': clean_pct})
                 else:
-                    self.log('contract_signal_quality', INFO, 'buy_sell_daily',
+                    self.log(cur, 'contract_signal_quality', INFO, 'buy_sell_daily',
                              f'{clean_pct:.1f}% clean BUY/SELL signals', None)
         except Exception as e:
-            self.log('contract_signal_quality', ERROR, 'buy_sell_daily', f'Failed: {e}', None)
+            self.log(cur, 'contract_signal_quality', ERROR, 'buy_sell_daily', f'Failed: {e}', None)
 
         # Generic count contracts
         for tbl, cond, min_rows, severity, desc in contracts:
             try:
                 tbl_safe = assert_safe_table(tbl)
-                actual, _ = safe_select_count(self.cur, tbl_safe, where_clause=cond)
+                actual, _ = safe_select_count(cur, tbl_safe, where_clause=cond)
                 if actual < min_rows:
-                    self.log('loader_contract', severity, tbl,
+                    self.log(cur, 'loader_contract', severity, tbl,
                              f'{actual:,} rows < {min_rows:,} expected ({desc})',
                              {'actual': actual, 'expected': min_rows})
                 else:
-                    self.log('loader_contract', INFO, tbl,
+                    self.log(cur, 'loader_contract', INFO, tbl,
                              f'{actual:,} rows OK', None)
             except Exception as e:
-                self.log('loader_contract', ERROR, tbl, f'Check failed: {e}', None)
+                self.log(cur, 'loader_contract', ERROR, tbl, f'Check failed: {e}', None)
 
-    def check_db_constraints(self):
+    def check_db_constraints(self, cur):
         """P9. Look for FK / unique / NOT NULL violations from recent inserts."""
         try:
-            self.log('db_constraints', INFO, 'all', 'Constraint check skipped (too many false positives)', None)
+            self.log(cur, 'db_constraints', INFO, 'all', 'Constraint check skipped (too many false positives)', None)
         except Exception as e:
-            self.log('db_constraints', ERROR, 'all', f'Check failed: {e}', None)
+            self.log(cur, 'db_constraints', ERROR, 'all', f'Check failed: {e}', None)
 
-    def check_earnings_data(self):
+    def check_earnings_data(self, cur):
         """P12. Earnings data freshness and coverage."""
         today = _date.today()
         sources = [
@@ -767,7 +767,7 @@ class DataPatrol:
                 col = col_options[0]
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_column(col)
-                count, latest_str = safe_select_count(self.cur, tbl_safe, date_column=col_safe)
+                count, latest_str = safe_select_count(cur, tbl_safe, date_column=col_safe)
                 # Handle both date and datetime formats
                 latest = None
                 if latest_str:
@@ -780,21 +780,21 @@ class DataPatrol:
                             latest = None
 
                 if not latest:
-                    self.log('earnings_staleness', WARN, tbl, f'{tbl} is empty', {'count': 0})
+                    self.log(cur, 'earnings_staleness', WARN, tbl, f'{tbl} is empty', {'count': 0})
                 else:
                     age = (today - latest).days
                     if age > max_days:
-                        self.log('earnings_staleness', sev, tbl,
+                        self.log(cur, 'earnings_staleness', sev, tbl,
                                  f'{tbl} stale: {age}d > {max_days}d',
                                  {'latest': str(latest), 'age_days': age})
                     else:
-                        self.log('earnings_staleness', INFO, tbl,
+                        self.log(cur, 'earnings_staleness', INFO, tbl,
                                  f'{tbl} fresh ({age}d old)', {'latest': str(latest)})
             except Exception as e:
-                self.log('earnings_staleness', INFO, tbl, f'Check skipped (table may not exist): {e}', None)
+                self.log(cur, 'earnings_staleness', INFO, tbl, f'Check skipped (table may not exist): {e}', None)
 
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT
                     COUNT(DISTINCT e.symbol) AS est_syms,
                     COUNT(DISTINCT p.symbol) AS price_syms
@@ -804,34 +804,34 @@ class DataPatrol:
                    AND e.created_at >= CURRENT_DATE - INTERVAL '7 days'
                 WHERE p.date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            est_syms, price_syms = self.cur.fetchone()
+            est_syms, price_syms = cur.fetchone()
             est_syms   = int(est_syms   or 0)
             price_syms = int(price_syms or 1)
             pct = est_syms / price_syms * 100
             sev = WARN if pct < 80 else INFO
-            self.log('earnings_coverage', sev, 'earnings_estimates',
+            self.log(cur, 'earnings_coverage', sev, 'earnings_estimates',
                      f'{pct:.1f}% symbol coverage ({est_syms}/{price_syms})',
                      {'coverage_pct': round(pct, 1)})
         except Exception as e:
-            self.log('earnings_coverage', WARN, 'earnings_estimates', f'Check skipped: {e}', None)
+            self.log(cur, 'earnings_coverage', WARN, 'earnings_estimates', f'Check skipped: {e}', None)
 
-    def check_etf_data(self):
+    def check_etf_data(self, cur):
         """P13. ETF price and signal data freshness."""
         today = _date.today()
 
         try:
-            self.cur.execute("SELECT MAX(date), COUNT(DISTINCT symbol) FROM etf_price_daily")
-            latest, etf_count = self.cur.fetchone()
+            cur.execute("SELECT MAX(date), COUNT(DISTINCT symbol) FROM etf_price_daily")
+            latest, etf_count = cur.fetchone()
             if not latest:
-                self.log('etf_prices', WARN, 'etf_price_daily', 'Empty table', {})
+                self.log(cur, 'etf_prices', WARN, 'etf_price_daily', 'Empty table', {})
             else:
                 age = (today - latest).days
                 sev = ERROR if age > 3 else INFO
-                self.log('etf_prices', sev, 'etf_price_daily',
+                self.log(cur, 'etf_prices', sev, 'etf_price_daily',
                          f'ETF prices {age}d old ({etf_count} ETFs)',
                          {'latest': str(latest), 'etf_count': etf_count})
         except Exception as e:
-            self.log('etf_prices', WARN, 'etf_price_daily', f'Check skipped: {e}', None)
+            self.log(cur, 'etf_prices', WARN, 'etf_price_daily', f'Check skipped: {e}', None)
 
         signal_checks = [
             ('buy_sell_daily_etf',   1,  WARN),
@@ -841,7 +841,7 @@ class DataPatrol:
         for tbl, max_age, sev in signal_checks:
             try:
                 tbl_safe = assert_safe_table(tbl)
-                count, latest_str = safe_select_count(self.cur, tbl_safe, date_column='date')
+                count, latest_str = safe_select_count(cur, tbl_safe, date_column='date')
                 # Handle both date and datetime formats
                 latest = None
                 if latest_str:
@@ -854,26 +854,26 @@ class DataPatrol:
                             latest = None
 
                 if not latest:
-                    self.log('etf_signals', WARN, tbl, f'{tbl} is empty', {})
+                    self.log(cur, 'etf_signals', WARN, tbl, f'{tbl} is empty', {})
                 else:
                     age = (today - latest).days
                     result_sev = sev if age > max_age else INFO
-                    self.log('etf_signals', result_sev, tbl,
+                    self.log(cur, 'etf_signals', result_sev, tbl,
                              f'{tbl} {age}d old ({count} rows)',
                              {'latest': str(latest), 'count': count})
             except Exception as e:
-                self.log('etf_signals', WARN, tbl, f'Check skipped: {e}', None)
+                self.log(cur, 'etf_signals', WARN, tbl, f'Check skipped: {e}', None)
 
-    def check_cross_table_alignment(self):
+    def check_cross_table_alignment(self, cur):
         """P14. Dependent tables cover same symbol universe as price_daily."""
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT COUNT(DISTINCT symbol) FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
             """)
-            baseline = int(self.cur.fetchone()[0] or 1)
+            baseline = int(cur.fetchone()[0] or 1)
         except Exception as e:
-            self.log('cross_align', WARN, 'price_daily', f'Baseline query failed: {e}', None)
+            self.log(cur, 'cross_align', WARN, 'price_daily', f'Baseline query failed: {e}', None)
             return
 
         checks = [
@@ -886,42 +886,42 @@ class DataPatrol:
         for tbl, where, min_ratio, sev in checks:
             try:
                 tbl_safe = assert_safe_table(tbl)
-                self.cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {tbl_safe} WHERE {where}")
-                count = int(self.cur.fetchone()[0] or 0)
+                cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {tbl_safe} WHERE {where}")
+                count = int(cur.fetchone()[0] or 0)
                 ratio = count / baseline
                 if ratio < min_ratio:
-                    self.log('cross_align', sev, tbl,
+                    self.log(cur, 'cross_align', sev, tbl,
                              f'{tbl} coverage {ratio*100:.1f}% < {min_ratio*100:.0f}% '
                              f'({count}/{baseline} symbols)',
                              {'coverage_pct': round(ratio * 100, 1), 'baseline': baseline})
                 else:
-                    self.log('cross_align', INFO, tbl,
+                    self.log(cur, 'cross_align', INFO, tbl,
                              f'{tbl} alignment OK ({ratio*100:.1f}%)', None)
             except Exception as e:
-                self.log('cross_align', WARN, tbl, f'Check skipped: {e}', None)
+                self.log(cur, 'cross_align', WARN, tbl, f'Check skipped: {e}', None)
 
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT
                     (SELECT MAX(date) FROM buy_sell_daily) AS bs_date,
                     (SELECT MAX(date) FROM technical_data_daily) AS td_date
             """)
-            bs_date, td_date = self.cur.fetchone()
+            bs_date, td_date = cur.fetchone()
             if bs_date and td_date and abs((bs_date - td_date).days) > 1:
-                self.log('cross_align', WARN, 'buy_sell_daily/technical_data_daily',
+                self.log(cur, 'cross_align', WARN, 'buy_sell_daily/technical_data_daily',
                          f'Signal {bs_date} and technical {td_date} on different dates',
                          {'signal_date': str(bs_date), 'technical_date': str(td_date)})
         except Exception as e:
-            self.log('cross_align', INFO, 'date_alignment', f'Check skipped: {e}', None)
+            self.log(cur, 'cross_align', INFO, 'date_alignment', f'Check skipped: {e}', None)
 
-    def check_corporate_actions(self):
+    def check_corporate_actions(self, cur):
         """P3b. Detect likely corporate actions (splits, halts, delistings).
 
         >30% drop in 1 day without earnings = split, halt, or delisting.
         These corrupt data and break position calculations.
         """
         try:
-            self.cur.execute("""
+            cur.execute("""
                 WITH d AS (
                     SELECT pd.symbol, pd.date, pd.close,
                            LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev,
@@ -938,27 +938,27 @@ class DataPatrol:
                 ORDER BY pct_change ASC
                 LIMIT 50
             """)
-            extreme_drops = self.cur.fetchall()
+            extreme_drops = cur.fetchall()
 
             if extreme_drops:
-                self.log('corporate_action', WARN, 'price_daily',
+                self.log(cur, 'corporate_action', WARN, 'price_daily',
                          f'{len(extreme_drops)} symbols with >30% single-day drop (likely corporate action)',
                          {'count': len(extreme_drops),
                           'samples': [{'symbol': r[0], 'date': str(r[1]), 'pct_drop': round(r[4], 1)}
                                       for r in extreme_drops[:10]]})
             else:
-                self.log('corporate_action', INFO, 'price_daily',
+                self.log(cur, 'corporate_action', INFO, 'price_daily',
                          'No extreme drops detected (no obvious corporate actions)', None)
         except Exception as e:
-            self.log('corporate_action', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'corporate_action', ERROR, 'price_daily', f'Check failed: {e}', None)
 
-    def check_signal_data_alignment(self):
+    def check_signal_data_alignment(self, cur):
         """P6b. Every BUY/SELL signal must have matching price + technical data same date.
 
         Orphaned or corrupt signals that don't have underlying data = bad fill data.
         """
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT COUNT(*) FILTER (WHERE signal_type IN ('BUY', 'SELL')) AS total_signals,
                        COUNT(*) FILTER (
                            WHERE signal_type IN ('BUY', 'SELL')
@@ -979,28 +979,28 @@ class DataPatrol:
                 FROM buy_sell_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
-            total, missing_price, missing_tech = self.cur.fetchone()
+            total, missing_price, missing_tech = cur.fetchone()
             total = int(total or 0)
             missing_price = int(missing_price or 0)
             missing_tech = int(missing_tech or 0)
 
             if missing_price > 0 or missing_tech > 0:
-                self.log('signal_alignment', ERROR, 'buy_sell_daily',
+                self.log(cur, 'signal_alignment', ERROR, 'buy_sell_daily',
                          f'{missing_price} signals missing price_daily, {missing_tech} missing technical_data',
                          {'total_signals': total, 'missing_price': missing_price, 'missing_tech': missing_tech})
             else:
-                self.log('signal_alignment', INFO, 'buy_sell_daily',
+                self.log(cur, 'signal_alignment', INFO, 'buy_sell_daily',
                          f'All {total} signals have matching price + technical data', None)
         except Exception as e:
-            self.log('signal_alignment', ERROR, 'buy_sell_daily', f'Check failed: {e}', None)
+            self.log(cur, 'signal_alignment', ERROR, 'buy_sell_daily', f'Check failed: {e}', None)
 
-    def check_trade_price_alignment(self):
+    def check_trade_price_alignment(self, cur):
         """P16. Every filled trade must have price history on/after fill date.
 
         Catches missing price data for executed trades (DB corruption or loader failure).
         """
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT t.trade_id, t.symbol, t.created_at::date as fill_date, COUNT(p.date) as price_count
                 FROM algo_trades t
                 LEFT JOIN price_daily p
@@ -1012,21 +1012,21 @@ class DataPatrol:
                 GROUP BY t.trade_id, t.symbol, fill_date
                 HAVING COUNT(p.date) = 0
             """)
-            orphaned = self.cur.fetchall()
+            orphaned = cur.fetchall()
             if orphaned:
-                self.log('trade_alignment', ERROR, 'algo_trades/price_daily',
+                self.log(cur, 'trade_alignment', ERROR, 'algo_trades/price_daily',
                          f'{len(orphaned)} filled trades missing price history',
                          {'orphaned_trades': len(orphaned),
                           'sample': [{'trade_id': r[0], 'symbol': r[1], 'fill_date': str(r[2])}
                                      for r in orphaned[:5]]})
             else:
-                self.log('trade_alignment', INFO, 'algo_trades/price_daily',
+                self.log(cur, 'trade_alignment', INFO, 'algo_trades/price_daily',
                          'All recent filled trades have price history', None)
         except Exception as e:
-            self.log('trade_alignment', INFO, 'algo_trades/price_daily',
+            self.log(cur, 'trade_alignment', INFO, 'algo_trades/price_daily',
                      f'Check skipped (table may not exist): {e}', None)
 
-    def check_derived_metrics(self):
+    def check_derived_metrics(self, cur):
         """P17. Validate technical indicators within realistic bounds.
 
         RSI: 0-100, MACD crosses, Bollinger bands math, EMA/SMA ordering.
@@ -1034,52 +1034,52 @@ class DataPatrol:
         """
         try:
             # RSI bounds (0-100)
-            self.cur.execute("""
+            cur.execute("""
                 SELECT COUNT(*) FILTER (WHERE rsi < 0 OR rsi > 100) AS bad_rsi,
                        COUNT(*) FILTER (WHERE rsi IS NULL) AS null_rsi,
                        COUNT(*) AS total
                 FROM technical_data_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            bad_rsi, null_rsi, total = self.cur.fetchone()
+            bad_rsi, null_rsi, total = cur.fetchone()
             bad_rsi = int(bad_rsi or 0)
             null_rsi = int(null_rsi or 0)
 
             if bad_rsi > 0:
-                self.log('derived_metrics', ERROR, 'technical_data_daily',
+                self.log(cur, 'derived_metrics', ERROR, 'technical_data_daily',
                          f'{bad_rsi} rows with invalid RSI (<0 or >100)',
                          {'bad_rsi': bad_rsi, 'total': total})
             else:
-                self.log('derived_metrics', INFO, 'technical_data_daily',
+                self.log(cur, 'derived_metrics', INFO, 'technical_data_daily',
                          f'RSI bounds valid ({total} rows)', None)
 
             # EMA/SMA ordering check skipped (close price not in technical_data_daily)
-            self.log('derived_metrics', INFO, 'technical_data_daily',
+            self.log(cur, 'derived_metrics', INFO, 'technical_data_daily',
                      'Technical indicators present', None)
 
             # NaN/INF check
-            self.cur.execute("""
+            cur.execute("""
                 SELECT COUNT(*) FILTER (WHERE atr = 'NaN' OR atr = 'Infinity' OR atr = '-Infinity') AS bad_atr,
                        COUNT(*) FILTER (WHERE rsi = 'NaN' OR rsi = 'Infinity') AS bad_rsi_nan
                 FROM technical_data_daily
                 WHERE date >= CURRENT_DATE - INTERVAL '7 days'
             """)
-            bad_atr, bad_rsi_nan = self.cur.fetchone()
+            bad_atr, bad_rsi_nan = cur.fetchone()
             bad_atr = int(bad_atr or 0)
             bad_rsi_nan = int(bad_rsi_nan or 0)
 
             if bad_atr > 0 or bad_rsi_nan > 0:
-                self.log('derived_metrics', ERROR, 'technical_data_daily',
+                self.log(cur, 'derived_metrics', ERROR, 'technical_data_daily',
                          f'{bad_atr} NaN ATR, {bad_rsi_nan} NaN RSI (computation error)',
                          {'nan_count': bad_atr + bad_rsi_nan})
             else:
-                self.log('derived_metrics', INFO, 'technical_data_daily',
+                self.log(cur, 'derived_metrics', INFO, 'technical_data_daily',
                          'No NaN/Infinity values in technical data', None)
 
         except Exception as e:
-            self.log('derived_metrics', ERROR, 'technical_data_daily', f'Check failed: {e}', None)
+            self.log(cur, 'derived_metrics', ERROR, 'technical_data_daily', f'Check failed: {e}', None)
 
-    def check_fundamental_data(self):
+    def check_fundamental_data(self, cur):
         """P15. Financial statement and fundamental data freshness."""
         today = _date.today()
         table_checks = [
@@ -1098,23 +1098,23 @@ class DataPatrol:
                 safe_tbl = assert_safe_table(tbl)
                 safe_col = assert_safe_column(col)
                 safe_sym_col = assert_safe_column(sym_col)
-                self.cur.execute(
+                cur.execute(
                     f"SELECT MAX({safe_col}::date), COUNT(*), COUNT(DISTINCT {safe_sym_col}) FROM {safe_tbl}"
                 )
-                latest, total, unique_syms = self.cur.fetchone()
+                latest, total, unique_syms = cur.fetchone()
                 if not latest:
-                    self.log('fundamental_data', WARN, tbl, f'{tbl} is empty', {})
+                    self.log(cur, 'fundamental_data', WARN, tbl, f'{tbl} is empty', {})
                 else:
                     age = (today - latest).days
                     result_sev = sev if age > max_days else INFO
-                    self.log('fundamental_data', result_sev, tbl,
+                    self.log(cur, 'fundamental_data', result_sev, tbl,
                              f'{tbl} {age}d old ({unique_syms} symbols)',
                              {'latest': str(latest), 'age_days': age, 'symbols': unique_syms})
             except Exception as e:
-                self.log('fundamental_data', WARN, tbl, f'Check skipped: {e}', None)
+                self.log(cur, 'fundamental_data', WARN, tbl, f'Check skipped: {e}', None)
 
         try:
-            self.cur.execute("""
+            cur.execute("""
                 SELECT
                     COUNT(DISTINCT sym) FILTER (WHERE tbl = 'km') AS km_syms,
                     COUNT(DISTINCT sym) FILTER (WHERE tbl = 'pd') AS pd_syms
@@ -1126,65 +1126,62 @@ class DataPatrol:
                      WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                 ) t
             """)
-            km_syms, pd_syms = self.cur.fetchone()
+            km_syms, pd_syms = cur.fetchone()
             km_syms = int(km_syms or 0)
             pd_syms = int(pd_syms or 1)
             pct = km_syms / pd_syms * 100
             sev = WARN if pct < 80 else INFO
-            self.log('fundamental_coverage', sev, 'key_metrics',
+            self.log(cur, 'fundamental_coverage', sev, 'key_metrics',
                      f'{pct:.1f}% symbol coverage ({km_syms}/{pd_syms})',
                      {'coverage_pct': round(pct, 1)})
         except Exception as e:
-            self.log('fundamental_coverage', WARN, 'key_metrics', f'Check skipped: {e}', None)
+            self.log(cur, 'fundamental_coverage', WARN, 'key_metrics', f'Check skipped: {e}', None)
 
     def run(self, quick=False, validate_alpaca=False):
         self._run_id = f"PATROL-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
         start_time = time.time()
-        self.connect()
-        try:
+        with DatabaseContext() as cur:
             logger.info(f"DATA PATROL — {self._run_id}")
 
             # Log configuration at start of run
-            self._log_configuration()
+            self._log_configuration(cur)
 
             # Always run critical checks
-            self.check_staleness()
-            self.check_universe_coverage()
-            self.check_zero_or_identical()
-            self.check_corporate_actions()
-            self.check_db_constraints()
+            self.check_staleness(cur)
+            self.check_universe_coverage(cur)
+            self.check_zero_or_identical(cur)
+            self.check_corporate_actions(cur)
+            self.check_db_constraints(cur)
 
             if not quick:
-                self.check_null_anomalies()
-                self.check_volume_sanity()
-                self.check_ohlc_sanity()
-                self.check_price_sanity()
-                self.check_sequence_continuity()
-                self.check_score_freshness()
-                self.check_loader_contracts()
-                self.check_signal_data_alignment()
-                self.check_trade_price_alignment()
-                self.check_derived_metrics()
-                self.check_earnings_data()
-                self.check_etf_data()
-                self.check_cross_table_alignment()
-                self.check_fundamental_data()
+                self.check_null_anomalies(cur)
+                self.check_volume_sanity(cur)
+                self.check_ohlc_sanity(cur)
+                self.check_price_sanity(cur)
+                self.check_sequence_continuity(cur)
+                self.check_score_freshness(cur)
+                self.check_loader_contracts(cur)
+                self.check_signal_data_alignment(cur)
+                self.check_trade_price_alignment(cur)
+                self.check_derived_metrics(cur)
+                self.check_earnings_data(cur)
+                self.check_etf_data(cur)
+                self.check_cross_table_alignment(cur)
+                self.check_fundamental_data(cur)
 
             if validate_alpaca:
-                self.check_alpaca_cross_validate()
-                self.check_yahoo_cross_validate()
+                self.check_alpaca_cross_validate(cur)
+                self.check_yahoo_cross_validate(cur)
 
             elapsed = time.time() - start_time
-            return self.summarize(elapsed)
-        finally:
-            self.disconnect()
+            return self.summarize(cur, elapsed)
 
-    def summarize(self, elapsed_seconds=None):
+    def summarize(self, cur, elapsed_seconds=None):
         counts = {INFO: 0, WARN: 0, ERROR: 0, CRIT: 0}
         for r in self.results:
             counts[r['severity']] = counts.get(r['severity'], 0) + 1
 
-        logger.info(f"PATROL RESULTS — {self._run_id}")
+        logger.info(f"PATROL RESULTS â€” {self._run_id}")
         logger.info(f"  INFO:     {counts.get(INFO, 0)}")
         logger.info(f"  WARN:     {counts.get(WARN, 0)}")
         logger.info(f"  ERROR:    {counts.get(ERROR, 0)}")
@@ -1201,7 +1198,7 @@ class DataPatrol:
                 sev_pad = r['severity'].upper().rjust(8)
                 logger.info(f"  [{sev_pad}] {r['check']:20s} {r['target']:28s} : {r['message']}")
         else:
-            logger.info("No issues — all checks clean.")
+            logger.info("No issues â€” all checks clean.")
 
         ready = counts.get(CRIT, 0) == 0 and counts.get(ERROR, 0) == 0
         logger.info(f"ALGO READY TO TRADE: {'YES' if ready else 'NO'}")
@@ -1209,13 +1206,13 @@ class DataPatrol:
         # Log performance metrics
         if elapsed_seconds:
             try:
-                self.cur.execute("""
+                cur.execute("""
                     INSERT INTO data_patrol_log (patrol_run_id, check_name, severity,
                                                 target_table, message, details)
                     VALUES (%s, 'patrol_performance', 'info', 'patrol_metrics',
                             'Patrol execution time', %s)
                 """, (self._run_id, json.dumps({'seconds': round(elapsed_seconds, 2), 'status': 'SLOW' if elapsed_seconds > 120 else 'OK'})))
-                self.conn.commit()
+                cur.connection.commit()
             except Exception as e:
 
                 logger.error(f"Unhandled exception: {e}")
