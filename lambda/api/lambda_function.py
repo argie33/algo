@@ -525,27 +525,32 @@ def require_auth(event: Dict, path: str) -> tuple:
     Check if path requires authentication.
     Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
     """
-    # Public endpoints (no auth required) - use path.startswith() for prefix matching
+    # Public endpoints (no auth required) - market data and informational endpoints only
     PUBLIC_PREFIXES = {
         '/health',
         '/api/health',
         '/api/contact',
-        '/api/signals',  # /api/signals/stocks, /api/signals/etf, etc.
-        '/api/scores',
-        '/api/market',
-        '/api/economic',
-        '/api/algo',  # Algo trading endpoints - data is public (no user-specific data)
-        '/api/sectors',  # Sector analysis pages
-        '/api/sentiment',  # Market sentiment dashboard
-        '/api/industries',  # Industry analysis
-        '/api/prices',  # Historical prices
-        '/api/stocks',  # Stock data
-        '/api/trades',  # Trade history
-        '/api/financials',  # Company financials
-        '/api/earnings',  # Earnings data
-        '/api/research',  # Research endpoints
-        '/api/audit',  # Audit viewer
+        '/api/signals',  # Market signal data (public)
+        '/api/scores',  # Market scores (public)
+        '/api/market',  # Market health, breadth, distribution (public)
+        '/api/economic',  # Economic indicators (public)
+        '/api/algo',  # Algo strategy data (public, no user-specific data)
+        '/api/sectors',  # Sector analysis (public)
+        '/api/sentiment',  # Market sentiment (public)
+        '/api/industries',  # Industry analysis (public)
+        '/api/prices',  # Historical prices (public)
+        '/api/stocks',  # Stock data (public)
+        '/api/financials',  # Company financials (public)
+        '/api/earnings',  # Earnings data (public)
+        '/api/research',  # Research endpoints (public)
+        '/api/data-coverage',  # Data freshness status (public)
     }
+
+    # Protected endpoints (requires authentication)
+    # /api/trades - user-specific trade history
+    # /api/audit - system audit logs (sensitive)
+    # /api/admin - administrative functions
+    # /api/settings - user-specific settings
 
     # Check if path matches any public prefix
     # Match: exact, /path/subpath, ?query, -hyphenated (e.g., /api/market-health), or no separator
