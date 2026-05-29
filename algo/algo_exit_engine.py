@@ -30,7 +30,6 @@ from config.credential_manager import (
 )
 
 import os
-from utils.db_connection import get_db_connection
 from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date, timezone
 try:
