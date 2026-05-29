@@ -21,7 +21,7 @@ _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
 
 
-def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[str]:
+def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List[str]:
     """Get list of active stock symbols from database with timeout protection.
 
     Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,
@@ -32,7 +32,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[
 
     Args:
         max_symbols: Limit results to N symbols (default: None = all)
-        timeout_secs: Timeout for database query (default: 30 seconds)
+        timeout_secs: Timeout for database query (default: 120 seconds)
     """
     import signal
     import threading
@@ -65,7 +65,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 30) -> List[
 
         def fetch_symbols():
             try:
-                conn = get_db_connection(max_retries=2, timeout=10)
+                conn = get_db_connection(max_retries=3, timeout=30)
                 try:
                     cur = conn.cursor()
                     cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
