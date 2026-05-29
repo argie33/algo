@@ -1062,6 +1062,24 @@ jobs:
           VITE_AWS_REGION="$AWS_REGION" \
           npm run build 2>&1 | tee build.log
 
+      - name: Run Frontend Tests
+        working-directory: webapp/frontend
+        run: |
+          if [ -f "package.json" ]; then
+            # Check if test script exists in package.json
+            if grep -q '"test":' package.json; then
+              echo "Running frontend tests..."
+              npm test -- --run 2>&1 | tee test.log || {
+                echo "[ALERT] Frontend tests failed - but continuing deployment"
+                echo "(Tests must pass before PR merge, not during deployment)"
+              }
+            else
+              echo "[INFO] No test script defined in package.json"
+            fi
+          else
+            echo "[ALERT] package.json not found"
+          fi
+
       - name: Prepare Runtime Config
         run: |
           mkdir -p webapp/frontend/dist

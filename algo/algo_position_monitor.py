@@ -38,6 +38,21 @@ class PositionMonitor:
 
     def __init__(self, config):
         self.config = config
+        self.cur = None
+        self._db_context = None
+
+    def connect(self):
+        """Create a database connection via DatabaseContext."""
+        if self.cur is None:
+            self._db_context = DatabaseContext('read')
+            self.cur = self._db_context.__enter__()
+
+    def disconnect(self):
+        """Clean up DatabaseContext if we own it."""
+        if self._db_context:
+            self._db_context.__exit__(None, None, None)
+            self._db_context = None
+            self.cur = None
 
     def check_stale_orders(self, current_date=None):
         """Check for orders stuck in pending state >1 hour. Alert if found.

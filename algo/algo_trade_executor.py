@@ -101,6 +101,23 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
+        # Database connection management
+        self.cur = None
+        self._db_context = None
+
+    def connect(self):
+        """Create a database connection via DatabaseContext."""
+        if self.cur is None:
+            self._db_context = DatabaseContext('write')
+            self.cur = self._db_context.__enter__()
+
+    def disconnect(self):
+        """Clean up DatabaseContext if we own it."""
+        if self._db_context:
+            self._db_context.__exit__(None, None, None)
+            self._db_context = None
+            self.cur = None
+
     # ---------- Entry ----------
 
     def execute_trade(self, symbol: str, entry_price: float, shares: float, stop_loss_price: float,
