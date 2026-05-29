@@ -7,8 +7,9 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
 import os
+import time
 import logging
-from config.api_timeouts import get_api_timeout
+from typing import Optional, Any, Dict
 from config.credential_manager import get_credential_manager, get_db_config
 from config.credential_validator import assert_credentials
 from utils.db_connection import get_db_connection
@@ -460,20 +461,183 @@ def get_config():
 def get_api_timeout() -> int:
     """Get API request timeout in seconds.
 
-    Can be overridden by API_TIMEOUT_SECONDS environment variable.
-    Default: 5 seconds for Alpaca/FRED/market data APIs.
+    Checks (in order): API_TIMEOUT env var, algo_config DB, default 5s.
     """
-    return int(os.getenv('API_TIMEOUT_SECONDS',
-                        get_config().get('api_request_timeout_seconds', 5)))
+    env_val = os.getenv('API_TIMEOUT')
+    if env_val:
+        return int(env_val)
+    return get_config().get('api_request_timeout_seconds', 5)
 
 def get_db_timeout() -> int:
     """Get database connection timeout in seconds.
 
-    Can be overridden by DB_TIMEOUT_SECONDS environment variable.
-    Default: 15 seconds (RDS Proxy adds latency).
+    Checks (in order): DB_TIMEOUT_SECONDS env var, algo_config DB, default 15s.
     """
-    return int(os.getenv('DB_TIMEOUT_SECONDS',
-                        get_config().get('db_connection_timeout_seconds', 15)))
+    env_val = os.getenv('DB_TIMEOUT_SECONDS')
+    if env_val:
+        return int(env_val)
+    return get_config().get('db_connection_timeout_seconds', 15)
+
+def get_market_data_timeout() -> int:
+    """Get market data API timeout in seconds."""
+    return int(os.getenv('MARKET_DATA_TIMEOUT', '10'))
+
+def get_alpaca_timeout() -> int:
+    """Get Alpaca API timeout in seconds."""
+    return int(os.getenv('ALPACA_TIMEOUT', '5'))
+
+def get_webhook_timeout() -> int:
+    """Get webhook timeout in seconds."""
+    return int(os.getenv('WEBHOOK_TIMEOUT', '5'))
+
+def get_subprocess_timeout() -> int:
+    """Get subprocess timeout in seconds."""
+    return int(os.getenv('SUBPROCESS_TIMEOUT', '5'))
+
+def get_alpaca_base_url() -> str:
+    """Get Alpaca API base URL based on trading mode.
+
+    Returns:
+        str: Paper or live API endpoint URL
+
+    Raises:
+        ValueError: If ALPACA_PAPER_TRADING is explicitly set to an invalid value
+    """
+    paper_trading_raw = os.getenv("ALPACA_PAPER_TRADING", "true").lower().strip()
+
+    if paper_trading_raw in ("true", "1", "yes"):
+        url = "https://paper-api.alpaca.markets"
+        logger.debug("Using Alpaca paper trading API")
+    elif paper_trading_raw in ("false", "0", "no"):
+        url = "https://api.alpaca.markets"
+        logger.debug("Using Alpaca LIVE trading API")
+    else:
+        raise ValueError(
+            f"Invalid ALPACA_PAPER_TRADING value: {paper_trading_raw!r} "
+            f"(must be 'true'/'false')"
+        )
+
+    return url
+
+class RuntimeConfig:
+    """Thread-safe runtime configuration with 5-minute cache."""
+
+    _cache: Dict[str, str] = {}
+    _cache_timestamp: Optional[float] = None
+    CACHE_TTL = 300
+
+    ALLOWED_KEYS = {
+        'alpaca_trading_mode': ('paper', 'live', 'disabled'),
+        'max_position_size_usd': (int, 1000, 100000),
+        'circuit_breaker_vix_threshold': (int, 30, 100),
+        'data_freshness_sla_hours': (int, 1, 168),
+        'orchestrator_enabled': ('true', 'false'),
+        'execution_monitor_enabled': ('true', 'false'),
+    }
+
+    @classmethod
+    def get(cls, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Load config from RDS with 5-minute cache."""
+        now = time.time()
+
+        if cls._cache_timestamp and (now - cls._cache_timestamp) < cls.CACHE_TTL:
+            cached = cls._cache.get(key)
+            if cached is not None:
+                logger.debug(f"[RUNTIME_CONFIG_CACHED] {key} = {cached[:50]}")
+                return cached
+            return default
+
+        if cls._refresh_cache():
+            return cls._cache.get(key, default)
+
+        logger.warning(f"[RUNTIME_CONFIG_LOAD_FAILED] Could not load {key}, using default")
+        return default
+
+    @classmethod
+    def get_bool(cls, key: str, default: bool = False) -> bool:
+        """Get boolean configuration value."""
+        value = cls.get(key, 'true' if default else 'false')
+        return value.lower() in ('true', '1', 'yes')
+
+    @classmethod
+    def get_int(cls, key: str, default: int = 0) -> int:
+        """Get integer configuration value."""
+        try:
+            value = cls.get(key)
+            if value is not None:
+                return int(value)
+        except (ValueError, TypeError):
+            logger.warning(f"[RUNTIME_CONFIG_TYPE_ERROR] {key} not an integer: {value}")
+        return default
+
+    @classmethod
+    def _refresh_cache(cls) -> bool:
+        """Refresh configuration cache from RDS."""
+        try:
+            conn = get_db_connection()
+            if not conn:
+                logger.error("[RUNTIME_CONFIG_DB_ERROR] No database connection")
+                return False
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT config_key, config_value FROM algo_runtime_config
+                       ORDER BY config_key"""
+                )
+                rows = cur.fetchall()
+
+                cls._cache = {}
+                for row in rows:
+                    if isinstance(row, dict):
+                        cls._cache[row['config_key']] = row['config_value']
+                    else:
+                        cls._cache[row[0]] = row[1]
+
+                cls._cache_timestamp = time.time()
+                logger.info(
+                    f"[RUNTIME_CONFIG_LOADED] {len(cls._cache)} keys cached, "
+                    f"expires in {cls.CACHE_TTL}s"
+                )
+                return True
+
+        except Exception as e:
+            logger.error(f"[RUNTIME_CONFIG_LOAD_ERROR] Failed to refresh cache: {e}")
+            return False
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Force cache refresh on next access."""
+        cls._cache = {}
+        cls._cache_timestamp = None
+        logger.info("[RUNTIME_CONFIG_CACHE_CLEARED]")
+
+    @classmethod
+    def validate_value(cls, key: str, value: Any) -> tuple[bool, Optional[str]]:
+        """Validate configuration value before saving."""
+        if key not in cls.ALLOWED_KEYS:
+            return False, f"Unknown configuration key: {key}"
+
+        allowed = cls.ALLOWED_KEYS[key]
+
+        if isinstance(allowed, tuple) and isinstance(allowed[0], str):
+            if str(value) not in allowed:
+                return False, f"Must be one of: {', '.join(allowed)}"
+            return True, None
+
+        if isinstance(allowed, tuple) and isinstance(allowed[0], type):
+            if allowed[0] == int:
+                try:
+                    int_val = int(value)
+                    if len(allowed) >= 3 and not (allowed[1] <= int_val <= allowed[2]):
+                        return (
+                            False,
+                            f"Must be between {allowed[1]} and {allowed[2]}"
+                        )
+                    return True, None
+                except (ValueError, TypeError):
+                    return False, f"Must be an integer"
+
+        return True, None
 
 if __name__ == "__main__":
     config = get_config()
