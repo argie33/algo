@@ -77,8 +77,8 @@ def query_rds_signals(credentials):
 
 def get_alpaca_credentials():
     """Get Alpaca credentials from Secrets Manager or environment."""
-    paper_trading = os.getenv('ALPACA_PAPER_TRADING', 'true').lower() in ('true', '1', 'yes')
-    base_url = 'https://paper-api.alpaca.markets' if paper_trading else 'https://api.alpaca.markets'
+    from config.alpaca_config import get_alpaca_base_url
+    base_url = get_alpaca_base_url()
 
     try:
         alpaca_secret_arn = os.getenv('ALPACA_SECRET_ARN', 'algo/alpaca-credentials-dev')
