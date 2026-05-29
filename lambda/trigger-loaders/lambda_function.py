@@ -21,7 +21,7 @@ def lambda_handler(event, context):
     Trigger ECS loader task.
 
     Event params:
-      - loader_name: (required) 'stock_prices_daily', 'market_data_batch', etc.
+      - loader_name: (required) 'stock_prices_daily', 'market_health_daily', etc.
       - task_count: (optional, default 1) how many parallel tasks
       - priority: (optional) FARGATE (on-demand) or FARGATE_SPOT
     """

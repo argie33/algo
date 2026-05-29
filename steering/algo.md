@@ -74,26 +74,29 @@ aws sts get-caller-identity --profile algo-developer
 - Your next AWS command automatically fetches the new key
 - No action required from you
 
-## CREDENTIAL FLOW (IaC)
+## CREDENTIAL FLOW (Single Source of Truth)
 
-Credentials flow through a single pipeline — never lose them, never hardcode them:
+All credentials flow from AWS Secrets Manager — never hardcode, never duplicate:
 
 ```
-GitHub Secrets (source of truth)
-    ↓  .github/workflows/update-credentials.yml
-AWS Secrets Manager (algo/alpaca, algo/fred)
-    ↓  .github/workflows/deploy-code.yml reads and sets Lambda env
-Lambda env vars: APCA_API_KEY_ID, APCA_API_SECRET_KEY, APCA_API_BASE_URL
+AWS Secrets Manager (single source of truth)
+    ↓
+GitHub Actions (OIDC) → reads for deployments
+Local Development (credential_process) → auto-fetches for debugging
+Lambda/ECS (IAM roles) → reads from environment
+Step Functions (IAM roles) → reads from environment
 ```
 
-**Standard variable names:** `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY` (always these, not ALPACA_API_KEY/ALPACA_SECRET_KEY).
+**Secrets in Manager:**
+- `algo/database` — RDS credentials
+- `algo/alpaca` — Alpaca API keys (paper and live)
+- `algo/fred` — FRED API key
+- `algo/developer-credentials` — AWS IAM access key for local development
 
 **Rotation procedure:**
-1. Generate new keys in Alpaca dashboard (alpaca.markets → API Keys)
-2. `gh secret set ALPACA_API_KEY_ID --body "new_id"` (paper) or `ALPACA_API_KEY` (live)
-3. `gh secret set ALPACA_API_SECRET_KEY --body "new_secret"` (paper) or `ALPACA_SECRET_KEY` (live)
-4. `gh workflow run update-credentials.yml -f trading_mode=paper` (or live)
-5. Update local PowerShell profile: APCA_API_KEY_ID + APCA_API_SECRET_KEY
+1. Terraform automatically rotates all secrets quarterly (first Monday of each quarter, 2:00 AM UTC)
+2. You don't need to do anything
+3. For manual rotation: `gh workflow run rotate-dev-credentials.yml`
 
 ## LIVE TRADING CONFIG
 

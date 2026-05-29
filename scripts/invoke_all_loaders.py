@@ -4,17 +4,33 @@
 import boto3
 import sys
 
-# All 43 loaders
+# All loaders from terraform/modules/loaders/main.tf loader_file_map
 LOADERS = [
-    "stock_symbols", "stock_prices_daily", "etf_prices_daily", "etf_prices_weekly", "etf_prices_monthly",
-    "trend_template_data", "financials_annual_income", "financials_annual_balance", "financials_annual_cashflow",
+    # Reference data
+    "stock_symbols", "sp500_constituents", "russell2000_constituents",
+    # Pricing data
+    "stock_prices_daily",
+    # Financial statements
+    "financials_annual_income", "financials_annual_balance", "financials_annual_cashflow",
     "financials_quarterly_income", "financials_quarterly_balance", "financials_quarterly_cashflow",
-    "financials_ttm_income", "financials_ttm_cashflow", "growth_metrics", "quality_metrics", "value_metrics",
-    "earnings_history", "earnings_revisions", "earnings_surprise", "earnings_calendar", "company_profile",
-    "analyst_sentiment", "analyst_upgrades_downgrades", "sectors", "industry_ranking", "seasonality",
-    "signals_daily", "signals_weekly", "signals_monthly", "signals_etf_daily", "signals_etf_weekly", "signals_etf_monthly",
-    "algo_metrics_daily", "market_data_batch", "technical_data_daily", "market_health_daily", "swing_trader_scores",
-    "feargreed", "aaiidata", "naaim_data", "stock_scores", "eod_bulk_refresh"
+    "financials_ttm_income", "financials_ttm_cashflow",
+    # Computed metrics
+    "growth_metrics", "quality_metrics", "value_metrics", "positioning_metrics", "stability_metrics",
+    "stock_scores",
+    # Earnings data
+    "earnings_history", "earnings_calendar",
+    # Company & analyst data
+    "company_profile", "analyst_sentiment", "analyst_upgrades_downgrades", "industry_ranking",
+    # Market sentiment
+    "feargreed", "aaiidata", "naaim_data",
+    # Sentiment aggregation
+    "sentiment", "sentiment_social",
+    # Trading signals & scores
+    "signal_themes", "signal_quality_scores", "buy_sell_daily",
+    # Technical indicators & metrics
+    "technical_data_daily", "algo_metrics_daily", "swing_trader_scores",
+    # Market health & economic data
+    "market_health_daily", "fred_economic_data", "trend_template_data"
 ]
 
 def invoke_loaders(subnet, security_group):
