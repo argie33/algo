@@ -1,43 +1,5 @@
 #!/usr/bin/env python3
-"""
-Atomic Watermark Manager - Guarantee "load only once" even if loader crashes.
-
-The problem it solves:
-  Loader starts, fetches data from day 1-100
-  Inserts rows 1-50 successfully
-  Insert row 51 FAILS (DB connection drops)
-  Loader retries, fetches day 1-100 again
-  Now we'd insert rows 1-50 again (DUPLICATION)
-
-The solution:
-  Use database transactions to make watermark updates ATOMIC with data inserts.
-  Either both succeed or both fail together.
-  Retry is safe: will just reload the same data again (idempotent).
-
-How it works:
-  1. Get current watermark (e.g., "2026-05-08")
-  2. Load data from (watermark + 1 day) through today
-  3. Insert all rows to database
-  4. Update watermark ONLY if insert succeeded
-  5. Commit transaction atomically
-
-  If step 3 fails: watermark doesn't update, next run will retry same data
-  If step 4 fails: worst case is we reload yesterday's data again (safe)
-
-USAGE:
-  wm = WatermarkManager(loader_name='loadpricedaily', table_name='price_daily')
-  watermark = wm.get_current_watermark(symbol='AAPL')  # Returns last loaded date
-
-  # Fetch data from (watermark + 1) through today
-  start = watermark + timedelta(days=1) if watermark else some_old_date
-  rows = fetch_data(symbol, start, today)
-  insert_into_db(rows)
-
-  # Atomically update watermark (only if DB is still connected)
-  success = wm.advance_watermark(symbol='AAPL', new_watermark=today)
-  if not success:
-    raise Exception("Failed to update watermark - next run will retry")
-"""
+"""Atomic watermark manager for incremental loaders - ensures "load only once" guarantee via transactions."""
 
 import logging
 import psycopg2.extensions
@@ -148,21 +110,6 @@ class WatermarkManager:
 
         Returns:
             True if watermark was updated, False if failed
-
-        Usage:
-            # Start transaction
-            db_conn.autocommit = False
-            try:
-                # Insert data
-                cur.execute("INSERT INTO price_daily VALUES (...)")
-                if wm.advance_watermark(new_watermark=today, symbol='AAPL', in_transaction=True):
-                    db_conn.commit()  # All or nothing
-                else:
-                    db_conn.rollback()
-                    raise Exception("Watermark update failed")
-            except Exception as e:
-                db_conn.rollback()
-                raise
         """
         try:
             with self.db_conn.cursor() as cur:
@@ -248,9 +195,9 @@ class WatermarkManager:
                         ),
                     )
 
-            if not in_transaction:
-                self.db_conn.commit()
-            return True
+                if not in_transaction:
+                    self.db_conn.commit()
+                return True
 
         except Exception as e:
             logger.error(f"Error advancing watermark: {e}")
@@ -258,114 +205,70 @@ class WatermarkManager:
                 self.db_conn.rollback()
             return False
 
-    def record_failure(
+    def record_error(
         self,
-        error_message: str,
         symbol: Optional[str] = None,
         granularity_key: Optional[str] = None,
+        error_message: str = "",
     ):
-        """
-        Record that a load attempt failed (watermark doesn't advance).
-        Next run will retry from the same watermark.
-
-        Args:
-            error_message: What went wrong
-            symbol: Symbol (if granularity='symbol')
-            granularity_key: Custom key (if granularity is custom)
-        """
+        """Record an error for this watermark entry."""
         try:
             with self.db_conn.cursor() as cur:
                 if self.granularity == "symbol":
+                    if not symbol:
+                        raise ValueError("symbol required")
                     cur.execute(
                         """
                         INSERT INTO loader_watermarks
-                        (loader, symbol, granularity, watermark, error_count, last_error)
-                        VALUES (%s, %s, %s, %s, 1, %s)
+                        (loader, symbol, granularity, last_error, last_error_at)
+                        VALUES (%s, %s, %s, %s, NOW())
                         ON CONFLICT (loader, symbol, granularity)
                         DO UPDATE SET
                             error_count = error_count + 1,
                             last_error = %s,
-                            last_run_at = NOW()
+                            last_error_at = NOW()
                         """,
-                        (
-                            self.loader_name,
-                            symbol,
-                            "symbol",
-                            None,
-                            error_message,
-                            error_message,
-                        ),
+                        (self.loader_name, symbol, "symbol", error_message, error_message),
                     )
                 elif self.granularity == "global":
                     cur.execute(
                         """
                         INSERT INTO loader_watermarks
-                        (loader, symbol, granularity, watermark, error_count, last_error)
-                        VALUES (%s, NULL, %s, %s, 1, %s)
+                        (loader, symbol, granularity, last_error, last_error_at)
+                        VALUES (%s, NULL, %s, %s, NOW())
                         ON CONFLICT (loader, symbol, granularity)
                         DO UPDATE SET
                             error_count = error_count + 1,
                             last_error = %s,
-                            last_run_at = NOW()
+                            last_error_at = NOW()
                         """,
-                        (
-                            self.loader_name,
-                            "global",
-                            None,
-                            error_message,
-                            error_message,
-                        ),
+                        (self.loader_name, "global", error_message, error_message),
                     )
                 else:
                     cur.execute(
                         """
                         INSERT INTO loader_watermarks
-                        (loader, symbol, granularity, watermark, error_count, last_error)
-                        VALUES (%s, %s, %s, %s, 1, %s)
+                        (loader, symbol, granularity, last_error, last_error_at)
+                        VALUES (%s, %s, %s, %s, NOW())
                         ON CONFLICT (loader, symbol, granularity)
                         DO UPDATE SET
                             error_count = error_count + 1,
                             last_error = %s,
-                            last_run_at = NOW()
+                            last_error_at = NOW()
                         """,
-                        (
-                            self.loader_name,
-                            granularity_key,
-                            self.granularity,
-                            None,
-                            error_message,
-                            error_message,
-                        ),
+                        (self.loader_name, granularity_key, self.granularity, error_message, error_message),
                     )
 
-            self.db_conn.commit()
-            logger.warning(
-                f"[{self.loader_name}] Recorded failure: {error_message}"
-            )
-
+                self.db_conn.commit()
         except Exception as e:
-            logger.error(f"Error recording failure: {e}")
-            self.db_conn.rollback()
+            logger.error(f"Failed to record error: {e}")
 
-    def get_watermark_status(self) -> Dict[str, Any]:
-        """
-        Get status of all watermarks for this loader.
-        Use for monitoring/debugging.
-
-        Returns:
-            Dict with watermark status for all symbols/keys
-        """
+    def get_status(self) -> Dict[str, Any]:
+        """Get status of all watermarks for this loader."""
         try:
             with self.db_conn.cursor() as cur:
                 cur.execute(
-                    """
-                    SELECT loader, symbol, granularity, watermark,
-                           rows_loaded, error_count, last_error,
-                           last_run_at, last_success_at
-                    FROM loader_watermarks
-                    WHERE loader = %s
-                    ORDER BY symbol, granularity
-                    """,
+                    "SELECT symbol, granularity, watermark, error_count, last_error FROM loader_watermarks WHERE loader = %s",
                     (self.loader_name,),
                 )
                 rows = cur.fetchall()
