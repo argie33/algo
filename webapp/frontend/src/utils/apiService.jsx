@@ -204,6 +204,39 @@ export const apiCall = async (
       dataSize,
     });
 
+    // Check for data freshness warnings
+    if (data && data.data_freshness) {
+      const freshness = data.data_freshness;
+      if (freshness.is_stale) {
+        console.warn(
+          `⚠️ Stale data from ${url}: ${freshness.warning || 'Data is older than expected'}`,
+          freshness
+        );
+      }
+    }
+
+    // Check for NULL values in expected fields
+    if (data && data.items && data.items.length > 0) {
+      const item = data.items[0];
+      const requiredFieldsByEndpoint = {
+        '/api/scores': ['symbol', 'momentum_score', 'composite_score'],
+        '/api/signals': ['symbol', 'ema_21', 'adx', 'signal'],
+        '/api/market': ['vix_level']
+      };
+
+      const endpoint = url.split('?')[0]; // Remove query params
+      const requiredFields = requiredFieldsByEndpoint[endpoint] || [];
+
+      for (const field of requiredFields) {
+        if (item[field] == null) {
+          console.error(
+            `❌ Expected field "${field}" is NULL/undefined in ${url}`,
+            { item, endpoint }
+          );
+        }
+      }
+    }
+
     return data;
   } catch (error) {
     const duration = Date.now() - startTime;
