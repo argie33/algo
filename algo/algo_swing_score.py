@@ -33,13 +33,6 @@ replacing a blend of SQS + composite. Final position ranking by
 swing_score directly.
 """
 
-from config.credential_manager import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
 import os
 import json
 from utils.database_context import DatabaseContext
@@ -49,16 +42,6 @@ from typing import Dict, Tuple, Any, Optional
 from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)
-
-def _get_db_config_dict():
-    """Lazy-load DB config at runtime instead of module import time."""
-    return {
-    "host": get_db_config()['host'],
-    "port": int(int(get_db_config()['port'])),
-    "user": get_db_config()['user'],
-    "password": get_db_password(),
-    "database": get_db_config()['database'],
-    }
 
 class SwingTraderScore:
     """Compute and persist swing-specific composite scores."""
@@ -71,45 +54,20 @@ class SwingTraderScore:
     W_SECTOR = 8        # Sector rotation and performance relative to market
     W_MULTI_TF = 5      # Multi-timeframe alignment (1h/4h/daily confirmation)
 
-    def __init__(self, cur=None):
-        self.cur = cur
-        self._owned = None
+    def __init__(self):
         self._signals = None
-        self._load_config_weights()
 
-    def _load_config_weights(self):
+    def _load_config_weights(self, cur) -> Dict[str, int]:
         """Load swing score component weights from config table if available."""
-        if self.cur is None:
-            return  # Use hardcoded defaults
+        weights = {}
         try:
-            # Try to load weights from algo_config table
-            self.cur.execute(
+            cur.execute(
                 "SELECT key, value FROM algo_config WHERE key LIKE 'swing_weight_%'"
             )
-            weights = {k: int(v) for k, v in self.cur.fetchall()}
-            self.W_SETUP = weights.get('swing_weight_setup', self.W_SETUP)
-            self.W_TREND = weights.get('swing_weight_trend', self.W_TREND)
-            self.W_MOMENTUM = weights.get('swing_weight_momentum', self.W_MOMENTUM)
-            self.W_VOLUME = weights.get('swing_weight_volume', self.W_VOLUME)
-            self.W_FUNDAMENTALS = weights.get('swing_weight_fundamentals', self.W_FUNDAMENTALS)
-            self.W_SECTOR = weights.get('swing_weight_sector', self.W_SECTOR)
-            self.W_MULTI_TF = weights.get('swing_weight_multi_timeframe', self.W_MULTI_TF)
+            weights = {k: int(v) for k, v in cur.fetchall()}
         except Exception as e:
             logger.debug(f"Could not load swing weights from config: {e} — using defaults")
-
-    def connect(self):
-        if self.cur is None:
-            self._owned = get_db_connection()
-            self.cur = self._owned.cursor()
-        if self._signals is None:
-            self._signals = SignalComputer(cur=self.cur)
-
-    def disconnect(self):
-        if self._owned:
-            self.cur.close()
-            self._owned.close()
-            self.cur = None
-            self._owned = None
+        return weights
 
     def compute(self, symbol: str, eval_date, sector: Optional[str] = None, industry: Optional[str] = None) -> Dict[str, Any]:
         """
