@@ -6,7 +6,31 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import sys
 # fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
-Analyst Sentiment Loader - Optimal Pattern.
+Analyst Sentiment Loader - Analyst Recommendation Sentiment
+
+ROLE IN SENTIMENT PIPELINE:
+  1. [SEPARATE SENTIMENT SOURCE] Fetches analyst recommendations (Buy/Hold/Sell)
+     - Reads from: yfinance API
+     - Writes to: analyst_sentiment_analysis table (per-symbol analyst sentiment)
+     - Does NOT conflict with AAII sentiment (different data source)
+
+PRIORITY HIERARCHY:
+  - Independent source: Does NOT depend on load_aaii_sentiment.py
+  - Used by: Separate analyst sentiment scoring system
+  - Data separation: analyst_sentiment_analysis ≠ sentiment (AAII)
+  - Conflicts: None (dedicated analyst data source)
+
+DATA SOURCE:
+  - yfinance API: Analyst recommendations (buy/hold/sell counts)
+  - Per-symbol: Analyst consensus and recommendations
+
+TABLES:
+  - analyst_sentiment_analysis: Per-symbol analyst sentiment and recommendations
+
+DISTINCTIONS FROM AAII SENTIMENT:
+  - AAII: Market-wide investor sentiment (bullish/neutral/bearish %)
+  - Analyst: Per-stock analyst recommendations (buy/hold/sell ratings)
+  - Usage: Different signal sources, no conflicts
 
 Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 
