@@ -6,21 +6,18 @@ Centralized configuration from database. Changes take effect immediately without
 Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
-from config.credential_helper import get_db_config
 import os
 import logging
 from config.api_timeouts import get_api_timeout
-
-logger = logging.getLogger(__name__)
+from config.credential_manager import get_credential_manager, get_db_config
+from config.credential_validator import assert_credentials
 from utils.db_connection import get_db_connection
 
+logger = logging.getLogger(__name__)
 
-# Try to import credential manager, but gracefully handle CI/test environments
-# where AWS credentials aren't available
+# Try to get credential manager
 _cred_mgr = None
 try:
-    from config.credential_manager import get_credential_manager
-    from config.credential_validator import assert_credentials
     _cred_mgr = get_credential_manager()
 except Exception as e:
     logger.warning(f"Credential manager not available (expected in CI): {e}")
