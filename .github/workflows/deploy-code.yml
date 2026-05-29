@@ -1106,7 +1106,8 @@ jobs:
           WEBSITE_URL=”${{ needs.resolve-infra.outputs.website_url }}”
           if [ -n “$WEBSITE_URL” ] && [ “$WEBSITE_URL” != “null” ] && [ “$WEBSITE_URL” != “None” ] && [ “$WEBSITE_URL” != “***” ]; then
             echo “Injecting CloudFront API_URL: $WEBSITE_URL”
-            sed -i “s|\”API_URL\”: \”\”|\”API_URL\”: \”$WEBSITE_URL\”|g” webapp/frontend/dist/config.js
+            # Use single quotes for sed pattern, concatenate variable outside quotes
+            sed -i 's|”API_URL”: “”|”API_URL”: “'$WEBSITE_URL'”|g' webapp/frontend/dist/config.js
             sed -i 's|”ENVIRONMENT”: “development”|”ENVIRONMENT”: “production”|g' webapp/frontend/dist/config.js
             echo “Config injected for production deployment”
           else
