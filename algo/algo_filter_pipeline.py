@@ -14,7 +14,8 @@ Only signals passing ALL tiers reach the final trade list, ranked by SQS.
 
 import os
 from utils.database_context import DatabaseContext
-from utils.db_connection import get_db_connection
+from config.credential_manager import get_db_config
+import psycopg2
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -51,14 +52,27 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         self._last_stop_reasoning = None
 
     def connect(self) -> None:
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
+        try:
+            config = get_db_config()
+            config["connect_timeout"] = 60
+            self.conn = psycopg2.connect(**config)
+            self.conn.autocommit = True
+            self.cur = self.conn.cursor()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            raise
 
     def disconnect(self) -> None:
         if self.cur:
-            self.cur.close()
+            try:
+                self.cur.close()
+            except Exception as e:
+                logger.debug(f"Error closing cursor: {e}")
         if self.conn:
-            self.conn.close()
+            try:
+                self.conn.close()
+            except Exception as e:
+                logger.debug(f"Error closing connection: {e}")
         self.cur = self.conn = None
 
     def _apply_tier_multiplier(self, base_size: float, tier: str, base_risk_pct: float) -> float:
