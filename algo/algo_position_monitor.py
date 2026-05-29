@@ -167,17 +167,15 @@ class PositionMonitor:
             current_date = _date.today()
 
         recs = []
-        with DatabaseContext(self.config) as db:
-            cur = db.cursor()
+        self.connect()
+        try:
+            # Issue #24: Check margin utilization and warn/halt if excessive
             try:
-
-                # Issue #24: Check margin utilization and warn/halt if excessive
-                try:
-                    cur.execute("""
-                        SELECT total_equity FROM algo_portfolio_snapshots
-                        ORDER BY snapshot_date DESC LIMIT 1
-                    """)
-                    eq_row = cur.fetchone()
+                self.cur.execute("""
+                    SELECT total_equity FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
+                eq_row = self.cur.fetchone()
                 if eq_row and eq_row[0]:
                     total_equity = float(eq_row[0])
                     # Compute margin usage = (equity - buying_power) / equity
@@ -227,13 +225,8 @@ class PositionMonitor:
                 self._print_recommendation(rec)
                 try:
                     self._persist_review(rec, current_date)
-                    self.conn.commit()
                 except Exception as e:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
-                    try:
-                        self.conn.rollback()
-                    except Exception as rollback_err:
-                        logger.debug(f"Rollback failed: {rollback_err}")
                     continue
             return recs
         finally:
