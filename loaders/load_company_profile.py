@@ -17,16 +17,6 @@ logger = get_logger(__name__)
 class CompanyProfileLoader:
     """Load company profiles with sector and industry from yfinance."""
 
-    def __init__(self):
-        self.conn = None
-
-    def connect(self):
-        self.conn = get_db_connection()
-
-    def disconnect(self):
-        if self.conn:
-            self.conn.close()
-
     def fetch_company_info(self, symbol: str) -> Dict:
         """Fetch company info from yfinance."""
         try:
@@ -45,66 +35,57 @@ class CompanyProfileLoader:
 
     def run(self) -> Dict:
         """Populate company_profile from stock_symbols and yfinance."""
-        self.connect()
         try:
-            cur = self.conn.cursor()
-
-            # Get all stocks (limit for speed)
-            cur.execute("""
-                SELECT symbol, security_name, exchange
-                FROM stock_symbols
-                WHERE symbol IS NOT NULL
-                ORDER BY symbol
-                LIMIT 500
-            """)
-
-            rows = cur.fetchall()
-            if not rows:
-                logger.warning("No stock symbols found")
-                return {"success": False, "rows": 0}
-
-            # Upsert company profiles with sector/industry enrichment
-            inserted = 0
-            for (symbol, name, exchange) in rows:
-                company_info = self.fetch_company_info(symbol)
+            with DatabaseContext('write') as cur:
+                # Get all stocks (limit for speed)
                 cur.execute("""
-                    INSERT INTO company_profile
-                    (ticker, symbol, short_name, long_name, display_name, sector, industry, exchange, website, employees, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (ticker) DO UPDATE SET
-                    sector = COALESCE(EXCLUDED.sector, company_profile.sector),
-                    industry = COALESCE(EXCLUDED.industry, company_profile.industry),
-                    long_name = COALESCE(EXCLUDED.long_name, company_profile.long_name),
-                    website = COALESCE(EXCLUDED.website, company_profile.website),
-                    employees = COALESCE(EXCLUDED.employees, company_profile.employees),
-                    exchange = EXCLUDED.exchange,
-                    updated_at = CURRENT_TIMESTAMP
-                """, (
-                    symbol, symbol, name,
-                    company_info.get('long_name', name),
-                    name,
-                    company_info.get('sector'),
-                    company_info.get('industry'),
-                    exchange,
-                    company_info.get('website'),
-                    company_info.get('employees')
-                ))
-                inserted += 1
+                    SELECT symbol, security_name, exchange
+                    FROM stock_symbols
+                    WHERE symbol IS NOT NULL
+                    ORDER BY symbol
+                    LIMIT 500
+                """)
 
-            self.conn.commit()
-            logger.info(f"Loaded {inserted} company profiles with sector/industry")
-            return {"success": True, "rows": inserted}
+                rows = cur.fetchall()
+                if not rows:
+                    logger.warning("No stock symbols found")
+                    return {"success": False, "rows": 0}
+
+                # Upsert company profiles with sector/industry enrichment
+                inserted = 0
+                for (symbol, name, exchange) in rows:
+                    company_info = self.fetch_company_info(symbol)
+                    cur.execute("""
+                        INSERT INTO company_profile
+                        (ticker, symbol, short_name, long_name, display_name, sector, industry, exchange, website, employees, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (ticker) DO UPDATE SET
+                        sector = COALESCE(EXCLUDED.sector, company_profile.sector),
+                        industry = COALESCE(EXCLUDED.industry, company_profile.industry),
+                        long_name = COALESCE(EXCLUDED.long_name, company_profile.long_name),
+                        website = COALESCE(EXCLUDED.website, company_profile.website),
+                        employees = COALESCE(EXCLUDED.employees, company_profile.employees),
+                        exchange = EXCLUDED.exchange,
+                        updated_at = CURRENT_TIMESTAMP
+                    """, (
+                        symbol, symbol, name,
+                        company_info.get('long_name', name),
+                        name,
+                        company_info.get('sector'),
+                        company_info.get('industry'),
+                        exchange,
+                        company_info.get('website'),
+                        company_info.get('employees')
+                    ))
+                    inserted += 1
+
+                cur.connection.commit()
+                logger.info(f"Loaded {inserted} company profiles with sector/industry")
+                return {"success": True, "rows": inserted}
 
         except Exception as e:
             logger.error(f"Company profile load failed: {e}")
-            if self.conn:
-                try:
-                    self.conn.rollback()
-                except Exception:
-                    pass
             return {"success": False, "error": str(e)}
-        finally:
-            self.disconnect()
 
 def main():
     import argparse

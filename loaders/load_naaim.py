@@ -255,17 +255,17 @@ def get_naaim_data():
 # -------------------------------
 # Main loader with batched inserts
 # -------------------------------
-def load_naaim_data(cur, conn):
+def load_naaim_data(cur):
     logging.info("Loading NAAIM data")
-    
+
     try:
         # Download the NAAIM data
         df = get_naaim_data()
-        
+
         if df.empty:
             logging.warning("No NAAIM data downloaded")
             return 0, 0, []
-        
+
         # Convert DataFrame to list of tuples for batch insert
         rows = []
         for _, row in df.iterrows():
@@ -279,21 +279,21 @@ def load_naaim_data(cur, conn):
             except Exception as e:
                 logging.warning(f"Failed to process row {row}: {e}")
                 continue
-        
+
         if not rows:
             logging.warning("No valid rows after processing")
             return 0, 0, []
-        
+
         # Batch insert the data
         sql = f"INSERT INTO naaim ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET naaim_number_mean = EXCLUDED.naaim_number_mean, bullish = EXCLUDED.bullish, bearish = EXCLUDED.bearish"
         execute_values(cur, sql, rows)
-        conn.commit()
-        
+        cur.connection.commit()
+
         inserted = len(rows)
         logging.info(f"Successfully inserted {inserted} NAAIM records")
-        
+
         return len(df), inserted, []
-        
+
     except Exception as e:
         logging.error(f"Error loading NAAIM data: {e}")
         return 0, 0, [str(e)]
@@ -306,49 +306,43 @@ def main():
     logging.info(f"[RUN] Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 
-    # Connect to DB
-    logging.info("Connecting to database...")
-    conn = get_db_connection()
-    logging.info("Database connection established")
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    with DatabaseContext('write') as cur:
+        # Ensure naaim table exists (never drop - avoid data loss)
+        logging.info("Ensuring naaim table...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS naaim (
+                id                  SERIAL PRIMARY KEY,
+                date                DATE         NOT NULL UNIQUE,
+                naaim_number_mean   DOUBLE PRECISION,
+                bullish             DOUBLE PRECISION,
+                bearish             DOUBLE PRECISION,
+                created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
-    # Ensure naaim table exists (never drop - avoid data loss)
-    logging.info("Ensuring naaim table...")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS naaim (
-            id                  SERIAL PRIMARY KEY,
-            date                DATE         NOT NULL UNIQUE,
-            naaim_number_mean   DOUBLE PRECISION,
-            bullish             DOUBLE PRECISION,
-            bearish             DOUBLE PRECISION,
-            created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    
-    # Ensure last_updated table exists
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS last_updated (
-            script_name VARCHAR(100) PRIMARY KEY,
-            last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
+        # Ensure last_updated table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS last_updated (
+                script_name VARCHAR(100) PRIMARY KEY,
+                last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.connection.commit()
 
-    # Load NAAIM data
-    import time as _time
-    _t0 = _time.monotonic()
-    total, inserted, failed = load_naaim_data(cur, conn)
-    _duration = _time.monotonic() - _t0
+        # Load NAAIM data
+        import time as _time
+        _t0 = _time.monotonic()
+        total, inserted, failed = load_naaim_data(cur)
+        _duration = _time.monotonic() - _t0
 
-    # Record last run
-    cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
+        # Record last run
+        cur.execute("""
+          INSERT INTO last_updated (script_name, last_run)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        cur.connection.commit()
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
@@ -365,10 +359,8 @@ def main():
     except Exception as _me:
         logging.debug(f"Metrics unavailable: {_me}")
 
-    cur.close()
-    conn.close()
     logging.info("All done.")
-    
+
     return total, inserted, failed
 
 if __name__ == "__main__":

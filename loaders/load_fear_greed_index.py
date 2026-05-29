@@ -46,7 +46,7 @@ try:
 except ImportError:
     resource = None  # Windows doesn't have resource module
 
-from utils.database_context import DatabaseContext
+from utils.database_context import DatabaseContext, get_db_connection
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
@@ -182,7 +182,7 @@ async def get_fear_greed_data():
 # -------------------------------
 # Main loader with batched inserts
 # -------------------------------
-async def load_fear_greed_data(cur, conn):
+async def load_fear_greed_data(cur):
     logging.info("Loading Fear & Greed data")
     
     try:
@@ -220,16 +220,16 @@ async def load_fear_greed_data(cur, conn):
         try:
             sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET fear_greed_value = EXCLUDED.fear_greed_value, fear_greed_label = EXCLUDED.fear_greed_label, created_at = CURRENT_TIMESTAMP"
             execute_values(cur, sql, rows)
-            conn.commit()
-            
+            cur.connection.commit()
+
             inserted = len(rows)
             logging.info(f"Successfully inserted {inserted} Fear & Greed records")
-            
+
             return len(data_array), inserted, []
-            
+
         except Exception as insert_error:
             logging.error(f"Database insert error: {insert_error}")
-            conn.rollback()  # Rollback the failed transaction
+            cur.connection.rollback()  # Rollback the failed transaction
             return 0, 0, [str(insert_error)]
         
     except Exception as e:
@@ -243,48 +243,42 @@ async def main():
     logging.info(f"Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 
-    # Connect to DB
-    logging.info("Connecting to database...")
-    conn = get_db_connection()
-    logging.info("Database connection established")
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    with DatabaseContext('write') as cur:
+        # Ensure fear_greed_index table exists (never drop - avoid data loss)
+        logging.info("Ensuring fear_greed_index table...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS fear_greed_index (
+                id                  SERIAL PRIMARY KEY,
+                date                DATE         NOT NULL UNIQUE,
+                fear_greed_value    INTEGER,
+                fear_greed_label    VARCHAR(50),
+                created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
-    # Ensure fear_greed_index table exists (never drop - avoid data loss)
-    logging.info("Ensuring fear_greed_index table...")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS fear_greed_index (
-            id                  SERIAL PRIMARY KEY,
-            date                DATE         NOT NULL UNIQUE,
-            fear_greed_value    INTEGER,
-            fear_greed_label    VARCHAR(50),
-            created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    
-    # Ensure last_updated table exists
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS last_updated (
-            script_name VARCHAR(100) PRIMARY KEY,
-            last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
+        # Ensure last_updated table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS last_updated (
+                script_name VARCHAR(100) PRIMARY KEY,
+                last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.connection.commit()
 
-    # Load Fear & Greed data
-    import time as _time
-    _t0 = _time.monotonic()
-    total, inserted, failed = await load_fear_greed_data(cur, conn)
-    _duration = _time.monotonic() - _t0
+        # Load Fear & Greed data
+        import time as _time
+        _t0 = _time.monotonic()
+        total, inserted, failed = await load_fear_greed_data(cur)
+        _duration = _time.monotonic() - _t0
 
-    # Record last run
-    cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
+        # Record last run
+        cur.execute("""
+          INSERT INTO last_updated (script_name, last_run)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        cur.connection.commit()
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
@@ -301,8 +295,6 @@ async def main():
     except Exception as _me:
         logging.debug(f"Metrics unavailable: {_me}")
 
-    cur.close()
-    conn.close()
     logging.info("All done.")
 
 if __name__ == "__main__":

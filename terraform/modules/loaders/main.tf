@@ -786,98 +786,6 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
 }
 
 # ============================================================
-# Continuous Monitor — ECS Task + EventBridge (every 15 min)
-# Runs algo_continuous_monitor.py --once; script self-skips outside market hours
-# ============================================================
-
-resource "null_resource" "ensure_continuous_monitor_log_group" {
-  provisioner "local-exec" {
-    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-continuous-monitor --region ${var.aws_region} 2>/dev/null || true"
-  }
-}
-
-resource "aws_ecs_task_definition" "continuous_monitor" {
-  depends_on = [null_resource.ensure_continuous_monitor_log_group]
-
-  family = "${var.project_name}-continuous-monitor"
-  container_definitions = jsonencode([
-    {
-      name      = "${var.project_name}-continuous-monitor"
-      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
-      essential = true
-      command   = ["python3", "-u", "loaders/algo_continuous_monitor.py"]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = "/ecs/${var.project_name}-continuous-monitor"
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "ecs"
-        }
-      }
-
-      secrets = [
-        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
-        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" },
-        { name = "APCA_API_KEY_ID", valueFrom = "${var.algo_secrets_arn}:APCA_API_KEY_ID::" },
-        { name = "APCA_API_SECRET_KEY", valueFrom = "${var.algo_secrets_arn}:APCA_API_SECRET_KEY::" }
-      ]
-
-      environment = [
-        { name = "LOADER_FILE", value = "algo_continuous_monitor.py" },
-        { name = "AWS_REGION", value = var.aws_region },
-        { name = "DB_HOST", value = var.db_host },
-        { name = "DB_PORT", value = tostring(var.db_port) },
-        { name = "DB_NAME", value = var.db_name },
-        { name = "ALPACA_PAPER_TRADING", value = tostring(var.alpaca_paper_trading) }
-      ]
-    }
-  ])
-
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = "256"
-  memory                   = "512"
-  execution_role_arn       = var.task_execution_role_arn
-  task_role_arn            = var.task_role_arn
-
-  tags = var.common_tags
-}
-
-resource "aws_cloudwatch_event_rule" "continuous_monitor" {
-  name                = "${var.project_name}-continuous-monitor-${var.environment}"
-  description         = "Run continuous monitor every 15 minutes (script skips when market closed)"
-  schedule_expression = "rate(15 minutes)"
-  state               = "ENABLED"
-
-  tags = var.common_tags
-}
-
-resource "aws_cloudwatch_event_target" "continuous_monitor" {
-  rule      = aws_cloudwatch_event_rule.continuous_monitor.name
-  target_id = "ContinuousMonitorTarget"
-  arn       = var.ecs_cluster_arn
-  role_arn  = aws_iam_role.eventbridge_run_task.arn
-
-  ecs_target {
-    launch_type         = "FARGATE"
-    task_definition_arn = aws_ecs_task_definition.continuous_monitor.arn
-    task_count          = 1
-    platform_version    = "LATEST"
-
-    network_configuration {
-      subnets          = var.private_subnet_ids
-      security_groups  = [var.ecs_tasks_sg_id]
-      assign_public_ip = false
-    }
-  }
-
-  dead_letter_config {
-    arn = aws_sqs_queue.loader_dlq.arn
-  }
-}
-
-# ============================================================
 # Algo Orchestrator ECS Task Definition (7-Phase Trading Logic)
 #
 # Runs as ECS Fargate task invoked by Step Functions EOD pipeline.
@@ -969,7 +877,7 @@ resource "aws_ecs_task_definition" "data_patrol" {
       image     = "${var.ecr_repository_uri}:${var.environment}-latest"
       essential = true
 
-      command = ["python3", "algo_data_patrol.py"]
+      command = ["python3", "algo/algo_data_patrol.py"]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -1004,69 +912,6 @@ resource "aws_ecs_task_definition" "data_patrol" {
 
   tags = var.common_tags
 }
-
-# ============================================================
-# Weight Optimization ECS Task Definition (Daily Continuous Improvement Loop)
-#
-# Invoked daily at 6:00 PM ET (after orchestrator completes)
-# Populates signal_trade_performance → computes IC → optimizes swing_score weights
-# Reads closed trades, computes information coefficients, adapts component weights
-# ============================================================
-
-resource "null_resource" "ensure_weight_optimization_log_group" {
-  provisioner "local-exec" {
-    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-weight-optimization --region ${var.aws_region} 2>/dev/null || true"
-  }
-}
-
-resource "aws_ecs_task_definition" "weight_optimization" {
-  depends_on = [null_resource.ensure_weight_optimization_log_group]
-
-  family = "${var.project_name}-weight-optimization"
-  container_definitions = jsonencode([
-    {
-      name      = "${var.project_name}-weight-optimization"
-      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
-      essential = true
-
-      command = ["python3", "-m", "loaders.load_weight_optimization"]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = "/ecs/${var.project_name}-weight-optimization"
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "ecs"
-        }
-      }
-
-      secrets = [
-        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
-        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
-      ]
-
-      environment = [
-        { name = "AWS_REGION", value = var.aws_region },
-        { name = "DB_HOST", value = var.db_host },
-        { name = "DB_PORT", value = tostring(var.db_port) },
-        { name = "DB_NAME", value = var.db_name },
-        { name = "LOG_LEVEL", value = "info" }
-      ]
-    }
-  ])
-
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = "512"  # Lightweight computation (IC + weight optimization)
-  memory                   = "1024" # Moderate memory for in-memory IC calculations
-  execution_role_arn       = var.task_execution_role_arn
-  task_role_arn            = var.task_role_arn
-
-  tags = var.common_tags
-}
-
-# Weight Optimization — triggered via EventBridge Scheduler in services/2x-daily-orchestrator.tf
-# No longer triggered here via classic EventBridge (consolidated in services module)
 
 # ============================================================
 # CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)

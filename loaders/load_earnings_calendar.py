@@ -23,32 +23,11 @@ logger = get_logger(__name__)
 class EarningsCalendarLoader:
     """Load upcoming earnings dates for all symbols."""
 
-    def __init__(self):
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        """Connect to database."""
-        try:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-            logger.info("Connected to database")
-        except Exception as e:
-            logger.error(f"Database connection failed: {e}")
-            raise
-
-    def close(self):
-        """Close database connection."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-
-    def get_symbols(self) -> List[str]:
+    def get_symbols(self, cur) -> List[str]:
         """Get all active symbols from database."""
         try:
-            self.cur.execute("SELECT symbol FROM stock_symbols WHERE symbol NOT LIKE '%.%'")
-            return [row[0] for row in self.cur.fetchall()]
+            cur.execute("SELECT symbol FROM stock_symbols WHERE symbol NOT LIKE '%.%'")
+            return [row[0] for row in cur.fetchall()]
         except Exception as e:
             logger.error(f"Failed to fetch symbols: {e}")
             return []
@@ -89,10 +68,10 @@ class EarningsCalendarLoader:
             logger.warning(f"yfinance fetch failed for {symbol}: {e}")
             return []
 
-    def load_earnings(self, symbols: Optional[List[str]] = None) -> int:
+    def load_earnings(self, cur, symbols: Optional[List[str]] = None) -> int:
         """Load earnings dates for symbols."""
         if symbols is None:
-            symbols = self.get_symbols()
+            symbols = self.get_symbols(cur)
 
         if not symbols:
             logger.warning("No symbols to load")
@@ -105,7 +84,7 @@ class EarningsCalendarLoader:
                 earnings = self.fetch_earnings_from_yfinance(symbol)
                 for earning in earnings:
                     try:
-                        self.cur.execute("""
+                        cur.execute("""
                             INSERT INTO earnings_calendar
                             (symbol, earnings_date, announce_time, eps_estimate, actual_eps,
                              revenue_estimate, actual_revenue, fiscal_period)
@@ -139,10 +118,10 @@ class EarningsCalendarLoader:
                 logger.warning(f"Failed to load earnings for {symbol}: {e}")
 
         try:
-            self.conn.commit()
+            cur.connection.commit()
             logger.info(f"Committed {total_loaded} earnings calendar records")
         except Exception as e:
-            self.conn.rollback()
+            cur.connection.rollback()
             logger.error(f"Failed to commit: {e}")
             return 0
 
@@ -150,11 +129,8 @@ class EarningsCalendarLoader:
 
     def run(self, symbols: Optional[List[str]] = None) -> int:
         """Run the loader."""
-        try:
-            self.connect()
-            return self.load_earnings(symbols)
-        finally:
-            self.close()
+        with DatabaseContext('write') as cur:
+            return self.load_earnings(cur, symbols)
 
 
 def main():

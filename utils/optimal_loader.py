@@ -51,6 +51,8 @@ try:
 except ImportError:
     credential_manager = None
 
+from utils.db_connection import get_db_connection
+
 log = logging.getLogger(__name__)
 _credential_manager = credential_manager
 
