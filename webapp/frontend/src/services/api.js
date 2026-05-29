@@ -106,9 +106,17 @@ if (typeof window !== "undefined" && window.location?.hostname === "localhost") 
   }
 }
 
-// Create axios instance
+// Create axios instance with dynamic baseURL resolution
+// In production, wait up to 100ms for window.__CONFIG__ to load before initializing
+let resolvedBaseURL = currentConfig.baseURL;
+
+if (typeof window !== "undefined" && !currentConfig.baseURL && !import.meta.env?.DEV) {
+  // In production with no baseURL yet, use window.__CONFIG__ directly if available
+  resolvedBaseURL = window.__CONFIG__?.API_URL || currentConfig.baseURL;
+}
+
 let api = axios.create({
-  baseURL: currentConfig.baseURL,
+  baseURL: resolvedBaseURL,
   timeout: currentConfig.isServerless ? 45000 : 30000,
   headers: {
     "Content-Type": "application/json",
