@@ -118,10 +118,10 @@ resource "aws_lambda_function" "api" {
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       NODE_ENV             = var.node_env
-      CLOUDFRONT_DOMAIN    = "https://d2u93283nn45h2.cloudfront.net" # Frontend CloudFront domain
-      FRONTEND_URL         = "https://d2u93283nn45h2.cloudfront.net" # Frontend CloudFront domain
-      FRONTEND_ORIGIN      = "https://d2u93283nn45h2.cloudfront.net" # Frontend CloudFront domain
-      ALLOWED_ORIGINS      = "https://d2u93283nn45h2.cloudfront.net,http://localhost:5173,http://localhost:3000"
+      CLOUDFRONT_DOMAIN    = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
+      FRONTEND_URL         = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
+      FRONTEND_ORIGIN      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
+      ALLOWED_ORIGINS      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000" : "http://localhost:5173,http://localhost:3000"
       # Data patrol task configuration (for /api/algo/patrol endpoint)
       ECS_CLUSTER_ARN            = var.ecs_cluster_arn
       PATROL_TASK_DEFINITION_ARN = var.patrol_task_definition_arn
@@ -132,7 +132,8 @@ resource "aws_lambda_function" "api" {
   }
 
   depends_on = [
-    aws_cloudwatch_log_group.api_lambda
+    aws_cloudwatch_log_group.api_lambda,
+    aws_cloudfront_distribution.frontend
   ]
 
   lifecycle {
