@@ -1064,32 +1064,68 @@ jobs:
 
       - name: Prepare Runtime Config
         run: |
-          # Copy source config and inject production values for AWS deployment
           mkdir -p webapp/frontend/dist
-          cp webapp/frontend/public/config.js webapp/frontend/dist/config.js
 
-          # Inject production CloudFront URL and environment into config.js
-          WEBSITE_URL="${{ needs.resolve-infra.outputs.website_url }}"
-          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ] && [ "$WEBSITE_URL" != "***" ]; then
-            echo "Injecting CloudFront API_URL: $WEBSITE_URL"
-            # Replace empty API_URL by recreating config with production values
-            {
-              echo '// Runtime configuration - Set by deploy-code.yml during deployment'
-              echo '// For local development: keep API_URL empty (Vite proxy handles routing)'
-              echo '// For production: deploy-code.yml injects CloudFront domain'
-              echo 'window.__CONFIG__ = {'
-              echo "  \"API_URL\": \"$WEBSITE_URL\","
-              echo '  "USER_POOL_ID": "us-east-1_XJpLb9SKX",'
-              echo '  "USER_POOL_CLIENT_ID": "6smb0vrcidd9kvhju2kn2a3qrl",'
-              echo '  "USER_POOL_DOMAIN": "https://algo-dev.auth.us-east-1.amazoncognito.com",'
-              echo '  "AWS_REGION": "us-east-1",'
-              echo '  "ENVIRONMENT": "production"'
-              echo '};'
-            } > webapp/frontend/dist/config.js
-            echo "Config injected for production deployment"
-          else
-            echo "WARNING: CloudFront website_url not available, using development config"
-          fi
+          # Use Python to inject production values from Terraform outputs
+          python3 << 'PYTHON_CONFIG'
+          import json
+          import os
+
+          website_url = "${{ needs.resolve-infra.outputs.website_url }}"
+          cognito_pool_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
+          cognito_client_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_client_id }}"
+          cognito_domain = "${{ needs.resolve-infra.outputs.cognito_domain_url }}"
+          region = "${{ env.AWS_REGION }}"
+          environment = "production"
+
+          # Validate required outputs
+          if not website_url or website_url in ['null', 'None', '***', '']:
+            print("WARNING: CloudFront website_url not available")
+            website_url = ""
+
+          if not cognito_pool_id or cognito_pool_id in ['null', 'None', '***', '']:
+            print("WARNING: Cognito user pool ID not available")
+            cognito_pool_id = ""
+
+          if not cognito_client_id or cognito_client_id in ['null', 'None', '***', '']:
+            print("WARNING: Cognito client ID not available")
+            cognito_client_id = ""
+
+          if not cognito_domain or cognito_domain in ['null', 'None', '***', '']:
+            print("WARNING: Cognito domain not available")
+            cognito_domain = f"https://algo-dev.auth.{region}.amazoncognito.com"
+
+          # Generate config.js with dynamic values
+          config = {
+            "API_URL": website_url,
+            "USER_POOL_ID": cognito_pool_id,
+            "USER_POOL_CLIENT_ID": cognito_client_id,
+            "USER_POOL_DOMAIN": cognito_domain,
+            "AWS_REGION": region,
+            "ENVIRONMENT": environment
+          }
+
+          config_js = '''// Runtime configuration - Set by deploy-code.yml during deployment
+// All values come from Terraform outputs (no hardcoding)
+// For local development: use npm run dev (Vite proxy)
+// For production: deployed via CloudFront
+window.__CONFIG__ = {
+  "API_URL": "%s",
+  "USER_POOL_ID": "%s",
+  "USER_POOL_CLIENT_ID": "%s",
+  "USER_POOL_DOMAIN": "%s",
+  "AWS_REGION": "%s",
+  "ENVIRONMENT": "%s"
+};
+''' % (config["API_URL"], config["USER_POOL_ID"], config["USER_POOL_CLIENT_ID"],
+       config["USER_POOL_DOMAIN"], config["AWS_REGION"], config["ENVIRONMENT"])
+
+          with open('webapp/frontend/dist/config.js', 'w') as f:
+            f.write(config_js)
+
+          print("Config injected from Terraform outputs")
+          print(config_js)
+          PYTHON_CONFIG
 
           echo "Runtime config prepared:"
           cat webapp/frontend/dist/config.js
