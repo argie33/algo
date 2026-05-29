@@ -3022,3 +3022,13 @@ CREATE TABLE IF NOT EXISTS support_resistance_levels (
 );
 CREATE INDEX IF NOT EXISTS idx_sr_levels_symbol_date
     ON support_resistance_levels(symbol, date DESC);
+
+-- Runtime configuration (allows config changes without redeploy)
+CREATE TABLE IF NOT EXISTS algo_runtime_config (
+    config_key VARCHAR(255) NOT NULL UNIQUE,
+    config_value VARCHAR(255) NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(255)
+);
+CREATE INDEX IF NOT EXISTS idx_runtime_config_key ON algo_runtime_config(config_key);
