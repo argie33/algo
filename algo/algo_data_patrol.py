@@ -38,8 +38,7 @@ USAGE:
 """
 
 from config.credential_manager import get_credential_manager
-from config.alpaca_config import get_alpaca_base_url
-from config.api_timeouts import get_market_data_timeout, get_alpaca_timeout
+from algo.algo_config import get_alpaca_base_url, get_market_data_timeout, get_alpaca_timeout
 import os
 import json
 import argparse

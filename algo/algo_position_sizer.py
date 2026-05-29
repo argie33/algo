@@ -11,7 +11,7 @@ Rules:
 - Max positions: 12 concurrent
 """
 
-from config.api_timeouts import get_alpaca_timeout
+from algo.algo_config import get_alpaca_timeout
 import os
 import psycopg2
 from datetime import date as _date

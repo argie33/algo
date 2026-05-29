@@ -8,8 +8,7 @@ Default thresholds: Alert at 70%, Block entries at 80%.
 import os
 from typing import Dict, Tuple
 import logging
-from config.api_timeouts import get_alpaca_timeout
-from config.alpaca_config import get_alpaca_base_url
+from algo.algo_config import get_alpaca_timeout, get_alpaca_base_url
 
 logger = logging.getLogger(__name__)
 

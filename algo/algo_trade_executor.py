@@ -19,7 +19,7 @@ from config.credential_manager import (
     DEFAULT_DB_NAME,
 )
 from config.credential_manager import get_alpaca_credentials
-from config.alpaca_config import get_alpaca_base_url
+from algo.algo_config import get_alpaca_base_url, get_api_timeout, get_alpaca_timeout
 
 import os
 import json
@@ -27,7 +27,6 @@ from utils.db_connection import get_db_connection
 import uuid
 from datetime import datetime, date, timedelta, timezone
 import requests
-from config.api_timeouts import get_api_timeout, get_alpaca_timeout
 import time
 from decimal import Decimal, ROUND_HALF_UP
 import logging

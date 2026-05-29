@@ -16,7 +16,7 @@ from config.credential_manager import (
     DEFAULT_DB_NAME,
 )
 from config.credential_manager import get_credential_manager
-from config.alpaca_config import get_alpaca_base_url
+from algo.algo_config import get_alpaca_base_url
 import os
 import json
 from utils.db_connection import get_db_connection

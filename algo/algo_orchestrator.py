@@ -62,7 +62,7 @@ from config.credential_manager import (
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
 )
-from config.api_timeouts import get_subprocess_timeout
+from algo.algo_config import get_subprocess_timeout
 
 
 import os

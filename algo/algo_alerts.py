@@ -19,7 +19,7 @@ import requests
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from config.api_timeouts import get_webhook_timeout
+from algo.algo_config import get_webhook_timeout
 from utils.structured_logger import get_logger
 
 logger = get_logger(__name__)

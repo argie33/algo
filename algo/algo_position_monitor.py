@@ -20,8 +20,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
 from config.credential_manager import get_credential_manager
-from config.alpaca_config import get_alpaca_base_url
-from config.api_timeouts import get_alpaca_timeout
+from algo.algo_config import get_alpaca_base_url, get_alpaca_timeout
 from utils.db_connection import get_db_connection
 import os
 import json

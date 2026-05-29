@@ -12,8 +12,7 @@ Implements fail-safe protocols that override strategy logic.
 
 from config.credential_manager import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
-from config.api_timeouts import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
-from config.alpaca_config import get_alpaca_base_url
+from algo.algo_config import get_api_timeout, get_market_data_timeout, get_alpaca_timeout, get_alpaca_base_url
 import os
 
 import psycopg2
