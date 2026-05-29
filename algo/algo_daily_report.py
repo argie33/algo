@@ -357,4 +357,4 @@ class DailyFinanceReport:
 if __name__ == "__main__":
     report_gen = DailyFinanceReport()
     report = report_gen.generate(_date.today())
-    print(report_gen.format_text(report))
+    logger.info(report_gen.format_text(report))
