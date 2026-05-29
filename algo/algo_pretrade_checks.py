@@ -10,10 +10,9 @@ Validates:
 - Order size limits
 """
 
-from config.credential_manager import get_db_config
 import logging
 from typing import Dict, Any, Tuple, Optional
-import psycopg2
+from utils.database_context import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
@@ -28,25 +27,6 @@ class PreTradeChecks:
         self.alpaca_base_url = alpaca_base_url
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
-        self.conn = None
-
-    def connect(self):
-        """Connect to database if not already connected."""
-        if not self.conn:
-            try:
-                self.conn = psycopg2.connect(**get_db_config())
-            except Exception as e:
-                logger.error(f"Failed to connect to database: {e}")
-                self.conn = None
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.conn:
-            try:
-                self.conn.close()
-            except Exception as close_err:
-                logger.debug(f"Connection close failed: {close_err}")
-            self.conn = None
 
     def apply_slippage_adjustment(self, shares: float, entry_price: float, slippage_pct: float = 1.0) -> Tuple[float, float]:
         """Issue #28: Apply slippage model to position size.
@@ -93,17 +73,13 @@ class PreTradeChecks:
                           f"${max_position_value:.2f} ({max_position_pct*100:.1f}% of portfolio)")
 
         try:
-            self.connect()
-            if self.conn:
-                cur = self.conn.cursor()
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     "SELECT symbol FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
                     (symbol, 'open')
                 )
                 if cur.fetchone():
-                    cur.close()
                     return (False, f"Position already open for {symbol}")
-                cur.close()
         except Exception as e:
             logger.warning(f"Failed to check for duplicate position: {e}")
             # Continue anyway - DB error shouldn't block trade
@@ -113,13 +89,10 @@ class PreTradeChecks:
             return (False, f"Position value ${position_value:.2f} below minimum ${min_order_size:.2f}")
 
         try:
-            if self.conn:
-                cur = self.conn.cursor()
+            with DatabaseContext('read') as cur:
                 cur.execute("SELECT symbol FROM stock_symbols WHERE symbol = %s LIMIT 1", (symbol,))
                 if not cur.fetchone():
-                    cur.close()
                     return (False, f"Symbol {symbol} not found in universe")
-                cur.close()
         except Exception as e:
             logger.warning(f"Failed to validate symbol: {e}")
 
