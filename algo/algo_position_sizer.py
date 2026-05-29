@@ -16,9 +16,9 @@ import os
 from datetime import date as _date
 from utils.database_context import DatabaseContext
 
-from utils.structured_logger import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class PositionSizer:
     """Calculate position sizes based on risk parameters."""
