@@ -16,6 +16,7 @@ from typing import Dict, Any, Optional, List
 from scipy.stats import pearsonr
 
 from utils.database_context import DatabaseContext
+from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 
