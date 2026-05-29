@@ -30,6 +30,9 @@ def run(
 ) -> PhaseResult:
     """Execute Phase 3a: Position Reconciliation.
 
+    Delegates to DailyReconciliation (consolidated from PositionReconciler).
+    Phase 3a is a lightweight check; comprehensive reconciliation is in Phase 7.
+
     Args:
         config: Configuration object
         get_conn: Function to get database connection
@@ -44,34 +47,26 @@ def run(
         PhaseResult with status 'ok' (fail-open)
     """
     try:
-        from algo.algo_reconciliation import PositionReconciler
-        reconciler = PositionReconciler()
-        result = reconciler.reconcile()
+        from algo.algo_daily_reconciliation import DailyReconciliation
 
-        if result.get('status') == 'skipped':
-            log_phase_result_fn('3a', 'reconciliation', 'success',
-                               f'Skipped: {result.get("reason", "alpaca unavailable")}')
-        elif result.get('critical_count', 0) > 0:
-            alerts.send_position_alert(
-                'RECONCILIATION',
-                'CRITICAL',
-                f'{result["critical_count"]} untracked Alpaca positions',
-                result.get('issues', [])[:5]
+        recon = DailyReconciliation(config)
+        result = recon.run_daily_reconciliation(run_date)
+
+        if result.get('success'):
+            log_phase_result_fn(
+                '3a', 'reconciliation', 'success',
+                f'{result.get("positions", 0)} positions verified'
             )
-            log_phase_result_fn('3a', 'reconciliation', 'alert',
-                               f'Critical divergence: {result["critical_count"]} issues')
-        elif result.get('error_count', 0) > 0:
-            alerts.send_position_alert(
-                'RECONCILIATION',
-                'ERROR',
-                f'{result["error_count"]} missing/closed positions in Alpaca',
-                result.get('issues', [])[:5]
+        elif result.get('reason') == 'Alpaca unavailable' or 'unavailable' in result.get('reason', '').lower():
+            log_phase_result_fn(
+                '3a', 'reconciliation', 'success',
+                f'Skipped: {result.get("reason", "alpaca unavailable")}'
             )
-            log_phase_result_fn('3a', 'reconciliation', 'alert',
-                               f'{result["error_count"]} position errors')
         else:
-            log_phase_result_fn('3a', 'reconciliation', 'success',
-                               f'{result.get("db_positions", 0)} positions reconciled OK')
+            log_phase_result_fn(
+                '3a', 'reconciliation', 'alert',
+                result.get('reason', 'reconciliation failed')
+            )
 
         return PhaseResult('3a', 'reconciliation', 'ok', result, False, None)
 

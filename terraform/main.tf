@@ -67,7 +67,7 @@ module "secrets" {
   alpaca_api_key    = var.alpaca_api_key_id
   alpaca_api_secret = var.alpaca_api_secret_key
   fred_api_key      = var.fred_api_key
-  db_host           = module.database.rds_address
+  db_host           = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
   db_port           = local.db_port
   db_name           = var.rds_db_name
   db_user           = var.rds_username
@@ -170,7 +170,7 @@ module "batch" {
   ecs_tasks_security_group_id   = module.vpc.ecs_tasks_security_group_id
   data_bucket_name              = module.storage.data_loading_bucket_name
   ecr_repository_uri            = module.compute.ecr_repository_url
-  db_host                       = module.database.rds_address
+  db_host                       = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
   db_port                       = local.db_port
   db_name                       = var.rds_db_name
   db_user                       = var.rds_username
@@ -365,7 +365,7 @@ module "monitoring" {
 
   # Database configuration
   rds_identifier        = module.database.rds_identifier
-  db_host               = module.database.rds_address
+  db_host               = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
   db_user               = module.database.rds_username
   db_name               = module.database.rds_database_name
   db_password           = module.database.rds_password
