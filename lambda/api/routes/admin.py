@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,7 @@ def _get_loader_status(cur) -> Dict:
                     'error': row['error_message'],
                 })
 
+            freshness = check_data_freshness(cur, 'data_loader_status', 'last_updated', warning_days=1)
             return json_response(200, {
                 'status': 'ok',
                 'loaders': loaders,
@@ -100,7 +101,8 @@ def _get_loader_status(cur) -> Dict:
                     'total': len(loaders),
                     'healthy': len([l for l in loaders if l['health'] == 'fresh']),
                     'stale': len([l for l in loaders if l['health'] == 'stale']),
-                }
+                },
+                'data_freshness': freshness
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:

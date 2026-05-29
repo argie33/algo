@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging, re
 from datetime import datetime, timezone
-from .utils import error_response, json_response, list_response, safe_limit, handle_db_error
+from .utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,8 @@ def _get_submissions(cur, params: Dict) -> Dict:
             LIMIT %s
         """, (limit,))
         rows = cur.fetchall()
-        return list_response([dict(r) for r in rows] if rows else [])
+        freshness = check_data_freshness(cur, 'contact_submissions', 'submitted_at', warning_days=1)
+        return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
     except psycopg2.errors.UndefinedTable:
         return list_response([])
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
