@@ -328,13 +328,6 @@ locals {
       description = "FRED economic indicators (T10Y2Y, yields, jobless claims) - 4:30pm ET (before EOD pipeline)"
     }
 
-    # 4:30am ET = 9:30am UTC Mon-Fri — runs AFTER stock_prices_daily (4:00am UTC 9:00)
-    # so market health is computed from freshly loaded prices, not yesterday's prices
-    "market_data_batch" = {
-      schedule    = "cron(30 9 ? * MON-FRI *)"
-      description = "Market data batch: 8 tiny loaders in parallel - 4:30am ET"
-    }
-
     # Financial statements — run Sunday night only (data changes quarterly, not daily)
     # STAGGERED: 60-minute intervals to prevent concurrent SEC EDGAR rate limit cascades
     # Each loader parallelism=1, 2 req/sec per task, max 1 concurrent = 2 req/sec total (safe)
