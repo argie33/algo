@@ -1102,22 +1102,25 @@ jobs:
           mkdir -p webapp/frontend/dist
           cp webapp/frontend/public/config.js webapp/frontend/dist/config.js
 
-          # Inject production CloudFront URL and environment into config.js using Python
+          # Inject production CloudFront URL and environment into config.js
           WEBSITE_URL=”${{ needs.resolve-infra.outputs.website_url }}”
           if [ -n “$WEBSITE_URL” ] && [ “$WEBSITE_URL” != “null” ] && [ “$WEBSITE_URL” != “None” ] && [ “$WEBSITE_URL” != “***” ]; then
             echo “Injecting CloudFront API_URL: $WEBSITE_URL”
-            python3 << PYSCRIPT
-          import sys
-          with open('webapp/frontend/dist/config.js', 'r') as f:
-              content = f.read()
-          # Replace empty API_URL with production URL
-          content = content.replace('”API_URL”: “”', '”API_URL”: “$WEBSITE_URL”')
-          # Replace development environment with production
-          content = content.replace('”ENVIRONMENT”: “development”', '”ENVIRONMENT”: “production”')
-          with open('webapp/frontend/dist/config.js', 'w') as f:
-              f.write(content)
-          print(“Config injected for production deployment”)
-          PYSCRIPT
+            # Replace empty API_URL by recreating config with production values
+            {
+              echo '// Runtime configuration - Set by deploy-code.yml during deployment'
+              echo '// For local development: keep API_URL empty (Vite proxy handles routing)'
+              echo '// For production: deploy-code.yml injects CloudFront domain'
+              echo 'window.__CONFIG__ = {'
+              echo “  \”API_URL\”: \”$WEBSITE_URL\”,”
+              echo '  “USER_POOL_ID”: “us-east-1_XJpLb9SKX”,'
+              echo '  “USER_POOL_CLIENT_ID”: “6smb0vrcidd9kvhju2kn2a3qrl”,'
+              echo '  “USER_POOL_DOMAIN”: “https://algo-dev.auth.us-east-1.amazoncognito.com”,'
+              echo '  “AWS_REGION”: “us-east-1”,'
+              echo '  “ENVIRONMENT”: “production”'
+              echo '};'
+            } > webapp/frontend/dist/config.js
+            echo “Config injected for production deployment”
           else
             echo “WARNING: CloudFront website_url not available, using development config”
           fi
