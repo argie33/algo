@@ -1105,14 +1105,12 @@ jobs:
           mkdir -p webapp/frontend/dist
           cp webapp/frontend/public/config.js webapp/frontend/dist/config.js
 
-          echo “✓ Runtime config prepared (using source config.js)”
+          echo “Runtime config prepared”
           cat webapp/frontend/dist/config.js
 
-          # Inject build timestamp into config.js URL to bust browser cache.
           BUILD_TS=$(date +%s)
           if [ -f “webapp/frontend/dist/index.html” ]; then
             sed -i “s|src=\”/config\.js\”|src=\”/config.js?v=${BUILD_TS}\”|g” webapp/frontend/dist/index.html
-            echo “✓ config.js cache buster added: /config.js?v=${BUILD_TS}”
           fi
 
       - name: Verify Frontend Build Output
