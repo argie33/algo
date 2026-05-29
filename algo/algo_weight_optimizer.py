@@ -49,27 +49,12 @@ class WeightOptimizer:
 
     def __init__(self, config=None):
         self.config = config or self._get_config()
-        self.conn = None
-        self.cur = None
 
     def _get_config(self):
         """Get AlgoConfig singleton."""
         from algo.algo_config import get_config
 
         return get_config()
-
-    def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        """Close connection."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
 
     def get_current_weights(self) -> Dict[str, int]:
         """Fetch current weights from algo_config."""
@@ -102,7 +87,6 @@ class WeightOptimizer:
             logger.warning("Portfolio value is 0 or negative, skipping weight optimization")
             return None
 
-        self.connect()
         try:
             # Get IC values
             attribution = SignalAttributionEngine()
@@ -139,8 +123,9 @@ class WeightOptimizer:
             logger.info(f"Optimal weights on {report_date}: {optimal}")
             return optimal
 
-        finally:
-            self.disconnect()
+        except Exception as e:
+            logger.error(f"Optimization failed: {e}")
+            return None
 
     def _solve_weights(self, ic_array: np.ndarray) -> Optional[Dict[str, int]]:
         """
