@@ -6,13 +6,14 @@
  * all signal data is actually ready, not on a fixed timer.
  *
  * Pipeline DAG:
- *   stock_prices_daily (unified price loader for all intervals/assets)
- *     → [parallel] technical_data_daily + market_health_daily
- *       → [parallel] trend_template_data
- *         → [parallel] buy_sell_daily + signal_quality_scores
- *           → algo_metrics_daily
- *             → swing_trader_scores
- *               → Invoke algo orchestrator ECS task
+ *   stock_symbols (reference data)
+ *     → stock_prices_daily (unified price loader for all intervals/assets)
+ *       → [parallel] technical_data_daily + market_health_daily
+ *         → [parallel] trend_template_data
+ *           → [parallel] buy_sell_daily + signal_quality_scores
+ *             → algo_metrics_daily
+ *               → swing_trader_scores
+ *                 → Invoke algo orchestrator ECS task
  *
  * Note: stock_prices_daily runs ~6h for all 5000+ symbols across all intervals (1d, 1wk, 1mo).
  * technicals_daily uses cached prices; runs in parallel with market_health_daily.
