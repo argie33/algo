@@ -319,7 +319,7 @@ jobs:
             # Warn (don't error) if heavy dependencies in function code - they should be in layer, but layer backup works
             has_deps = any(f.startswith(('boto', 'pandas', 'numpy', 'psycopg2', 'requests')) for f in files)
             if has_deps:
-              print("Ã¢Å¡Â Ã¯Â¸Â�- WARNING: Dependencies found in function code (layer will provide them)")
+              print("[ALERT]")
 
           with zipfile.ZipFile(layer_path, 'r') as zf:
             names = zf.namelist()
@@ -343,7 +343,7 @@ jobs:
 
           # Verify - warn if heavy dependencies in function code (layer will provide them)
           if unzip -l algo_lambda.zip | grep -qE 'boto|pandas|numpy|psycopg2'; then
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- WARNING: Dependencies found in function code (layer will provide them)"
+            echo "[ALERT]"
           else
             echo "[OK] No dependencies bundled (they come from layer)"
           fi
@@ -356,7 +356,7 @@ jobs:
             if unzip -l algo_layer.zip | grep -q "$pattern"; then
               echo "[OK] $pattern found"
             else
-              echo "Ã¢Â�-Å’ MISSING - $pattern"
+              echo "[ALERT]"
               exit 1
             fi
           done
@@ -535,13 +535,13 @@ jobs:
                     orchestrator_dry_run = val.lower() == 'true'
             print(f"  Read from tfvars: paper_trading={paper_trading}, exec_mode={exec_mode}, dry_run={orchestrator_dry_run}")
           except Exception as e:
-            print(f"WARNING: Could not read terraform.tfvars: {e} Ã¢â‚¬â€�- using safe defaults (paper=True)")
+            print(f"WARNING: Could not read terraform.tfvars: {e} paper=True)")
 
           apca_base_url = "https://paper-api.alpaca.markets" if paper_trading else "https://api.alpaca.markets"
           trading_mode = "PAPER" if paper_trading else "LIVE"
 
           print(f"[OK] Credentials loaded: {db_host}:{db_port}/{db_name}")
-          print(f"Ã°Å¸â€œÅ  Trading mode: {trading_mode}")
+          print(f"g_mode}")
 
           # Deploy function code
           print("Deploying function code...")
@@ -782,7 +782,7 @@ jobs:
           if [ -z "$SECRET_ID" ] || [ "$SECRET_ID" = "null" ] || [ "$SECRET_ID" = "***" ]; then
             # Fall back to constructed secret name
             SECRET_ID="${PROJECT}-db-credentials-${ENV}"
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- Using fallback secret ID: $SECRET_ID"
+            echo "[ALERT]"
           else
             echo "[OK] Using Terraform-resolved secret ID: $SECRET_ID"
           fi
@@ -899,7 +899,7 @@ jobs:
             --function-name "$FUNC" \
             --region $AWS_REGION)
 
-          echo "Ã¢Å"â€œ Lambda configuration retrieved"
+          echo "[ALERT]"â€œ Lambda configuration retrieved"
 
           DB_HOST=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_HOST // "NOT_SET"')
           DB_PORT=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_PORT // "NOT_SET"')
@@ -909,7 +909,7 @@ jobs:
           DB_SSL=$(echo "$LAMBDA_CONFIG" | jq -r '.Environment.Variables.DB_SSL // "NOT_SET"')
 
           if [ "$DB_HOST" = "NOT_SET" ]; then
-            echo "Ã¢Â�-Å’ ERROR: DB_HOST not set in Lambda environment"
+            echo "[ALERT]"
             exit 1
           fi
 
@@ -927,7 +927,7 @@ jobs:
           API_ENDPOINT="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
 
           if [ -z "$API_ENDPOINT" ]; then
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- API Gateway endpoint not available - skipping health check"
+            echo "[ALERT]"
             echo "   (Check API is deployed manually)"
             exit 0
           fi
@@ -950,7 +950,7 @@ jobs:
           if [ "$HTTP_CODE" = "200" ]; then
             echo "[OK] API health check passed"
           else
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- API health check returned $HTTP_CODE (expected 200)"
+            echo "[ALERT]"
           fi
 
       - name: Add Provisioned Concurrency to API Lambda
@@ -958,7 +958,7 @@ jobs:
         run: |
           FUNC="${{ needs.resolve-infra.outputs.api_lambda_function_name }}"
           if [ -z "$FUNC" ] || [ "$FUNC" = "null" ] || [ "$FUNC" = "***" ]; then
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- Skipping provisioned concurrency - function name not resolved"
+            echo "[ALERT]"
             exit 0
           fi
 
@@ -973,7 +973,7 @@ jobs:
             --output text 2>/dev/null || echo "None")
 
           if [ "$EXISTING" != "None" ] && [ -n "$EXISTING" ]; then
-            echo "Ã¢Å"â€œ Provisioned concurrency already configured: $EXISTING"
+            echo "[ALERT]"â€œ Provisioned concurrency already configured: $EXISTING"
           else
             echo "Setting provisioned concurrency to 1 instance (keeps Lambda warm, eliminates cold starts)..."
             aws lambda put-provisioned-concurrency-config \
@@ -981,7 +981,7 @@ jobs:
               --qualifier "\$LATEST" \
               --provisioned-concurrent-executions 1 \
               --region $AWS_REGION || {
-                echo "Ã¢Å¡Â Ã¯Â¸Â�- Could not set provisioned concurrency (optional)"
+                echo "[ALERT]"
                 echo "This may occur if the function is not yet deployed or has no alias"
               }
             echo "[OK] Provisioned concurrency configured (cost: ~$0.015/hour)"
@@ -1065,14 +1065,14 @@ jobs:
             echo "[OK] Using API Gateway URL: $FINAL_API_URL"
           else
             # Fall back to dynamic discovery (slower but always available)
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- Terraform outputs not available, discovering API Gateway..."
+            echo "[ALERT]"
             API_GATEWAY=$(aws apigatewayv2 get-apis \
               --region $AWS_REGION \
               --query 'Items[?Name=="algo-api-dev"].ApiEndpoint | [0]' \
               --output text 2>/dev/null || echo "")
 
             if [ -z "$API_GATEWAY" ] || [ "$API_GATEWAY" = "None" ]; then
-              echo "Ã¢Â�-Å’ ERROR: Could not resolve API Gateway endpoint"
+              echo "[ALERT]"
               echo "Available APIs:"
               aws apigatewayv2 get-apis --region $AWS_REGION --query 'Items[].Name' --output text || echo "No APIs found"
               exit 1
@@ -1135,11 +1135,11 @@ jobs:
             FILE_COUNT=$(find dist -type f | wc -l)
             echo "Total files: $FILE_COUNT"
             if [ "$FILE_COUNT" -eq 0 ]; then
-              echo "Ã¢Â�-Å’ ERROR: dist/ is empty!"
+              echo "[ALERT]"
               exit 1
             fi
           else
-            echo "Ã¢Â�-Å’ ERROR: dist/ does not exist"
+            echo "[ALERT]"
             exit 1
           fi
 
@@ -1154,7 +1154,7 @@ jobs:
               --output text 2>/dev/null || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-            echo "Ã¢Â�-Å’ ERROR: frontend bucket not resolved"
+            echo "[ALERT]"
             echo "Available buckets:"
             aws s3api list-buckets --query 'Buckets[].Name' --output text
             exit 1
@@ -1163,7 +1163,7 @@ jobs:
 
           # Verify bucket is accessible
           if ! aws s3 ls "s3://${BUCKET}/" >/dev/null 2>&1; then
-            echo "Ã¢Â�-Å’ ERROR: Cannot access bucket s3://${BUCKET}/"
+            echo "[ALERT]"
             exit 1
           fi
           echo "[OK] Bucket is accessible"
@@ -1224,7 +1224,7 @@ jobs:
               --output text)
             echo "[OK] CloudFront invalidation created: $INVALIDATION_ID"
           else
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- No CloudFront distribution found to invalidate"
+            echo "[ALERT]"
           fi
 
   # â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬â€�-â‚¬
@@ -1261,7 +1261,7 @@ jobs:
             echo "secret_access_key=$SECRET_KEY" >> $GITHUB_OUTPUT
             echo "[OK] Developer credentials retrieved from Secrets Manager"
           else
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- Developer credentials not found in Secrets Manager yet"
+            echo "[ALERT]"
           fi
 
       - name: Save Credentials for Next Steps
@@ -1300,7 +1300,7 @@ jobs:
 
       - name: Deregister Old Task Definition Versions
         run: |
-          echo "Ã°Å¸Â§Â¹ Cleaning up old ECS task definition versions..."
+          echo "sk definition versions..."
           echo "Keeping only the 2 most recent versions per family"
           echo ""
 
@@ -1377,7 +1377,7 @@ jobs:
             echo "  export AWS_SECRET_ACCESS_KEY=<secret>"
             echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_function_name }} --payload '{\"source\":\"manual\"}' response.json --region ${{ env.AWS_REGION }}"
           else
-            echo "  Ã¢Å¡Â Ã¯Â¸Â�- Retrieving credentials..."
+            echo "  tials..."
           fi
 
           echo ""
