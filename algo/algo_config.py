@@ -230,6 +230,7 @@ class AlgoConfig:
         """Load configuration from database, overriding defaults."""
         import time
         import os
+        from utils.database_context import DatabaseContext
 
         # In AWS Lambda, skip database load - use defaults only for speed
         # Lambda config is immutable anyway (set via Terraform env vars)
@@ -239,43 +240,29 @@ class AlgoConfig:
 
         t0 = time.time()
         logger.info(f"[AlgoConfig] _load_from_database() starting")
-        conn = None
-        cur = None
         try:
             t_conn_start = time.time()
-            conn = get_db_connection(timeout=15)  # RDS Proxy timeout (longer for batch operations)
-            t_conn_done = time.time()
-            logger.info(f"[AlgoConfig] database connection took {t_conn_done-t_conn_start:.2f}s")
-            cur = conn.cursor()
+            with DatabaseContext('read', timeout=15) as cur:
+                t_conn_done = time.time()
+                logger.info(f"[AlgoConfig] database connection took {t_conn_done-t_conn_start:.2f}s")
 
-            cur.execute("SELECT key, value, value_type FROM algo_config")
-            rows = cur.fetchall()
-            logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
+                cur.execute("SELECT key, value, value_type FROM algo_config")
+                rows = cur.fetchall()
+                logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
 
-            for key, value, dtype in rows:
-                if value is not None:
-                    try:
-                        self._validate_value(key, value, dtype)
-                        self._config[key] = self._parse_value(value, dtype)
-                    except ValueError as e:
-                        logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
-            self._validate_r_multiple_ordering()
-            t_end = time.time()
-            logger.info(f"[AlgoConfig] _load_from_database() completed in {t_end-t0:.2f}s")
+                for key, value, dtype in rows:
+                    if value is not None:
+                        try:
+                            self._validate_value(key, value, dtype)
+                            self._config[key] = self._parse_value(value, dtype)
+                        except ValueError as e:
+                            logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
+                self._validate_r_multiple_ordering()
+                t_end = time.time()
+                logger.info(f"[AlgoConfig] _load_from_database() completed in {t_end-t0:.2f}s")
         except Exception as e:
             logger.warning(f"Warning: Could not load config from DB: {e}")
             logger.info("  Using defaults...")
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-                    pass
-            if conn:
-                try:
-                    conn.close()
-                except Exception as e:
-                    pass
 
     def _parse_value(self, value, dtype):
         """Parse configuration value to correct type."""

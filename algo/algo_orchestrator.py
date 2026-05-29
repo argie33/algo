@@ -96,7 +96,7 @@ class Orchestrator:
         # Override execution_mode from environment variable if set
         env_execution_mode = os.getenv('ORCHESTRATOR_EXECUTION_MODE', '').strip().lower()
         if env_execution_mode:
-            self.config['execution_mode'] = env_execution_mode
+            self.config._config['execution_mode'] = env_execution_mode
             logger.info(f"[ENV] Execution mode overridden via ORCHESTRATOR_EXECUTION_MODE: {env_execution_mode}")
 
         self.run_date = run_date or _date.today()
