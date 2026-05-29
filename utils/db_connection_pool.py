@@ -16,7 +16,6 @@ Usage:
         pool.putconn(conn)
 """
 
-from config.env_loader import load_env
 from config.credential_helper import get_db_config
 try:
     from config.credential_manager import get_credential_manager
