@@ -10,7 +10,7 @@ Validates:
 - Order size limits
 """
 
-from config.credential_helper import get_db_config
+from config.credential_manager import get_db_config
 import logging
 from typing import Dict, Any, Tuple, Optional
 import psycopg2

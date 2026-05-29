@@ -8,7 +8,7 @@ symbol not held, etc). Catches cases where orders were filled outside our
 workflow or positions were closed in Alpaca but marked open in DB.
 """
 
-from config.credential_helper import (
+from config.credential_manager import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_PORT,

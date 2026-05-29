@@ -6,7 +6,7 @@ Provides visibility into which loaders are working and data freshness.
 
 import os
 import psycopg2.extras
-from config.credential_helper import get_db_config
+from config.credential_manager import get_db_config
 from datetime import datetime, timezone, timedelta
 import logging
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column

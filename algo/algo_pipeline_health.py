@@ -18,7 +18,7 @@ USAGE:
   logger.info(status.is_healthy)  # True if all critical data fresh
 """
 
-from config.credential_helper import get_db_config
+from config.credential_manager import get_db_config
 
 import os
 import logging

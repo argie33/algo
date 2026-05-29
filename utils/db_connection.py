@@ -12,7 +12,7 @@ import socket
 import os
 import subprocess
 
-from config.credential_helper import get_db_config
+from config.credential_manager import get_db_config
 
 logger = logging.getLogger(__name__)
 

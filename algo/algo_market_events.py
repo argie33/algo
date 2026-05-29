@@ -10,7 +10,7 @@ Detects and responds to market anomalies:
 Implements fail-safe protocols that override strategy logic.
 """
 
-from config.credential_helper import get_db_config, get_db_password
+from config.credential_manager import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
 from config.api_timeouts import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
 import os

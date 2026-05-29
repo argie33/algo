@@ -25,6 +25,11 @@ from typing import Dict, Optional, Any
 
 log = logging.getLogger(__name__)
 
+# Database defaults
+DEFAULT_DB_PORT = "5432"
+DEFAULT_DB_USER = "stocks"
+DEFAULT_DB_NAME = "stocks"
+
 
 class CredentialManager:
     """Centralized credential fetcher with caching and failover."""

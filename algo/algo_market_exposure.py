@@ -41,7 +41,7 @@ Output:
 Persists daily to market_exposure_daily table for dashboard / audit.
 """
 
-from config.credential_helper import (
+from config.credential_manager import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_PORT,

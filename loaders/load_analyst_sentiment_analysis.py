@@ -22,7 +22,7 @@ except ImportError:
 import argparse
 import logging
 logger = logging.getLogger(__name__)
-from config.credential_helper import get_db_password, get_db_config
+from config.credential_manager import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import os
 import sys

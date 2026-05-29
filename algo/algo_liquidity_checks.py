@@ -7,7 +7,7 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 import psycopg2
 from datetime import datetime, timedelta
 from utils.structured_logger import get_logger
-from config.credential_helper import get_db_config
+from config.credential_manager import get_db_config
 
 
 logger = get_logger(__name__)

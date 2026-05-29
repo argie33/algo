@@ -33,7 +33,7 @@ replacing a blend of SQS + composite. Final position ranking by
 swing_score directly.
 """
 
-from config.credential_helper import (
+from config.credential_manager import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_PORT,

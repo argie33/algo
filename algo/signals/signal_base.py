@@ -9,7 +9,7 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 - Helper functions (period_return, rs_percentile_vs_spy)
 """
 
-from config.credential_helper import (
+from config.credential_manager import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_PORT,

@@ -29,7 +29,7 @@ except ImportError:
     credential_manager = None
 
 try:
-    from config.credential_helper import get_db_password, get_db_config
+    from config.credential_manager import get_db_password, get_db_config
     from utils.loader_helpers import get_active_symbols
 except ImportError:
     # Fallback if config modules don't exist - use env vars directly

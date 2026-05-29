@@ -21,7 +21,7 @@ State tracked on algo_positions:
   - current_stop_price: trailed stop after T1/T2 hits
 """
 
-from config.credential_helper import (
+from config.credential_manager import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_PORT,

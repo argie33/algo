@@ -10,7 +10,7 @@ Triggered by EventBridge on schedule (every 6 hours or on-demand).
 """
 
 import json
-from config.credential_helper import get_db_config
+from config.credential_manager import get_db_config
 import boto3
 import os
 from datetime import datetime

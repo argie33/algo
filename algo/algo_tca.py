@@ -15,7 +15,7 @@ This is what institutional traders use to validate their edge isn't eroded by fe
 """
 
 
-from config.credential_helper import (
+from config.credential_manager import (
     get_db_password,
     get_db_config,
     DEFAULT_DB_PORT,

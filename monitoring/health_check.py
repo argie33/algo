@@ -12,7 +12,7 @@ Monitors the 7 critical fixes deployed in production:
 - H6: Data completeness gate (check scores coverage)
 """
 
-from config.credential_helper import get_db_config
+from config.credential_manager import get_db_config
 import os
 import sys
 import logging
