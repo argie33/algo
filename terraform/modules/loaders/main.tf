@@ -234,7 +234,7 @@ locals {
   # No longer used directly (Docker CMD specifies the loader).
   # Kept for documentation and potential future use.
   loader_file_map = {
-    "stock_symbols"                 = "loadstocksymbols.py"
+    "stock_symbols"                 = "load_stock_symbols.py"
     "sp500_constituents"            = "load_sp500_constituents.py"
     "russell2000_constituents"      = "load_russell2000_constituents.py"
     "stock_prices_daily"            = "loadpricedaily.py" # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
@@ -256,7 +256,7 @@ locals {
     "positioning_metrics"           = "load_positioning_metrics.py"
     "stability_metrics"             = "load_stability_metrics.py"
     "stock_scores"                  = "load_stock_scores.py"
-    "earnings_history"              = "loadearningshistory.py"
+    "earnings_history"              = "load_earnings_history.py"
     "aaiidata"                      = "load_aaii_sentiment.py"
     "naaim_data"                    = "load_naaim.py"
     "feargreed"                     = "load_fear_greed_index.py"
