@@ -10,13 +10,11 @@ Detects and responds to market anomalies:
 Implements fail-safe protocols that override strategy logic.
 """
 
-from config.credential_manager import get_db_config, get_db_password
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url
 from algo.algo_config import get_api_timeout, get_market_data_timeout, get_alpaca_timeout
-import os
+from utils.database_context import DatabaseContext
 
-import psycopg2
 import requests
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Dict, Any, List
@@ -39,38 +37,6 @@ class MarketEventHandler:
             logger.warning(f"Alpaca credentials not available: {e}")
             self.alpaca_key = None
             self.alpaca_secret = None
-
-        self.db_host = get_db_config()['host']
-        self.db_port = int(os.getenv('DB_PORT', 5432))
-        self.db_user = get_db_config()['user']
-        self.db_password = get_db_password()
-        self.db_name = get_db_config()['database']
-
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        """Connect to database."""
-        try:
-            self.conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_name,
-            )
-            self.cur = self.conn.cursor()
-        except Exception as e:
-            logger.error(f"MarketEventHandler: DB connection failed: {e}")
-            raise
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     def check_single_stock_halt(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Check if symbol is currently halted from trading.
@@ -203,21 +169,18 @@ class MarketEventHandler:
             check_date = date.today()
 
         try:
-            # Query market_health_daily for early_close flag
-            if not self.cur:
-                self.connect()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT early_close FROM market_health_daily
+                    WHERE date = %s
+                    """,
+                    (check_date,)
+                )
+                row = cur.fetchone()
 
-            self.cur.execute(
-                """
-                SELECT early_close FROM market_health_daily
-                WHERE date = %s
-                """,
-                (check_date,)
-            )
-            row = self.cur.fetchone()
-
-            if row:
-                return bool(row[0])
+                if row:
+                    return bool(row[0])
 
             # Fallback: check known dates
             # Day after Thanksgiving (4th Thursday of November)
@@ -280,30 +243,29 @@ class MarketEventHandler:
             dict with action taken
         """
         try:
-            if not self.cur:
-                self.connect()
+            from utils.database_context import database_transaction
+            with database_transaction() as cur:
+                # Cancel any pending orders for this symbol
+                cur.execute(
+                    """
+                    UPDATE algo_trades
+                    SET status = 'cancelled'
+                    WHERE symbol = %s AND status IN ('pending', 'open')
+                    """,
+                    (symbol,)
+                )
 
-            # Cancel any pending orders for this symbol
-            self.cur.execute(
-                """
-                UPDATE algo_trades
-                SET status = 'cancelled'
-                WHERE symbol = %s AND status IN ('pending', 'open')
-                """,
-                (symbol,)
-            )
+                # Log the halt event
+                cur.execute(
+                    """
+                    INSERT INTO algo_audit_log (
+                        action_type, action_date, details, severity
+                    ) VALUES (%s, %s, %s, %s)
+                    """,
+                    ('SINGLE_STOCK_HALT', datetime.now(timezone.utc), f'Symbol {symbol} halted — pending orders cancelled', 'WARN')
+                )
 
-            # Log the halt event
-            self.cur.execute(
-                """
-                INSERT INTO algo_audit_log (
-                    action_type, action_date, details, severity
-                ) VALUES (%s, %s, %s, %s)
-                """,
-                ('SINGLE_STOCK_HALT', datetime.now(timezone.utc), f'Symbol {symbol} halted — pending orders cancelled', 'WARN')
-            )
-
-            self.conn.commit()
+                cur.connection.commit()
 
             return {
                 'action': 'HALT_SYMBOL',
@@ -313,8 +275,6 @@ class MarketEventHandler:
             }
 
         except Exception as e:
-            if self.conn:
-                self.conn.rollback()
             logger.error(f"MarketEventHandler: handle_single_stock_halt error: {e}")
             return {'action': 'ERROR', 'message': str(e)}
 

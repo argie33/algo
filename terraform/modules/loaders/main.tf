@@ -276,7 +276,7 @@ locals {
 
     # Sentiment aggregation
     "sentiment"                 = "load_sentiment.py"
-    "sentiment_social"          = "load_sentiment_social.py"
+    # DELETED: sentiment_social - was placeholder (load_sentiment_social.py deleted)
 
     # Trading signals & scores
     "signal_themes"             = "load_signal_themes.py"
@@ -528,7 +528,7 @@ locals {
 
     # Sentiment aggregation — combine multiple sentiment sources
     "sentiment"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "sentiment_social" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Signal processing — compute signal themes
     "signal_themes"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }

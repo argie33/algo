@@ -1128,9 +1128,6 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )
 
-    from utils.config_validator import validate_at_startup
-    validate_at_startup()
-
     import argparse
     parser = argparse.ArgumentParser(description='Run daily algo workflow')
     parser.add_argument('--date', type=str, help='Run date (YYYY-MM-DD)', default=None)
@@ -1146,10 +1143,8 @@ if __name__ == "__main__":
     env_dry_run = os.getenv('ORCHESTRATOR_DRY_RUN', 'false').lower() in ('true', '1', 'yes')
     dry_run = args.dry_run or env_dry_run
 
-    # For --init-only and --dry-run, don't require full validation at startup
-    if not (args.init_only or dry_run):
-        from utils.config_validator import validate_at_startup
-        validate_at_startup()
+    from config.credential_validator import assert_credentials
+    assert_credentials(on_failure="warn")
 
     if args.init_only:
         logger.info("Running in INIT-ONLY mode: loading data without trading")
