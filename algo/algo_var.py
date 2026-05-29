@@ -30,25 +30,6 @@ class PortfolioRisk:
 
     def __init__(self, config):
         self.config = config
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        """Connect to database."""
-        try:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
-        except Exception as e:
-            logger.error(f"DB connection failed: {e}", exc_info=True)
-            raise
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> Optional[Dict[str, float]]:
         """Compute historical simulation VaR.
@@ -571,4 +552,5 @@ class PortfolioRisk:
         except Exception as e:
             logger.error(f"Daily risk report generation error: {e}", exc_info=True)
             return {'status': 'error', 'message': str(e)}
+
 
