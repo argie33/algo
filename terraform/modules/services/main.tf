@@ -19,14 +19,14 @@ locals {
 
 # FIXED Issue #11: API Layer (always uses latest compatible)
 data "aws_lambda_layer_version" "api_deps" {
-  layer_name           = var.api_lambda_layer_name
-  compatible_runtime   = "python3.12"
+  layer_name         = var.api_lambda_layer_name
+  compatible_runtime = "python3.12"
 }
 
 # FIXED Issue #11: Orchestrator Layer (always uses latest compatible)
 data "aws_lambda_layer_version" "shared_deps" {
-  layer_name           = var.lambda_layer_name
-  compatible_runtime   = "python3.12"
+  layer_name         = var.lambda_layer_name
+  compatible_runtime = "python3.12"
 }
 
 # For compatibility with existing code
@@ -106,20 +106,20 @@ resource "aws_lambda_function" "api" {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
       # FIXED Issue #10: Use RDS Proxy endpoint if available, otherwise extract hostname from RDS endpoint
-      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
-      DB_PORT       = "5432"
-      DB_NAME       = var.rds_database_name
-      DB_USER       = var.rds_username
-      DB_SSL        = "require"
+      DB_HOST = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_PORT = "5432"
+      DB_NAME = var.rds_database_name
+      DB_USER = var.rds_username
+      DB_SSL  = "require"
       # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
       ALGO_SECRETS_ARN     = var.algo_secrets_arn
       APCA_API_BASE_URL    = var.alpaca_api_base_url
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       NODE_ENV             = var.node_env
-      CLOUDFRONT_DOMAIN    = "https://d2u93283nn45h2.cloudfront.net"  # Frontend CloudFront domain
-      FRONTEND_URL         = "https://d2u93283nn45h2.cloudfront.net"   # Frontend CloudFront domain
-      FRONTEND_ORIGIN      = "https://d2u93283nn45h2.cloudfront.net"   # Frontend CloudFront domain
+      CLOUDFRONT_DOMAIN    = "https://d2u93283nn45h2.cloudfront.net" # Frontend CloudFront domain
+      FRONTEND_URL         = "https://d2u93283nn45h2.cloudfront.net" # Frontend CloudFront domain
+      FRONTEND_ORIGIN      = "https://d2u93283nn45h2.cloudfront.net" # Frontend CloudFront domain
       ALLOWED_ORIGINS      = "https://d2u93283nn45h2.cloudfront.net,http://localhost:5173,http://localhost:3000"
       # Data patrol task configuration (for /api/algo/patrol endpoint)
       ECS_CLUSTER_ARN            = var.ecs_cluster_arn
@@ -165,7 +165,7 @@ resource "aws_apigatewayv2_api" "main" {
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
     expose_headers    = ["Content-Length", "Content-Type"]
-    max_age          = 3600
+    max_age           = 3600
     allow_credentials = true
   }
 
@@ -512,7 +512,7 @@ resource "aws_lambda_function" "algo" {
   # Keep orchestrator Lambda warm to minimize cold starts during critical trading hours
   reserved_concurrent_executions = 1
 
-  layers        = [local.shared_deps_layer_arn, var.psycopg2_layer_arn] # Orchestrator dependencies + psycopg2 for database access
+  layers = [local.shared_deps_layer_arn, var.psycopg2_layer_arn] # Orchestrator dependencies + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
@@ -535,11 +535,11 @@ resource "aws_lambda_function" "algo" {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
       # FIXED Issue #10: Use RDS Proxy endpoint if available, otherwise extract hostname from RDS endpoint
-      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
-      DB_PORT       = "5432"
-      DB_NAME       = var.rds_database_name
-      DB_USER       = var.rds_username
-      DB_SSL        = "require"
+      DB_HOST = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_PORT = "5432"
+      DB_NAME = var.rds_database_name
+      DB_USER = var.rds_username
+      DB_SSL  = "require"
       # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
       ALGO_SECRETS_ARN       = var.algo_secrets_arn
       ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
@@ -553,8 +553,8 @@ resource "aws_lambda_function" "algo" {
       DATA_PATROL_TIMEOUT_MS = tostring(var.data_patrol_timeout_ms)
       DEV_MODE               = var.dev_mode
       # Alert configuration (email, Slack webhooks, SMS)
-      ALERT_EMAIL_TO         = var.alert_email_to
-      ALERT_WEBHOOK_URL      = var.alert_webhook_url
+      ALERT_EMAIL_TO    = var.alert_email_to
+      ALERT_WEBHOOK_URL = var.alert_webhook_url
     }
   }
 
