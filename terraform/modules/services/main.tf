@@ -160,7 +160,7 @@ resource "aws_apigatewayv2_api" "main" {
     allow_origins = [
       "http://localhost:3000",
       "http://localhost:5173",
-      try("https://${aws_cloudfront_distribution.frontend[0].domain_name}", "")
+      "https://d2u93283nn45h2.cloudfront.net"  # Frontend CloudFront domain
     ]
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
@@ -521,12 +521,6 @@ resource "aws_lambda_function" "algo" {
   filename          = !local.algo_lambda_use_s3 ? "${path.root}/${var.algo_lambda_code_file}" : null
   source_code_hash  = !local.algo_lambda_use_s3 ? filebase64sha256("${path.root}/${var.algo_lambda_code_file}") : null
 
-  # FIXED Issue #15: Validate Lambda code is available either via S3 or local file
-  precondition {
-    condition     = local.algo_lambda_use_s3 || fileexists("${path.root}/${var.algo_lambda_code_file}")
-    error_message = "Lambda code must be available either via S3 (algo_lambda_s3_bucket configured) or as local file (${path.root}/${var.algo_lambda_code_file})"
-  }
-
   ephemeral_storage {
     size = var.algo_lambda_ephemeral_storage
   }
@@ -561,8 +555,6 @@ resource "aws_lambda_function" "algo" {
       # Alert configuration (email, Slack webhooks, SMS)
       ALERT_EMAIL_TO         = var.alert_email_to
       ALERT_WEBHOOK_URL      = var.alert_webhook_url
-      # Failsafe: manually trigger loaders if EventBridge fails
-      LOADER_TRIGGER_LAMBDA_ARN = aws_lambda_function.trigger_loaders.arn
     }
   }
 
