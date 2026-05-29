@@ -212,7 +212,7 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 }
 
 # ============================================================
-# Scheduled EventBridge Rules - All 40 Loaders
+# Scheduled EventBridge Rules - Scheduled Loaders
 # ============================================================
 # Loaders are scheduled to run at optimal times to:
 # 1. Respect data dependencies (prices first, then signals)
