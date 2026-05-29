@@ -101,6 +101,26 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
+        # Database connection (legacy pattern, to be migrated to DatabaseContext)
+        self.conn = None
+        self.cur = None
+
+    def connect(self) -> None:
+        """Connect to database if not already connected."""
+        from config.credential_manager import get_db_connection
+        if self.conn is not None:
+            return
+        self.conn = get_db_connection()
+        self.cur = self.conn.cursor()
+
+    def disconnect(self) -> None:
+        """Disconnect from database."""
+        if self.cur:
+            self.cur.close()
+        if self.conn:
+            self.conn.close()
+        self.cur = self.conn = None
+
     # ---------- Entry ----------
 
     def execute_trade(self, symbol: str, entry_price: float, shares: float, stop_loss_price: float,

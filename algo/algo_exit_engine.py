@@ -24,6 +24,7 @@ State tracked on algo_positions:
 from config.credential_manager import (
     get_db_password,
     get_db_config,
+    get_db_connection,
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
