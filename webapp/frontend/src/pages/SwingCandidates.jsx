@@ -27,8 +27,9 @@ import {
   CartesianGrid, AreaChart, Area, Legend, Line,
 } from 'recharts';
 import { api } from '../services/api';
+import { formatNumber } from '../utils/formatters';
 
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const num = (v, dp = 2) => formatNumber(v, dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',

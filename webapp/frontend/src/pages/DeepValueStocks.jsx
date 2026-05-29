@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useApiQuery } from "../hooks/useApiQuery";
 import api from "../services/api";
+import { formatNumber, formatPercentageChange } from "../utils/formatters";
 
 const DeepValueStocks = () => {
   const [selectedStock, setSelectedStock] = useState(null);
@@ -85,9 +86,9 @@ const DeepValueStocks = () => {
     setPage(0);
   };
 
-  const fmt = (v, dec = 2) => v != null ? parseFloat(v).toFixed(dec) : "—";
-  const fmtPct = (v, dec = 1) => v != null ? `${parseFloat(v).toFixed(dec)}%` : "—";
-  const fmtDiscount = (v) => v != null ? `${parseFloat(v).toFixed(1)}%` : "—";
+  const fmt = (v, dec = 2) => formatNumber(v, dec);
+  const fmtPct = (v, dec = 1) => formatPercentageChange(v, dec);
+  const fmtDiscount = (v) => formatPercentageChange(v, 1);
 
   const avg = (arr, key) => {
     const vals = arr.map(s => s[key]).filter(v => v != null && !isNaN(v));

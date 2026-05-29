@@ -16,10 +16,11 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import PreviewModal from '../components/PreviewModal';
+import { formatNumber, formatCurrency } from '../utils/formatters';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
-const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
-const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const num = (v, dp = 2) => formatNumber(v, dp);
+const fmtMoney = (v) => formatCurrency(v);
 const fmtAgo = (ts) => {
   if (!ts) return '—';
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
@@ -33,7 +34,7 @@ const Pnl = ({ value, suffix = '' }) => {
   const v = Number(value);
   const cls = v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
   const sign = v > 0 ? '+' : '';
-  return <span className={`mono tnum ${cls}`} style={{ fontWeight: 'var(--w-semibold)' }}>{sign}{v.toFixed(2)}{suffix}</span>;
+  return <span className={`mono tnum ${cls}`} style={{ fontWeight: 'var(--w-semibold)' }}>{sign}{formatNumber(v, 2)}{suffix}</span>;
 };
 
 // ─── main ──────────────────────────────────────────────────────────────────
