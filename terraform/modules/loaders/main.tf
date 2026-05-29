@@ -236,6 +236,7 @@ locals {
   loader_file_map = {
     "stock_symbols"                 = "loadstocksymbols.py"
     "sp500_constituents"            = "load_sp500_constituents.py"
+    "russell2000_constituents"      = "load_russell2000_constituents.py"
     "stock_prices_daily"            = "loadpricedaily.py" # UNIFIED: all intervals (1d,1wk,1mo) + asset classes (stock,etf)
     "stock_prices_weekly"           = "loadpricedaily.py" # Uses unified loader with env vars for weekly interval
     "etf_prices_daily"              = "loadpricedaily.py"
@@ -301,6 +302,12 @@ locals {
     "sp500_constituents" = {
       schedule    = "cron(30 8 ? * MON-FRI *)"
       description = "S&P 500 constituent symbols - 3:30am ET (after stock_symbols)"
+    }
+
+    # 3:35am ET = 8:35am UTC Mon-Fri (runs after S&P 500 to mark Russell 2000 constituents)
+    "russell2000_constituents" = {
+      schedule    = "cron(35 8 ? * MON-FRI *)"
+      description = "Russell 2000 small-cap constituent symbols - 3:35am ET (after sp500_constituents)"
     }
 
     # 4:00am ET = 9am UTC Mon-Fri
@@ -510,10 +517,11 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    # Reference data (3:25-3:30am ET)
+    # Reference data (3:25-3:35am ET)
     # parallelism=1: tiny list, no benefit from threads
-    "stock_symbols"      = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "sp500_constituents" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "stock_symbols"         = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "sp500_constituents"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # UNIFIED Price Loader (4:00am ET) — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
     # Runs sequentially for each interval+class combo, parallelizes symbol fetches (yfinance rate-limited)
