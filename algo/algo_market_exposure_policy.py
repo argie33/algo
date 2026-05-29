@@ -140,45 +140,34 @@ class ExposurePolicy:
 
     def __init__(self, config=None):
         self.config = config
-        self.conn = None
-        self.cur = None
-
-    def connect(self):
-        self.conn = get_db_connection()
-        self.cur = self.conn.cursor()
-
-    def disconnect(self):
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
 
     def get_active_tier(self, eval_date=None):
         """Look up the most recent exposure score and return its policy tier."""
         if eval_date is None:
             eval_date = _date.today()
-        self.connect()
+
         try:
-            self.cur.execute(
-                """SELECT date, exposure_pct, regime, halt_reasons FROM market_exposure_daily
-                   WHERE date <= %s ORDER BY date DESC LIMIT 1""",
-                (eval_date,),
-            )
-            row = self.cur.fetchone()
-            if not row:
-                return None
-            exposure = float(row[1])
-            tier = tier_for_exposure(exposure)
-            return {
-                'as_of_date': row[0].isoformat(),
-                'exposure_pct': exposure,
-                'regime': row[2],
-                'halt_reasons': row[3],
-                'tier': tier,
-            }
-        finally:
-            self.disconnect()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """SELECT date, exposure_pct, regime, halt_reasons FROM market_exposure_daily
+                       WHERE date <= %s ORDER BY date DESC LIMIT 1""",
+                    (eval_date,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                exposure = float(row[1])
+                tier = tier_for_exposure(exposure)
+                return {
+                    'as_of_date': row[0].isoformat(),
+                    'exposure_pct': exposure,
+                    'regime': row[2],
+                    'halt_reasons': row[3],
+                    'tier': tier,
+                }
+        except Exception as e:
+            logger.error(f"Failed to get active tier: {e}")
+            return None
 
     def review_existing_positions(self, eval_date=None):
         """Apply tier policy to all open positions.
@@ -196,31 +185,32 @@ class ExposurePolicy:
         if eval_date is None:
             eval_date = _date.today()
 
-        self.connect()
         try:
-            self.cur.execute(
-                """
-                SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-                       t.target_1_price, t.target_2_price, t.target_3_price,
-                       t.trade_date,
-                       p.position_id, p.quantity, p.target_levels_hit,
-                       p.current_stop_price, p.current_price,
-                       p.unrealized_pnl_pct
-                FROM algo_positions p
-                CROSS JOIN LATERAL UNNEST(p.trade_ids_arr) AS tid(id)
-                JOIN algo_trades t ON t.trade_id = tid.id
-                WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
-                """
-            )
-            positions = self.cur.fetchall()
-            actions = []
-            for row in positions:
-                action = self._evaluate_position(row, tier, active, eval_date)
-                if action and action['action'] != 'hold':
-                    actions.append(action)
-            return actions
-        finally:
-            self.disconnect()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """
+                    SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                           t.target_1_price, t.target_2_price, t.target_3_price,
+                           t.trade_date,
+                           p.position_id, p.quantity, p.target_levels_hit,
+                           p.current_stop_price, p.current_price,
+                           p.unrealized_pnl_pct
+                    FROM algo_positions p
+                    CROSS JOIN LATERAL UNNEST(p.trade_ids_arr) AS tid(id)
+                    JOIN algo_trades t ON t.trade_id = tid.id
+                    WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
+                    """
+                )
+                positions = cur.fetchall()
+                actions = []
+                for row in positions:
+                    action = self._evaluate_position(row, tier, active, eval_date)
+                    if action and action['action'] != 'hold':
+                        actions.append(action)
+                return actions
+        except Exception as e:
+            logger.error(f"Failed to review positions: {e}")
+            return []
 
     def _evaluate_position(self, row, tier, active, eval_date):
         (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
