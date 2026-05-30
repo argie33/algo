@@ -235,6 +235,35 @@ jobs:
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
 
+      - name: Build db-init Lambda
+        run: |
+          # Build db-init Lambda ZIP before Terraform tries to deploy it.
+          # Lambda initializes PostgreSQL schema on first deployment.
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/db-init
+          PKG_DIR=/tmp/db-init-pkg
+
+          mkdir -p $PKG_DIR
+
+          # Copy db-init Lambda function and schema
+          cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
+          cp $SOURCE_LAMBDA/schema.sql $PKG_DIR/
+
+          # Copy requirements if they exist
+          if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
+            python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+              -t $PKG_DIR/ \
+              --no-cache-dir --quiet
+          fi
+
+          # Create ZIP for deployment
+          rm -f $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip
+          mkdir -p $GITHUB_WORKSPACE/terraform/lambda_artifacts
+          cd $PKG_DIR
+          zip -r $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip . -q -x "*.pyc" "__pycache__/*"
+
+          echo "[OK] db-init Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip | cut -f1)"
+          unzip -l $GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip | head -10
+
       - name: Build API Lambda (REST API)
         run: |
           # Build API Lambda ZIP before Terraform tries to deploy it.

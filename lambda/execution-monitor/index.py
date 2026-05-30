@@ -3,32 +3,27 @@
 
 import json
 import os
-import boto3
 import psycopg2
 import logging
+import sys
 from datetime import datetime, date
+from pathlib import Path
 from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-sm_client = boto3.client('secretsmanager', region_name='us-east-1')
+# Lambda layer path and project root
+if os.path.exists('/opt/python'):
+    sys.path.insert(0, '/opt/python')
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def get_rds_credentials():
-    """Get RDS credentials from Secrets Manager."""
+    """Get RDS credentials from credential_manager."""
     try:
-        import os
-        secret_arn = os.getenv('DB_SECRET_ARN', 'algo-db-credentials-dev')
-        response = sm_client.get_secret_value(SecretId=secret_arn)
-        secret = json.loads(response['SecretString'])
-        return {
-            'host': secret.get('host'),
-            'port': secret.get('port', 5432),
-            'user': secret.get('username', 'admin'),
-            'password': secret.get('password'),
-            'database': secret.get('dbname', 'algo'),
-        }
+        from config.credential_manager import get_db_credentials
+        return get_db_credentials()
     except Exception as e:
         logger.error(f"Failed to get RDS credentials: {e}")
         return None
@@ -76,25 +71,24 @@ def query_rds_signals(credentials):
 
 
 def get_alpaca_credentials():
-    """Get Alpaca credentials from Secrets Manager or environment."""
+    """Get Alpaca credentials from credential_manager."""
     from config.alpaca_config import get_alpaca_base_url
+    from config.credential_manager import get_alpaca_credentials as get_alpaca_creds
+
     base_url = get_alpaca_base_url()
 
     try:
-        alpaca_secret_arn = os.getenv('ALPACA_SECRET_ARN', 'algo/alpaca-credentials-dev')
-        response = sm_client.get_secret_value(SecretId=alpaca_secret_arn)
-        secret = json.loads(response['SecretString'])
+        creds = get_alpaca_creds()
         return {
-            'api_key': secret.get('APCA_API_KEY_ID'),
-            'secret_key': secret.get('APCA_API_SECRET_KEY'),
+            'api_key': creds.get('key'),
+            'secret_key': creds.get('secret'),
             'base_url': base_url,
         }
     except Exception as e:
-        logger.error(f"Failed to get Alpaca credentials from Secrets Manager: {e}")
-        # Fallback to environment variables
+        logger.error(f"Failed to get Alpaca credentials: {e}")
         return {
-            'api_key': os.getenv('APCA_API_KEY_ID'),
-            'secret_key': os.getenv('APCA_API_SECRET_KEY'),
+            'api_key': None,
+            'secret_key': None,
             'base_url': base_url,
         }
 

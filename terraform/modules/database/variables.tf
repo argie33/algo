@@ -342,3 +342,13 @@ variable "postgres_major_version" {
   type        = string
   default     = "14"
 }
+
+# ============================================================
+# Database Initialization Lambda
+# ============================================================
+
+variable "db_init_code_file" {
+  description = "Path to packaged db-init Lambda function zip (from GitHub Actions build)"
+  type        = string
+  default     = "lambda_artifacts/db-init.zip"
+}

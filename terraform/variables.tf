@@ -1060,3 +1060,13 @@ variable "ecr_image_count" {
   default     = 10
 }
 
+# ============================================================
+# Database Initialization Lambda
+# ============================================================
+
+variable "db_init_code_file" {
+  description = "Path to packaged db-init Lambda zip file (from GitHub Actions)"
+  type        = string
+  default     = "lambda_artifacts/db-init.zip"
+}
+
