@@ -1090,34 +1090,30 @@ jobs:
           npm install
 
           # Get API endpoint from Terraform output (resolved in resolve-infra job)
-          API_GATEWAY="${{ needs.resolve-infra.outputs.api_gateway_endpoint }}"
           WEBSITE_URL="${{ needs.resolve-infra.outputs.website_url }}"
 
-          echo "Terraform outputs: API_GATEWAY=$API_GATEWAY, WEBSITE_URL=$WEBSITE_URL"
+          echo "Terraform outputs: WEBSITE_URL=$WEBSITE_URL"
 
-          # Prefer CloudFront URL for API
+          # Always use the CloudFront URL — frontend is served FROM CloudFront so
+          # API calls to the same CloudFront domain are same-origin (no CORS needed).
+          # Never fall back to the direct API Gateway URL: that's cross-origin and
+          # would require the frontend origin in API GW CORS, causing breakage.
           if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ] && [ "$WEBSITE_URL" != "***" ]; then
             FINAL_API_URL="$WEBSITE_URL"
             echo "[OK] Using CloudFront URL: $FINAL_API_URL"
-          elif [ -n "$API_GATEWAY" ] && [ "$API_GATEWAY" != "null" ] && [ "$API_GATEWAY" != "***" ]; then
-            FINAL_API_URL="$API_GATEWAY"
-            echo "[OK] Using API Gateway URL: $FINAL_API_URL"
           else
-            # Fall back to dynamic discovery (slower but always available)
-            echo "[ALERT] Terraform outputs empty - discovering API Gateway from AWS..."
-            API_GATEWAY=$(aws apigatewayv2 get-apis \
-              --region $AWS_REGION \
-              --query 'Items[?Name=="algo-api-dev"].ApiEndpoint | [0]' \
+            # CloudFront URL not available — discover it from AWS
+            echo "[WARN] CloudFront website_url not in Terraform outputs, discovering from AWS..."
+            FINAL_API_URL=$(aws cloudfront list-distributions \
+              --query 'DistributionList.Items[0].DomainName' \
               --output text 2>/dev/null || echo "")
-
-            if [ -z "$API_GATEWAY" ] || [ "$API_GATEWAY" = "None" ]; then
-              echo "[ALERT] Could not discover API Gateway from AWS"
-              echo "Available APIs:"
-              aws apigatewayv2 get-apis --region $AWS_REGION --query 'Items[].Name' --output text || echo "No APIs found"
-              exit 1
+            if [ -n "$FINAL_API_URL" ] && [ "$FINAL_API_URL" != "None" ]; then
+              FINAL_API_URL="https://${FINAL_API_URL}"
+              echo "[OK] Discovered CloudFront URL: $FINAL_API_URL"
+            else
+              echo "[ALERT] Could not discover CloudFront distribution - frontend API calls will use relative paths"
+              FINAL_API_URL=""
             fi
-            FINAL_API_URL="$API_GATEWAY"
-            echo "[OK] Using discovered API Gateway: $FINAL_API_URL"
           fi
 
           echo "Building with VITE_API_URL=$FINAL_API_URL"
@@ -1174,6 +1170,7 @@ jobs:
           python3 << 'PYTHON_CONFIG'
           import json
           import os
+          import subprocess
 
           website_url = "${{ needs.resolve-infra.outputs.website_url }}"
           cognito_pool_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
@@ -1182,10 +1179,26 @@ jobs:
           region = "${{ env.AWS_REGION }}"
           environment = "production"
 
-          # Validate required outputs
+          # Validate required outputs - always use CloudFront URL, never direct API GW URL.
+          # API_URL must be the CloudFront domain so frontend API calls are same-origin.
           if not website_url or website_url in ['null', 'None', '***', '']:
-            print("WARNING: CloudFront website_url not available")
-            website_url = ""
+            print("WARNING: CloudFront website_url not in Terraform outputs, discovering from AWS...")
+            try:
+              result = subprocess.run(
+                ['aws', 'cloudfront', 'list-distributions',
+                 '--query', 'DistributionList.Items[0].DomainName',
+                 '--output', 'text', '--region', region],
+                capture_output=True, text=True, check=True)
+              domain = result.stdout.strip()
+              if domain and domain != 'None':
+                website_url = f"https://{domain}"
+                print(f"Discovered CloudFront URL: {website_url}")
+              else:
+                website_url = ""
+                print("Could not discover CloudFront URL - using relative paths (API_URL='')")
+            except Exception as e:
+              website_url = ""
+              print(f"CloudFront discovery failed: {e} - using relative paths")
 
           if not cognito_pool_id or cognito_pool_id in ['null', 'None', '***', '']:
             print("WARNING: Cognito user pool ID not available")

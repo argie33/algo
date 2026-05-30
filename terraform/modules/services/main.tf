@@ -168,19 +168,15 @@ resource "aws_apigatewayv2_api" "main" {
   # 1. S3 Frontend (static React app)
   # 2. API Gateway (backend REST API)
   #
-  # CloudFront domain is NOT in this CORS list (avoids circular dependency in Terraform).
-  # Instead, the origin_request_policy in CloudFront's /api/* cache behavior handles header forwarding.
+  # Primary path: frontend calls /api/* via CloudFront (same-origin, no CORS needed).
+  # CORS origins here cover: local dev (localhost) and direct API GW access from the
+  # CloudFront origin (belt-and-suspenders for fallback scenarios).
   #
-  # When browsers access www.example.com/api/*, requests flow through CloudFront which:
-  # - Forwards necessary headers to API Gateway via origin_request_policy
-  # - API Gateway doesn't need CloudFront in CORS because CloudFront is same-origin (same domain)
-  #
-  # Direct API access (development) uses localhost origins below.
+  # api_cors_allowed_origins is set in terraform.tfvars and includes localhost + the
+  # CloudFront domain. The CloudFront domain cannot be referenced here via resource
+  # attribute (circular dependency), so it is supplied as a known variable value.
   cors_configuration {
-    allow_origins = [
-      "http://localhost:3000",
-      "http://localhost:5173"
-    ]
+    allow_origins     = var.api_cors_allowed_origins
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
     expose_headers    = ["Content-Length", "Content-Type"]

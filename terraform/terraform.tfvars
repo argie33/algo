@@ -5,12 +5,16 @@ project_name = "algo"
 frontend_origin = "http://localhost:3000"
 # Frontend deployment
 cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
-# API Gateway CORS configuration - local dev origins only
-# CloudFront domain is dynamically merged at apply time by services module
+# API Gateway CORS configuration
+# Includes localhost for local dev and the CloudFront domain for production.
+# The CloudFront domain cannot be a Terraform resource reference here (circular dep:
+# API GW CORS → CF domain → CF origin → API GW endpoint → API GW). Supply it as a
+# known value. Update this list if the CloudFront distribution is ever recreated.
 api_cors_allowed_origins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "http://localhost:5174"
+  "http://localhost:5174",
+  "https://d2u93283nn45h2.cloudfront.net"
 ]
 # ORCHESTRATOR SCHEDULE: 3 runs during market hours
 # Goal: Keep signals computed overnight, execute multiple times to catch opportunities + meet 4 PM ET close SLA
