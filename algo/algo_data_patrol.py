@@ -133,7 +133,7 @@ class DataPatrol:
                 if not latest_str:
                     # Empty tables log as INFO/WARN, never CRITICAL (loaders may not have run yet)
                     empty_severity = INFO if sev_on_stale == CRIT else sev_on_stale
-                    self.log(cur, cur, 'staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
+                    self.log(cur, 'staleness', empty_severity, tbl, f'EMPTY table {tbl}', {'count': count})
                     continue
                 # Handle both date and datetime formats
                 try:
@@ -145,7 +145,7 @@ class DataPatrol:
                         latest = None
 
                 if not latest:
-                    self.log(cur, cur, 'staleness', WARN, tbl, f'{tbl} timestamp parse failed: {latest_str}', {'latest': latest_str})
+                    self.log(cur, 'staleness', WARN, tbl, f'{tbl} timestamp parse failed: {latest_str}', {'latest': latest_str})
                     continue
 
                 age = (today - latest).days
@@ -158,7 +158,7 @@ class DataPatrol:
                              f'{tbl} fresh ({age}d old)',
                              {'latest': str(latest), 'age_days': age})
             except Exception as e:
-                self.log(cur, cur, 'staleness', ERROR, tbl, f'Check failed: {e}', None)
+                self.log(cur, 'staleness', ERROR, tbl, f'Check failed: {e}', None)
 
     def check_null_anomalies(self, cur):
         """P2. Sudden spike in NULL values vs historical."""
@@ -185,7 +185,7 @@ class DataPatrol:
                          f'NULL rate {null_pct:.2f}% acceptable',
                          {'today_nulls': today_nulls, 'today_total': today_total})
         except Exception as e:
-            self.log(cur, cur, 'null_anomaly', ERROR, 'price_daily', f'Check failed: {e}', None)
+            self.log(cur, 'null_anomaly', ERROR, 'price_daily', f'Check failed: {e}', None)
 
     def check_zero_or_identical(self, cur):
         """P3. Rows with all zeros or identical OHLC (sign of API limit hit).
