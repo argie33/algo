@@ -534,7 +534,8 @@ locals {
     "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Sentiment aggregation — combine multiple sentiment sources
-    "sentiment"        = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "sentiment"             = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "sentiment_aggregate"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Signal processing — compute signal themes
