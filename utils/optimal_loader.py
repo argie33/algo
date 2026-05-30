@@ -15,8 +15,6 @@ try:
 except ImportError:
     credential_manager = None
 
-from utils.db_connection import get_db_connection
-
 logger = logging.getLogger(__name__)
 _credential_manager = credential_manager
 
@@ -44,9 +42,6 @@ class OptimalLoader(ABC):
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
     def __init__(self, backfill_days: Optional[int] = None):
-        import threading
-        self._conn = None  # legacy single conn (close path)
-        self._tls = threading.local()  # per-thread connection
         self._dedup = None
         self._watermark = None
         self._router = None
@@ -116,18 +111,6 @@ class OptimalLoader(ABC):
             logger.warning("Watermark unavailable (%s) �� running full refresh", e)
             self._watermark = False
         return self._watermark if self._watermark else None
-
-    def _connect(self):
-        """Per-thread psycopg2 connection (thread-safe for parallel workers)."""
-        conn = getattr(self._tls, "conn", None)
-        if conn is not None and not conn.closed:
-            return conn
-        from utils.database_context import DatabaseContext
-        conn = get_db_connection()
-        self._tls.conn = conn
-        # Track for close() �� keep most recent for the main thread fallback.
-        self._conn = conn
-        return conn
 
     def _ensure_unique_constraint(self, cur):
         """Ensure the primary_key columns have a UNIQUE constraint.
@@ -525,6 +508,3 @@ class OptimalLoader(ABC):
             self._stats["symbols_failed"] += 1
             logger.error("[%s] %s failed: %s", self.table_name, symbol, e)
 
-    def close(self):
-        if self._conn and not self._conn.closed:
-            self._conn.close()

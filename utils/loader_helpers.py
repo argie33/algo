@@ -7,7 +7,6 @@ Functions that were defined identically in 19+ loader files, now centralized her
 
 import os
 from utils.database_context import DatabaseContext
-from utils.db_connection import get_db_connection
 from typing import List
 import time
 import threading
@@ -63,15 +62,10 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
 
         def fetch_symbols():
             try:
-                conn = get_db_connection(max_retries=2, timeout=10)
-                cur = conn.cursor()
-                try:
+                with DatabaseContext('read') as cur:
                     cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
                     rows = cur.fetchall()
                     result['symbols'] = [row[0] for row in rows]
-                finally:
-                    cur.close()
-                    conn.close()
             except Exception as e:
                 result['error'] = e
 
