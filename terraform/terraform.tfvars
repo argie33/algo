@@ -99,8 +99,8 @@ sns_alert_email    = "argeropolos@gmail.com" # SNS email subscription for infras
 alert_email_to     = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
 alert_webhook_url  = ""  # Leave blank (using email alerts)
 # SMTP configuration for email alerts (set all)
-alert_smtp_host     = ""  # SMTP hostname (e.g., smtp.gmail.com)
+alert_smtp_host     = "smtp.gmail.com"  # SMTP hostname for Gmail
 alert_smtp_port     = 587 # SMTP port (587 for TLS, 465 for SSL)
-alert_smtp_user     = ""  # SMTP username (e.g., your-email@gmail.com)
+alert_smtp_user     = "argeropolos@gmail.com"  # Gmail account for sending alerts
 alert_smtp_password = ""  # SMTP password (use GitHub Secrets ALERT_SMTP_PASSWORD in CI/CD)
 alert_smtp_from     = "argeropolos@gmail.com" # From email address for alerts

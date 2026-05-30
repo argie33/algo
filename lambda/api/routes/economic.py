@@ -273,12 +273,9 @@ def _get_yield_curve_full(cur) -> Dict:
                 },
             })
 
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get yield curve full'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get yield curve full'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get yield curve full'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get yield curve full'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
