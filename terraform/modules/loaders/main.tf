@@ -276,6 +276,7 @@ locals {
 
     # Sentiment aggregation
     "sentiment"                 = "load_sentiment.py"
+    "sentiment_aggregate"       = "load_sentiment_aggregate.py"
     # DELETED: sentiment_social - was placeholder (load_sentiment_social.py deleted)
 
     # Trading signals & scores
@@ -445,6 +446,11 @@ locals {
     "sentiment" = {
       schedule    = "cron(4 4 ? * FRI *)"
       description = "Aggregate sentiment index - Friday 4:04am ET (after aaii_sentiment at 4:00am)"
+    }
+
+    "sentiment_aggregate" = {
+      schedule    = "cron(5 8 ? * FRI *)"
+      description = "Aggregated sentiment (AAII + NAAIM) - Friday 4:05am EDT"
     }
     # DELETED: sentiment_social - placeholder implementation removed
     # "sentiment_social" = {

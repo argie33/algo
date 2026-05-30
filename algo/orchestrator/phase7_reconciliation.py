@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
+from utils.trade_recorder import TradeRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,38 @@ def run(
             f'unrealized P&L ${result.get("unrealized_pnl", 0):+,.2f}'
         ) if result.get('success') else result.get('error', 'unknown')
         log_phase_result_fn(7, 'reconciliation', status, summary)
+
+        # Record exits for recently closed positions
+        try:
+            from utils.database_context import DatabaseContext
+            recorder = TradeRecorder()
+
+            with DatabaseContext() as cursor:
+                # Find positions that were closed today
+                cursor.execute("""
+                    SELECT symbol, entry_price, current_price, quantity
+                    FROM algo_positions
+                    WHERE status = 'CLOSED' AND updated_at::date = %s
+                    AND exit_date IS NULL
+                """, (run_date,))
+
+                closed_positions = cursor.fetchall()
+                exits_recorded = 0
+
+                for symbol, entry_price, exit_price, quantity in closed_positions:
+                    if recorder.record_exit(
+                        symbol=symbol,
+                        exit_date=run_date,
+                        exit_price=float(exit_price) if exit_price else float(entry_price),
+                        quantity=int(quantity),
+                        reason="Closed position recorded during reconciliation"
+                    ):
+                        exits_recorded += 1
+
+                if exits_recorded > 0:
+                    logger.info(f"Recorded {exits_recorded} exits in trade history")
+        except Exception as e:
+            logger.warning(f"Failed to record exits: {e}")
 
         # Step 1: Populate signal_trade_performance from closed trades
         stpp = SignalTradePerformancePopulator()

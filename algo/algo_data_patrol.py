@@ -1137,6 +1137,90 @@ class DataPatrol:
         except Exception as e:
             self.log(cur, 'fundamental_coverage', WARN, 'key_metrics', f'Check skipped: {e}', None)
 
+    def check_sentiment_aggregate(self, cur):
+        """Verify sentiment_aggregate table has required columns and watermark is fresh."""
+        try:
+            # Check if table exists and has required columns
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'sentiment_aggregate'
+                ORDER BY column_name
+            """)
+            columns = [row[0] for row in cur.fetchall()]
+
+            required_cols = {'date', 'aggregate_sentiment', 'aaii_bullish', 'naaim_bullish', 'updated_at'}
+            present_cols = set(columns)
+
+            if required_cols.issubset(present_cols):
+                self.log(cur, 'sentiment_aggregate', INFO, 'sentiment_aggregate',
+                         f'Table structure valid ({len(columns)} columns)',
+                         {'columns': columns})
+            else:
+                missing = required_cols - present_cols
+                self.log(cur, 'sentiment_aggregate', ERROR, 'sentiment_aggregate',
+                         f'Missing columns: {", ".join(missing)}',
+                         {'missing': list(missing), 'present': list(present_cols)})
+                return
+
+            # Check watermark (data freshness)
+            cur.execute("SELECT MAX(date), MAX(updated_at) FROM sentiment_aggregate")
+            max_date, max_updated = cur.fetchone()
+
+            if not max_date:
+                self.log(cur, 'sentiment_aggregate', WARN, 'sentiment_aggregate',
+                         'No data in sentiment_aggregate table', {})
+            else:
+                age = (_date.today() - max_date).days
+                updated_age = (datetime.now(timezone.utc) - max_updated).total_seconds() / 3600
+
+                sev = WARN if age > 7 else INFO
+                self.log(cur, 'sentiment_aggregate', sev, 'sentiment_aggregate',
+                         f'Latest data: {max_date} ({age}d old), updated {updated_age:.1f}h ago',
+                         {'data_date': str(max_date), 'age_days': age, 'updated_hours': round(updated_age, 1)})
+        except Exception as e:
+            self.log(cur, 'sentiment_aggregate', WARN, 'sentiment_aggregate',
+                     f'Check skipped: {e}', None)
+
+    def check_trade_recorder_columns(self, cur):
+        """Verify algo_trades and algo_positions have trade_recorder columns."""
+        tables = [
+            ('algo_trades', {'symbol', 'entry_date', 'entry_price', 'quantity', 'signal_type', 'exit_date', 'exit_price', 'pnl'}),
+            ('algo_positions', {'symbol', 'entry_date', 'entry_price', 'current_price', 'quantity', 'status', 'updated_at'}),
+        ]
+
+        for tbl, required_cols in tables:
+            try:
+                cur.execute(f"""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = '{tbl}'
+                    ORDER BY column_name
+                """)
+                columns = [row[0] for row in cur.fetchall()]
+                present_cols = set(columns)
+
+                if required_cols.issubset(present_cols):
+                    self.log(cur, 'trade_recorder_columns', INFO, tbl,
+                             f'Table structure valid ({len(columns)} columns)',
+                             {'columns': columns})
+
+                    # Check data freshness for trades
+                    cur.execute(f"SELECT COUNT(*), MAX(created_at) FROM {tbl}")
+                    count, max_updated = cur.fetchone()
+
+                    if count > 0 and max_updated:
+                        updated_age = (datetime.now(timezone.utc) - max_updated).total_seconds() / 3600
+                        self.log(cur, 'trade_recorder_watermark', INFO, tbl,
+                                 f'{count} records, last updated {updated_age:.1f}h ago',
+                                 {'record_count': count, 'updated_hours': round(updated_age, 1)})
+                else:
+                    missing = required_cols - present_cols
+                    self.log(cur, 'trade_recorder_columns', ERROR, tbl,
+                             f'Missing columns: {", ".join(missing)}',
+                             {'missing': list(missing), 'present': list(present_cols)})
+            except Exception as e:
+                self.log(cur, 'trade_recorder_columns', WARN, tbl,
+                         f'Check skipped: {e}', None)
+
     def run(self, quick=False, validate_alpaca=False):
         self._run_id = f"PATROL-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
         start_time = time.time()
@@ -1168,6 +1252,8 @@ class DataPatrol:
                 self.check_etf_data(cur)
                 self.check_cross_table_alignment(cur)
                 self.check_fundamental_data(cur)
+                self.check_sentiment_aggregate(cur)
+                self.check_trade_recorder_columns(cur)
 
             if validate_alpaca:
                 self.check_alpaca_cross_validate(cur)

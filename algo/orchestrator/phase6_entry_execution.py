@@ -18,6 +18,7 @@ from typing import Any, Callable, List, Dict, Tuple, Optional
 
 from utils.database_context import DatabaseContext
 from utils.trade_status import PositionStatus
+from utils.trade_recorder import TradeRecorder
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
@@ -473,6 +474,7 @@ def run(
             return PhaseResult(6, 'entry_execution', 'ok', {'entered': 0}, False, None)
 
         executor = TradeExecutor(config)
+        recorder = TradeRecorder()
 
         # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete
         data_quality_ok, dq_issues, dq_warnings = _validate_pre_trade_data_quality(get_conn, put_conn, run_date)
@@ -718,6 +720,21 @@ def run(
                 )
                 if result.get('success'):
                     entered += 1
+                    # Record entry in trade history
+                    try:
+                        recorder.record_entry(
+                            symbol=trade['symbol'],
+                            entry_date=run_date,
+                            entry_price=trade['entry_price'],
+                            quantity=int(trade['shares']),
+                            signal_type=trade.get('swing_grade', 'minervini_trend_follow'),
+                            reason=f"Swing: {trade.get('swing_score', 0):.1f}, "
+                                   f"Trend: {trade.get('trend_score', 0)}, "
+                                   f"SQS: {trade.get('sqs', 0):.1f}",
+                            portfolio_allocation=exposure_constraints.get('exposure_pct') if exposure_constraints else None,
+                        )
+                    except Exception as e:
+                        logger.warning(f"  Failed to record entry for {trade['symbol']}: {e}")
                     if verbose:
                         logger.info(f"  ENTERED: {result['message']}")
                 elif result.get('duplicate'):
