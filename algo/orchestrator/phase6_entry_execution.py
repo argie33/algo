@@ -464,6 +464,7 @@ def run(
     if check_halt_flag():
         return PhaseResult(6, 'entry_execution', 'halted', {}, True, 'Halt flag detected')
 
+    executor = None
     try:
         from algo.algo_trade_executor import TradeExecutor
 
@@ -807,7 +808,8 @@ def run(
         return PhaseResult(6, 'entry_execution', 'halted', {}, True, str(e))
     finally:
         # Clean up TradeExecutor's database context to return connection to pool
-        try:
-            executor.disconnect()
-        except Exception as cleanup_err:
-            logger.warning(f"Failed to clean up TradeExecutor: {cleanup_err}")
+        if executor:
+            try:
+                executor.disconnect()
+            except Exception as cleanup_err:
+                logger.warning(f"Failed to clean up TradeExecutor: {cleanup_err}")
