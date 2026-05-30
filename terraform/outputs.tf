@@ -173,22 +173,24 @@ output "website_url" {
 
 # ============================================================
 # Authentication Outputs (CRITICAL FOR AUTH FLOW)
+# NOTE: Defined in cognito.tf — do not duplicate here
 # ============================================================
-
-output "cognito_user_pool_id" {
-  description = "Cognito User Pool ID for frontend configuration - REQUIRED for auth"
-  value       = module.cognito.user_pool_id
-}
-
-output "cognito_user_pool_client_id" {
-  description = "Cognito User Pool Client ID for frontend configuration - REQUIRED for auth"
-  value       = module.cognito.user_pool_client_id
-}
-
-output "cognito_domain_url" {
-  description = "Cognito OAuth domain URL for frontend configuration"
-  value       = module.cognito.domain_url
-}
+# Duplicate definitions cause Terraform error. Cognito outputs are defined
+# in cognito.tf at root level and are accessible to this module.
+# output "cognito_user_pool_id" {
+#   description = "Cognito User Pool ID for frontend configuration - REQUIRED for auth"
+#   value       = module.cognito.user_pool_id
+# }
+#
+# output "cognito_user_pool_client_id" {
+#   description = "Cognito User Pool Client ID for frontend configuration - REQUIRED for auth"
+#   value       = module.cognito.user_pool_client_id
+# }
+#
+# output "cognito_domain_url" {
+#   description = "Cognito OAuth domain URL for frontend configuration"
+#   value       = module.cognito.domain_url
+# }
 
 # ============================================================
 # Algo Orchestrator Outputs
