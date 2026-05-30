@@ -138,6 +138,7 @@ module "compute" {
   public_subnet_ids                      = module.vpc.public_subnet_ids
   private_subnet_ids                     = module.vpc.private_subnet_ids
   bastion_security_group_id              = module.vpc.bastion_security_group_id
+  ecs_tasks_security_group_id            = module.vpc.ecs_tasks_security_group_id
   bastion_instance_profile_name          = module.iam.bastion_instance_profile_name
   ecs_task_execution_role_arn            = module.iam.ecs_task_execution_role_arn
   ecs_task_role_arn                      = module.iam.ecs_task_role_arn
