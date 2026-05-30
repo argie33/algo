@@ -100,11 +100,7 @@ class DataPatrol:
                  json.dumps(details) if details else None),
             )
         except Exception as e:
-            try:
-                cur.connection.rollback()
-            except Exception as rb_e:
-
-                logger.error(f"Unhandled exception: {rb_e}")
+            logger.error(f"Failed to log patrol result: {e}")
 
     def check_staleness(self, cur):
         """P1. Latest data within expected window."""

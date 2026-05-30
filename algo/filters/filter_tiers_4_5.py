@@ -401,8 +401,3 @@ class FilterTiers45Mixin:
         except Exception as e:
             # Don't fail the pipeline because of audit logging
             logger.info(f"  (audit log skipped for {result['symbol']}: {e})")
-            try:
-                self.conn.rollback()
-            except Exception as e:
-                logger.debug(f"Exception (expected): {e}")
-                pass
