@@ -264,14 +264,13 @@ class OptimalLoader(ABC):
             return 0
         import io
         import csv
+        from utils.database_context import DatabaseContext
 
-        conn = self._connect()
+        with DatabaseContext('write') as cur:
+            # Ensure the unique constraint exists (one-time per loader instance)
+            self._ensure_unique_constraint(cur)
 
-        # Ensure the unique constraint exists (one-time per loader instance)
-        self._ensure_unique_constraint(conn)
-
-        cur = conn.cursor()
-        try:
+            try:
             # Filter to columns that exist in the target table — prevents failures when
             # a loader produces extra fields before a schema migration has run.
             # Cache the column set per loader instance to avoid N schema catalog queries.
@@ -358,14 +357,10 @@ class OptimalLoader(ABC):
                     if wm_store:
                         wm_store.set(symbol, new_watermark, rows_loaded=inserted)
 
-            conn.commit()
             return inserted
-        except Exception as e:
-            logger.warning(f"Exception: {e}")
-            conn.rollback()
-            raise
-        finally:
-            cur.close()
+            except Exception as e:
+                logger.warning(f"Exception: {e}")
+                raise
 
     # ---- Per-symbol pipeline ----
 
