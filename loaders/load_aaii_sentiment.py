@@ -227,7 +227,6 @@ def load_sentiment_data(cur):
         # Batch insert the data with conflict handling
         sql = f"INSERT INTO aaii_sentiment ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET bullish=EXCLUDED.bullish, neutral=EXCLUDED.neutral, bearish=EXCLUDED.bearish"
         execute_values(cur, sql, rows)
-        cur.connection.commit()
 
         inserted = len(rows)
         logging.info(f"Successfully inserted {inserted} sentiment records")
@@ -259,7 +258,6 @@ if __name__ == "__main__":
                     fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
             """)
-            cur.connection.commit()
 
             # Load sentiment data
             import time as _time
@@ -274,7 +272,6 @@ if __name__ == "__main__":
               ON CONFLICT (script_name) DO UPDATE
                 SET last_run = EXCLUDED.last_run;
             """, (SCRIPT_NAME,))
-            cur.connection.commit()
 
         peak = get_rss_mb()
         logging.info(f"[MEM] peak RSS: {peak:.1f} MB")

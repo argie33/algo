@@ -201,10 +201,12 @@ class CredentialManager:
                     key = creds.get('APCA_API_KEY_ID')
                     secret = creds.get('APCA_API_SECRET_KEY')
                     if key and secret:
-                        log.debug("Alpaca credentials loaded from ALGO_SECRETS_ARN")
+                        log.info(f"[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN")
                         return {'key': key, 'secret': secret}
+                    else:
+                        log.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN found but missing Alpaca key fields")
             except Exception as e:
-                log.debug(f"Could not fetch Alpaca credentials from ALGO_SECRETS_ARN: {e}")
+                log.error(f"[CREDENTIALS] Could not fetch Alpaca credentials from ALGO_SECRETS_ARN: {e}")
 
         # Try 'algo/alpaca' JSON blob (legacy secrets module format)
         if self._is_aws:
@@ -233,11 +235,14 @@ class CredentialManager:
             secret = os.getenv('APCA_API_SECRET_KEY')
 
         if not key or not secret:
+            log.error("[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!")
+            log.error("[CREDENTIALS] Checked: ALGO_SECRETS_ARN, algo/alpaca secret, legacy secrets, env vars")
             raise ValueError(
                 "Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not found. "
                 "Set these environment variables or configure 'algo/alpaca' secret in AWS Secrets Manager."
             )
 
+        log.info(f"[CREDENTIALS] Alpaca credentials loaded successfully")
         return {'key': key, 'secret': secret}
 
     def get_smtp_credentials(self) -> Optional[Dict[str, Any]]:

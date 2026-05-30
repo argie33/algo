@@ -80,8 +80,7 @@ def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
 def _fetch_from_financials(symbol: str) -> Optional[Dict]:
     """Compute ratios from SEC financial data + existing key_metrics market_cap."""
     try:
-        conn = get_db_conn()
-        with conn.cursor() as cur:
+        with DatabaseContext('read') as cur:
             cur.execute("""
                 SELECT net_income, revenue FROM annual_income_statement
                 WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT 1
@@ -98,7 +97,6 @@ def _fetch_from_financials(symbol: str) -> Optional[Dict]:
                 SELECT market_cap FROM key_metrics WHERE symbol = %s LIMIT 1
             """, (symbol,))
             km = cur.fetchone()
-        conn.close()
 
         mkt_cap = km[0] if km else None
         net_income = income[0] if income else None
@@ -124,8 +122,7 @@ def _fetch_from_financials(symbol: str) -> Optional[Dict]:
 def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
     """Third fallback — forward PE from current price ÷ annualized next-quarter EPS estimate."""
     try:
-        conn = get_db_conn()
-        with conn.cursor() as cur:
+        with DatabaseContext('read') as cur:
             cur.execute("""
                 SELECT market_cap FROM key_metrics WHERE symbol = %s LIMIT 1
             """, (symbol,))
@@ -152,8 +149,6 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
             """, (symbol,))
             est = cur.fetchone()
             quarterly_eps = float(est[0]) if est and est[0] else None
-
-        conn.close()
 
         if not quarterly_eps or quarterly_eps <= 0:
             return None
@@ -193,47 +188,41 @@ def persist(metrics_list: List[Dict]) -> int:
     if not metrics_list:
         return 0
 
-    conn = get_db_conn()
-    updated = 0
-    try:
-        with conn.cursor() as cur:
-            for m in metrics_list:
-                sym = m['symbol']
-                try:
+    with DatabaseContext('write') as cur:
+        updated = 0
+        for m in metrics_list:
+            sym = m['symbol']
+            try:
+                cur.execute("""
+                    INSERT INTO value_metrics
+                        (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio,
+                         dividend_yield, fcf_yield, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NULL, NOW())
+                    ON CONFLICT (symbol) DO UPDATE SET
+                        pe_ratio       = EXCLUDED.pe_ratio,
+                        pb_ratio       = EXCLUDED.pb_ratio,
+                        ps_ratio       = EXCLUDED.ps_ratio,
+                        peg_ratio      = EXCLUDED.peg_ratio,
+                        dividend_yield = EXCLUDED.dividend_yield
+                """, (sym, m['pe_ratio'], m['pb_ratio'], m['ps_ratio'],
+                      m['peg_ratio'], m['dividend_yield']))
+
+                if m.get('market_cap'):
                     cur.execute("""
-                        INSERT INTO value_metrics
-                            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio,
-                             dividend_yield, fcf_yield, created_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, NULL, NOW())
-                        ON CONFLICT (symbol) DO UPDATE SET
-                            pe_ratio       = EXCLUDED.pe_ratio,
-                            pb_ratio       = EXCLUDED.pb_ratio,
-                            ps_ratio       = EXCLUDED.ps_ratio,
-                            peg_ratio      = EXCLUDED.peg_ratio,
-                            dividend_yield = EXCLUDED.dividend_yield
-                    """, (sym, m['pe_ratio'], m['pb_ratio'], m['ps_ratio'],
-                          m['peg_ratio'], m['dividend_yield']))
+                        INSERT INTO key_metrics
+                            (ticker, symbol, market_cap, held_percent_insiders, held_percent_institutions, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW())
+                        ON CONFLICT (ticker) DO UPDATE SET
+                            market_cap = EXCLUDED.market_cap,
+                            held_percent_insiders = EXCLUDED.held_percent_insiders,
+                            held_percent_institutions = EXCLUDED.held_percent_institutions,
+                            updated_at = NOW()
+                    """, (sym, sym, m['market_cap'], m.get('held_percent_insiders'), m.get('held_percent_institutions')))
 
-                    if m.get('market_cap'):
-                        cur.execute("""
-                            INSERT INTO key_metrics
-                                (ticker, symbol, market_cap, held_percent_insiders, held_percent_institutions, updated_at)
-                            VALUES (%s, %s, %s, %s, %s, NOW())
-                            ON CONFLICT (ticker) DO UPDATE SET
-                                market_cap = EXCLUDED.market_cap,
-                                held_percent_insiders = EXCLUDED.held_percent_insiders,
-                                held_percent_institutions = EXCLUDED.held_percent_institutions,
-                                updated_at = NOW()
-                        """, (sym, sym, m['market_cap'], m.get('held_percent_insiders'), m.get('held_percent_institutions')))
-
-                    updated += 1
-                except Exception as e:
-                    logger.warning(f"Failed to persist {sym}: {e}")
-                    conn.rollback()
-
-        conn.commit()
-    finally:
-        conn.close()
+                updated += 1
+            except Exception as e:
+                logger.warning(f"Failed to persist {sym}: {e}")
+                raise
 
     return updated
 

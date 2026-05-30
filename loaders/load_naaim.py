@@ -288,7 +288,6 @@ def load_naaim_data(cur):
         # Batch insert the data
         sql = f"INSERT INTO naaim ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET naaim_number_mean = EXCLUDED.naaim_number_mean, bullish = EXCLUDED.bullish, bearish = EXCLUDED.bearish"
         execute_values(cur, sql, rows)
-        cur.connection.commit()
 
         inserted = len(rows)
         logging.info(f"Successfully inserted {inserted} NAAIM records")
@@ -328,7 +327,6 @@ def main():
                 last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        cur.connection.commit()
 
         # Load NAAIM data
         import time as _time
@@ -343,7 +341,6 @@ def main():
           ON CONFLICT (script_name) DO UPDATE
             SET last_run = EXCLUDED.last_run;
         """, (SCRIPT_NAME,))
-        cur.connection.commit()
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
