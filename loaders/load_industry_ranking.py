@@ -9,11 +9,12 @@ from datetime import date
 from typing import Dict
 
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 import logging
 
 logger = logging.getLogger(__name__)
 
-class IndustryRankingLoader:
+class IndustryRankingLoader(MasterDataLoader):
     """Compute industry rankings from daily price data."""
 
     def run(self, run_date: date = None) -> Dict:

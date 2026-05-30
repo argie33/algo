@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 
 from utils.yfinance_wrapper import get_ticker
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 
 try:
     from config.credential_manager import get_credential_manager

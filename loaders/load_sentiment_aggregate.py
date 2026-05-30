@@ -16,13 +16,14 @@ from typing import Optional
 
 import logging
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 
 logger = logging.getLogger(__name__)
 
 def load_sentiment_aggregate():
     """Aggregate AAII and NAAIM sentiment into unified table."""
 
-    with DatabaseContext() as cursor:
+    with DatabaseContext('write') as cursor:
         try:
             # Get the latest AAII bullish reading
             cursor.execute("""

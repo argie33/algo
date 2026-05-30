@@ -26,6 +26,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 logger = logging.getLogger(__name__)

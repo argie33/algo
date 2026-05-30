@@ -9,10 +9,11 @@ import logging
 from datetime import date
 from typing import Dict
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 
 logger = logging.getLogger(__name__)
 
-class AlgoMetricsDailyLoader:
+class AlgoMetricsDailyLoader(MasterDataLoader):
     """Compute and store daily algo performance metrics after orchestrator completes."""
 
     def ensure_table_exists(self, cur):

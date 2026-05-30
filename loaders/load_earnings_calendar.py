@@ -16,10 +16,11 @@ from typing import List, Optional, Dict, Any
 
 import logging
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 
 logger = logging.getLogger(__name__)
 
-class EarningsCalendarLoader:
+class EarningsCalendarLoader(MasterDataLoader):
     """Load upcoming earnings dates for all symbols."""
 
     def get_symbols(self, cur) -> List[str]:

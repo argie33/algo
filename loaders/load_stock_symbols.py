@@ -15,6 +15,7 @@ except ImportError:
     boto3 = None
 
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 import psycopg2
 from psycopg2.extras import execute_values
 import requests

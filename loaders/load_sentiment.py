@@ -4,6 +4,7 @@ Load market sentiment data from available sources (AAII, market_sentiment, fear_
 """
 import logging
 from utils.database_context import DatabaseContext
+from utils.master_data_loader import MasterDataLoader
 
 logger = logging.getLogger(__name__)
 
