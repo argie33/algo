@@ -118,6 +118,16 @@ RATE_LIMIT_REQUESTS = 100
 RATE_LIMIT_WINDOW = 1
 MAX_REQUEST_BODY_SIZE = 1024 * 100
 
+# Health check endpoints exempt from rate limiting (required for uptime monitoring)
+RATE_LIMIT_EXEMPT_PATHS = {
+    '/health',
+    '/api/health',
+    '/health/detailed',
+    '/api/health/detailed',
+    '/health/pipeline',
+    '/api/health/pipeline',
+}
+
 
 def redact_sensitive_headers(headers_dict):
     """Issue #42: Redact sensitive headers from logs to prevent credential leakage."""
@@ -588,6 +598,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'unauthorized', 'message': auth_error})
             }
 
+        # Skip rate limiting for health check endpoints (required for uptime monitoring)
+        is_health_check = path in RATE_LIMIT_EXEMPT_PATHS
+
         # Health check (exempt from rate limiting — required for frontend monitoring)
         if path in ['/health', '/api/health']:
             cors_headers = get_cors_headers(event)
@@ -664,18 +677,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'status': 'error', 'error': 'internal_error'})
                 }
 
-        # Check rate limiting (per client IP) — exempted: /health, /api/health*
-        client_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
-        if is_rate_limited(client_ip):
-            cors_headers = get_cors_headers(event)
-            logger.warning(f'Rate limit exceeded for IP {client_ip}')
-            log_api_request(event, 429, error_msg='rate_limit_exceeded')
-            return {
-                'statusCode': 429,
-                'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers(),
-                           'Retry-After': '60'},
-                'body': json.dumps({'error': 'rate_limit_exceeded', 'message': 'Too many requests. Please try again later.'})
-            }
+        # Check rate limiting (per client IP) — health endpoints are exempt
+        if not is_health_check:
+            client_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
+            if is_rate_limited(client_ip):
+                cors_headers = get_cors_headers(event)
+                logger.warning(f'Rate limit exceeded for IP {client_ip}')
+                log_api_request(event, 429, error_msg='rate_limit_exceeded')
+                return {
+                    'statusCode': 429,
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers(),
+                               'Retry-After': '60'},
+                    'body': json.dumps({'error': 'rate_limit_exceeded', 'message': 'Too many requests. Please try again later.'})
+                }
 
         try:
             with DatabaseContext('write') as cur:

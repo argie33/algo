@@ -34,8 +34,6 @@ import os
 import uuid
 import hashlib
 import json
-import psycopg2
-import psycopg2.extensions
 from datetime import datetime, date as _date
 from typing import Dict, List, Optional, Any
 
@@ -49,19 +47,18 @@ class DataProvenanceTracker:
         self,
         loader_name: str,
         table_name: str,
-        db_conn: Optional[psycopg2.extensions.connection] = None,
+        db_conn=None,  # Deprecated: kept for backwards compatibility, no longer used
         in_memory: bool = False,
     ):
         """
         Args:
             loader_name: Name of the loader (e.g., 'loadpricedaily')
             table_name: Table being loaded (e.g., 'price_daily')
-            db_conn: Database connection (required if in_memory=False)
+            db_conn: Deprecated - kept for backwards compatibility, no longer used
             in_memory: If True, store locally (for testing)
         """
         self.loader_name = loader_name
         self.table_name = table_name
-        self.db_conn = db_conn
         self.in_memory = in_memory
 
         self.run_id: Optional[str] = None
@@ -234,49 +231,52 @@ class DataProvenanceTracker:
                 "errors": [e for e in self.error_log if e["run_id"] == run_id],
             }
 
-        if not self.db_conn:
+        from utils.database_context import DatabaseContext
+
+        try:
+            with DatabaseContext() as cur:
+                cur.execute(
+                    """
+                    SELECT run_id, loader_name, table_name, source_api, parameters, start_at
+                    FROM data_loader_runs
+                    WHERE run_id = %s
+                    """,
+                    (run_id,),
+                )
+                run = cur.fetchone()
+
+                cur.execute(
+                    """
+                    SELECT provenance_id, run_id, loader_name, table_name, symbol, tick_date,
+                           source_timestamp, load_timestamp, source_api, data_checksum, data_hash, data_size_bytes
+                    FROM data_provenance_log
+                    WHERE run_id = %s
+                    ORDER BY symbol, tick_date
+                    """,
+                    (run_id,),
+                )
+                ticks = cur.fetchall()
+
+                cur.execute(
+                    """
+                    SELECT run_id, loader_name, symbol, error_type, error_message, resolution, recorded_at
+                    FROM data_provenance_errors
+                    WHERE run_id = %s
+                    ORDER BY recorded_at
+                    """,
+                    (run_id,),
+                )
+                errors = cur.fetchall()
+
+                return {
+                    "run_id": run_id,
+                    "metadata": run,
+                    "ticks": ticks,
+                    "errors": errors,
+                }
+        except Exception as e:
+            logger.error(f"Failed to retrieve replay data for run {run_id}: {e}")
             return None
-
-        with self.db_conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT run_id, loader_name, table_name, source_api, parameters, start_at
-                FROM data_loader_runs
-                WHERE run_id = %s
-                """,
-                (run_id,),
-            )
-            run = cur.fetchone()
-
-            cur.execute(
-                """
-                SELECT provenance_id, run_id, loader_name, table_name, symbol, tick_date,
-                       source_timestamp, load_timestamp, source_api, data_checksum, data_hash, data_size_bytes
-                FROM data_provenance_log
-                WHERE run_id = %s
-                ORDER BY symbol, tick_date
-                """,
-                (run_id,),
-            )
-            ticks = cur.fetchall()
-
-            cur.execute(
-                """
-                SELECT run_id, loader_name, symbol, error_type, error_message, resolution, recorded_at
-                FROM data_provenance_errors
-                WHERE run_id = %s
-                ORDER BY recorded_at
-                """,
-                (run_id,),
-            )
-            errors = cur.fetchall()
-
-            return {
-                "run_id": run_id,
-                "metadata": run,
-                "ticks": ticks,
-                "errors": errors,
-            }
 
 
     def _insert_loader_run(
@@ -285,11 +285,10 @@ class DataProvenanceTracker:
         parameters: Optional[Dict],
     ):
         """Insert the loader run record."""
-        if not self.db_conn:
-            return
-
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext('write') as cur:
                 cur.execute(
                     """
                     INSERT INTO data_loader_runs
@@ -306,23 +305,19 @@ class DataProvenanceTracker:
                         self.start_time,
                     ),
                 )
-            self.db_conn.commit()
         except Exception as e:
-            self.db_conn.rollback()
             logger.error(f"Failed to insert loader run: {e}", exc_info=True)
-            # Allow system to continue - provenance is non-critical
 
     def _insert_provenance_record(self, record: Dict):
         """Insert a provenance record for a tick."""
-        if not self.db_conn:
-            return
-
         # Allow disabling provenance at runtime via environment variable
         if os.environ.get('DISABLE_PROVENANCE_TRACKING') == 'true':
             return
 
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext('write') as cur:
                 cur.execute(
                     """
                     INSERT INTO data_provenance_log
@@ -345,19 +340,15 @@ class DataProvenanceTracker:
                         record["data_size_bytes"],
                     ),
                 )
-            self.db_conn.commit()
         except Exception as e:
-            self.db_conn.rollback()
             logger.error(f"Failed to insert provenance record for {record.get('symbol')}: {e}")
-            # Allow system to continue - provenance is non-critical
 
     def _insert_error_record(self, error_record: Dict):
         """Insert an error record."""
-        if not self.db_conn:
-            return
-
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext('write') as cur:
                 cur.execute(
                     """
                     INSERT INTO data_provenance_errors
@@ -374,9 +365,7 @@ class DataProvenanceTracker:
                         error_record["recorded_at"],
                     ),
                 )
-            self.db_conn.commit()
         except Exception as e:
-            self.db_conn.rollback()
             logger.error(f"Failed to insert error record: {e}")
 
     def _finalize_loader_run(
@@ -386,11 +375,13 @@ class DataProvenanceTracker:
         summary: Optional[Dict],
     ):
         """Mark the loader run as complete."""
-        if not self.db_conn or not self.run_id:
+        if not self.run_id:
             return
 
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext('write') as cur:
                 cur.execute(
                     """
                     UPDATE data_loader_runs
@@ -409,9 +400,7 @@ class DataProvenanceTracker:
                         self.run_id,
                     ),
                 )
-            self.db_conn.commit()
         except Exception as e:
-            self.db_conn.rollback()
             logger.error(f"Failed to finalize loader run: {e}")
 
     @staticmethod
