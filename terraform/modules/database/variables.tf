@@ -352,3 +352,18 @@ variable "db_init_code_file" {
   type        = string
   default     = "lambda_artifacts/db-init.zip"
 }
+
+# ============================================================
+# Infrastructure Dependencies
+# ============================================================
+
+variable "ecs_tasks_security_group_id" {
+  description = "Security group ID for ECS tasks (used for Lambda VPC config)"
+  type        = string
+}
+
+variable "psycopg2_layer_arn" {
+  description = "ARN of the psycopg2 Lambda layer (optional - can be created locally)"
+  type        = string
+  default     = ""
+}
