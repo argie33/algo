@@ -147,5 +147,5 @@ output "db_init_lambda_arn" {
 
 output "db_init_invocation_status" {
   description = "Status of database initialization invocation"
-  value       = try(aws_lambda_invocation.db_init.function_response, "pending")
+  value       = try(aws_lambda_invocation.db_init.result, "pending")
 }
