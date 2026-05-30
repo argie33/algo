@@ -94,11 +94,7 @@ class TradeExecutor:
             and not url_says_paper
         )
 
-        # DEBUG LOGGING: Log all execution mode conditions
-        logger.info(f"[TRADE_EXECUTOR_INIT] execution_mode={execution_mode}, ALGO_LIVE_TRADING={live_ack}, ALPACA_PAPER_TRADING={paper_flag}")
-        logger.info(f"[TRADE_EXECUTOR_INIT] alpaca_base_url={self.alpaca_base_url}, url_says_paper={url_says_paper}")
-        logger.info(f"[TRADE_EXECUTOR_INIT] live_intent conditions: execution_mode='auto'={execution_mode=='auto'}, live_ack='I_UNDERSTAND_REAL_MONEY'={live_ack=='I_UNDERSTAND_REAL_MONEY'}, paper_flag!='true'={paper_flag!='true'}, not url_says_paper={not url_says_paper}")
-        logger.info(f"[TRADE_EXECUTOR_INIT] live_intent={live_intent} (will {'TRADE LIVE' if live_intent else 'TRADE PAPER'})")
+        logger.info(f"Executor mode: {execution_mode}, live_intent: {live_intent} ({'LIVE' if live_intent else 'PAPER'})")
 
         if not live_intent:
             # Force paper trading — CRITICAL: explicitly use paper URL, ignore APCA_API_BASE_URL

@@ -346,8 +346,6 @@ class AlgoConfig:
 
         Returns: (success: bool, message: str)
         """
-        conn = None
-        cur = None
         try:
             self._validate_value(key, str(value), value_type)
 
@@ -371,17 +369,6 @@ class AlgoConfig:
         except Exception as e:
             logger.error(f"Error setting config {key}: {e}")
             return False
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-                    pass
-            if conn:
-                try:
-                    conn.close()
-                except Exception as e:
-                    pass
 
     def initialize_defaults(self):
         """Initialize all default configs in database."""
@@ -398,17 +385,6 @@ class AlgoConfig:
         except Exception as e:
             logger.error(f"Error initializing defaults: {e}")
             return False
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-                    pass
-            if conn:
-                try:
-                    conn.close()
-                except Exception as e:
-                    pass
 
     def reload(self):
         """Reload configuration from database."""

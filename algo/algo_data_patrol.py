@@ -150,11 +150,11 @@ class DataPatrol:
 
                 age = (today - latest).days
                 if age > max_days:
-                    self.log(cur, cur, 'staleness', sev_on_stale, tbl,
+                    self.log(cur, 'staleness', sev_on_stale, tbl,
                              f'{tbl} stale: {age}d > {max_days}d threshold',
                              {'latest': str(latest), 'age_days': age, 'freq': freq})
                 else:
-                    self.log(cur, cur, 'staleness', INFO, tbl,
+                    self.log(cur, 'staleness', INFO, tbl,
                              f'{tbl} fresh ({age}d old)',
                              {'latest': str(latest), 'age_days': age})
             except Exception as e:
@@ -177,11 +177,11 @@ class DataPatrol:
             today_total = int(today_total or 1)
             null_pct = today_nulls / today_total * 100 if today_total else 0
             if null_pct > 5:
-                self.log(cur, cur, 'null_anomaly', ERROR, 'price_daily',
+                self.log(cur, 'null_anomaly', ERROR, 'price_daily',
                          f'{null_pct:.1f}% NULL closes on latest date',
                          {'today_nulls': today_nulls, 'today_total': today_total})
             else:
-                self.log(cur, cur, 'null_anomaly', INFO, 'price_daily',
+                self.log(cur, 'null_anomaly', INFO, 'price_daily',
                          f'NULL rate {null_pct:.2f}% acceptable',
                          {'today_nulls': today_nulls, 'today_total': today_total})
         except Exception as e:
