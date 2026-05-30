@@ -840,38 +840,40 @@ jobs:
           fi
           POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
           CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
-          # Get Cognito domain
-          COGNITO_DOMAIN=""
-          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
-            COGNITO_DOMAIN=$(aws cognito-idp describe-user-pool-domain \
-              --domain "stocks-trading-dev" \
-              --region us-east-1 \
-              --query 'UserPoolDomain.Domain' \
-              --output text 2>/dev/null || echo "")
-          fi
+          COGNITO_DOMAIN="${{ needs.terraform.outputs.cognito_domain_url }}"
+          REGION="us-east-1"
+
           mkdir -p webapp/frontend/dist
-          printf 'window.__CONFIG__ = {\n' > webapp/frontend/dist/config.js
-          printf '  "API_URL": "%s",\n' "$API_URL" >> webapp/frontend/dist/config.js
-          printf '  "ENVIRONMENT": "production",\n' >> webapp/frontend/dist/config.js
-          printf '  "AWS_REGION": "us-east-1",\n' >> webapp/frontend/dist/config.js
-          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
-            printf '  "USER_POOL_ID": "%s",\n' "$POOL_ID" >> webapp/frontend/dist/config.js
-          fi
-          if [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "None" ]; then
-            printf '  "USER_POOL_CLIENT_ID": "%s",\n' "$CLIENT_ID" >> webapp/frontend/dist/config.js
-          fi
-          if [ -n "$COGNITO_DOMAIN" ] && [ "$COGNITO_DOMAIN" != "None" ]; then
-            printf '  "USER_POOL_DOMAIN": "%s"\n' "$COGNITO_DOMAIN" >> webapp/frontend/dist/config.js
-          else
-            printf '  "USER_POOL_DOMAIN": ""\n' >> webapp/frontend/dist/config.js
-          fi
-          printf '};\n' >> webapp/frontend/dist/config.js
+
+          python3 << PYEOF
+import os
+api_url = os.environ.get('API_URL_VAR', '')
+pool_id = "$POOL_ID" if "$POOL_ID" not in ['', 'None', 'null'] else ""
+client_id = "$CLIENT_ID" if "$CLIENT_ID" not in ['', 'None', 'null'] else ""
+cognito_domain = "$COGNITO_DOMAIN" if "$COGNITO_DOMAIN" not in ['', 'None', 'null'] else f"https://algo-dev.auth.$REGION.amazoncognito.com"
+
+config_js = 'window.__CONFIG__ = {\n'
+config_js += f'  "API_URL": "$API_URL",\n'
+config_js += f'  "USER_POOL_ID": "{pool_id}",\n'
+config_js += f'  "USER_POOL_CLIENT_ID": "{client_id}",\n'
+config_js += f'  "USER_POOL_DOMAIN": "{cognito_domain}",\n'
+config_js += f'  "AWS_REGION": "$REGION",\n'
+config_js += f'  "ENVIRONMENT": "production"\n'
+config_js += '};'
+
+with open('webapp/frontend/dist/config.js', 'w') as f:
+    f.write(config_js)
+
+print("Generated config.js:")
+print(config_js)
+PYEOF
+
           # Add cache-busting timestamp to config.js script tag in index.html
           BUILD_TS=$(date +%s)
           if [ -f "webapp/frontend/dist/index.html" ]; then
             sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
           fi
-          echo "Generated config.js with API_URL=$API_URL"
+          echo "[OK] config.js generated with API_URL=$API_URL"
           cat webapp/frontend/dist/config.js
 
       - name: Sync to S3
