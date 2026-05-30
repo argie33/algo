@@ -792,6 +792,16 @@ def run(
                 return PhaseResult(6, 'entry_execution', 'halted', {}, True,
                                  f'Batch failure rate {failure_rate:.0%}')
 
+        logger.info(f"\n{'='*70}")
+        logger.info(f"PHASE 6 SUMMARY")
+        logger.info(f"{'='*70}")
+        logger.info(f"Trades executed: {entered}")
+        logger.info(f"Trades blocked (duplicates): {blocked}")
+        logger.info(f"Trades failed: {errors}")
+        logger.info(f"Total processed: {len(trades_to_enter)}")
+        logger.info(f"Open slots available: {open_slots}")
+        logger.info(f"{'='*70}\n")
+
         log_phase_result_fn(
             6, 'entry_execution', 'success',
             f'{entered} entered, {blocked} blocked (duplicates), {errors} errors',
