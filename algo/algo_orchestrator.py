@@ -711,7 +711,7 @@ class Orchestrator:
         self.log_phase_start('3b', 'EXPOSURE POLICY ACTIONS')
         from algo.orchestrator.phase3b_exposure_policy import run as run_phase3b
         result = run_phase3b(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result
         )
@@ -726,7 +726,7 @@ class Orchestrator:
             return False
         from algo.orchestrator.phase4_exit_execution import run as run_phase4
         result = run_phase4(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result,
             getattr(self, '_position_recs', []),
@@ -741,7 +741,7 @@ class Orchestrator:
         self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
         from algo.orchestrator.phase4b_pyramid_adds import run as run_phase4b
         result = run_phase4b(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result
         )

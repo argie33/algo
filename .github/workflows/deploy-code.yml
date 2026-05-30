@@ -756,8 +756,38 @@ jobs:
                 zf.write(str(file_path), layer_arcname)
             print("  + dependencies")
 
+            # Add config package
+            config_path = app_dir / "config"
+            if config_path.is_dir():
+              for file_path in config_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + config/")
+
+            # Add utils package
+            utils_path = app_dir / "utils"
+            if utils_path.is_dir():
+              for file_path in utils_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + utils/")
+
+            # Add monitoring package
+            monitoring_path = app_dir / "monitoring"
+            if monitoring_path.is_dir():
+              for file_path in monitoring_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + monitoring/")
+
           print(f"  Result: {layer_path.stat().st_size / (1024*1024):.1f} MB\n")
-          print("OK - API function code and layer ready")
+          print("OK - API function code and layer ready with all required modules")
           PYTHON_API
 
       - name: Publish API Lambda Layer
