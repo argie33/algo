@@ -185,7 +185,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogSymbolLoadFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name  = "stock_symbols"
           "error.$"    = "$.loaderError.Error"
@@ -237,7 +237,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogPriceLoadFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name  = "stock_prices_daily"
           "error.$"    = "$.loaderError.Error"
@@ -320,7 +320,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # FIXED Issue #4: Log loader failures and continue with available data (graceful degradation)
       LogLoaderFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name  = "parallel_technicals"
           "error.$"    = "$.loaderError.Error"
@@ -380,7 +380,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogEnrichmentFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler[0].arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name = "parallel_enrichment"
           "error.$"     = "$.loaderError.Error"

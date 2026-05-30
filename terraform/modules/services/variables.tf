@@ -731,3 +731,19 @@ variable "task_role_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# Credential Rotation Schedules
+# ============================================================
+
+variable "alpaca_credential_rotation_schedule" {
+  description = "Cron expression for Alpaca credential rotation reminder (cron(0 9 ? * MON *))"
+  type        = string
+  default     = "cron(0 9 ? * MON *)"
+}
+
+variable "fred_credential_rotation_schedule" {
+  description = "Cron expression for FRED API credential rotation reminder (cron(0 10 ? * MON *))"
+  type        = string
+  default     = "cron(0 10 ? * MON *)"
+}

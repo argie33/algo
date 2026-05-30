@@ -301,12 +301,9 @@ resource "aws_cloudwatch_metric_alarm" "critical_loader_failures" {
   treat_missing_data = "notBreaching"
   alarm_actions      = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
 
-  dimensions = [
-    {
-      name  = "LoaderName"
-      value = "stock_prices_daily"
-    }
-  ]
+  dimensions = {
+    LoaderName = "stock_prices_daily"
+  }
 
   tags = var.common_tags
 }
@@ -326,12 +323,9 @@ resource "aws_cloudwatch_metric_alarm" "stock_symbols_loader_failure" {
   treat_missing_data = "notBreaching"
   alarm_actions      = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
 
-  dimensions = [
-    {
-      name  = "LoaderName"
-      value = "stock_symbols"
-    }
-  ]
+  dimensions = {
+    LoaderName = "stock_symbols"
+  }
 
   tags = var.common_tags
 }
@@ -351,12 +345,9 @@ resource "aws_cloudwatch_metric_alarm" "market_health_loader_failure" {
   treat_missing_data = "notBreaching"
   alarm_actions      = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
 
-  dimensions = [
-    {
-      name  = "LoaderName"
-      value = "market_health_daily"
-    }
-  ]
+  dimensions = {
+    LoaderName = "market_health_daily"
+  }
 
   tags = var.common_tags
 }
@@ -376,12 +367,9 @@ resource "aws_cloudwatch_metric_alarm" "technical_data_loader_failure" {
   treat_missing_data = "notBreaching"
   alarm_actions      = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
 
-  dimensions = [
-    {
-      name  = "LoaderName"
-      value = "technical_data_daily"
-    }
-  ]
+  dimensions = {
+    LoaderName = "technical_data_daily"
+  }
 
   tags = var.common_tags
 }

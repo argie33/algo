@@ -234,10 +234,7 @@ class SignalPatternsMixin:
         }
         """
         try:
-            # Use existing cursor from parent class, don't reconnect
-            if not hasattr(self, 'cur') or self.cur is None:
-                self.connect()
-
+            self.connect()
             # Use the existing base_detection as starting point
             base_info = self.base_detection(symbol, eval_date)
             if not base_info.get('in_base'):

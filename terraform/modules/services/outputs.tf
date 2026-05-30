@@ -134,3 +134,12 @@ output "terraform_backend_key" {
   description = "S3 key path for Terraform state"
   value       = "${var.project_name}/terraform.tfstate"
 }
+
+# ============================================================
+# Loader Failure Handler Lambda (for Step Functions integration)
+# ============================================================
+
+output "loader_failure_handler_arn" {
+  description = "ARN of the Lambda function for handling loader failures in Step Functions"
+  value       = var.sns_alerts_enabled ? aws_lambda_function.loader_failure_handler[0].arn : ""
+}

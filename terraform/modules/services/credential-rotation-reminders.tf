@@ -32,8 +32,6 @@ resource "aws_scheduler_schedule" "alpaca_rotation_reminder" {
   depends_on = [
     aws_sns_topic.algo_alerts
   ]
-
-  tags = var.common_tags
 }
 
 # Quarterly FRED credential rotation reminder
@@ -62,8 +60,6 @@ resource "aws_scheduler_schedule" "fred_rotation_reminder" {
   depends_on = [
     aws_sns_topic.algo_alerts
   ]
-
-  tags = var.common_tags
 }
 
 # Quarterly Developer IAM key rotation reminder (already exists, documented here for completeness)

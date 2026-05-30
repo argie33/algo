@@ -108,3 +108,9 @@ variable "orchestrator_dry_run" {
   type        = bool
   default     = false
 }
+
+variable "loader_failure_handler_arn" {
+  description = "ARN of the Lambda function for handling loader failures (from services module)"
+  type        = string
+  default     = ""
+}

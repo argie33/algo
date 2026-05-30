@@ -295,7 +295,6 @@ module "services" {
   rds_security_group_id                   = module.vpc.rds_security_group_id
   enable_execution_monitor                = var.enable_execution_monitor
   enable_execution_monitor_schedule       = var.enable_execution_monitor_schedule
-  weight_optimization_task_definition_arn = module.loaders.weight_optimization_task_definition_arn
   algo_lambda_sg_id                       = module.vpc.algo_lambda_security_group_id
   node_env                                = local.node_env
   dev_mode                                = local.dev_mode
@@ -346,6 +345,7 @@ module "pipeline" {
   cloudwatch_log_retention_days         = var.cloudwatch_log_retention_days
   execution_mode                        = var.execution_mode
   orchestrator_dry_run                  = var.orchestrator_dry_run
+  loader_failure_handler_arn            = coalesce(module.services.loader_failure_handler_arn, "")
   common_tags                           = local.common_tags
 }
 
