@@ -745,7 +745,6 @@ class PositionMonitor:
                     logger.warning(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
                     continue
 
-            ctx.conn.commit()
             return adjustments
 
     def get_open_positions(self):
