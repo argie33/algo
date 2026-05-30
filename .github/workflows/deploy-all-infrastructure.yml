@@ -152,6 +152,7 @@ jobs:
       website_url: ${{ steps.outputs.outputs.website_url }}
       cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
       cognito_user_pool_client_id: ${{ steps.outputs.outputs.cognito_user_pool_client_id }}
+      cognito_domain_url: ${{ steps.outputs.outputs.cognito_domain_url }}
     env:
       TF_VAR_alpaca_api_key_id: ${{ secrets.ALPACA_API_KEY_ID }}
       TF_VAR_alpaca_api_secret_key: ${{ secrets.ALPACA_API_SECRET_KEY }}
@@ -547,6 +548,7 @@ jobs:
           WEBSITE_URL=$(echo "$TF_OUT" | jq -r '.website_url.value // empty' 2>/dev/null || echo "")
           POOL_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_id.value // ""' 2>/dev/null || echo "")
           CLIENT_ID=$(echo "$TF_OUT" | jq -r '.cognito_user_pool_client_id.value // ""' 2>/dev/null || echo "")
+          COGNITO_DOMAIN=$(echo "$TF_OUT" | jq -r '.cognito_domain_url.value // ""' 2>/dev/null || echo "")
 
           echo "ecr_repository_url=${ECR}" >> $GITHUB_OUTPUT
           echo "api_lambda_name=${API}" >> $GITHUB_OUTPUT
@@ -557,6 +559,7 @@ jobs:
           echo "website_url=${WEBSITE_URL}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_domain_url=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
 
       - name: Summary
         run: |
@@ -795,25 +798,45 @@ jobs:
         working-directory: webapp/frontend
         run: |
           npm install
-          # Use API Gateway endpoint as VITE_API_URL (not website URL)
-          API_GW="${{ needs.terraform.outputs.api_gateway_endpoint }}"
-          if [ -n "$API_GW" ] && [ "$API_GW" != "null" ] && [ "$API_GW" != "None" ]; then
-            FINAL_API_URL="$API_GW"
+          # Always use CloudFront URL — frontend is served FROM CloudFront so API calls
+          # to the same domain are same-origin (no CORS). Never use direct API GW URL.
+          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
+          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
+            FINAL_API_URL="$WEBSITE_URL"
+            echo "[OK] Using CloudFront URL: $FINAL_API_URL"
           else
-            echo "ERROR: API Gateway endpoint not available"
-            exit 1
+            # Discover CloudFront URL from AWS
+            FINAL_API_URL=$(aws cloudfront list-distributions \
+              --query 'DistributionList.Items[0].DomainName' \
+              --output text 2>/dev/null || echo "")
+            if [ -n "$FINAL_API_URL" ] && [ "$FINAL_API_URL" != "None" ]; then
+              FINAL_API_URL="https://${FINAL_API_URL}"
+              echo "[OK] Discovered CloudFront URL: $FINAL_API_URL"
+            else
+              FINAL_API_URL=""
+              echo "[WARN] No CloudFront URL found - using relative paths"
+            fi
           fi
           VITE_API_URL="$FINAL_API_URL" npm run build
 
       - name: Generate Production Config
         run: |
-          API_URL="${{ needs.terraform.outputs.api_gateway_endpoint }}"
           WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
-          if [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
-            echo "ERROR: api_gateway_endpoint not resolved"
-            exit 1
+          # Always use CloudFront URL for API_URL in config.js
+          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
+            API_URL="$WEBSITE_URL"
+            echo "Using CloudFront URL: $API_URL"
           else
-            echo "Using API Gateway endpoint: $API_URL"
+            API_URL=$(aws cloudfront list-distributions \
+              --query 'DistributionList.Items[0].DomainName' \
+              --output text 2>/dev/null || echo "")
+            if [ -n "$API_URL" ] && [ "$API_URL" != "None" ]; then
+              API_URL="https://${API_URL}"
+              echo "Discovered CloudFront URL: $API_URL"
+            else
+              API_URL=""
+              echo "No CloudFront URL found - using relative paths (API_URL='')"
+            fi
           fi
           POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
           CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"

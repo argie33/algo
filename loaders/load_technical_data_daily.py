@@ -45,16 +45,15 @@ class TechnicalDataDailyLoader(OptimalLoader):
         # Read the actual DB max date to avoid re-fetching 5 years of history.
         if since is None:
             try:
-                conn = self._connect()
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s",
-                    (symbol,),
-                )
-                row = cur.fetchone()
-                cur.close()
-                if row and row[0]:
-                    since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                from utils.database_context import DatabaseContext
+                with DatabaseContext('read') as cur:
+                    cur.execute(
+                        "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
             except Exception as e:
                 logger.warning(f"Could not read technical_data_daily watermark for {symbol}: {e}")
 
@@ -80,38 +79,39 @@ class TechnicalDataDailyLoader(OptimalLoader):
         return indicators
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
-        conn = self._connect()
-        cur = conn.cursor()
+        from utils.database_context import DatabaseContext
         try:
-            cur.execute(
-                "SELECT date, open, high, low, close, volume FROM price_daily "
-                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                (symbol, start, end),
-            )
-            rows = []
-            for r in cur.fetchall():
-                # Validate: reject zero-price or zero-volume rows (data errors or halted stocks)
-                close = float(r[4]) if r[4] is not None else None
-                volume = int(r[5]) if r[5] is not None else None
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT date, open, high, low, close, volume FROM price_daily "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                    (symbol, start, end),
+                )
+                rows = []
+                for r in cur.fetchall():
+                    # Validate: reject zero-price or zero-volume rows (data errors or halted stocks)
+                    close = float(r[4]) if r[4] is not None else None
+                    volume = int(r[5]) if r[5] is not None else None
 
-                if close is None or close <= 0:
-                    # Zero/negative close price = data error
-                    continue
-                if volume is not None and volume == 0:
-                    # Zero volume = halted/no trading
-                    continue
+                    if close is None or close <= 0:
+                        # Zero/negative close price = data error
+                        continue
+                    if volume is not None and volume == 0:
+                        # Zero volume = halted/no trading
+                        continue
 
-                rows.append({
-                    "date": r[0].isoformat() if r[0] else None,
-                    "open": float(r[1]) if r[1] is not None else None,
-                    "high": float(r[2]) if r[2] is not None else None,
-                    "low": float(r[3]) if r[3] is not None else None,
-                    "close": close,
-                    "volume": volume,
-                })
-            return rows
-        finally:
-            cur.close()
+                    rows.append({
+                        "date": r[0].isoformat() if r[0] else None,
+                        "open": float(r[1]) if r[1] is not None else None,
+                        "high": float(r[2]) if r[2] is not None else None,
+                        "low": float(r[3]) if r[3] is not None else None,
+                        "close": close,
+                        "volume": volume,
+                    })
+                return rows
+        except Exception as e:
+            logger.error(f"Failed to fetch price data for {symbol}: {e}")
+            return []
 
     def _compute_all_indicators(self, symbol: str, rows: List[dict], spy_rows: List[dict] = None) -> List[dict]:
         if not rows or len(rows) < 50:

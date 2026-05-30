@@ -38,38 +38,35 @@ class QualityMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute quality metrics from balance sheet and income statement."""
         try:
-            conn = self._connect()
-            cur = conn.cursor()
+            from utils.database_context import DatabaseContext
+            with DatabaseContext('read') as cur:
+                cur.execute("""
+                    SELECT revenue, operating_income, net_income
+                    FROM annual_income_statement
+                    WHERE symbol = %s
+                    ORDER BY fiscal_year DESC
+                    LIMIT 1
+                """, (symbol,))
+                income_row = cur.fetchone()
 
-            cur.execute("""
-                SELECT revenue, operating_income, net_income
-                FROM annual_income_statement
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """, (symbol,))
-            income_row = cur.fetchone()
+                cur.execute("""
+                    SELECT total_assets, stockholders_equity, current_assets, total_liabilities,
+                           current_liabilities, inventory
+                    FROM annual_balance_sheet
+                    WHERE symbol = %s
+                    ORDER BY fiscal_year DESC
+                    LIMIT 1
+                """, (symbol,))
+                balance_row = cur.fetchone()
 
-            cur.execute("""
-                SELECT total_assets, stockholders_equity, current_assets, total_liabilities,
-                       current_liabilities, inventory
-                FROM annual_balance_sheet
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """, (symbol,))
-            balance_row = cur.fetchone()
+                # Require at least income statement; balance sheet is optional
+                if not income_row:
+                    return None
 
-            cur.close()
-
-            # Require at least income statement; balance sheet is optional
-            if not income_row:
+                metrics = self._compute_metrics(symbol, income_row, balance_row)
+                if metrics:
+                    return [metrics]
                 return None
-
-            metrics = self._compute_metrics(symbol, income_row, balance_row)
-            if metrics:
-                return [metrics]
-            return None
 
         except Exception as e:
             logger.debug(f"Error computing quality metrics for {symbol}: {e}")

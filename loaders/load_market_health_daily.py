@@ -43,19 +43,18 @@ class MarketHealthDailyLoader(OptimalLoader):
         # BUT: if the table is nearly empty (< 5 rows), assume it needs backfilling and start from scratch
         if since is None:
             try:
-                conn = self._connect()
-                cur = conn.cursor()
-                cur.execute("SELECT MAX(date), COUNT(*) FROM market_health_daily")
-                row = cur.fetchone()
-                cur.close()
-                row_count = row[1] if row else 0
-                if row and row[0]:
-                    # If table has fewer than 5 rows, it's likely incomplete/corrupted - do a full backfill
-                    if row_count < 5:
-                        logger.info(f"market_health_daily has {row_count} rows (< 5), starting from scratch for backfill")
-                        since = None
-                    else:
-                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                from utils.database_context import DatabaseContext
+                with DatabaseContext('read') as cur:
+                    cur.execute("SELECT MAX(date), COUNT(*) FROM market_health_daily")
+                    row = cur.fetchone()
+                    row_count = row[1] if row else 0
+                    if row and row[0]:
+                        # If table has fewer than 5 rows, it's likely incomplete/corrupted - do a full backfill
+                        if row_count < 5:
+                            logger.info(f"market_health_daily has {row_count} rows (< 5), starting from scratch for backfill")
+                            since = None
+                        else:
+                            since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
             except Exception as e:
                 logger.warning(f"Could not read market_health_daily watermark: {e}")
 
@@ -121,105 +120,107 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def _fetch_breadth_data(self, start: date, end: date) -> dict:
         """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
-        conn = self._connect()
-        cur = conn.cursor()
+        from utils.database_context import DatabaseContext
         try:
-            # For efficiency: only compute breadth for the last 30 days (most recent data)
-            # For dates older than 30 days, query existing market_health_daily data to reuse
-            recent_start = max(start, end - timedelta(days=30))
-            lookback_start = recent_start - timedelta(days=365)
+            with DatabaseContext('read') as cur:
+                # For efficiency: only compute breadth for the last 30 days (most recent data)
+                # For dates older than 30 days, query existing market_health_daily data to reuse
+                recent_start = max(start, end - timedelta(days=30))
+                lookback_start = recent_start - timedelta(days=365)
 
-            result = {}
+                result = {}
 
-            # First, get cached breadth data from market_health_daily for older dates
-            if start < recent_start:
-                try:
-                    cur.execute("""
-                        SELECT date,
-                               COALESCE(advance_decline_ratio, 1.0),
-                               COALESCE(new_highs_count, 0),
-                               COALESCE(new_lows_count, 0)
-                        FROM market_health_daily
-                        WHERE date >= %s AND date < %s
-                        ORDER BY date ASC
-                    """, (start, recent_start))
+                # First, get cached breadth data from market_health_daily for older dates
+                if start < recent_start:
+                    try:
+                        cur.execute("""
+                            SELECT date,
+                                   COALESCE(advance_decline_ratio, 1.0),
+                                   COALESCE(new_highs_count, 0),
+                                   COALESCE(new_lows_count, 0)
+                            FROM market_health_daily
+                            WHERE date >= %s AND date < %s
+                            ORDER BY date ASC
+                        """, (start, recent_start))
 
-                    for r in cur.fetchall():
-                        result[r[0].isoformat()] = {
-                            "advance_decline_ratio": float(r[1]),
-                            "new_highs_count": int(r[2]),
-                            "new_lows_count": int(r[3]),
-                        }
-                except Exception as e:
-                    logger.warning(f"Could not fetch cached breadth data: {e}")
+                        for r in cur.fetchall():
+                            result[r[0].isoformat()] = {
+                                "advance_decline_ratio": float(r[1]),
+                                "new_highs_count": int(r[2]),
+                                "new_lows_count": int(r[3]),
+                            }
+                    except Exception as e:
+                        logger.warning(f"Could not fetch cached breadth data: {e}")
 
-            # Now compute breadth data only for recent dates (more efficient)
-            cur.execute("""
-                WITH prices AS (
-                    SELECT symbol, date, close
-                    FROM price_daily
-                    WHERE date >= %s AND date <= %s
-                      AND symbol NOT LIKE '^%%'
-                ),
-                with_context AS (
+                # Now compute breadth data only for recent dates (more efficient)
+                cur.execute("""
+                    WITH prices AS (
+                        SELECT symbol, date, close
+                        FROM price_daily
+                        WHERE date >= %s AND date <= %s
+                          AND symbol NOT LIKE '^%%'
+                    ),
+                    with_context AS (
+                        SELECT
+                            date, symbol, close,
+                            LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
+                            MAX(close) OVER (PARTITION BY symbol ORDER BY date
+                                             ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS high_251d,
+                            MIN(close) OVER (PARTITION BY symbol ORDER BY date
+                                             ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS low_251d
+                        FROM prices
+                    )
                     SELECT
-                        date, symbol, close,
-                        LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
-                        MAX(close) OVER (PARTITION BY symbol ORDER BY date
-                                         ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS high_251d,
-                        MIN(close) OVER (PARTITION BY symbol ORDER BY date
-                                         ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS low_251d
-                    FROM prices
-                )
-                SELECT
-                    date,
-                    COUNT(CASE WHEN close > prev_close THEN 1 END) AS advances,
-                    COUNT(CASE WHEN close < prev_close THEN 1 END) AS declines,
-                    ROUND(
-                        COUNT(CASE WHEN close > prev_close THEN 1 END)::numeric /
-                        NULLIF(COUNT(CASE WHEN close < prev_close THEN 1 END), 0), 3
-                    ) AS advance_decline_ratio,
-                    COUNT(CASE WHEN high_251d IS NOT NULL AND close >= high_251d THEN 1 END) AS new_highs,
-                    COUNT(CASE WHEN low_251d IS NOT NULL AND close <= low_251d THEN 1 END) AS new_lows
-                FROM with_context
-                WHERE prev_close IS NOT NULL AND date >= %s
-                GROUP BY date
-                ORDER BY date ASC
-            """, (lookback_start, end, recent_start))
+                        date,
+                        COUNT(CASE WHEN close > prev_close THEN 1 END) AS advances,
+                        COUNT(CASE WHEN close < prev_close THEN 1 END) AS declines,
+                        ROUND(
+                            COUNT(CASE WHEN close > prev_close THEN 1 END)::numeric /
+                            NULLIF(COUNT(CASE WHEN close < prev_close THEN 1 END), 0), 3
+                        ) AS advance_decline_ratio,
+                        COUNT(CASE WHEN high_251d IS NOT NULL AND close >= high_251d THEN 1 END) AS new_highs,
+                        COUNT(CASE WHEN low_251d IS NOT NULL AND close <= low_251d THEN 1 END) AS new_lows
+                    FROM with_context
+                    WHERE prev_close IS NOT NULL AND date >= %s
+                    GROUP BY date
+                    ORDER BY date ASC
+                """, (lookback_start, end, recent_start))
 
-            for r in cur.fetchall():
-                result[r[0].isoformat()] = {
-                    "advance_decline_ratio": float(r[3]) if r[3] is not None else 1.0,
-                    "new_highs_count": int(r[4]) if r[4] is not None else 0,
-                    "new_lows_count": int(r[5]) if r[5] is not None else 0,
-                }
+                for r in cur.fetchall():
+                    result[r[0].isoformat()] = {
+                        "advance_decline_ratio": float(r[3]) if r[3] is not None else 1.0,
+                        "new_highs_count": int(r[4]) if r[4] is not None else 0,
+                        "new_lows_count": int(r[5]) if r[5] is not None else 0,
+                    }
 
-            return result
-        finally:
-            cur.close()
+                return result
+        except Exception as e:
+            logger.error(f"Failed to fetch breadth data: {e}")
+            return {}
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
-        conn = self._connect()
-        cur = conn.cursor()
+        from utils.database_context import DatabaseContext
         try:
-            cur.execute(
-                "SELECT date, open, high, low, close, volume FROM price_daily "
-                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                (symbol, start, end),
-            )
-            return [
-                {
-                    "date": r[0].isoformat() if r[0] else None,
-                    "open": float(r[1]) if r[1] is not None else None,
-                    "high": float(r[2]) if r[2] is not None else None,
-                    "low": float(r[3]) if r[3] is not None else None,
-                    "close": float(r[4]) if r[4] is not None else None,
-                    "volume": int(r[5]) if r[5] is not None else None,
-                }
-                for r in cur.fetchall()
-            ]
-        finally:
-            cur.close()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT date, open, high, low, close, volume FROM price_daily "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                    (symbol, start, end),
+                )
+                return [
+                    {
+                        "date": r[0].isoformat() if r[0] else None,
+                        "open": float(r[1]) if r[1] is not None else None,
+                        "high": float(r[2]) if r[2] is not None else None,
+                        "low": float(r[3]) if r[3] is not None else None,
+                        "close": float(r[4]) if r[4] is not None else None,
+                        "volume": int(r[5]) if r[5] is not None else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+        except Exception as e:
+            logger.error(f"Failed to fetch price data for {symbol}: {e}")
+            return []
 
     def _compute_market_health(self, rows: List[dict]) -> List[dict]:
         if not rows:

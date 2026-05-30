@@ -40,20 +40,19 @@ class SignalQualityScoresLoader(OptimalLoader):
         # On ECS restart the in-memory watermark is empty, so since=None.
         # Read the actual DB max date to avoid re-querying 5 years of history.
         if since is None:
+            from utils.database_context import DatabaseContext
             max_retries = 2
             for attempt in range(max_retries):
                 try:
-                    conn = self._connect()
-                    cur = conn.cursor()
-                    cur.execute(
-                        "SELECT MAX(date) FROM signal_quality_scores WHERE symbol = %s",
-                        (symbol,),
-                    )
-                    row = cur.fetchone()
-                    cur.close()
-                    if row and row[0]:
-                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
-                    break
+                    with DatabaseContext('read') as cur:
+                        cur.execute(
+                            "SELECT MAX(date) FROM signal_quality_scores WHERE symbol = %s",
+                            (symbol,),
+                        )
+                        row = cur.fetchone()
+                        if row and row[0]:
+                            since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                        break
                 except Exception as e:
                     if attempt < max_retries - 1:
                         logger.debug(f"Watermark read failed (attempt {attempt + 1}/{max_retries}), retrying: {e}")
@@ -86,58 +85,61 @@ class SignalQualityScoresLoader(OptimalLoader):
         return scores
 
     def _fetch_buy_sell_signals(self, symbol: str, start: date, end: date) -> List[dict]:
-        conn = self._connect()
-        cur = conn.cursor()
+        from utils.database_context import DatabaseContext
         try:
-            cur.execute(
-                "SELECT date, signal_type FROM buy_sell_daily "
-                "WHERE symbol = %s AND date >= %s AND date <= %s AND signal_type IN ('BUY', 'SELL') ORDER BY date ASC",
-                (symbol, start, end),
-            )
-            return [{"date": r[0].isoformat(), "signal_type": r[1]} for r in cur.fetchall()]
-        finally:
-            cur.close()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT date, signal_type FROM buy_sell_daily "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s AND signal_type IN ('BUY', 'SELL') ORDER BY date ASC",
+                    (symbol, start, end),
+                )
+                return [{"date": r[0].isoformat(), "signal_type": r[1]} for r in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to fetch buy/sell signals for {symbol}: {e}")
+            return []
 
     def _fetch_technical_data(self, symbol: str, start: date, end: date) -> List[dict]:
-        conn = self._connect()
-        cur = conn.cursor()
+        from utils.database_context import DatabaseContext
         try:
-            cur.execute(
-                "SELECT date, rsi, macd, macd_signal FROM technical_data_daily "
-                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                (symbol, start, end),
-            )
-            return [
-                {
-                    "date": r[0].isoformat(),
-                    "rsi": float(r[1]) if r[1] is not None else None,
-                    "macd": float(r[2]) if r[2] is not None else None,
-                    "macd_signal": float(r[3]) if r[3] is not None else None,
-                }
-                for r in cur.fetchall()
-            ]
-        finally:
-            cur.close()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT date, rsi, macd, macd_signal FROM technical_data_daily "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                    (symbol, start, end),
+                )
+                return [
+                    {
+                        "date": r[0].isoformat(),
+                        "rsi": float(r[1]) if r[1] is not None else None,
+                        "macd": float(r[2]) if r[2] is not None else None,
+                        "macd_signal": float(r[3]) if r[3] is not None else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+        except Exception as e:
+            logger.error(f"Failed to fetch technical data for {symbol}: {e}")
+            return []
 
     def _fetch_trend_data(self, symbol: str, start: date, end: date) -> List[dict]:
-        conn = self._connect()
-        cur = conn.cursor()
+        from utils.database_context import DatabaseContext
         try:
-            cur.execute(
-                "SELECT date, minervini_trend_score, weinstein_stage FROM trend_template_data "
-                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                (symbol, start, end),
-            )
-            return [
-                {
-                    "date": r[0].isoformat(),
-                    "minervini_score": float(r[1]) if r[1] is not None else 0,
-                    "weinstein_stage": r[2],
-                }
-                for r in cur.fetchall()
-            ]
-        finally:
-            cur.close()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT date, minervini_trend_score, weinstein_stage FROM trend_template_data "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                    (symbol, start, end),
+                )
+                return [
+                    {
+                        "date": r[0].isoformat(),
+                        "minervini_score": float(r[1]) if r[1] is not None else 0,
+                        "weinstein_stage": r[2],
+                    }
+                    for r in cur.fetchall()
+                ]
+        except Exception as e:
+            logger.error(f"Failed to fetch trend data for {symbol}: {e}")
+            return []
 
     def _compute_quality_scores(self, symbol: str, buy_sell_rows: List[dict],
                                 technical_rows: List[dict], trend_rows: List[dict]) -> List[dict]:

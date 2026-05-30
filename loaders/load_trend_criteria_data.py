@@ -39,22 +39,21 @@ class TrendCriteriaLoader(OptimalLoader):
 
         # When since is None (e.g. first call after an ECS task restart), read the actual
         # DB max date to skip recomputing years of already-loaded history. Without this,
-        # every ECS run would re-fetch 2 years Ã— all symbols â€” matching the fix applied to
+        # every ECS run would re-fetch 2 years x all symbols - matching the fix applied to
         # MarketHealthDailyLoader in commit 97230793b.
         if since is None:
             try:
-                conn = self._connect()
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT MAX(date) FROM trend_template_data WHERE symbol = %s",
-                    (symbol,),
-                )
-                row = cur.fetchone()
-                cur.close()
-                if row and row[0]:
-                    since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                from utils.database_context import DatabaseContext
+                with DatabaseContext('read') as cur:
+                    cur.execute(
+                        “SELECT MAX(date) FROM trend_template_data WHERE symbol = %s”,
+                        (symbol,),
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
             except Exception as e:
-                logger.warning(f"Could not read trend_template_data watermark for {symbol}: {e}")
+                logger.warning(f”Could not read trend_template_data watermark for {symbol}: {e}”)
 
         if since is None:
             start = end - timedelta(days=2 * 365)
@@ -75,24 +74,25 @@ class TrendCriteriaLoader(OptimalLoader):
         return results
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
-        conn = self._connect()
-        cur = conn.cursor()
+        from utils.database_context import DatabaseContext
         try:
-            cur.execute(
-                "SELECT date, close, volume FROM price_daily "
-                "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                (symbol, start, end),
-            )
-            return [
-                {
-                    "date": r[0].isoformat() if r[0] else None,
-                    "close": float(r[1]) if r[1] is not None else None,
-                    "volume": int(r[2]) if r[2] is not None else None,
-                }
-                for r in cur.fetchall()
-            ]
-        finally:
-            cur.close()
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT date, close, volume FROM price_daily "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
+                    (symbol, start, end),
+                )
+                return [
+                    {
+                        "date": r[0].isoformat() if r[0] else None,
+                        "close": float(r[1]) if r[1] is not None else None,
+                        "volume": int(r[2]) if r[2] is not None else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+        except Exception as e:
+            logger.error(f"Failed to fetch price data for {symbol}: {e}")
+            return []
 
     def _compute_trend_criteria(self, symbol: str, rows: List[dict]) -> List[dict]:
         df = pd.DataFrame(rows)
