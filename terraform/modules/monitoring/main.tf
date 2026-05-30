@@ -225,7 +225,7 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       # ============================================================
-      # Loader Execution Status (Issue #5: Data Loading Reliability)
+      # Loader Execution Metrics (Issue #3 & #5: Data Loading Reliability)
       # ============================================================
       {
         type = "metric"
@@ -237,11 +237,19 @@ resource "aws_cloudwatch_dashboard" "main" {
           period = 300
           stat   = "Sum"
           region = var.aws_region
-          title  = "Loader Execution Status (Last 24h)"
+          title  = "Loader Success vs Failure Rate (24h)"
           yAxis = {
             left = {
               min = 0
             }
+          }
+          annotations = {
+            horizontal = [
+              {
+                label = "Critical threshold"
+                value = 5
+              }
+            ]
           }
         }
         width  = 12
@@ -254,16 +262,16 @@ resource "aws_cloudwatch_dashboard" "main" {
         type = "metric"
         properties = {
           metrics = [
-            ["Algo/DataLoading", "LoaderFailure", { stat = "Sum" }],
-            [".", "LoaderSuccess", { stat = "Sum" }],
+            ["Algo/DataLoading", "LoaderFailure", { stat = "Average" }],
           ]
-          period = 300
-          stat   = "Sum"
+          period = 3600
+          stat   = "Average"
           region = var.aws_region
-          title  = "Loader Execution Status (Last 24h)"
+          title  = "Loader Failure Rate (Hourly Average)"
           yAxis = {
             left = {
               min = 0
+              max = 100
             }
           }
         }
