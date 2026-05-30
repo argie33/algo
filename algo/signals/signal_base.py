@@ -9,16 +9,6 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 - Helper functions (period_return, rs_percentile_vs_spy)
 """
 
-from config.credential_manager import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-
-import os
-from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date
 import logging
 from typing import Dict, List, Tuple, Optional, Any
@@ -31,23 +21,8 @@ class SignalBase:
 
     def __init__(self, cur=None):
         self.cur = cur
-        self._db_context = None
         self._price_cache = {}  # Cache for N+1 query optimization
         self._rs_percentile_cache = {}  # {(eval_date, lookback): {symbol: percentile}}
-
-    def connect(self):
-        """Create a database connection via DatabaseContext if not already provided."""
-        if self.cur is None:
-            self._db_context = DatabaseContext('read')
-            self.cur = self._db_context.__enter__()
-
-    def disconnect(self):
-        """Clean up DatabaseContext if we own it."""
-        if self._db_context:
-            self._db_context.__exit__(None, None, None)
-            self._db_context = None
-            self.cur = None
-            self._price_cache = {}
 
     def clear_cache(self):
         """Clear price cache to prevent stale data."""

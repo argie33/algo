@@ -48,7 +48,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     ORDER BY date DESC
                 """)
                 breadth = cur.fetchall()
-                return list_response([dict(b) for b in breadth])
+                freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
+                return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
                 cur.execute("""
                     SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
@@ -113,6 +114,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 except Exception as e:
                     logger.warning(f"Exception: {e}")
                     base['mcclellan_oscillator'] = []
+                freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
+                base['data_freshness'] = freshness
                 return json_response(200, base)
             elif path == '/api/market/top-movers':
                 cur.execute("""

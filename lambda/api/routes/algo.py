@@ -370,7 +370,8 @@ def _get_algo_performance(cur) -> Dict:
                 if max_loss > 0:
                     tail_ratio = round(max_win / max_loss, 2)
 
-            return json_response(200, {
+            freshness = check_data_freshness(cur, 'algo_trades', 'exit_date', warning_days=1)
+            result = {
                 'total_trades': total,
                 'winning_trades': winning,
                 'losing_trades': losing,
@@ -404,7 +405,9 @@ def _get_algo_performance(cur) -> Dict:
                 'best_win_streak': best_win_streak,
                 'worst_loss_streak': worst_loss_streak,
                 'current_streak': current_streak,
-            })
+                'data_freshness': freshness,
+            }
+            return json_response(200, result)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'calculate performance')
@@ -560,7 +563,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': 'No market data yet'})
 
             any_halted = any(b['triggered'] for b in breakers)
-            return json_response(200, {'breakers': breakers, 'system_halted': any_halted})
+            freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
+            return json_response(200, {'breakers': breakers, 'system_halted': any_halted, 'data_freshness': freshness})
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch circuit breakers')
@@ -578,7 +582,8 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
                 LIMIT 1000
             """, (cutoff_date,))
             curve = cur.fetchall()
-            return list_response([dict(c) for c in reversed(curve) if c])
+            freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
+            return list_response([dict(c) for c in reversed(curve) if c], data_freshness=freshness)
         except psycopg2.errors.UndefinedTable as e:
             logger.error(f'Required table not found (equity curve): {e}', extra={'operation': 'fetch equity curve'})
             return error_response(503, 'service_unavailable', 'Data pipeline loading')
