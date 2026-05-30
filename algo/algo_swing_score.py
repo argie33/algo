@@ -57,23 +57,15 @@ class SwingTraderScore:
     def __init__(self):
         self._signals = None
         self.cur = None
-        self._db_context = None
 
-    def connect(self):
-        """Create a database connection via DatabaseContext."""
-        if self.cur is None:
-            self._db_context = DatabaseContext('read')
-            self.cur = self._db_context.__enter__()
-            # Store connection for commit/rollback
-            self.conn = self._db_context.conn
-
-    def disconnect(self):
-        """Clean up DatabaseContext if we own it."""
-        if self._db_context:
-            self._db_context.__exit__(None, None, None)
-            self._db_context = None
-            self.cur = None
-            self.conn = None
+    def _with_cursor(self, operation, mode='read'):
+        """Execute operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext(mode) as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
 
     def _load_config_weights(self, cur) -> Dict[str, int]:
         """Load swing score component weights from config table if available."""
@@ -149,114 +141,115 @@ class SwingTraderScore:
         Returns:
             Dict with swing_score, grade, components breakdown, and hard-gate details
         """
-        try:
-            self.connect()
-
-            # Hard gates
+        with DatabaseContext('read') as cur:
+            self.cur = cur
             try:
-                gates = self._check_hard_gates(symbol, eval_date, sector, industry)
-            except Exception as gate_err:
-                logger.warning(f"Swing score hard gates failed for {symbol}: {gate_err} (proceeding with soft pass)")
-                # Rollback to prevent transaction abort
-                gates = {'pass': True}  # Soft pass to continue evaluation
+                # Hard gates
+                try:
+                    gates = self._check_hard_gates(symbol, eval_date, sector, industry)
+                except Exception as gate_err:
+                    logger.warning(f"Swing score hard gates failed for {symbol}: {gate_err} (proceeding with soft pass)")
+                    gates = {'pass': True}
 
-            if not gates['pass']:
-                logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
+                if not gates['pass']:
+                    logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
+                    return {
+                        'symbol': symbol,
+                        'eval_date': str(eval_date),
+                        'pass': False,
+                        'reason': gates['reason'],
+                        'hard_gates': gates,
+                        'swing_score': 0.0,
+                    }
+
+                # Compute components (wrap each in error handling to prevent cascade failures)
+                try:
+                    setup_pts, setup_detail = self._setup_component(symbol, eval_date)
+                except Exception as e:
+                    logger.debug(f"Setup component failed for {symbol}: {e}")
+                    setup_pts, setup_detail = 0, {'error': str(e)[:50]}
+
+                try:
+                    trend_pts, trend_detail = self._trend_component(symbol, eval_date)
+                except Exception as e:
+                    logger.debug(f"Trend component failed for {symbol}: {e}")
+                    trend_pts, trend_detail = 0, {'error': str(e)[:50]}
+
+                try:
+                    mom_pts, mom_detail = self._momentum_component(symbol, eval_date)
+                except Exception as e:
+                    logger.debug(f"Momentum component failed for {symbol}: {e}")
+                    mom_pts, mom_detail = 0, {'error': str(e)[:50]}
+
+                try:
+                    vol_pts, vol_detail = self._volume_component(symbol, eval_date)
+                except Exception as e:
+                    logger.debug(f"Volume component failed for {symbol}: {e}")
+                    vol_pts, vol_detail = 0, {'error': str(e)[:50]}
+
+                try:
+                    fund_pts, fund_detail = self._fundamentals_component(symbol)
+                except Exception as e:
+                    logger.debug(f"Fundamentals component failed for {symbol}: {e}")
+                    fund_pts, fund_detail = 0, {'error': str(e)[:50]}
+
+                try:
+                    sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry)
+                except Exception as e:
+                    logger.debug(f"Sector component failed for {symbol}: {e}")
+                    sec_pts, sec_detail = 0, {'error': str(e)[:50]}
+
+                try:
+                    mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
+                except Exception as e:
+                    logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
+                    mtf_pts, mtf_detail = 0, {'error': str(e)[:50]}
+
+                total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
+
+                # Letter grade
+                if total >= 85:
+                    grade = 'A+'
+                elif total >= 75:
+                    grade = 'A'
+                elif total >= 65:
+                    grade = 'B'
+                elif total >= 55:
+                    grade = 'C'
+                elif total >= 45:
+                    grade = 'D'
+                else:
+                    grade = 'F'
+
+                result = {
+                    'symbol': symbol,
+                    'eval_date': str(eval_date),
+                    'pass': True,
+                    'swing_score': round(total, 1),
+                    'grade': grade,
+                    'components': {
+                        'setup_quality': {'pts': round(setup_pts, 1), 'max': self.W_SETUP, 'detail': setup_detail},
+                        'trend_quality': {'pts': round(trend_pts, 1), 'max': self.W_TREND, 'detail': trend_detail},
+                        'momentum_rs':   {'pts': round(mom_pts, 1),   'max': self.W_MOMENTUM, 'detail': mom_detail},
+                        'volume':        {'pts': round(vol_pts, 1),   'max': self.W_VOLUME, 'detail': vol_detail},
+                        'fundamentals':  {'pts': round(fund_pts, 1),  'max': self.W_FUNDAMENTALS, 'detail': fund_detail},
+                        'sector_industry': {'pts': round(sec_pts, 1), 'max': self.W_SECTOR, 'detail': sec_detail},
+                        'multi_timeframe': {'pts': round(mtf_pts, 1), 'max': self.W_MULTI_TF, 'detail': mtf_detail},
+                    },
+                    'hard_gates': gates,
+                }
+                self._persist(symbol, eval_date, result)
+                logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
+                return result
+            except Exception as e:
+                logger.error(f"Swing score calculation failed for {symbol}: {e}", exc_info=True)
                 return {
                     'symbol': symbol,
                     'eval_date': str(eval_date),
                     'pass': False,
-                    'reason': gates['reason'],
-                    'hard_gates': gates,
+                    'reason': f'calculation error: {str(e)[:60]}',
                     'swing_score': 0.0,
                 }
-
-            # Compute components (wrap each in error handling to prevent cascade failures)
-            try:
-                setup_pts, setup_detail = self._setup_component(symbol, eval_date)
-            except Exception as e:
-                logger.debug(f"Setup component failed for {symbol}: {e}")
-                setup_pts, setup_detail = 0, {'error': str(e)[:50]}
-
-            try:
-                trend_pts, trend_detail = self._trend_component(symbol, eval_date)
-            except Exception as e:
-                logger.debug(f"Trend component failed for {symbol}: {e}")
-                trend_pts, trend_detail = 0, {'error': str(e)[:50]}
-
-            try:
-                mom_pts, mom_detail = self._momentum_component(symbol, eval_date)
-            except Exception as e:
-                logger.debug(f"Momentum component failed for {symbol}: {e}")
-                mom_pts, mom_detail = 0, {'error': str(e)[:50]}
-            try:
-                vol_pts, vol_detail = self._volume_component(symbol, eval_date)
-            except Exception as e:
-                logger.debug(f"Volume component failed for {symbol}: {e}")
-                vol_pts, vol_detail = 0, {'error': str(e)[:50]}
-            try:
-                fund_pts, fund_detail = self._fundamentals_component(symbol)
-            except Exception as e:
-                logger.debug(f"Fundamentals component failed for {symbol}: {e}")
-                fund_pts, fund_detail = 0, {'error': str(e)[:50]}
-            try:
-                sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry)
-            except Exception as e:
-                logger.debug(f"Sector component failed for {symbol}: {e}")
-                sec_pts, sec_detail = 0, {'error': str(e)[:50]}
-            try:
-                mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
-            except Exception as e:
-                logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
-                mtf_pts, mtf_detail = 0, {'error': str(e)[:50]}
-            total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
-
-            # Letter grade
-            if total >= 85:
-                grade = 'A+'
-            elif total >= 75:
-                grade = 'A'
-            elif total >= 65:
-                grade = 'B'
-            elif total >= 55:
-                grade = 'C'
-            elif total >= 45:
-                grade = 'D'
-            else:
-                grade = 'F'
-
-            result = {
-                'symbol': symbol,
-                'eval_date': str(eval_date),
-                'pass': True,
-                'swing_score': round(total, 1),
-                'grade': grade,
-                'components': {
-                    'setup_quality': {'pts': round(setup_pts, 1), 'max': self.W_SETUP, 'detail': setup_detail},
-                    'trend_quality': {'pts': round(trend_pts, 1), 'max': self.W_TREND, 'detail': trend_detail},
-                    'momentum_rs':   {'pts': round(mom_pts, 1),   'max': self.W_MOMENTUM, 'detail': mom_detail},
-                    'volume':        {'pts': round(vol_pts, 1),   'max': self.W_VOLUME, 'detail': vol_detail},
-                    'fundamentals':  {'pts': round(fund_pts, 1),  'max': self.W_FUNDAMENTALS, 'detail': fund_detail},
-                    'sector_industry': {'pts': round(sec_pts, 1), 'max': self.W_SECTOR, 'detail': sec_detail},
-                    'multi_timeframe': {'pts': round(mtf_pts, 1), 'max': self.W_MULTI_TF, 'detail': mtf_detail},
-                },
-                'hard_gates': gates,
-            }
-            self._persist(symbol, eval_date, result)
-            logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
-            return result
-
-        except Exception as e:
-            logger.error(f"Swing score calculation failed for {symbol}: {e}", exc_info=True)
-            return {
-                'symbol': symbol,
-                'eval_date': str(eval_date),
-                'pass': False,
-                'reason': f'calculation error: {str(e)[:60]}',
-                'swing_score': 0.0,
-            }
-        finally:
-            self.disconnect()
 
     # ============= HARD GATES =============
 
@@ -1142,28 +1135,28 @@ class SwingTraderScore:
 
 if __name__ == "__main__":
     s = SwingTraderScore()
-    s.connect()
     eval_date = date(2026, 4, 24)
     logger.info(f"SWING TRADER SCORES — {eval_date}")
 
     candidates = ('AROC', 'CASS', 'CVV', 'EW', 'FSTR', 'LRCX', 'NATR', 'NBHC', 'NGS', 'SMTC', 'SRCE', 'CTS')
-    for sym in candidates:
-        s.cur.execute("SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,))
-        r = s.cur.fetchone()
-        sector = r[0] if r else None
-        industry = r[1] if r else None
-        result = s.compute(sym, eval_date, sector=sector, industry=industry)
-        if result['pass']:
-            comp = result['components']
-            logger.info(f"{sym:6s} {result['grade']:>3s} {result['swing_score']:5.1f}/100 | "
-                  f"setup {comp['setup_quality']['pts']:4.1f} | "
-                  f"trend {comp['trend_quality']['pts']:4.1f} | "
-                  f"mom {comp['momentum_rs']['pts']:4.1f} | "
-                  f"vol {comp['volume']['pts']:4.1f} | "
-                  f"fund {comp['fundamentals']['pts']:4.1f} | "
-                  f"sec {comp['sector_industry']['pts']:4.1f} | "
-                  f"mtf {comp['multi_timeframe']['pts']:4.1f}")
-        else:
-            logger.warning(f"{sym:6s} BLOCKED: {result['reason']}")
-    s.disconnect()
+
+    with DatabaseContext('read') as cur:
+        for sym in candidates:
+            cur.execute("SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,))
+            r = cur.fetchone()
+            sector = r[0] if r else None
+            industry = r[1] if r else None
+            result = s.compute(sym, eval_date, sector=sector, industry=industry)
+            if result['pass']:
+                comp = result['components']
+                logger.info(f"{sym:6s} {result['grade']:>3s} {result['swing_score']:5.1f}/100 | "
+                      f"setup {comp['setup_quality']['pts']:4.1f} | "
+                      f"trend {comp['trend_quality']['pts']:4.1f} | "
+                      f"mom {comp['momentum_rs']['pts']:4.1f} | "
+                      f"vol {comp['volume']['pts']:4.1f} | "
+                      f"fund {comp['fundamentals']['pts']:4.1f} | "
+                      f"sec {comp['sector_industry']['pts']:4.1f} | "
+                      f"mtf {comp['multi_timeframe']['pts']:4.1f}")
+            else:
+                logger.warning(f"{sym:6s} BLOCKED: {result['reason']}")
 

@@ -39,23 +39,6 @@ class PositionMonitor:
     def __init__(self, config):
         self.config = config
         self.cur = None
-        self._db_context = None
-
-    def connect(self):
-        """Create a database connection via DatabaseContext."""
-        if self.cur is None:
-            self._db_context = DatabaseContext('write')
-            self.cur = self._db_context.__enter__()
-            # Store connection for commit/rollback
-            self.conn = self._db_context.conn
-
-    def disconnect(self):
-        """Clean up DatabaseContext if we own it."""
-        if self._db_context:
-            self._db_context.__exit__(None, None, None)
-            self._db_context = None
-            self.cur = None
-            self.conn = None
 
     def check_stale_orders(self, current_date=None):
         """Check for orders stuck in pending state >1 hour. Alert if found.
@@ -167,8 +150,8 @@ class PositionMonitor:
             current_date = _date.today()
 
         recs = []
-        self.connect()
-        try:
+        with DatabaseContext('write') as cur:
+            self.cur = cur
             # Issue #24: Check margin utilization and warn/halt if excessive
             try:
                 self.cur.execute("""
@@ -229,9 +212,6 @@ class PositionMonitor:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
                     continue
             return recs
-        finally:
-            logger.debug("Position review completed, closing database connection")
-            self.disconnect()
 
     def _evaluate_position(self, row, current_date):
         (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
@@ -646,8 +626,9 @@ class PositionMonitor:
             list of adjustments made
         """
         adjustments = []
-        self.connect()
-        try:
+        ctx = DatabaseContext('write')
+        with ctx as cur:
+            self.cur = cur
             self.cur.execute("""
                 SELECT ap.position_id, ap.symbol, ap.quantity, ap.current_stop_price,
                        ap.avg_entry_price AS entry_price
@@ -764,17 +745,8 @@ class PositionMonitor:
                     logger.warning(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
                     continue
 
-            self.conn.commit()
+            ctx.conn.commit()
             return adjustments
-
-        except Exception as e:
-            if self.conn:
-                self.conn.rollback()
-            logger.error(f"ERROR: check_corporate_actions failed: {e}")
-            return []
-        finally:
-            logger.debug("Corporate actions check completed, closing database connection")
-            self.disconnect()
 
     def get_open_positions(self):
         """Get list of open positions for halt checking and monitoring.
@@ -782,26 +754,18 @@ class PositionMonitor:
         Returns a list of dicts with at least 'symbol' and optionally 'name'.
         Used by orchestrator for single-stock halt detection.
         """
-        need_disconnect = False
-        if self.cur is None:
-            self.connect()
-            need_disconnect = True
-
-        try:
-            self.cur.execute("""
-                SELECT DISTINCT symbol FROM algo_positions
-                WHERE status = 'open' AND quantity > 0
-                ORDER BY symbol
-            """)
-            positions = self.cur.fetchall()
-            return [{'symbol': row[0], 'name': row[0]} for row in positions] if positions else []
-        except Exception as e:
-            logger.warning(f"Failed to fetch open positions: {e}")
-            return []
-        finally:
-            logger.debug("Open positions fetch completed") if not need_disconnect else logger.debug("Open positions fetch completed, closing database connection")
-            if need_disconnect:
-                self.disconnect()
+        with DatabaseContext('read') as cur:
+            try:
+                cur.execute("""
+                    SELECT DISTINCT symbol FROM algo_positions
+                    WHERE status = 'open' AND quantity > 0
+                    ORDER BY symbol
+                """)
+                positions = cur.fetchall()
+                return [{'symbol': row[0], 'name': row[0]} for row in positions] if positions else []
+            except Exception as e:
+                logger.warning(f"Failed to fetch open positions: {e}")
+                return []
 
 if __name__ == "__main__":
     from algo.algo_config import get_config
