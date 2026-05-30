@@ -898,7 +898,7 @@ function RateVsInflationChart({ cpiHist, fedHist }) {
 }
 
 function NaaimPanel({ naaim }) {
-  const current = naaim?.current ?? naaim?.naaim_number_mean;
+  const current = naaim?.current?.value ?? naaim?.current ?? naaim?.naaim_number_mean;
   if (current == null) return null;
 
   const val = +current;
@@ -960,7 +960,7 @@ function NaaimPanel({ naaim }) {
                   formatter={v => [v != null ? (+v).toFixed(1) : '—', 'NAAIM Exposure']} />
                 <ReferenceLine y={100} stroke="var(--border-2)" strokeDasharray="4 4" />
                 <ReferenceLine y={50} stroke="var(--border-2)" strokeDasharray="2 6" />
-                <Area type="monotone" dataKey="naaim_number_mean" stroke={zoneColor}
+                <Area type="monotone" dataKey="value" stroke={zoneColor}
                   strokeWidth={2} fill="url(#naaimGrad)" />
               </AreaChart>
             </ResponsiveContainer>

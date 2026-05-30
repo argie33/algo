@@ -1613,7 +1613,7 @@ function SentimentCompositeCard({ markets, sentiment }) {
     { refetchInterval: 1000 * 60 * 60 }
   );
 
-  const fgArray = Array.isArray(fgData) ? fgData : (fgData?.items || []);
+  const fgArray = Array.isArray(fgData) ? fgData : (fgData?.items || fgData?.history || []);
   const fg = (fgArray || []).slice();
   const fgLatest = fg.length ? fg[fg.length - 1] : null;
   const fgValue = fgLatest?.value ?? fgLatest?.fear_greed_value ?? null;
