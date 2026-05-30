@@ -44,6 +44,9 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 logger.error(f"Public handler error for {path}: {e}", exc_info=True)
                 return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
 
+    # List-returning endpoints that should return 200+empty on failure (not 500)
+    _LIST_ENDPOINTS = {'/api/scores', '/api/industries', '/api/sectors', '/api/algo/sector'}
+
     # Check authenticated handlers
     for prefix, handler in HANDLERS.items():
         if path.startswith(prefix):
@@ -53,5 +56,8 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 return handler.handle(cur, path, method, params, body)
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
+                # Return 200+empty for data endpoints so browser doesn't log red F12 errors
+                if any(path.startswith(ep) for ep in _LIST_ENDPOINTS):
+                    return {"statusCode": 200, "items": [], "total": 0}
                 return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
     return {"statusCode": 404, "errorType": "not_found", "message": "No handler"}
