@@ -27,8 +27,6 @@ logger = logging.getLogger(__name__)
 
 def run(
     config: Any,
-    get_conn: Callable,
-    put_conn: Callable,
     run_date: _date,
     dry_run: bool,
     alerts: AlertManager,
@@ -39,8 +37,6 @@ def run(
 
     Args:
         config: Configuration object
-        get_conn: Function to get database connection
-        put_conn: Function to return database connection
         run_date: Date for this run
         dry_run: Whether running in dry-run mode
         alerts: AlertManager instance
