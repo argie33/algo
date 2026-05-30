@@ -13,23 +13,4 @@ module "cognito" {
   cognito_test_user_email = var.cognito_test_user_email
 }
 
-# Output credentials for frontend configuration
-output "cognito_user_pool_id" {
-  value       = module.cognito.user_pool_id
-  description = "Cognito User Pool ID for frontend"
-}
-
-output "cognito_user_pool_client_id" {
-  value       = module.cognito.user_pool_client_id
-  description = "Cognito User Pool Client ID for frontend"
-}
-
-output "cognito_domain_url" {
-  value       = module.cognito.domain_url
-  description = "Cognito OAuth domain URL"
-}
-
-output "cognito_identity_provider_url" {
-  value       = module.cognito.identity_provider_url
-  description = "Cognito Identity Provider URL"
-}
+# All Cognito outputs are defined in outputs.tf to avoid duplication at root level

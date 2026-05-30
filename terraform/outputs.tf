@@ -194,6 +194,11 @@ output "cognito_domain_url" {
   value       = module.cognito.domain_url
 }
 
+output "cognito_identity_provider_url" {
+  description = "Cognito Identity Provider URL"
+  value       = module.cognito.identity_provider_url
+}
+
 # ============================================================
 # Algo Orchestrator Outputs
 # ============================================================
