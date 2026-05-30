@@ -283,7 +283,7 @@ class OptimalLoader(ABC):
                 if not columns:
                     raise ValueError(f"No valid columns to write for {self.table_name}")
             except Exception as e:
-                logger.error(f"Failed to prepare columns for {self.table_name}: {e}")
+                log.error(f"Failed to prepare columns for {self.table_name}: {e}")
                 raise
 
             import threading
@@ -354,9 +354,6 @@ class OptimalLoader(ABC):
                         wm_store.set(symbol, new_watermark, rows_loaded=inserted)
 
             return inserted
-            except Exception as e:
-                logger.warning(f"Exception: {e}")
-                raise
 
     # ---- Per-symbol pipeline ----
 
