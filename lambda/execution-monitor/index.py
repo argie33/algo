@@ -141,6 +141,13 @@ def get_alpaca_trades():
 
 def lambda_handler(event, context):
     """Monitor execution status."""
+    # Clear credential cache on invocation to ensure fresh creds for rotated secrets
+    try:
+        from config.credential_manager import clear_credential_cache
+        clear_credential_cache()
+    except Exception:
+        pass  # If we can't clear cache, continue anyway (non-fatal)
+
     logger.info(f"Execution Monitor - {datetime.now().isoformat()}")
 
     rds_creds = get_rds_credentials()

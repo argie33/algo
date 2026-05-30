@@ -53,6 +53,10 @@ def lambda_handler(event, context):
             }
         }
     """
+    # Clear credential cache on invocation to ensure fresh creds for rotated secrets
+    from config.credential_manager import clear_credential_cache
+    clear_credential_cache()
+
     source = "unknown"
     try:
         # Load environment variables

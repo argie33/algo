@@ -308,6 +308,21 @@ def get_db_config() -> Dict[str, Any]:
     return get_db_credentials()
 
 
+def clear_credential_cache():
+    """Clear the credential cache.
+
+    Called at Lambda invocation start to ensure fresh credentials are fetched
+    for each invocation. This is important for credential rotation: if a Lambda
+    stays warm after credentials are rotated, we want to pick up the new ones
+    on the next invocation.
+
+    Safe to call even if no manager exists yet (creates fresh one).
+    """
+    mgr = get_credential_manager()
+    mgr.clear_cache()
+    return True
+
+
 if __name__ == "__main__":
     # Simple test: try to get credentials
     try:

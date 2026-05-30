@@ -43,10 +43,26 @@ SERIES = [
 
 
 def get_fred_api_key() -> str:
+    """Get FRED API key from environment, credential_manager, or Secrets Manager.
+
+    Priority:
+    1. FRED_API_KEY env var (local dev, or passed by Lambda)
+    2. credential_manager (unified handler - tries Secrets Manager then env vars)
+    3. Direct Secrets Manager lookup (fallback for non-Lambda contexts)
+    """
+    # First try environment variable
     key = os.getenv("FRED_API_KEY", "")
     if key:
         return key
-    # Try Secrets Manager
+
+    # Try credential_manager if available (works in Lambda with proper IAM)
+    try:
+        from config.credential_manager import get_secret
+        return get_secret("fred/api_key", default="")
+    except Exception as e:
+        log.debug(f"credential_manager lookup failed: {e}")
+
+    # Fallback: Try direct Secrets Manager (for ECS tasks, local development with boto3)
     try:
         import boto3, json
         client = boto3.client("secretsmanager", region_name="us-east-1")
@@ -54,7 +70,8 @@ def get_fred_api_key() -> str:
         data = json.loads(resp.get("SecretString", "{}"))
         return data.get("api_key") or data.get("FRED_API_KEY", "")
     except Exception as e:
-        log.warning(f"Secrets Manager lookup failed: {e}")
+        log.debug(f"Secrets Manager lookup failed: {e}")
+
     return ""
 
 

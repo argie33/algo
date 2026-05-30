@@ -517,6 +517,13 @@ def require_auth(event: Dict, path: str) -> tuple:
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
+    # Clear credential cache on invocation to ensure fresh creds for rotated secrets
+    try:
+        from config.credential_manager import clear_credential_cache
+        clear_credential_cache()
+    except Exception:
+        pass  # If we can't clear cache, continue anyway (non-fatal)
+
     if IMPORT_ERROR:
         cors_headers = {'Access-Control-Allow-Origin': '*'}
         return {
