@@ -144,7 +144,6 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                     symbol,
                     json.dumps(details) if details else None
                 ))
-                cur.connection.commit()
                 logger.info(f"[NOTIF] Saved to DB: {title}")
         except Exception as e:
             logger.error(f"[NOTIF] DB save failed: {e}")

@@ -14,7 +14,7 @@ import sys
 import logging
 from typing import List, Tuple
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class CredentialValidationError(Exception):
@@ -126,15 +126,15 @@ def assert_credentials(on_failure: str = "raise") -> bool:
     is_valid, messages = validate_credentials()
 
     if is_valid:
-        log.info("[OK] All required credentials validated")
+        logger.info("[OK] All required credentials validated")
         return True
 
     # Print messages
     for msg in messages:
         if "[ERROR]" in msg:
-            log.error(msg)
+            logger.error(msg)
         else:
-            log.warning(msg)
+            logger.warning(msg)
 
     if on_failure == "raise":
         raise CredentialValidationError(
@@ -157,17 +157,17 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s"
     )
 
-    log.info("\nValidating credentials...")
-    log.info("-" * 60)
+    logger.info("\nValidating credentials...")
+    logger.info("-" * 60)
     is_valid, messages = validate_credentials()
 
     for msg in messages:
-        log.info(msg)
+        logger.info(msg)
 
-    log.info("-" * 60)
+    logger.info("-" * 60)
     if is_valid:
-        log.info("[OK] All credentials valid")
+        logger.info("[OK] All credentials valid")
         sys.exit(0)
     else:
-        log.info("[FAIL] Credential validation failed")
+        logger.info("[FAIL] Credential validation failed")
         sys.exit(1)

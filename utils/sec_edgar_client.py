@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 EDGAR_BASE = os.getenv("EDGAR_BASE_URL", "https://data.sec.gov")
 TICKER_URL = os.getenv("SEC_TICKER_URL", "https://www.sec.gov/files/company_tickers.json")
@@ -777,7 +777,7 @@ class SecEdgarClient:
     ):
         self.user_agent = user_agent or DEFAULT_USER_AGENT
         if "@" not in self.user_agent:
-            log.warning(
+            logger.warning(
                 "SEC requires User-Agent with contact email. "
                 "Set SEC_USER_AGENT env var: 'AppName admin@example.com'"
             )
@@ -813,12 +813,12 @@ class SecEdgarClient:
                     self._ticker_cache_time = data.get('timestamp', 0)
                     age = time.time() - self._ticker_cache_time
                     if age < self._cache_ttl:
-                        log.debug(f"Loaded ticker cache from file ({len(self._ticker_cache)} symbols, {age:.0f}s old)")
+                        logger.debug(f"Loaded ticker cache from file ({len(self._ticker_cache)} symbols, {age:.0f}s old)")
                     else:
-                        log.debug("Ticker cache file expired, will refresh from API")
+                        logger.debug("Ticker cache file expired, will refresh from API")
                         self._ticker_cache = None
         except Exception as e:
-            log.debug(f"Could not load ticker cache file: {e}")
+            logger.debug(f"Could not load ticker cache file: {e}")
 
     def _save_ticker_cache_to_file(self) -> None:
         """Save ticker cache to persistent file for other processes to use."""
@@ -829,9 +829,9 @@ class SecEdgarClient:
                     'mapping': self._ticker_cache,
                     'timestamp': self._ticker_cache_time,
                 }, f)
-            log.debug(f"Saved ticker cache to file ({len(self._ticker_cache)} symbols)")
+            logger.debug(f"Saved ticker cache to file ({len(self._ticker_cache)} symbols)")
         except Exception as e:
-            log.debug(f"Could not save ticker cache file: {e}")
+            logger.debug(f"Could not save ticker cache file: {e}")
 
     def _refresh_ticker_cache(self) -> Dict[str, str]:
         """Download SEC's ticker→CIK mapping (one file, all listed companies).
@@ -848,10 +848,10 @@ class SecEdgarClient:
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 4 * (2 ** attempt) + random.uniform(0, 2)
-                    log.warning(f"SEC ticker endpoint network error: {e}. Retry in {wait_time:.1f}s")
+                    logger.warning(f"SEC ticker endpoint network error: {e}. Retry in {wait_time:.1f}s")
                     time.sleep(wait_time)
                     continue
-                log.error(f"SEC ticker cache network error after {max_retries} retries: {e}")
+                logger.error(f"SEC ticker cache network error after {max_retries} retries: {e}")
                 return {}
 
             try:
@@ -864,11 +864,11 @@ class SecEdgarClient:
                         jitter = random.uniform(0, base_wait * 0.3)  # Add 0-30% jitter
                         wait_time = base_wait + jitter
                         status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
-                        log.warning(f"SEC ticker endpoint {status_name}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
+                        logger.warning(f"SEC ticker endpoint {status_name}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                         time.sleep(wait_time)
                         continue
                     else:
-                        log.error(f"SEC ticker cache failed after {max_retries} retries: {resp.status_code} {resp.reason}")
+                        logger.error(f"SEC ticker cache failed after {max_retries} retries: {resp.status_code} {resp.reason}")
                         return {}
 
                 resp.raise_for_status()
@@ -881,11 +881,11 @@ class SecEdgarClient:
                 self._ticker_cache = mapping
                 self._ticker_cache_time = time.time()
                 self._save_ticker_cache_to_file()  # Save for other processes
-                log.info("SEC ticker cache loaded: %d symbols", len(mapping))
+                logger.info("SEC ticker cache loaded: %d symbols", len(mapping))
                 return mapping
             except requests.HTTPError as e:
                 if resp.status_code not in (429, 403):
-                    log.error(f"SEC ticker cache request failed: {e}")
+                    logger.error(f"SEC ticker cache request failed: {e}")
                     return {}
 
         return {}
@@ -911,7 +911,7 @@ class SecEdgarClient:
         # Fallback to hardcoded ticker list (10,365+ SEC-registered symbols)
         if symbol.upper() in self._FALLBACK_TICKERS:
             self._fallback_usage_count += 1
-            log.warning(
+            logger.warning(
                 f"Using fallback CIK for {symbol} (SEC API unavailable). "
                 f"Fallback cache from {self._fallback_ticker_timestamp} "
                 f"(may be stale if symbol recently registered). Usage count: {self._fallback_usage_count}"
@@ -919,7 +919,7 @@ class SecEdgarClient:
             return self._FALLBACK_TICKERS[symbol.upper()]
 
         # For unknown symbols, return None to skip (caller will handle gracefully)
-        log.debug(f"Unknown symbol {symbol} — not in API cache or fallback ({self._fallback_ticker_timestamp})")
+        logger.debug(f"Unknown symbol {symbol} — not in API cache or fallback ({self._fallback_ticker_timestamp})")
         return None
 
     # ----- Core API -----
@@ -973,10 +973,10 @@ class SecEdgarClient:
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 4 * (2 ** attempt) + random.uniform(0, 2)
-                    log.warning(f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s")
+                    logger.warning(f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s")
                     time.sleep(wait_time)
                     continue
-                log.error(f"SEC API network error after {max_retries} retries: {e}")
+                logger.error(f"SEC API network error after {max_retries} retries: {e}")
                 return {}
 
             # 404 means the data doesn't exist
@@ -990,11 +990,11 @@ class SecEdgarClient:
                     jitter = random.uniform(0, base_wait * 0.3)
                     wait_time = base_wait + jitter
                     status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
-                    log.debug(f"SEC API {status_name} for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
+                    logger.debug(f"SEC API {status_name} for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
                     continue
                 else:
-                    log.warning(f"SEC API failed after {max_retries} retries: {resp.status_code} {resp.reason}")
+                    logger.warning(f"SEC API failed after {max_retries} retries: {resp.status_code} {resp.reason}")
                     return {}
 
             # Other HTTP errors
@@ -1002,7 +1002,7 @@ class SecEdgarClient:
                 resp.raise_for_status()
                 return resp.json()
             except requests.HTTPError as e:
-                log.debug(f"SEC API error for {url}: {e}")
+                logger.debug(f"SEC API error for {url}: {e}")
                 return {}
 
         return {}
@@ -1028,7 +1028,7 @@ class SecEdgarClient:
         try:
             data = self.get_concept(cik, taxonomy, concept)
         except requests.HTTPError as e:
-            log.debug("SEC %s/%s for %s: %s", taxonomy, concept, symbol, e)
+            logger.debug("SEC %s/%s for %s: %s", taxonomy, concept, symbol, e)
             return []
 
         units = data.get("units", {})

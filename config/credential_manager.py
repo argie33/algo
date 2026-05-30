@@ -23,7 +23,7 @@ import logging
 import os
 from typing import Dict, Optional, Any
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # Database defaults
 DEFAULT_DB_PORT = "5432"
@@ -51,7 +51,7 @@ class CredentialManager:
                 self._secrets_client = boto3.client('secretsmanager',
                                                      region_name=os.getenv('AWS_REGION', 'us-east-1'))
             except ImportError:
-                log.warning("boto3 not available; falling back to environment variables only")
+                logger.warning("boto3 not available; falling back to environment variables only")
                 self._secrets_client = False  # sentinel: tried and failed
         return self._secrets_client if self._secrets_client else None
 
@@ -127,7 +127,7 @@ class CredentialManager:
             return secret_value if secret_value else None
 
         except Exception as e:
-            log.debug(f"Could not fetch '{secret_name}' from Secrets Manager: {e}")
+            logger.debug(f"Could not fetch '{secret_name}' from Secrets Manager: {e}")
             return None
 
     def get_db_credentials(self) -> Dict[str, Any]:
@@ -162,7 +162,7 @@ class CredentialManager:
                         'database': creds.get('dbname') or os.getenv('DB_NAME', 'stocks'),
                     }
             except Exception as e:
-                log.warning("Failed to load DB credentials from secret ARN %s: %s — falling back to env vars", secret_arn, e)
+                logger.warning("Failed to load DB credentials from secret ARN %s: %s — falling back to env vars", secret_arn, e)
 
         # DB_HOST is required - no localhost fallback for safety
         db_host = os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT')
@@ -201,12 +201,12 @@ class CredentialManager:
                     key = creds.get('APCA_API_KEY_ID')
                     secret = creds.get('APCA_API_SECRET_KEY')
                     if key and secret:
-                        log.info(f"[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN")
+                        logger.info(f"[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN")
                         return {'key': key, 'secret': secret}
                     else:
-                        log.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN found but missing Alpaca key fields")
+                        logger.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN found but missing Alpaca key fields")
             except Exception as e:
-                log.error(f"[CREDENTIALS] Could not fetch Alpaca credentials from ALGO_SECRETS_ARN: {e}")
+                logger.error(f"[CREDENTIALS] Could not fetch Alpaca credentials from ALGO_SECRETS_ARN: {e}")
 
         # Try 'algo/alpaca' JSON blob (legacy secrets module format)
         if self._is_aws:
@@ -221,7 +221,7 @@ class CredentialManager:
                     if key and secret:
                         return {'key': key, 'secret': secret}
             except Exception as e:
-                log.debug(f"Could not fetch 'algo/alpaca' from Secrets Manager: {e}")
+                logger.debug(f"Could not fetch 'algo/alpaca' from Secrets Manager: {e}")
 
         # Fall back to individual secrets (legacy format)
         try:
@@ -235,14 +235,14 @@ class CredentialManager:
             secret = os.getenv('APCA_API_SECRET_KEY')
 
         if not key or not secret:
-            log.error("[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!")
-            log.error("[CREDENTIALS] Checked: ALGO_SECRETS_ARN, algo/alpaca secret, legacy secrets, env vars")
+            logger.error("[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!")
+            logger.error("[CREDENTIALS] Checked: ALGO_SECRETS_ARN, algo/alpaca secret, legacy secrets, env vars")
             raise ValueError(
                 "Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not found. "
                 "Set these environment variables or configure 'algo/alpaca' secret in AWS Secrets Manager."
             )
 
-        log.info(f"[CREDENTIALS] Alpaca credentials loaded successfully")
+        logger.info(f"[CREDENTIALS] Alpaca credentials loaded successfully")
         return {'key': key, 'secret': secret}
 
     def get_smtp_credentials(self) -> Optional[Dict[str, Any]]:
@@ -332,13 +332,13 @@ if __name__ == "__main__":
     # Simple test: try to get credentials
     try:
         db_creds = get_db_credentials()
-        log.info("[OK] DB credentials loaded")
+        logger.info("[OK] DB credentials loaded")
     except ValueError as e:
-        log.info(f"[ERROR] DB credentials: {e}")
+        logger.info(f"[ERROR] DB credentials: {e}")
 
     try:
         alpaca_creds = get_alpaca_credentials()
         if alpaca_creds['key']:
-            log.info("[OK] Alpaca credentials loaded")
+            logger.info("[OK] Alpaca credentials loaded")
     except ValueError as e:
-        log.info(f"[ERROR] Alpaca credentials: {e}")
+        logger.info(f"[ERROR] Alpaca credentials: {e}")

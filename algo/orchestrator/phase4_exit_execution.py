@@ -20,6 +20,7 @@ from datetime import date as _date
 from typing import Any, Callable, Dict, List
 
 from utils.trade_status import PositionStatus
+from utils.database_context import DatabaseContext
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
@@ -28,8 +29,6 @@ logger = logging.getLogger(__name__)
 
 def run(
     config: Any,
-    get_conn: Callable,
-    put_conn: Callable,
     run_date: _date,
     dry_run: bool,
     alerts: AlertManager,
@@ -43,8 +42,6 @@ def run(
 
     Args:
         config: Configuration object
-        get_conn: Function to get database connection
-        put_conn: Function to return database connection
         run_date: Date for this run
         dry_run: Whether running in dry-run mode
         alerts: AlertManager instance
@@ -70,12 +67,10 @@ def run(
             logger.critical("Phase 4: position_recs not set — Phase 3 may not have run")
         elif len(position_recs) == 0:
             # "no positions" from "Phase 3 crashed with fail-open"
-            conn_chk = None
             try:
-                conn_chk = get_conn()
-                with conn_chk.cursor() as cur_chk:
-                        cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-                        open_count = cur_chk.fetchone()[0]
+                with DatabaseContext('read') as cur_chk:
+                    cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                    open_count = cur_chk.fetchone()[0]
                 if open_count > 0:
                     logger.error(
                         f"Phase 4: position_recs is empty but {open_count} open positions exist "
@@ -83,9 +78,6 @@ def run(
                     )
             except Exception as e:
                 logger.error(f"Unhandled exception: {e}")
-            finally:
-                if conn_chk:
-                    put_conn(conn_chk)
 
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
@@ -110,24 +102,16 @@ def run(
                 if action['action'] == 'force_exit':
                     # Fetch current price for accurate P&L
                     cur_price = 0
-                    conn_tmp = None
                     try:
-                        conn_tmp = get_conn()
-                        try:
-                            cur_tmp = conn_tmp.cursor()
+                        with DatabaseContext('read') as cur_tmp:
                             cur_tmp.execute(
                                 "SELECT current_price FROM algo_positions WHERE position_id = %s",
                                 (action['position_id'],),
                             )
                             row_tmp = cur_tmp.fetchone()
                             cur_price = float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
-                        finally:
-                            cur_tmp.close()
                     except Exception as e:
                         logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
-                    finally:
-                        if conn_tmp:
-                            put_conn(conn_tmp)
 
                     if cur_price <= 0:
                         logger.error(f"  ERROR: force_exit cannot proceed — no valid current price")
@@ -149,24 +133,16 @@ def run(
                 elif action['action'] == 'partial_exit':
                     # Need current price — fetch
                     cur_price = 0
-                    conn = None
                     try:
-                        conn = get_conn()
-                        try:
-                            cur = conn.cursor()
+                        with DatabaseContext('read') as cur:
                             cur.execute(
                                 "SELECT current_price FROM algo_positions WHERE position_id = %s",
                                 (action['position_id'],),
                             )
                             row = cur.fetchone()
                             cur_price = float(row[0]) if row and row[0] else 0
-                        finally:
-                            cur.close()
                     except Exception as e:
                         logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
-                    finally:
-                        if conn:
-                            put_conn(conn)
                     if cur_price > 0:
                         result = executor.exit_trade(
                             trade_id=action['trade_id'],
@@ -181,27 +157,18 @@ def run(
                             logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
 
                 elif action['action'] == 'tighten_stop':
-                    conn = None
                     try:
-                        conn = get_conn()
-                        try:
-                            cur = conn.cursor()
+                        with DatabaseContext('write') as cur:
                             cur.execute(
                                 "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
                                 (action['new_stop'], action['position_id']),
                             )
-                            conn.commit()
                             stop_raises += 1
                             if verbose:
                                 logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
-                        finally:
-                            cur.close()
                     except Exception as e:
                         errors += 1
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
-                    finally:
-                        if conn:
-                            put_conn(conn)
             except Exception as e:
                 errors += 1
                 logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
@@ -229,31 +196,19 @@ def run(
                     else:
                         errors += 1
                 elif rec['action'] == 'RAISE_STOP' and rec.get('new_stop_recommended'):
-                    conn = None
-                    cur = None
                     try:
-                        conn = get_conn()
-                        cur = conn.cursor()
-                        cur.execute(
-                            "UPDATE algo_positions SET current_stop_price = %s "
-                            "WHERE position_id = %s AND status = %s",
-                            (rec['new_stop_recommended'], rec['position_id'], PositionStatus.OPEN.value),
-                        )
-                        conn.commit()
-                        stop_raises += 1
-                        if verbose:
-                            logger.info(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
+                        with DatabaseContext('write') as cur:
+                            cur.execute(
+                                "UPDATE algo_positions SET current_stop_price = %s "
+                                "WHERE position_id = %s AND status = %s",
+                                (rec['new_stop_recommended'], rec['position_id'], PositionStatus.OPEN.value),
+                            )
+                            stop_raises += 1
+                            if verbose:
+                                logger.info(f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}")
                     except Exception as e:
                         errors += 1
                         logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
-                    finally:
-                        if cur:
-                            try:
-                                cur.close()
-                            except Exception as e:
-                                logger.error(f"Unhandled exception: {e}")
-                        if conn:
-                            put_conn(conn)
             except Exception as e:
                 errors += 1
                 logger.error(f"  Error on {rec.get('symbol')}: {e}")

@@ -275,7 +275,6 @@ class PipelineHealth:
                             table_health.age_days
                         )
                     )
-                cur.connection.commit()
         except Exception as e:
             logger.warning(f"Failed to log health check: {e}")
 

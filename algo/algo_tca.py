@@ -76,7 +76,6 @@ class TCAEngine:
                      round(slippage_bps, 2), side, execution_latency_ms)
                 )
                 tca_id = cur.fetchone()[0]
-                cur.connection.commit()
 
                 result = {
                     'tca_id': tca_id,

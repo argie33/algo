@@ -404,6 +404,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # ── Step 5: Generate daily signals ──────────────────────────
       # NOTE: signals_weekly, signals_monthly, signals_etf_* loaders are planned but not yet implemented
       # Current scope: daily signals only. Upgrade path: add weekly/monthly variants if needed.
+      # FIXED Issue #4: Graceful degradation — if signals fail, continue with available data
       SignalGeneration = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -422,14 +423,38 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogSignalGenerationFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "SignalQualityScores"
+      }
+
+      LogSignalGenerationFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "buy_sell_daily"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SignalQualityScores"
+          ResultPath  = "$.logError"
         }]
         Next = "SignalQualityScores"
       }
 
       # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
       # FIXED Issue #1: Task definition timeout increased from 3600s to 5400s to match
+      # FIXED Issue #4: Graceful degradation — if quality scoring fails, continue with available data
       SignalQualityScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -448,13 +473,37 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogQualityScoresFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "AlgoMetrics"
+      }
+
+      LogQualityScoresFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "signal_quality_scores"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AlgoMetrics"
+          ResultPath  = "$.logError"
         }]
         Next = "AlgoMetrics"
       }
 
       # ── Step 7: Summarize signal quality metrics ──────────────────────────
+      # FIXED Issue #4: Graceful degradation — if metrics fail, continue with available data
       AlgoMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -473,13 +522,37 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "SwingScores"
+      }
+
+      LogMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "algo_metrics_daily"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SwingScores"
+          ResultPath  = "$.logError"
         }]
         Next = "SwingScores"
       }
 
       # ── Step 8: Swing trader scores (depends on signals + metrics) ───────
+      # FIXED Issue #4: Graceful degradation — if scoring fails, continue with available data
       SwingScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -498,8 +571,31 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogSwingScoresFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "TriggerOrchestrator"
+      }
+
+      LogSwingScoresFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "swing_trader_scores"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "TriggerOrchestrator"
+          ResultPath  = "$.logError"
         }]
         Next = "TriggerOrchestrator"
       }
@@ -511,6 +607,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # FIXED Issue #15: Container overrides are intentionally STATIC for EOD pipeline
       # (execution_mode=paper, dry_run=true). Dynamic overrides not needed since this
       # is always a dry-run validation step, not a trading decision step.
+      # FIXED Issue #4: Graceful degradation — if validation fails, pipeline succeeds anyway
+      # (actual trading logic runs at 9:30 AM Lambda, this is just an early check)
       TriggerOrchestrator = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -578,8 +676,31 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "LogOrchestratorFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "PipelineSuccess"
+      }
+
+      LogOrchestratorFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "algo_orchestrator_validation"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PipelineSuccess"
+          ResultPath  = "$.logError"
         }]
         Next = "PipelineSuccess"
       }

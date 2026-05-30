@@ -427,7 +427,6 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
                 error_msg,
                 duration_seconds
             ))
-            cur.connection.commit()
     except Exception as e:
         logger.warning(f"Failed to log execution to data_loader_runs: {e}")
 

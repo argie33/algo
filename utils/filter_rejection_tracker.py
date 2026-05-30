@@ -23,7 +23,7 @@ from datetime import datetime, date
 import logging
 from typing import Dict, List, Optional
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class RejectionTracker:
@@ -106,7 +106,7 @@ class RejectionTracker:
             ))
 
         except Exception as e:
-            log.error(f"Failed to log rejection for {symbol}: {e}")
+            logger.error(f"Failed to log rejection for {symbol}: {e}")
 
         finally:
             self.disconnect()
@@ -141,7 +141,7 @@ class RejectionTracker:
             ))
 
         except Exception as e:
-            log.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
+            logger.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
 
         finally:
             self.disconnect()
@@ -226,7 +226,7 @@ class RejectionTracker:
             return result
 
         except Exception as e:
-            log.error(f"Failed to get rejection funnel: {e}")
+            logger.error(f"Failed to get rejection funnel: {e}")
             return {'total_signals': 0, 'tiers': []}
 
         finally:
@@ -270,7 +270,7 @@ class RejectionTracker:
             return results
 
         except Exception as e:
-            log.error(f"Failed to get rejection reasons for tier {tier}: {e}")
+            logger.error(f"Failed to get rejection reasons for tier {tier}: {e}")
             return []
 
         finally:
@@ -317,7 +317,7 @@ class RejectionTracker:
             }
 
         except Exception as e:
-            log.error(f"Failed to get rejection summary: {e}")
+            logger.error(f"Failed to get rejection summary: {e}")
             return {}
 
         finally:

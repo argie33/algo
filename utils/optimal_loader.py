@@ -53,7 +53,7 @@ except ImportError:
 
 from utils.db_connection import get_db_connection
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 _credential_manager = credential_manager
 
 
@@ -150,7 +150,7 @@ class OptimalLoader(ABC):
 
             self._watermark = WatermarkStore()
         except Exception as e:
-            log.warning("Watermark unavailable (%s) �� running full refresh", e)
+            logger.warning("Watermark unavailable (%s) �� running full refresh", e)
             self._watermark = False
         return self._watermark if self._watermark else None
 
@@ -187,7 +187,7 @@ class OptimalLoader(ABC):
             """, (self.table_name,))
 
             if not cur.fetchone()[0]:
-                log.warning(f"Table {self.table_name} does not exist")
+                logger.warning(f"Table {self.table_name} does not exist")
                 return
 
             # Check if a UNIQUE constraint already exists on primary_key columns
@@ -213,13 +213,13 @@ class OptimalLoader(ABC):
 
                 constraint_cols = [row[0] for row in cur.fetchall()]
                 if set(constraint_cols) == set(self.primary_key):
-                    log.debug(f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})")
+                    logger.debug(f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})")
                     return
 
             # No matching constraint found � create one
             constraint_name = f"{self.table_name}_{'_'.join(self.primary_key)}_unique"
             try:
-                log.info(f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})")
+                logger.info(f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})")
                 cur.execute(f"""
                 ALTER TABLE {self.table_name}
                 ADD CONSTRAINT {constraint_name}
@@ -227,15 +227,15 @@ class OptimalLoader(ABC):
                 """)
             except psycopg2.IntegrityError as e:
                 # Constraint creation failed due to duplicates
-                log.warning(f"Cannot create constraint (duplicates exist): {e}")
+                logger.warning(f"Cannot create constraint (duplicates exist): {e}")
                 # Continue anyway � will use DO NOTHING fallback
             except psycopg2.ProgrammingError as e:
                 if "already exists" in str(e):
-                    log.debug(f"Constraint already exists: {e}")
+                    logger.debug(f"Constraint already exists: {e}")
                 else:
-                    log.warning(f"Cannot create constraint: {e}")
+                    logger.warning(f"Cannot create constraint: {e}")
         except Exception as e:
-            log.warning(f"Error checking/creating constraint: {e}")
+            logger.warning(f"Error checking/creating constraint: {e}")
 
     # ---- Insert path: COPY for bulk + ON CONFLICT for safety ----
 
@@ -278,12 +278,12 @@ class OptimalLoader(ABC):
                 all_data_cols = list(rows[0].keys())
                 skipped = [c for c in all_data_cols if c not in existing_cols]
                 if skipped:
-                    log.warning("Loader %s: skipping columns not in DB schema: %s", self.table_name, skipped)
+                    logger.warning("Loader %s: skipping columns not in DB schema: %s", self.table_name, skipped)
                 columns = [c for c in all_data_cols if c in existing_cols]
                 if not columns:
                     raise ValueError(f"No valid columns to write for {self.table_name}")
             except Exception as e:
-                log.error(f"Failed to prepare columns for {self.table_name}: {e}")
+                logger.error(f"Failed to prepare columns for {self.table_name}: {e}")
                 raise
 
             import threading
@@ -303,7 +303,7 @@ class OptimalLoader(ABC):
                     try:
                         cur.execute(f"DROP TABLE IF EXISTS {staging} CASCADE")
                     except psycopg2.Error as drop_err:
-                        log.warning(f"Failed to drop staging table {staging}: {drop_err}")
+                        logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
                     unique_id = str(uuid.uuid4()).replace('-', '')[:12]
                     staging = f"_stage_{self.table_name}_{unique_id}"
                     cur.execute(
@@ -370,10 +370,10 @@ class OptimalLoader(ABC):
 
         rows = self.fetch_incremental(symbol, previous_date)
         if not rows:
-            log.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
+            logger.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
             self._stats["symbols_skipped_by_watermark"] += 1
             return 0
-        log.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows")
+        logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows")
         self._stats["rows_fetched"] += len(rows)
         if self.router and self.router.last_source:
             src = self.router.last_source
@@ -454,7 +454,7 @@ class OptimalLoader(ABC):
         start = time.time()
         symbols = list(symbols)
         mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
-        log.info(
+        logger.info(
             "[%s] Starting load: %d symbols (parallelism=%d)%s",
             self.table_name, len(symbols), parallelism, mode,
         )
@@ -465,7 +465,7 @@ class OptimalLoader(ABC):
             self._run_parallel(symbols, parallelism)
 
         self._stats["duration_sec"] = round(time.time() - start, 2)
-        log.info(
+        logger.info(
             "[%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
             "(processed=%d skipped_wm=%d failed=%d) %.1fs sources=%s",
             self.table_name,
@@ -485,7 +485,7 @@ class OptimalLoader(ABC):
             with MetricsPublisher() as m:
                 m.put_loader_result(self.table_name, self._stats)
         except Exception as e:
-            log.debug("metrics unavailable: %s", e)
+            logger.debug("metrics unavailable: %s", e)
 
         try:
             from utils.database_context import DatabaseContext
@@ -513,7 +513,7 @@ class OptimalLoader(ABC):
                       last_updated = NOW()
                 """, (self.table_name, total_rows, latest_date))
         except Exception as e:
-            log.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+            logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
         return self._stats
 
@@ -530,12 +530,12 @@ class OptimalLoader(ABC):
                         cur.execute("SELECT 1")
                         cur.close()
                 except Exception as e:
-                    log.debug(f"Connection health check failed: {e}. Forcing reconnect.")
+                    logger.debug(f"Connection health check failed: {e}. Forcing reconnect.")
                     self._conn = None  # Force reconnect on next symbol
 
             self._safe_load_symbol(symbol)
             if i % 100 == 0:
-                log.info("  Progress: %d/%d", i, len(symbols))
+                logger.info("  Progress: %d/%d", i, len(symbols))
 
     def _run_parallel(self, symbols: List[str], workers: int) -> None:
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -556,12 +556,12 @@ class OptimalLoader(ABC):
                             cur.execute("SELECT 1")
                             cur.close()
                     except Exception as e:
-                        log.debug(f"Connection health check failed: {e}. Forcing reconnect.")
+                        logger.debug(f"Connection health check failed: {e}. Forcing reconnect.")
                         self._conn = None
                     last_health_check = now
 
                 if done % 100 == 0:
-                    log.info("  Progress: %d/%d", done, len(symbols))
+                    logger.info("  Progress: %d/%d", done, len(symbols))
 
     def _safe_load_symbol(self, symbol: str) -> None:
         try:
@@ -569,7 +569,7 @@ class OptimalLoader(ABC):
             self._stats["symbols_processed"] += 1
         except Exception as e:
             self._stats["symbols_failed"] += 1
-            log.error("[%s] %s failed: %s", self.table_name, symbol, e)
+            logger.error("[%s] %s failed: %s", self.table_name, symbol, e)
 
     def close(self):
         if self._conn and not self._conn.closed:
