@@ -1108,23 +1108,32 @@ jobs:
           fi
           echo "[OK] Unit and integration tests passed"
 
-      - name: Run Frontend E2E Tests
+      - name: Run Frontend E2E Tests - Critical Path
         working-directory: webapp/frontend
-        continue-on-error: true
         run: |
-          echo "=== Running Frontend E2E Tests (Dashboard & Portfolio) ==="
+          echo "=== Running Critical Frontend E2E Tests ==="
           PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test \
             webapp/frontend/src/tests/e2e/features/Dashboard.spec.js \
             webapp/frontend/src/tests/e2e/features/Portfolio.spec.js \
-            --project desktop-chrome 2>&1 | tee e2e-tests.log
+            webapp/frontend/src/tests/e2e/workflows/authentication-flows.spec.js \
+            --project desktop-chrome 2>&1 | tee e2e-critical-tests.log
 
-          # E2E tests are allowed to fail (can be flaky in CI)
-          # but failures should be reviewed
+      - name: Run Frontend E2E Tests - Extended Coverage
+        working-directory: webapp/frontend
+        continue-on-error: true
+        run: |
+          echo "=== Running Extended Frontend E2E Tests ==="
+          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test \
+            webapp/frontend/src/tests/e2e/features/ \
+            webapp/frontend/src/tests/e2e/workflows/ \
+            --project desktop-chrome 2>&1 | tee e2e-extended-tests.log
+
+          # Extended tests are allowed to fail (can be flaky in CI) but should be reviewed
           if [ $? -ne 0 ]; then
-            echo "[ALERT] E2E tests failed - check logs for details"
-            echo "E2E failures do not block deployment but should be reviewed"
+            echo "[ALERT] Some extended E2E tests failed - check logs"
+            echo "Extended test failures are monitored but do not block deployment"
           else
-            echo "[OK] E2E tests passed"
+            echo "[OK] All extended E2E tests passed"
           fi
 
       - name: Prepare Runtime Config
