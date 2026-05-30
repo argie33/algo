@@ -276,6 +276,9 @@ jobs:
           # Copy all API code (routes, utils, handlers)
           cp -r $SOURCE_LAMBDA/* $PKG_DIR/
 
+          # Copy project utils directory for database_context and other shared utilities
+          cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+
           # Install dependencies into package directory
           if [ -f "$SOURCE_LAMBDA/requirements.txt" ]; then
             python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
