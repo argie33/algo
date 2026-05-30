@@ -2,7 +2,6 @@
 """Atomic watermark manager for incremental loaders - ensures "load only once" guarantee via transactions."""
 
 import logging
-import psycopg2.extensions
 import json
 from datetime import date as _date, datetime
 from typing import Optional, Dict, Any
@@ -17,14 +16,14 @@ class WatermarkManager:
         self,
         loader_name: str,
         table_name: str,
-        db_conn: psycopg2.extensions.connection,
+        db_conn=None,  # Deprecated: kept for backwards compatibility, no longer used
         granularity: str = "symbol",  # 'symbol', 'global', or custom
     ):
         """
         Args:
             loader_name: Name of the loader (e.g., 'loadpricedaily')
             table_name: Table being loaded (e.g., 'price_daily')
-            db_conn: Database connection
+            db_conn: Deprecated - kept for backwards compatibility
             granularity: Watermark scope
               - 'symbol': separate watermark per symbol
               - 'global': single watermark for all symbols
@@ -32,7 +31,6 @@ class WatermarkManager:
         """
         self.loader_name = loader_name
         self.table_name = table_name
-        self.db_conn = db_conn
         self.granularity = granularity
 
     def get_current_watermark(
@@ -51,7 +49,9 @@ class WatermarkManager:
             watermark date, or None if never loaded
         """
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext() as cur:
                 if self.granularity == "symbol":
                     if not symbol:
                         raise ValueError("symbol required for granularity='symbol'")
@@ -96,7 +96,7 @@ class WatermarkManager:
         symbol: Optional[str] = None,
         granularity_key: Optional[str] = None,
         rows_loaded: int = 0,
-        in_transaction: bool = False,
+        in_transaction: bool = False,  # Deprecated: ignored, DatabaseContext handles it
     ) -> bool:
         """
         Atomically advance the watermark. Call this AFTER successfully inserting data.
@@ -106,13 +106,15 @@ class WatermarkManager:
             symbol: Symbol (if granularity='symbol')
             granularity_key: Custom key (if granularity is custom)
             rows_loaded: Number of rows loaded in this batch (for tracking)
-            in_transaction: If True, don't commit (caller will commit)
+            in_transaction: Deprecated - no longer used (DatabaseContext handles transactions)
 
         Returns:
             True if watermark was updated, False if failed
         """
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext('write') as cur:
                 watermark_str = new_watermark.isoformat()
 
                 if self.granularity == "symbol":
@@ -195,14 +197,10 @@ class WatermarkManager:
                         ),
                     )
 
-                if not in_transaction:
-                    self.db_conn.commit()
                 return True
 
         except Exception as e:
             logger.error(f"Error advancing watermark: {e}")
-            if not in_transaction:
-                self.db_conn.rollback()
             return False
 
     def record_error(
@@ -213,7 +211,9 @@ class WatermarkManager:
     ):
         """Record an error for this watermark entry."""
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext('write') as cur:
                 if self.granularity == "symbol":
                     if not symbol:
                         raise ValueError("symbol required")
@@ -258,15 +258,15 @@ class WatermarkManager:
                         """,
                         (self.loader_name, granularity_key, self.granularity, error_message, error_message),
                     )
-
-                self.db_conn.commit()
         except Exception as e:
             logger.error(f"Failed to record error: {e}")
 
     def get_status(self) -> Dict[str, Any]:
         """Get status of all watermarks for this loader."""
         try:
-            with self.db_conn.cursor() as cur:
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext() as cur:
                 cur.execute(
                     "SELECT symbol, granularity, watermark, error_count, last_error FROM loader_watermarks WHERE loader = %s",
                     (self.loader_name,),

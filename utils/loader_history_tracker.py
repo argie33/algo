@@ -49,31 +49,26 @@ class LoaderHistoryTracker:
             return
 
         try:
-            from utils.db_connection import get_db_connection
-
-            conn = get_db_connection()
-            cur = conn.cursor()
+            from utils.database_context import DatabaseContext
 
             duration = (self.end_time - self.start_time).total_seconds() if self.end_time else None
 
-            cur.execute("""
-                INSERT INTO loader_execution_history
-                (loader_name, execution_start, execution_end, execution_duration_seconds,
-                 status, symbols_processed, error_count, error_message)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                self.loader_name,
-                self.start_time,
-                self.end_time,
-                duration,
-                status,
-                symbols_processed or None,
-                error_count or None,
-                error_message,
-            ))
-            conn.commit()
-            cur.close()
-            conn.close()
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO loader_execution_history
+                    (loader_name, execution_start, execution_end, execution_duration_seconds,
+                     status, symbols_processed, error_count, error_message)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    self.loader_name,
+                    self.start_time,
+                    self.end_time,
+                    duration,
+                    status,
+                    symbols_processed or None,
+                    error_count or None,
+                    error_message,
+                ))
 
             logger.info(f"Logged {self.loader_name}: {status}")
         except Exception as e:

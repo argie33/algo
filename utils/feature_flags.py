@@ -83,7 +83,6 @@ class FeatureFlags:
                     description,
                     metadata_json,
                 ))
-                cur.connection.commit()
 
             # Clear cache
             self._cache.clear()

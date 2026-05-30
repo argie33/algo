@@ -294,11 +294,6 @@ def run(
     conn = None
     cur = None
     try:
-        # Skip if explicitly disabled (latent feature)
-        if skip_freshness:
-            logger.info("  [SKIP] Data freshness check skipped via skip_freshness flag")
-            return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
-
         try:
             from algo.algo_pipeline_health import PipelineHealth
             health = PipelineHealth()
