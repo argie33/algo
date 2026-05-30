@@ -55,9 +55,10 @@ import pandas as pd
 import requests
 from io import BytesIO
 
+logger = logging.getLogger(__name__)
 
 # -------------------------------
-# Script metadata & logging setup   
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadaaiidata.py"
 logging.basicConfig(

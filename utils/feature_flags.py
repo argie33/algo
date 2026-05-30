@@ -22,9 +22,8 @@ from utils.database_context import DatabaseContext
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
-from utils.structured_logger import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class FeatureFlagType(Enum):

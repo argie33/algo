@@ -55,9 +55,10 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
+logger = logging.getLogger(__name__)
 
 # -------------------------------
-# Script metadata & logging setup 
+# Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadnaaim.py"
 logging.basicConfig(
