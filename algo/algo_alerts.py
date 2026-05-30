@@ -36,7 +36,7 @@ class AlertManager:
     """Send alerts via email and webhook."""
 
     def __init__(self):
-        self.email_from = os.getenv('ALERT_EMAIL_FROM', 'noreply@algo.local')
+        self.email_from = os.getenv('ALERT_SMTP_FROM') or os.getenv('ALERT_EMAIL_FROM', 'noreply@algo.local')
         self.email_to = [e.strip() for e in os.getenv('ALERT_EMAIL_TO', '').split(',') if e.strip()]
         self.smtp_host = os.getenv('ALERT_SMTP_HOST')
         self.smtp_port = int(os.getenv('ALERT_SMTP_PORT', '587'))
@@ -68,13 +68,9 @@ class AlertManager:
             )
 
     def _load_smtp_password(self) -> str:
-        """Load SMTP password from credential_manager or env var."""
-        try:
-            from config.credential_manager import get_credential_manager
-            cm = get_credential_manager()
-            return cm.get_password("smtp/password", default="")
-        except Exception as e:
-            logger.debug(f"Credential manager unavailable, falling back to env var: {e}")
+        """Load SMTP password from environment variable (set by Lambda or via Terraform)."""
+        # Lambda passes ALERT_SMTP_PASSWORD as environment variable
+        # Terraform variable alert_smtp_password → Lambda ALERT_SMTP_PASSWORD
         return os.getenv('ALERT_SMTP_PASSWORD', '')
 
     def send_patrol_alert(self, patrol_run_id, counts, flagged_findings):

@@ -99,4 +99,4 @@ alert_smtp_host     = ""  # SMTP hostname (e.g., smtp.gmail.com)
 alert_smtp_port     = 587 # SMTP port (587 for TLS, 465 for SSL)
 alert_smtp_user     = ""  # SMTP username (e.g., your-email@gmail.com)
 alert_smtp_password = ""  # SMTP password (use GitHub Secrets ALERT_SMTP_PASSWORD in CI/CD)
-alert_smtp_from     = ""  # From email address (e.g., your-email@gmail.com)
+alert_smtp_from     = "argeropolos@gmail.com" # From email address for alerts
