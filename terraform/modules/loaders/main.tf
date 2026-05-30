@@ -658,10 +658,6 @@ resource "aws_ecs_task_definition" "loader" {
           value = var.db_name
         },
         {
-          name  = "DB_USER"
-          value = var.db_user
-        },
-        {
           name  = "DB_SSL"
           value = "require"
         },

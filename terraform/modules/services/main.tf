@@ -114,8 +114,6 @@ resource "aws_lambda_function" "api" {
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username
       DB_SSL        = "require"
-      # AWS region for Secrets Manager and credential manager
-      AWS_REGION = var.aws_region
       # Frontend configuration (dynamic based on CloudFront enabled)
       CLOUDFRONT_DOMAIN = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
       FRONTEND_URL      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
@@ -585,8 +583,6 @@ resource "aws_lambda_function" "algo" {
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username
       DB_SSL        = "require"
-      # AWS region for Secrets Manager and credential manager
-      AWS_REGION = var.aws_region
       # Orchestrator execution configuration (MATCHES what code expects)
       ORCHESTRATOR_EXECUTION_MODE = var.execution_mode
       ORCHESTRATOR_DRY_RUN        = tostring(var.orchestrator_dry_run)

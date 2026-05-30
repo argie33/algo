@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 def load_sentiment():
     """Load market sentiment from available sources."""
-    with DatabaseContext('write') as cur:
-        try:
+    try:
+        with DatabaseContext('write') as cur:
             # Clear old sentiment data (keep last 90 days)
             cur.execute("""
                 DELETE FROM sentiment
@@ -53,14 +53,11 @@ def load_sentiment():
                 """)
                 inserted = cur.rowcount
 
-            cur.connection.commit()
             logger.info(f"Loaded {inserted} sentiment records")
             return inserted
-
-        except Exception as e:
-            cur.connection.rollback()
-            logger.error(f"Error loading sentiment: {e}")
-            raise
+    except Exception as e:
+        logger.error(f"Error loading sentiment: {e}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
     load_sentiment()

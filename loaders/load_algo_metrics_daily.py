@@ -41,15 +41,9 @@ class AlgoMetricsDailyLoader:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            cur.connection.commit()
             logger.info("algo_metrics_daily table created successfully")
         except Exception as e:
             logger.error(f"Failed to ensure table: {e}", exc_info=True)
-            try:
-                cur.connection.rollback()
-            except Exception as e:
-                logger.debug(f"Exception (expected): {e}")
-                pass
             raise
 
     def compute_daily_metrics(self, cur, run_date: date) -> Dict:
@@ -82,29 +76,23 @@ class AlgoMetricsDailyLoader:
 
     def store_metrics(self, cur, run_date: date, metrics: Dict):
         """Store computed metrics to algo_metrics table."""
-        try:
-            cur.execute("""
-                INSERT INTO algo_metrics_daily
-                (date, total_actions, entries, exits, avg_signal_score)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (date) DO UPDATE SET
-                    total_actions = EXCLUDED.total_actions,
-                    entries = EXCLUDED.entries,
-                    exits = EXCLUDED.exits,
-                    avg_signal_score = EXCLUDED.avg_signal_score
-            """, (
-                run_date,
-                metrics.get('total_actions', 0),
-                metrics.get('entries', 0),
-                metrics.get('exits', 0),
-                metrics.get('avg_signal_score', 0.0)
-            ))
-            cur.connection.commit()
-            logger.info(f"Stored metrics for {run_date}: {metrics}")
-        except Exception as e:
-            cur.connection.rollback()
-            logger.error(f"Failed to store metrics: {e}")
-            raise
+        cur.execute("""
+            INSERT INTO algo_metrics_daily
+            (date, total_actions, entries, exits, avg_signal_score)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (date) DO UPDATE SET
+                total_actions = EXCLUDED.total_actions,
+                entries = EXCLUDED.entries,
+                exits = EXCLUDED.exits,
+                avg_signal_score = EXCLUDED.avg_signal_score
+        """, (
+            run_date,
+            metrics.get('total_actions', 0),
+            metrics.get('entries', 0),
+            metrics.get('exits', 0),
+            metrics.get('avg_signal_score', 0.0)
+        ))
+        logger.info(f"Stored metrics for {run_date}: {metrics}")
 
 
 def main():

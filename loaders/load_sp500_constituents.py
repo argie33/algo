@@ -93,12 +93,10 @@ def mark_sp500_symbols(cur, symbols):
         total_marked = cur.fetchone()[0]
         logger.info(f"Total symbols marked as S&P 500: {total_marked}")
 
-        cur.connection.commit()
         return marked_count
     except Exception as e:
-        logger.error(f"Error marking S&P 500 symbols: {e}")
-        cur.connection.rollback()
-        return 0
+        logger.error(f"Error marking S&P 500 symbols: {e}", exc_info=True)
+        raise
 
 def main():
     """Main entry point."""
