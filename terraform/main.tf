@@ -138,7 +138,6 @@ module "compute" {
   public_subnet_ids                      = module.vpc.public_subnet_ids
   private_subnet_ids                     = module.vpc.private_subnet_ids
   bastion_security_group_id              = module.vpc.bastion_security_group_id
-  ecs_tasks_security_group_id            = module.vpc.ecs_tasks_security_group_id
   bastion_instance_profile_name          = module.iam.bastion_instance_profile_name
   ecs_task_execution_role_arn            = module.iam.ecs_task_execution_role_arn
   ecs_task_role_arn                      = module.iam.ecs_task_role_arn
@@ -168,7 +167,6 @@ module "batch" {
   aws_account_id                = local.aws_account_id
   vpc_id                        = module.vpc.vpc_id
   private_subnet_ids            = module.vpc.private_subnet_ids
-  ecs_tasks_security_group_id   = module.vpc.ecs_tasks_security_group_id
   data_bucket_name              = module.storage.data_loading_bucket_name
   ecr_repository_uri            = module.compute.ecr_repository_url
   db_host                       = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
@@ -227,7 +225,6 @@ module "services" {
   aws_account_id                         = local.aws_account_id
   vpc_id                                 = module.vpc.vpc_id
   private_subnet_ids                     = module.vpc.private_subnet_ids
-  ecs_tasks_security_group_id            = module.vpc.ecs_tasks_security_group_id
   api_lambda_security_group_id           = module.vpc.api_lambda_security_group_id
   algo_lambda_security_group_id          = module.vpc.algo_lambda_security_group_id
   rds_endpoint                           = module.database.rds_endpoint
