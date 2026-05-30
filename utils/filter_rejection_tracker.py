@@ -19,7 +19,6 @@ except ImportError:
 
 import os
 from utils.database_context import DatabaseContext
-from utils.db_connection import get_db_connection
 from datetime import datetime, date
 import logging
 from typing import Dict, List, Optional
@@ -31,22 +30,21 @@ class RejectionTracker:
     """Track signal rejections through filter pipeline for explainability."""
 
     def __init__(self):
-        self.conn = None
         self.cur = None
+        self._db_context = None
 
     def connect(self):
-        """Connect to database."""
-        if not self.conn:
-            self.conn = get_db_connection()
-            self.cur = self.conn.cursor()
+        """Create a database connection via DatabaseContext."""
+        if self.cur is None:
+            self._db_context = DatabaseContext('write')
+            self.cur = self._db_context.__enter__()
 
     def disconnect(self):
-        """Disconnect from database."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-        self.cur = self.conn = None
+        """Clean up DatabaseContext if we own it."""
+        if self._db_context:
+            self._db_context.__exit__(None, None, None)
+            self._db_context = None
+            self.cur = None
 
     def log_rejection(self, eval_date: date, symbol: str, entry_price: float,
                       tier_results: Dict, advanced_results: Optional[Dict] = None):
@@ -104,11 +102,8 @@ class RejectionTracker:
                 advanced_results.get('reason', '') if advanced_results else None
             ))
 
-            self.conn.commit()
-
         except Exception as e:
             log.error(f"Failed to log rejection for {symbol}: {e}")
-            self.conn.rollback()
 
         finally:
             self.disconnect()
@@ -142,11 +137,8 @@ class RejectionTracker:
                 tier_0_reason
             ))
 
-            self.conn.commit()
-
         except Exception as e:
             log.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
-            self.conn.rollback()
 
         finally:
             self.disconnect()
