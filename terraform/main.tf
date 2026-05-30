@@ -351,6 +351,11 @@ module "pipeline" {
   cloudwatch_log_retention_days         = var.cloudwatch_log_retention_days
   execution_mode                        = var.execution_mode
   orchestrator_dry_run                  = var.orchestrator_dry_run
+  orchestrator_log_level                = var.orchestrator_log_level
+  db_host                               = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
+  db_port                               = local.db_port
+  db_name                               = var.rds_db_name
+  alpaca_paper_trading                  = var.alpaca_paper_trading
   loader_failure_handler_arn            = coalesce(module.services.loader_failure_handler_arn, "")
   common_tags                           = local.common_tags
 }

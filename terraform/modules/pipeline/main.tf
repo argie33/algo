@@ -524,6 +524,36 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             ContainerOverrides = [{
               Name = var.algo_orchestrator_container_name
               Environment = [
+                # Base environment variables (required for orchestrator to run)
+                {
+                  Name  = "AWS_REGION"
+                  Value = var.aws_region
+                },
+                {
+                  Name  = "DB_HOST"
+                  Value = var.db_host
+                },
+                {
+                  Name  = "DB_PORT"
+                  Value = tostring(var.db_port)
+                },
+                {
+                  Name  = "DB_NAME"
+                  Value = var.db_name
+                },
+                {
+                  Name  = "ALPACA_PAPER_TRADING"
+                  Value = tostring(var.alpaca_paper_trading)
+                },
+                {
+                  Name  = "ORCHESTRATOR_LOG_LEVEL"
+                  Value = var.orchestrator_log_level
+                },
+                {
+                  Name  = "SEC_USER_AGENT"
+                  Value = "algo-trading argeropolos@gmail.com"
+                },
+                # Overrides for EOD dry-run execution (these differ from regular execution)
                 {
                   Name  = "ORCHESTRATOR_EXECUTION_MODE"
                   Value = "paper"
@@ -535,10 +565,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 {
                   Name  = "ORCHESTRATOR_LOCK_TABLE"
                   Value = var.orchestrator_locks_table_name
-                },
-                {
-                  Name  = "DEV_MODE"
-                  Value = "true"
                 }
               ]
             }]

@@ -114,3 +114,33 @@ variable "loader_failure_handler_arn" {
   type        = string
   default     = ""
 }
+
+# Database configuration variables (needed for Step Functions container overrides)
+variable "db_host" {
+  description = "Database host (RDS endpoint or RDS Proxy endpoint)"
+  type        = string
+}
+
+variable "db_port" {
+  description = "Database port"
+  type        = number
+  default     = 5432
+}
+
+variable "db_name" {
+  description = "Database name"
+  type        = string
+  default     = "stocks"
+}
+
+variable "orchestrator_log_level" {
+  description = "Log level for orchestrator"
+  type        = string
+  default     = "INFO"
+}
+
+variable "alpaca_paper_trading" {
+  description = "Whether to use Alpaca paper trading mode"
+  type        = bool
+  default     = true
+}
