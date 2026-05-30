@@ -17,7 +17,11 @@ from datetime import date as _date
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO').upper())
 
-# Add project root to path so imports work
+# Add Lambda layer path and project root to sys.path
+# In Lambda: code is in /var/task, layers are in /opt/python
+# In local dev: code is in project root
+if os.path.exists('/opt/python'):
+    sys.path.insert(0, '/opt/python')
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import the orchestrator
