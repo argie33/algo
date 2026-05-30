@@ -439,32 +439,21 @@ class Orchestrator:
         }
         if self.verbose:
             logger.info(f"\n-> Phase {phase_num} {status}: {summary}")
-        conn = None
-        cur = None
         try:
-            conn = self._get_conn()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO algo_audit_log (action_type, action_date, details, actor, status, created_at)
-                VALUES (%s, CURRENT_TIMESTAMP, %s, 'orchestrator', %s, CURRENT_TIMESTAMP)
-                """,
-                (
-                    f'phase_{phase_num}_{name}',
-                    json.dumps({'run_id': self.run_id, 'summary': summary}),
-                    status,
-                ),
-            )
-            conn.commit()
+            with DatabaseContext('write') as cur:
+                cur.execute(
+                    """
+                    INSERT INTO algo_audit_log (action_type, action_date, details, actor, status, created_at)
+                    VALUES (%s, CURRENT_TIMESTAMP, %s, 'orchestrator', %s, CURRENT_TIMESTAMP)
+                    """,
+                    (
+                        f'phase_{phase_num}_{name}',
+                        json.dumps({'run_id': self.run_id, 'summary': summary}),
+                        status,
+                    ),
+                )
         except Exception as e:
             logger.warning(f"Warning: Could not persist audit log entry: {e}")
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-                    logger.error(f"Unhandled exception: {e}")
-            self._put_conn(conn)
 
     # ---------- Pipeline Health & Visibility ----------
 
@@ -538,98 +527,86 @@ class Orchestrator:
 
     def _report_signal_waterfall(self) -> None:
         """Log signal count at each filter tier for visibility on rejections."""
-        conn = None
-        cur = None
         try:
-            conn = self._get_conn()
-            cur = conn.cursor()
-
-            # Count total BUY signals for today
-            cur.execute(
-                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
-                (self.run_date,)
-            )
-            result = cur.fetchone()
-            total_signals = result[0] if result else 0
-
-            # Count from trend_template_data where Stage 2 exists
-            # (Stage 2 check is in filter_pipeline, using pre-filtered signals)
-            cur.execute(
-                """SELECT COUNT(DISTINCT symbol) FROM trend_template_data
-                   WHERE date = %s AND weinstein_stage = 2""",
-                (self.run_date,)
-            )
-            result = cur.fetchone()
-            stage2_count = result[0] if result else 0
-
-            # Count rejections per tier in a single query (uses composite index on eval_date, rejected_at_tier)
-            tier_rejections = {f'Tier {i}': 0 for i in range(1, 7)}
-            try:
+            with DatabaseContext('write') as cur:
+                # Count total BUY signals for today
                 cur.execute(
-                    """SELECT rejected_at_tier, COUNT(DISTINCT symbol)
-                       FROM filter_rejection_log
-                       WHERE eval_date = %s AND rejected_at_tier BETWEEN 1 AND 6
-                       GROUP BY rejected_at_tier""",
+                    "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
                     (self.run_date,)
                 )
-                for tier_num, count in cur.fetchall():
-                    tier_rejections[f'Tier {tier_num}'] = count or 0
-            except Exception as e:
-                logger.debug(f"Signal rejection tiers table may not exist or schema mismatch: {e}")
-                pass
+                result = cur.fetchone()
+                total_signals = result[0] if result else 0
 
-            # Final qualified count
-            qualified = getattr(self, '_qualified_trades', [])
-            final_count = len(qualified)
+                # Count from trend_template_data where Stage 2 exists
+                # (Stage 2 check is in filter_pipeline, using pre-filtered signals)
+                cur.execute(
+                    """SELECT COUNT(DISTINCT symbol) FROM trend_template_data
+                       WHERE date = %s AND weinstein_stage = 2""",
+                    (self.run_date,)
+                )
+                result = cur.fetchone()
+                stage2_count = result[0] if result else 0
 
-            if self.verbose or total_signals > 0:
-                logger.info(f"\n  [WATERFALL] Signal filtering on {self.run_date}:")
-                logger.info(f"    Total BUY signals:        {total_signals:4d}")
-                logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
-                logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
-                logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
-                logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
-                logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
-                logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
-                logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
-                logger.info(f"    Final qualified trades:   {final_count:4d}")
-
-                interpretation = self._interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)
-                logger.info(f"  Interpretation: {interpretation}")
-
-                # FIXED Issue #24: Log waterfall to database for audit trail
+                # Count rejections per tier in a single query (uses composite index on eval_date, rejected_at_tier)
+                tier_rejections = {f'Tier {i}': 0 for i in range(1, 7)}
                 try:
-                    waterfall_data = {
-                        'total_signals': total_signals,
-                        'stage2_count': stage2_count,
-                        'tier_1_rejected': tier_rejections.get('Tier 1', 0),
-                        'tier_2_rejected': tier_rejections.get('Tier 2', 0),
-                        'tier_3_rejected': tier_rejections.get('Tier 3', 0),
-                        'tier_4_rejected': tier_rejections.get('Tier 4', 0),
-                        'tier_5_rejected': tier_rejections.get('Tier 5', 0),
-                        'tier_6_rejected': tier_rejections.get('Tier 6', 0),
-                        'final_qualified': final_count,
-                        'interpretation': interpretation,
-                    }
                     cur.execute(
-                        """INSERT INTO algo_audit_log (run_id, phase, status, detail, created_at)
-                           VALUES (%s, %s, %s, %s, %s)""",
-                        (self.run_id, 'signal_waterfall', 'info', json.dumps(waterfall_data), datetime.now(timezone.utc))
+                        """SELECT rejected_at_tier, COUNT(DISTINCT symbol)
+                           FROM filter_rejection_log
+                           WHERE eval_date = %s AND rejected_at_tier BETWEEN 1 AND 6
+                           GROUP BY rejected_at_tier""",
+                        (self.run_date,)
                     )
-                    conn.commit()
-                    logger.debug(f"[WATERFALL] Logged to algo_audit_log for persistence")
+                    for tier_num, count in cur.fetchall():
+                        tier_rejections[f'Tier {tier_num}'] = count or 0
                 except Exception as e:
-                    logger.warning(f"[WATERFALL] Could not persist to database: {e}")
+                    logger.debug(f"Signal rejection tiers table may not exist or schema mismatch: {e}")
+                    pass
+
+                # Final qualified count
+                qualified = getattr(self, '_qualified_trades', [])
+                final_count = len(qualified)
+
+                if self.verbose or total_signals > 0:
+                    logger.info(f"\n  [WATERFALL] Signal filtering on {self.run_date}:")
+                    logger.info(f"    Total BUY signals:        {total_signals:4d}")
+                    logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
+                    logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
+                    logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
+                    logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
+                    logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
+                    logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
+                    logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
+                    logger.info(f"    Final qualified trades:   {final_count:4d}")
+
+                    interpretation = self._interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)
+                    logger.info(f"  Interpretation: {interpretation}")
+
+                    # FIXED Issue #24: Log waterfall to database for audit trail
+                    try:
+                        waterfall_data = {
+                            'total_signals': total_signals,
+                            'stage2_count': stage2_count,
+                            'tier_1_rejected': tier_rejections.get('Tier 1', 0),
+                            'tier_2_rejected': tier_rejections.get('Tier 2', 0),
+                            'tier_3_rejected': tier_rejections.get('Tier 3', 0),
+                            'tier_4_rejected': tier_rejections.get('Tier 4', 0),
+                            'tier_5_rejected': tier_rejections.get('Tier 5', 0),
+                            'tier_6_rejected': tier_rejections.get('Tier 6', 0),
+                            'final_qualified': final_count,
+                            'interpretation': interpretation,
+                        }
+                        cur.execute(
+                            """INSERT INTO algo_audit_log (run_id, phase, status, detail, created_at)
+                               VALUES (%s, %s, %s, %s, %s)""",
+                            (self.run_id, 'signal_waterfall', 'info', json.dumps(waterfall_data), datetime.now(timezone.utc))
+                        )
+                        logger.debug(f"[WATERFALL] Logged to algo_audit_log for persistence")
+                    except Exception as e:
+                        logger.warning(f"[WATERFALL] Could not persist to database: {e}")
 
         except Exception as e:
             logger.warning(f"Signal waterfall report failed: {e}")
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-                    logger.error(f"Unhandled exception: {e}")
-            self._put_conn(conn)
 
     def _interpret_waterfall(self, total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
         """Interpret the signal waterfall to help diagnose 'no trades' situations."""
@@ -800,38 +777,27 @@ class Orchestrator:
             logger.info("PRE-FLIGHT CHECKS (before Phase 1)")
             logger.info(f"{'='*70}")
             logger.info("[CRITICAL] Running critical data checks...")
-            conn = None
-            cur = None
             try:
-                conn = self._get_conn()
-                cur = conn.cursor()
+                with DatabaseContext('read') as cur:
+                    # FIXED Issue #23: Validate required tables exist
+                    if not self._validate_required_tables(cur):
+                        logger.error("[HALT] Required tables missing — cannot proceed")
+                        return self._final_report()
 
-                # FIXED Issue #23: Validate required tables exist
-                if not self._validate_required_tables(cur):
-                    logger.error("[HALT] Required tables missing — cannot proceed")
-                    return self._final_report()
+                    # FIXED Issue #9: Check data freshness before patrol
+                    if not self._check_data_freshness(cur):
+                        logger.error("[HALT] Data freshness check failed — cannot proceed")
+                        return self._final_report()
 
-                # FIXED Issue #9: Check data freshness before patrol
-                if not self._check_data_freshness(cur):
-                    logger.error("[HALT] Data freshness check failed — cannot proceed")
-                    return self._final_report()
+                    # Check data patrol for quality issues
+                    if not self._check_data_patrol(cur):
+                        logger.error("[HALT] Data patrol check failed — cannot proceed")
+                        return self._final_report()
 
-                # Check data patrol for quality issues
-                if not self._check_data_patrol(cur):
-                    logger.error("[HALT] Data patrol check failed — cannot proceed")
-                    return self._final_report()
-
-                logger.info("[OK] All pre-flight checks passed")
+                    logger.info("[OK] All pre-flight checks passed")
             except Exception as e:
                 logger.error(f"  [HALT] Data patrol check failed: {e}")
                 return self._final_report()
-            finally:
-                if cur:
-                    try:
-                        cur.close()
-                    except Exception as e:
-                        logger.error(f"Unhandled exception: {e}")
-                self._put_conn(conn)
 
 
             logger.info("\n[CHECK] Database connectivity...")
