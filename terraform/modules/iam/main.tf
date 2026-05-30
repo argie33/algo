@@ -731,6 +731,25 @@ data "aws_iam_policy_document" "lambda_algo" {
       values   = [var.aws_account_id]
     }
   }
+
+  # DynamoDB - Orchestrator locks and loader status
+  statement {
+    sid    = "DynamoDatabaseOrchestration"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:PutItem",
+      "dynamodb:Query"
+    ]
+
+    resources = [
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-${var.environment}",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-status-${var.environment}"
+    ]
+  }
 }
 
 # ============================================================
