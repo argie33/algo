@@ -50,17 +50,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         self._last_stop_method = None
         self._last_stop_reasoning = None
 
-    def _enter_database(self):
-        """Enter DatabaseContext for this operation. Called from evaluate_signals."""
-        self._db_context = DatabaseContext('write')
-        self.cur = self._db_context.__enter__()
-
-    def _exit_database(self):
-        """Exit DatabaseContext. Called from evaluate_signals finally block."""
-        if hasattr(self, '_db_context') and self._db_context:
-            self._db_context.__exit__(None, None, None)
-            self._db_context = None
-            self.cur = None
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext('write') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
 
     def _apply_tier_multiplier(self, base_size: float, tier: str, base_risk_pct: float) -> float:
         """Apply exposure tier multiplier to position size.
@@ -98,11 +95,22 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         has both market_health_daily Stage 2 confirmation and trend_template
         coverage. This avoids evaluating today when no fresh data has been loaded.
         """
-        try:
-            self._enter_database()
+        def _evaluate_with_cursor(cur):
+            self.cur = cur
+            return self._evaluate_signals_impl(eval_date)
 
-            if not eval_date:
-                eval_date = self._resolve_evaluation_date()
+        try:
+            return self._with_cursor(_evaluate_with_cursor) or []
+        except Exception as e:
+            logger.error(f"ERROR in evaluate_signals: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def _evaluate_signals_impl(self, eval_date=None) -> List[Dict[str, Any]]:
+        """Internal implementation of signal evaluation with cursor already set."""
+        if not eval_date:
+            eval_date = self._resolve_evaluation_date()
 
             # Snapshot eval_date immutably for this run (prevents sector rotation mid-evaluation)
             self._snapshot_eval_date = eval_date
@@ -463,14 +471,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"\n{'='*70}\n")
 
             return final_trades
-
-        except Exception as e:
-            logger.error(f"ERROR in evaluate_signals: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
-        finally:
-            self._exit_database()
 
     def _resolve_evaluation_date(self) -> _date:
         """Pick the most recent date that has BUY signals + market health + trend data."""
