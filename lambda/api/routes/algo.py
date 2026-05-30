@@ -1053,18 +1053,9 @@ def _get_sector_breadth(cur) -> Dict:
             """)
             breadth = cur.fetchall()
             return list_response([dict(b) for b in breadth])
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.warning(f'Table/column not ready (sector breadth): {e}')
-            return list_response([])
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get sector breadth'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
-            return list_response([])
         except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
+            logger.warning(f'Sector breadth unavailable: {e}', extra={'operation': 'get sector breadth'})
+            return list_response([])
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:

@@ -165,9 +165,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
             freshness = check_data_freshness(cur, 'stock_scores', 'updated_at', warning_days=7)
 
             return list_response(items, data_freshness=freshness)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.warning(f'Table/column not ready (stock scores): {e}')
+        except Exception as e:
+            logger.warning(f'Stock scores unavailable: {e}')
             return list_response([])
-        except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get stock scores')
 
