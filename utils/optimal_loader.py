@@ -2,6 +2,7 @@
 
 import logging
 import os
+import threading
 import time
 import psycopg2
 import uuid
@@ -232,7 +233,6 @@ class OptimalLoader(ABC):
                 logger.error(f"Failed to prepare columns for {self.table_name}: {e}")
                 raise
 
-            import threading
             # Use UUID for guaranteed uniqueness across concurrent executions
             # (avoids type name collisions in pg_type when millisecond-level timing aligns)
             unique_id = str(uuid.uuid4()).replace('-', '')[:12]

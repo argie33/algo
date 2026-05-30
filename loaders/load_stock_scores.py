@@ -494,7 +494,14 @@ def main():
     args = parser.parse_args()
 
     try:
-        symbols = (args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60))
+        all_symbols = (args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60))
+        # Filter out ETFs - only score actual stocks
+        with DatabaseContext('read') as cur:
+            cur.execute("SELECT symbol FROM stock_symbols WHERE etf = 'Y'")
+            etf_symbols = {row[0] for row in cur.fetchall()}
+        symbols = [s for s in all_symbols if s not in etf_symbols]
+        logger.info(f"Filtering out {len(all_symbols) - len(symbols)} ETFs from {len(all_symbols)} total symbols")
+
         loader = StockScoresLoader()
         stats = loader.run(symbols, parallelism=args.parallelism)
         logger.info("Stock scores load completed")
