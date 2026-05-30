@@ -363,6 +363,23 @@ Phase 1 compares each table's latest date against the **previous trading day** (
 
 **Why:** Prevents trading on stale market data. The previous-trading-day comparison is implemented in `algo/orchestrator/phase1_data_freshness.py` using `MarketCalendar` to skip weekends and holidays when computing the expected data date.
 
+## API GATEWAY ROUTING ARCHITECTURE
+
+**Stage name: `$default` (critical for correct routing)**
+
+The API Gateway HTTP API uses stage `$default`. This is intentional:
+- With `$default` stage: CloudFront forwards `/api/signals` → rawPath in Lambda = `/api/signals` → `api_router` matches `/api/signals` handler ✓
+- With named stage (e.g., "api"): CloudFront forwards `/api/signals` → API GW strips "api" prefix → rawPath = `/signals` → `api_router` has no handler for `/signals` → 404 for ALL endpoints
+
+**Health check fast path:**
+The `/health` and `/api/health` endpoints return 200 immediately, before DB connection test or env validation. This ensures uptime monitors always succeed even if DB is temporarily unavailable.
+
+**Route configuration:**
+- Routes use `/api/` prefix in route_key (e.g., `GET /api/signals`)
+- CloudFront behavior `path_pattern = "/api/*"` routes to API Gateway origin
+- API GW `$default` stage preserves the full `/api/...` path in rawPath
+- `lambda/api/api_router.py` matches against `/api/` prefixed paths
+
 ## DEBUGGING & TROUBLESHOOTING
 
 **Schema validation:** Verify these tables exist in RDS:
