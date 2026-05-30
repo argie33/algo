@@ -13,7 +13,7 @@ import logging
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import DictCursor, RealDictCursor
 
 from utils.db_connection import get_db_connection
 
@@ -30,7 +30,7 @@ class DatabaseContext:
         # Connection automatically closed
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 60, cursor_factory=RealDictCursor):
+    def __init__(self, role: str = 'read', timeout: int = 60, cursor_factory=DictCursor):
         """Initialize context.
 
         Args:

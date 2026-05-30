@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Trend Criteria Data Loader -â€ Minervini 8-point, Weinstein stage, consolidation.
 
 Computes trend confirmation metrics from price and technical data.
@@ -46,20 +46,20 @@ class TrendCriteriaLoader(OptimalLoader):
                 from utils.database_context import DatabaseContext
                 with DatabaseContext('read') as cur:
                     cur.execute(
-                        “SELECT MAX(date) FROM trend_template_data WHERE symbol = %s”,
+                        "SELECT MAX(date) FROM trend_template_data WHERE symbol = %s",
                         (symbol,),
                     )
                     row = cur.fetchone()
                     if row and row[0]:
                         since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
             except Exception as e:
-                logger.warning(f”Could not read trend_template_data watermark for {symbol}: {e}”)
+                logger.warning(f"Could not read trend_template_data watermark for {symbol}: {e}")
 
         if since is None:
             start = end - timedelta(days=2 * 365)
         else:
             # Keep 300-day lookback so moving averages (50d, 150d, 200d) are warm before
-            # the incremental window starts â€” avoids NaN MAs at the boundary.
+            # the incremental window starts â€" avoids NaN MAs at the boundary.
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)

@@ -149,8 +149,7 @@ class OptimalLoader(ABC):
             """, (self.table_name,))
 
             row = cur.fetchone()
-            exists = row['exists'] if isinstance(row, dict) else row[0]
-            if not exists:
+            if not row[0]:
                 logger.warning(f"Table {self.table_name} does not exist")
                 return
 
@@ -164,8 +163,7 @@ class OptimalLoader(ABC):
             AND table_schema = 'public'
             """, (self.table_name,))
 
-            rows = cur.fetchall()
-            existing_constraints = [r['constraint_name'] if isinstance(r, dict) else r[0] for r in rows]
+            existing_constraints = [r[0] for r in cur.fetchall()]
 
             # Check if any constraint covers all our primary_key columns
             for constraint in existing_constraints:
@@ -176,8 +174,7 @@ class OptimalLoader(ABC):
                 ORDER BY ordinal_position
                 """, (constraint,))
 
-                constraint_rows = cur.fetchall()
-                constraint_cols = [r['column_name'] if isinstance(r, dict) else r[0] for r in constraint_rows]
+                constraint_cols = [r[0] for r in cur.fetchall()]
                 if set(constraint_cols) == set(self.primary_key):
                     logger.debug(f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})")
                     return
@@ -239,8 +236,7 @@ class OptimalLoader(ABC):
                         "WHERE table_schema = 'public' AND table_name = %s",
                         (self.table_name,),
                     )
-                    schema_rows = cur.fetchall()
-                    self._schema_cols_cache = {r['column_name'] if isinstance(r, dict) else r[0] for r in schema_rows}
+                    self._schema_cols_cache = {r[0] for r in cur.fetchall()}
                 existing_cols = self._schema_cols_cache
                 all_data_cols = list(rows[0].keys())
                 skipped = [c for c in all_data_cols if c not in existing_cols]
@@ -465,12 +461,8 @@ class OptimalLoader(ABC):
                 else:
                     cur.execute(f"SELECT COUNT(*), NULL FROM {self.table_name}")
                 result = cur.fetchone()
-                if result:
-                    vals = list(result.values()) if isinstance(result, dict) else result
-                    total_rows = vals[0] if vals else 0
-                    latest_date = vals[1] if len(vals) > 1 else None
-                else:
-                    total_rows, latest_date = 0, None
+                total_rows = result[0] if result else 0
+                latest_date = result[1] if result else None
                 if hasattr(latest_date, 'date'):
                     latest_date = latest_date.date()
 

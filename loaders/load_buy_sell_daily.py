@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Daily buy/sell signals generator.
 
 Generates daily trading signals from technical indicators and quality scores.
@@ -66,23 +66,23 @@ class SignalsDailyLoader(OptimalLoader):
             with DatabaseContext('read') as cur:
                 # Check if technical data exists for end date, fall back to most recent available date
                 cur.execute(
-                    “SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s”,
+                    "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
                     (symbol, end)
                 )
                 if cur.fetchone()[0] == 0:
                     # Fall back: find most recent date with technical data for this symbol
                     cur.execute(
-                        “SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s AND date < %s”,
+                        "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s AND date < %s",
                         (symbol, end)
                     )
                     fallback_date = cur.fetchone()[0]
                     if fallback_date:
                         end = fallback_date
                     else:
-                        logger.warning(f”{symbol}: Technical data missing for {end} - signals cannot be generated”)
+                        logger.warning(f"{symbol}: Technical data missing for {end} - signals cannot be generated")
                         return []
         except Exception as e:
-            logger.warning(f”{symbol}: Technical data check failed: {e}”)
+            logger.warning(f"{symbol}: Technical data check failed: {e}")
             return []
 
         # Fetch required data for signal generation

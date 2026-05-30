@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""Technical Data Daily Loader â€” RSI, MACD, SMA, EMA, ATR, Bollinger Bands.
+#!/usr/bin/env python3
+"""Technical Data Daily Loader â€" RSI, MACD, SMA, EMA, ATR, Bollinger Bands.
 
 Computes all technical indicators from daily price data and populates technical_data_daily.
 Required by Phase 1 data freshness check.

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Stock Scores Loader - Multi-factor composite stock scoring.
 
 Computes composite stock scores by aggregating:
@@ -357,23 +357,23 @@ class StockScoresLoader(OptimalLoader):
         scores = []
 
         # P/E ratio: peak zone 15-25 for growth momentum stocks
-        # Continuous piecewise linear â€” no score jumps at breakpoints
+        # Continuous piecewise linear â€" no score jumps at breakpoints
         if metrics.get('pe_ratio') and metrics['pe_ratio'] > 0:
             pe = metrics['pe_ratio']
             if pe <= 10:
-                pe_score = 40 + pe * 2          # 40 at pe=0 â†’ 60 at pe=10
+                pe_score = 40 + pe * 2          # 40 at pe=0 â†' 60 at pe=10
             elif pe <= 20:
-                pe_score = 60 + (pe - 10) * 4  # 60 at pe=10 â†’ 100 at pe=20
+                pe_score = 60 + (pe - 10) * 4  # 60 at pe=10 â†' 100 at pe=20
             elif pe <= 40:
-                pe_score = 100 - (pe - 20) * 2.5  # 100 at pe=20 â†’ 50 at pe=40
+                pe_score = 100 - (pe - 20) * 2.5  # 100 at pe=20 â†' 50 at pe=40
             else:
-                pe_score = max(0, 50 - (pe - 40) * 1.25)  # 50 at pe=40 â†’ 0 at pe=80
+                pe_score = max(0, 50 - (pe - 40) * 1.25)  # 50 at pe=40 â†' 0 at pe=80
             scores.append(pe_score)
 
         # Dividend yield: higher is better (target 2%+)
         # yfinance returns dividendYield as decimal fraction (0.0229 = 2.29%); convert to percent
         if metrics.get('dividend_yield'):
-            div = min(metrics['dividend_yield'] * 100, 5)  # Decimal â†’ percent, cap at 5%
+            div = min(metrics['dividend_yield'] * 100, 5)  # Decimal â†' percent, cap at 5%
             scores.append(min(100, div * 20))
 
         return sum(scores) / len(scores) if scores else None
@@ -442,7 +442,7 @@ class StockScoresLoader(OptimalLoader):
         if not metrics:
             return None
 
-        # Named weights â€” recent timeframes matter more for swing trading
+        # Named weights â€" recent timeframes matter more for swing trading
         WEIGHTS = {'momentum_1m': 0.30, 'momentum_3m': 0.30, 'momentum_6m': 0.25, 'momentum_12m': 0.15}
 
         weighted_sum = 0.0

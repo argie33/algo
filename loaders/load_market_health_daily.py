@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""Market Health Daily Loader â€” Market stage, distribution days, advance/decline.
+#!/usr/bin/env python3
+"""Market Health Daily Loader â€" Market stage, distribution days, advance/decline.
 
 Computes market-wide health metrics from SPY price data and market indicators.
 Populates all required market_health_daily columns.

@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""Sentiment Aggregate Loader â€” combines AAII + NAAIM sentiment into unified metric.
+#!/usr/bin/env python3
+"""Sentiment Aggregate Loader â€" combines AAII + NAAIM sentiment into unified metric.
 
 Aggregates multiple sentiment sources (AAII bullish %, NAAIM allocation %) into a
 normalized sentiment score (0-100, where 50 = neutral) for trading signals.
