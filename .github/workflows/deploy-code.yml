@@ -444,7 +444,7 @@ jobs:
           region = os.environ['AWS_REGION']
           account_id = os.environ['AWS_ACCOUNT_ID']
 
-          # Retrieve layer version using JSON output to avoid text formatting issues
+          # Retrieve layer versions using JSON output to avoid text formatting issues
           print("Retrieving layer information...")
           result = subprocess.run(['aws', 'lambda', 'list-layer-versions',
             '--layer-name', 'algo-orchestrator-layer',
@@ -452,8 +452,27 @@ jobs:
             '--output', 'json'], capture_output=True, text=True, check=True)
           layers_data = json.loads(result.stdout)
           layer_version = int(layers_data['LayerVersions'][0]['Version'])
-          layer_arn = f"arn:aws:lambda:{region}:{account_id}:layer:algo-orchestrator-layer:{layer_version}"
-          print(f"[OK] Layer ARN: {layer_arn}")
+          orchestrator_layer_arn = f"arn:aws:lambda:{region}:{account_id}:layer:algo-orchestrator-layer:{layer_version}"
+          print(f"[OK] Orchestrator Layer ARN: {orchestrator_layer_arn}")
+
+          # Retrieve psycopg2 layer
+          print("Retrieving psycopg2 layer...")
+          result = subprocess.run(['aws', 'lambda', 'list-layer-versions',
+            '--layer-name', 'algo-psycopg2-layer-dev',
+            '--region', region,
+            '--output', 'json'], capture_output=True, text=True)
+          psycopg2_layer_arn = ""
+          if result.returncode == 0:
+            psycopg2_data = json.loads(result.stdout)
+            if psycopg2_data.get('LayerVersions'):
+              psycopg2_version = int(psycopg2_data['LayerVersions'][0]['Version'])
+              psycopg2_layer_arn = f"arn:aws:lambda:{region}:{account_id}:layer:algo-psycopg2-layer-dev:{psycopg2_version}"
+              print(f"[OK] psycopg2 Layer ARN: {psycopg2_layer_arn}")
+            else:
+              print("[WARN] psycopg2 layer exists but has no versions")
+          else:
+            print("[WARN] psycopg2 layer not found - continuing without it (may cause import errors)")
+
           func_name = os.environ['FUNC_NAME']
 
           # Retrieve RDS configuration from Secrets Manager (match Terraform-created secret)
@@ -569,6 +588,12 @@ jobs:
           # from ALGO_SECRETS_ARN (Secrets Manager) via config/credential_manager.py.
           # This prevents keys from being visible via lambda:GetFunctionConfiguration.
           algo_secrets_arn = f"arn:aws:secretsmanager:{region}:{account_id}:secret:algo-algo-secrets-dev"
+
+          # Build layers list: orchestrator layer + optional psycopg2 layer
+          layers_list = [orchestrator_layer_arn]
+          if psycopg2_layer_arn:
+            layers_list.append(psycopg2_layer_arn)
+
           lambda_config = {
             "FunctionName": func_name,
             "Environment": {
@@ -588,7 +613,7 @@ jobs:
                 "ALERT_EMAIL_TO": alert_email_to
               }
             },
-            "Layers": [layer_arn]
+            "Layers": layers_list
           }
 
           print("Updating Lambda configuration...")
