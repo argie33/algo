@@ -808,7 +808,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         stop_info.get('reasoning', ''),
                         stop_info.get('candidates', {}),
                     )
-                    audit.disconnect()
                 except Exception as e:
                     logger.debug(f"Stop loss audit logging failed: {e}")
 
