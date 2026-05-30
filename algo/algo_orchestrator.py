@@ -754,7 +754,7 @@ class Orchestrator:
             return False
         from algo.orchestrator.phase5_signal_generation import run as run_phase5
         result = run_phase5(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result,
             getattr(self, '_exposure_constraints', {}),
@@ -771,7 +771,7 @@ class Orchestrator:
             return False
         from algo.orchestrator.phase6_entry_execution import run as run_phase6
         result = run_phase6(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result,
             getattr(self, '_qualified_trades', []),
@@ -789,7 +789,7 @@ class Orchestrator:
             return False
         from algo.orchestrator.phase7_reconciliation import run as run_phase7
         result = run_phase7(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result
         )

@@ -431,13 +431,37 @@ def is_rate_limited(client_ip: str, rate_limit_requests: int = RATE_LIMIT_REQUES
     return False
 
 
+def get_client_ip(event: Dict) -> str:
+    """Extract real client IP, accounting for CloudFront reverse proxy.
+
+    When behind CloudFront, all requests appear to come from CloudFront's IP.
+    Use CF-Connecting-IP header (CloudFront's real client IP) instead of sourceIp.
+    """
+    headers = event.get('headers', {})
+
+    # Check CloudFront's real client IP header first
+    if 'cf-connecting-ip' in headers:
+        return headers['cf-connecting-ip']
+    if 'CF-Connecting-IP' in headers:
+        return headers['CF-Connecting-IP']
+
+    # Fallback to X-Forwarded-For (standard proxy header)
+    if 'x-forwarded-for' in headers:
+        return headers['x-forwarded-for'].split(',')[-1].strip()
+    if 'X-Forwarded-For' in headers:
+        return headers['X-Forwarded-For'].split(',')[-1].strip()
+
+    # Last resort: API Gateway sourceIp
+    return event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
+
+
 def log_api_request(event: Dict, status_code: int, user_id: Optional[str] = None, error_msg: Optional[str] = None):
     """Log API request for audit trail (security incident investigation).
 
     Format: JSON structured log with timestamp, request ID, IP, method, path, status, user
     """
     try:
-        client_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
+        client_ip = get_client_ip(event)
         path = event.get('rawPath', event.get('path', '/'))
         method = event.get('requestContext', {}).get('http', {}).get('method', 'UNKNOWN')
         request_id = event.get('requestContext', {}).get('requestId', 'unknown')
@@ -679,7 +703,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Check rate limiting (per client IP) — health endpoints are exempt
         if not is_health_check:
-            client_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
+            client_ip = get_client_ip(event)
             if is_rate_limited(client_ip):
                 cors_headers = get_cors_headers(event)
                 logger.warning(f'Rate limit exceeded for IP {client_ip}')
