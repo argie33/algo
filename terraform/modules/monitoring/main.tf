@@ -255,14 +255,12 @@ resource "aws_cloudwatch_dashboard" "main" {
         properties = {
           metrics = [
             ["Algo/DataLoading", "LoaderFailure", { stat = "Sum", dimensions = { LoaderName = "stock_prices_daily" } }],
-            ["...", { dimensions = { LoaderName = "stock_symbols" } }],
-            ["...", { dimensions = { LoaderName = "market_health_daily" } }],
-            ["...", { dimensions = { LoaderName = "technical_data_daily" } }],
+            ["...", { stat = "Sum", dimensions = { LoaderName = "stock_symbols" } }],
           ]
           period = 300
           stat   = "Sum"
           region = var.aws_region
-          title  = "Critical Loader Failures (Issue #4)"
+          title  = "Price & Symbol Loader Failures"
           yAxis = {
             left = {
               min = 0
@@ -273,6 +271,29 @@ resource "aws_cloudwatch_dashboard" "main" {
         height = 6
         x      = 12
         y      = 30
+      },
+
+      {
+        type = "metric"
+        properties = {
+          metrics = [
+            ["Algo/DataLoading", "LoaderFailure", { stat = "Sum", dimensions = { LoaderName = "market_health_daily" } }],
+            ["...", { stat = "Sum", dimensions = { LoaderName = "technical_data_daily" } }],
+          ]
+          period = 300
+          stat   = "Sum"
+          region = var.aws_region
+          title  = "Market Health & Technical Loader Failures"
+          yAxis = {
+            left = {
+              min = 0
+            }
+          }
+        }
+        width  = 12
+        height = 6
+        x      = 0
+        y      = 36
       },
     ]
   })
