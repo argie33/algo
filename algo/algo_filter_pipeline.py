@@ -50,17 +50,15 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         self._last_stop_method = None
         self._last_stop_reasoning = None
 
-    def _enter_database(self):
-        """Enter DatabaseContext for this operation. Called from evaluate_signals."""
-        self._db_context = DatabaseContext('write')
-        self.cur = self._db_context.__enter__()
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext('write') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.error(f"Database operation failed: {e}")
+            raise
 
-    def _exit_database(self):
-        """Exit DatabaseContext. Called from evaluate_signals finally block."""
-        if hasattr(self, '_db_context') and self._db_context:
-            self._db_context.__exit__(None, None, None)
-            self._db_context = None
-            self.cur = None
 
     def _apply_tier_multiplier(self, base_size: float, tier: str, base_risk_pct: float) -> float:
         """Apply exposure tier multiplier to position size.
@@ -98,8 +96,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         has both market_health_daily Stage 2 confirmation and trend_template
         coverage. This avoids evaluating today when no fresh data has been loaded.
         """
-        try:
-            self._enter_database()
+        def _eval(cur):
+            self.cur = cur
+            try:
 
             if not eval_date:
                 eval_date = self._resolve_evaluation_date()
@@ -459,15 +458,15 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 logger.info("(no qualifying trades — gates too strict for current market)")
             logger.info(f"\n{'='*70}\n")
 
-            return final_trades
+                return final_trades
 
-        except Exception as e:
-            logger.error(f"ERROR in evaluate_signals: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
-        finally:
-            self._exit_database()
+            except Exception as e:
+                logger.error(f"ERROR in evaluate_signals: {e}")
+                import traceback
+                traceback.print_exc()
+                return []
+
+        return self._with_cursor(_eval)
 
     def _resolve_evaluation_date(self) -> _date:
         """Pick the most recent date that has BUY signals + market health + trend data."""

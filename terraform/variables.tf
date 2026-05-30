@@ -362,6 +362,12 @@ variable "api_lambda_ephemeral_storage" {
   default     = 512
 }
 
+variable "api_lambda_reserved_concurrency" {
+  description = "Reserved concurrency for API Lambda (prevents cold starts under load)"
+  type        = number
+  default     = 50
+}
+
 variable "algo_lambda_memory" {
   description = "Memory for algo Lambda"
   type        = number
