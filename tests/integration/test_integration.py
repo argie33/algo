@@ -28,6 +28,10 @@ class TestIntegration:
         except ImportError:
             pytest.skip("Pipeline modules not available")
 
-    def test_placeholder(self):
-        """Placeholder integration test."""
-        assert True
+    def test_database_context_available(self):
+        """Test that database context can be imported."""
+        try:
+            from utils.database_context import DatabaseContext
+            assert DatabaseContext is not None
+        except ImportError:
+            pytest.skip("DatabaseContext not available")

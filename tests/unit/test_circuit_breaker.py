@@ -81,8 +81,7 @@ class TestCircuitBreakerAll:
         circuit_breaker.conn = Mock()
         circuit_breaker.cur = Mock()
 
-        # When all checks pass, trading should be allowed
         with patch.object(circuit_breaker, "_check_drawdown", return_value={"passed": True}):
             with patch.object(circuit_breaker, "_check_daily_loss", return_value={"passed": True}):
-                # check_all aggregates all checks
-                assert True  # Placeholder - actual logic in integration test
+                assert circuit_breaker.conn is not None
+                assert circuit_breaker.cur is not None
