@@ -669,7 +669,11 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "DB_SECRET_ARN"
           value = var.db_secret_arn
         },
-        # Alpaca configuration
+        # Alpaca configuration (ALGO_SECRETS_ARN required by credential_manager)
+        {
+          name  = "ALGO_SECRETS_ARN"
+          value = var.algo_secrets_arn
+        },
         {
           name  = "ALPACA_PAPER_TRADING"
           value = tostring(var.alpaca_paper_trading)
