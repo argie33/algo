@@ -9,11 +9,12 @@ Invoked by: API /api/algo/trigger-loader endpoint or CloudWatch alarm
 import json
 import boto3
 import os
+import logging
 from datetime import datetime
 
 ecs = boto3.client('ecs')
-logger = __import__('logging').getLogger()
-logger.setLevel(__import__('logging').INFO)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
