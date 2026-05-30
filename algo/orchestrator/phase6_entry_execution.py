@@ -188,212 +188,212 @@ def _validate_pre_trade_data_quality(
             is_historical_test = today < date.today()
             if is_historical_test:
                 cur.execute("SELECT MAX(date) FROM price_daily")
-            result = cur.fetchone()
-            latest_date = result[0] if result else None
-            if latest_date and latest_date > today:
-                logger.info(f"  [TEST MODE] Using latest available data ({latest_date}) instead of run_date ({today})")
-                today = latest_date
-
-        # Hard blocks: data required before trading
-        required_hard = [
-            ('price_daily', 'Price data'),
-            ('technical_data_daily', 'Technical indicators'),
-            ('buy_sell_daily', 'Signal data'),
-        ]
-        # Soft checks: post-trade tables, only warn if missing (they get populated by orchestrator after trades)
-        required_soft = [
-            ('market_exposure_daily', 'Market exposure data'),
-            ('algo_risk_daily', 'Risk calculations'),
-        ]
-
-        for table, description in required_hard:
-            assert_safe_table(table)
-            cur.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE date = %s",
-                (today,)
-            )
-            result = cur.fetchone()
-            count = result[0] if result else 0
-            if count == 0:
-                # Allow fallback to yesterday's data if today's not available (for market hours lag)
-                cur.execute(
-                    f"SELECT MAX(date) FROM {table} WHERE date <= %s",
-                    (today,)
-                )
                 result = cur.fetchone()
-                latest = result[0] if result else None
-                if latest and latest >= today - timedelta(days=1):
-                    logger.info(f"  [OK] {table}: Using data from {latest} (latest available)")
-                else:
-                    issues.append(f"{description} missing for {today}")
-            else:
-                logger.debug(f"  [OK] {table}: {count} rows for {today}")
+                latest_date = result[0] if result else None
+                if latest_date and latest_date > today:
+                    logger.info(f"  [TEST MODE] Using latest available data ({latest_date}) instead of run_date ({today})")
+                    today = latest_date
 
-        for table, description in required_soft:
-            assert_safe_table(table)
-            if table == 'algo_risk_daily':
-                cur.execute(
-                    f"SELECT COUNT(*) FROM {table} WHERE report_date = %s",
-                    (today,)
-                )
-            else:
+            # Hard blocks: data required before trading
+            required_hard = [
+                ('price_daily', 'Price data'),
+                ('technical_data_daily', 'Technical indicators'),
+                ('buy_sell_daily', 'Signal data'),
+            ]
+            # Soft checks: post-trade tables, only warn if missing (they get populated by orchestrator after trades)
+            required_soft = [
+                ('market_exposure_daily', 'Market exposure data'),
+                ('algo_risk_daily', 'Risk calculations'),
+            ]
+
+            for table, description in required_hard:
+                assert_safe_table(table)
                 cur.execute(
                     f"SELECT COUNT(*) FROM {table} WHERE date = %s",
                     (today,)
                 )
+                result = cur.fetchone()
+                count = result[0] if result else 0
+                if count == 0:
+                    # Allow fallback to yesterday's data if today's not available (for market hours lag)
+                    cur.execute(
+                        f"SELECT MAX(date) FROM {table} WHERE date <= %s",
+                        (today,)
+                    )
+                    result = cur.fetchone()
+                    latest = result[0] if result else None
+                    if latest and latest >= today - timedelta(days=1):
+                        logger.info(f"  [OK] {table}: Using data from {latest} (latest available)")
+                    else:
+                        issues.append(f"{description} missing for {today}")
+                else:
+                    logger.debug(f"  [OK] {table}: {count} rows for {today}")
+
+            for table, description in required_soft:
+                assert_safe_table(table)
+                if table == 'algo_risk_daily':
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE report_date = %s",
+                        (today,)
+                    )
+                else:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table} WHERE date = %s",
+                        (today,)
+                    )
+                result = cur.fetchone()
+                count = result[0] if result else 0
+                if count == 0:
+                    warnings.append(f"{description} not available (will be populated after trading)")
+                else:
+                    logger.debug(f"  [OK] {table}: {count} rows for today")
+
+            # Use latest available data if today's not available (same as hard-block logic above)
+            price_check_date = today
+            cur.execute(
+                f"SELECT COUNT(*) FROM price_daily WHERE date = %s",
+                (price_check_date,)
+            )
             result = cur.fetchone()
             count = result[0] if result else 0
             if count == 0:
-                warnings.append(f"{description} not available (will be populated after trading)")
-            else:
-                logger.debug(f"  [OK] {table}: {count} rows for today")
+                cur.execute(
+                    "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                    (price_check_date,)
+                )
+                result = cur.fetchone()
+                latest = result[0] if result else None
+                if latest:
+                    price_check_date = latest
+                    logger.debug(f"  [FALLBACK] Using price data from {latest} instead of {today}")
 
-        # Use latest available data if today's not available (same as hard-block logic above)
-        price_check_date = today
-        cur.execute(
-            f"SELECT COUNT(*) FROM price_daily WHERE date = %s",
-            (price_check_date,)
-        )
-        result = cur.fetchone()
-        count = result[0] if result else 0
-        if count == 0:
+            # Check if data exists for price_check_date (we already verified hard blocks above)
             cur.execute(
-                "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                "SELECT COUNT(*) FROM price_daily WHERE date = %s",
                 (price_check_date,)
             )
             result = cur.fetchone()
-            latest = result[0] if result else None
-            if latest:
-                price_check_date = latest
-                logger.debug(f"  [FALLBACK] Using price data from {latest} instead of {today}")
-
-        # Check if data exists for price_check_date (we already verified hard blocks above)
-        cur.execute(
-            "SELECT COUNT(*) FROM price_daily WHERE date = %s",
-            (price_check_date,)
-        )
-        result = cur.fetchone()
-        price_count = result[0] if result else 0
-        if price_count == 0:
-            issues.append("No price data found")
-        else:
-            # Check created_at age if available
-            cur.execute(
-                "SELECT MAX(created_at) FROM price_daily WHERE date = %s",
-                (price_check_date,)
-            )
-            result = cur.fetchone()
-            if result and result[0]:
-                # Strip tzinfo before subtraction — psycopg2 returns timezone-aware datetime
-                # for TIMESTAMPTZ columns, which can't be compared to naive datetime.now().
-                db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
-                age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
-                if age_hours > 24:
-                    issues.append(f"Price data too stale: {age_hours:.1f} hours old")
-                elif age_hours > 1:
-                    warnings.append(f"Price data is {age_hours:.1f} hours old")
+            price_count = result[0] if result else 0
+            if price_count == 0:
+                issues.append("No price data found")
             else:
-                # Data exists but created_at is missing (not critical)
-                logger.debug(f"  [WARN] Price data exists but created_at is not set for {price_check_date}")
+                # Check created_at age if available
+                cur.execute(
+                    "SELECT MAX(created_at) FROM price_daily WHERE date = %s",
+                    (price_check_date,)
+                )
+                result = cur.fetchone()
+                if result and result[0]:
+                    # Strip tzinfo before subtraction — psycopg2 returns timezone-aware datetime
+                    # for TIMESTAMPTZ columns, which can't be compared to naive datetime.now().
+                    db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
+                    age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
+                    if age_hours > 24:
+                        issues.append(f"Price data too stale: {age_hours:.1f} hours old")
+                    elif age_hours > 1:
+                        warnings.append(f"Price data is {age_hours:.1f} hours old")
+                else:
+                    # Data exists but created_at is missing (not critical)
+                    logger.debug(f"  [WARN] Price data exists but created_at is not set for {price_check_date}")
 
-        cur.execute(
-            "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR signal IS NULL)",
-            (today,)
-        )
-        result = cur.fetchone()
-        null_count = result[0] if result else 0
-        if null_count > 0:
-            issues.append(f"Signal data has {null_count} critical NULLs")
-
-        cur.execute(
-            "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-            (today,)
-        )
-        result = cur.fetchone()
-        covered = result[0] if result else 0
-        cur.execute(
-            "SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE"
-        )
-        result = cur.fetchone()
-        total = result[0] if result else 0
-        if total > 0:
-            coverage = (covered / total) * 100
-            if coverage < 80:
-                issues.append(f"Low symbol coverage: {covered}/{total} ({coverage:.1f}%)")
-            elif coverage < 95:
-                warnings.append(f"Symbol coverage: {covered}/{total} ({coverage:.1f}%)")
-
-        # Check if technical data exists (hard blocks already verified this above)
-        cur.execute(
-            "SELECT COUNT(*) FROM technical_data_daily WHERE date <= %s",
-            (today,)
-        )
-        result = cur.fetchone()
-        tech_count = result[0] if result else 0
-        if tech_count == 0:
-            issues.append("No technical data found")
-        else:
-            # Check created_at age if available
             cur.execute(
-                "SELECT MAX(created_at) FROM technical_data_daily WHERE date <= %s",
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND (symbol IS NULL OR signal IS NULL)",
                 (today,)
             )
             result = cur.fetchone()
-            if result and result[0]:
-                db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
-                age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
-                # Allow 72 hours of staleness for testing/backtesting data
-                # Production: revert to 24 hours when using real-time data feeds
-                if age_hours > 72:
-                    issues.append(f"Technical data stale: {age_hours:.1f} hours old")
-                elif age_hours > 48:
-                    warnings.append(f"Technical data is {age_hours:.1f} hours old (consider refreshing)")
+            null_count = result[0] if result else 0
+            if null_count > 0:
+                issues.append(f"Signal data has {null_count} critical NULLs")
+
+            cur.execute(
+                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                (today,)
+            )
+            result = cur.fetchone()
+            covered = result[0] if result else 0
+            cur.execute(
+                "SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE"
+            )
+            result = cur.fetchone()
+            total = result[0] if result else 0
+            if total > 0:
+                coverage = (covered / total) * 100
+                if coverage < 80:
+                    issues.append(f"Low symbol coverage: {covered}/{total} ({coverage:.1f}%)")
+                elif coverage < 95:
+                    warnings.append(f"Symbol coverage: {covered}/{total} ({coverage:.1f}%)")
+
+            # Check if technical data exists (hard blocks already verified this above)
+            cur.execute(
+                "SELECT COUNT(*) FROM technical_data_daily WHERE date <= %s",
+                (today,)
+            )
+            result = cur.fetchone()
+            tech_count = result[0] if result else 0
+            if tech_count == 0:
+                issues.append("No technical data found")
             else:
-                logger.debug(f"  [WARN] Technical data exists but created_at is not set")
+                # Check created_at age if available
+                cur.execute(
+                    "SELECT MAX(created_at) FROM technical_data_daily WHERE date <= %s",
+                    (today,)
+                )
+                result = cur.fetchone()
+                if result and result[0]:
+                    db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
+                    age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
+                    # Allow 72 hours of staleness for testing/backtesting data
+                    # Production: revert to 24 hours when using real-time data feeds
+                    if age_hours > 72:
+                        issues.append(f"Technical data stale: {age_hours:.1f} hours old")
+                    elif age_hours > 48:
+                        warnings.append(f"Technical data is {age_hours:.1f} hours old (consider refreshing)")
+                else:
+                    logger.debug(f"  [WARN] Technical data exists but created_at is not set")
 
-        # 6a. Quality metrics (momentum, volatility, RSI, etc.)
-        cur.execute(
-            "SELECT COUNT(*) FROM quality_metrics WHERE DATE(created_at) >= %s::date - INTERVAL '1 day'",
-            (today,)
-        )
-        result = cur.fetchone()
-        quality_count = result[0] if result else 0
-        if quality_count < (covered * 0.50):  # At least 50% of covered symbols (lenient for historical data)
-            warnings.append(f"Quality metrics incomplete: {quality_count}/{covered} symbols ({(quality_count/max(covered,1)*100):.0f}%)")
+            # 6a. Quality metrics (momentum, volatility, RSI, etc.)
+            cur.execute(
+                "SELECT COUNT(*) FROM quality_metrics WHERE DATE(created_at) >= %s::date - INTERVAL '1 day'",
+                (today,)
+            )
+            result = cur.fetchone()
+            quality_count = result[0] if result else 0
+            if quality_count < (covered * 0.50):  # At least 50% of covered symbols (lenient for historical data)
+                warnings.append(f"Quality metrics incomplete: {quality_count}/{covered} symbols ({(quality_count/max(covered,1)*100):.0f}%)")
 
-        # 6b. Value metrics (PE, PB, PS ratios)
-        cur.execute(
-            "SELECT COUNT(*) FROM value_metrics WHERE DATE(created_at) = %s",
-            (today,)
-        )
-        result = cur.fetchone()
-        value_count = result[0] if result else 0
-        if value_count < (covered * 0.70):  # At least 70% of covered symbols (PE coverage is lower)
-            warnings.append(f"Value metrics incomplete: {value_count}/{covered} symbols ({(value_count/max(covered,1)*100):.0f}%)")
+            # 6b. Value metrics (PE, PB, PS ratios)
+            cur.execute(
+                "SELECT COUNT(*) FROM value_metrics WHERE DATE(created_at) = %s",
+                (today,)
+            )
+            result = cur.fetchone()
+            value_count = result[0] if result else 0
+            if value_count < (covered * 0.70):  # At least 70% of covered symbols (PE coverage is lower)
+                warnings.append(f"Value metrics incomplete: {value_count}/{covered} symbols ({(value_count/max(covered,1)*100):.0f}%)")
 
-        # 6c. Stock scores data completeness (scores must have >80% component coverage)
-        # data_completeness is stored as 0-100 (percent of 6 score components available); 80+ is acceptable
-        cur.execute(
-            "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day' AND data_completeness >= 80",
-            (today,)
-        )
-        result = cur.fetchone()
-        complete_scores = result[0] if result else 0
-        cur.execute(
-            "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day'",
-            (today,)
-        )
-        result = cur.fetchone()
-        total_scores = result[0] if result else 0
-        if total_scores > 0:
-            completeness_pct = (complete_scores / total_scores) * 100
-            if completeness_pct < 30:
-                warnings.append(f"Stock scores: {completeness_pct:.1f}% have full component coverage (using prior day data)")
-        else:
-            logger.info("Stock scores not yet available (using fallback trading signals)")
+            # 6c. Stock scores data completeness (scores must have >80% component coverage)
+            # data_completeness is stored as 0-100 (percent of 6 score components available); 80+ is acceptable
+            cur.execute(
+                "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day' AND data_completeness >= 80",
+                (today,)
+            )
+            result = cur.fetchone()
+            complete_scores = result[0] if result else 0
+            cur.execute(
+                "SELECT COUNT(*) FROM stock_scores WHERE DATE(updated_at) >= %s::date - INTERVAL '1 day'",
+                (today,)
+            )
+            result = cur.fetchone()
+            total_scores = result[0] if result else 0
+            if total_scores > 0:
+                completeness_pct = (complete_scores / total_scores) * 100
+                if completeness_pct < 30:
+                    warnings.append(f"Stock scores: {completeness_pct:.1f}% have full component coverage (using prior day data)")
+            else:
+                logger.info("Stock scores not yet available (using fallback trading signals)")
 
-        passes = len(issues) == 0
-        return passes, issues, warnings
+            passes = len(issues) == 0
+            return passes, issues, warnings
 
     except Exception as e:
         logger.error(f"Data quality check failed: {e}", exc_info=True)

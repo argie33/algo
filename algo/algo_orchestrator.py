@@ -124,22 +124,6 @@ class Orchestrator:
         self._initialize_feature_flags()
         logger.info("[ORCHESTRATOR] Feature flags initialized")
 
-    def _get_conn(self) -> psycopg2.extensions.connection:
-        """Get database connection via RDS Proxy connection pooling."""
-        try:
-            return get_db_connection(timeout=60)
-        except Exception as e:
-            logger.error(f"Failed to get database connection: {e}")
-            raise
-
-    def _put_conn(self, conn: Optional[psycopg2.extensions.connection]) -> None:
-        """Close database connection."""
-        if conn:
-            try:
-                conn.close()
-            except Exception as e:
-                logger.debug(f"Error closing connection: {e}")
-
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
         pass
@@ -148,23 +132,14 @@ class Orchestrator:
 
     def _check_db_connectivity(self) -> bool:
         """Test if database is reachable. Returns True if OK, False if failed."""
-        conn = None
-        cur = None
         try:
-            conn = self._get_conn()
-            cur = conn.cursor()
-            cur.execute("SELECT 1")
+            from utils.database_context import DatabaseContext
+            with DatabaseContext('read') as cur:
+                cur.execute("SELECT 1")
             return True
         except Exception as e:
             logger.error(f"  [ERROR] Database connectivity check failed: {e}")
             return False
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as close_err:
-                    logger.debug(f"Failed to close cursor: {close_err}")
-            self._put_conn(conn)
 
     def _increment_db_failure_counter(self) -> int:
         """Increment failure counter. If >= 3 consecutive failures, enter degraded mode."""
