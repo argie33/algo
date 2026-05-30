@@ -309,6 +309,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             }
           }
         ]
+        ResultPath = null
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "LogLoaderFailure"
@@ -343,6 +344,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 3: Parallel enrichment (trend template only — stock_scores moved after signals) ────────
       # FIXED Issue #2: Task definition timeout increased from 2700s to 5400s to match SF timeout
+      # FIXED Issue #4b: Added ResultPath = null to discard parallel output and preserve original input
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
@@ -370,6 +372,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             }
           }
         ]
+        ResultPath = null
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "LogEnrichmentFailure"
