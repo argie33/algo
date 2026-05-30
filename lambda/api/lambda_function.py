@@ -92,12 +92,7 @@ def test_db_connection():
     Returns: (success: bool, error_msg: Optional[str])
     """
     try:
-        conn = get_db_connection()
-        if conn is None:
-            return False, "Database connection returned None"
-
-        # Test the connection with a simple query
-        with conn.cursor() as cur:
+        with DatabaseContext('read') as cur:
             cur.execute("SELECT 1 as connection_test")
             result = cur.fetchone()
             if result and result.get('connection_test') == 1:
@@ -604,39 +599,29 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Detailed health check
         if path in ['/health/detailed', '/api/health/detailed']:
             try:
-                conn = get_db_connection()
-                if not conn:
+                with DatabaseContext('read') as cur:
+                    ALLOWED_TABLES = {'price_daily', 'signals', 'stock_scores', 'technical_data_daily'}
+                    table_counts = {}
+                    for table in ALLOWED_TABLES:
+                        try:
+                            query = psycopg2.sql.SQL('SELECT COUNT(*) FROM {}').format(
+                                psycopg2.sql.Identifier(table)
+                            )
+                            cur.execute(query)
+                            table_counts[table] = cur.fetchone()[0]
+                        except Exception as e:
+                            logger.warning(f"API exception: {e}")
+                            table_counts[table] = 0
+
                     cors_headers = get_cors_headers(event)
                     return {
-                        'statusCode': 503,
+                        'statusCode': 200,
                         'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'status': 'unhealthy', 'dbStatus': 'disconnected'})
+                        'body': json.dumps({'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts})
                     }
-
-                cur = conn.cursor()
-                # Get table counts (whitelist + SQL identifier quoting prevents SQL injection)
-                ALLOWED_TABLES = {'price_daily', 'signals', 'stock_scores', 'technical_data_daily'}
-                table_counts = {}
-                for table in ALLOWED_TABLES:
-                    try:
-                        query = psycopg2.sql.SQL('SELECT COUNT(*) FROM {}').format(
-                            psycopg2.sql.Identifier(table)
-                        )
-                        cur.execute(query)
-                        table_counts[table] = cur.fetchone()[0]
-                    except Exception as e:
-                        logger.warning(f"API exception: {e}")
-                        table_counts[table] = 0
-                cur.close()
-
-                cors_headers = get_cors_headers(event)
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts})
-                }
             except Exception as e:
                 cors_headers = get_cors_headers(event)
+                logger.error(f'[HEALTH_DETAILED_ERROR] {e}', exc_info=True)
                 return {
                     'statusCode': 503,
                     'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
@@ -646,40 +631,32 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Pipeline health — queries data_loader_status for all table freshness
         if path in ['/health/pipeline', '/api/health/pipeline']:
             try:
-                conn = get_db_connection()
-                if not conn:
+                with DatabaseContext('read') as cur:
+                    try:
+                        cur.execute("""
+                            SELECT table_name, row_count, last_updated,
+                                   EXTRACT(EPOCH FROM (NOW() - last_updated)) / 86400 AS age_days
+                            FROM data_loader_status ORDER BY table_name
+                        """)
+                        rows = cur.fetchall()
+                    except Exception as e:
+                        logger.warning(f"API exception: {e}")
+                        rows = []
+                    tables = []
+                    for row in rows:
+                        age = float(row['age_days']) if row.get('age_days') is not None else 999
+                        status = 'HEALTHY' if age <= 2 and (row.get('row_count') or 0) > 0 else ('STALE' if age <= 7 else 'CRITICAL')
+                        tables.append({'table_name': row['table_name'], 'row_count': row.get('row_count', 0), 'age_days': round(age, 1), 'status': status})
+                    healthy = sum(1 for t in tables if t['status'] == 'HEALTHY')
                     cors_headers = get_cors_headers(event)
                     return {
-                        'statusCode': 503,
+                        'statusCode': 200,
                         'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'status': 'unhealthy', 'error': 'db_unavailable'})
+                        'body': json.dumps({'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables})
                     }
-                cur = conn.cursor()
-                try:
-                    cur.execute("""
-                        SELECT table_name, row_count, last_updated,
-                               EXTRACT(EPOCH FROM (NOW() - last_updated)) / 86400 AS age_days
-                        FROM data_loader_status ORDER BY table_name
-                    """)
-                    rows = cur.fetchall()
-                except Exception as e:
-                    logger.warning(f"API exception: {e}")
-                    rows = []
-                tables = []
-                for row in rows:
-                    age = float(row['age_days']) if row.get('age_days') is not None else 999
-                    status = 'HEALTHY' if age <= 2 and (row.get('row_count') or 0) > 0 else ('STALE' if age <= 7 else 'CRITICAL')
-                    tables.append({'table_name': row['table_name'], 'row_count': row.get('row_count', 0), 'age_days': round(age, 1), 'status': status})
-                healthy = sum(1 for t in tables if t['status'] == 'HEALTHY')
-                cur.close()
-                cors_headers = get_cors_headers(event)
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables})
-                }
             except Exception as e:
                 cors_headers = get_cors_headers(event)
+                logger.error(f'[HEALTH_PIPELINE_ERROR] {e}', exc_info=True)
                 return {
                     'statusCode': 500,
                     'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
