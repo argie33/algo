@@ -266,8 +266,6 @@ def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
 
 def run(
     config: Any,
-    get_conn: Callable,
-    put_conn: Callable,
     run_date: _date,
     dry_run: bool,
     alerts: AlertManager,
@@ -278,8 +276,6 @@ def run(
 
     Args:
         config: Configuration object
-        get_conn: Function to get database connection
-        put_conn: Function to return database connection
         run_date: Date for this run
         dry_run: Whether running in dry-run mode
         alerts: AlertManager instance
@@ -291,8 +287,6 @@ def run(
     """
     logger.debug(f"Phase 1: Starting data freshness check for run_date={run_date}")
 
-    conn = None
-    cur = None
     try:
         try:
             from algo.algo_pipeline_health import PipelineHealth
@@ -319,211 +313,199 @@ def run(
             logger.warning(f"  [WARN] Pipeline health check failed: {e}")
             # Don't fail-close on health check error, let other checks handle it
 
-        conn = get_conn()
-        cur = conn.cursor()
-        logger.debug("Phase 1: Database connection established")
+        with DatabaseContext('read') as cur:
+            logger.debug("Phase 1: Database connection established")
 
-        cur.execute(
-            """
-            SELECT
-                (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY') AS spy_latest,
-                (SELECT MAX(date) FROM market_health_daily) AS mh_latest,
-                (SELECT MAX(date) FROM trend_template_data) AS tt_latest,
-                (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest,
-                (SELECT MAX(date) FROM buy_sell_daily) AS buys_latest
-            """
-        )
-        row = cur.fetchone()
-        if not row:
-            logger.error("DATA FRESHNESS: Critical query returned no results")
-            log_phase_result_fn(1, 'data_freshness', 'error', 'Could not query data freshness')
-            return PhaseResult(1, 'data_freshness', 'ok', {}, False, 'Could not query data freshness')
+            cur.execute(
+                """
+                SELECT
+                    (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY') AS spy_latest,
+                    (SELECT MAX(date) FROM market_health_daily) AS mh_latest,
+                    (SELECT MAX(date) FROM trend_template_data) AS tt_latest,
+                    (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest,
+                    (SELECT MAX(date) FROM buy_sell_daily) AS buys_latest
+                """
+            )
+            row = cur.fetchone()
+            if not row:
+                logger.error("DATA FRESHNESS: Critical query returned no results")
+                log_phase_result_fn(1, 'data_freshness', 'error', 'Could not query data freshness')
+                return PhaseResult(1, 'data_freshness', 'ok', {}, False, 'Could not query data freshness')
 
-        spy_date, mh_date, tt_date, sqs_date, buys_date = row
-        # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
-        # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
-        # their staleness creates a deadlock: Phase 1 blocks before Phase 5 can populate them.
-        # They are logged for observability but excluded from the halt decision.
-        halt_checks = {
-            'SPY price data': spy_date,
-            'Market health': mh_date,
-            'Trend template': tt_date,
-        }
-        observe_checks = {
-            'Signal quality scores': sqs_date,
-            'Buy/sell signals': buys_date,
-        }
-        checks = {**halt_checks, **observe_checks}
-        table_keys = {
-            'SPY price data': 'price_daily',
-            'Market health': 'market_health_daily',
-            'Trend template': 'trend_template_data',
-            'Signal quality scores': 'signal_quality_scores',
-            'Buy/sell signals': 'buy_sell_daily',
-        }
-        stale_items = []
+            spy_date, mh_date, tt_date, sqs_date, buys_date = row
+            # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
+            # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
+            # their staleness creates a deadlock: Phase 1 blocks before Phase 5 can populate them.
+            # They are logged for observability but excluded from the halt decision.
+            halt_checks = {
+                'SPY price data': spy_date,
+                'Market health': mh_date,
+                'Trend template': tt_date,
+            }
+            observe_checks = {
+                'Signal quality scores': sqs_date,
+                'Buy/sell signals': buys_date,
+            }
+            checks = {**halt_checks, **observe_checks}
+            table_keys = {
+                'SPY price data': 'price_daily',
+                'Market health': 'market_health_daily',
+                'Trend template': 'trend_template_data',
+                'Signal quality scores': 'signal_quality_scores',
+                'Buy/sell signals': 'buy_sell_daily',
+            }
+            stale_items = []
 
-        # Compute the most recent trading day before run_date as the expected data date.
-        # Using trading-day comparison prevents false halts after 3-day weekends where
-        # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
-        try:
-            from algo.algo_market_calendar import MarketCalendar
-            expected_date = run_date - timedelta(days=1)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(expected_date):
-                    break
-                expected_date -= timedelta(days=1)
-        except Exception as cal_e:
-            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
-            # Fallback: step back over weekends only
-            expected_date = run_date - timedelta(days=1)
-            while expected_date.weekday() >= 5:
-                expected_date -= timedelta(days=1)
+            # Compute the most recent trading day before run_date as the expected data date.
+            # Using trading-day comparison prevents false halts after 3-day weekends where
+            # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
+            try:
+                from algo.algo_market_calendar import MarketCalendar
+                expected_date = run_date - timedelta(days=1)
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(expected_date):
+                        break
+                    expected_date -= timedelta(days=1)
+            except Exception as cal_e:
+                logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
+                # Fallback: step back over weekends only
+                expected_date = run_date - timedelta(days=1)
+                while expected_date.weekday() >= 5:
+                    expected_date -= timedelta(days=1)
 
-        try:
-            from algo.algo_metrics import MetricsPublisher
-            _metrics = MetricsPublisher(dry_run=dry_run)
-        except Exception as mp_e:
-            logger.debug(f"MetricsPublisher unavailable: {mp_e}")
-            _metrics = None
+            try:
+                from algo.algo_metrics import MetricsPublisher
+                _metrics = MetricsPublisher(dry_run=dry_run)
+            except Exception as mp_e:
+                logger.debug(f"MetricsPublisher unavailable: {mp_e}")
+                _metrics = None
 
-        for name, d in checks.items():
-            is_halt_check = name in halt_checks
-            if d is None:
-                if is_halt_check:
-                    stale_items.append(f"{name}: missing")
-                else:
-                    logger.warning(f"  [WARN] {name}: missing (observe-only, not blocking)")
-                if _metrics:
-                    _metrics.put_data_freshness(table_keys[name], 999)
-            elif d is not None:
-                age = (run_date - d).days
-                if _metrics:
-                    _metrics.put_data_freshness(table_keys[name], age)
-                is_stale = d < expected_date
-                if is_stale and is_halt_check:
-                    stale_items.append(f"{name}: {age}d old (expected {expected_date})")
-                if verbose:
-                    if is_stale and not is_halt_check:
-                        flag = '[WARN]'
-                    elif is_stale:
-                        flag = '[STALE]'
+            for name, d in checks.items():
+                is_halt_check = name in halt_checks
+                if d is None:
+                    if is_halt_check:
+                        stale_items.append(f"{name}: missing")
                     else:
-                        flag = '[OK]'
-                    logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
-
-        if _metrics:
-            _metrics.flush()
-
-        if stale_items:
-            # FAILSAFE: Try to trigger loaders if EventBridge failed
-            logger.warning(f"[FAILSAFE] Data stale, attempting automatic loader trigger: {stale_items}")
-            if _trigger_loader_failsafe('stock_prices_daily', verbose=verbose):
-                # Wait for loader to run
-                import time
-                logger.info("[FAILSAFE] Waiting 30s for loader to complete...")
-                time.sleep(30)
-
-                # Re-check if prices loaded
-                try:
-                    cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'")
-                    new_price_date = cur.fetchone()[0] if cur.fetchone() else None
-                    if new_price_date and new_price_date >= expected_date:
-                        logger.info(f"[FAILSAFE] ✓ Data recovered! Prices now: {new_price_date}")
-                        # Recalculate stale items with fresh data
-                        checks['price_daily'] = new_price_date
-                        stale_items = [item for item in stale_items if 'price_daily' not in item]
-                        if not stale_items:
-                            logger.info("[FAILSAFE] All critical data now fresh, proceeding")
-                            # Continue to patrol check
+                        logger.warning(f"  [WARN] {name}: missing (observe-only, not blocking)")
+                    if _metrics:
+                        _metrics.put_data_freshness(table_keys[name], 999)
+                elif d is not None:
+                    age = (run_date - d).days
+                    if _metrics:
+                        _metrics.put_data_freshness(table_keys[name], age)
+                    is_stale = d < expected_date
+                    if is_stale and is_halt_check:
+                        stale_items.append(f"{name}: {age}d old (expected {expected_date})")
+                    if verbose:
+                        if is_stale and not is_halt_check:
+                            flag = '[WARN]'
+                        elif is_stale:
+                            flag = '[STALE]'
                         else:
-                            logger.warning(f"[FAILSAFE] Some items still stale: {stale_items}")
-                except Exception as e:
-                    logger.warning(f"[FAILSAFE] Could not verify data reload: {e}")
+                            flag = '[OK]'
+                        logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
-            # If still stale after failsafe, halt
+            if _metrics:
+                _metrics.flush()
+
             if stale_items:
-                alerts.send_position_alert(
-                    'DATA',
-                    'STALE_DATA_HALT',
-                    f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
-                    {'stale_items': stale_items, 'expected_date': str(expected_date)}
-                )
-                log_phase_result_fn(1, 'data_freshness', 'fail',
-                                   f'Stale: {"; ".join(stale_items)}')
-                return PhaseResult(1, 'data_freshness', 'halted', {}, True,
-                                 f'Stale: {"; ".join(stale_items)}')
+                # FAILSAFE: Try to trigger loaders if EventBridge failed
+                logger.warning(f"[FAILSAFE] Data stale, attempting automatic loader trigger: {stale_items}")
+                if _trigger_loader_failsafe('stock_prices_daily', verbose=verbose):
+                    # Wait for loader to run
+                    import time
+                    logger.info("[FAILSAFE] Waiting 30s for loader to complete...")
+                    time.sleep(30)
 
-        # Run data patrol (quick checks only for speed in orchestrator context)
-        try:
-            from algo.algo_data_patrol import DataPatrol
-            patrol = DataPatrol()
-            if verbose:
-                logger.info("  [PATROL] Running quick data integrity checks...")
-            patrol.run(quick=True, validate_alpaca=False)
-            if verbose:
-                logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
-            log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
-        except Exception as e:
-            logger.warning(f"  [WARN] Data patrol execution failed: {e} (continuing with cache)")
+                    # Re-check if prices loaded
+                    try:
+                        cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'")
+                        new_price_date = cur.fetchone()[0] if cur.fetchone() else None
+                        if new_price_date and new_price_date >= expected_date:
+                            logger.info(f"[FAILSAFE] ✓ Data recovered! Prices now: {new_price_date}")
+                            # Recalculate stale items with fresh data
+                            checks['price_daily'] = new_price_date
+                            stale_items = [item for item in stale_items if 'price_daily' not in item]
+                            if not stale_items:
+                                logger.info("[FAILSAFE] All critical data now fresh, proceeding")
+                                # Continue to patrol check
+                            else:
+                                logger.warning(f"[FAILSAFE] Some items still stale: {stale_items}")
+                    except Exception as e:
+                        logger.warning(f"[FAILSAFE] Could not verify data reload: {e}")
 
-        patrol_ok = _check_data_patrol(cur, run_date, verbose, log_phase_result_fn)
+                # If still stale after failsafe, halt
+                if stale_items:
+                    alerts.send_position_alert(
+                        'DATA',
+                        'STALE_DATA_HALT',
+                        f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
+                        {'stale_items': stale_items, 'expected_date': str(expected_date)}
+                    )
+                    log_phase_result_fn(1, 'data_freshness', 'fail',
+                                       f'Stale: {"; ".join(stale_items)}')
+                    return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                     f'Stale: {"; ".join(stale_items)}')
 
-        if not patrol_ok:
-            return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
-
-        # Observability: log signal_quality_scores row count — not a halt condition.
-        # SQS is loaded by the Step Functions pipeline before the ECS orchestrator runs,
-        # but the Lambda orchestrator fires at 9:30 AM ET before that pipeline completes.
-        try:
-            cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
-            sqs_row = cur.fetchone()
-            total_sqs, latest_sqs_date = sqs_row if sqs_row else (0, None)
-            if total_sqs == 0:
-                logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
-                log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, first run expected')
-            elif verbose:
-                logger.info(f"  [OK] signal_quality_scores: {total_sqs} rows, latest {latest_sqs_date}")
-        except Exception as e:
-            logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
-
-        # Margin health check (Phase 1 - production safeguard)
-        try:
-            from algo.algo_position_monitor import PositionMonitor
-            pm = PositionMonitor(config)
-            margin_info = pm.get_margin_usage()
-            if margin_info and margin_info['margin_usage_pct'] > 70:
-                alerts.send_position_alert(
-                    'ACCOUNT',
-                    'MARGIN_ALERT',
-                    f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
-                    margin_info
-                )
+            # Run data patrol (quick checks only for speed in orchestrator context)
+            try:
+                from algo.algo_data_patrol import DataPatrol
+                patrol = DataPatrol()
                 if verbose:
-                    logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
-            elif verbose and margin_info:
-                logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
-        except Exception as e:
-            logger.warning(f'Margin check failed: {e}')
+                    logger.info("  [PATROL] Running quick data integrity checks...")
+                patrol.run(quick=True, validate_alpaca=False)
+                if verbose:
+                    logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
+                log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
+            except Exception as e:
+                logger.warning(f"  [WARN] Data patrol execution failed: {e} (continuing with cache)")
 
-        # Pipeline health check: verify all required tables have recent data
-        _check_pipeline_health(cur, run_date, verbose)
+            patrol_ok = _check_data_patrol(cur, run_date, verbose, log_phase_result_fn)
 
-        log_phase_result_fn(1, 'data_freshness', 'success',
-                           'All data fresh within window')
-        return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
+            if not patrol_ok:
+                return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
+
+            # Observability: log signal_quality_scores row count — not a halt condition.
+            # SQS is loaded by the Step Functions pipeline before the ECS orchestrator runs,
+            # but the Lambda orchestrator fires at 9:30 AM ET before that pipeline completes.
+            try:
+                cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
+                sqs_row = cur.fetchone()
+                total_sqs, latest_sqs_date = sqs_row if sqs_row else (0, None)
+                if total_sqs == 0:
+                    logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
+                    log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, first run expected')
+                elif verbose:
+                    logger.info(f"  [OK] signal_quality_scores: {total_sqs} rows, latest {latest_sqs_date}")
+            except Exception as e:
+                logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
+
+            # Margin health check (Phase 1 - production safeguard)
+            try:
+                from algo.algo_position_monitor import PositionMonitor
+                pm = PositionMonitor(config)
+                margin_info = pm.get_margin_usage()
+                if margin_info and margin_info['margin_usage_pct'] > 70:
+                    alerts.send_position_alert(
+                        'ACCOUNT',
+                        'MARGIN_ALERT',
+                        f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
+                        margin_info
+                    )
+                    if verbose:
+                        logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
+                elif verbose and margin_info:
+                    logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
+            except Exception as e:
+                logger.warning(f'Margin check failed: {e}')
+
+            # Pipeline health check: verify all required tables have recent data
+            _check_pipeline_health(cur, run_date, verbose)
+
+            log_phase_result_fn(1, 'data_freshness', 'success',
+                               'All data fresh within window')
+            return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
 
     except Exception as e:
         log_phase_result_fn(1, 'data_freshness', 'error', str(e))
         return PhaseResult(1, 'data_freshness', 'halted', {}, True, str(e))
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception as e:
-                logger.error(f"Unhandled exception: {e}")
-        if conn:
-            try:
-                put_conn(conn)
-            except Exception as e:
-                logger.error(f"Unhandled exception: {e}")

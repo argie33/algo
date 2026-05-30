@@ -43,7 +43,7 @@ try:
 except ImportError:
     yf = None  # type: ignore[assignment]
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
@@ -57,7 +57,7 @@ def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) 
         except FuturesTimeoutError as e:
             last_error = e
             if attempt < retries - 1:
-                log.warning(f"Timeout (attempt {attempt + 1}/{retries}), retrying...")
+                logger.warning(f"Timeout (attempt {attempt + 1}/{retries}), retrying...")
                 time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
             continue
     raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
@@ -92,7 +92,7 @@ class SourceHealth:
             # Pause if recent success rate drops below 50% with min sample
             if len(self.recent_results) >= 10 and self.success_rate < 0.5:
                 self.paused_until = time.monotonic() + 300  # 5 min cool-off
-                log.warning(
+                logger.warning(
                     "Pausing source '%s' for 5 min (success_rate=%.0f%%, last_error=%s)",
                     self.name, self.success_rate * 100, error,
                 )
@@ -126,7 +126,7 @@ class DataSourceRouter:
         for i, (name, fn) in enumerate(sources):
             health = self._get_health(name)
             if health.is_paused:
-                log.debug("Skipping paused source '%s' for %s", name, request_desc)
+                logger.debug("Skipping paused source '%s' for %s", name, request_desc)
                 continue
             try:
                 result = fn()
@@ -136,19 +136,19 @@ class DataSourceRouter:
                     continue
                 health.record(True)
                 self.last_source = name
-                log.debug("Source '%s' served %s", name, request_desc)
+                logger.debug("Source '%s' served %s", name, request_desc)
                 return result
             except Exception as e:
                 health.record(False, str(e))
                 last_exc = e
                 if i < len(sources) - 1:
                     next_source = sources[i + 1][0]
-                    log.warning("[DataSourceRouter] Primary source '%s' failed for %s: %s. Falling back to '%s'.", name, request_desc, e, next_source)
+                    logger.warning("[DataSourceRouter] Primary source '%s' failed for %s: %s. Falling back to '%s'.", name, request_desc, e, next_source)
                 else:
-                    log.debug("Source '%s' failed for %s: %s", name, request_desc, e)
+                    logger.debug("Source '%s' failed for %s: %s", name, request_desc, e)
                 continue
         if last_exc:
-            log.warning("All sources failed for %s. Last error: %s", request_desc, last_exc)
+            logger.warning("All sources failed for %s. Last error: %s", request_desc, last_exc)
         return None
 
     # ============== OHLCV ==============
@@ -195,10 +195,10 @@ class DataSourceRouter:
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d"):
         if yf is None:
-            log.error("[yfinance] yfinance not installed")
+            logger.error("[yfinance] yfinance not installed")
             return None
         YFINANCE_LIMITER.wait()
-        log.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
+        logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
             def do_download():
@@ -210,13 +210,13 @@ class DataSourceRouter:
                     auto_adjust=False,
                     progress=False,
                 )
-            log.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
+            logger.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
             hist = _call_with_timeout(do_download, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
-                log.debug(f"[yfinance] No data returned for {symbol}")
+                logger.debug(f"[yfinance] No data returned for {symbol}")
                 return None
-            log.debug(f"[yfinance] Got {len(hist)} rows for {symbol}")
+            logger.debug(f"[yfinance] Got {len(hist)} rows for {symbol}")
 
             # Fix: yfinance returns MultiIndex DataFrame when symbol provided as string
             # Flatten column names from (Price, Ticker) to just Price
@@ -237,36 +237,36 @@ class DataSourceRouter:
                         "volume": int(row["Volume"]),
                     })
                 except (KeyError, TypeError, ValueError) as e:
-                    log.debug(f"[yfinance] Skipped invalid row {idx}: {e}")
+                    logger.debug(f"[yfinance] Skipped invalid row {idx}: {e}")
                     continue
 
             if not rows:
-                log.warning(f"[yfinance] No valid rows for {symbol} after parsing")
+                logger.warning(f"[yfinance] No valid rows for {symbol} after parsing")
                 return None
 
             return rows
         except TimeoutError as e:
-            log.warning(f"yfinance timeout for {symbol} (60s exceeded): {e}")
+            logger.warning(f"yfinance timeout for {symbol} (60s exceeded): {e}")
             raise Exception(f"yfinance timeout: {e}")
         except Exception as e:
             if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout", "json", "parse"]):
-                log.warning(f"yfinance rate limited or parse error for {symbol}: {e}")
+                logger.warning(f"yfinance rate limited or parse error for {symbol}: {e}")
                 raise Exception(f"yfinance rate limited: {e}")
-            log.error(f"yfinance error for {symbol}: {e}")
+            logger.error(f"yfinance error for {symbol}: {e}")
             raise
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv_batch(self, symbols: List[str], start: date, end: date, interval: str = "1d"):
         """Batch fetch multiple symbols in one API call. Returns dict[symbol] -> rows."""
         if yf is None:
-            log.error("[yfinance] yfinance not installed")
+            logger.error("[yfinance] yfinance not installed")
             return {sym: None for sym in symbols}
 
         if not symbols:
             return {}
 
         YFINANCE_LIMITER.wait()
-        log.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
+        logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
 
         # Convert symbols to yfinance format
         yf_symbols = [sym.replace('.', '-') if '.' in sym else sym for sym in symbols]
@@ -282,14 +282,14 @@ class DataSourceRouter:
                     progress=False,
                 )
 
-            log.debug(f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout")
+            logger.debug(f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout")
             hist = _call_with_timeout(do_download, timeout_sec=180, retries=3)
 
             if hist is None or hist.empty:
-                log.debug(f"[yfinance] No data returned for batch of {len(symbols)} symbols")
+                logger.debug(f"[yfinance] No data returned for batch of {len(symbols)} symbols")
                 return {sym: None for sym in symbols}
 
-            log.debug(f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols")
+            logger.debug(f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols")
 
             # Parse the batch result into per-symbol rows
             results = {sym: [] for sym in symbols}
@@ -320,20 +320,20 @@ class DataSourceRouter:
                             "volume": int(volume_val),
                         })
                     except (KeyError, TypeError, ValueError) as e:
-                        log.debug(f"[yfinance] Skipped invalid row for {symbol} at {idx}: {e}")
+                        logger.debug(f"[yfinance] Skipped invalid row for {symbol} at {idx}: {e}")
                         continue
 
             # Filter out symbols with no valid rows and return only those with data
             return {sym: rows if rows else None for sym, rows in results.items()}
 
         except TimeoutError as e:
-            log.warning(f"yfinance timeout for batch of {len(symbols)} symbols: {e}")
+            logger.warning(f"yfinance timeout for batch of {len(symbols)} symbols: {e}")
             raise Exception(f"yfinance batch timeout: {e}")
         except Exception as e:
             if any(keyword in str(e).lower() for keyword in ["429", "rate", "too many", "temporarily", "timeout", "json", "parse"]):
-                log.warning(f"yfinance batch rate limited or parse error: {e}")
+                logger.warning(f"yfinance batch rate limited or parse error: {e}")
                 raise Exception(f"yfinance batch rate limited: {e}")
-            log.error(f"yfinance batch error: {e}")
+            logger.error(f"yfinance batch error: {e}")
             raise
 
     # ============== FUNDAMENTALS ==============
@@ -386,7 +386,7 @@ class DataSourceRouter:
                 return None
             return df.to_dict(orient="index")
         except TimeoutError:
-            log.warning("yfinance balance_sheet timeout for %s", symbol)
+            logger.warning("yfinance balance_sheet timeout for %s", symbol)
             return None
 
     def _yf_income(self, symbol: str, period: str):
@@ -400,7 +400,7 @@ class DataSourceRouter:
                 return None
             return df.to_dict(orient="index")
         except TimeoutError:
-            log.warning("yfinance income_stmt timeout for %s", symbol)
+            logger.warning("yfinance income_stmt timeout for %s", symbol)
             return None
 
     def _yf_cash_flow(self, symbol: str, period: str):
@@ -414,7 +414,7 @@ class DataSourceRouter:
                 return None
             return df.to_dict(orient="index")
         except TimeoutError:
-            log.warning("yfinance cashflow timeout for %s", symbol)
+            logger.warning("yfinance cashflow timeout for %s", symbol)
             return None
 
     # ============== EARNINGS ==============
@@ -458,7 +458,7 @@ class DataSourceRouter:
                 return result
             return result.to_dict(orient="index")
         except TimeoutError:
-            log.warning("yfinance earnings_dates timeout for %s", symbol)
+            logger.warning("yfinance earnings_dates timeout for %s", symbol)
             return None
 
     def _sec_eps(self, symbol: str):
@@ -482,7 +482,7 @@ class DataSourceRouter:
                 return None
             return df
         except TimeoutError:
-            log.warning("yfinance eps_revisions timeout for %s", symbol)
+            logger.warning("yfinance eps_revisions timeout for %s", symbol)
             return None
 
     def fetch_eps_trend(self, symbol: str):
@@ -503,7 +503,7 @@ class DataSourceRouter:
                 return None
             return df
         except TimeoutError:
-            log.warning("yfinance eps_trend timeout for %s", symbol)
+            logger.warning("yfinance eps_trend timeout for %s", symbol)
             return None
 
     # ============== HEALTH REPORT ==============

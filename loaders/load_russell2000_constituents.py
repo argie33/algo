@@ -122,12 +122,10 @@ def mark_russell2000_symbols(cur, symbols):
         cur.execute(sql_universe, symbols)
         logger.info(f"Updated universe field for {cur.rowcount} symbols")
 
-        cur.connection.commit()
         return marked_count
     except Exception as e:
-        logger.error(f"Error marking Russell 2000 symbols: {e}")
-        cur.connection.rollback()
-        return 0
+        logger.error(f"Error marking Russell 2000 symbols: {e}", exc_info=True)
+        raise
 
 
 def main():

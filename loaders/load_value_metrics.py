@@ -29,7 +29,7 @@ except ImportError:
     credential_manager = None
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 def get_symbols() -> List[str]:
     with DatabaseContext('read') as cur:
@@ -69,12 +69,12 @@ def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
             if 'RateLimit' in err or 'Too Many Requests' in err or '429' in err:
                 if attempt < retries:
                     wait = (attempt + 1) * 30
-                    log.warning(f"Rate limited on {symbol}, waiting {wait}s (attempt {attempt+1}/{retries})")
+                    logger.warning(f"Rate limited on {symbol}, waiting {wait}s (attempt {attempt+1}/{retries})")
                     time.sleep(wait)
                     continue
-                log.warning(f"Rate limit exceeded for {symbol} after {retries} retries")
+                logger.warning(f"Rate limit exceeded for {symbol} after {retries} retries")
             else:
-                log.debug(f"yfinance failed for {symbol}: {e}")
+                logger.debug(f"yfinance failed for {symbol}: {e}")
             return None
 
 def _fetch_from_financials(symbol: str) -> Optional[Dict]:
@@ -118,7 +118,7 @@ def _fetch_from_financials(symbol: str) -> Optional[Dict]:
             'dividend_yield': None,
         }
     except Exception as e:
-        log.debug(f"Financial fallback failed for {symbol}: {e}")
+        logger.debug(f"Financial fallback failed for {symbol}: {e}")
         return None
 
 def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
@@ -171,7 +171,7 @@ def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
             'dividend_yield': None,
         }
     except Exception as e:
-        log.debug(f"Earnings estimate fallback failed for {symbol}: {e}")
+        logger.debug(f"Earnings estimate fallback failed for {symbol}: {e}")
         return None
 
 def fetch_symbol(symbol: str) -> Optional[Dict]:
@@ -228,7 +228,7 @@ def persist(metrics_list: List[Dict]) -> int:
 
                     updated += 1
                 except Exception as e:
-                    log.warning(f"Failed to persist {sym}: {e}")
+                    logger.warning(f"Failed to persist {sym}: {e}")
                     conn.rollback()
 
         conn.commit()
@@ -247,7 +247,7 @@ def main():
         [s.strip().upper() for s in args.symbols.split(",")]
         if args.symbols else get_symbols()
     )
-    log.info(f"Loading value metrics for {len(symbols)} symbols")
+    logger.info(f"Loading value metrics for {len(symbols)} symbols")
 
     results = []
     with ThreadPoolExecutor(max_workers=args.parallelism) as executor:
@@ -259,11 +259,11 @@ def main():
             if r:
                 results.append(r)
             if done % 200 == 0:
-                log.info(f"  {done}/{len(symbols)} fetched ({len(results)} with data)")
+                logger.info(f"  {done}/{len(symbols)} fetched ({len(results)} with data)")
 
-    log.info(f"Fetched metrics for {len(results)}/{len(symbols)} symbols")
+    logger.info(f"Fetched metrics for {len(results)}/{len(symbols)} symbols")
     updated = persist(results)
-    log.info(f"Persisted {updated} value_metrics rows")
+    logger.info(f"Persisted {updated} value_metrics rows")
     return 0 if results else 1
 
 if __name__ == "__main__":

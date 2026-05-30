@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 def load_signal_themes():
     """Load signal themes from scoring data."""
-    with DatabaseContext('write') as cur:
-        try:
+    try:
+        with DatabaseContext('write') as cur:
             # Get the latest price data date
             cur.execute("""
                 SELECT MAX(date) FROM price_daily
@@ -55,14 +55,11 @@ def load_signal_themes():
             """, (latest_date, latest_date))
 
             inserted = cur.rowcount
-            cur.connection.commit()
             logger.info(f"Loaded {inserted} signal themes")
             return inserted
-
-        except Exception as e:
-            cur.connection.rollback()
-            logger.error(f"Error loading signal themes: {e}")
-            raise
+    except Exception as e:
+        logger.error(f"Error loading signal themes: {e}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
     load_signal_themes()

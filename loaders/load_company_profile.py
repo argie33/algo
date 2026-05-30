@@ -79,12 +79,11 @@ class CompanyProfileLoader:
                     ))
                     inserted += 1
 
-                cur.connection.commit()
                 logger.info(f"Loaded {inserted} company profiles with sector/industry")
                 return {"success": True, "rows": inserted}
 
         except Exception as e:
-            logger.error(f"Company profile load failed: {e}")
+            logger.error(f"Company profile load failed: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
 def main():

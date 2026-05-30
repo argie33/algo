@@ -217,21 +217,14 @@ async def load_fear_greed_data(cur):
 
         logging.info(f"Processing {len(rows)} unique Fear & Greed records (deduplicated from {len(data_array)} total)")
 
-        # Batch insert the data with proper error handling
-        try:
-            sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET fear_greed_value = EXCLUDED.fear_greed_value, fear_greed_label = EXCLUDED.fear_greed_label, created_at = CURRENT_TIMESTAMP"
-            execute_values(cur, sql, rows)
-            cur.connection.commit()
+        # Batch insert the data
+        sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET fear_greed_value = EXCLUDED.fear_greed_value, fear_greed_label = EXCLUDED.fear_greed_label, created_at = CURRENT_TIMESTAMP"
+        execute_values(cur, sql, rows)
 
-            inserted = len(rows)
-            logging.info(f"Successfully inserted {inserted} Fear & Greed records")
+        inserted = len(rows)
+        logging.info(f"Successfully inserted {inserted} Fear & Greed records")
 
-            return len(data_array), inserted, []
-
-        except Exception as insert_error:
-            logging.error(f"Database insert error: {insert_error}")
-            cur.connection.rollback()  # Rollback the failed transaction
-            return 0, 0, [str(insert_error)]
+        return len(data_array), inserted, []
         
     except Exception as e:
         logging.error(f"Error loading Fear & Greed data: {e}")
@@ -264,7 +257,6 @@ async def main():
                 last_run    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        cur.connection.commit()
 
         # Load Fear & Greed data
         import time as _time
@@ -279,7 +271,6 @@ async def main():
           ON CONFLICT (script_name) DO UPDATE
             SET last_run = EXCLUDED.last_run;
         """, (SCRIPT_NAME,))
-        cur.connection.commit()
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")

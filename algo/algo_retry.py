@@ -24,7 +24,7 @@ import time
 from typing import Callable, Tuple, Type
 from algo.algo_config import get_api_timeout
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def retry(
@@ -55,7 +55,7 @@ def retry(
                     return fn(*args, **kwargs)
                 except exceptions as exc:
                     if attempt == max_attempts:
-                        log.error(
+                        logger.error(
                             "retry.exhausted fn=%s attempts=%d error=%s",
                             fn.__qualname__, max_attempts, exc,
                         )
@@ -63,7 +63,7 @@ def retry(
                     sleep = min(delay, max_delay)
                     if jitter:
                         sleep *= 0.75 + random.random() * 0.5
-                    log.warning(
+                    logger.warning(
                         "retry.will_retry fn=%s attempt=%d/%d error=%s sleep=%.1fs",
                         fn.__qualname__, attempt, max_attempts, exc, sleep,
                     )

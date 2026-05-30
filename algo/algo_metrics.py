@@ -34,7 +34,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 NAMESPACE = "AlgoTrading"
 REGION = os.getenv("AWS_REGION", "us-east-1")
@@ -54,7 +54,7 @@ class MetricsPublisher:
                 import boto3
                 self._client = boto3.client("cloudwatch", region_name=REGION)
             except Exception as e:
-                log.warning("CloudWatch client unavailable: %s", e)
+                logger.warning("CloudWatch client unavailable: %s", e)
                 return None
         return self._client
 
@@ -70,7 +70,7 @@ class MetricsPublisher:
             datum["Dimensions"] = [{"Name": k, "Value": v} for k, v in dimensions.items()]
 
         if self._dry_run:
-            log.info("metrics.dry_run metric=%s value=%s unit=%s dims=%s",
+            logger.info("metrics.dry_run metric=%s value=%s unit=%s dims=%s",
                      metric_name, value, unit, dimensions)
             return
 
@@ -87,13 +87,13 @@ class MetricsPublisher:
             return
         try:
             cw.put_metric_data(Namespace=NAMESPACE, MetricData=self._batch)
-            log.debug("metrics.flushed count=%d", len(self._batch))
+            logger.debug("metrics.flushed count=%d", len(self._batch))
         except Exception as e:
             # Log error but don't fail—metrics are non-critical
             if "not authorized" in str(e) or "AccessDenied" in str(e):
-                log.debug("metrics.skipped (no CloudWatch permission) count=%d", len(self._batch))
+                logger.debug("metrics.skipped (no CloudWatch permission) count=%d", len(self._batch))
             else:
-                log.warning("metrics.flush_failed error=%s count=%d", e, len(self._batch))
+                logger.warning("metrics.flush_failed error=%s count=%d", e, len(self._batch))
         finally:
             self._batch.clear()
 

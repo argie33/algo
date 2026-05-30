@@ -126,12 +126,11 @@ class IndustryRankingLoader:
                     WHERE today.date_recorded = %s
                 """, (data_date,))
 
-                cur.connection.commit()
                 logger.info(f"Inserted {inserted} industry rankings for {data_date}")
                 return {"success": True, "rows": inserted, "date": str(data_date)}
 
         except Exception as e:
-            logger.error(f"Industry ranking load failed: {e}")
+            logger.error(f"Industry ranking load failed: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
 def main():

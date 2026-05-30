@@ -29,7 +29,7 @@ from utils.database_context import DatabaseContext
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 
@@ -60,7 +60,7 @@ def get_fred_api_key() -> str:
         from config.credential_manager import get_secret
         return get_secret("fred/api_key", default="")
     except Exception as e:
-        log.debug(f"credential_manager lookup failed: {e}")
+        logger.debug(f"credential_manager lookup failed: {e}")
 
     # Fallback: Try direct Secrets Manager (for ECS tasks, local development with boto3)
     try:
@@ -70,7 +70,7 @@ def get_fred_api_key() -> str:
         data = json.loads(resp.get("SecretString", "{}"))
         return data.get("api_key") or data.get("FRED_API_KEY", "")
     except Exception as e:
-        log.debug(f"Secrets Manager lookup failed: {e}")
+        logger.debug(f"Secrets Manager lookup failed: {e}")
 
     return ""
 
@@ -118,28 +118,31 @@ def upsert_rows(cur, rows: List[Tuple]) -> int:
 def main():
     api_key = get_fred_api_key()
     if not api_key:
-        log.error("FRED_API_KEY not found in environment or Secrets Manager")
+        logger.error("FRED_API_KEY not found in environment or Secrets Manager")
         sys.exit(1)
 
     end_date = date.today().isoformat()
     # Load 2 years of history on first run; subsequent runs just update recent data
     start_date = (date.today() - timedelta(days=730)).isoformat()
 
-    with DatabaseContext('write') as cur:
-        total = 0
-        for series_id in SERIES:
-            log.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
-            try:
-                rows = fetch_series(series_id, api_key, start_date, end_date)
-                n = upsert_rows(cur, rows)
-                cur.connection.commit()
-                log.info(f"  {series_id}: {n} rows upserted")
-                total += n
-            except Exception as e:
-                cur.connection.rollback()
-                log.error(f"  {series_id}: FAILED — {e}")
+    try:
+        with DatabaseContext('write') as cur:
+            total = 0
+            for series_id in SERIES:
+                logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
+                try:
+                    rows = fetch_series(series_id, api_key, start_date, end_date)
+                    n = upsert_rows(cur, rows)
+                    logger.info(f"  {series_id}: {n} rows upserted")
+                    total += n
+                except Exception as e:
+                    logger.error(f"  {series_id}: FAILED — {e}", exc_info=True)
+                    raise
 
-    log.info(f"Done. Total rows upserted: {total}")
+        logger.info(f"Done. Total rows upserted: {total}")
+    except Exception as e:
+        logger.error(f"Fatal error loading FRED data: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

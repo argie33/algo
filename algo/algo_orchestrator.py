@@ -677,7 +677,7 @@ class Orchestrator:
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
         from algo.orchestrator.phase1_data_freshness import run as run_phase1
         result = run_phase1(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result
         )
@@ -688,7 +688,7 @@ class Orchestrator:
         self.log_phase_start(2, 'CIRCUIT BREAKERS')
         from algo.orchestrator.phase2_circuit_breakers import run as run_phase2
         result = run_phase2(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result
         )

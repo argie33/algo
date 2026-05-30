@@ -117,14 +117,7 @@ class EarningsCalendarLoader:
             except Exception as e:
                 logger.warning(f"Failed to load earnings for {symbol}: {e}")
 
-        try:
-            cur.connection.commit()
-            logger.info(f"Committed {total_loaded} earnings calendar records")
-        except Exception as e:
-            cur.connection.rollback()
-            logger.error(f"Failed to commit: {e}")
-            return 0
-
+        logger.info(f"Loaded {total_loaded} earnings calendar records")
         return total_loaded
 
     def run(self, symbols: Optional[List[str]] = None) -> int:
