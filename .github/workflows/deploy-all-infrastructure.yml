@@ -462,6 +462,7 @@ jobs:
         run: |
           terraform plan \
             -var-file=terraform.tfvars \
+            -var="db_init_code_file=$GITHUB_WORKSPACE/terraform/lambda_artifacts/db-init.zip" \
             -out=tfplan \
             -detailed-exitcode || EXIT=$?
           # exit 0 = no changes, 2 = changes, other = error

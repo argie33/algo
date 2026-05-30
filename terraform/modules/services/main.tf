@@ -558,6 +558,7 @@ resource "aws_lambda_function" "algo" {
       # Orchestrator execution configuration (MATCHES what code expects)
       ORCHESTRATOR_EXECUTION_MODE = var.execution_mode
       ORCHESTRATOR_DRY_RUN        = tostring(var.orchestrator_dry_run)
+      ORCHESTRATOR_LOCK_TABLE     = var.orchestrator_locks_table_name
       LOG_LEVEL                   = var.orchestrator_log_level
       # Alpaca configuration (keys fetched at runtime from ALGO_SECRETS_ARN)
       ALGO_SECRETS_ARN    = var.algo_secrets_arn
