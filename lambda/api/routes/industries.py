@@ -34,9 +34,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         # /api/industries  →  full ranked list
         return _industry_list(cur, params)
 
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        return handle_db_error(e, logger, 'handle industries')
+    except Exception as e:
+        logger.warning(f'Industries unavailable: {e}')
+        return list_response([])
 
 def _industry_list(cur, params):
     """Return all industries ranked by composite score with price-based performance."""
