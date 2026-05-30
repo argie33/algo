@@ -73,21 +73,14 @@ class PriceLoader(OptimalLoader):
         """Fetch OHLCV from yfinance at specified interval."""
         from algo.algo_market_calendar import MarketCalendar
 
-        end = date.today()
-        # If today is not a trading day, fetch through yesterday instead
-        # (prevents fetching on non-trading days when no data will be published)
-        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-            end = end - timedelta(days=1)
+        # yfinance end date is EXCLUSIVE: pass today+1 so today's trading data is always fetchable
+        end = date.today() + timedelta(days=1)
 
         if since is None:
             # First run: load 100 days instead of 5 years for speed
             # Technical indicators need ~60-100 days, full history can be backfilled later
-            start = end - timedelta(days=100)
+            start = end - timedelta(days=101)
         else:
-            # BUG FIX: Calculate start before comparing to end
-            # If watermark is Friday and today is Monday, since=Friday, start=Saturday
-            # After adjusting end to Friday (last trading day), start > end causes return None
-            # Solution: Always fetch at least the watermark date again (in case of partial updates)
             start = since
 
         if start > end:
@@ -107,20 +100,16 @@ class PriceLoader(OptimalLoader):
         """
         from algo.algo_market_calendar import MarketCalendar
 
-        end = date.today()
-        # If today is not a trading day, fetch through yesterday instead
-        # (prevents fetching on non-trading days when no data will be published)
-        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-            end = end - timedelta(days=1)
+        # yfinance end date is EXCLUSIVE: to fetch May 29 data we must pass end=May 30.
+        # Use today+1 so today's data (if it's a trading day) is always included.
+        end = date.today() + timedelta(days=1)
 
         if since is None:
-            start = end - timedelta(days=100)
+            start = end - timedelta(days=101)
         else:
-            # BUG FIX: Same as fetch_incremental - use since directly, not since+1day
-            # Allows refetch of watermark date for partial updates
             start = since
 
-        if start > end:
+        if start >= end:
             return {s: None for s in symbols}
 
         # Batch fetch from router
