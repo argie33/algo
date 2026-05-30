@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 def _recalculate_position_size_after_exits(
     trade: Dict[str, Any],
-    get_conn: Callable,
     config: Any,
     exposure_multiplier: float = 1.0,
     verbose: bool = False
@@ -185,10 +184,10 @@ def _validate_pre_trade_data_quality(
         with DatabaseContext('read') as cur:
             today = run_date
 
-        # For testing with historical dates: use most recent data if run_date is in past
-        is_historical_test = today < date.today()
-        if is_historical_test:
-            cur.execute("SELECT MAX(date) FROM price_daily")
+            # For testing with historical dates: use most recent data if run_date is in past
+            is_historical_test = today < date.today()
+            if is_historical_test:
+                cur.execute("SELECT MAX(date) FROM price_daily")
             result = cur.fetchone()
             latest_date = result[0] if result else None
             if latest_date and latest_date > today:
@@ -399,17 +398,6 @@ def _validate_pre_trade_data_quality(
     except Exception as e:
         logger.error(f"Data quality check failed: {e}", exc_info=True)
         return False, [f"Data quality check error: {e}"], []
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception as e:
-                logger.error(f"Unhandled exception: {e}")
-        if conn:
-            try:
-                put_conn(conn)
-            except Exception as e:
-                logger.error(f"Unhandled exception: {e}")
 
 
 def run(
@@ -460,7 +448,7 @@ def run(
         recorder = TradeRecorder()
 
         # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete
-        data_quality_ok, dq_issues, dq_warnings = _validate_pre_trade_data_quality(get_conn, put_conn, run_date)
+        data_quality_ok, dq_issues, dq_warnings = _validate_pre_trade_data_quality(run_date)
         if not data_quality_ok:
             log_phase_result_fn(
                 6, 'entry_execution', 'halt',
@@ -604,7 +592,7 @@ def run(
                 continue
 
             # Recalculate position size based on current portfolio value (after Phase 4 exits)
-            trade = _recalculate_position_size_after_exits(trade, config, exposure_mult, verbose)
+            trade = _recalculate_position_size_after_exits(trade, config, exposure_mult, verbose=verbose)
 
             # Re-check sector limits before execution to prevent race condition
             # where two same-sector trades could violate sector concentration limits
