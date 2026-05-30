@@ -19,7 +19,6 @@ import traceback
 from datetime import date as _date
 from typing import Any, Callable, Dict, List
 
-from utils.db_connection import get_db_connection
 from utils.trade_status import PositionStatus
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
@@ -71,10 +70,10 @@ def run(
             logger.critical("Phase 4: position_recs not set — Phase 3 may not have run")
         elif len(position_recs) == 0:
             # "no positions" from "Phase 3 crashed with fail-open"
+            conn_chk = None
             try:
-                conn_chk = get_db_connection()
-                with conn_chk:
-                    with conn_chk.cursor() as cur_chk:
+                conn_chk = get_conn()
+                with conn_chk.cursor() as cur_chk:
                         cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
                         open_count = cur_chk.fetchone()[0]
                 if open_count > 0:
@@ -84,6 +83,9 @@ def run(
                     )
             except Exception as e:
                 logger.error(f"Unhandled exception: {e}")
+            finally:
+                if conn_chk:
+                    put_conn(conn_chk)
 
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
@@ -108,8 +110,9 @@ def run(
                 if action['action'] == 'force_exit':
                     # Fetch current price for accurate P&L
                     cur_price = 0
+                    conn_tmp = None
                     try:
-                        conn_tmp = get_db_connection()
+                        conn_tmp = get_conn()
                         try:
                             cur_tmp = conn_tmp.cursor()
                             cur_tmp.execute(
@@ -123,10 +126,8 @@ def run(
                     except Exception as e:
                         logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
                     finally:
-                        try:
-                            conn_tmp.close()
-                        except Exception as e:
-                            logger.error(f"Unhandled exception: {e}")
+                        if conn_tmp:
+                            put_conn(conn_tmp)
 
                     if cur_price <= 0:
                         logger.error(f"  ERROR: force_exit cannot proceed — no valid current price")
@@ -148,8 +149,9 @@ def run(
                 elif action['action'] == 'partial_exit':
                     # Need current price — fetch
                     cur_price = 0
+                    conn = None
                     try:
-                        conn = get_db_connection()
+                        conn = get_conn()
                         try:
                             cur = conn.cursor()
                             cur.execute(
@@ -163,10 +165,8 @@ def run(
                     except Exception as e:
                         logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
                     finally:
-                        try:
-                            conn.close()
-                        except Exception as e:
-                            logger.error(f"Unhandled exception: {e}")
+                        if conn:
+                            put_conn(conn)
                     if cur_price > 0:
                         result = executor.exit_trade(
                             trade_id=action['trade_id'],
@@ -181,8 +181,9 @@ def run(
                             logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
 
                 elif action['action'] == 'tighten_stop':
+                    conn = None
                     try:
-                        conn = get_db_connection()
+                        conn = get_conn()
                         try:
                             cur = conn.cursor()
                             cur.execute(
@@ -199,10 +200,8 @@ def run(
                         errors += 1
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
                     finally:
-                        try:
-                            conn.close()
-                        except Exception as e:
-                            logger.error(f"Unhandled exception: {e}")
+                        if conn:
+                            put_conn(conn)
             except Exception as e:
                 errors += 1
                 logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
@@ -233,7 +232,7 @@ def run(
                     conn = None
                     cur = None
                     try:
-                        conn = get_db_connection()
+                        conn = get_conn()
                         cur = conn.cursor()
                         cur.execute(
                             "UPDATE algo_positions SET current_stop_price = %s "
@@ -254,10 +253,7 @@ def run(
                             except Exception as e:
                                 logger.error(f"Unhandled exception: {e}")
                         if conn:
-                            try:
-                                conn.close()
-                            except Exception as e:
-                                logger.error(f"Unhandled exception: {e}")
+                            put_conn(conn)
             except Exception as e:
                 errors += 1
                 logger.error(f"  Error on {rec.get('symbol')}: {e}")

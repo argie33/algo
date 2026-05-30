@@ -60,8 +60,7 @@ class ExitEngine:
 
         auditor = TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
 
-        with DatabaseContext(self.config) as db:
-            cur = db.cursor()
+        with DatabaseContext('write') as cur:
             try:
                 logger.info(f"\n{'='*70}")
                 logger.info(f"EXIT ENGINE CHECK - {current_date}")

@@ -63,8 +63,7 @@ class PositionMonitor:
         if not current_date:
             current_date = _date.today()
 
-        with DatabaseContext(self.config) as db:
-            cur = db.cursor()
+        with DatabaseContext('read') as cur:
             try:
                 cur.execute("""
                     SELECT trade_id, symbol, entry_price, entry_quantity, created_at
