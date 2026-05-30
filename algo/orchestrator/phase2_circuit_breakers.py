@@ -3,7 +3,7 @@
 import logging
 import traceback
 from datetime import date as _date
-from typing import Any
+from typing import Any, Callable
 
 from algo.algo_metrics import MetricsPublisher
 from algo.orchestrator.phase_result import PhaseResult
