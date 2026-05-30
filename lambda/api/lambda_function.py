@@ -14,8 +14,7 @@ from pathlib import Path
 
 # Add lambda/api to path so routes module can be imported
 sys.path.insert(0, str(Path(__file__).parent))
-# Add project root to path for utils imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Utils are packaged in the same directory as lambda_function.py in /var/task
 
 IMPORT_ERROR = None
 
@@ -543,19 +542,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except Exception:
         pass  # If we can't clear cache, continue anyway (non-fatal)
 
-    if IMPORT_ERROR:
-        cors_headers = {'Access-Control-Allow-Origin': '*'}
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': get_json_content_type(), **cors_headers},
-            'body': json.dumps({'error': 'import_error', 'message': f'Failed to import dependencies: {IMPORT_ERROR}'})
-        }
-
-    # Extract path early so health checks can bypass DB validation
+    # Extract path and method before ANY checks so health/CORS always work
     path = event.get('rawPath', event.get('path', '/'))
     method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
 
-    # CORS preflight handled before any validation (browsers need this to succeed)
+    # CORS preflight: must succeed even during import failures (browsers need this)
     if method == 'OPTIONS':
         cors_headers = get_cors_headers(event)
         return {
@@ -568,13 +559,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         }
 
-    # Health check returns immediately — no DB or env validation needed for uptime monitors
+    # Health check returns immediately — even if imports failed (uptime monitors must always succeed)
     if path in ['/health', '/api/health']:
         cors_headers = get_cors_headers(event)
         return {
             'statusCode': 200,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
+        }
+
+    # Import error check (after health so health always works despite missing modules)
+    if IMPORT_ERROR:
+        cors_headers = get_cors_headers(event)
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': get_json_content_type(), **cors_headers},
+            'body': json.dumps({'error': 'import_error', 'message': f'Failed to import dependencies: {IMPORT_ERROR}'})
         }
 
     # Validate critical environment variables (non-health requests only)
