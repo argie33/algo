@@ -651,16 +651,8 @@ def run(
                             blocked += 1
                             logger.warning(f"  SKIPPED {symbol}: Sector {sector} concentration would be {new_sector_pct:.1f}% (limit: {max_sector_pct:.1f}%)")
                             continue
-                    finally:
-                        cur_check.close()
                 except Exception as e:
                     logger.warning(f"  Could not verify sector limits for {symbol}: {e}")
-                finally:
-                    try:
-                        put_conn(conn_check)
-                    except Exception as e:
-                        logger.debug(f"Exception (expected): {e}")
-                        pass
 
             if dry_run:
                 if verbose:
