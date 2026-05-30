@@ -265,7 +265,6 @@ class MarketEventHandler:
                     ('SINGLE_STOCK_HALT', datetime.now(timezone.utc), f'Symbol {symbol} halted — pending orders cancelled', 'WARN')
                 )
 
-                cur.connection.commit()
 
             return {
                 'action': 'HALT_SYMBOL',
@@ -314,7 +313,6 @@ class MarketEventHandler:
                     """,
                     (action_type, datetime.now(timezone.utc), message, severity)
                 )
-                cur.connection.commit()
 
             return {
                 'action': action,

@@ -363,7 +363,6 @@ class AlgoConfig:
                         description = EXCLUDED.description,
                         updated_at = CURRENT_TIMESTAMP
                 """, (key, str(value), value_type, description))
-                cur.connection.commit()
 
             self._config[key] = self._parse_value(str(value), value_type)
 
@@ -396,7 +395,6 @@ class AlgoConfig:
                         VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 'system')
                         ON CONFLICT (key) DO NOTHING
                     """, (key, value, dtype, desc))
-                cur.connection.commit()
             logger.info(f"[OK] Initialized {len(self.DEFAULTS)} config defaults")
             return True
         except Exception as e:

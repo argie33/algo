@@ -699,7 +699,7 @@ class Orchestrator:
         self.log_phase_start(3, 'POSITION MONITOR')
         from algo.orchestrator.phase3_position_monitor import run as run_phase3
         result = run_phase3(
-            self.config, self._get_conn, self._put_conn,
+            self.config,
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result
         )

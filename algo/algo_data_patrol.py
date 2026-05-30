@@ -119,7 +119,6 @@ class DataPatrol:
                 VALUES (%s, 'configuration_audit', 'info', 'patrol_config',
                         'Patrol configuration snapshot', %s)
             """, (self._run_id, json.dumps(config)))
-            cur.connection.commit()
         except Exception as e:
 
             logger.error(f"Unhandled exception: {e}")
@@ -137,7 +136,6 @@ class DataPatrol:
                 (self._run_id, name, severity, target, message,
                  json.dumps(details) if details else None),
             )
-            cur.connection.commit()
         except Exception as e:
             try:
                 cur.connection.rollback()
@@ -1298,7 +1296,6 @@ class DataPatrol:
                     VALUES (%s, 'patrol_performance', 'info', 'patrol_metrics',
                             'Patrol execution time', %s)
                 """, (self._run_id, json.dumps({'seconds': round(elapsed_seconds, 2), 'status': 'SLOW' if elapsed_seconds > 120 else 'OK'})))
-                cur.connection.commit()
             except Exception as e:
 
                 logger.error(f"Unhandled exception: {e}")

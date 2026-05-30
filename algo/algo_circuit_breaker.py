@@ -646,7 +646,6 @@ class CircuitBreaker:
                 """,
                 (json.dumps(results),),
             )
-            cur.connection.commit()
         except Exception as e:
             logger.warning(f"Warning: Could not log circuit breaker halt to audit log: {e}")
         # Surface to notifications for UI
