@@ -373,6 +373,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html"
 
+  depends_on = [aws_apigatewayv2_api.main]
+
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
@@ -573,6 +575,12 @@ resource "aws_lambda_function" "algo" {
       ALERTS_SNS_TOPIC  = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       ALERT_EMAIL_TO    = var.alert_email_to
       ALERT_WEBHOOK_URL = var.alert_webhook_url
+      # SMTP configuration for email alerts (fallback if ALERT_EMAIL_TO is set but SMTP not configured, uses SNS email)
+      ALERT_SMTP_HOST     = var.alert_smtp_host
+      ALERT_SMTP_PORT     = tostring(var.alert_smtp_port)
+      ALERT_SMTP_USER     = var.alert_smtp_user
+      ALERT_SMTP_PASSWORD = var.alert_smtp_password
+      ALERT_SMTP_FROM     = var.alert_smtp_from
     }
   }
 

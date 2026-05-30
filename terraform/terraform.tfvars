@@ -71,9 +71,33 @@ enable_execution_monitor_schedule = true # Run every 2 hours during trading hour
 developer_key_rotation_date = "2026-05-29"
 
 # Alert system configuration (for patrol, loader, position, circuit breaker failures)
-# Email alerts require SMTP credentials (set via GitHub Secrets + GitHub Actions deploy-code.yml)
-# Slack/Teams alerts only require webhook URL (no authentication)
+# Infrastructure alerts: via SNS (already configured at line 77)
+# Application alerts (from orchestrator/patrol/loaders): via webhook URL or SMTP email
+#
+# Slack/Teams webhooks (recommended - simpler, no credentials needed):
+#   1. Create Slack app at api.slack.com/apps → "Create New App"
+#   2. Select "From scratch", name it "Algo Alerts"
+#   3. Go to "Incoming Webhooks" → "Add New Webhook to Workspace"
+#   4. Choose a channel → "Allow"
+#   5. Copy the webhook URL and set alert_webhook_url below
+#
+# Email alerts (alternative - requires SMTP credentials):
+#   Gmail SMTP example:
+#     alert_smtp_host     = "smtp.gmail.com"
+#     alert_smtp_port     = 587
+#     alert_smtp_user     = "your-email@gmail.com"
+#     alert_smtp_password = "your-app-specific-password" (not your regular password)
+#     alert_smtp_from     = "your-email@gmail.com"
+#   Note: For Gmail, generate app-specific password at myaccount.google.com/apppasswords
+#         (requires 2FA enabled)
+#
 sns_alerts_enabled = true                    # Enable SNS topic for infrastructure alerts (Step Functions, RDS, CloudWatch)
 sns_alert_email    = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
 alert_email_to     = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
-alert_webhook_url  = ""                      # Slack webhook URL: create at api.slack.com/apps → Incoming Webhooks
+alert_webhook_url  = ""                      # Slack webhook URL: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+# SMTP configuration for email alerts (set all if using email alerts, leave blank for webhook-only)
+alert_smtp_host     = "" # SMTP hostname (e.g., smtp.gmail.com)
+alert_smtp_port     = 587 # SMTP port (587 for TLS, 465 for SSL)
+alert_smtp_user     = "" # SMTP username
+alert_smtp_password = "" # SMTP password (use GitHub Secrets in CI/CD)
+alert_smtp_from     = "" # From email address
