@@ -1,23 +1,4 @@
 #!/usr/bin/env python3
-"""
-Load minimal seed data to unblock Phase 1 data freshness check.
-
-⚠️  **DEVELOPMENT/DEMO USE ONLY** ⚠️
-This script populates critical tables with FAKE hardcoded test data to unblock Phase 1.
-DO NOT use in production — all values below are synthetic:
-- Prices: base_price 400-480, ±5/±2/+1 offsets (FAKE)
-- Technicals: RSI=55, MACD=1.2, ATR=2.5 (FAKE for all symbols)
-- Market health: advance_decline=1.5, vix=15.5 (FAKE, always bullish)
-- Economics: rates=5.25%, inflation=3.2% (FAKE)
-- Analyst sentiment: all 'buy' at 450.0 (FAKE)
-- Earnings: EPS estimate 5.0 (FAKE)
-
-Used only in: .github/workflows/verify-and-init-db.yml (demo initialization)
-Safe because: ON CONFLICT (symbol, date) DO NOTHING prevents overwrites from real loaders
-Risk: If real loaders don't run, algo will signal on fake data (acceptable for demo)
-
-In production, real loaders (load_stock_prices_daily.py, etc.) replace seed data.
-"""
 
 import sys
 from pathlib import Path

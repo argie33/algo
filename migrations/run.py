@@ -30,7 +30,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-
 class MigrationRunner:
     """Manages database migrations with version tracking."""
 
@@ -203,7 +202,6 @@ class MigrationRunner:
         logger.warning("To rollback: restore database from backup and re-apply remaining migrations")
         return False
 
-
 def main():
     parser = argparse.ArgumentParser(description='Database migration runner')
     parser.add_argument('--apply', action='store_true', help='Apply pending migrations')
@@ -226,7 +224,6 @@ def main():
     else:
         runner.show_status()
         sys.exit(0)
-
 
 if __name__ == '__main__':
     main()

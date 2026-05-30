@@ -27,7 +27,6 @@ from loaders.technical_indicators import (
 
 logger = logging.getLogger(__name__)
 
-
 class TechnicalDataDailyLoader(OptimalLoader):
     table_name = "technical_data_daily"
     primary_key = ("symbol", "date")
@@ -197,7 +196,6 @@ class TechnicalDataDailyLoader(OptimalLoader):
             df[col] = df[col].apply(safe_float)
 
         return df[columns].to_dict("records")
-
 
 def main():
     parser = argparse.ArgumentParser(description="Load technical indicators")

@@ -39,7 +39,6 @@ from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
-
 class DataProvenanceTracker:
     """Tracks provenance of all loaded data for audit and replay."""
 
@@ -277,7 +276,6 @@ class DataProvenanceTracker:
         except Exception as e:
             logger.error(f"Failed to retrieve replay data for run {run_id}: {e}")
             return None
-
 
     def _insert_loader_run(
         self,

@@ -59,7 +59,6 @@ def _redact_for_logs(message: str) -> str:
     message = re.sub(r'([+-]\d+\.\d+)%', '***%', message)
     return message
 
-
 class TradeExecutor:
     """Execute trades via Alpaca and track in database."""
 
@@ -1435,7 +1434,6 @@ class TradeExecutor:
         logger.error(f"[SEND_EXIT] {symbol}: Exit order failed after {max_attempts} attempts: {last_error}")
         return {'success': False, 'order_id': None, 'filled_price': None,
                 'message': f'Exit order failed after {max_attempts} attempts: {last_error}'}
-
 
 if __name__ == "__main__":
     from algo.algo_config import get_config

@@ -19,7 +19,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class EarningsCalendarLoader:
     """Load upcoming earnings dates for all symbols."""
 
@@ -125,7 +124,6 @@ class EarningsCalendarLoader:
         with DatabaseContext('write') as cur:
             return self.load_earnings(cur, symbols)
 
-
 def main():
     parser = argparse.ArgumentParser(description="Earnings Calendar Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -137,7 +135,6 @@ def main():
     count = loader.run(symbols)
 
     sys.exit(0 if count >= 0 else 1)
-
 
 if __name__ == "__main__":
     main()

@@ -7,32 +7,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class SignalMomentumMixin:
     """Momentum and breakout signals."""
 
     def td_sequential(self, symbol: str, eval_date) -> Dict[str, Any]:
-        """
-        Classic DeMark TD Sequential setup count (Tom DeMark, 1980s).
-
-        BUY SETUP: 9 consecutive closes < close 4 bars earlier (exhaustion bottom)
-        SELL SETUP: 9 consecutive closes > close 4 bars earlier (exhaustion top)
-
-        After a 9 setup completes, expect mean reversion. The "perfected" 9 has
-        the high (sell) or low (buy) of bar 8/9 surpass that of bar 6/7.
-
-        M6 FIX: TD Sequential is now session-aware. Counts are computed fresh each
-        time from price data and reset at market open (natural reset from daily
-        bar calculation). No stale state persists across sessions.
-
-        Returns: {
-          'setup_count': int,         # current consecutive count (resets daily)
-          'setup_type': 'buy' | 'sell' | None,
-          'completed_9': bool,         # exhaustion fired today
-          'perfected': bool,           # textbook setup
-          'last_9_date': str | None,   # most recent 9 within last 5 bars
-        }
-        """
         try:
             self.connect()
             # M6: Compute count fresh from price data each time
@@ -156,7 +134,6 @@ class SignalMomentumMixin:
                 'combo_13_complete': combo_13_complete,
             }
 
-
         finally:
             try:
                 self.disconnect()
@@ -175,7 +152,6 @@ class SignalMomentumMixin:
                 'power_trend': ret_21 is not None and ret_21 >= 0.20,
                 'return_21d': round(ret_21 * 100, 2) if ret_21 is not None else None,
             }
-
 
         finally:
             try:
@@ -349,7 +325,6 @@ class SignalMomentumMixin:
             )
             row = self.cur.fetchone()
             return int(row[0]) if row and row[0] else 0
-
 
         finally:
             try:

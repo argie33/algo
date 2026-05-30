@@ -1,33 +1,4 @@
 #!/usr/bin/env python3
-"""
-CloudWatch metrics publisher for the algo trading platform.
-
-Publishes a consistent set of metrics after each orchestrator run so that
-CloudWatch Alarms can page on failures without anyone needing to read logs.
-
-Namespace: AlgoTrading
-
-Key metrics:
-    OrchestratorSuccess     Count   1=success, 0=failure
-    PhaseSuccess            Count   1=ok, 0=fail; Dimension: Phase=1..7
-    SignalsGenerated        Count   Raw BUY signal count for the day
-    TradesExecuted          Count   Trades placed in this run
-    OpenPositions           Count   Current open position count
-    DataFreshnessAgeDays    Gauge   Max staleness across critical tables
-    LoaderDurationSeconds   Gauge   Wall-clock time for each loader
-
-Alarm targets (Terraform should wire these up):
-    OrchestratorSuccess < 1 for 1 datapoint  → page on-call
-    DataFreshnessAgeDays > 3 for 2 datapoints → notify data team
-    SignalsGenerated = 0 for 3 consecutive days → notify algo team
-
-Usage:
-    from algo.algo_metrics import MetricsPublisher
-    m = MetricsPublisher()
-    m.put_orchestrator_result(success=True, phase_results={...})
-    m.put_signal_count(signals=142)
-    m.put_trade_count(trades=3)
-"""
 
 import logging
 import os
@@ -38,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 NAMESPACE = "AlgoTrading"
 REGION = os.getenv("AWS_REGION", "us-east-1")
-
 
 class MetricsPublisher:
     """Thin wrapper around CloudWatch put_metric_data with batching."""

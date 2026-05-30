@@ -19,20 +19,10 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class SignalTradePerformancePopulator:
     """Extract component attribution from closed trades."""
 
     def populate_closed_trades(self, lookback_days: int = 7) -> Dict[str, Any]:
-        """
-        Find closed trades since last populate, extract component scores, persist to signal_trade_performance.
-
-        Args:
-            lookback_days: How far back to search for unpopulated closed trades (default 7 days)
-
-        Returns:
-            {'success': bool, 'trades_processed': int, 'ic_values': dict, 'message': str}
-        """
         try:
             with DatabaseContext() as cur:
                 # Find closed trades not yet in signal_trade_performance

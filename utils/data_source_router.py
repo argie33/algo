@@ -25,7 +25,6 @@ Usage:
     logger.info(router.last_source)  # "alpaca" / "polygon" / "yfinance"
 """
 
-
 import logging
 import os
 import threading
@@ -45,7 +44,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
     """Call a function with timeout protection and automatic retry on timeout."""
     last_error = None
@@ -61,7 +59,6 @@ def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) 
                 time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
             continue
     raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
-
 
 @dataclass
 class SourceHealth:
@@ -96,7 +93,6 @@ class SourceHealth:
                     "Pausing source '%s' for 5 min (success_rate=%.0f%%, last_error=%s)",
                     self.name, self.success_rate * 100, error,
                 )
-
 
 class DataSourceRouter:
     """Routes data fetches across providers with fallback + health tracking."""

@@ -265,7 +265,6 @@ class MarketEventHandler:
                     ('SINGLE_STOCK_HALT', datetime.now(timezone.utc), f'Symbol {symbol} halted — pending orders cancelled', 'WARN')
                 )
 
-
             return {
                 'action': 'HALT_SYMBOL',
                 'symbol': symbol,

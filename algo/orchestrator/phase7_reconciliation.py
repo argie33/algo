@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 7: RECONCILIATION & SNAPSHOT
-
-Pull live Alpaca account data, sync positions, calculate P&L,
-create daily portfolio snapshot.
-
-Also computes:
-- Live performance metrics (Sharpe, win rate, expectancy)
-- Risk metrics (VaR, concentration, alerts)
-
-FAIL-OPEN: log if Alpaca down.
-"""
 
 import json
 import logging
@@ -23,7 +11,6 @@ from algo.algo_alerts import AlertManager
 from utils.trade_recorder import TradeRecorder
 
 logger = logging.getLogger(__name__)
-
 
 def run(
     config: Any,

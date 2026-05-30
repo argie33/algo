@@ -10,9 +10,7 @@ from typing import Any, Optional, Dict, List
 from algo.algo_alerts import AlertManager
 from utils.database_context import database_transaction
 
-
 logger = logging.getLogger(__name__)
-
 
 class TradeNotificationService:
     """Monitor trade events and send notifications."""
@@ -164,7 +162,6 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
             logger.info(f"[NOTIF] Sent: {subject}")
         except Exception as e:
             logger.error(f"[NOTIF] Send failed: {e}")
-
 
 def notify(severity: str, title: str, message: str, symbol: Optional[str] = None, details: Optional[dict] = None):
     """Convenience function to send alerts without managing service lifecycle."""

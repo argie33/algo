@@ -20,21 +20,7 @@ logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO').upper())
 
 dynamodb = boto3.resource('dynamodb')
 
-
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """
-    Log ECS task result to DynamoDB loader_execution_status table.
-
-    Input event from Step Functions:
-    {
-        "loader_name": "stock_prices_daily",
-        "status": "SUCCESS" | "FAILED",
-        "error": "timeout" | "network_error" | null,
-        "message": "Task completed successfully" | error message,
-        "task_arn": "arn:aws:ecs:...",
-        "execution_date": "2026-05-28"
-    }
-    """
     try:
         loader_name = event.get('loader_name', 'unknown')
         status = event.get('status', 'UNKNOWN').upper()

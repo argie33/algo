@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 2: CIRCUIT BREAKERS
-
-Runs all kill-switch checks to prevent trading during adverse conditions:
-- Account circuit breakers (drawdown, daily loss, consecutive losses, total open risk, VIX, market stage, weekly loss)
-- Market circuit breakers (circuit breaker triggered)
-
-FAIL-CLOSED on any breaker firing.
-"""
 
 import logging
 import traceback
@@ -19,7 +10,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
-
 
 def run(
     config: Any,

@@ -13,7 +13,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class TradeRecorder:
     """Records executed trades and maintains position state in database."""
 

@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""
-Daily Reconciliation - Sync positions, calculate P&L, create snapshots
-
-Tasks:
-1. Fetch Alpaca account data
-2. Compare with algo_positions
-3. Calculate P&L and metrics
-4. Create portfolio snapshots
-5. Audit and log discrepancies
-"""
 
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url

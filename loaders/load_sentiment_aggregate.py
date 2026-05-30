@@ -19,7 +19,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 def load_sentiment_aggregate():
     """Aggregate AAII and NAAIM sentiment into unified table."""
 
@@ -95,7 +94,6 @@ def load_sentiment_aggregate():
             logger.error(f"Sentiment aggregation failed: {e}", exc_info=True)
             return 0
 
-
 def main():
     try:
         result = load_sentiment_aggregate()
@@ -103,7 +101,6 @@ def main():
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

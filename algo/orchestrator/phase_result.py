@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-"""
-PhaseResult — standardized return type for all orchestrator phases.
-
-Each phase returns explicit data contracts instead of mutating instance variables,
-making phase dependencies visible and phase logic independently testable.
-"""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
-
 
 @dataclass
 class PhaseResult:

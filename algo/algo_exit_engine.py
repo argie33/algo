@@ -44,7 +44,6 @@ from typing import Dict, List, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-
 class ExitEngine:
     """Monitor and execute position exits."""
 
@@ -704,7 +703,6 @@ class ExitEngine:
             'exit_stage': signal['stage'],
             'fraction': signal['fraction'],
         }
-
 
 if __name__ == "__main__":
     from algo.algo_config import get_config

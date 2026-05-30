@@ -1,6 +1,5 @@
 """Shared route utilities."""
 
-
 def safe_limit(limit_str, max_val=50000, default=500):
     """Parse and validate limit parameter."""
     if not limit_str:
@@ -9,7 +8,6 @@ def safe_limit(limit_str, max_val=50000, default=500):
         return min(int(limit_str), max_val)
     except (ValueError, TypeError):
         return default
-
 
 def safe_offset(offset_str, max_val=1000000, default=0):
     """Parse and validate offset parameter."""
@@ -21,7 +19,6 @@ def safe_offset(offset_str, max_val=1000000, default=0):
     except (ValueError, TypeError):
         return default
 
-
 def safe_days(days_str, max_val=365, default=30):
     """Parse and validate days parameter."""
     if not days_str:
@@ -31,7 +28,6 @@ def safe_days(days_str, max_val=365, default=30):
     except (ValueError, TypeError):
         return default
 
-
 def safe_page(page_str, default=1):
     """Parse and validate page parameter."""
     if not page_str:
@@ -40,7 +36,6 @@ def safe_page(page_str, default=1):
         return max(1, int(page_str))
     except (ValueError, TypeError):
         return default
-
 
 def safe_string(value_str, allowed_values=None, default=None, max_length=100):
     """Validate and sanitize string parameter.
@@ -68,7 +63,6 @@ def safe_string(value_str, allowed_values=None, default=None, max_length=100):
 
     return str(value_str)
 
-
 def safe_symbol(symbol_str):
     """Validate stock symbol (alphanumeric + dash only)."""
     if not symbol_str:
@@ -84,16 +78,13 @@ def safe_symbol(symbol_str):
 
     return symbol
 
-
 def error_response(code, typ, msg):
     """Standardized error response."""
     return {"statusCode": code, "errorType": typ, "message": msg}
 
-
 def success_response(data):
     """Standardized success response."""
     return {"statusCode": 200, "data": data}
-
 
 def list_response(items, total=None, data_freshness=None):
     """Standardized list response with optional freshness metadata."""
@@ -101,7 +92,6 @@ def list_response(items, total=None, data_freshness=None):
     if data_freshness:
         response["data_freshness"] = data_freshness
     return response
-
 
 def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int = 1) -> dict:
     """Check how fresh data is in a table.
@@ -149,11 +139,9 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
             "error": str(e)
         }
 
-
 def json_response(code, data):
     """Standardized JSON response."""
     return {"statusCode": code, **data}
-
 
 def handle_db_error(error, logger, operation):
     """Unified database error handler for all route handlers.

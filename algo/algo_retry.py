@@ -26,7 +26,6 @@ from algo.algo_config import get_api_timeout
 
 logger = logging.getLogger(__name__)
 
-
 def retry(
     max_attempts: int = 3,
     base_delay: float = 1.0,
@@ -72,7 +71,6 @@ def retry(
         return wrapper
     return decorator
 
-
 class RateLimiter:
     """
     Token-bucket rate limiter — thread-safe.
@@ -99,7 +97,6 @@ class RateLimiter:
             if elapsed < self._min_interval:
                 time.sleep(self._min_interval - elapsed)
             self._last_call = time.monotonic()
-
 
 # ── Pre-built limiters for known providers ────────────────────────────────────
 # Alpaca: 200 req/min data API, 10,000 req/min broker API

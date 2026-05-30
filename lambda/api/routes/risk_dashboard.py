@@ -17,7 +17,6 @@ from .utils import error_response, success_response, json_response, safe_limit, 
 
 logger = logging.getLogger(__name__)
 
-
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
     """Route risk dashboard endpoints."""
     if path == '/api/algo/risk-dashboard':
@@ -40,7 +39,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         return _get_exit_rules_distribution(cur, days_int)
     else:
         return error_response(404, 'not_found', f'No risk dashboard handler for {path}')
-
 
 def _get_comprehensive_risk_dashboard(cur) -> Dict:
     """Get all current risk metrics in one view."""
@@ -141,7 +139,6 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
     except Exception as e:
         return handle_db_error(e, logger, 'fetch comprehensive risk dashboard')
 
-
 def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     """Get current portfolio drawdown and thresholds."""
     cur.execute("""
@@ -176,7 +173,6 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
         },
         'status': _get_drawdown_status(drawdown_pct),
     }
-
 
 def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
@@ -213,7 +209,6 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
         'position_size_multiplier': 1.0,
     }
 
-
 def _get_drawdown_metrics(cur) -> Dict:
     """GET /api/algo/risk-dashboard/drawdown"""
     try:
@@ -222,7 +217,6 @@ def _get_drawdown_metrics(cur) -> Dict:
     except Exception as e:
         return handle_db_error(e, logger, 'fetch drawdown metrics')
 
-
 def _get_exposure_tier_info(cur) -> Dict:
     """GET /api/algo/risk-dashboard/exposure-tier"""
     try:
@@ -230,7 +224,6 @@ def _get_exposure_tier_info(cur) -> Dict:
         return json_response(200, info)
     except Exception as e:
         return handle_db_error(e, logger, 'fetch exposure tier info')
-
 
 def _get_position_sizing_audit(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
@@ -269,7 +262,6 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
     except Exception as e:
         return handle_db_error(e, logger, 'fetch position sizing audit')
 
-
 def _get_stop_loss_audit(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
     try:
@@ -305,7 +297,6 @@ def _get_stop_loss_audit(cur, days: int) -> Dict:
     except Exception as e:
         return handle_db_error(e, logger, 'fetch stop loss audit')
 
-
 def _get_exit_rules_distribution(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/exit-rules?days=30"""
     try:
@@ -338,7 +329,6 @@ def _get_exit_rules_distribution(cur, days: int) -> Dict:
         return json_response(200, {'items': items})
     except Exception as e:
         return handle_db_error(e, logger, 'fetch exit rules distribution')
-
 
 def _get_drawdown_status(drawdown_pct: float) -> str:
     """Determine drawdown status."""

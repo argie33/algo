@@ -84,7 +84,6 @@ def get_russell2000_symbols():
         logger.error(f"Error fetching Russell 2000 list: {e}")
         return None
 
-
 def mark_russell2000_symbols(cur, symbols):
     """Mark symbols in stock_symbols table as Russell 2000 members."""
     if not symbols:
@@ -127,7 +126,6 @@ def mark_russell2000_symbols(cur, symbols):
         logger.error(f"Error marking Russell 2000 symbols: {e}", exc_info=True)
         raise
 
-
 def main():
     """Main entry point."""
     symbols = get_russell2000_symbols()
@@ -148,7 +146,6 @@ def main():
     except Exception as e:
         logger.exception(f"Fatal error: {e}")
         return False
-
 
 if __name__ == "__main__":
     success = main()

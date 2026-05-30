@@ -15,7 +15,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class RegimeManager:
     """Market regime detection and parameter adaptation."""
 
@@ -237,7 +236,6 @@ class RegimeManager:
         except Exception as e:
             logger.warning(f"Exception: {e}")
             return 0.5
-
 
 if __name__ == "__main__":
     rm = RegimeManager()

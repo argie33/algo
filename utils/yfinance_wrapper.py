@@ -15,7 +15,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 class YFinanceWrapper:
     """Wrapper for yfinance with AWS VPC compatibility."""
 
@@ -108,7 +107,6 @@ class YFinanceWrapper:
 
         logger.error(f"Failed to get ticker for {symbol} after {max_retries} attempts")
         return None
-
 
 def get_ticker(symbol: str) -> Optional[object]:
     """Convenience function to get yfinance ticker with retry logic."""

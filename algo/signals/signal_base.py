@@ -16,7 +16,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class SignalBase:
     """Base class for all signal computations -- connection, cache, helpers."""
 

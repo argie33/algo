@@ -7,7 +7,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class FilterTier3Mixin:
     """Tier 3 (trend template) filtering logic."""
 

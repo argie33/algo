@@ -14,7 +14,6 @@ import logging
 from typing import Dict, Any, Tuple, Optional
 from utils.database_context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 class PreTradeChecks:

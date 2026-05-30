@@ -28,7 +28,6 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-
 class TickValidator:
     """Validates a single tick of OHLCV data."""
 
@@ -208,7 +207,6 @@ class TickValidator:
                 f"price gap > 30%: {self.prior_close} → {close} ({gap_pct:.1f}%)"
             )
 
-
 class TickValidationBatch:
     """Validates a batch of ticks for the same symbol."""
 
@@ -259,7 +257,6 @@ class TickValidationBatch:
         """Return all validated ticks in chronological order."""
         return sorted(self.ticks, key=lambda x: x["date"])
 
-
 def validate_price_tick(
     symbol: str,
     open_price: float,
@@ -283,9 +280,6 @@ def validate_price_tick(
     )
     errors = validator.validate(open_price, high, low, close, volume)
     return (len(errors) == 0, errors)
-
-
-
 
 def validate_score_tick(
     symbol: str,

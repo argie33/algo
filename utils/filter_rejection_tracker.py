@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""
-Filter Pipeline Rejection Tracking
-
-Logs every signal through all 5 tiers + advanced filters.
-Captures rejection reason at each tier for explainability.
-
-Enables:
-- Rejection funnel analysis: 150 signals -> 80 pass T1 -> 30 pass T2 -> 8 qualified
-- Per-gate rejection counts: "Distribution days blocked 20 signals"
-- Tuning feedback: "If we loosen Tier 2, we get 5 additional trades"
-"""
 
 try:
     from config.credential_manager import get_credential_manager
@@ -24,7 +13,6 @@ import logging
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
-
 
 class RejectionTracker:
     """Track signal rejections through filter pipeline for explainability."""

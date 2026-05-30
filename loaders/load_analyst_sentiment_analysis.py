@@ -55,9 +55,6 @@ from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
 
-
-
-
 class AnalystSentimentLoader(OptimalLoader):
     table_name = "analyst_sentiment_analysis"
     primary_key = ("symbol", "date")
@@ -128,8 +125,6 @@ class AnalystSentimentLoader(OptimalLoader):
     def _validate_row(self, row: dict) -> bool:
         return super()._validate_row(row)
 
-
-
 def main():
     parser = argparse.ArgumentParser(description="Optimal analyst_sentiment loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
@@ -148,7 +143,6 @@ def main():
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

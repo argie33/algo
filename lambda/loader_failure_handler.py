@@ -1,34 +1,4 @@
 #!/usr/bin/env python3
-"""
-Loader Failure Handler for Step Functions Graceful Degradation (Issue #4)
-
-Called when individual loaders fail, logs the failure and allows pipeline to continue
-with available data instead of complete failure. Enables Issue #5 (Data Loading Reliability).
-
-This function:
-1. Logs loader failure details
-2. Publishes metric to CloudWatch
-3. Sends SNS alert if critical loader failed
-4. Returns success so Step Functions continues
-
-Usage in Step Functions:
-  Catch = [{
-    ErrorEquals = ["States.ALL"]
-    Next = "LogLoaderFailure"
-    ResultPath = "$.loaderError"
-  }]
-  LogLoaderFailure = {
-    Type = "Task"
-    Resource = "arn:aws:lambda:..."
-    Parameters = {
-      loader_name.$  = "$.loader_name"
-      error.$        = "$.loaderError.Error"
-      error_message.$= "$.loaderError.Cause"
-    }
-    ResultPath = "$.failureLog"
-    Next = "ContinueWithAvailableData"
-  }
-"""
 
 import json
 import os

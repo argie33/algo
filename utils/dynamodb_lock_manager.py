@@ -19,7 +19,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 class DynamoDBLockManager:
     """Distributed lock manager using DynamoDB conditional writes."""
 

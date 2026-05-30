@@ -1,40 +1,4 @@
 
-"""
-Optimal loader - the synthesis of every Tier 1 + Tier 2 optimization.
-
-A loader subclass written against this base gets, automatically:
-    1. Watermark-based incremental fetches (only fetch what's new)
-    2. Bloom-filter dedup (skip already-loaded rows pre-DB)
-    3. Multi-source data with auto-fallback (Alpaca -> yfinance, etc.)
-    4. Polars-backed transformation (5-10x faster than pandas)
-    5. PostgreSQL COPY for bulk inserts (10x faster than INSERT)
-    6. Source-health awareness (auto-skip flaky providers)
-    7. Graceful per-symbol error isolation (one bad symbol doesn't kill batch)
-    8. Idempotent execution (safe to retry)
-
-This replaces ~80% of the boilerplate in our 39 official loaders.
-
-Migration path:
-    Existing loader: 200-400 lines of repetitive fetch/clean/insert code.
-    New loader:      30-50 lines, just the bits that are domain-specific.
-
-Example - full price_daily loader:
-
-    class PriceDailyLoader(OptimalLoader):
-        table_name = "price_daily"
-        primary_key = ("symbol", "date")
-        watermark_field = "date"
-
-        def fetch_incremental(self, symbol, since):
-            return self.router.fetch_ohlcv(
-                symbol,
-                start=since or date(2020, 1, 1),
-                end=date.today(),
-            )
-
-    PriceDailyLoader().run(get_active_symbols())
-"""
-
 
 import logging
 import os
@@ -55,7 +19,6 @@ from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 _credential_manager = credential_manager
-
 
 class OptimalLoader(ABC):
     """Base class for production-grade loaders.
@@ -165,7 +128,6 @@ class OptimalLoader(ABC):
         # Track for close() �� keep most recent for the main thread fallback.
         self._conn = conn
         return conn
-
 
     def _ensure_unique_constraint(self, cur):
         """Ensure the primary_key columns have a UNIQUE constraint.

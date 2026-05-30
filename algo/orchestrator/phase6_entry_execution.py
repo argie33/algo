@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 6: ENTRY EXECUTION
-
-For each ranked candidate, in priority order:
-- Final pre-flight checks (still no duplicate, room left, etc.)
-- Pre-trade data quality gate (all required data fresh and complete)
-- TradeExecutor.execute_trade() with idempotency
-- Apply exposure tier constraints (min_swing_grade, min_swing_score, daily cap)
-
-FAIL-OPEN per trade, but FAIL-CLOSED if >50% of trades fail in batch.
-"""
 
 import logging
 import traceback
@@ -25,7 +14,6 @@ from algo.algo_alerts import AlertManager
 from algo.algo_position_monitor import PositionMonitor
 
 logger = logging.getLogger(__name__)
-
 
 def _recalculate_position_size_after_exits(
     trade: Dict[str, Any],
@@ -85,7 +73,6 @@ def _recalculate_position_size_after_exits(
     except Exception as e:
         logger.warning(f"  {symbol}: Position size recalculation failed ({e}), using original")
         return trade
-
 
 def _validate_and_adjust_entry_price(
     trade: Dict[str, Any],
@@ -155,7 +142,6 @@ def _validate_and_adjust_entry_price(
     except Exception as e:
         logger.warning(f"  {symbol}: Price validation failed ({e}), using signal price")
         return trade
-
 
 def _validate_pre_trade_data_quality(
     run_date: _date,
@@ -398,7 +384,6 @@ def _validate_pre_trade_data_quality(
     except Exception as e:
         logger.error(f"Data quality check failed: {e}", exc_info=True)
         return False, [f"Data quality check error: {e}"], []
-
 
 def run(
     config: Any,

@@ -6,7 +6,6 @@ from .utils import error_response, success_response, list_response, json_respons
 
 logger = logging.getLogger(__name__)
 
-
 def _sf(v):
     """Safe float conversion — returns None for null/missing values."""
     if v is None:
@@ -15,7 +14,6 @@ def _sf(v):
         return float(v)
     except (TypeError, ValueError):
         return None
-
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
     """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
@@ -39,7 +37,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'handle industries')
-
 
 def _industry_list(cur, params):
     """Return all industries ranked by composite score with price-based performance."""
@@ -179,7 +176,6 @@ def _industry_list(cur, params):
         'data_freshness': freshness,
     })
 
-
 def _industry_detail(cur, industry_name):
     """Return detail for a single industry."""
     cur.execute("""
@@ -212,7 +208,6 @@ def _industry_detail(cur, industry_name):
         'growth_score':    _sf(r.get('growth_score')),
         'stability_score': _sf(r.get('stability_score')),
     })
-
 
 def _industry_trend(cur, industry_name, params):
     """Return daily price series for an industry (from price_daily, indexed to 100)."""

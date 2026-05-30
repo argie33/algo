@@ -17,7 +17,6 @@ _DEFAULTS = {
     },
 }
 
-
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
     """Handle /api/settings endpoints."""
     if path != '/api/settings':
@@ -28,7 +27,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
     if method in ('POST', 'PUT', 'PATCH'):
         return _save_settings(cur, body or {}, params)
     return error_response(405, 'method_not_allowed', f'{method} not supported')
-
 
 def _get_settings(cur, params: Dict) -> Dict:
     """Return user settings, falling back to defaults."""
@@ -56,7 +54,6 @@ def _get_settings(cur, params: Dict) -> Dict:
         return json_response(200, {'data': dict(_DEFAULTS)})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'get settings')
-
 
 def _save_settings(cur, body: Dict, params: Dict) -> Dict:
     """Persist user settings."""

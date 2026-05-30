@@ -24,7 +24,6 @@ except Exception as e:
     logger.warning(f"Credential manager not available (expected in CI): {e}")
     # Continue without credential_manager; we'll use environment variables instead
 
-
 def validate_environment():
     """Validate that all required environment variables are set.
 
@@ -40,7 +39,6 @@ def validate_environment():
             raise RuntimeError(f"Critical credential error: {e}")
 
     return True
-
 
 try:
     validate_environment()

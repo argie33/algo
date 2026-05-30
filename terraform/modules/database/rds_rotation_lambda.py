@@ -24,7 +24,6 @@ logger.setLevel(logging.INFO)
 
 secrets_client = boto3.client('secretsmanager')
 
-
 def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> Dict[str, Any]:
     """Fetch secret from Secrets Manager."""
     try:
@@ -36,7 +35,6 @@ def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> Dict[str, Any]
     except Exception as e:
         logger.error(f"Failed to get secret {secret_id}: {e}")
         raise
-
 
 def set_secret_version(secret_id: str, secret_value: Dict[str, Any]) -> str:
     """Create new secret version in Secrets Manager."""
@@ -51,7 +49,6 @@ def set_secret_version(secret_id: str, secret_value: Dict[str, Any]) -> str:
     except Exception as e:
         logger.error(f"Failed to put secret {secret_id}: {e}")
         raise
-
 
 def update_rds_password(host: str, port: int, username: str, current_password: str, new_password: str) -> bool:
     """Connect to RDS and update the master user password."""
@@ -79,7 +76,6 @@ def update_rds_password(host: str, port: int, username: str, current_password: s
         logger.error(f"Failed to update RDS password: {e}")
         raise
 
-
 def finish_secret(secret_id: str, version_id: str) -> None:
     """Mark the AWSPENDING version as AWSCURRENT."""
     try:
@@ -94,14 +90,12 @@ def finish_secret(secret_id: str, version_id: str) -> None:
         logger.error(f"Failed to finish secret rotation: {e}")
         raise
 
-
 def generate_password(length: int = 32) -> str:
     """Generate a secure random password."""
     # Mix of uppercase, lowercase, digits, and special characters
     characters = string.ascii_letters + string.digits + "!@#$%^&*-_=+"
     password = ''.join(secrets.choice(characters) for _ in range(length))
     return password
-
 
 def handler(event, context):
     """

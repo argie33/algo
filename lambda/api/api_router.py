@@ -33,7 +33,6 @@ _JWT_AWARE = {
     if 'jwt_claims' in inspect.signature(handler.handle).parameters
 }
 
-
 def route_request(cur, path, method, params, body=None, jwt_claims=None):
     """Route request to handler. Public handlers checked first (no auth required)."""
     # Check public handlers first (health, etc.) - these don't require JWT

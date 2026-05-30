@@ -1,55 +1,4 @@
 #!/usr/bin/env python3
-"""
-Master Orchestrator - Daily Trading Workflow (institutional desk style)
-
-Runs the complete day's logic in 7 explicit phases. Each phase has a clear
-contract: what it consumes, what it produces, what makes it fail-closed
-(halt the whole pipeline) vs fail-open (log and continue).
-
-PHASE 1 — DATA FRESHNESS CHECK
-  Confirms our market data is recent enough to make decisions on.
-  FAIL-CLOSED: stale data > 7 days -> halt.
-
-PHASE 2 — CIRCUIT BREAKERS
-  Runs all kill-switch checks (drawdown, daily loss, consecutive losses,
-  total open risk, VIX, market stage, weekly loss).
-  FAIL-CLOSED on any breaker firing.
-
-PHASE 3 — POSITION MONITOR (existing positions first)
-  For every open position:
-    - Refresh current price + P&L
-    - Compute trailing stop (only ratchets up)
-    - Score health (RS, sector, time decay, earnings proximity, etc.)
-    - PROPOSE actions: HOLD / RAISE_STOP / EARLY_EXIT
-  FAIL-OPEN: log errors but continue.
-
-PHASE 4 — EXIT EXECUTION
-  Apply exit decisions from Phase 3 (full and partial) and from the
-  exit_engine's tiered targets / stops / time / Minervini-break logic.
-  FAIL-OPEN per position.
-
-PHASE 5 — SIGNAL GENERATION (new entries)
-  Evaluate today's BUY signals through:
-    - Tiers 1-5 (data quality, market, trend template, SQS, portfolio fit)
-    - Tier 6 (multi-factor advanced filters: momentum/quality/catalyst/risk)
-  Rank by composite score, take top N up to max_positions cap minus
-  current open positions.
-  FAIL-OPEN: log and proceed with whatever passed.
-
-PHASE 6 — ENTRY EXECUTION
-  For each ranked candidate, in priority order:
-    - Final pre-flight checks (still no duplicate, room left, etc.)
-    - TradeExecutor.execute_trade() with idempotency
-  FAIL-OPEN per trade.
-
-PHASE 7 — RECONCILIATION & SNAPSHOT
-  Pull live Alpaca account data, sync positions, calculate P&L,
-  create daily portfolio snapshot.
-  FAIL-OPEN: log if Alpaca down.
-
-After every phase, results are written to algo_audit_log so the dashboard
-can show exactly what happened and when.
-"""
 
 import sys
 from pathlib import Path
@@ -63,7 +12,6 @@ from config.credential_manager import (
     DEFAULT_DB_NAME,
 )
 from algo.algo_config import get_subprocess_timeout
-
 
 import os
 import tempfile
@@ -81,7 +29,6 @@ import logging
 from monitoring.metrics_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
 logger = logging.getLogger(__name__)
-
 
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
@@ -686,7 +633,6 @@ class Orchestrator:
         )
         return not result.halted
 
-
     def phase_4b_pyramid_adds(self) -> List[Dict[str, Any]]:
         """Thin delegation to phase4b_pyramid_adds module."""
         self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
@@ -732,7 +678,6 @@ class Orchestrator:
         self.phase_results.setdefault(6, {})['trades_executed'] = result.data.get('entered', 0)
         return not result.halted
 
-
     def phase_7_reconcile(self) -> Dict[str, Any]:
         """Thin delegation to phase7_reconciliation module."""
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
@@ -746,7 +691,6 @@ class Orchestrator:
         )
         self.phase_results.setdefault(7, {})['open_positions'] = result.data.get('positions', 0)
         return not result.halted
-
 
     # ---------- Main entrypoint ----------
 
@@ -797,7 +741,6 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"  [HALT] Data patrol check failed: {e}")
                 return self._final_report()
-
 
             logger.info("\n[CHECK] Database connectivity...")
             if not self._check_db_connectivity():
@@ -1044,7 +987,6 @@ class Orchestrator:
             logger.error("CloudWatch metric publish failed: %s", e)
 
         return result
-
 
 if __name__ == "__main__":
 

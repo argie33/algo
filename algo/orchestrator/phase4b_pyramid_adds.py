@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 4b: PYRAMID ADDS (winners)
-
-Adds to winning positions (Livermore strategy).
-Runs after exits, before new entries.
-
-FAIL-OPEN: log errors but continue.
-"""
 
 import logging
 import traceback
@@ -17,7 +9,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
-
 
 def run(
     config: Any,

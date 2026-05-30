@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-Daily Finance Report — Institutional-style daily metrics and IC attribution.
-
-Reads: algo_performance_daily, algo_risk_daily, algo_component_attribution,
-       algo_trades, algo_positions, market_exposure_daily
-
-Outputs: Text report + JSON to algo_audit_log
-
-Called at end of Phase 7 daily orchestration.
-"""
-
 import logging
 import json
 from datetime import date as _date
@@ -20,7 +9,6 @@ from utils.database_context import DatabaseContext
 from algo.algo_regime_manager import RegimeManager
 
 logger = logging.getLogger(__name__)
-
 
 class DailyFinanceReport:
     """Generate institutional daily finance report."""
@@ -353,7 +341,6 @@ class DailyFinanceReport:
         except Exception as e:
             logger.warning(f"Exception: {e}")
             return 0
-
 
 if __name__ == "__main__":
     report_gen = DailyFinanceReport()

@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""
-Swing Trading Algo - Filter Pipeline (HARDENED)
-
-5-tier filtering system to identify trade-worthy signals:
-Tier 1: Data quality gates (completeness, price floor, recent data)
-Tier 2: Market health gates (stage 2 uptrend, distribution days, VIX)
-Tier 3: Trend template confirmation (Minervini 8-pt, distance from 52w hi/lo)
-Tier 4: Signal quality scores (composite SQS ranking)
-Tier 5: Portfolio health (open positions, concentration, sector limits)
-
-Only signals passing ALL tiers reach the final trade list, ranked by SQS.
-"""
 
 import os
 from utils.database_context import DatabaseContext

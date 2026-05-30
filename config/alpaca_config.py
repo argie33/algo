@@ -9,7 +9,6 @@ Supports both paper and live trading modes.
 import os
 from config.credential_manager import get_secret
 
-
 def get_alpaca_base_url() -> str:
     """Get Alpaca base URL (paper or live based on trading mode).
 
@@ -39,7 +38,6 @@ def get_alpaca_base_url() -> str:
         pass
 
     return 'https://paper-api.alpaca.markets'
-
 
 def get_alpaca_data_url() -> str:
     """Get Alpaca Data API URL.

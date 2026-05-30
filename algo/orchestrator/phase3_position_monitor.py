@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 3: POSITION MONITOR
-
-Reviews all open positions for:
-- Current price and P&L
-- Trailing stop (ratchets up only)
-- Health score (RS, sector, time decay, earnings proximity, etc.)
-- Proposed actions: HOLD / RAISE_STOP / EARLY_EXIT
-
-Also checks for:
-- Single stock halts (market halts)
-- Stale orders (pending >1 hour)
-
-FAIL-OPEN: log errors but continue.
-"""
 
 import logging
 import traceback
@@ -24,7 +9,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
-
 
 def run(
     config: Any,

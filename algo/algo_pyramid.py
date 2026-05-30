@@ -32,14 +32,12 @@ Designed to be called from orchestrator phase 4 (after exits, before entries)
 so add-decisions don't conflict with new-entry decisions.
 """
 
-
 from utils.database_context import DatabaseContext
 from datetime import datetime, date as _date
 from algo.algo_pretrade_checks import PreTradeChecks
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 class PyramidEngine:
     """Decide and execute pyramid add-on trades for winners."""
@@ -337,7 +335,6 @@ class PyramidEngine:
                 f"to Alpaca (order_id={alpaca_result.get('order_id')})"}
         except Exception as e:
             return {'success': False, 'message': f'DB update failed: {str(e)}'}
-
 
 if __name__ == "__main__":
     from algo.algo_config import get_config

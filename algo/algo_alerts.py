@@ -10,8 +10,6 @@ Configuration via environment variables:
   ALERT_WEBHOOK_URL: optional Slack/Teams/custom webhook
 """
 
-
-
 import os
 import json
 import smtplib
@@ -29,8 +27,6 @@ try:
     TWILIO_AVAILABLE = True
 except ImportError:
     TWILIO_AVAILABLE = False
-
-
 
 class AlertManager:
     """Send alerts via email and webhook."""
@@ -307,7 +303,6 @@ class AlertManager:
                 logger.info(f"SMS sent to {phone}")
             except Exception as e:
                 logger.error(f"SMS to {phone} failed: {e}")
-
 
 if __name__ == '__main__':
     # Test alerts

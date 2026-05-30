@@ -49,8 +49,6 @@ from config.credential_manager import (
     DEFAULT_DB_NAME,
 )
 
-
-
 import os
 import json
 import logging
@@ -58,7 +56,6 @@ from utils.database_context import DatabaseContext
 from datetime import date as _date
 
 logger = logging.getLogger(__name__)
-
 
 class MarketExposure:
     """Quantitative market regime + exposure % computation."""
@@ -987,7 +984,6 @@ class MarketExposure:
             logger.info(f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}")
         except Exception as e:
             logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
-
 
 if __name__ == "__main__":
     import argparse

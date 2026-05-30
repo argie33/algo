@@ -20,7 +20,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
 class LoaderHistoryTracker:
     """Track and log loader execution to database."""
 

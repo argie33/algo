@@ -133,10 +133,8 @@ PATTERNS = [
     r"\bAardvark\b",  # Aardvark Therapeutics - micro-cap shell
 ]
 
-
 def should_exclude(name: str) -> bool:
     return any(re.search(p, name, flags=re.IGNORECASE) for p in PATTERNS)
-
 
 def parse_nasdaq(text: str):
     rows = []
@@ -177,7 +175,6 @@ def parse_nasdaq(text: str):
         )
     return rows
 
-
 def parse_nasdaq_etf(text: str):
     rows = []
     reader = csv.DictReader(text.splitlines(), delimiter="|")
@@ -208,7 +205,6 @@ def parse_nasdaq_etf(text: str):
             }
         )
     return rows
-
 
 def parse_other(text: str):
     rows = []
@@ -255,7 +251,6 @@ def parse_other(text: str):
         )
     return rows
 
-
 def parse_other_etf(text: str):
     rows = []
     exch_map = {
@@ -292,7 +287,6 @@ def parse_other_etf(text: str):
             }
         )
     return rows
-
 
 # ─── DB Utilities ─────────────────────────────────────────────────────────────
 def init_db(cur):
@@ -349,7 +343,6 @@ def init_db(cur):
     """
     )
 
-
 def insert_all(cur, records):
     logger.info("Inserting %d stock records", len(records))
     sql = """
@@ -369,7 +362,6 @@ def insert_all(cur, records):
         for r in records
     ]
     execute_values(cur, sql, values)
-
 
 def insert_etfs(cur, records):
     logger.info("Inserting %d ETF records", len(records))
@@ -391,7 +383,6 @@ def insert_etfs(cur, records):
     ]
     execute_values(cur, sql, values)
 
-
 def update_timestamp(cur):
     logger.info("Updating last_updated timestamp")
     cur.execute(
@@ -403,7 +394,6 @@ def update_timestamp(cur):
     """,
         ("loadstocksymbols.py",),
     )
-
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 def main():
@@ -431,7 +421,6 @@ def main():
         insert_etfs(conn, all_etf_records)
         update_timestamp(conn)
         logger.info("Load complete")
-
 
 if __name__ == "__main__":
     try:

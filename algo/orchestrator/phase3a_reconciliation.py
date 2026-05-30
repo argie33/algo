@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 3a: POSITION RECONCILIATION
-
-Checks that DB positions match Alpaca account holdings.
-
-FAIL-OPEN: alerts on divergence but doesn't block trading.
-"""
 
 import logging
 import traceback
@@ -16,7 +9,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
-
 
 def run(
     config: Any,

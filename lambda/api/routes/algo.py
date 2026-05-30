@@ -1823,7 +1823,6 @@ def _get_runtime_config(cur, config_key: str, jwt_claims: Dict) -> Dict:
         logger.error(f'Runtime config read error: {e}', extra={'operation': 'get runtime config', 'key': config_key})
         return error_response(500, 'internal_error', 'Failed to read configuration')
 
-
 def _set_runtime_config(cur, config_key: str, body: Dict, jwt_claims: Dict) -> Dict:
     """FIXED Issue #20: Set runtime configuration (admin only)."""
     try:

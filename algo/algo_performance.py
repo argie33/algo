@@ -24,7 +24,6 @@ from utils.database_context import DatabaseContext, database_transaction
 
 logger = logging.getLogger(__name__)
 
-
 class LivePerformance:
     """Compute live performance metrics for institutional comparison."""
 

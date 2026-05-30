@@ -26,7 +26,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class StabilityMetricsLoader(OptimalLoader):
     """Compute volatility and beta metrics."""
 
@@ -154,7 +153,6 @@ class StabilityMetricsLoader(OptimalLoader):
             return False
         return row.get('symbol') is not None
 
-
 def main():
     parser = argparse.ArgumentParser(description="Stability Metrics Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -173,7 +171,6 @@ def main():
         logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

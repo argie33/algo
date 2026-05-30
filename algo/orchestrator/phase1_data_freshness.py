@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 1: DATA FRESHNESS CHECK
-
-Confirms market data is recent enough to make decisions on.
-Checks:
-- Pipeline health (all critical tables have recent data)
-- Data patrol results (critical/error findings halt the run)
-- SLA tracker (critical loaders have fresh data)
-- Loader monitor (no critical findings)
-- Data staleness (max 3 days old by default, 365 in DEV mode)
-- Margin health (warn if > 70%)
-
-FAIL-CLOSED: stale data, critical patrol findings, or SLA violations halt trading.
-"""
 
 import os
 import logging
@@ -25,7 +11,6 @@ from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
-
 
 def _trigger_loader_failsafe(loader_name: str, verbose: bool = False) -> bool:
     """
@@ -67,7 +52,6 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False) -> bool:
     except Exception as e:
         logger.warning(f"[FAILSAFE] Could not trigger loader: {e}")
         return False
-
 
 def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_result_fn: Callable) -> bool:
     """Check data patrol results. Fail-closed if critical/error findings.
@@ -191,7 +175,6 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                            f'Patrol execution error: {str(e)[:100]}')
         return False
 
-
 def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
     """Check that all required tables have recent data for signal processing."""
     if not cur:
@@ -262,7 +245,6 @@ def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
 
     except Exception as e:
         logger.warning(f"Pipeline health check failed: {e}")
-
 
 def run(
     config: Any,

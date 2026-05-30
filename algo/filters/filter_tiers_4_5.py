@@ -7,7 +7,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class FilterTiers45Mixin:
     """Tier 4 & 5 filtering logic."""
 

@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""
-Data Pipeline Health Monitor
-
-Provides real-time observability into the entire data pipeline:
-- Table freshness (when was data last updated)
-- Row counts and growth trends
-- Data quality metrics (null rates, anomalies)
-- Loader execution status
-- SLA compliance
-
-Used by orchestrator Phase 1 for fail-closed data validation
-and by API for dashboard health indicators.
-
-USAGE:
-  health = PipelineHealth()
-  status = health.get_pipeline_status()
-  logger.info(status.is_healthy)  # True if all critical data fresh
-"""
 
 import os
 import logging
@@ -30,15 +12,12 @@ from utils.database_context import database_transaction
 
 logger = logging.getLogger(__name__)
 
-
-
 class HealthStatus(str, Enum):
     HEALTHY = "HEALTHY"
     STALE = "STALE"  # Data older than SLA
     VERY_STALE = "VERY_STALE"  # Data > 2x SLA old
     MISSING = "MISSING"  # Table empty
     ERROR = "ERROR"  # Query failed
-
 
 @dataclass
 class TableHealth:
@@ -86,7 +65,6 @@ class TableHealth:
             'error': self.error_message
         }
 
-
 @dataclass
 class PipelineStatus:
     """Overall pipeline health status."""
@@ -121,7 +99,6 @@ class PipelineStatus:
             'warnings': self.warnings,
             'tables': {name: t.to_dict() for name, t in self.tables.items()}
         }
-
 
 class PipelineHealth:
     """Monitor and report on data pipeline health."""
@@ -290,7 +267,6 @@ class PipelineHealth:
             raise RuntimeError(error_msg)
 
         return True
-
 
 if __name__ == '__main__':
     import json

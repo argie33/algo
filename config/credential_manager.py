@@ -30,7 +30,6 @@ DEFAULT_DB_PORT = "5432"
 DEFAULT_DB_USER = "stocks"
 DEFAULT_DB_NAME = "stocks"
 
-
 class CredentialManager:
     """Centralized credential fetcher with caching and failover."""
 
@@ -261,10 +260,8 @@ class CredentialManager:
         """Clear credential cache (useful for testing)."""
         self._cache.clear()
 
-
 # Singleton instance
 _manager = None
-
 
 def get_credential_manager() -> CredentialManager:
     """Get the global credential manager instance."""
@@ -273,26 +270,21 @@ def get_credential_manager() -> CredentialManager:
         _manager = CredentialManager()
     return _manager
 
-
 def get_password(secret_name: str, default: Optional[str] = None) -> str:
     """Module-level convenience function."""
     return get_credential_manager().get_password(secret_name, default)
-
 
 def get_secret(secret_name: str, default: Optional[str] = None) -> str:
     """Module-level convenience function (alias)."""
     return get_credential_manager().get_secret(secret_name, default)
 
-
 def get_db_credentials() -> Dict[str, str]:
     """Module-level convenience function."""
     return get_credential_manager().get_db_credentials()
 
-
 def get_alpaca_credentials() -> Dict[str, str]:
     """Module-level convenience function."""
     return get_credential_manager().get_alpaca_credentials()
-
 
 def get_db_password() -> str:
     """Get database password only.
@@ -303,7 +295,6 @@ def get_db_password() -> str:
     creds = get_db_credentials()
     return creds['password']
 
-
 def get_db_config() -> Dict[str, Any]:
     """Get full database configuration dict.
 
@@ -311,7 +302,6 @@ def get_db_config() -> Dict[str, Any]:
     Returns host, port, user, password, database.
     """
     return get_db_credentials()
-
 
 def clear_credential_cache():
     """Clear the credential cache.
@@ -326,7 +316,6 @@ def clear_credential_cache():
     mgr = get_credential_manager()
     mgr.clear_cache()
     return True
-
 
 if __name__ == "__main__":
     # Simple test: try to get credentials

@@ -7,59 +7,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class SignalPatternsMixin:
     """Chart pattern detection signals."""
 
     def base_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
-        """
-        Detects bases (consolidation patterns) — the institutional setup.
-
-        A **base** is a tight consolidation period (4-12 weeks, 20-60 trading days)
-        where price trades within a narrow range while accumulation occurs.
-        This is the classic Minervini, Bassal, Darvas, and O'Neil entry setup.
-
-        **Base Characteristics:**
-          - **Depth**: 8-35% from peak to trough (tighter = stronger)
-          - **Duration**: 4-12 weeks in base for setup to mature
-          - **Price action**: Oscillating sideways, not making new lows
-          - **Volume**: Drying up during consolidation (accumulation)
-          - **Breakout**: Imminent when price within 2% of pivot high
-
-        **Technical Logic:**
-          1. Find the peak high in last 60 days (base peak)
-          2. Measure from peak to present (base range)
-          3. Calculate base depth: (peak - low) / peak
-          4. Base is valid if: 8% <= depth <= 35% AND duration >= 20 bars
-          5. Breakout imminent if: price within 2% of pivot
-          6. Volume dryup if: recent 10-bar avg < prior 30-bar avg
-
-        **Return Dict:**
-          {
-              'in_base': bool (depth 8-35% AND duration >= 4 weeks),
-              'base_depth_pct': float (peak-to-trough as % of peak),
-              'weeks_in_base': int (days_in_base // 5),
-              'pivot_high': float (resistance level to break),
-              'pct_to_pivot': float (% below pivot; <2% = breakout imminent),
-              'breakout_imminent': bool (in_base AND pct_to_pivot <= 2%),
-              'volume_dryup': bool (recent vol < prior vol * 0.8),
-              'reason': str (if in_base=False, why),
-          }
-
-        **Use Cases:**
-          - Entry: Buy breakout above pivot_high on volume if breakout_imminent
-          - Rejection: Skip if in_base=False (no setup yet)
-          - Stop: Base low is support; below that = setup failed
-
-        **Performance:** ~50ms per symbol
-
-        Args:
-            symbol: Stock ticker
-            eval_date: Date to evaluate as of
-
-        Returns:
-            Dict with base detection results and characteristics
-        """
         try:
             # Use existing cursor from parent class, don't reconnect
             if not hasattr(self, 'cur') or self.cur is None:
@@ -202,7 +153,6 @@ class SignalPatternsMixin:
                 'depth_progression': depths,
                 'tight_pattern': tight_pattern,
             }
-
 
         finally:
             try:
@@ -379,7 +329,6 @@ class SignalPatternsMixin:
                 'characteristics': characteristics,
                 **characteristics,
             }
-
 
         finally:
             try:
@@ -563,7 +512,6 @@ class SignalPatternsMixin:
                 'risk_per_share': round(entry_price - candidate, 2),
                 'risk_pct': round((entry_price - candidate) / entry_price * 100, 2),
             }
-
 
         finally:
             try:
@@ -754,7 +702,6 @@ class SignalPatternsMixin:
                     'pivot_high': round(best_htf['pivot_high'], 2),
                 }
             return {'is_htf': False}
-
 
         finally:
             try:

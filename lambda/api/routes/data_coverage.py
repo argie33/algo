@@ -20,7 +20,6 @@ from .utils import error_response
 
 logger = logging.getLogger(__name__)
 
-
 def get_price_coverage(cur) -> Dict[str, Any]:
     """Get price_daily coverage metrics."""
     try:
@@ -62,7 +61,6 @@ def get_price_coverage(cur) -> Dict[str, Any]:
     except Exception as e:
         return error_response(500, 'error', str(e))
 
-
 def get_technical_coverage(cur) -> Dict[str, Any]:
     """Get technical_data_daily coverage and completeness."""
     try:
@@ -102,7 +100,6 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
         }
     except Exception as e:
         return error_response(500, 'error', str(e))
-
 
 def get_market_data_coverage(cur) -> Dict[str, Any]:
     """Get market_health_daily and other market data coverage."""
@@ -144,7 +141,6 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
     except Exception as e:
         return error_response(500, 'error', str(e))
 
-
 def get_loader_health(cur) -> Dict[str, Any]:
     """Get recent loader execution health."""
     try:
@@ -175,7 +171,6 @@ def get_loader_health(cur) -> Dict[str, Any]:
         }
     except Exception as e:
         return error_response(500, 'error', str(e))
-
 
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:
     """Get overall data coverage summary."""
@@ -209,7 +204,6 @@ def get_overall_coverage_summary(cur) -> Dict[str, Any]:
         summary['overall_health'] = 'healthy'
 
     return summary
-
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
     """Handle GET /api/data-coverage request."""

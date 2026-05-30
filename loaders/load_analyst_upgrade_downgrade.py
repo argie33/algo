@@ -21,7 +21,6 @@ from pathlib import Path
 from datetime import date, timedelta
 from typing import List, Optional
 
-
 try:
     from config.credential_manager import get_credential_manager
     credential_manager = get_credential_manager()
@@ -53,9 +52,6 @@ try:
 except ImportError:
     # Fallback: create simple loader class if utils not available
     OptimalLoader = object
-
-
-
 
 class AnalystRatingsLoader(OptimalLoader):
     table_name = "analyst_upgrade_downgrade"
@@ -103,8 +99,6 @@ class AnalystRatingsLoader(OptimalLoader):
     def _validate_row(self, row: dict) -> bool:
         return super()._validate_row(row)
 
-
-
 def main():
     parser = argparse.ArgumentParser(description="Optimal analyst_ratings loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
@@ -123,7 +117,6 @@ def main():
         loader.close()
 
     return 0 if stats["symbols_failed"] == 0 else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

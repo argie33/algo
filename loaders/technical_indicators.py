@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Dict, Any
 
-
 def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     """Compute Relative Strength Index using Wilder's EMA smoothing."""
     deltas = closes.diff()
@@ -21,7 +20,6 @@ def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-
 def compute_macd(closes: pd.Series, fast: int = 12, slow: int = 26, signal_period: int = 9) -> Tuple[pd.Series, pd.Series]:
     """Compute MACD line and signal line."""
     ema_fast = closes.ewm(span=fast).mean()
@@ -29,7 +27,6 @@ def compute_macd(closes: pd.Series, fast: int = 12, slow: int = 26, signal_perio
     macd_line = ema_fast - ema_slow
     signal_line = macd_line.ewm(span=signal_period).mean()
     return macd_line, signal_line
-
 
 def compute_moving_averages(closes: pd.Series) -> Dict[str, pd.Series]:
     """Compute all standard moving averages."""
@@ -42,7 +39,6 @@ def compute_moving_averages(closes: pd.Series) -> Dict[str, pd.Series]:
         'ema_21': closes.ewm(span=21).mean(),
         'ema_26': closes.ewm(span=26).mean(),
     }
-
 
 def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Compute Average True Range using Wilder's exponential smoothing (alpha=1/period).
@@ -57,7 +53,6 @@ def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int =
     atr = tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
     return atr
 
-
 def compute_bollinger_bands(closes: pd.Series, period: int = 20, std_dev: float = 2.0) -> Dict[str, pd.Series]:
     """Compute Bollinger Bands."""
     sma = closes.rolling(period).mean()
@@ -68,11 +63,9 @@ def compute_bollinger_bands(closes: pd.Series, period: int = 20, std_dev: float 
         'bb_lower': sma - (std * std_dev),
     }
 
-
 def compute_volume_ma(volume: pd.Series, period: int = 50) -> pd.Series:
     """Compute volume moving average."""
     return volume.rolling(period).mean()
-
 
 def compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """Compute Plus DI, Minus DI, and ADX using Wilder's smoothing.
@@ -109,7 +102,6 @@ def compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int =
     adx = dx.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
 
     return plus_di, minus_di, adx
-
 
 def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Compute all technical indicators and add to dataframe.

@@ -22,8 +22,6 @@ from utils.loader_helpers import get_active_symbols
 
 from utils.optimal_loader import OptimalLoader
 
-
-
 class GrowthMetricsLoader(OptimalLoader):
     table_name = "growth_metrics"
     primary_key = ("symbol",)
@@ -102,8 +100,6 @@ class GrowthMetricsLoader(OptimalLoader):
         """No transformation needed; metrics already computed."""
         return rows
 
-
-
 def main():
     parser = argparse.ArgumentParser(description="Growth metrics loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
@@ -123,7 +119,6 @@ def main():
         logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

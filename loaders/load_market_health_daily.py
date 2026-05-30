@@ -23,7 +23,6 @@ from loaders.technical_indicators import compute_moving_averages, compute_volume
 
 logger = logging.getLogger(__name__)
 
-
 class MarketHealthDailyLoader(OptimalLoader):
     table_name = "market_health_daily"
     primary_key = ("date",)
@@ -229,7 +228,6 @@ class MarketHealthDailyLoader(OptimalLoader):
         if len(rows) < 20:
             logger.warning(f"Computing market health with only {len(rows)} rows (< 20 recommended)")
 
-
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
@@ -306,7 +304,6 @@ class MarketHealthDailyLoader(OptimalLoader):
             })
 
         return results
-
 
 def main():
     import argparse

@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
 
-"""
-Market Exposure Action Policy - Maps exposure score to concrete actions
-
-The market exposure score (0-100, computed by algo_market_exposure.py) is
-useless without a clear policy of what each level MEANS for our portfolio.
-
-Per Minervini, Tharp, O'Neil best practices:
-  - Don't blindly panic-sell when exposure drops; each position has its own stop.
-  - DO progressively de-risk via stop tightening, partial-profit acceleration,
-    and stricter entry gates.
-  - At extreme low exposure (correction), DO actively reduce — cut losers
-    rather than waiting for stops, take all partials.
-
-5 Regime Tiers:
-
-  CONFIRMED_UPTREND   80-100   Full risk, normal entries, hold winners
-  HEALTHY_UPTREND     60-80    Slight risk reduction, tighten extended winners
-  PRESSURE            40-60    50% risk, raise quality bar to A, take partials
-  CAUTION             20-40    25% risk, halt entries, tighten all stops
-  CORRECTION           0-20    No new entries, force-exit losers, take all profits
-
-Each tier has a complete action profile that the orchestrator applies
-in Phase 2.5 (between circuit breakers and position monitor).
-"""
-
-
 import math
 from utils.database_context import DatabaseContext
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 EXPOSURE_TIERS = [
     {
@@ -116,7 +89,6 @@ EXPOSURE_TIERS = [
     },
 ]
 
-
 def tier_for_exposure(exposure_pct):
     """Return the active policy tier for a given exposure %.
 
@@ -133,7 +105,6 @@ def tier_for_exposure(exposure_pct):
     if exposure_pct < 0:
         return EXPOSURE_TIERS[-1]
     return EXPOSURE_TIERS[0]
-
 
 class ExposurePolicy:
     """Apply market exposure tier policies to portfolio state."""
@@ -299,7 +270,6 @@ class ExposurePolicy:
             'halt_new_entries': tier['halt_new_entries'],
             'max_concentration_pct': tier['max_concentration_pct'],
         }
-
 
 if __name__ == "__main__":
     p = ExposurePolicy()

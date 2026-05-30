@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 5: SIGNAL GENERATION & RANKING
-
-Evaluates today's BUY signals through all 6 tiers:
-- Tier 1: Data quality
-- Tier 2: Market conditions
-- Tier 3: Trend template
-- Tier 4: Signal quality scores
-- Tier 5: Portfolio fit
-- Tier 6: Multi-factor advanced filters (momentum/quality/catalyst/risk)
-
-Ranks by composite score, takes top N up to max_positions cap minus
-current open positions.
-
-Includes signal waterfall report for visibility on rejections.
-
-FAIL-OPEN: log and proceed with whatever passed.
-"""
 
 import logging
 import traceback
@@ -29,7 +11,6 @@ from algo.algo_alerts import AlertManager
 from algo.algo_metrics import MetricsPublisher
 
 logger = logging.getLogger(__name__)
-
 
 def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool, final_count: int = 0) -> None:
     """Log signal count at each filter tier for visibility on rejections."""
@@ -86,7 +67,6 @@ def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool, final_cou
     except Exception as e:
         logger.warning(f"Signal waterfall report failed: {e}")
 
-
 def _interpret_waterfall(total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
     """Interpret the signal waterfall to help diagnose 'no trades' situations."""
     if total == 0:
@@ -100,7 +80,6 @@ def _interpret_waterfall(total: int, stage2: int, tier_rejections: Dict[str, int
     max_reject_tier = max(tier_rejections, key=tier_rejections.get) if tier_rejections else "Unknown"
     max_reject_count = tier_rejections.get(max_reject_tier, 0)
     return f"Stage 2 signals exist but {max_reject_count} rejected at {max_reject_tier}. Review config thresholds."
-
 
 def run(
     config: Any,

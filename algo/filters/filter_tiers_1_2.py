@@ -7,7 +7,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class FilterTiers12Mixin:
     """Tier 1 & 2 filtering logic."""
 

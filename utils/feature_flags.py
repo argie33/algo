@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""
-Feature Flags - Enable/disable features without code deploy
-
-Enables:
-- Disable broken signal tier (Tier 2 generating false signals? Disable in 10 sec)
-- A/B testing (Tier 5 variant A vs variant B, measure win rate)
-- Gradual rollout (start with 10% of signals, ramp to 100%)
-- Quick rollback (revert to previous setting in 1 command)
-
-Flags stored in database (easy to toggle without deploy):
-- Can enable/disable per signal tier
-- Can enable/disable per symbol
-- Can set A/B test variant
-- Queryable in real-time
-"""
 
 from config.credential_manager import get_db_config, get_db_password
 import logging
@@ -25,14 +10,12 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-
 class FeatureFlagType(Enum):
     """Types of feature flags."""
     SIGNAL_TIER = "signal_tier"  # Enable/disable signal filter tier
     A_B_TEST = "ab_test"  # A/B test variant selection
     SYMBOL_OVERRIDE = "symbol_override"  # Per-symbol enable/disable
     ROLLOUT = "rollout"  # Gradual rollout (% of trades)
-
 
 class FeatureFlags:
     """Manage feature flags for safe signal control."""
@@ -196,7 +179,6 @@ class FeatureFlags:
         except (ValueError, TypeError):
             return default
 
-
 # Safe default feature flags (fail-closed / conservative)
 DEFAULT_FEATURE_FLAGS = {
     # Signal Pipeline - All enabled by default (safe = enabled)
@@ -227,14 +209,12 @@ DEFAULT_FEATURE_FLAGS = {
     'ab_test_tier_5_variant': ('ab_test', 'control', 'Variant for Tier 5 A/B test: control or experimental'),
 }
 
-
 def create_feature_flags_table():
     """Feature flags table is now created in utils/init_database.py (AUTHORITATIVE).
 
     This function is kept for backwards compatibility but does nothing.
     """
     pass
-
 
 def initialize_safe_defaults():
     """Initialize feature flags with safe (fail-closed) defaults.
@@ -266,10 +246,8 @@ def initialize_safe_defaults():
         logger.error(f"Failed to initialize feature flags: {e}")
         return False
 
-
 # Singleton
 _flags = None
-
 
 def get_flags() -> FeatureFlags:
     """Get singleton feature flags manager."""
@@ -277,7 +255,6 @@ def get_flags() -> FeatureFlags:
     if _flags is None:
         _flags = FeatureFlags()
     return _flags
-
 
 if __name__ == "__main__":
     import argparse

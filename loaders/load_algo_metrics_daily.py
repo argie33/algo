@@ -12,7 +12,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class AlgoMetricsDailyLoader:
     """Compute and store daily algo performance metrics after orchestrator completes."""
 
@@ -94,7 +93,6 @@ class AlgoMetricsDailyLoader:
         ))
         logger.info(f"Stored metrics for {run_date}: {metrics}")
 
-
 def main():
     from algo.algo_market_calendar import MarketCalendar
     from datetime import timedelta
@@ -112,7 +110,6 @@ def main():
         metrics = loader.compute_daily_metrics(cur, run_date)
         loader.store_metrics(cur, run_date, metrics)
         logger.info(f"Daily metrics computed and stored for {run_date}")
-
 
 if __name__ == '__main__':
     main()

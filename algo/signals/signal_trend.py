@@ -12,26 +12,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class SignalTrendMixin:
     """Trend signal methods reading from pre-computed data and real-time calculations."""
 
     def minervini_trend_template(self, symbol: str, eval_date) -> Dict[str, Any]:
-        """
-        Read pre-computed Minervini 8-point score from trend_template_data.
-        Loader (load_trend_criteria_data.py) computes and stores these scores daily.
-
-        Returns: {
-            'score': int (0-8),
-            'pass': bool (True if score >= 5),
-            'criteria': {
-                'percent_from_52w_high': float,
-                'percent_from_52w_low': float,
-                'weinstein_stage': int,
-                'trend_direction': str,
-            }
-        }
-        """
         try:
             self.cur.execute(
                 """SELECT minervini_trend_score, percent_from_52w_high, percent_from_52w_low,

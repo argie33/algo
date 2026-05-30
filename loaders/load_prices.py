@@ -34,7 +34,6 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-
 class PriceLoader(OptimalLoader):
     """Multi-timeframe price loader. Replaces 4 separate loaders."""
 
@@ -404,8 +403,6 @@ class PriceLoader(OptimalLoader):
             self._stats["rows_inserted"] += inserted
             self._stats["symbols_processed"] += 1
 
-
-
 def log_loader_execution(loader_name, table_name, status, records_loaded=0, records_updated=0, error_msg=None, duration_seconds=0):
     """Log loader execution to data_loader_runs table for monitoring."""
     try:
@@ -429,7 +426,6 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
             ))
     except Exception as e:
         logger.warning(f"Failed to log execution to data_loader_runs: {e}")
-
 
 def main():
     """Read config from environment variables (set by ECS task definition)."""
@@ -539,7 +535,6 @@ def main():
         duration_seconds=duration_seconds
     )
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
-
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
     """Handle /api/contact/* endpoints."""
     if path == '/api/contact':
@@ -23,7 +22,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         return error_response(405, 'method_not_allowed', 'GET required')
 
     return error_response(404, 'not_found', f'No contact handler for {path}')
-
 
 def _submit_contact(cur, body: Dict) -> Dict:
     """Store a contact form submission."""
@@ -52,7 +50,6 @@ def _submit_contact(cur, body: Dict) -> Dict:
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'submit contact')
-
 
 def _get_submissions(cur, params: Dict) -> Dict:
     """Get contact form submissions (admin only)."""

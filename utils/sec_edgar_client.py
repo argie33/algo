@@ -25,7 +25,6 @@ Usage:
     revenue = client.get_concept(cik, "us-gaap", "Revenues")
 """
 
-
 import json
 import logging
 import os
@@ -46,7 +45,6 @@ DEFAULT_USER_AGENT = os.getenv(
     "algo-trading argeropolos@gmail.com",
 )
 
-
 class RateLimiter:
     """SEC requires <10 req/sec. We target 8/sec for safety margin."""
 
@@ -61,7 +59,6 @@ class RateLimiter:
             if elapsed < self.min_interval:
                 time.sleep(self.min_interval - elapsed)
             self._last_request = time.monotonic()
-
 
 class SecEdgarClient:
     """Client for SEC EDGAR XBRL APIs.
@@ -1178,7 +1175,6 @@ class SecEdgarClient:
             result.append({k: v for k, v in row.items() if not k.startswith("_filed_")})
         result.sort(key=lambda r: (r["fiscal_year"] or 0, r["fiscal_period"]))
         return result
-
 
 def _to_snake(name: str) -> str:
     """CamelCase → snake_case. Used for converting XBRL concept names to columns."""

@@ -19,7 +19,6 @@ _symbols_cache = {}
 _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
 
-
 def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List[str]:
     """Get list of active stock symbols from database with timeout protection.
 
@@ -104,7 +103,6 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_handler)
 
-
 def _resolve_timeframe(cli_arg: str = None) -> str:
     """Resolve timeframe from CLI arg or environment variable.
 
@@ -118,7 +116,6 @@ def _resolve_timeframe(cli_arg: str = None) -> str:
         return cli_arg
     loader_type = os.getenv("LOADER_TYPE", "")
     return "monthly" if "monthly" in loader_type else "weekly"
-
 
 def _resolve_period(cli_arg: str = None) -> str:
     """Resolve period from CLI arg or environment variable.

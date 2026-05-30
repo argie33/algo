@@ -49,12 +49,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class SignalComputer(SignalBase, SignalTrendMixin, SignalPatternsMixin,
                      SignalMomentumMixin, SignalOptionsMixin):
     """All technical signals via mixin composition."""
     pass
-
 
 if __name__ == "__main__":
     from utils.database_context import DatabaseContext

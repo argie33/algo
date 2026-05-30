@@ -8,9 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from utils.database_context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
-
 
 class LiquidityChecks:
     """Verify sufficient liquidity and spreads for trade execution."""
@@ -21,17 +19,6 @@ class LiquidityChecks:
         self.min_adv_dollars = config.get('min_adv_dollars', 500_000)
 
     def run_all(self, symbol: str, entry_price: float, signal_date) -> tuple:
-        """
-        Run all liquidity checks.
-
-        Args:
-            symbol: Stock symbol
-            entry_price: Intended entry price
-            signal_date: Date of signal
-
-        Returns:
-            Tuple[bool, str]: (passed, reason)
-        """
         try:
             age_passed, age_reason = self._check_price_history_age(symbol, signal_date)
             if not age_passed:

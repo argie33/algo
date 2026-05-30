@@ -39,7 +39,6 @@ except Exception as e:
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
 def validate_environment():
     """Validate critical environment variables at cold start.
 
@@ -82,7 +81,6 @@ def validate_environment():
 
     return len(errors) == 0, errors
 
-
 def test_db_connection():
     """FIXED Issue #17: Test database connection at Lambda cold-start.
 
@@ -104,7 +102,6 @@ def test_db_connection():
         error_msg = f"Database connection test failed at cold start: {type(e).__name__}: {str(e)}"
         logger.error(f"[DB_TEST_FAILED] {error_msg}")
         return False, error_msg
-
 
 # FIXED Issue #16: API Rate Limiting via API Gateway
 # Global rate limiting is enforced at the API Gateway level (100 req/sec burst, 50 req/sec sustained)
@@ -128,7 +125,6 @@ RATE_LIMIT_EXEMPT_PATHS = {
     '/api/health/pipeline',
 }
 
-
 def redact_sensitive_headers(headers_dict):
     """Issue #42: Redact sensitive headers from logs to prevent credential leakage."""
     redacted = dict(headers_dict)
@@ -138,7 +134,6 @@ def redact_sensitive_headers(headers_dict):
             actual_key = [k for k in redacted.keys() if k.lower() == key.lower()][0]
             redacted[actual_key] = '***REDACTED***'
     return redacted
-
 
 def validate_query_param_type(value: str, expected_type: str) -> tuple:
     """Validate and convert query parameter to expected type.
@@ -170,7 +165,6 @@ def validate_query_param_type(value: str, expected_type: str) -> tuple:
     else:  # string
         return True, value
 
-
 def parse_query_params(event: Dict) -> Dict:
     """Parse query parameters from API Gateway v1 or v2 events."""
     params = {}
@@ -188,7 +182,6 @@ def parse_query_params(event: Dict) -> Dict:
                 params[param] = ['']
     return params
 
-
 def _build_allowed_origins() -> set:
     """Build allowed origins from ALLOWED_ORIGINS env var (comma-separated) plus localhost defaults."""
     origins = {'http://localhost:5173', 'http://localhost:3000'}
@@ -199,7 +192,6 @@ def _build_allowed_origins() -> set:
             if o:
                 origins.add(o)
     return origins
-
 
 def get_cors_headers(event: Dict) -> Dict[str, str]:
     """Get CORS headers based on request origin (whitelist only)."""
@@ -242,11 +234,9 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
         'Access-Control-Allow-Origin': 'null',
     }
 
-
 def get_json_content_type() -> str:
     """Return JSON content-type with proper UTF-8 charset declaration."""
     return 'application/json; charset=utf-8'
-
 
 def get_security_headers() -> Dict[str, str]:
     """Return security headers for all responses."""
@@ -265,7 +255,6 @@ def get_security_headers() -> Dict[str, str]:
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
         'Content-Security-Policy': f"default-src 'self'; img-src 'self' data: https:; connect-src 'self' {allowed_origins_list}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     }
-
 
 def get_cache_headers(cache_type: str = 'no-cache') -> Dict[str, str]:
     """Return cache control headers based on content type.
@@ -300,7 +289,6 @@ def get_cache_headers(cache_type: str = 'no-cache') -> Dict[str, str]:
     else:
         return {'Cache-Control': 'no-cache'}
 
-
 def get_bearer_token(event: Dict) -> Optional[str]:
     """Extract Bearer token from Authorization header."""
     headers = event.get('headers', {})
@@ -314,7 +302,6 @@ def get_bearer_token(event: Dict) -> Optional[str]:
         return None
 
     return auth_header[7:]  # Remove 'Bearer ' prefix
-
 
 @lru_cache(maxsize=1)
 def _get_cognito_jwks():
@@ -334,7 +321,6 @@ def _get_cognito_jwks():
     except Exception as e:
         logger.error(f"Failed to fetch Cognito JWKS: {e}")
         return None
-
 
 def validate_bearer_token(token: Optional[str]) -> tuple:
     """Validate JWT token: format, signature, expiration, audience.
@@ -408,7 +394,6 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
         logger.error(f"Token validation error: {e}", exc_info=True)
         return (False, None, "Token validation failed")
 
-
 def is_rate_limited(client_ip: str, rate_limit_requests: int = RATE_LIMIT_REQUESTS, window_seconds: int = RATE_LIMIT_WINDOW) -> bool:
     """
     Check if client IP has exceeded rate limit.
@@ -434,7 +419,6 @@ def is_rate_limited(client_ip: str, rate_limit_requests: int = RATE_LIMIT_REQUES
     _request_history[client_ip].append(now)
     return False
 
-
 def get_client_ip(event: Dict) -> str:
     """Extract real client IP, accounting for CloudFront reverse proxy.
 
@@ -457,7 +441,6 @@ def get_client_ip(event: Dict) -> str:
 
     # Last resort: API Gateway sourceIp
     return event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
-
 
 def log_api_request(event: Dict, status_code: int, user_id: Optional[str] = None, error_msg: Optional[str] = None):
     """Log API request for audit trail (security incident investigation).
@@ -485,7 +468,6 @@ def log_api_request(event: Dict, status_code: int, user_id: Optional[str] = None
         logger.info(json.dumps(audit_log))
     except Exception as e:
         logger.error(f"Failed to log API request: {str(e)}")
-
 
 def require_auth(event: Dict, path: str) -> tuple:
     """
@@ -551,7 +533,6 @@ def require_auth(event: Dict, path: str) -> tuple:
 
     # Token is valid - return claims for routing
     return (True, True, None, claims)
-
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""

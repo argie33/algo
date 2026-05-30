@@ -8,7 +8,6 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-
 class WatermarkManager:
     """Manages atomic watermark updates for incremental data loading."""
 
@@ -19,16 +18,6 @@ class WatermarkManager:
         db_conn=None,  # Deprecated: kept for backwards compatibility, no longer used
         granularity: str = "symbol",  # 'symbol', 'global', or custom
     ):
-        """
-        Args:
-            loader_name: Name of the loader (e.g., 'loadpricedaily')
-            table_name: Table being loaded (e.g., 'price_daily')
-            db_conn: Deprecated - kept for backwards compatibility
-            granularity: Watermark scope
-              - 'symbol': separate watermark per symbol
-              - 'global': single watermark for all symbols
-              - custom: custom granularity key
-        """
         self.loader_name = loader_name
         self.table_name = table_name
         self.granularity = granularity

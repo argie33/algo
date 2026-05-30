@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 3b: EXPOSURE POLICY ACTIONS
-
-Apply market exposure tier policy to existing positions.
-
-Tightens stops on extended winners, forces partial profits, and forces exits
-on losers when in CORRECTION tier — all per the active exposure regime.
-
-Returns exposure constraints for use in later phases (Phases 4, 6).
-
-FAIL-OPEN: log errors but continue.
-"""
 
 import logging
 import traceback
@@ -21,7 +9,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
-
 
 def _is_evening_run():
     """Check if current time is evening (after 5 PM ET, before market close next day).
@@ -38,7 +25,6 @@ def _is_evening_run():
     except Exception as e:
         logger.warning(f"Exception: {e}")
         return False
-
 
 def run(
     config: Any,

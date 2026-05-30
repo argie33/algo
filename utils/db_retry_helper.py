@@ -15,17 +15,10 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
-
 class RetryConfig:
     """Configuration for retry behavior."""
 
     def __init__(self, max_attempts: int = 3, base_delay_ms: int = 100, max_delay_ms: int = 5000):
-        """
-        Args:
-            max_attempts: Maximum number of retry attempts
-            base_delay_ms: Initial delay in milliseconds
-            max_delay_ms: Maximum delay between retries
-        """
         self.max_attempts = max_attempts
         self.base_delay_ms = base_delay_ms
         self.max_delay_ms = max_delay_ms
@@ -41,7 +34,6 @@ class RetryConfig:
         delay_ms = self.base_delay_ms * (2 ** attempt)
         delay_ms = min(delay_ms, self.max_delay_ms)
         return delay_ms / 1000.0
-
 
 class OptimisticLockRetry:
     """Helper for retrying operations that fail due to optimistic locking."""
@@ -163,6 +155,5 @@ class OptimisticLockRetry:
 
         logger.error(f"[Retry] {operation_name} failed after {config.max_attempts} attempts: {last_error}")
         return None
-
 
 __all__ = ['RetryConfig', 'OptimisticLockRetry']

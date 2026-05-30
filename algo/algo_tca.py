@@ -22,7 +22,6 @@ from utils.database_context import database_transaction
 
 logger = logging.getLogger(__name__)
 
-
 class TCAEngine:
     """Transaction Cost Analysis for every trade execution."""
 

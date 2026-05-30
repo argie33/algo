@@ -19,7 +19,6 @@ from algo.algo_signal_attribution import SignalAttributionEngine
 
 logger = logging.getLogger(__name__)
 
-
 class WeightOptimizer:
     """Dynamically optimize swing score component weights based on IC."""
 
@@ -327,7 +326,6 @@ class WeightOptimizer:
                         )
         except Exception as e:
             logger.error(f"Failed to log weight changes: {e}")
-
 
 if __name__ == "__main__":
     opt = WeightOptimizer()

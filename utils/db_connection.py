@@ -26,7 +26,6 @@ except ImportError:
     def on_disconnect():
         pass
 
-
 class TrackedConnection:
     """Wraps psycopg2 connection to track pool utilization."""
 
@@ -46,7 +45,6 @@ class TrackedConnection:
 
     def __exit__(self, *args):
         self.close()
-
 
 def _diagnose_with_nslookup(hostname: str) -> None:
     """Try using nslookup as fallback DNS resolution tool."""
@@ -71,7 +69,6 @@ def _diagnose_with_nslookup(hostname: str) -> None:
     except Exception as e:
         logger.debug(f"nslookup error: {e}")
 
-
 def _try_dns_with_servers(hostname: str, nameservers: list = None) -> list:
     """Try DNS resolution with explicitly configured nameservers.
 
@@ -94,7 +91,6 @@ def _try_dns_with_servers(hostname: str, nameservers: list = None) -> list:
     except Exception as e:
         logger.debug(f"DNS resolution with custom servers failed: {e}")
         return []
-
 
 def _test_dns_resolution(hostname: str) -> None:
     """Test DNS resolution and log detailed diagnostics.
@@ -159,7 +155,6 @@ def _test_dns_resolution(hostname: str) -> None:
                 logger.debug(f"  [ERROR] DNS resolution via {name} failed: {err}")
 
         raise
-
 
 def get_db_connection(max_retries: int = 2, timeout: int = 60):
     """Get a PostgreSQL connection with automatic retry and credential management.

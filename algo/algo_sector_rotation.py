@@ -27,7 +27,6 @@ from datetime import datetime, date as _date
 
 logger = logging.getLogger(__name__)
 
-
 DEFENSIVE_SECTORS = ['Utilities', 'Consumer Defensive', 'Healthcare']
 CYCLICAL_SECTORS  = ['Technology', 'Consumer Cyclical', 'Communication Services',
                      'Industrials', 'Financial Services']
@@ -39,7 +38,6 @@ SECTOR_ETF = {
     'Financial Services': 'XLF', 'Energy': 'XLE',
     'Basic Materials': 'XLB', 'Real Estate': 'XLRE',
 }
-
 
 class SectorRotationDetector:
     """Detect defensive sector leadership patterns."""
@@ -192,7 +190,6 @@ class SectorRotationDetector:
                 )
         except Exception as e:
             logger.error(f"persist sector_rotation failed for {eval_date}: {e}", exc_info=True)
-
 
 if __name__ == "__main__":
     d = SectorRotationDetector()

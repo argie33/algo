@@ -13,25 +13,10 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-
 class SignalOptionsMixin:
     """Options-based signals for bonus alpha scoring."""
 
     def iv_rank_signal(self, symbol: str, eval_date: _date) -> Dict[str, any]:
-        """
-        IV Rank = (current_IV - 52w_IV_min) / (52w_IV_max - 52w_IV_min)
-
-        Interpretation:
-        - Low rank (<20) = IV compression, potential expansion breakout
-        - High rank (>80) = IV expensive, expect mean reversion
-
-        Returns:
-            {
-                'iv_rank': float (0-100),
-                'signal': 'compress'|'expand'|'neutral',
-                'bonus_pts': float (0-2),
-            }
-        """
         try:
             # Fetch IV rank from iv_history
             self.cur.execute(

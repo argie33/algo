@@ -20,7 +20,6 @@ from utils.db_connection import get_db_connection
 logger = logging.getLogger(__name__)
 __all__ = ['DatabaseContext', 'database_transaction']
 
-
 class DatabaseContext:
     """Thread-safe database context with automatic resource cleanup.
 
@@ -71,7 +70,6 @@ class DatabaseContext:
         finally:
             self.cur = None
             self.conn = None
-
 
 @contextmanager
 def database_transaction(role: str = 'write', timeout: int = 10):

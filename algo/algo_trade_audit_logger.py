@@ -16,7 +16,6 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-
 class TradeAuditLogger:
     """Log every trade decision with full reasoning."""
 

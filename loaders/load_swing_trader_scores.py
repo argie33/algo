@@ -35,7 +35,6 @@ import json
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
 
-
 class SwingTraderScoresLoader(OptimalLoader):
     table_name = "swing_trader_scores"
     primary_key = ("symbol", "date")
@@ -226,7 +225,6 @@ class SwingTraderScoresLoader(OptimalLoader):
             0 <= float(row.get('score', 0)) <= 100
         )
 
-
 def main():
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
@@ -245,7 +243,6 @@ def main():
         logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

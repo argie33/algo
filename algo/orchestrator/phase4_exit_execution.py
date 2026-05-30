@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""
-Phase 4: EXIT EXECUTION
-
-Applies exit decisions from Phase 3 (position monitor recommendations) and
-exposure policy actions, plus tiered targets/stops/time/Minervini-break logic
-from the exit engine.
-
-Execution order:
-1. Exposure-policy actions (force_exit, partial_exit, tighten_stop)
-2. Position monitor recommendations (EARLY_EXIT, RAISE_STOP)
-3. Exit engine tiered targets, stops, time, Minervini break
-
-FAIL-OPEN per position, but FAIL-CLOSED if >50% of trades fail in batch.
-"""
 
 import logging
 import traceback
@@ -25,7 +11,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
-
 
 def run(
     config: Any,

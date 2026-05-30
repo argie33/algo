@@ -62,4 +62,3 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'handle trades')
 
-

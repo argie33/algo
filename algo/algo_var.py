@@ -455,4 +455,3 @@ class PortfolioRisk:
             logger.error(f"Daily risk report generation error: {e}", exc_info=True)
             return {'status': 'error', 'message': str(e)}
 
-

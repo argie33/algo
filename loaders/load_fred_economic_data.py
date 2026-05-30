@@ -27,7 +27,6 @@ from psycopg2.extras import execute_values
 
 from utils.database_context import DatabaseContext
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,6 @@ SERIES = [
     "FEDFUNDS",
     "UNRATE",
 ]
-
 
 def get_fred_api_key() -> str:
     """Get FRED API key from environment, credential_manager, or Secrets Manager.
@@ -74,7 +72,6 @@ def get_fred_api_key() -> str:
 
     return ""
 
-
 def fetch_series(series_id: str, api_key: str, start: str, end: str) -> List[Tuple]:
     """Fetch observations for a FRED series. Returns list of (series_id, date, value)."""
     params = {
@@ -99,7 +96,6 @@ def fetch_series(series_id: str, api_key: str, start: str, end: str) -> List[Tup
             continue
     return rows
 
-
 def upsert_rows(cur, rows: List[Tuple]) -> int:
     if not rows:
         return 0
@@ -113,7 +109,6 @@ def upsert_rows(cur, rows: List[Tuple]) -> int:
         rows,
     )
     return len(rows)
-
 
 def main():
     api_key = get_fred_api_key()
@@ -143,7 +138,6 @@ def main():
     except Exception as e:
         logger.error(f"Fatal error loading FRED data: {e}", exc_info=True)
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
