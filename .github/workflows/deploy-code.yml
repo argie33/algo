@@ -307,6 +307,16 @@ jobs:
                   zf.write(str(file_path), layer_arcname)
               print("  + utils/")
 
+            # Add monitoring package (required by orchestrator)
+            monitoring_path = app_dir / "monitoring"
+            if monitoring_path.is_dir():
+              for file_path in monitoring_path.rglob("*"):
+                if file_path.is_file() and not file_path.name.endswith(".pyc"):
+                  rel_path = file_path.relative_to(app_dir)
+                  layer_arcname = f"python/{rel_path}"
+                  zf.write(str(file_path), layer_arcname)
+              print("  + monitoring/")
+
           print(f"  Result: {layer_path.stat().st_size / (1024*1024):.1f} MB\n")
 
           # Verify packages
@@ -324,7 +334,7 @@ jobs:
           with zipfile.ZipFile(layer_path, 'r') as zf:
             names = zf.namelist()
             print(f"Layer: {len(names)} files")
-            required = ["python/config/__init__.py", "python/algo/__init__.py", "python/utils/__init__.py"]
+            required = ["python/config/__init__.py", "python/algo/__init__.py", "python/utils/__init__.py", "python/monitoring/__init__.py"]
             for req in required:
               if req not in names:
                 raise Exception(f"Missing in layer: {req}")
