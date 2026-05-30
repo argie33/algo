@@ -44,7 +44,7 @@ def _submit_contact(cur, body: Dict) -> Dict:
         """, (name, email, subject, message, datetime.now(timezone.utc)))
         logger.info(f"Contact form submission from {email}")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
-    except psycopg2.errors.UndefinedTable:
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         # Table doesn't exist yet — log and succeed gracefully
         logger.warning(f"contact_submissions table missing; submission from {email} logged only")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
@@ -64,7 +64,7 @@ def _get_submissions(cur, params: Dict) -> Dict:
         rows = cur.fetchall()
         freshness = check_data_freshness(cur, 'contact_submissions', 'submitted_at', warning_days=1)
         return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
-    except psycopg2.errors.UndefinedTable:
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return list_response([])
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'get contact submissions')

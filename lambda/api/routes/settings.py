@@ -50,7 +50,7 @@ def _get_settings(cur, params: Dict) -> Dict:
                 merged = {**_DEFAULTS, **stored}
                 return json_response(200, {'data': merged})
         return json_response(200, {'data': dict(_DEFAULTS)})
-    except psycopg2.errors.UndefinedTable:
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return json_response(200, {'data': dict(_DEFAULTS)})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'get settings')
@@ -74,7 +74,7 @@ def _save_settings(cur, body: Dict, params: Dict) -> Dict:
                       updated_at = NOW()
             """, (user_id, theme, notifications, json.dumps(other_prefs), theme, notifications, json.dumps(other_prefs)))
         return json_response(200, {'success': True, 'message': 'Settings saved'})
-    except psycopg2.errors.UndefinedTable:
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         logger.warning("user_dashboard_settings table missing; settings not persisted")
         return json_response(200, {'success': True, 'message': 'Settings saved'})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:

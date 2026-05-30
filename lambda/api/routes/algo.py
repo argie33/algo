@@ -1760,7 +1760,7 @@ def _get_runtime_config(cur, config_key: str, jwt_claims: Dict) -> Dict:
             'updated_at': row['updated_at'].isoformat() if row['updated_at'] else None,
             'updated_by': row['updated_by']
         })
-    except psycopg2.errors.UndefinedTable:
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return error_response(503, 'service_unavailable', 'Configuration table not initialized')
     except Exception as e:
         logger.error(f'Runtime config read error: {e}', extra={'operation': 'get runtime config', 'key': config_key})
@@ -1811,7 +1811,7 @@ def _set_runtime_config(cur, config_key: str, body: Dict, jwt_claims: Dict) -> D
                    VALUES (%s, %s, %s, %s, %s)""",
                 (config_key, old_value, str(new_value), user_id, body.get('reason', ''))
             )
-        except psycopg2.errors.UndefinedTable:
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
             logger.warning("Audit table not initialized, skipping audit log")
 
         # Clear cache so next read gets fresh value
@@ -1831,7 +1831,7 @@ def _set_runtime_config(cur, config_key: str, body: Dict, jwt_claims: Dict) -> D
             'updated_by': user_id
         })
 
-    except psycopg2.errors.UndefinedTable:
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return error_response(503, 'service_unavailable', 'Configuration table not initialized')
     except Exception as e:
         logger.error(f'Runtime config update error: {e}', extra={'operation': 'set runtime config', 'key': config_key})
