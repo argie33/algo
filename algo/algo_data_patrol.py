@@ -84,7 +84,7 @@ class DataPatrol:
             """, (self._run_id, json.dumps(config)))
         except Exception as e:
 
-            logger.error(f"Unhandled exception: {e}")
+            logger.error(f"Unhandled exception: {e}", exc_info=True)
 
     def log(self, cur, name, severity, target, message, details=None):
         self.results.append({
@@ -1261,7 +1261,7 @@ class DataPatrol:
                 """, (self._run_id, json.dumps({'seconds': round(elapsed_seconds, 2), 'status': 'SLOW' if elapsed_seconds > 120 else 'OK'})))
             except Exception as e:
 
-                logger.error(f"Unhandled exception: {e}")
+                logger.error(f"Unhandled exception: {e}", exc_info=True)
 
         return {
             'run_id': self._run_id,

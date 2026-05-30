@@ -402,7 +402,8 @@ def run(
                     # Re-check if prices loaded
                     try:
                         cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'")
-                        new_price_date = cur.fetchone()[0] if cur.fetchone() else None
+                        result = cur.fetchone()
+                        new_price_date = result[0] if result else None
                         if new_price_date and new_price_date >= expected_date:
                             logger.info(f"[FAILSAFE] ✓ Data recovered! Prices now: {new_price_date}")
                             # Recalculate stale items with fresh data

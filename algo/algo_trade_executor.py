@@ -318,7 +318,8 @@ class TradeExecutor:
                 """,
                 (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
             )
-            pending_count = self.cur.fetchone()[0]
+            result = self.cur.fetchone()
+            pending_count = result[0] if result else 0
             if pending_count > 0:
                 return {
                     'success': False, 'trade_id': '', 'status': 'pending_trade_exists',
