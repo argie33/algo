@@ -248,6 +248,28 @@ resource "aws_apigatewayv2_route" "health" {
   authorization_type = "NONE"
 }
 
+# Health check with /api prefix (frontend monitoring)
+resource "aws_apigatewayv2_route" "api_health" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /api/health"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "api_health_detailed" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /api/health/detailed"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "api_health_pipeline" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /api/health/pipeline"
+  target             = "integrations/${aws_apigatewayv2_integration.api_lambda.id}"
+  authorization_type = "NONE"
+}
+
 # Public data endpoints (no auth required) — trading data is public
 resource "aws_apigatewayv2_route" "signals_public" {
   api_id             = aws_apigatewayv2_api.main.id
