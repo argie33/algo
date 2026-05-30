@@ -43,30 +43,7 @@ class CircuitBreaker:
         if not current_date:
             current_date = _date.today()
 
-        # TEMPORARY: Bypass circuit breaker for debugging
-        # TODO: Fix the exception handling in individual check methods
-        logger.warning("CIRCUIT BREAKER BYPASSED FOR TESTING - all checks returning pass")
-        return {
-            'halted': False,
-            'halt_reasons': [],
-            'checks': {
-                'drawdown': {'halted': False},
-                'daily_loss': {'halted': False},
-                'consecutive_losses': {'halted': False},
-                'total_risk': {'halted': False},
-                'vix_spike': {'halted': False},
-                'market_stage': {'halted': False},
-                'weekly_loss': {'halted': False},
-                'data_freshness': {'halted': False},
-                'win_rate_floor': {'halted': False},
-                'daily_profit_cap': {'halted': False},
-                'drawdown_re_engagement': {'halted': False},
-                'sector_concentration': {'halted': False},
-                'intraday_market_health': {'halted': False},
-            },
-        }
-
-        with DatabaseContext('write') as cur:
+        with DatabaseContext('write', cursor_factory=None) as cur:
             try:
                 results = {
                     'halted': False,
@@ -92,18 +69,24 @@ class CircuitBreaker:
                     try:
                         state = fn(current_date, cur)
                     except Exception as e:
+                        import traceback
+                        tb = traceback.format_exc()
                         error_msg = str(e).lower()
+                        error_type = type(e).__name__
+
+                        # Log full traceback for debugging
+                        logger.error(f"Circuit breaker {name} raised {error_type}: {e}")
+                        logger.error(f"Full traceback:\n{tb}")
+
                         # Differentiate between transient errors and real failures
                         if any(x in error_msg for x in ['timeout', 'connection', 'refused', 'unavailable']):
                             # Transient error: log and skip check, don't halt entire system
-                            logger.warning(f"Circuit breaker {name} skipped (transient error): {e}")
-                            state = {'halted': False, 'reason': f'check skipped (transient error)'}
+                            logger.warning(f"Circuit breaker {name} skipped (transient error): {error_type}: {e}")
+                            state = {'halted': False, 'reason': f'check skipped (transient {error_type})'}
                         else:
                             # Real error: fail-closed, halt trading
-                            import traceback
-                            tb = traceback.format_exc()
-                            logger.error(f"Circuit breaker {name} failed (logic error): {e}\n{tb}")
-                            state = {'halted': True, 'reason': f'check error (fail-closed): {e}'}
+                            logger.critical(f"Circuit breaker {name} FAILED - HALTING TRADING: {error_type}: {e}")
+                            state = {'halted': True, 'reason': f'check error ({error_type}: {e})'}
                     results['checks'][name] = state
                     if state.get('halted'):
                         results['halted'] = True

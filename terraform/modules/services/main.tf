@@ -2,6 +2,8 @@
 # Services Module - REST API, CloudFront, Cognito, Algo
 # ============================================================
 
+data "aws_caller_identity" "current" {}
+
 locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
@@ -630,7 +632,9 @@ resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
   action            = "lambda:InvokeFunction"
   function_name     = aws_lambda_function.loader_failure_handler[0].function_name
   principal         = "states.amazonaws.com"
-  source_arn        = var.eod_pipeline_state_machine_arn
+  # Allow any Step Functions state machine in this account/region to invoke
+  # (principal already restricted to states.amazonaws.com)
+  source_arn        = "arn:aws:states:${data.aws_caller_identity.current.account_id}:${var.aws_region}:*"
 }
 
 # ============================================================
