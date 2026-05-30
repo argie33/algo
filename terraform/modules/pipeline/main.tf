@@ -383,8 +383,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = aws_lambda_function.loader_failure_handler[0].arn
         Parameters = {
           loader_name = "parallel_enrichment"
-          error.$     = "$.loaderError.Error"
-          error_message.$= "$.loaderError.Cause"
+          "error.$"     = "$.loaderError.Error"
+          "error_message.$"= "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
         Retry = [{

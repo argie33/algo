@@ -172,25 +172,6 @@ output "website_url" {
 }
 
 # ============================================================
-# Authentication Outputs
-# ============================================================
-
-output "cognito_user_pool_id" {
-  description = "Cognito User Pool ID for frontend configuration"
-  value       = module.cognito.user_pool_id
-}
-
-output "cognito_user_pool_client_id" {
-  description = "Cognito User Pool Client ID for frontend configuration"
-  value       = module.cognito.user_pool_client_id
-}
-
-output "cognito_domain_url" {
-  description = "Cognito OAuth domain URL"
-  value       = module.cognito.domain_url
-}
-
-# ============================================================
 # Algo Orchestrator Outputs
 # ============================================================
 
