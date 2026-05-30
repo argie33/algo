@@ -89,8 +89,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             cur.execute("""
                 SELECT COUNT(*) as total_loaders,
                        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_loaders
-                FROM loader_execution_status
-                WHERE execution_date >= (CURRENT_DATE - INTERVAL '1 day')
+                FROM data_loader_status
+                WHERE status IN ('stale', 'failed')
             """)
             result = cur.fetchone()
             if result:
