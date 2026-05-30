@@ -666,8 +666,7 @@ class TradeExecutor:
                             logger.debug(f"Failed to send orphaned order alert: {alert_e}")
                     except Exception as cancel_e:
                         logger.critical(f"Exception during orphaned order cancellation: {cancel_e}")
-            if self.conn:
-                self.conn.rollback()
+            self._should_rollback = True
             return {
                 'success': False, 'trade_id': '', 'status': 'error',
                 'message': f'{type(e).__name__}: {e}'
@@ -1039,8 +1038,7 @@ class TradeExecutor:
             }
 
         except Exception as e:
-            if self.conn:
-                self.conn.rollback()
+            self._should_rollback = True
             return {'success': False, 'message': f'{type(e).__name__}: {e}'}
         finally:
             self.disconnect()
