@@ -106,7 +106,7 @@ resource "aws_lambda_function" "db_init" {
   }
 
   # Dependencies
-  layers = [var.psycopg2_layer_arn]
+  layers = try([aws_lambda_layer_version.psycopg2[0].arn], [])
 
   depends_on = [
     aws_db_instance.main,

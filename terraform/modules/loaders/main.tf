@@ -667,7 +667,7 @@ resource "aws_ecs_task_definition" "loader" {
         },
         {
           name  = "DB_SECRET_ARN"
-          value = var.rds_credentials_secret_arn
+          value = var.db_secret_arn
         },
         # Alpaca configuration
         {
