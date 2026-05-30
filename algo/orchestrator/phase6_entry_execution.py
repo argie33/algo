@@ -159,8 +159,6 @@ def _validate_and_adjust_entry_price(
 
 
 def _validate_pre_trade_data_quality(
-    get_conn: Callable,
-    put_conn: Callable,
     run_date: _date,
 ) -> Tuple[bool, List[str], List[str]]:
     """
@@ -182,13 +180,10 @@ def _validate_pre_trade_data_quality(
     from datetime import datetime, date
     issues = []
     warnings = []
-    conn = None
-    cur = None
 
     try:
-        conn = get_conn()
-        cur = conn.cursor()
-        today = run_date
+        with DatabaseContext('read') as cur:
+            today = run_date
 
         # For testing with historical dates: use most recent data if run_date is in past
         is_historical_test = today < date.today()
