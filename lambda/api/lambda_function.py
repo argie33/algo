@@ -686,15 +686,44 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'status': 'error', 'error': 'internal_error'})
                 }
 
-        conn = get_db_connection()
-        if not conn:
+        try:
+            with DatabaseContext('write') as cur:
+                # Set query timeout to prevent long-running queries from blocking API responses
+                cur.execute("SET statement_timeout TO '10s'")
+
+                params = parse_query_params(event)
+                body = None
+                if event.get('body'):
+                    body_str = event['body']
+                    if len(body_str) > MAX_REQUEST_BODY_SIZE:
+                        cors_headers = get_cors_headers(event)
+                        logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
+                        log_api_request(event, 413, error_msg='request_entity_too_large')
+                        return {
+                            'statusCode': 413,
+                            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                            'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
+                        }
+                    try:
+                        body = json.loads(body_str)
+                    except json.JSONDecodeError as e:
+                        cors_headers = get_cors_headers(event)
+                        logger.warning(f'Failed to parse JSON body: {e}')
+                        log_api_request(event, 400, error_msg='invalid_json')
+                        return {
+                            'statusCode': 400,
+                            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                            'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
+                        }
+                    except Exception as e:
+                        logger.warning(f"Exception caught: {e}")
+                        pass
+
+                # Route request to appropriate handler
+                response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
+        except Exception as e:
             cors_headers = get_cors_headers(event)
-            # Log diagnostic details server-side only; never expose internal config to callers
-            logger.error('[DB UNAVAILABLE] host=%s port=%s db=%s secret_arn_set=%s',
-                         os.getenv('DB_HOST', 'NOT_SET'),
-                         os.getenv('DB_PORT', 'NOT_SET'),
-                         os.getenv('DB_NAME', 'NOT_SET'),
-                         bool(os.getenv('DB_SECRET_ARN')))
+            logger.error(f'[DB_ERROR] Failed to get database connection: {e}', exc_info=True)
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
@@ -703,56 +732,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'message': 'Service temporarily unavailable. Check CloudWatch Logs for details.'
                 })
             }
-
-        # Reset any failed transaction state from a previous Lambda invocation
-        try:
-            conn.rollback()
-        except Exception as e:
-            logger.warning(f"API exception: {e}")
-            conn = get_db_connection()
-            if not conn:
-                cors_headers = get_cors_headers(event)
-                return {
-                    'statusCode': 503,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'error': 'database_unavailable'})
-                }
-
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        # Set query timeout to prevent long-running queries from blocking API responses
-        cur.execute("SET statement_timeout TO '10s'")
-
-        params = parse_query_params(event)
-        body = None
-        if event.get('body'):
-            body_str = event['body']
-            if len(body_str) > MAX_REQUEST_BODY_SIZE:
-                cors_headers = get_cors_headers(event)
-                logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
-                log_api_request(event, 413, error_msg='request_entity_too_large')
-                return {
-                    'statusCode': 413,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
-                }
-            try:
-                body = json.loads(body_str)
-            except json.JSONDecodeError as e:
-                cors_headers = get_cors_headers(event)
-                logger.warning(f'Failed to parse JSON body: {e}')
-                log_api_request(event, 400, error_msg='invalid_json')
-                return {
-                    'statusCode': 400,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
-                }
-            except Exception as e:
-                logger.warning(f"Exception caught: {e}")
-                pass
-
-        # Route request to appropriate handler
-        response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
-        cur.close()
 
         # Ensure response has proper format
         def _json_default(obj):
