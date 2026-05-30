@@ -70,9 +70,9 @@ import tempfile
 import time
 import json
 from utils.database_context import DatabaseContext
+from utils.db_connection import get_db_connection
 import psycopg2
 import psycopg2.extensions
-from psycopg2 import pool as psycopg2_pool
 from datetime import datetime, date as _date, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
@@ -113,74 +113,37 @@ class Orchestrator:
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
         self.alerts = AlertManager()
 
-        # maxconn=100 supports 40+ concurrent loaders with buffer
+        # RDS Proxy handles connection pooling - no local pool needed
         # In dry-run mode, database is optional; fail gracefully if unavailable
-        self.db_pool = None
-        try:
-            logger.info("[POOL] Creating ThreadedConnectionPool with minconn=1, maxconn=100")
-            self.db_pool = psycopg2_pool.ThreadedConnectionPool(
-                minconn=1, maxconn=100, **get_db_config()
-            )
-            logger.info("[POOL] ThreadedConnectionPool created successfully")
-        except Exception as e:
-            if self.dry_run:
-                logger.info(f"[DRY-RUN] Database unavailable: {e}. Proceeding with planning mode.")
-                self.degraded_mode = True
-            else:
-                logger.warning(f"Failed to create connection pool: {e}. Using fallback.")
-                self.db_pool = None
+        if self.dry_run:
+            logger.info("[DRY-RUN] Database optional in dry-run mode")
+            self.degraded_mode = True
+        else:
+            self.degraded_mode = False
 
         logger.info("[ORCHESTRATOR] About to initialize feature flags")
         self._initialize_feature_flags()
         logger.info("[ORCHESTRATOR] Feature flags initialized")
 
-    def _get_conn(self, max_retries: int = 3) -> psycopg2.extensions.connection:
-        """Get database connection from pool with exponential backoff retry.
-
-        Retries with exponential backoff (100ms, 200ms, 400ms) if pool is exhausted.
-        Falls back to direct connection after retries exhausted.
-        """
-        import time
-        if self.db_pool:
-            for attempt in range(max_retries):
-                try:
-                    return self.db_pool.getconn()
-                except psycopg2_pool.PoolError as e:
-                    if attempt < max_retries - 1:
-                        wait_ms = 100 * (2 ** attempt)
-                        logger.debug(f"Pool exhausted (attempt {attempt + 1}/{max_retries}), retrying in {wait_ms}ms")
-                        time.sleep(wait_ms / 1000.0)
-                    else:
-                        logger.warning(f"Pool exhausted after {max_retries} retries, using direct connection")
+    def _get_conn(self) -> psycopg2.extensions.connection:
+        """Get database connection via RDS Proxy connection pooling."""
         try:
-            config = get_db_config()
-            config["connect_timeout"] = 60
-            conn = psycopg2.connect(**config)
-            conn.autocommit = True
-            return conn
+            return get_db_connection(timeout=60)
         except Exception as e:
-            logger.error(f"Failed to create direct database connection: {e}")
+            logger.error(f"Failed to get database connection: {e}")
             raise
 
     def _put_conn(self, conn: Optional[psycopg2.extensions.connection]) -> None:
-        """Return a connection to the pool."""
-        if self.db_pool and conn:
+        """Close database connection."""
+        if conn:
             try:
-                self.db_pool.putconn(conn)
-            except Exception as pool_err:
-                logger.debug(f"Failed to return connection to pool: {pool_err}")
-                try:
-                    conn.close()
-                except Exception as close_err:
-                    logger.debug(f"Failed to close connection after pool error: {close_err}")
+                conn.close()
+            except Exception as e:
+                logger.debug(f"Error closing connection: {e}")
 
     def cleanup(self) -> None:
-        """Close the connection pool on shutdown."""
-        if self.db_pool:
-            try:
-                self.db_pool.closeall()
-            except Exception as e:
-                logger.warning(f"Error closing pool: {e}")
+        """No-op: RDS Proxy handles connection cleanup."""
+        pass
 
     # ---------- Database health monitoring (B4) ----------
 
