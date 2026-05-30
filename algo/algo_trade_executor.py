@@ -110,6 +110,8 @@ class TradeExecutor:
         if self.cur is None:
             self._db_context = DatabaseContext('write')
             self.cur = self._db_context.__enter__()
+            # Store connection for commit/rollback
+            self.conn = self._db_context.conn
 
     def disconnect(self):
         """Clean up DatabaseContext if we own it."""
@@ -117,6 +119,7 @@ class TradeExecutor:
             self._db_context.__exit__(None, None, None)
             self._db_context = None
             self.cur = None
+            self.conn = None
 
     # ---------- Entry ----------
 

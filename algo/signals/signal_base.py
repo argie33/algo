@@ -12,6 +12,7 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 from datetime import datetime, timedelta, date as _date
 import logging
 from typing import Dict, List, Tuple, Optional, Any
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,24 @@ class SignalBase:
         self.cur = cur
         self._price_cache = {}  # Cache for N+1 query optimization
         self._rs_percentile_cache = {}  # {(eval_date, lookback): {symbol: percentile}}
+        self._db_context = None
+        self.conn = None
+
+    def connect(self):
+        """Create a database connection via DatabaseContext."""
+        if self.cur is None:
+            self._db_context = DatabaseContext('read')
+            self.cur = self._db_context.__enter__()
+            # Store connection for commit/rollback
+            self.conn = self._db_context.conn
+
+    def disconnect(self):
+        """Clean up DatabaseContext if we own it."""
+        if self._db_context:
+            self._db_context.__exit__(None, None, None)
+            self._db_context = None
+            self.cur = None
+            self.conn = None
 
     def clear_cache(self):
         """Clear price cache to prevent stale data."""

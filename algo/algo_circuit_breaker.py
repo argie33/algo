@@ -246,7 +246,7 @@ class CircuitBreaker:
             """,
             (TradeStatus.CLOSED.value,)
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         if not rows:
             return {'halted': False, 'reason': 'No closed trades'}
         # Count consecutive losses from most recent
@@ -318,10 +318,10 @@ class CircuitBreaker:
             """,
             (PositionStatus.OPEN.value,)
         )
-        result = self.cur.fetchone()
+        result = cur.fetchone()
         total_open_risk = float(result[0]) if result else 0
 
-        self.cur.execute(
+        cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
         row = cur.fetchone()
@@ -377,7 +377,7 @@ class CircuitBreaker:
                 """,
                 (twenty_days_ago, current_date),
             )
-            prices = [float(r[0]) for r in self.cur.fetchall() if r[0]]
+            prices = [float(r[0]) for r in cur.fetchall() if r[0]]
 
             if len(prices) < 5:
                 # Insufficient data: return neutral VIX
@@ -537,7 +537,7 @@ class CircuitBreaker:
                 """,
                 (current_date,),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 2:
                 return {'halted': False, 'reason': 'Insufficient price history'}
 
@@ -581,7 +581,7 @@ class CircuitBreaker:
                 WHERE ap.status = 'open'
                 """
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if not rows:
                 return {'halted': False, 'reason': 'No open positions'}
 
