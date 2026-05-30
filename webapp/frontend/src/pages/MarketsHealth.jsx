@@ -856,7 +856,7 @@ function VixCard({ markets }) {
 
 function InternalsCard({ data }) {
   if (!data) return <Empty title="Market Internals" desc="Loading" wrap />;
-  const breadth = data.breadth || {};
+  const breadth = data.data || data.breadth || {};
   const advancing = parseInt(breadth.advancing) || 0;
   const declining = parseInt(breadth.declining) || 0;
   const unchanged = parseInt(breadth.unchanged) || 0;
@@ -928,14 +928,14 @@ function TopMoversCard({ data }) {
           {(data.gainers || []).length > 6 && <span className="t-xs muted"> ({gainers.length} of {(data.gainers || []).length})</span>}
         </div>
         {gainers.length === 0 ? <div className="muted t-xs">—</div> : gainers.map((g, i) => (
-          <Mover key={i} symbol={g.symbol} chg={g.change_pct || g.changePercent} dir="up" />
+          <Mover key={i} symbol={g.symbol} chg={g.pct_change ?? g.change_pct ?? g.changePercent} dir="up" />
         ))}
         <div className="eyebrow down" style={{ marginTop: 'var(--space-3)', marginBottom: 6, borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--space-3)' }}>
           Losers
           {(data.losers || []).length > 6 && <span className="t-xs muted"> ({losers.length} of {(data.losers || []).length})</span>}
         </div>
         {losers.length === 0 ? <div className="muted t-xs">—</div> : losers.map((l, i) => (
-          <Mover key={i} symbol={l.symbol} chg={l.change_pct || l.changePercent} dir="down" />
+          <Mover key={i} symbol={l.symbol} chg={l.pct_change ?? l.change_pct ?? l.changePercent} dir="down" />
         ))}
       </div>
     </div>
