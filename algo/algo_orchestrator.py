@@ -721,17 +721,15 @@ class Orchestrator:
             logger.info("[CRITICAL] Running critical data checks...")
             try:
                 with DatabaseContext('read') as cur:
-                    # FIXED Issue #23: Validate required tables exist
+                    # Validate required tables exist (schema check)
                     if not self._validate_required_tables(cur):
                         logger.error("[HALT] Required tables missing — cannot proceed")
                         return self._final_report()
 
-                    # FIXED Issue #9: Check data freshness before patrol
-                    if not self._check_data_freshness(cur):
-                        logger.error("[HALT] Data freshness check failed — cannot proceed")
-                        return self._final_report()
-
-                    # Check data patrol for quality issues
+                    # Data patrol for critical quality issues only (schema, data corruption)
+                    # Data freshness is handled by Phase 1 which correctly distinguishes
+                    # halt-critical tables (price_daily, market_health, trend_template) from
+                    # observe-only tables (buy_sell_daily, signal_quality_scores).
                     if not self._check_data_patrol(cur):
                         logger.error("[HALT] Data patrol check failed — cannot proceed")
                         return self._final_report()
