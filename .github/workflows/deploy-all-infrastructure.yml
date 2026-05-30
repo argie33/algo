@@ -327,19 +327,14 @@ jobs:
         run: |
           # Build loader failure handler Lambda ZIP for Step Functions error handling
           # Must run before Terraform so the ZIP is available for filebase64sha256()
-          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/loader_failure_handler
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda
           TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda
           PKG_DIR=/tmp/loader-failure-handler-pkg
 
           mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
 
-          # Copy Lambda function code
-          cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
-
-          # Install dependencies (minimal for this Lambda)
-          python3.12 -m pip install boto3 \
-            -t $PKG_DIR/ \
-            --no-cache-dir --quiet
+          # Copy Lambda function code (loader_failure_handler.py is in lambda/ root)
+          cp $SOURCE_LAMBDA/loader_failure_handler.py $PKG_DIR/lambda_function.py
 
           # Create ZIP in the location where Terraform expects it
           rm -f $TERRAFORM_LAMBDA/loader_failure_handler.zip
