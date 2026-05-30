@@ -708,24 +708,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       PipelineSuccess = {
         Type = "Succeed"
       }
-
-      # ── Error handler: alert and fail ─────────────────────────────────────
-      PipelineFailed = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::sns:publish"
-        Parameters = {
-          TopicArn    = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:placeholder"
-          "Message.$" = "States.Format('EOD pipeline FAILED\n\nError: {}\n\nCheck Step Functions console: https://${var.aws_region}.console.aws.amazon.com/states/home?region=${var.aws_region}#/statemachines', $.error.Cause)"
-          Subject     = "ALERT: EOD Pipeline Failed - Orchestrator did not run"
-        }
-        Next = "PipelineFailedEnd"
-      }
-
-      PipelineFailedEnd = {
-        Type  = "Fail"
-        Error = "PipelineFailed"
-        Cause = "One or more pipeline steps failed. Check Step Functions execution history."
-      }
     }
   })
 

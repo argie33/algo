@@ -402,8 +402,6 @@ def _validate_pre_trade_data_quality(
 
 def run(
     config: Any,
-    get_conn: Callable,
-    put_conn: Callable,
     run_date: _date,
     dry_run: bool,
     alerts: AlertManager,
@@ -417,8 +415,6 @@ def run(
 
     Args:
         config: Configuration object
-        get_conn: Function to get database connection
-        put_conn: Function to return database connection
         run_date: Date for this run
         dry_run: Whether running in dry-run mode
         alerts: AlertManager instance
@@ -495,27 +491,13 @@ def run(
                            f"(min_score={min_score}, min_grade={min_grade})")
 
         # Determine open slots
-        conn = None
-        cur = None
         try:
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
-            open_count = cur.fetchone()[0] or 0
+            with DatabaseContext('read') as cur:
+                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
+                open_count = cur.fetchone()[0] or 0
         except Exception as e:
             logger.warning(f"Exception: {e}")
             open_count = 0
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-                    logger.error(f"Unhandled exception: {e}")
-            if conn:
-                try:
-                    put_conn(conn)
-                except Exception as e:
-                    logger.error(f"Unhandled exception: {e}")
 
         max_positions = int(config.get('max_positions', 12))
         open_slots = max(0, max_positions - open_count)
@@ -710,9 +692,7 @@ def run(
         # Persist dry-run results if applicable
         if dry_run and trades_to_enter:
             try:
-                conn = get_conn()
-                try:
-                    cur = conn.cursor()
+                with DatabaseContext('write') as cur:
                     # Log all proposed trades for dry-run audit
                     for i, trade in enumerate(trades_to_enter[:open_slots]):
                         cur.execute("""
@@ -728,18 +708,9 @@ def run(
                             run_date,
                             'proposed'
                         ))
-                    conn.commit()
                     logger.info(f"Dry-run: Persisted {len(trades_to_enter[:open_slots])} proposed trades for audit")
-                finally:
-                    cur.close()
             except Exception as e:
                 logger.warning(f"Could not persist dry-run results: {e}")
-            finally:
-                try:
-                    put_conn(conn)
-                except Exception as e:
-                    logger.debug(f"Exception (expected): {e}")
-                    pass
 
         # Circuit breaker: if >50% of trades fail in a batch, halt.
         # Exclude blocked (duplicates) from the denominator — they are expected
