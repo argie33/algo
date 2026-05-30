@@ -595,6 +595,38 @@ variable "alert_webhook_url" {
   sensitive   = true
 }
 
+variable "alert_smtp_host" {
+  description = "SMTP server hostname for email alerts (e.g., smtp.gmail.com)"
+  type        = string
+  default     = ""
+}
+
+variable "alert_smtp_port" {
+  description = "SMTP server port (typically 587 for TLS, 465 for SSL)"
+  type        = number
+  default     = 587
+}
+
+variable "alert_smtp_user" {
+  description = "SMTP username for email alerts"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "alert_smtp_password" {
+  description = "SMTP password for email alerts"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "alert_smtp_from" {
+  description = "From email address for SMTP alerts"
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Alpaca Trading Configuration
 # ============================================================

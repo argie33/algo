@@ -140,8 +140,7 @@ resource "aws_lambda_function" "api" {
   }
 
   depends_on = [
-    aws_cloudwatch_log_group.api_lambda,
-    aws_cloudfront_distribution.frontend
+    aws_cloudwatch_log_group.api_lambda
   ]
 
   lifecycle {
@@ -165,16 +164,16 @@ resource "aws_apigatewayv2_api" "main" {
   name          = "${var.project_name}-api-${var.environment}"
   protocol_type = "HTTP"
 
-  # CORS configuration must include CloudFront domain when enabled
-  # API Gateway performs CORS validation before requests reach Lambda
+  # CORS configuration for API Gateway
+  # For CloudFront requests: CloudFront handles CORS (origin_request_policy in cache behavior)
+  # For direct API calls: localhost origins for development
+  # NOTE: Removed CloudFront domain from CORS to avoid circular dependency with CloudFront resource
+  #       CloudFront is configured as a custom origin with proper CORS headers forwarding
   cors_configuration {
-    allow_origins = concat(
-      [
-        "http://localhost:3000",
-        "http://localhost:5173"
-      ],
-      var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : []
-    )
+    allow_origins = [
+      "http://localhost:3000",
+      "http://localhost:5173"
+    ]
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
     expose_headers    = ["Content-Length", "Content-Type"]

@@ -304,6 +304,11 @@ module "services" {
   dev_mode                               = local.dev_mode
   alert_email_to                         = var.alert_email_to
   alert_webhook_url                      = var.alert_webhook_url
+  alert_smtp_host                        = var.alert_smtp_host
+  alert_smtp_port                        = var.alert_smtp_port
+  alert_smtp_user                        = var.alert_smtp_user
+  alert_smtp_password                    = var.alert_smtp_password
+  alert_smtp_from                        = var.alert_smtp_from
   task_execution_role_arn                = module.iam.ecs_task_execution_role_arn
   task_role_arn                          = module.iam.ecs_task_role_arn
   common_tags                            = local.common_tags
