@@ -1072,13 +1072,16 @@ class TradeExecutor:
                         return None
                     pv = data.get('portfolio_value') or data.get('equity')
                     if pv is not None:
-                        return float(pv)
+                        pv_float = float(pv)
+                        logger.debug(f"[PORTFOLIO] Live Alpaca equity: ${pv_float:.2f}")
+                        return pv_float
             except Exception as e:
                 # Alpaca API failed, will fall back to snapshot
-                logger.warning(f"Could not fetch Alpaca account value: {e}")
+                logger.warning(f"[PORTFOLIO] Could not fetch Alpaca account value: {e}")
         try:
             if not self.cur:
                 # Called before connect(); DB fallback unavailable — don't crash
+                logger.debug("[PORTFOLIO] DB cursor not available for snapshot fallback")
                 return None
             self.cur.execute(
                 "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots "
@@ -1088,9 +1091,11 @@ class TradeExecutor:
             if row and row[0]:
                 pv = float(row[0])
                 snapshot_date = row[1]
+                logger.debug(f"[PORTFOLIO] Using snapshot from {snapshot_date}: ${pv:.2f}")
                 # Alert if snapshot is stale (more than 1 day old)
                 from datetime import datetime, timedelta
                 if snapshot_date and (datetime.now(timezone.utc).date() - snapshot_date).days > 1:
+                    logger.warning(f"[PORTFOLIO] STALE SNAPSHOT: from {snapshot_date}")
                     try:
                         notify(
                             severity='warning',
@@ -1101,7 +1106,8 @@ class TradeExecutor:
                         logger.debug(f"Failed to send portfolio staleness notification: {notif_e}")
                 return pv
         except Exception as e:
-            logger.warning(f"Could not fetch portfolio snapshot: {e}")
+            logger.error(f"[PORTFOLIO] Could not fetch portfolio snapshot: {e}")
+        logger.error(f"[PORTFOLIO] CRITICAL: Could not determine portfolio value - trades will be blocked")
         return None
 
     def _send_alpaca_order(self, symbol: str, shares: float, entry_price: float, stop_loss_price: Optional[float] = None,
