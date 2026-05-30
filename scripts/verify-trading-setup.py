@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-Verify trading setup - check if orchestrator can actually execute live trades.
-
-This script checks:
-1. Market data freshness (Phase 1 requirement)
-2. Lambda environment configuration (execution mode, live trading flag)
-3. Alpaca credentials availability
-4. Recent trade execution status
-"""
 
 import os
 import sys
@@ -81,7 +72,6 @@ def check_data_freshness():
         print(f"  [ERROR] ERROR: {e}")
         return False
 
-
 def check_lambda_environment():
     """Check Lambda environment variables for live trading."""
     try:
@@ -137,7 +127,6 @@ def check_lambda_environment():
     except Exception as e:
         print(f"  [FAIL] ERROR: Cannot access Lambda (credentials invalid?): {e}")
         return False
-
 
 def check_recent_trades():
     """Check what trades have been executed and in what mode."""
@@ -216,7 +205,6 @@ def check_recent_trades():
         print(f"  [FAIL] ERROR: {e}")
         return False
 
-
 def check_alpaca_credentials():
     """Verify Alpaca credentials are available."""
     try:
@@ -239,7 +227,6 @@ def check_alpaca_credentials():
     except Exception as e:
         print(f"  [FAIL] ERROR: {e}")
         return False
-
 
 def main():
     print("\n" + "=" * 70)
@@ -292,7 +279,6 @@ def main():
             print("  2. Redeploy Lambda or update environment manually")
             print("     git push origin main  # Triggers GitHub Actions deployment")
         return 1
-
 
 if __name__ == '__main__':
     from datetime import timedelta
