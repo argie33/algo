@@ -458,6 +458,19 @@ jobs:
             echo "[WARN]  API Gateway not found yet -- will be created by Terraform"
           fi
 
+          # Import db-init Lambda function if it exists in AWS
+          echo ""
+          echo "Querying AWS for db-init Lambda function..."
+          DB_INIT_FUNCTION=$(aws lambda get-function \
+            --function-name "${PROJECT_NAME}-db-init-${ENVIRONMENT}" \
+            --query 'Configuration.FunctionArn' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          if [ -n "$DB_INIT_FUNCTION" ] && [ "$DB_INIT_FUNCTION" != "None" ]; then
+            echo "Found db-init Lambda: $DB_INIT_FUNCTION"
+            import_if_missing "module.database.aws_lambda_function.db_init" "${PROJECT_NAME}-db-init-${ENVIRONMENT}"
+          else
+            echo "db-init Lambda not found -- Terraform will create it"
+          fi
+
       - name: Terraform Plan
         run: |
           terraform plan \
