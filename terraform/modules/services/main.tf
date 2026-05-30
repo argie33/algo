@@ -106,24 +106,30 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
+      # Database configuration (dynamic, all variables required for fallback path)
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
-      # FIXED Issue #10: Use RDS Proxy endpoint if available, otherwise extract hostname from RDS endpoint
-      DB_HOST = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
-      DB_PORT = "5432"
-      DB_NAME = var.rds_database_name
-      DB_USER = var.rds_username
-      DB_SSL  = "require"
-      # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
-      ALGO_SECRETS_ARN     = var.algo_secrets_arn
-      APCA_API_BASE_URL    = var.alpaca_api_base_url
+      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_PORT       = "5432"
+      DB_NAME       = var.rds_database_name
+      DB_USER       = var.rds_username
+      DB_SSL        = "require"
+      # AWS region for Secrets Manager and credential manager
+      AWS_REGION = var.aws_region
+      # Frontend configuration (dynamic based on CloudFront enabled)
+      CLOUDFRONT_DOMAIN = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
+      FRONTEND_URL      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
+      FRONTEND_ORIGIN   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
+      ALLOWED_ORIGINS   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000" : "http://localhost:5173,http://localhost:3000"
+      # Cognito configuration (for JWT validation)
+      COGNITO_REGION       = var.aws_region
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
-      NODE_ENV             = var.node_env
-      CLOUDFRONT_DOMAIN    = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
-      FRONTEND_URL         = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
-      FRONTEND_ORIGIN      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
-      ALLOWED_ORIGINS      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000" : "http://localhost:5173,http://localhost:3000"
+      # Alpaca configuration (keys fetched at runtime from ALGO_SECRETS_ARN)
+      ALGO_SECRETS_ARN     = var.algo_secrets_arn
+      APCA_API_BASE_URL    = var.alpaca_api_base_url
+      # Frontend framework configuration
+      NODE_ENV = var.node_env
       # Data patrol task configuration (for /api/algo/patrol endpoint)
       ECS_CLUSTER_ARN            = var.ecs_cluster_arn
       PATROL_TASK_DEFINITION_ARN = var.patrol_task_definition_arn
@@ -539,27 +545,31 @@ resource "aws_lambda_function" "algo" {
 
   environment {
     variables = {
+      # Database configuration (all vars required for fallback path when Secrets Manager unavailable)
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
-      # FIXED Issue #10: Use RDS Proxy endpoint if available, otherwise extract hostname from RDS endpoint
-      DB_HOST = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
-      DB_PORT = "5432"
-      DB_NAME = var.rds_database_name
-      DB_USER = var.rds_username
-      DB_SSL  = "require"
-      # Alpaca keys are fetched at runtime from ALGO_SECRETS_ARN — not stored as plaintext env vars
-      ALGO_SECRETS_ARN       = var.algo_secrets_arn
-      ALERTS_SNS_TOPIC       = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
-      EXECUTION_MODE         = var.execution_mode
-      ORCHESTRATOR_DRY_RUN   = tostring(var.orchestrator_dry_run)
-      ALGO_LIVE_TRADING      = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
-      APCA_API_BASE_URL      = var.alpaca_api_base_url
-      ALPACA_PAPER_TRADING   = tostring(var.alpaca_paper_trading)
-      LOG_LEVEL              = var.orchestrator_log_level
+      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_PORT       = "5432"
+      DB_NAME       = var.rds_database_name
+      DB_USER       = var.rds_username
+      DB_SSL        = "require"
+      # AWS region for Secrets Manager and credential manager
+      AWS_REGION = var.aws_region
+      # Orchestrator execution configuration (MATCHES what code expects)
+      ORCHESTRATOR_EXECUTION_MODE = var.execution_mode
+      ORCHESTRATOR_DRY_RUN        = tostring(var.orchestrator_dry_run)
+      LOG_LEVEL                   = var.orchestrator_log_level
+      # Alpaca configuration (keys fetched at runtime from ALGO_SECRETS_ARN)
+      ALGO_SECRETS_ARN    = var.algo_secrets_arn
+      ALGO_LIVE_TRADING   = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
+      APCA_API_BASE_URL   = var.alpaca_api_base_url
+      ALPACA_PAPER_TRADING = tostring(var.alpaca_paper_trading)
+      # Data quality and monitoring
       DATA_PATROL_ENABLED    = tostring(var.data_patrol_enabled)
       DATA_PATROL_TIMEOUT_MS = tostring(var.data_patrol_timeout_ms)
       DEV_MODE               = var.dev_mode
-      # Alert configuration (email, Slack webhooks, SMS)
+      # Alerting configuration (SNS, email, webhooks)
+      ALERTS_SNS_TOPIC  = var.sns_alerts_enabled ? aws_sns_topic.algo_alerts[0].arn : ""
       ALERT_EMAIL_TO    = var.alert_email_to
       ALERT_WEBHOOK_URL = var.alert_webhook_url
     }

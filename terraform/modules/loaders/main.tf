@@ -637,10 +637,12 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "LOADER_TIMEOUT"
           value = tostring(each.value.timeout)
         },
+        # AWS configuration (region required by credential_manager)
         {
           name  = "AWS_REGION"
           value = var.aws_region
         },
+        # Database configuration (all required for get_db_config() in credential_manager)
         {
           name  = "DB_HOST"
           value = var.db_host
@@ -654,9 +656,36 @@ resource "aws_ecs_task_definition" "loader" {
           value = var.db_name
         },
         {
+          name  = "DB_USER"
+          value = var.db_user
+        },
+        {
+          name  = "DB_SSL"
+          value = "require"
+        },
+        {
+          name  = "DB_SECRET_ARN"
+          value = var.rds_credentials_secret_arn
+        },
+        # Alpaca configuration
+        {
           name  = "ALPACA_PAPER_TRADING"
           value = tostring(var.alpaca_paper_trading)
         },
+        {
+          name  = "APCA_API_BASE_URL"
+          value = var.alpaca_api_base_url
+        },
+        # Execution configuration
+        {
+          name  = "ORCHESTRATOR_EXECUTION_MODE"
+          value = var.execution_mode
+        },
+        {
+          name  = "ORCHESTRATOR_DRY_RUN"
+          value = tostring(var.orchestrator_dry_run)
+        },
+        # Data loading
         {
           name  = "BACKFILL_DAYS"
           value = tostring(var.backfill_days)
@@ -669,14 +698,7 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "SEC_USER_AGENT"
           value = "algo-trading argeropolos@gmail.com"
         },
-        {
-          name  = "ORCHESTRATOR_EXECUTION_MODE"
-          value = var.execution_mode
-        },
-        {
-          name  = "ORCHESTRATOR_DRY_RUN"
-          value = tostring(var.orchestrator_dry_run)
-        },
+        # Alerting
         {
           name  = "ALERT_EMAIL_TO"
           value = var.alert_email_to

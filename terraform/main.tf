@@ -199,6 +199,7 @@ module "loaders" {
   db_host                     = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
   db_port                     = local.db_port
   db_name                     = var.rds_db_name
+  db_user                     = module.database.rds_username
   ecr_repository_uri          = module.compute.ecr_repository_url
   vpc_id                      = module.vpc.vpc_id
   common_tags                 = local.common_tags
@@ -206,6 +207,7 @@ module "loaders" {
   fred_api_key                = var.fred_api_key
   algo_secrets_arn            = module.database.algo_secrets_arn
   alpaca_paper_trading        = var.alpaca_paper_trading
+  alpaca_api_base_url         = var.alpaca_api_base_url
   execution_mode              = var.execution_mode
   orchestrator_dry_run        = var.orchestrator_dry_run
   orchestrator_log_level      = var.orchestrator_log_level

@@ -71,6 +71,12 @@ variable "db_name" {
   type        = string
 }
 
+variable "db_user" {
+  description = "RDS database username"
+  type        = string
+  default     = "stocks"
+}
+
 variable "ecs_tasks_sg_id" {
   description = "Security group ID for ECS tasks (must allow egress to RDS + internet)"
   type        = string
@@ -113,6 +119,12 @@ variable "alpaca_paper_trading" {
   description = "Enable Alpaca paper trading mode (true for testing, false for live)"
   type        = bool
   default     = true
+}
+
+variable "alpaca_api_base_url" {
+  description = "Alpaca API base URL (https://paper-api.alpaca.markets for paper, https://api.alpaca.markets for live)"
+  type        = string
+  default     = "https://paper-api.alpaca.markets"
 }
 
 variable "execution_mode" {
