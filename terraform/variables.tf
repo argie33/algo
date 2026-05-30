@@ -411,9 +411,9 @@ variable "algo_lambda_code_file" {
 # ============================================================
 
 variable "api_gateway_stage_name" {
-  description = "API Gateway stage name"
+  description = "API Gateway stage name. Use $default so rawPath preserves /api/ prefix for Lambda routing."
   type        = string
-  default     = "api"
+  default     = "$default"
 }
 
 variable "api_gateway_logging_enabled" {

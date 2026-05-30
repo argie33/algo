@@ -231,12 +231,12 @@ variable "api_lambda_reserved_concurrency" {
 # ============================================================
 
 variable "api_gateway_stage_name" {
-  description = "API Gateway stage name"
+  description = "API Gateway stage name. Use $default so rawPath preserves /api/ prefix for Lambda routing."
   type        = string
-  default     = "api"
+  default     = "$default"
   validation {
-    condition     = can(regex("^[a-zA-Z0-9_-]+$", var.api_gateway_stage_name))
-    error_message = "Stage name must contain only alphanumeric characters, hyphens, and underscores"
+    condition     = can(regex("^(\\$default|[a-zA-Z0-9_-]+)$", var.api_gateway_stage_name))
+    error_message = "Stage name must be $default or contain only alphanumeric characters, hyphens, and underscores"
   }
 }
 
