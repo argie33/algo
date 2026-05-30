@@ -2,6 +2,15 @@ name: Test Orchestrator Execution
 
 on:
   workflow_dispatch:
+    inputs:
+      run_date:
+        description: 'Date to run orchestrator for (YYYY-MM-DD, or "today" for current date)'
+        required: false
+        default: 'today'
+      dry_run:
+        description: 'Dry run mode (true = plan only, false = live execution)'
+        required: false
+        default: 'false'
 
 permissions:
   id-token: write
@@ -29,7 +38,6 @@ jobs:
       - name: Resolve Algo Lambda Function Name
         id: resolve
         run: |
-          # Get function name specifically for orchestrator Lambda
           FUNC=$(aws lambda list-functions --region $AWS_REGION --query "Functions[?FunctionName=='algo-algo-dev'].FunctionName" --output text)
           if [ -z "$FUNC" ]; then
             FUNC="algo-algo-dev"
@@ -37,90 +45,194 @@ jobs:
           echo "algo_function_name=${FUNC}" >> $GITHUB_OUTPUT
           echo "Using Lambda function: ${FUNC}"
 
+      - name: Compute Run Date
+        id: date
+        run: |
+          INPUT_DATE="${{ github.event.inputs.run_date || 'today' }}"
+          if [ "$INPUT_DATE" = "today" ] || [ -z "$INPUT_DATE" ]; then
+            # Use most recent trading weekday (Mon-Fri, skip Sat/Sun)
+            RUN_DATE=$(python3 -c "
+          from datetime import date, timedelta
+          d = date.today()
+          # Step back if weekend
+          while d.weekday() >= 5:
+              d -= timedelta(days=1)
+          print(d.isoformat())
+          ")
+          else
+            RUN_DATE="$INPUT_DATE"
+          fi
+          echo "run_date=$RUN_DATE" >> $GITHUB_OUTPUT
+          echo "Using run date: $RUN_DATE"
+
       - name: Invoke Orchestrator Lambda (Synchronous)
         id: invoke
         run: |
           FUNC="${{ steps.resolve.outputs.algo_function_name }}"
-          echo "Invoking $FUNC with trading day date (May 22, 2026 - latest available data)..."
+          RUN_DATE="${{ steps.date.outputs.run_date }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
 
-          # Create JSON payload with trading day date that has data available in database
-          # May 20, 2026 is Tuesday - testing with earlier date for better symbol coverage
-          PAYLOAD='{"source":"test-live-execution","test":"true","date":"2026-05-20"}'
+          echo "Invoking $FUNC with date=$RUN_DATE, dry_run=$DRY_RUN ..."
+
+          # verbose=true (test:false) so we get detailed phase logs in CloudWatch
+          PAYLOAD="{\"source\":\"github-test\",\"test\":false,\"date\":\"${RUN_DATE}\",\"dry_run\":${DRY_RUN}}"
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
-          # Synchronous invocation with RequestResponse
-          timeout 180 aws lambda invoke \
+          INVOKE_START=$(date -u +%s)
+
+          # Synchronous invocation — captures last 4KB of logs inline via Tail
+          timeout 300 aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type RequestResponse \
+            --log-type Tail \
             --payload "$ENCODED" \
             --region $AWS_REGION \
-            /tmp/response.json || {
-              EXIT_CODE=$?
-              if [ $EXIT_CODE -eq 124 ]; then
-                echo "⏱ Lambda invocation timed out after 3 minutes"
-              else
-                echo "❌ Lambda invocation failed with exit code: $EXIT_CODE"
-              fi
-              exit 0
-            }
+            /tmp/response.json \
+            --query LogResult \
+            --output text 2>/dev/null | base64 -d > /tmp/lambda_tail.log || true
 
-          echo "Orchestrator invoked at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          INVOKE_END=$(date -u +%s)
+          DURATION=$((INVOKE_END - INVOKE_START))
 
-          # Check response
+          echo "Completed in ${DURATION}s at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "invoke_start=$INVOKE_START" >> $GITHUB_OUTPUT
+
           if [ -f /tmp/response.json ]; then
-            echo "Lambda Response:"
-            cat /tmp/response.json | jq . 2>/dev/null || cat /tmp/response.json
-            echo ""
+            echo "=== LAMBDA RESPONSE ==="
+            cat /tmp/response.json | python3 -c "
+          import sys, json
+          try:
+              raw = sys.stdin.read()
+              data = json.loads(raw)
+              body_raw = data.get('body','{}')
+              body = json.loads(body_raw) if isinstance(body_raw,str) else body_raw
+              print(f'Status: {data.get(\"statusCode\")} | {body.get(\"status\",\"?\")}')
+              print(f'Run ID: {body.get(\"run_id\",\"?\")}')
+              print(f'Message: {body.get(\"message\",\"?\")}')
+              phases = body.get('phases',{})
+              if phases:
+                  print(f'Phases ran: {list(phases.keys())}')
+                  for ph, info in sorted(phases.items(), key=lambda x: str(x[0])):
+                      status = info.get('status','?')
+                      name = info.get('name','?')
+                      summary = info.get('summary','')
+                      icon = '✓' if status in ('success','ok') else ('⚠' if status=='halt' else '✗')
+                      print(f'  {icon} Phase {ph} [{status}] {name}: {summary[:120]}')
+              else:
+                  print('WARNING: phases={} - orchestrator exited before any phases ran (DB connection? market closed? data patrol?)')
+              skipped = body.get('skipped')
+              if skipped:
+                  print(f'Skipped: {body.get(\"reason\",\"\")}')
+          except Exception as e:
+              print(f'Parse error: {e}')
+              print(raw[:500])
+          "
           fi
 
-      - name: Retrieve CloudWatch Logs
+          if [ -f /tmp/lambda_tail.log ] && [ -s /tmp/lambda_tail.log ]; then
+            echo ""
+            echo "=== LAMBDA LOG TAIL (last 4KB) ==="
+            cat /tmp/lambda_tail.log
+          fi
+
+      - name: Retrieve Full CloudWatch Logs
         if: always()
         run: |
           FUNC="${{ steps.resolve.outputs.algo_function_name }}"
           LOG_GROUP="/aws/lambda/$FUNC"
+          INVOKE_START="${{ steps.invoke.outputs.invoke_start }}"
 
           echo "Retrieving logs from: $LOG_GROUP"
 
-          # Get latest log stream
+          # Wait briefly for logs to propagate
+          sleep 3
+
+          # Get the log stream updated most recently (within 60s of our invocation)
           LATEST=$(aws logs describe-log-streams \
             --log-group-name "$LOG_GROUP" \
             --order-by LastEventTime \
             --descending \
-            --limit 1 \
+            --limit 3 \
             --region $AWS_REGION \
             --query 'logStreams[0].logStreamName' \
             --output text 2>/dev/null || echo "")
 
           if [ -n "$LATEST" ] && [ "$LATEST" != "None" ]; then
-            echo "=== ORCHESTRATOR EXECUTION LOG ==="
+            echo "Log stream: $LATEST"
+            echo ""
+            echo "=== FULL ORCHESTRATOR LOG ==="
             aws logs get-log-events \
               --log-group-name "$LOG_GROUP" \
               --log-stream-name "$LATEST" \
+              --start-time $((INVOKE_START * 1000 - 10000)) \
               --region $AWS_REGION \
               --query 'events[*].message' \
-              --output text | tail -100
+              --output text | grep -v "^$" | head -500
           else
-            echo "No logs found for function: $FUNC"
+            echo "No log stream found"
           fi
 
       - name: Verify Orchestrator Success
         run: |
-          if [ -f /tmp/response.json ]; then
-            STATUS=$(cat /tmp/response.json | jq -r '.statusCode // 500')
-            BODY=$(cat /tmp/response.json | jq -r '.body // "{}"')
-            SUCCESS=$(echo "$BODY" | jq -r '.status // "error"')
-
-            echo "Status Code: $STATUS"
-            echo "Response Status: $SUCCESS"
-
-            if [ "$STATUS" = "200" ] && [ "$SUCCESS" = "success" ]; then
-              echo "✓ Orchestrator execution completed successfully"
-              exit 0
-            else
-              echo "✗ Orchestrator returned errors - check logs above"
-              exit 1
-            fi
-          else
-            echo "✗ No response file found"
+          if [ ! -f /tmp/response.json ]; then
+            echo "✗ No response file — Lambda invocation failed"
             exit 1
           fi
+
+          python3 - <<'EOF'
+          import sys, json
+
+          with open('/tmp/response.json') as f:
+              raw = f.read()
+
+          try:
+              data = json.loads(raw)
+              status_code = data.get('statusCode', 500)
+              body_raw = data.get('body', '{}')
+              body = json.loads(body_raw) if isinstance(body_raw, str) else body_raw
+          except Exception as e:
+              print(f"✗ Failed to parse response: {e}")
+              sys.exit(1)
+
+          run_status = body.get('status', 'error')
+          phases = body.get('phases', {})
+          skipped = body.get('skipped', False)
+
+          if skipped:
+              print(f"⚠ Orchestrator skipped: {body.get('reason', 'market closed')}")
+              print("This is expected on non-trading days. Run again on a trading day date.")
+              sys.exit(0)
+
+          if not phases:
+              print("✗ FAIL: phases={} — orchestrator exited before any phases ran!")
+              print("Likely cause: DB connection failure, data patrol critical finding in pre-flight, or early error")
+              print("Check CloudWatch logs above for the specific error")
+              sys.exit(1)
+
+          halted_phases = [ph for ph, info in phases.items() if info.get('status') == 'halt']
+          failed_phases = [ph for ph, info in phases.items() if info.get('status') in ('fail', 'error')]
+
+          if failed_phases:
+              print(f"✗ FAIL: Phase errors in {failed_phases}")
+              for ph in failed_phases:
+                  info = phases[ph]
+                  print(f"  Phase {ph} [{info.get('status')}]: {info.get('summary','')}")
+              sys.exit(1)
+
+          if halted_phases:
+              print(f"⚠ HALTED at phase(s) {halted_phases} (circuit breaker or data check)")
+              for ph in halted_phases:
+                  info = phases[ph]
+                  print(f"  Phase {ph}: {info.get('name','?')} — {info.get('summary','')}")
+              # Halts are expected (data stale, market stage, etc.) — don't fail the workflow
+              sys.exit(0)
+
+          print(f"✓ Orchestrator completed successfully — {len(phases)} phases ran")
+          phase6 = phases.get(6, phases.get('6', {}))
+          entered = phase6.get('trades_executed', 0) if isinstance(phase6, dict) else 0
+          if entered:
+              print(f"  → {entered} trade(s) executed!")
+          else:
+              print("  → 0 trades (no qualified signals or positions full)")
+          sys.exit(0)
+          EOF

@@ -95,8 +95,6 @@ def run(
 
     Args:
         config: Configuration object
-        get_conn: Function to get database connection
-        put_conn: Function to return database connection
         run_date: Date for this run
         dry_run: Whether running in dry-run mode
         alerts: AlertManager instance
@@ -128,23 +126,11 @@ def run(
         eval_date = pipeline._snapshot_eval_date or run_date
 
         # Signal count waterfall report (for visibility on where signals die)
-        conn = None
-        cur = None
         try:
-            conn = get_conn()
-            cur = conn.cursor()
-            _report_signal_waterfall(cur, eval_date, verbose, len(qualified))
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception as e:
-                    logger.error(f"Unhandled exception: {e}")
-            if conn:
-                try:
-                    put_conn(conn)
-                except Exception as e:
-                    logger.error(f"Unhandled exception: {e}")
+            with DatabaseContext('read') as cur:
+                _report_signal_waterfall(cur, eval_date, verbose, len(qualified))
+        except Exception as e:
+            logger.warning(f"Signal waterfall report failed (non-blocking): {e}")
 
         log_phase_result_fn(
             5, 'signal_generation', 'success',
