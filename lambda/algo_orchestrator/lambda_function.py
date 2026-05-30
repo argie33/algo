@@ -100,17 +100,18 @@ def lambda_handler(event, context):
             except (ValueError, TypeError):
                 logger.warning(f"Invalid date format: {run_date_str}, using today")
 
+        # Set execution_mode in environment before creating orchestrator
+        # (orchestrator.__init__ will pick it up from ORCHESTRATOR_EXECUTION_MODE)
+        if execution_mode != 'auto':
+            os.environ['ORCHESTRATOR_EXECUTION_MODE'] = execution_mode
+            logger.info(f"ORCHESTRATOR_EXECUTION_MODE set to {execution_mode} from event")
+
         # Create orchestrator instance
         orchestrator = Orchestrator(
             run_date=run_date,
             dry_run=dry_run,
             verbose=not is_test,
         )
-
-        # Apply execution mode from event (overrides ORCHESTRATOR_EXECUTION_MODE env var)
-        if execution_mode != 'auto':
-            orchestrator.config['execution_mode'] = execution_mode
-            logger.info(f"Execution mode set to {execution_mode} from event")
 
         # Run the orchestrator
         logger.info(f"Starting orchestrator run")
