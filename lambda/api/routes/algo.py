@@ -157,7 +157,6 @@ def _get_algo_status(cur) -> Dict:
             if not row:
                 return json_response(200, {'status': 'no_runs_yet', 'last_run': None, 'portfolio': {}})
 
-            # Attach latest portfolio snapshot so the dashboard card can show live values
             portfolio = {}
             try:
                 cur.execute("""
@@ -189,8 +188,9 @@ def _get_algo_status(cur) -> Dict:
                 'portfolio': portfolio,
                 'data_freshness': freshness,
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            return handle_db_error(e, logger, 'fetch algo status')
+        except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch algo status')
 
 def _get_algo_trades(cur, limit: int = 200) -> Dict:
@@ -582,12 +582,9 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             curve = cur.fetchall()
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
             return list_response([dict(c) for c in reversed(curve) if c], data_freshness=freshness)
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found (equity curve): {e}', extra={'operation': 'fetch equity curve'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found (equity curve): {e}', extra={'operation': 'fetch equity curve'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable (equity curve): {e}', extra={'operation': 'fetch equity curve'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error (equity curve): {e}', extra={'operation': 'fetch equity curve'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -647,12 +644,9 @@ def _get_data_status(cur) -> Dict:
                 'critical_stale': critical_stale,
                 'as_of': datetime.now(timezone.utc).isoformat(),
             })
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found (data status): {e}', extra={'operation': 'fetch data status'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found (data status): {e}', extra={'operation': 'fetch data status'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable (data status): {e}', extra={'operation': 'fetch data status'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error (data status): {e}', extra={'operation': 'fetch data status'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -835,12 +829,9 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                     'cash_ok': cash_ok
                 }
             })
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'analyze pre trade impact'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'analyze pre trade impact'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'analyze pre trade impact'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'analyze pre trade impact'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -917,12 +908,9 @@ def _trigger_data_patrol(cur) -> Dict:
             else:
                 logger.error(f"AWS error triggering patrol: {error_code}", exc_info=True)
                 return error_response(503, 'service_unavailable', 'Unable to trigger patrol service')
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'trigger data patrol'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'trigger data patrol'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'trigger data patrol'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'trigger data patrol'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -947,12 +935,9 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
             """, (limit, offset))
             findings = cur.fetchall()
             return list_response([dict(f) for f in findings], total=total)
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get patrol log'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get patrol log'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get patrol log'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get patrol log'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1020,12 +1005,9 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
             """, (cutoff_date, days, cutoff_date))
             rotation = cur.fetchall()
             return list_response([dict(r) for r in rotation])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get sector rotation'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get sector rotation'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get sector rotation'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get sector rotation'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1074,18 +1056,15 @@ def _get_sector_breadth(cur) -> Dict:
             """)
             breadth = cur.fetchall()
             return list_response([dict(b) for b in breadth])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get sector breadth'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get sector breadth'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.warning(f'Table/column not ready (sector breadth): {e}')
+            return list_response([])
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get sector breadth'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
+            return list_response([])
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector breadth', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
@@ -1114,12 +1093,9 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None) -> Dict:
             """, query_params)
             scores = cur.fetchall()
             return list_response([dict(s) for s in scores])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get swing scores'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get swing scores'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get swing scores'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get swing scores'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1147,12 +1123,9 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
             """, (cutoff_date,))
             history = cur.fetchall()
             return list_response([dict(h) for h in history])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get swing scores history'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get swing scores history'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get swing scores history'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get swing scores history'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1240,12 +1213,9 @@ def _get_rejection_funnel(cur) -> Dict:
                     'pass_rate_pct': round((high_quality_count / initial_count * 100), 2) if initial_count else 0
                 }
             })
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get rejection funnel'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get rejection funnel'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get rejection funnel'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get rejection funnel'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1468,12 +1438,9 @@ def _get_algo_evaluate(cur) -> Dict:
                     'unrealized_pnl': float(unrealized_pnl or 0)
                 }
             })
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo evaluate'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get algo evaluate'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo evaluate'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get algo evaluate'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1562,12 +1529,9 @@ def _get_data_quality(cur) -> Dict:
                     'total_tables_checked': len(tables_dict)
                 }
             })
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get data quality'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get data quality'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get data quality'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get data quality'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1650,12 +1614,9 @@ def _get_exposure_policy(cur) -> Dict:
                 'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get exposure policy'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get exposure policy'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get exposure policy'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get exposure policy'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1693,33 +1654,27 @@ def _get_sector_stage2(cur) -> Dict:
             """)
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get sector stage2'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get sector stage2'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.warning(f'Table/column not ready (sector stage2): {e}')
+            return list_response([])
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get sector stage2'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
+            return list_response([])
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch sector stage 2')
+            return list_response([])
 def _get_algo_config(cur) -> Dict:
         """Return all algo configuration rows."""
         try:
             cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows])
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo config'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get algo config'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo config'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get algo config'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1735,12 +1690,9 @@ def _get_algo_config_key(cur, key: str) -> Dict:
             cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s", (key,))
             row = cur.fetchone()
             return json_response(200, dict(row) if row else {})
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo config key'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get algo config key'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo config key'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get algo config key'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
@@ -1778,12 +1730,9 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
                 """, (limit, offset))
             rows = cur.fetchall()
             return json_response(200, {'items': [dict(r) for r in rows], 'total': total, 'limit': limit, 'offset': offset})
-        except psycopg2.errors.UndefinedTable as e:
-            logger.error(f'Required table not found: {e}', extra={'operation': 'get algo audit log'})
-            return error_response(503, 'service_unavailable', 'Data pipeline loading')
-        except psycopg2.errors.UndefinedColumn as e:
-            logger.error(f'Column not found: {e}', extra={'operation': 'get algo audit log'})
-            return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo audit log'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get algo audit log'})
             return error_response(503, 'service_unavailable', 'Database unavailable')
