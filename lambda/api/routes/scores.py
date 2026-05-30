@@ -9,26 +9,30 @@ logger = logging.getLogger(__name__)
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
         """Handle /api/scores/* endpoints."""
-        if path in ['/api/scores', '/api/scores/stockscores'] or path.startswith('/api/scores?') or path.startswith('/api/scores/stockscores?'):
-            limit_str = params.get('limit', [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
-            offset_str = params.get('offset', [None])[0] if params else None
-            offset = safe_offset(offset_str)
-            sort_by = params.get('sortBy', ['composite_score'])[0] if params else 'composite_score'
-            sort_order = params.get('sortOrder', ['desc'])[0] if params else 'desc'
-            sp500_only = params.get('sp500Only', ['false'])[0] if params else 'false'
-            symbol = params.get('symbol', [None])[0] if params else None
+        try:
+            if path in ['/api/scores', '/api/scores/stockscores'] or path.startswith('/api/scores?') or path.startswith('/api/scores/stockscores?'):
+                limit_str = params.get('limit', [None])[0] if params else None
+                limit = safe_limit(limit_str, max_val=50000, default=50000)
+                offset_str = params.get('offset', [None])[0] if params else None
+                offset = safe_offset(offset_str)
+                sort_by = params.get('sortBy', ['composite_score'])[0] if params else 'composite_score'
+                sort_order = params.get('sortOrder', ['desc'])[0] if params else 'desc'
+                sp500_only = params.get('sp500Only', ['false'])[0] if params else 'false'
+                symbol = params.get('symbol', [None])[0] if params else None
 
-            allowed_sorts = ['composite_score', 'momentum_score', 'quality_score', 'value_score',
-                           'growth_score', 'positioning_score', 'stability_score', 'symbol']
-            if sort_by not in allowed_sorts:
-                return error_response(400, 'bad_request', f'Sort must be one of: {", ".join(allowed_sorts)}')
-            if sort_order not in ['asc', 'desc']:
-                return error_response(400, 'bad_request', 'Sort order must be "asc" or "desc"')
+                allowed_sorts = ['composite_score', 'momentum_score', 'quality_score', 'value_score',
+                               'growth_score', 'positioning_score', 'stability_score', 'symbol']
+                if sort_by not in allowed_sorts:
+                    return error_response(400, 'bad_request', f'Sort must be one of: {", ".join(allowed_sorts)}')
+                if sort_order not in ['asc', 'desc']:
+                    return error_response(400, 'bad_request', 'Sort order must be "asc" or "desc"')
 
-            return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
-        else:
-            return error_response(404, 'not_found', f'No scores handler for {path}')
+                return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
+            else:
+                return error_response(404, 'not_found', f'No scores handler for {path}')
+        except Exception as e:
+            logger.warning(f'Scores handler error: {e}')
+            return list_response([])
 
 def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'composite_score',
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
