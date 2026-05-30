@@ -1,17 +1,17 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Swing Trader Scores Loader - Computes swing trading quality scores.
 
 Computes per-symbol swing scores with a 7-component breakdown by joining
 signal_quality_scores, trend_template_data, and technical_data_daily.
 The component breakdown maps directly to the RadarChart in SwingCandidates.jsx:
-  setup        — Minervini 8-point template (% of 8 criteria met)
-  trend        — Weinstein stage quality (Stage 2 = 100, Stage 1 = 50, other = 0)
-  momentum     — RSI normalized to momentum sweet spot (40-70 RSI → 0-100)
-  volume       — 20-day price ROC as volume-confirmation proxy
-  fundamentals — overall composite_sqs (best available proxy without full fundamentals)
-  sector       — overall composite_sqs (fallback; enriched by sector loader separately)
-  multi_tf     — trend + momentum blend (confirms trend on multiple timeframes)
+  setup        â€” Minervini 8-point template (% of 8 criteria met)
+  trend        â€” Weinstein stage quality (Stage 2 = 100, Stage 1 = 50, other = 0)
+  momentum     â€” RSI normalized to momentum sweet spot (40-70 RSI â†’ 0-100)
+  volume       â€” 20-day price ROC as volume-confirmation proxy
+  fundamentals â€” overall composite_sqs (best available proxy without full fundamentals)
+  sector       â€” overall composite_sqs (fallback; enriched by sector loader separately)
+  multi_tf     â€” trend + momentum blend (confirms trend on multiple timeframes)
 
 Inherits from OptimalLoader: watermarks, dedup, parallelism, bulk COPY.
 
@@ -22,10 +22,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.structured_logger import get_logger
+import logging
 import argparse
 import logging
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 import os
 from utils.loader_helpers import get_active_symbols
 from datetime import date, timedelta
@@ -249,3 +249,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

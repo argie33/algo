@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -28,11 +28,11 @@ from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
 from utils.loader_helpers import get_active_symbols
-from utils.structured_logger import get_logger
+import logging
 from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PriceLoader(OptimalLoader):
@@ -544,3 +544,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

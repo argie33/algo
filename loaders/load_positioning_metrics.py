@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Positioning Metrics Loader - Institutional ownership and short interest from yfinance.
 
 Fetches:
@@ -18,11 +18,11 @@ import logging
 from datetime import date
 from typing import List, Optional, Dict
 
-from utils.structured_logger import get_logger
+import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PositioningMetricsLoader(OptimalLoader):
@@ -148,3 +148,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

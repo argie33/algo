@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Signal Quality Scores Loader -” Signal strength confirmation from multiple sources.
+﻿#!/usr/bin/env python3
+"""Signal Quality Scores Loader -â€ Signal strength confirmation from multiple sources.
 
 Computes signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend.
 Required by Phase 1 data freshness check as tier-2 gate for filtering.
@@ -16,11 +16,11 @@ from typing import List, Optional
 
 import pandas as pd
 
-from utils.structured_logger import get_logger
+import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SignalQualityScoresLoader(OptimalLoader):
@@ -261,4 +261,5 @@ def _sync_scores_to_buy_sell():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

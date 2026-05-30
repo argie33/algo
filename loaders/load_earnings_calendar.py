@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -14,10 +14,10 @@ import logging
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 
-from utils.structured_logger import get_logger
+import logging
 from utils.database_context import DatabaseContext
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class EarningsCalendarLoader:
@@ -148,3 +148,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

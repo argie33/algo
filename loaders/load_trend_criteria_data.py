@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Trend Criteria Data Loader -” Minervini 8-point, Weinstein stage, consolidation.
+﻿#!/usr/bin/env python3
+"""Trend Criteria Data Loader -â€ Minervini 8-point, Weinstein stage, consolidation.
 
 Computes trend confirmation metrics from price and technical data.
 Required by Phase 1 data freshness check.
@@ -16,12 +16,12 @@ from typing import List, Optional
 
 import pandas as pd
 
-from utils.structured_logger import get_logger
+import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from loaders.technical_indicators import compute_moving_averages
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TrendCriteriaLoader(OptimalLoader):
@@ -40,7 +40,7 @@ class TrendCriteriaLoader(OptimalLoader):
 
         # When since is None (e.g. first call after an ECS task restart), read the actual
         # DB max date to skip recomputing years of already-loaded history. Without this,
-        # every ECS run would re-fetch 2 years × all symbols — matching the fix applied to
+        # every ECS run would re-fetch 2 years Ã— all symbols â€” matching the fix applied to
         # MarketHealthDailyLoader in commit 97230793b.
         if since is None:
             try:
@@ -61,7 +61,7 @@ class TrendCriteriaLoader(OptimalLoader):
             start = end - timedelta(days=2 * 365)
         else:
             # Keep 300-day lookback so moving averages (50d, 150d, 200d) are warm before
-            # the incremental window starts — avoids NaN MAs at the boundary.
+            # the incremental window starts â€” avoids NaN MAs at the boundary.
             start = since - timedelta(days=300)
 
         rows = self._fetch_price_daily(symbol, start, end)
@@ -215,4 +215,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

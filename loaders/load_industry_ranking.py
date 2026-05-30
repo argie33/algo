@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Industry Ranking Loader - compute daily industry momentum rankings."""
 import sys
 from pathlib import Path
@@ -9,9 +9,9 @@ from datetime import date
 from typing import Dict
 
 from utils.database_context import DatabaseContext
-from utils.structured_logger import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class IndustryRankingLoader:
     """Compute industry rankings from daily price data."""
@@ -101,7 +101,7 @@ class IndustryRankingLoader:
 
                 # Back-fill historical rank columns from prior days' records.
                 # SwingTraderScore._sector_component() reads rank_4w_ago to compute
-                # industry acceleration bonus/penalty — without this it's always 0.
+                # industry acceleration bonus/penalty â€” without this it's always 0.
                 cur.execute("""
                     UPDATE industry_ranking today
                     SET
@@ -160,3 +160,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+

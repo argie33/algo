@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Technical Data Daily Loader — RSI, MACD, SMA, EMA, ATR, Bollinger Bands.
+﻿#!/usr/bin/env python3
+"""Technical Data Daily Loader â€” RSI, MACD, SMA, EMA, ATR, Bollinger Bands.
 
 Computes all technical indicators from daily price data and populates technical_data_daily.
 Required by Phase 1 data freshness check.
@@ -17,7 +17,7 @@ from typing import List, Optional
 
 import pandas as pd
 
-from utils.structured_logger import get_logger
+import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from loaders.technical_indicators import (
@@ -25,7 +25,7 @@ from loaders.technical_indicators import (
     compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
 )
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TechnicalDataDailyLoader(OptimalLoader):
@@ -138,7 +138,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df["macd_hist"] = df["macd"] - df["macd_signal"]
         df["macd_histogram"] = df["macd_hist"]  # Schema has both names
 
-        # Momentum and rate of change (clamped to DECIMAL(8,4) range: ±9999.9999)
+        # Momentum and rate of change (clamped to DECIMAL(8,4) range: Â±9999.9999)
         df["mom"] = df["close"].diff()
         df["roc"] = df["close"].pct_change() * 100
         df["roc_10d"] = df["close"].pct_change(10) * 100
@@ -232,3 +232,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

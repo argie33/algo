@@ -1,16 +1,16 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 """
 
-Balance Sheet Loader — annual and quarterly from SEC EDGAR.
+Balance Sheet Loader â€” annual and quarterly from SEC EDGAR.
 
 Period determined by LOADER_PERIOD env var (financials_annual_balance / financials_quarterly_balance)
 or --period CLI flag for manual runs.
 """
-from utils.structured_logger import get_logger
+import logging
 
 try:
     from config.credential_manager import get_credential_manager
@@ -20,7 +20,7 @@ except ImportError:
 
 import argparse
 import logging
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 import os
 from datetime import date
 from typing import List, Optional
@@ -186,4 +186,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -12,12 +12,12 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadearningshistory.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-from utils.structured_logger import get_logger
+import logging
 
 import argparse
 from utils.loader_helpers import get_active_symbols
 import logging
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 import os
 from datetime import date
 from typing import List, Optional
@@ -131,4 +131,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

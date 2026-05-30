@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Stability Metrics Loader - Volatility (from price_daily) and Beta (from yfinance).
 
 Computes:
@@ -19,12 +19,12 @@ import math
 from datetime import date, timedelta
 from typing import List, Optional, Dict
 
-from utils.structured_logger import get_logger
+import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class StabilityMetricsLoader(OptimalLoader):
@@ -177,3 +177,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

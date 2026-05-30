@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Sentiment Aggregate Loader — combines AAII + NAAIM sentiment into unified metric.
+﻿#!/usr/bin/env python3
+"""Sentiment Aggregate Loader â€” combines AAII + NAAIM sentiment into unified metric.
 
 Aggregates multiple sentiment sources (AAII bullish %, NAAIM allocation %) into a
 normalized sentiment score (0-100, where 50 = neutral) for trading signals.
@@ -14,10 +14,10 @@ import logging
 from datetime import date, timedelta
 from typing import Optional
 
-from utils.structured_logger import get_logger
+import logging
 from utils.database_context import DatabaseContext
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def load_sentiment_aggregate():
@@ -107,3 +107,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

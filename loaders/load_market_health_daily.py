@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Market Health Daily Loader — Market stage, distribution days, advance/decline.
+﻿#!/usr/bin/env python3
+"""Market Health Daily Loader â€” Market stage, distribution days, advance/decline.
 
 Computes market-wide health metrics from SPY price data and market indicators.
 Populates all required market_health_daily columns.
@@ -16,12 +16,12 @@ from typing import List, Optional
 
 import pandas as pd
 
-from utils.structured_logger import get_logger
+import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from loaders.technical_indicators import compute_moving_averages, compute_volume_ma
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class MarketHealthDailyLoader(OptimalLoader):
@@ -326,3 +326,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

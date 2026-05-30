@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Company Profile Loader - populate from yfinance with sector/industry enrichment."""
 import sys
 from pathlib import Path
@@ -10,9 +10,9 @@ from typing import Dict
 import yfinance as yf
 
 from utils.database_context import DatabaseContext
-from utils.structured_logger import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class CompanyProfileLoader:
     """Load company profiles with sector and industry from yfinance."""
@@ -113,3 +113,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+
