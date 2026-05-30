@@ -72,32 +72,31 @@ developer_key_rotation_date = "2026-05-29"
 
 # Alert system configuration (for patrol, loader, position, circuit breaker failures)
 # Infrastructure alerts: via SNS (already configured at line 77)
-# Application alerts (from orchestrator/patrol/loaders): via webhook URL or SMTP email
+# Application alerts (from orchestrator/patrol/loaders): via SMTP email
 #
-# Slack/Teams webhooks (recommended - simpler, no credentials needed):
-#   1. Create Slack app at api.slack.com/apps → "Create New App"
-#   2. Select "From scratch", name it "Algo Alerts"
-#   3. Go to "Incoming Webhooks" → "Add New Webhook to Workspace"
-#   4. Choose a channel → "Allow"
-#   5. Copy the webhook URL and set alert_webhook_url below
+# SMTP Email Alerts (Recommended):
 #
-# Email alerts (alternative - requires SMTP credentials):
-#   Gmail SMTP example:
+# Gmail SMTP Setup:
+#   1. Enable 2FA in Google Account settings
+#   2. Generate app-specific password at myaccount.google.com/apppasswords
+#   3. Set the variables below:
 #     alert_smtp_host     = "smtp.gmail.com"
 #     alert_smtp_port     = 587
 #     alert_smtp_user     = "your-email@gmail.com"
-#     alert_smtp_password = "your-app-specific-password" (not your regular password)
+#     alert_smtp_password = "your-app-specific-password" (NOT your regular Gmail password)
 #     alert_smtp_from     = "your-email@gmail.com"
-#   Note: For Gmail, generate app-specific password at myaccount.google.com/apppasswords
-#         (requires 2FA enabled)
+#
+# Other SMTP Providers:
+#   Outlook/Office365: smtp.office365.com:587
+#   Custom SMTP: Your email provider's SMTP hostname and port
 #
 sns_alerts_enabled = true                    # Enable SNS topic for infrastructure alerts (Step Functions, RDS, CloudWatch)
 sns_alert_email    = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
 alert_email_to     = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
-alert_webhook_url  = ""                      # Slack webhook URL: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-# SMTP configuration for email alerts (set all if using email alerts, leave blank for webhook-only)
+alert_webhook_url  = ""  # Leave blank (using email alerts)
+# SMTP configuration for email alerts (set all)
 alert_smtp_host     = ""  # SMTP hostname (e.g., smtp.gmail.com)
 alert_smtp_port     = 587 # SMTP port (587 for TLS, 465 for SSL)
-alert_smtp_user     = ""  # SMTP username
-alert_smtp_password = ""  # SMTP password (use GitHub Secrets in CI/CD)
-alert_smtp_from     = ""  # From email address
+alert_smtp_user     = ""  # SMTP username (e.g., your-email@gmail.com)
+alert_smtp_password = ""  # SMTP password (use GitHub Secrets ALERT_SMTP_PASSWORD in CI/CD)
+alert_smtp_from     = ""  # From email address (e.g., your-email@gmail.com)
