@@ -36,7 +36,6 @@ try:
     import requests
     import api_router
     from utils.database_context import DatabaseContext
-    from utils.db_connection import get_db_connection
 except Exception as e:
     IMPORT_ERROR = f"{type(e).__name__}: {str(e)[:200]}"
 

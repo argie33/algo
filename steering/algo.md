@@ -365,6 +365,8 @@ Phase 1 compares each table's latest date against the **previous trading day** (
 
 ## DATABASE CONNECTION PATTERN (DatabaseContext)
 
+**Status: ✅ REFACTORING COMPLETE (2026-05-30)**
+
 All database access must use `DatabaseContext` for automatic resource management:
 
 ```python
@@ -391,6 +393,8 @@ with DatabaseContext('write') as cur:
 - ❌ Mix manual connections with DatabaseContext
 
 **Why:** The context manager pattern ensures transactions are atomic, connections are properly closed, and errors don't leave dangling connections. Manual commit/close calls defeat this guarantees.
+
+**Exceptions:** Standalone utilities and ECS loaders that create their own connections (not using DatabaseContext) may call commit/rollback directly. This is fine for isolated tools.
 
 ## API GATEWAY ROUTING ARCHITECTURE
 

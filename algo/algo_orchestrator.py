@@ -5,8 +5,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.credential_manager import (
-    get_db_password,
-    get_db_config,
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
