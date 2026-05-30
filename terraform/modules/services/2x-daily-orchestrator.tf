@@ -255,7 +255,7 @@ resource "aws_scheduler_schedule" "weight_optimization" {
 resource "aws_scheduler_schedule" "data_patrol_daily" {
   name                         = "${var.project_name}-data-patrol-${var.environment}"
   description                  = "Daily data patrol: 6:00 AM ET (check data freshness, API health)"
-  schedule_expression          = "cron(0 6 ? * MON-FRI *)"  # 6:00 AM ET, Mon-Fri
+  schedule_expression          = "cron(0 6 ? * MON-FRI *)" # 6:00 AM ET, Mon-Fri
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 

@@ -187,8 +187,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name  = "stock_symbols"
-          "error.$"    = "$.loaderError.Error"
+          loader_name       = "stock_symbols"
+          "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
@@ -239,8 +239,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name  = "stock_prices_daily"
-          "error.$"    = "$.loaderError.Error"
+          loader_name       = "stock_prices_daily"
+          "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
@@ -322,8 +322,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name  = "parallel_technicals"
-          "error.$"    = "$.loaderError.Error"
+          loader_name       = "parallel_technicals"
+          "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
@@ -382,9 +382,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name = "parallel_enrichment"
-          "error.$"     = "$.loaderError.Error"
-          "error_message.$"= "$.loaderError.Cause"
+          loader_name       = "parallel_enrichment"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -593,9 +593,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = "arn:aws:states:::sns:publish"
         Parameters = {
-          TopicArn = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:placeholder"
+          TopicArn    = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:placeholder"
           "Message.$" = "States.Format('EOD pipeline FAILED\n\nError: {}\n\nCheck Step Functions console: https://${var.aws_region}.console.aws.amazon.com/states/home?region=${var.aws_region}#/statemachines', $.error.Cause)"
-          Subject  = "ALERT: EOD Pipeline Failed - Orchestrator did not run"
+          Subject     = "ALERT: EOD Pipeline Failed - Orchestrator did not run"
         }
         Next = "PipelineFailedEnd"
       }
@@ -699,9 +699,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Type     = "Task"
         Resource = "arn:aws:states:::sns:publish"
         Parameters = {
-          TopicArn = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:placeholder"
+          TopicArn    = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "arn:aws:sns:${var.aws_region}:${var.aws_account_id}:placeholder"
           "Message.$" = "States.Format('Morning prep pipeline FAILED\n\nError: {}\n\nCheck Step Functions console: https://${var.aws_region}.console.aws.amazon.com/states/home?region=${var.aws_region}#/statemachines', $.error.Cause)"
-          Subject  = "ALERT: Morning Prep Pipeline Failed"
+          Subject     = "ALERT: Morning Prep Pipeline Failed"
         }
         Next = "PipelineFailedEnd"
       }

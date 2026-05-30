@@ -234,65 +234,65 @@ locals {
   # This maps to the 33 actual loaders in loaders/ directory.
   loader_file_map = {
     # Reference data
-    "stock_symbols"             = "load_stock_symbols.py"
-    "sp500_constituents"        = "load_sp500_constituents.py"
-    "russell2000_constituents"  = "load_russell2000_constituents.py"
+    "stock_symbols"            = "load_stock_symbols.py"
+    "sp500_constituents"       = "load_sp500_constituents.py"
+    "russell2000_constituents" = "load_russell2000_constituents.py"
 
     # Pricing data — unified loader handles all intervals/asset classes via env vars
-    "stock_prices_daily"        = "load_prices.py"
+    "stock_prices_daily" = "load_prices.py"
 
     # Financial statements
-    "financials_annual_income"  = "load_income_statement.py"
-    "financials_annual_balance" = "load_balance_sheet.py"
-    "financials_annual_cashflow" = "load_cash_flow.py"
-    "financials_quarterly_income" = "load_income_statement.py"
-    "financials_quarterly_balance" = "load_balance_sheet.py"
+    "financials_annual_income"      = "load_income_statement.py"
+    "financials_annual_balance"     = "load_balance_sheet.py"
+    "financials_annual_cashflow"    = "load_cash_flow.py"
+    "financials_quarterly_income"   = "load_income_statement.py"
+    "financials_quarterly_balance"  = "load_balance_sheet.py"
     "financials_quarterly_cashflow" = "load_cash_flow.py"
-    "financials_ttm_income"     = "load_income_statement.py"
-    "financials_ttm_cashflow"   = "load_cash_flow.py"
+    "financials_ttm_income"         = "load_income_statement.py"
+    "financials_ttm_cashflow"       = "load_cash_flow.py"
 
     # Computed metrics
-    "growth_metrics"            = "load_growth_metrics.py"
-    "quality_metrics"           = "load_quality_metrics.py"
-    "value_metrics"             = "load_value_metrics.py"
-    "positioning_metrics"       = "load_positioning_metrics.py"
-    "stability_metrics"         = "load_stability_metrics.py"
-    "stock_scores"              = "load_stock_scores.py"
+    "growth_metrics"      = "load_growth_metrics.py"
+    "quality_metrics"     = "load_quality_metrics.py"
+    "value_metrics"       = "load_value_metrics.py"
+    "positioning_metrics" = "load_positioning_metrics.py"
+    "stability_metrics"   = "load_stability_metrics.py"
+    "stock_scores"        = "load_stock_scores.py"
 
     # Earnings data
-    "earnings_history"          = "load_earnings_history.py"
-    "earnings_calendar"         = "load_earnings_calendar.py"
+    "earnings_history"  = "load_earnings_history.py"
+    "earnings_calendar" = "load_earnings_calendar.py"
 
     # Company & analyst data
-    "company_profile"           = "load_company_profile.py"
-    "analyst_sentiment"         = "load_analyst_sentiment_analysis.py"
+    "company_profile"             = "load_company_profile.py"
+    "analyst_sentiment"           = "load_analyst_sentiment_analysis.py"
     "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
-    "industry_ranking"          = "load_industry_ranking.py"
+    "industry_ranking"            = "load_industry_ranking.py"
 
     # Market sentiment
-    "feargreed"                 = "load_fear_greed_index.py"
-    "aaiidata"                  = "load_aaii_sentiment.py"
-    "naaim_data"                = "load_naaim.py"
+    "feargreed"  = "load_fear_greed_index.py"
+    "aaiidata"   = "load_aaii_sentiment.py"
+    "naaim_data" = "load_naaim.py"
 
     # Sentiment aggregation
-    "sentiment"                 = "load_sentiment.py"
-    "sentiment_aggregate"       = "load_sentiment_aggregate.py"
+    "sentiment"           = "load_sentiment.py"
+    "sentiment_aggregate" = "load_sentiment_aggregate.py"
     # DELETED: sentiment_social - was placeholder (load_sentiment_social.py deleted)
 
     # Trading signals & scores
-    "signal_themes"             = "load_signal_themes.py"
-    "signal_quality_scores"     = "load_signal_quality_scores.py"
-    "buy_sell_daily"            = "load_buy_sell_daily.py"
+    "signal_themes"         = "load_signal_themes.py"
+    "signal_quality_scores" = "load_signal_quality_scores.py"
+    "buy_sell_daily"        = "load_buy_sell_daily.py"
 
     # Technical indicators & metrics
-    "technical_data_daily"      = "load_technical_data_daily.py"
-    "algo_metrics_daily"        = "load_algo_metrics_daily.py"
-    "swing_trader_scores"       = "load_swing_trader_scores.py"
+    "technical_data_daily" = "load_technical_data_daily.py"
+    "algo_metrics_daily"   = "load_algo_metrics_daily.py"
+    "swing_trader_scores"  = "load_swing_trader_scores.py"
 
     # Market health & economic data
-    "market_health_daily"       = "load_market_health_daily.py"
-    "fred_economic_data"        = "load_fred_economic_data.py"
-    "trend_template_data"       = "load_trend_criteria_data.py"
+    "market_health_daily" = "load_market_health_daily.py"
+    "fred_economic_data"  = "load_fred_economic_data.py"
+    "trend_template_data" = "load_trend_criteria_data.py"
   }
 
   scheduled_loaders = {
@@ -492,8 +492,8 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 locals {
   all_loaders = {
     # Reference data — tiny lists, parallelism=1
-    "stock_symbols"         = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "sp500_constituents"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "stock_symbols"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "sp500_constituents"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
@@ -534,8 +534,8 @@ locals {
     "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Sentiment aggregation — combine multiple sentiment sources
-    "sentiment"             = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "sentiment_aggregate"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "sentiment"           = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "sentiment_aggregate" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Signal processing — compute signal themes

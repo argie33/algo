@@ -126,8 +126,8 @@ resource "aws_lambda_function" "api" {
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       # Alpaca configuration (keys fetched at runtime from ALGO_SECRETS_ARN)
-      ALGO_SECRETS_ARN     = var.algo_secrets_arn
-      APCA_API_BASE_URL    = var.alpaca_api_base_url
+      ALGO_SECRETS_ARN  = var.algo_secrets_arn
+      APCA_API_BASE_URL = var.alpaca_api_base_url
       # Frontend framework configuration
       NODE_ENV = var.node_env
       # Data patrol task configuration (for /api/algo/patrol endpoint)
@@ -563,9 +563,9 @@ resource "aws_lambda_function" "algo" {
       ORCHESTRATOR_LOCK_TABLE     = var.orchestrator_locks_table_name
       LOG_LEVEL                   = var.orchestrator_log_level
       # Alpaca configuration (keys fetched at runtime from ALGO_SECRETS_ARN)
-      ALGO_SECRETS_ARN    = var.algo_secrets_arn
-      ALGO_LIVE_TRADING   = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
-      APCA_API_BASE_URL   = var.alpaca_api_base_url
+      ALGO_SECRETS_ARN     = var.algo_secrets_arn
+      ALGO_LIVE_TRADING    = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
+      APCA_API_BASE_URL    = var.alpaca_api_base_url
       ALPACA_PAPER_TRADING = tostring(var.alpaca_paper_trading)
       # Data quality and monitoring
       DATA_PATROL_ENABLED    = tostring(var.data_patrol_enabled)
@@ -649,14 +649,14 @@ resource "aws_lambda_function" "loader_failure_handler" {
 }
 
 resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
-  count             = var.sns_alerts_enabled ? 1 : 0
-  statement_id      = "AllowStepFunctionsInvoke"
-  action            = "lambda:InvokeFunction"
-  function_name     = aws_lambda_function.loader_failure_handler[0].function_name
-  principal         = "states.amazonaws.com"
+  count         = var.sns_alerts_enabled ? 1 : 0
+  statement_id  = "AllowStepFunctionsInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.loader_failure_handler[0].function_name
+  principal     = "states.amazonaws.com"
   # Allow any Step Functions state machine in this account/region to invoke
   # (principal already restricted to states.amazonaws.com)
-  source_arn        = "arn:aws:states:${data.aws_caller_identity.current.account_id}:${var.aws_region}:*"
+  source_arn = "arn:aws:states:${data.aws_caller_identity.current.account_id}:${var.aws_region}:*"
 }
 
 # ============================================================
@@ -728,7 +728,7 @@ resource "aws_cloudwatch_metric_alarm" "api_lambda_concurrency" {
   namespace           = "AWS/Lambda"
   period              = 60
   statistic           = "Maximum"
-  threshold           = var.api_lambda_reserved_concurrency * 0.8  # Alert at 80% of limit
+  threshold           = var.api_lambda_reserved_concurrency * 0.8 # Alert at 80% of limit
   alarm_description   = "CRITICAL: API Lambda approaching reserved concurrency limit (${var.api_lambda_reserved_concurrency}). Risk of 429 rate-limits and cascading failures."
   alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
   treat_missing_data  = "notBreaching"

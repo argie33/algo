@@ -22,13 +22,13 @@ resource "aws_lambda_function" "execution_monitor" {
 
   environment {
     variables = {
-      ALGO_SECRETS_ARN     = var.algo_secrets_arn
-      RDS_SECRET_ARN       = var.rds_credentials_secret_arn
-      RDS_HOST             = var.rds_endpoint
-      RDS_PORT             = var.rds_port
-      RDS_USER             = var.rds_master_username
-      RDS_DATABASE         = var.rds_database_name
-      APCA_API_BASE_URL    = var.alpaca_api_base_url
+      ALGO_SECRETS_ARN  = var.algo_secrets_arn
+      RDS_SECRET_ARN    = var.rds_credentials_secret_arn
+      RDS_HOST          = var.rds_endpoint
+      RDS_PORT          = var.rds_port
+      RDS_USER          = var.rds_master_username
+      RDS_DATABASE      = var.rds_database_name
+      APCA_API_BASE_URL = var.alpaca_api_base_url
       # NOTE: Alpaca API key/secret should be fetched from ALGO_SECRETS_ARN at runtime
       # Code needs update to use credential_manager instead of env vars
     }

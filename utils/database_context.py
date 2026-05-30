@@ -61,6 +61,10 @@ class DatabaseContext:
             if self.cur:
                 self.cur.close()
             if self.conn:
+                if exc_type is None and self.role == 'write':
+                    self.conn.commit()
+                elif exc_type is not None:
+                    self.conn.rollback()
                 self.conn.close()
         except Exception as e:
             logger.warning(f"[DB_CLEANUP_WARNING] Error closing database connection: {e}")
