@@ -493,77 +493,79 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
+    # COST OPTIMIZED: All loaders set to parallelism=1 (sequential). Trades speed for ~$150/month savings.
+    # Expected slowdown: 1.5-2x longer run times. Acceptable for trading (EOD runs overnight).
+    # CPU/memory reduced to minimum viable: 256 CPU = 0.25vCPU (~$0.012/hour), 512 memory = 512MB (~$0.005/hour)
+
     # Reference data — tiny lists, parallelism=1
     "stock_symbols"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "sp500_constituents"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
-    # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
-    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    # Unified Price Loader — I/O bound but slower is OK for overnight runs
+    "stock_prices_daily" = { cpu = 512, memory = 1024, timeout = 43200, parallelism = 1 }  # 12h timeout (was 6h/4 parallel)
 
-    # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
-    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    # Financial statements
+    "financials_annual_income"      = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_annual_balance"     = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_annual_cashflow"    = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_income"   = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_balance"  = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_cashflow" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_ttm_income"         = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_ttm_cashflow"       = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
 
-    # Computed metrics — CPU bound, process 5000+ symbols, need parallelism
-    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 8 }
-    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    # Computed metrics — reduce CPU/memory and parallelism to 1
+    "growth_metrics"      = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
+    "quality_metrics"     = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
+    "value_metrics"       = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
+    "positioning_metrics" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "stability_metrics"   = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
+    "stock_scores"        = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
 
-    # Earnings data — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
-    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    # Earnings data
+    "earnings_history"  = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
 
-    # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
-    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
+    # Company & analyst data
+    "company_profile"             = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "analyst_sentiment"           = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "analyst_upgrades_downgrades" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "industry_ranking"            = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
 
-    # Market sentiment data — small API calls
+    # Market sentiment data
     "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Sentiment aggregation — combine multiple sentiment sources
+    # Sentiment aggregation
     "sentiment"           = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "sentiment_aggregate" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Signal processing — compute signal themes
-    "signal_themes"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
+    # Signal processing
+    "signal_themes"         = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "signal_quality_scores" = { cpu = 512, memory = 1024, timeout = 10800, parallelism = 1 }
 
-    # BUY/SELL signals — compute trade signals for all 5000+ symbols
-    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    # BUY/SELL signals
+    "buy_sell_daily" = { cpu = 512, memory = 1024, timeout = 43200, parallelism = 1 }
 
-    # Technical indicators — compute-heavy, 5000+ symbols
-    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 8 }
+    # Technical indicators — compute-heavy but acceptable at 1 parallel with larger timeout
+    "technical_data_daily" = { cpu = 1024, memory = 2048, timeout = 72000, parallelism = 1 }
 
-    # Market health — reads price_daily, processes 5000+ symbols
-    "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    # Market health
+    "market_health_daily" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
 
-    # Algo metrics — compute metrics on 5000+ symbols
-    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
+    # Algo metrics
+    "algo_metrics_daily" = { cpu = 512, memory = 1024, timeout = 21600, parallelism = 1 }
 
-    # Swing trader scores — compute-heavy scoring
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    # Swing trader scores
+    "swing_trader_scores" = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
 
-    # FRED macro data — small API calls, 5 time series
+    # FRED macro data
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Trend template — compute-heavy scoring
-    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
+    # Trend template
+    "trend_template_data" = { cpu = 512, memory = 1024, timeout = 10800, parallelism = 1 }
   }
 
   # For backward compatibility
