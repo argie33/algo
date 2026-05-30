@@ -1097,22 +1097,34 @@ jobs:
           VITE_AWS_REGION="$AWS_REGION" \
           npm run build 2>&1 | tee build.log
 
-      - name: Run Frontend Tests
+      - name: Run Frontend Unit & Integration Tests
         working-directory: webapp/frontend
         run: |
-          if [ -f "package.json" ]; then
-            # Check if test script exists in package.json
-            if grep -q '"test":' package.json; then
-              echo "Running frontend tests..."
-              npm test -- --run 2>&1 | tee test.log || {
-                echo "[ALERT] Frontend tests failed - but continuing deployment"
-                echo "(Tests must pass before PR merge, not during deployment)"
-              }
-            else
-              echo "[INFO] No test script defined in package.json"
-            fi
+          echo "=== Running Frontend Unit & Integration Tests ==="
+          npm run test:ci 2>&1 | tee unit-tests.log
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Unit/integration tests failed - deployment blocked"
+            exit 1
+          fi
+          echo "[OK] Unit and integration tests passed"
+
+      - name: Run Frontend E2E Tests
+        working-directory: webapp/frontend
+        continue-on-error: true
+        run: |
+          echo "=== Running Frontend E2E Tests (Dashboard & Portfolio) ==="
+          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test \
+            webapp/frontend/src/tests/e2e/features/Dashboard.spec.js \
+            webapp/frontend/src/tests/e2e/features/Portfolio.spec.js \
+            --project desktop-chrome 2>&1 | tee e2e-tests.log
+
+          # E2E tests are allowed to fail (can be flaky in CI)
+          # but failures should be reviewed
+          if [ $? -ne 0 ]; then
+            echo "[ALERT] E2E tests failed - check logs for details"
+            echo "E2E failures do not block deployment but should be reviewed"
           else
-            echo "[ALERT] package.json not found"
+            echo "[OK] E2E tests passed"
           fi
 
       - name: Prepare Runtime Config
