@@ -812,10 +812,6 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningSuccess"
       }
 
-      MorningSuccess = {
-        Type = "Succeed"
-      }
-
       PipelineFailed = {
         Type     = "Task"
         Resource = "arn:aws:states:::sns:publish"
@@ -831,6 +827,10 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Type  = "Fail"
         Error = "PipelineFailed"
         Cause = "Morning prep pipeline failed. Check Step Functions execution history."
+      }
+
+      MorningSuccess = {
+        Type = "Succeed"
       }
     }
   })
