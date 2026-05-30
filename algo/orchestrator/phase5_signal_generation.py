@@ -104,8 +104,6 @@ def _interpret_waterfall(total: int, stage2: int, tier_rejections: Dict[str, int
 
 def run(
     config: Any,
-    get_conn: Callable,
-    put_conn: Callable,
     run_date: _date,
     dry_run: bool,
     alerts: AlertManager,

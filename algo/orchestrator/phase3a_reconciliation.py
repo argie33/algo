@@ -20,8 +20,6 @@ logger = logging.getLogger(__name__)
 
 def run(
     config: Any,
-    get_conn: Callable,
-    put_conn: Callable,
     run_date: _date,
     dry_run: bool,
     alerts: AlertManager,
