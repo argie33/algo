@@ -139,10 +139,9 @@ class PositionMonitor:
                 return {'status': 'ERROR', 'error': str(e)}
 
         # Otherwise create our own context
-        with DatabaseContext(self.config) as db:
+        with DatabaseContext('read') as cur:
             try:
-                cursor = db.cursor()
-                cursor.execute("""
+                cur.execute("""
                     SELECT COALESCE(cp.sector, 'Unknown') as sector, COUNT(DISTINCT ap.symbol) as position_count
                     FROM algo_positions ap
                     LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
@@ -151,7 +150,7 @@ class PositionMonitor:
                     HAVING COUNT(DISTINCT ap.symbol) > 3
                     ORDER BY position_count DESC
                 """)
-                concentrated = cursor.fetchall()
+                concentrated = cur.fetchall()
                 if concentrated:
                     logger.info(f"\n  [CONCENTRATION ALERT]")
                     for sector, count in concentrated:

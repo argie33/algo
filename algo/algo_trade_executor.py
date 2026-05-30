@@ -780,7 +780,6 @@ class TradeExecutor:
                     (new_stop_price, trade_id, PositionStatus.OPEN.value, new_stop_price),
                 )
                 updated = self.cur.rowcount > 0
-                self.conn.commit()
                 return {
                     'success': True,
                     'message': (
@@ -790,8 +789,6 @@ class TradeExecutor:
                     ),
                 }
             except Exception as e:
-                if self.conn:
-                    self.conn.rollback()
                 return {'success': False, 'message': f'Stop raise failed: {e}'}
             finally:
                 self.disconnect()

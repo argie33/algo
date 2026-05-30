@@ -302,10 +302,8 @@ def run(
         try:
             from algo.algo_pipeline_health import PipelineHealth
             health = PipelineHealth()
-            health.connect()
             status = health.get_pipeline_status()
             health.log_health_check(status)
-            health.disconnect()
             logger.debug(f"Phase 1: Pipeline health check complete - {status.healthy_count}/{status.total_count} healthy")
 
             if verbose:

@@ -36,12 +36,16 @@ def _get_settings(cur, params: Dict) -> Dict:
     try:
         if user_id:
             cur.execute("""
-                SELECT settings_json FROM user_settings WHERE user_id = %s
+                SELECT theme, notifications, preferences FROM user_dashboard_settings WHERE user_id = %s
             """, (user_id,))
             row = cur.fetchone()
             if row:
                 try:
-                    stored = json.loads(row['settings_json'])
+                    stored = {
+                        'theme': row['theme'] or 'dark',
+                        'notifications': row['notifications'] if row['notifications'] is not None else True,
+                        **json.loads(row['preferences'] or '{}')
+                    }
                 except (json.JSONDecodeError, TypeError) as e:
                     logger.warning(f'Failed to parse user settings: {e}')
                     stored = {}
@@ -58,19 +62,23 @@ def _save_settings(cur, body: Dict, params: Dict) -> Dict:
     """Persist user settings."""
     user_id = (params.get('user_id', [None])[0] if params else None) or body.get('user_id')
     try:
-        settings_payload = {k: v for k, v in body.items() if k != 'user_id'}
         if user_id:
+            theme = body.get('theme', 'dark')
+            notifications = body.get('notifications', True)
+            # Store other settings in preferences JSONB
+            other_prefs = {k: v for k, v in body.items() if k not in ['user_id', 'theme', 'notifications']}
             cur.execute("""
-                INSERT INTO user_settings (user_id, settings_json, updated_at)
-                VALUES (%s, %s, NOW())
+                INSERT INTO user_dashboard_settings (user_id, theme, notifications, preferences, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
                 ON CONFLICT (user_id) DO UPDATE
-                  SET settings_json = user_settings.settings_json || %s::jsonb,
+                  SET theme = %s,
+                      notifications = %s,
+                      preferences = COALESCE(user_dashboard_settings.preferences, '{}'::jsonb) || %s::jsonb,
                       updated_at = NOW()
-            """, (user_id, json.dumps(settings_payload), json.dumps(settings_payload)))
+            """, (user_id, theme, notifications, json.dumps(other_prefs), theme, notifications, json.dumps(other_prefs)))
         return json_response(200, {'success': True, 'message': 'Settings saved'})
     except psycopg2.errors.UndefinedTable:
-        # Table not yet created — succeed silently
-        logger.warning("user_settings table missing; settings not persisted")
+        logger.warning("user_dashboard_settings table missing; settings not persisted")
         return json_response(200, {'success': True, 'message': 'Settings saved'})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'save settings')

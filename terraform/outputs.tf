@@ -173,9 +173,22 @@ output "website_url" {
 
 # ============================================================
 # Authentication Outputs
-# NOTE: Cognito outputs now in cognito.tf (module outputs)
-# See cognito.tf for: cognito_user_pool_id, cognito_user_pool_client_id, cognito_domain_url
 # ============================================================
+
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID for frontend configuration"
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_user_pool_client_id" {
+  description = "Cognito User Pool Client ID for frontend configuration"
+  value       = module.cognito.user_pool_client_id
+}
+
+output "cognito_domain_url" {
+  description = "Cognito OAuth domain URL"
+  value       = module.cognito.domain_url
+}
 
 # ============================================================
 # Algo Orchestrator Outputs

@@ -55,7 +55,6 @@ import os
 import json
 import logging
 from utils.database_context import DatabaseContext
-from utils.db_connection import get_db_connection
 from datetime import date as _date
 
 logger = logging.getLogger(__name__)

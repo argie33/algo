@@ -155,11 +155,6 @@ class SwingTraderScore:
             except Exception as gate_err:
                 logger.warning(f"Swing score hard gates failed for {symbol}: {gate_err} (proceeding with soft pass)")
                 # Rollback to prevent transaction abort
-                try:
-                    if self._owned:
-                        self._owned.rollback()
-                except Exception as rollback_err:
-                    logger.debug(f"Rollback failed: {rollback_err}")
                 gates = {'pass': True}  # Soft pass to continue evaluation
 
             if not gates['pass']:
@@ -180,8 +175,6 @@ class SwingTraderScore:
                 logger.debug(f"Setup component failed for {symbol}: {e}")
                 setup_pts, setup_detail = 0, {'error': str(e)[:50]}
                 try:
-                    if self._owned:
-                        self._owned.rollback()
                 except Exception as rb_err:
                     logger.debug(f"Rollback failed in setup component: {rb_err}")
 
@@ -191,8 +184,6 @@ class SwingTraderScore:
                 logger.debug(f"Trend component failed for {symbol}: {e}")
                 trend_pts, trend_detail = 0, {'error': str(e)[:50]}
                 try:
-                    if self._owned:
-                        self._owned.rollback()
                 except Exception as rb_err:
                     logger.debug(f"Rollback failed in trend component: {rb_err}")
 
@@ -202,8 +193,6 @@ class SwingTraderScore:
                 logger.debug(f"Momentum component failed for {symbol}: {e}")
                 mom_pts, mom_detail = 0, {'error': str(e)[:50]}
                 try:
-                    if self._owned:
-                        self._owned.rollback()
                 except Exception as rb_err:
                     logger.debug(f"Rollback failed in momentum component: {rb_err}")
 
@@ -213,8 +202,6 @@ class SwingTraderScore:
                 logger.debug(f"Volume component failed for {symbol}: {e}")
                 vol_pts, vol_detail = 0, {'error': str(e)[:50]}
                 try:
-                    if self._owned:
-                        self._owned.rollback()
                 except Exception as rb_err:
                     logger.debug(f"Rollback failed in volume component: {rb_err}")
 
@@ -224,8 +211,6 @@ class SwingTraderScore:
                 logger.debug(f"Fundamentals component failed for {symbol}: {e}")
                 fund_pts, fund_detail = 0, {'error': str(e)[:50]}
                 try:
-                    if self._owned:
-                        self._owned.rollback()
                 except Exception as rb_err:
                     logger.debug(f"Rollback failed in fundamentals component: {rb_err}")
 
@@ -235,8 +220,6 @@ class SwingTraderScore:
                 logger.debug(f"Sector component failed for {symbol}: {e}")
                 sec_pts, sec_detail = 0, {'error': str(e)[:50]}
                 try:
-                    if self._owned:
-                        self._owned.rollback()
                 except Exception as rb_err:
                     logger.debug(f"Rollback failed in sector component: {rb_err}")
 
@@ -246,8 +229,6 @@ class SwingTraderScore:
                 logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
                 mtf_pts, mtf_detail = 0, {'error': str(e)[:50]}
                 try:
-                    if self._owned:
-                        self._owned.rollback()
                 except Exception as rb_err:
                     logger.debug(f"Rollback failed in multi-timeframe component: {rb_err}")
 
@@ -1184,14 +1165,7 @@ class SwingTraderScore:
                 """,
                 (symbol, eval_date, float(result.get('swing_score', 0)), json.dumps(components_json)),
             )
-            if self._owned:
-                self._owned.commit()
         except Exception as e:
-            if self._owned:
-                try:
-                    self._owned.rollback()
-                except Exception as rollback_err:
-                    logger.debug(f"Rollback failed: {rollback_err}")
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
 
 if __name__ == "__main__":

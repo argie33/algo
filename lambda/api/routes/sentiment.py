@@ -118,7 +118,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 rows = cur.fetchall()
                 return list_response([dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/social/insights/'):
-                return json_response(501, {'status': 'not_implemented', 'message': 'Social sentiment requires external API integration (not yet configured)'})
+                # Social sentiment not yet implemented; return 200 with empty data and informative message
+                return json_response(200, {
+                    'metrics': None,
+                    'trends': None,
+                    'historical': [],
+                    'status': 'not_implemented',
+                    'message': 'Social sentiment feature coming soon. Requires external API integration (not yet configured).'
+                })
             elif path == '/api/sentiment/vix':
                 return _get_vix_data(cur)
             elif path == '/api/sentiment' or path.startswith('/api/sentiment?'):

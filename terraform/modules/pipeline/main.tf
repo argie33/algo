@@ -187,9 +187,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = aws_lambda_function.loader_failure_handler[0].arn
         Parameters = {
-          loader_name = "stock_symbols"
-          error.$     = "$.loaderError.Error"
-          error_message.$= "$.loaderError.Cause"
+          loader_name  = "stock_symbols"
+          "error.$"    = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -239,9 +239,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = aws_lambda_function.loader_failure_handler[0].arn
         Parameters = {
-          loader_name = "stock_prices_daily"
-          error.$     = "$.loaderError.Error"
-          error_message.$= "$.loaderError.Cause"
+          loader_name  = "stock_prices_daily"
+          "error.$"    = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -322,9 +322,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = aws_lambda_function.loader_failure_handler[0].arn
         Parameters = {
-          loader_name = "parallel_technicals"
-          error.$     = "$.loaderError.Error"
-          error_message.$= "$.loaderError.Cause"
+          loader_name  = "parallel_technicals"
+          "error.$"    = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
         Retry = [{

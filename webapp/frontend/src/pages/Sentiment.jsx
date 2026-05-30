@@ -1071,7 +1071,7 @@ function SocialInsights({ symbol, onClose }) {
       )}
 
       {isLoading ? <Empty title="Loading social insights…" />
-       : !metrics ? <Empty title="No social data" desc={`No social sentiment data for ${symbol}`} />
+       : !metrics ? <Empty title="No social data" desc={data?.message || `No social sentiment data for ${symbol}`} />
        : (
         <>
           <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
