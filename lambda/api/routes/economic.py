@@ -55,7 +55,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
                     return list_response([dict(e) for e in events] if events else [], data_freshness=freshness)
                 except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable):
-                    cur.connection.rollback()
                     return list_response([])
             elif path == '/api/economic':
                 # Combine all economic data

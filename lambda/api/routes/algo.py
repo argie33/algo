@@ -29,7 +29,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 )
                 if cur.rowcount == 0:
                     return error_response(403, 'forbidden', 'Notification not found or access denied')
-                cur.connection.commit()
                 return json_response(200, {'status': 'updated'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -42,7 +41,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("DELETE FROM algo_notifications WHERE id=%s AND user_id=%s", (int(notif_id), user_id))
                 if cur.rowcount == 0:
                     return error_response(403, 'forbidden', 'Notification not found or access denied')
-                cur.connection.commit()
                 return json_response(200, {'status': 'deleted'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -1873,8 +1871,6 @@ def _set_runtime_config(cur, config_key: str, body: Dict, jwt_claims: Dict) -> D
             )
         except psycopg2.errors.UndefinedTable:
             logger.warning("Audit table not initialized, skipping audit log")
-
-        cur.connection.commit()
 
         # Clear cache so next read gets fresh value
         try:

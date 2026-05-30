@@ -106,32 +106,6 @@ def test_db_connection():
         return False, error_msg
 
 
-def run_migrations():
-    """FIXED Issue #4: Run pending database migrations at Lambda cold-start.
-
-    Automatically applies pending migrations from migrations/ directory.
-    Non-blocking: failures are logged but don't prevent API from starting.
-    Called once per Lambda cold start (module initialization).
-
-    Returns: (success: bool, message: str)
-    """
-    try:
-        from migrations.run_migrations import MigrationRunner
-
-        runner = MigrationRunner()
-        success = runner.run()
-
-        if success:
-            logger.info("[MIGRATIONS] All pending migrations applied successfully")
-            return True, "Migrations applied"
-        else:
-            logger.error("[MIGRATIONS] Failed to apply migrations - check logs")
-            return False, "Migration error - check logs"
-
-    except Exception as e:
-        logger.warning(f"[MIGRATIONS] Could not run migrations: {type(e).__name__}: {str(e)}")
-        return False, str(e)
-
 # FIXED Issue #16: API Rate Limiting via API Gateway
 # Global rate limiting is enforced at the API Gateway level (100 req/sec burst, 50 req/sec sustained)
 # This supersedes the in-memory per-Lambda tracking below, which is kept as a secondary safeguard
@@ -573,14 +547,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'database_error', 'message': db_test_error})
         }
-
-    # FIXED Issue #4: Run pending migrations at cold start
-    # Non-blocking: migration failures don't prevent API from starting
-    migration_ok, migration_msg = run_migrations()
-    if migration_ok:
-        logger.info(f'[MIGRATIONS] {migration_msg}')
-    else:
-        logger.warning(f'[MIGRATIONS] {migration_msg}')
 
     logger.info(f'[HANDLER_INVOKED] Event received: {event.get("rawPath", "?")} {event.get("requestContext", {}).get("http", {}).get("method", "?")}')
     try:
