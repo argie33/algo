@@ -485,15 +485,10 @@ class OptimalLoader(ABC):
             # Long-running loaders (30+ min) need to refresh the connection to avoid idle timeout
             if i % 50 == 0:
                 try:
-                    conn = self._connect()
-                    if conn and not conn.closed:
-                        # Execute a no-op to keep connection active
-                        cur = conn.cursor()
+                    with DatabaseContext('read') as cur:
                         cur.execute("SELECT 1")
-                        cur.close()
                 except Exception as e:
-                    logger.debug(f"Connection health check failed: {e}. Forcing reconnect.")
-                    self._conn = None  # Force reconnect on next symbol
+                    logger.debug(f"Connection health check failed: {e}. Reconnecting.")
 
             self._safe_load_symbol(symbol)
             if i % 100 == 0:
@@ -508,18 +503,14 @@ class OptimalLoader(ABC):
             last_health_check = time.time()
             for fut in as_completed(futures):
                 done += 1
-                # Periodic health check to keep main connection alive
+                # Periodic health check to keep connection pool alive
                 now = time.time()
                 if now - last_health_check > 120:  # Every 2 minutes
                     try:
-                        conn = self._connect()
-                        if conn and not conn.closed:
-                            cur = conn.cursor()
+                        with DatabaseContext('read') as cur:
                             cur.execute("SELECT 1")
-                            cur.close()
                     except Exception as e:
-                        logger.debug(f"Connection health check failed: {e}. Forcing reconnect.")
-                        self._conn = None
+                        logger.debug(f"Connection health check failed: {e}. Reconnecting.")
                     last_health_check = now
 
                 if done % 100 == 0:

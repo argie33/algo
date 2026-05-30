@@ -309,24 +309,25 @@ class PriceLoader(OptimalLoader):
             logger.debug("metrics unavailable: %s", e)
 
         try:
-            conn = self._connect()
-            cur = conn.cursor()
-            cur.execute(
-                f"SELECT COUNT(*), MAX(date) FROM {self.table_name}"
-            )
-            result = cur.fetchone()
-            total_rows = result[0] if result else 0
-            latest_date = result[1] if result else None
-            cur.execute("""
-                INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                VALUES (%s, %s, %s, NOW())
-                ON CONFLICT (table_name) DO UPDATE SET
-                  row_count = EXCLUDED.row_count,
-                  latest_date = EXCLUDED.latest_date,
-                  last_updated = NOW()
-            """, (self.table_name, total_rows, latest_date))
-            conn.commit()
-            cur.close()
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    f"SELECT COUNT(*), MAX(date) FROM {self.table_name}"
+                )
+                result = cur.fetchone()
+                total_rows = result[0] if result else 0
+                latest_date = result[1] if result else None
+
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (table_name) DO UPDATE SET
+                      row_count = EXCLUDED.row_count,
+                      latest_date = EXCLUDED.latest_date,
+                      last_updated = NOW()
+                """, (self.table_name, total_rows, latest_date))
         except Exception as e:
             logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
