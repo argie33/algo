@@ -67,18 +67,18 @@ def check_data_freshness():
         if price_date and tech_date and health_date:
             days_stale = (today - price_date).days
             if days_stale <= 1:
-                print(f"  ✓ DATA FRESH: {days_stale} day(s) old (acceptable)")
+                print(f"  [OK] DATA FRESH: {days_stale} day(s) old (acceptable)")
                 return True
             else:
-                print(f"  ✗ DATA STALE: {days_stale} day(s) old (orchestrator will halt)")
-                print(f"    → Run loaders for {price_date + timedelta(days=1)} to fix")
+                print(f"  [STALE] DATA STALE: {days_stale} day(s) old (orchestrator will halt)")
+                print(f"    --> Run loaders for {price_date + timedelta(days=1)} to fix")
                 return False
         else:
-            print(f"  ✗ MISSING DATA: Cannot determine freshness")
+            print(f"  [MISSING] MISSING DATA: Cannot determine freshness")
             return False
 
     except Exception as e:
-        print(f"  ✗ ERROR: {e}")
+        print(f"  [ERROR] ERROR: {e}")
         return False
 
 
@@ -110,32 +110,32 @@ def check_lambda_environment():
         checks_total = 3
 
         if execution_mode == 'auto':
-            print("    ✓ Execution mode is 'auto' (will attempt live trading)")
+            print("    [OK] Execution mode is 'auto' (will attempt live trading)")
             checks_passed += 1
         else:
-            print(f"    ✗ Execution mode is '{execution_mode}' (not 'auto')")
+            print(f"    [FAIL] Execution mode is '{execution_mode}' (not 'auto')")
 
         if live_trading_flag == 'I_UNDERSTAND_REAL_MONEY':
-            print("    ✓ Live trading flag is set (live Alpaca account)")
+            print("    [OK] Live trading flag is set (live Alpaca account)")
             checks_passed += 1
         else:
-            print(f"    ✗ Live trading flag is '{live_trading_flag}' (not 'I_UNDERSTAND_REAL_MONEY')")
+            print(f"    [FAIL] Live trading flag is '{live_trading_flag}' (not 'I_UNDERSTAND_REAL_MONEY')")
 
         if paper_flag == 'false':
-            print("    ✓ Paper trading disabled (using live API)")
+            print("    [OK] Paper trading disabled (using live API)")
             checks_passed += 1
         else:
-            print(f"    ✗ Paper trading flag is '{paper_flag}' (not 'false')")
+            print(f"    [FAIL] Paper trading flag is '{paper_flag}' (not 'false')")
 
         if checks_passed == checks_total:
             return True
         else:
-            print(f"\n  ✗ Lambda environment incomplete ({checks_passed}/{checks_total} checks passed)")
-            print(f"    → Redeploy via 'git push origin main' or manually update Lambda config")
+            print(f"\n  [FAIL] Lambda environment incomplete ({checks_passed}/{checks_total} checks passed)")
+            print(f"    --> Redeploy via 'git push origin main' or manually update Lambda config")
             return False
 
     except Exception as e:
-        print(f"  ✗ ERROR: Cannot access Lambda (credentials invalid?): {e}")
+        print(f"  [FAIL] ERROR: Cannot access Lambda (credentials invalid?): {e}")
         return False
 
 
@@ -195,17 +195,17 @@ def check_recent_trades():
                     has_live = True
 
             if has_live:
-                print("    ✓ Live trades (auto mode) detected")
+                print("    [OK] Live trades (auto mode) detected")
             else:
-                print("    ✗ No live trades (auto mode) found - all in paper/dry mode")
+                print("    [FAIL] No live trades (auto mode) found - all in paper/dry mode")
         else:
-            print("  ✗ No trades found in last 30 days")
+            print("  [FAIL] No trades found in last 30 days")
 
         if trades:
             print("\n  Most recent trades:")
             for trade_id, symbol, mode, status, order_id, created_at in trades:
                 is_live = order_id and not order_id.startswith('LOCAL-')
-                status_icon = "✓" if is_live else "✗"
+                status_icon = "[OK]" if is_live else "[FAIL]"
                 print(f"    {status_icon} {trade_id}: {symbol} {mode:6} {order_id[:20]}")
         else:
             print("\n  No trades found")
@@ -213,7 +213,7 @@ def check_recent_trades():
         return True
 
     except Exception as e:
-        print(f"  ✗ ERROR: {e}")
+        print(f"  [FAIL] ERROR: {e}")
         return False
 
 
@@ -229,15 +229,15 @@ def check_alpaca_credentials():
         print("=" * 70)
 
         if creds and creds.get('key'):
-            print(f"  ✓ Alpaca key loaded (starting with: {creds['key'][:4]}...)")
-            print(f"  ✓ Alpaca secret loaded")
+            print(f"  [OK] Alpaca key loaded (starting with: {creds['key'][:4]}...)")
+            print(f"  [OK] Alpaca secret loaded")
             return True
         else:
-            print(f"  ✗ Alpaca credentials missing or incomplete")
+            print(f"  [FAIL] Alpaca credentials missing or incomplete")
             return False
 
     except Exception as e:
-        print(f"  ✗ ERROR: {e}")
+        print(f"  [FAIL] ERROR: {e}")
         return False
 
 
@@ -260,27 +260,27 @@ def main():
     all_ok = all(results.values())
 
     if results['data_freshness']:
-        print("✓ Market data is fresh")
+        print("[OK] Market data is fresh")
     else:
-        print("✗ Market data is stale - orchestrator will not trade")
+        print("[FAIL] Market data is stale - orchestrator will not trade")
 
     if results['lambda_environment']:
-        print("✓ Lambda is configured for live trading")
+        print("[OK] Lambda is configured for live trading")
     else:
-        print("✗ Lambda environment incomplete - trades will be in paper mode")
+        print("[FAIL] Lambda environment incomplete - trades will be in paper mode")
 
     if results['alpaca_credentials']:
-        print("✓ Alpaca credentials available")
+        print("[OK] Alpaca credentials available")
     else:
-        print("✗ Alpaca credentials not available")
+        print("[FAIL] Alpaca credentials not available")
 
     print("\n" + "=" * 70)
     if all_ok:
-        print("✓✓✓ SYSTEM READY FOR LIVE TRADING ✓✓✓")
+        print("[OK][OK][OK] SYSTEM READY FOR LIVE TRADING [OK][OK][OK]")
         print("=" * 70)
         return 0
     else:
-        print("✗✗✗ ISSUES FOUND - See diagnostics above ✗✗✗")
+        print("[FAIL][FAIL][FAIL] ISSUES FOUND - See diagnostics above [FAIL][FAIL][FAIL]")
         print("=" * 70)
         print("\nNext steps:")
         if not results['data_freshness']:

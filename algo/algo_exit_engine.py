@@ -609,7 +609,7 @@ class ExitEngine:
             """,
             (symbol, current_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return False
         sma_50, ema_21, vol, avg_vol_50 = row

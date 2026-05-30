@@ -311,11 +311,13 @@ resource "aws_apigatewayv2_stage" "api" {
   name        = var.api_gateway_stage_name
   auto_deploy = true
 
-  # FIXED Issue #16: API Gateway v2 (HTTP API) throttling handled at route level
-  # Throttling is enforced in default route settings via metrics and burst limits
-  # Note: HTTP API has different throttling model than REST API
+  # API Gateway v2 (HTTP API) throttling: explicit limits required.
+  # If throttling_burst_limit / throttling_rate_limit are omitted, Terraform sends 0 to AWS,
+  # which throttles ALL requests to 0 RPS and returns 429 {"message":"Too Many Requests"}.
   default_route_settings {
     detailed_metrics_enabled = true
+    throttling_burst_limit   = 5000  # max burst (AWS account default)
+    throttling_rate_limit    = 10000 # steady-state RPS (AWS account default)
   }
 
   dynamic "access_log_settings" {

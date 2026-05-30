@@ -494,7 +494,7 @@ class DailyReconciliation:
         orphans = our_symbols - set(alpaca_symbols.keys())
         if orphans:
             for sym in orphans:
-                self.cur.execute("""
+                cur.execute("""
                     UPDATE algo_positions
                     SET status = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE symbol = %s AND status = %s
@@ -512,7 +512,6 @@ class DailyReconciliation:
                 except Exception as e:
                     logger.warning(f"  Could not send orphan alert: {e}")
 
-        self.conn.commit()
         return {
             'imported': imported,
             'orphaned': len(orphans),
@@ -522,15 +521,18 @@ class DailyReconciliation:
                        f'{len(orphans)} orphans flagged',
         }
 
-    def compute_analytics_metrics(self):
+    def compute_analytics_metrics(self, cur):
         """E4+E5: Compute Information Coefficient and Expectancy metrics.
 
         E4: Weekly correlation of entry swing_score vs 5-day post-entry return.
         E5: After 30+ closed trades, compute Kelly fraction for position sizing alerts.
+
+        Args:
+            cur: Database cursor from DatabaseContext
         """
         try:
             # E4: Information Coefficient (last 8 weeks of closed trades)
-            self.cur.execute("""
+            cur.execute("""
                 SELECT swing_score, profit_loss_pct, trade_duration_days
                 FROM algo_trades
                 WHERE status = %s
@@ -540,7 +542,7 @@ class DailyReconciliation:
                 ORDER BY exit_date
             """, (TradeStatus.CLOSED.value,))
 
-            trades = self.cur.fetchall()
+            trades = cur.fetchall()
             ic_result = {'valid': False, 'ic': None, 'alert': None}
 
             if len(trades) >= 10:  # Need min 10 trades for meaningful IC
@@ -585,13 +587,13 @@ class DailyReconciliation:
                     logger.warning(f"IC computation failed: {e}")
 
             # E5: Expectancy and Kelly sizing (all closed trades)
-            self.cur.execute("""
+            cur.execute("""
                 SELECT COUNT(*), SUM(profit_loss_pct), AVG(profit_loss_pct)
                 FROM algo_trades
                 WHERE status = %s AND profit_loss_pct IS NOT NULL
             """, (TradeStatus.CLOSED.value,))
 
-            stats = self.cur.fetchone()
+            stats = cur.fetchone()
             expectancy_result = {'valid': False, 'expectancy': None, 'alert': None}
 
             if stats and stats[0] >= 30:  # Need 30+ trades
@@ -600,7 +602,7 @@ class DailyReconciliation:
                 avg_return = float(stats[2] or 0)
 
                 # Count wins and losses
-                self.cur.execute("""
+                cur.execute("""
                     SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) AS wins,
                            COUNT(*) FILTER (WHERE profit_loss_pct <= 0) AS losses,
                            AVG(profit_loss_pct) FILTER (WHERE profit_loss_pct > 0) AS avg_win,
@@ -609,7 +611,7 @@ class DailyReconciliation:
                     WHERE status = %s
                 """, (TradeStatus.CLOSED.value,))
 
-                wr = self.cur.fetchone()
+                wr = cur.fetchone()
                 wins = int(wr[0] or 0)
                 losses = int(wr[1] or 0)
                 avg_win = float(wr[2] or 0) if wr[2] else 1.0
@@ -643,11 +645,11 @@ class DailyReconciliation:
             logger.error(f"Error in compute_analytics_metrics: {e}")
             return {'ic': {'valid': False}, 'expectancy': {'valid': False}}
 
-    def compute_closed_trade_metrics(self):
+    def compute_closed_trade_metrics(self, cur):
         """E3: Compute MAE/MFE for recently closed trades (last 30 days)."""
         try:
             # Find recently closed trades without MAE/MFE
-            self.cur.execute("""
+            cur.execute("""
                 SELECT trade_id, symbol, trade_date, exit_date, entry_price, exit_price, exit_r_multiple
                 FROM algo_trades
                 WHERE status = %s
@@ -657,7 +659,7 @@ class DailyReconciliation:
                 ORDER BY exit_date DESC
             """, (TradeStatus.CLOSED.value,))
 
-            trades_to_update = self.cur.fetchall()
+            trades_to_update = cur.fetchall()
             if not trades_to_update:
                 return {'updated': 0, 'reason': 'No recently closed trades without MAE/MFE'}
 
@@ -667,13 +669,13 @@ class DailyReconciliation:
                     entry_price = float(entry_price)
                     exit_price = float(exit_price or entry_price)
 
-                    self.cur.execute("""
+                    cur.execute("""
                         SELECT high, low FROM price_daily
                         WHERE symbol = %s AND date >= %s AND date <= %s
                         ORDER BY date ASC
                     """, (symbol, entry_date, exit_date))
 
-                    prices = self.cur.fetchall()
+                    prices = cur.fetchall()
                     if not prices:
                         continue
 
@@ -688,7 +690,7 @@ class DailyReconciliation:
                     max_price = max(highs)
                     mfe_pct = ((max_price - entry_price) / entry_price * 100.0) if entry_price > 0 else 0
 
-                    self.cur.execute("""
+                    cur.execute("""
                         UPDATE algo_trades
                         SET mae_pct = %s, mfe_pct = %s, updated_at = CURRENT_TIMESTAMP
                         WHERE trade_id = %s
@@ -698,7 +700,6 @@ class DailyReconciliation:
                 except Exception as e:
                     logger.warning(f"Failed to compute MAE/MFE for trade {trade_id}: {e}")
 
-            self.conn.commit()
             return {'updated': updates, 'reason': f'Computed MAE/MFE for {updates} closed trades'}
         except Exception as e:
             logger.error(f"Error in compute_closed_trade_metrics: {e}")

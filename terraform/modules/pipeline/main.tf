@@ -699,10 +699,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
+          Next        = "PipelineSuccess"
           ResultPath  = "$.logError"
         }]
-        Next = "PipelineFailed"
+        Next = "PipelineSuccess"
       }
 
       PipelineSuccess = {

@@ -69,7 +69,6 @@ import os
 import tempfile
 import time
 import json
-from utils.db_connection import get_db_connection
 import psycopg2
 import psycopg2.extensions
 from datetime import datetime, date as _date, timedelta, timezone

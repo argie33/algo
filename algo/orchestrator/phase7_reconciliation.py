@@ -147,12 +147,9 @@ def run(
             logger.info(f"\n{report_text}")
 
             # Log to algo_audit_log for historical tracking
-            if get_conn and put_conn:
-                conn = None
-                cur = None
-                try:
-                    conn = get_conn()
-                    cur = conn.cursor()
+            try:
+                from utils.database_context import DatabaseContext
+                with DatabaseContext('write') as cur:
                     cur.execute(
                         """
                         INSERT INTO algo_audit_log (
@@ -161,18 +158,8 @@ def run(
                         """,
                         ('daily_report', run_date, 'PORTFOLIO', json.dumps(report)),
                     )
-                    conn.commit()
-                except Exception as e:
-                    logger.warning(f"Failed to log daily report to audit log: {e}")
-                finally:
-                    if cur:
-                        try:
-                            cur.close()
-                        except Exception as e:
-                            logger.debug(f"Exception (expected): {e}")
-                            pass
-                    if conn:
-                        put_conn(conn)
+            except Exception as e:
+                logger.warning(f"Failed to log daily report to audit log: {e}")
 
             log_phase_result_fn(7, 'daily_report', 'success',
                               f"Portfolio ${report.get('portfolio', {}).get('current_value', 0):,.0f}, "
