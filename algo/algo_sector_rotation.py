@@ -150,9 +150,6 @@ class SectorRotationDetector:
             logger.error(f"Sector rotation compute failed: {e}", exc_info=True)
             return None
 
-    def log_phase_result_skip(self):
-        pass
-
     def _exposure_penalty(self, lead_score, weeks):
         """Recommend market exposure reduction in pts based on signal severity."""
         if lead_score >= 75 and weeks >= 3:

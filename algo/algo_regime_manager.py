@@ -66,9 +66,6 @@ class RegimeManager:
         },
     }
 
-    def __init__(self):
-        pass
-
     def get_current_regime(self, as_of_date: Optional[_date] = None) -> str:
         """
         Get current market regime.

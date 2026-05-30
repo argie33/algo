@@ -23,9 +23,6 @@ logger = logging.getLogger(__name__)
 class SignalTradePerformancePopulator:
     """Extract component attribution from closed trades."""
 
-    def __init__(self):
-        pass
-
     def populate_closed_trades(self, lookback_days: int = 7) -> Dict[str, Any]:
         """
         Find closed trades since last populate, extract component scores, persist to signal_trade_performance.

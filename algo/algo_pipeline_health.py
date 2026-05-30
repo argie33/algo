@@ -143,9 +143,6 @@ class PipelineHealth:
         'earnings_calendar': {'date_column': 'created_at', 'sla_days': 30},
     }
 
-    def __init__(self):
-        pass
-
     def check_table_health(self, cur, table_name: str, date_column: str, sla_days: int) -> TableHealth:
         """Check health of a single table."""
         health = TableHealth(

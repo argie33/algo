@@ -20,9 +20,6 @@ logger = logging.getLogger(__name__)
 class TradeAuditLogger:
     """Log every trade decision with full reasoning."""
 
-    def __init__(self):
-        pass
-
     def log_position_sizing_audit(
         self,
         symbol: str,
