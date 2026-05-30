@@ -14,7 +14,12 @@ from pathlib import Path
 
 # Add lambda/api to path so routes module can be imported
 sys.path.insert(0, str(Path(__file__).parent))
-# Utils are packaged in the same directory as lambda_function.py in /var/task
+# Utils are packaged in the same directory as lambda_function.py (/var/task)
+# Explicitly add /var/task to ensure utils module can be imported
+sys.path.insert(0, '/var/task')
+if __file__.startswith('/Users') or __file__.startswith('/home'):
+    # Local dev: add project root for imports
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 IMPORT_ERROR = None
 
