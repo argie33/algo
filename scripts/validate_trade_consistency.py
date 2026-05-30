@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)
 def validate_trade_position_links():
     """Check for orphaned filled trades not linked to positions."""
     with DatabaseContext() as cur:
-
-    try:
         # Check for filled trades with no position links
         cur.execute("""
             SELECT t.trade_id, t.symbol, t.status, t.entry_date
@@ -47,16 +45,10 @@ def validate_trade_position_links():
             logger.info("✓ No orphaned filled trades found")
             return True
 
-    finally:
-        cur.close()
-        conn.close()
-
 
 def validate_position_trade_count():
     """Check that positions have valid trade counts."""
     with DatabaseContext() as cur:
-
-    try:
         cur.execute("""
             SELECT position_id, symbol,
                    array_length(trade_ids_arr, 1) as linked_trade_count,
@@ -76,10 +68,6 @@ def validate_position_trade_count():
         else:
             logger.info("✓ All positions have valid trade links")
             return True
-
-    finally:
-        cur.close()
-        conn.close()
 
 
 def main():
