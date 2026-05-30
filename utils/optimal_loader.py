@@ -264,24 +264,27 @@ class OptimalLoader(ABC):
             self._ensure_unique_constraint(cur)
 
             try:
-            # Filter to columns that exist in the target table — prevents failures when
-            # a loader produces extra fields before a schema migration has run.
-            # Cache the column set per loader instance to avoid N schema catalog queries.
-            if self._schema_cols_cache is None:
-                cur.execute(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_schema = 'public' AND table_name = %s",
-                    (self.table_name,),
-                )
-                self._schema_cols_cache = {row[0] for row in cur.fetchall()}
-            existing_cols = self._schema_cols_cache
-            all_data_cols = list(rows[0].keys())
-            skipped = [c for c in all_data_cols if c not in existing_cols]
-            if skipped:
-                log.warning("Loader %s: skipping columns not in DB schema: %s", self.table_name, skipped)
-            columns = [c for c in all_data_cols if c in existing_cols]
-            if not columns:
-                raise ValueError(f"No valid columns to write for {self.table_name}")
+                # Filter to columns that exist in the target table — prevents failures when
+                # a loader produces extra fields before a schema migration has run.
+                # Cache the column set per loader instance to avoid N schema catalog queries.
+                if self._schema_cols_cache is None:
+                    cur.execute(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = %s",
+                        (self.table_name,),
+                    )
+                    self._schema_cols_cache = {row[0] for row in cur.fetchall()}
+                existing_cols = self._schema_cols_cache
+                all_data_cols = list(rows[0].keys())
+                skipped = [c for c in all_data_cols if c not in existing_cols]
+                if skipped:
+                    log.warning("Loader %s: skipping columns not in DB schema: %s", self.table_name, skipped)
+                columns = [c for c in all_data_cols if c in existing_cols]
+                if not columns:
+                    raise ValueError(f"No valid columns to write for {self.table_name}")
+            except Exception as e:
+                logger.error(f"Failed to prepare columns for {self.table_name}: {e}")
+                raise
 
             import threading
             # Use UUID for guaranteed uniqueness across concurrent executions

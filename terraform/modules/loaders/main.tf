@@ -139,7 +139,9 @@ resource "aws_iam_role_policy" "ecs_task_lock_access" {
         Action = [
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem"
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
         ]
         Resource = aws_dynamodb_table.orchestrator_locks.arn
       }
