@@ -747,3 +747,13 @@ variable "fred_credential_rotation_schedule" {
   type        = string
   default     = "cron(0 10 ? * MON *)"
 }
+
+# ============================================================
+# Step Functions Integration
+# ============================================================
+
+variable "eod_pipeline_state_machine_arn" {
+  description = "ARN of the EOD pipeline Step Functions state machine (from pipeline module)"
+  type        = string
+  default     = ""
+}
