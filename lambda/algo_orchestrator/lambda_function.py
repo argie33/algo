@@ -78,12 +78,16 @@ def lambda_handler(event, context):
         # Support both 'date' and 'run_date' fields from EventBridge; treat 'now'/'today' as None (use today's date)
         run_date_str = event.get('date') or event.get('run_date')
 
-        # FIXED Issue #5: Parse run_identifier from EventBridge Scheduler to set dry_run mode
-        # Evening and pre-close runs should skip trading (dry_run=true) if execution_mode=auto
+        # Parse run_identifier from EventBridge Scheduler to determine run purpose
+        # ONLY evening run (after market close) should skip trading by default
+        # Preclose run (3 PM ET) should trade — it's the final opportunity before market close
         run_identifier = event.get('run_identifier', '')
-        if run_identifier in ('evening', 'preclose'):
-            # Evening/pre-close orchestrator runs in dry-run unless explicitly overridden
+        if run_identifier == 'evening':
+            # Evening orchestrator runs AFTER market close (5:30 PM ET) — no trading allowed
             dry_run = event.get('dry_run', True)
+        elif run_identifier == 'preclose':
+            # Preclose orchestrator runs BEFORE market close (3 PM ET) — this MUST trade
+            dry_run = event.get('dry_run', False)
 
         # FIXED Issue #12: Parse execution_mode from event (EventBridge Scheduler passes it)
         execution_mode = event.get('execution_mode', os.getenv('ORCHESTRATOR_EXECUTION_MODE', 'auto')).strip().lower()
