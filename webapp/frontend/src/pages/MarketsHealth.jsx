@@ -740,9 +740,9 @@ function NewHighsLowsCard({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SentimentCard({ markets, sentiment }) {
-  const aaiiHistory = sentiment?.aaii || markets?.sentiment || [];
-  const naaim = sentiment?.naaim?.exposure ?? sentiment?.naaim;
-  const fearGreed = sentiment?.fearGreed?.value ?? sentiment?.fearGreed;
+  const aaiiHistory = sentiment?.aaii?.history || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  const naaim = sentiment?.naaim?.current ?? null;
+  const fearGreed = sentiment?.fearGreed?.current?.value ?? null;
   if (!aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
   const data = aaiiHistory.slice().reverse().map(s => ({
     date: s.date,
@@ -1619,7 +1619,7 @@ function SentimentCompositeCard({ markets, sentiment }) {
   const fgValue = fgLatest?.value ?? fgLatest?.fear_greed_value ?? null;
 
   // AAII bull-bear spread last 30 sessions for mini chart
-  const aaii = sentiment?.aaii || markets?.sentiment || [];
+  const aaii = sentiment?.aaii?.history || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
   const aaiiSeries = aaii.slice().reverse().map(s => ({
     date: s.date,
     spread: parseFloat(s.bullish || 0) - parseFloat(s.bearish || 0),
