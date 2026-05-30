@@ -929,6 +929,8 @@ resource "aws_ecs_task_definition" "data_patrol" {
         { name = "DB_HOST", value = var.db_host },
         { name = "DB_PORT", value = tostring(var.db_port) },
         { name = "DB_NAME", value = var.db_name },
+        { name = "DB_SECRET_ARN", value = var.db_secret_arn },
+        { name = "ALGO_SECRETS_ARN", value = var.algo_secrets_arn },
         { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" }
       ]
     }
