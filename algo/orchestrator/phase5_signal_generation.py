@@ -134,6 +134,11 @@ def run(
     if check_halt_flag():
         return PhaseResult(5, 'signal_generation', 'halted', {}, True, 'Halt flag detected')
 
+    logger.info(f"\n{'='*70}")
+    logger.info(f"PHASE 5: SIGNAL GENERATION & RANKING")
+    logger.info(f"{'='*70}")
+    logger.info(f"Exposure constraints: risk_mult={exposure_constraints.get('risk_multiplier', 1.0):.2f}x, tier='{exposure_constraints.get('tier_name', 'N/A')}'")
+
     try:
         from algo.algo_filter_pipeline import FilterPipeline
 

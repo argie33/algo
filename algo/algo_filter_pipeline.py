@@ -125,7 +125,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 (eval_date,),
             )
             signals = self.cur.fetchall()
-            logger.info(f"Found {len(signals)} BUY signals to evaluate\n")
+            logger.info(f"Found {len(signals)} BUY signals to evaluate from {eval_date}")
+            if not signals:
+                logger.warning(f"[CRITICAL] No BUY signals found in buy_sell_daily for {eval_date} — signal generation will return 0 trades")
+            logger.info("")
 
             if self.advanced is None:
                 self.advanced = AdvancedFilters(self.config, cur=self.cur)
