@@ -2559,6 +2559,20 @@ CREATE TABLE IF NOT EXISTS last_updated (
 );
 CREATE INDEX IF NOT EXISTS idx_last_updated_script_name ON last_updated(script_name);
 
+-- Price data for intermediate calculations (industry ranking, window calculations)
+CREATE TABLE IF NOT EXISTS price_window (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    period_type VARCHAR(20),
+    window_start DATE,
+    window_end DATE,
+    price_change DECIMAL(8, 4),
+    volume_avg BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date, period_type)
+);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- PERFORMANCE INDEXES (2026-05-15) — After Phase 1 Data Integrity
 -- ════════════════════════════════════════════════════════════════════════════

@@ -821,7 +821,10 @@ class Orchestrator:
             return {'success': False, 'error': 'Lock acquisition failed'}
 
         try:
-            logger.info("\n[CRITICAL] Running critical data checks...")
+            logger.info(f"\n{'='*70}")
+            logger.info("PRE-FLIGHT CHECKS (before Phase 1)")
+            logger.info(f"{'='*70}")
+            logger.info("[CRITICAL] Running critical data checks...")
             conn = None
             cur = None
             try:
@@ -830,15 +833,20 @@ class Orchestrator:
 
                 # FIXED Issue #23: Validate required tables exist
                 if not self._validate_required_tables(cur):
+                    logger.error("[HALT] Required tables missing — cannot proceed")
                     return self._final_report()
 
                 # FIXED Issue #9: Check data freshness before patrol
                 if not self._check_data_freshness(cur):
+                    logger.error("[HALT] Data freshness check failed — cannot proceed")
                     return self._final_report()
 
                 # Check data patrol for quality issues
                 if not self._check_data_patrol(cur):
+                    logger.error("[HALT] Data patrol check failed — cannot proceed")
                     return self._final_report()
+
+                logger.info("[OK] All pre-flight checks passed")
             except Exception as e:
                 logger.error(f"  [HALT] Data patrol check failed: {e}")
                 return self._final_report()
@@ -851,8 +859,10 @@ class Orchestrator:
                 self._put_conn(conn)
 
 
+            logger.info("\n[CHECK] Database connectivity...")
             if not self._check_db_connectivity():
                 failures = self._increment_db_failure_counter()
+                logger.error(f"[DB_ERROR] Database connectivity check FAILED ({failures}/3 failures)")
                 if failures >= 3:
                     self.degraded_mode = True
                     logger.error(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
@@ -878,6 +888,7 @@ class Orchestrator:
                     return self._final_report()
             else:
                 self._reset_db_failure_counter()
+                logger.info("[OK] Database connectivity check passed")
 
             if self.degraded_mode and self.dry_run:
                 logger.info("[DRY-RUN] Running in planning mode — skipping all trading phases.")
