@@ -600,6 +600,12 @@ variable "orchestrator_log_level" {
   default     = "info"
 }
 
+variable "orchestrator_locks_table_name" {
+  description = "DynamoDB table name for orchestrator distributed locks (passed from root module)"
+  type        = string
+  default     = "algo-orchestrator-locks"
+}
+
 variable "data_patrol_enabled" {
   description = "Enable data patrol monitoring (passed from root module)"
   type        = bool

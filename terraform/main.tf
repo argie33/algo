@@ -287,6 +287,7 @@ module "services" {
   execution_mode                          = var.execution_mode
   orchestrator_dry_run                    = var.orchestrator_dry_run
   orchestrator_log_level                  = var.orchestrator_log_level
+  orchestrator_locks_table_name           = module.loaders.orchestrator_locks_table_name
   data_patrol_enabled                     = var.data_patrol_enabled
   data_patrol_timeout_ms                  = var.data_patrol_timeout_ms
   ecs_cluster_arn                         = module.compute.ecs_cluster_arn
