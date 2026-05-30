@@ -94,9 +94,16 @@ class TradeExecutor:
             and paper_flag != 'true'
             and not url_says_paper
         )
+
+        # DEBUG LOGGING: Log all execution mode conditions
+        logger.info(f"[TRADE_EXECUTOR_INIT] execution_mode={execution_mode}, ALGO_LIVE_TRADING={live_ack}, ALPACA_PAPER_TRADING={paper_flag}")
+        logger.info(f"[TRADE_EXECUTOR_INIT] alpaca_base_url={self.alpaca_base_url}, url_says_paper={url_says_paper}")
+        logger.info(f"[TRADE_EXECUTOR_INIT] live_intent conditions: execution_mode='auto'={execution_mode=='auto'}, live_ack='I_UNDERSTAND_REAL_MONEY'={live_ack=='I_UNDERSTAND_REAL_MONEY'}, paper_flag!='true'={paper_flag!='true'}, not url_says_paper={not url_says_paper}")
+        logger.info(f"[TRADE_EXECUTOR_INIT] live_intent={live_intent} (will {'TRADE LIVE' if live_intent else 'TRADE PAPER'})")
+
         if not live_intent:
-            # Force paper trading
-            self.alpaca_base_url = get_alpaca_base_url()
+            # Force paper trading — CRITICAL: explicitly use paper URL, ignore APCA_API_BASE_URL
+            self.alpaca_base_url = 'https://paper-api.alpaca.markets'
             self.is_paper = True
         else:
             self.is_paper = False
@@ -368,6 +375,7 @@ class TradeExecutor:
 
             if execution_mode in ('paper', 'dry'):
                 logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
+                logger.warning(f"[ENTRY] {symbol}: NOT TRADING LIVE - execution_mode is {execution_mode} (not 'auto')")
                 alpaca_order_id = f'LOCAL-{trade_id}'
                 order_status = 'open'  # P4: Changed from 'filled' to standardized 'open'
                 executed_price = entry_price
@@ -377,7 +385,8 @@ class TradeExecutor:
                 order_status = 'pending'  # P4: Standardized status
                 executed_price = entry_price
             else:  # 'auto' — actually send to Alpaca as BRACKET ORDER
-                logger.info(f"[ENTRY] {symbol}: AUTO mode - sending to Alpaca")
+                logger.info(f"[ENTRY] {symbol}: AUTO mode - SENDING LIVE ORDER TO ALPACA")
+                logger.info(f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}")
                 self._order_send_time = time.time()  # Track for execution latency (TCA)
                 order_result = self._send_alpaca_order(
                     symbol, shares, entry_price,
