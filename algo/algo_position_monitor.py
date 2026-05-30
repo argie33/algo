@@ -73,6 +73,10 @@ class PositionMonitor:
                     ORDER BY created_at ASC
                 """)
                 stale_orders = cur.fetchall()
+            except Exception as e:
+                logger.error(f"Stale orders query failed: {e}")
+                return {'status': 'ERROR', 'error': str(e)}
+
             if stale_orders:
                 # Filter out halted symbols (halts are normal, not actionable)
                 try:

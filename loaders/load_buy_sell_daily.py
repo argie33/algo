@@ -38,6 +38,23 @@ class SignalsDailyLoader(OptimalLoader):
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
 
+        # On ECS restart the in-memory watermark is empty, so since=None.
+        # Read the actual DB max date to avoid re-fetching old data and causing constraint violations.
+        if since is None:
+            try:
+                conn = self._connect()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                cur.close()
+                if row and row[0]:
+                    since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+            except Exception as e:
+                logger.warning(f"Could not read buy_sell_daily watermark for {symbol}: {e}")
+
         if since is None:
             start = end - timedelta(days=30)
         else:
