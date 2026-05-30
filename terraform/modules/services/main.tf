@@ -165,10 +165,19 @@ resource "aws_apigatewayv2_api" "main" {
   protocol_type = "HTTP"
 
   # CORS configuration for API Gateway
-  # For CloudFront requests: CloudFront handles CORS (origin_request_policy in cache behavior)
-  # For direct API calls: localhost origins for development
-  # NOTE: Removed CloudFront domain from CORS to avoid circular dependency with CloudFront resource
-  #       CloudFront is configured as a custom origin with proper CORS headers forwarding
+  #
+  # Architecture: CloudFront acts as reverse proxy with two origins:
+  # 1. S3 Frontend (static React app)
+  # 2. API Gateway (backend REST API)
+  #
+  # CloudFront domain is NOT in this CORS list (avoids circular dependency in Terraform).
+  # Instead, the origin_request_policy in CloudFront's /api/* cache behavior handles header forwarding.
+  #
+  # When browsers access www.example.com/api/*, requests flow through CloudFront which:
+  # - Forwards necessary headers to API Gateway via origin_request_policy
+  # - API Gateway doesn't need CloudFront in CORS because CloudFront is same-origin (same domain)
+  #
+  # Direct API access (development) uses localhost origins below.
   cors_configuration {
     allow_origins = [
       "http://localhost:3000",
