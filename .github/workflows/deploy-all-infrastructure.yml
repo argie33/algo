@@ -323,6 +323,31 @@ jobs:
           echo "[OK] Algo Orchestrator Lambda ZIP: $(du -sh $GITHUB_WORKSPACE/terraform/lambda_algo.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/lambda_algo.zip | head -20
 
+      - name: Build Loader Failure Handler Lambda
+        run: |
+          # Build loader failure handler Lambda ZIP for Step Functions error handling
+          # Must run before Terraform so the ZIP is available for filebase64sha256()
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/loader_failure_handler
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda
+          PKG_DIR=/tmp/loader-failure-handler-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
+
+          # Copy Lambda function code
+          cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
+
+          # Install dependencies (minimal for this Lambda)
+          python3.12 -m pip install boto3 \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          # Create ZIP in the location where Terraform expects it
+          rm -f $TERRAFORM_LAMBDA/loader_failure_handler.zip
+          cd $PKG_DIR
+          zip -r $TERRAFORM_LAMBDA/loader_failure_handler.zip . -q -x "*.pyc" "__pycache__/*"
+
+          echo "[OK] loader_failure_handler Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/loader_failure_handler.zip | cut -f1)"
+          unzip -l $TERRAFORM_LAMBDA/loader_failure_handler.zip | head -10
 
       - name: Terraform Validate
         run: terraform validate
