@@ -195,11 +195,12 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
     origin = event.get('headers', {}).get('origin', '') or event.get('headers', {}).get('Origin', '')
 
     # Production CloudFront domain (configurable via FRONTEND_URL env var)
-    PROD_CLOUDFRONT = os.getenv('FRONTEND_URL', 'https://d2u93283nn45h2.cloudfront.net')
+    PROD_CLOUDFRONT = os.getenv('FRONTEND_URL', '')
 
     # Check if origin is in whitelist or matches production CloudFront
     allowed_origins = _build_allowed_origins()
-    allowed_origins.add(PROD_CLOUDFRONT)  # Ensure production domain is always allowed
+    if PROD_CLOUDFRONT:  # Only add if actually set (no hardcoded fallback)
+        allowed_origins.add(PROD_CLOUDFRONT)
 
     if origin in allowed_origins:
         return {
@@ -238,7 +239,12 @@ def get_json_content_type() -> str:
 
 def get_security_headers() -> Dict[str, str]:
     """Return security headers for all responses."""
-    allowed_origins_list = ' '.join(_build_allowed_origins())
+    origins = _build_allowed_origins()
+    # Also include production CloudFront domain if configured
+    frontend_url = os.getenv('FRONTEND_URL', '')
+    if frontend_url:
+        origins.add(frontend_url)
+    allowed_origins_list = ' '.join(sorted(origins))
     return {
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
         'X-Content-Type-Options': 'nosniff',

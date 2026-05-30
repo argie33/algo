@@ -159,13 +159,16 @@ resource "aws_apigatewayv2_api" "main" {
   name          = "${var.project_name}-api-${var.environment}"
   protocol_type = "HTTP"
 
-  # CORS is handled at both API Gateway level (safety net) and Lambda (primary)
-  # CloudFront (if enabled) forwards requests to API Gateway; CORS origin not needed here
+  # CORS configuration must include CloudFront domain when enabled
+  # API Gateway performs CORS validation before requests reach Lambda
   cors_configuration {
-    allow_origins = [
-      "http://localhost:3000",
-      "http://localhost:5173"
-    ]
+    allow_origins = concat(
+      [
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      var.cloudfront_enabled ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : []
+    )
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
     expose_headers    = ["Content-Length", "Content-Type"]
