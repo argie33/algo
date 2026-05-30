@@ -416,6 +416,10 @@ def is_rate_limited(client_ip: str, rate_limit_requests: int = RATE_LIMIT_REQUES
     """
     now = time()
 
+    # Initialize empty list if client IP not seen before
+    if client_ip not in _request_history:
+        _request_history[client_ip] = []
+
     # Clean old entries outside the window
     _request_history[client_ip] = [
         req_time for req_time in _request_history[client_ip]

@@ -90,8 +90,6 @@ def _recalculate_position_size_after_exits(
 
 def _validate_and_adjust_entry_price(
     trade: Dict[str, Any],
-    get_conn: Callable,
-    put_conn: Callable,
     verbose: bool = False
 ) -> Dict[str, Any]:
     """
@@ -105,22 +103,14 @@ def _validate_and_adjust_entry_price(
     shares = trade['shares']
     stop_loss = trade['stop_loss_price']
 
-    conn = None
     try:
-        conn = get_conn()
-        if not conn:
-            return trade
-
-        cur = conn.cursor()
-        try:
+        with DatabaseContext('read') as cur:
             cur.execute("""
                 SELECT close FROM price_daily
                 WHERE symbol = %s
                 ORDER BY date DESC LIMIT 1
             """, (symbol,))
             result = cur.fetchone()
-        finally:
-            cur.close()
 
         if not result:
             if verbose:
@@ -166,9 +156,6 @@ def _validate_and_adjust_entry_price(
     except Exception as e:
         logger.warning(f"  {symbol}: Price validation failed ({e}), using signal price")
         return trade
-    finally:
-        if conn:
-            put_conn(conn)
 
 
 def _validate_pre_trade_data_quality(
@@ -615,14 +602,14 @@ def run(
 
         for trade in trades_to_enter[:open_slots]:
             # Validate entry price hasn't drifted significantly
-            trade = _validate_and_adjust_entry_price(trade, get_conn, put_conn, verbose)
+            trade = _validate_and_adjust_entry_price(trade, verbose)
             if trade.get('skip_due_to_price_drift'):
                 blocked += 1
                 logger.warning(f"  SKIPPED {trade['symbol']}: Price validation failed")
                 continue
 
             # Recalculate position size based on current portfolio value (after Phase 4 exits)
-            trade = _recalculate_position_size_after_exits(trade, get_conn, config, exposure_mult, verbose)
+            trade = _recalculate_position_size_after_exits(trade, config, exposure_mult, verbose)
 
             # Re-check sector limits before execution to prevent race condition
             # where two same-sector trades could violate sector concentration limits
@@ -634,9 +621,7 @@ def run(
 
             if sector and entry_price > 0 and shares > 0:
                 try:
-                    conn_check = get_conn()
-                    try:
-                        cur_check = conn_check.cursor()
+                    with DatabaseContext('read') as cur_check:
                         # Get current sector allocation
                         cur_check.execute("""
                             SELECT COALESCE(SUM(position_value), 0) as sector_value
