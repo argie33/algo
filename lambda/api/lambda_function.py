@@ -570,7 +570,33 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'import_error', 'message': f'Failed to import dependencies: {IMPORT_ERROR}'})
         }
 
-    # Validate critical environment variables at cold start
+    # Extract path early so health checks can bypass DB validation
+    path = event.get('rawPath', event.get('path', '/'))
+    method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
+
+    # CORS preflight handled before any validation (browsers need this to succeed)
+    if method == 'OPTIONS':
+        cors_headers = get_cors_headers(event)
+        return {
+            'statusCode': 200,
+            'headers': {
+                **cors_headers,
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                **get_security_headers()
+            }
+        }
+
+    # Health check returns immediately — no DB or env validation needed for uptime monitors
+    if path in ['/health', '/api/health']:
+        cors_headers = get_cors_headers(event)
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+            'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
+        }
+
+    # Validate critical environment variables (non-health requests only)
     env_valid, env_errors = validate_environment()
     if not env_valid:
         error_msg = '; '.join(env_errors)
@@ -582,7 +608,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'configuration_error', 'message': f'Missing required environment variables: {error_msg}'})
         }
 
-    # FIXED Issue #17: Test database connection at cold start
+    # Test database connection (non-health requests only)
     db_test_ok, db_test_error = test_db_connection()
     if not db_test_ok:
         logger.error(f'[DB_VALIDATION_FAILED] {db_test_error}')
@@ -593,25 +619,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'database_error', 'message': db_test_error})
         }
 
-    logger.info(f'[HANDLER_INVOKED] Event received: {event.get("rawPath", "?")} {event.get("requestContext", {}).get("http", {}).get("method", "?")}')
+    logger.info(f'[HANDLER_INVOKED] Event received: {path} {method}')
     try:
-        # API Gateway v2 (HTTP API) uses rawPath and requestContext.http.method
-        path = event.get('rawPath', event.get('path', '/'))
-        method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
         logger.info(f'Request: {method} {path}')
-
-        # CORS preflight must be handled before auth check so browsers can complete handshake
-        if method == 'OPTIONS':
-            cors_headers = get_cors_headers(event)
-            return {
-                'statusCode': 200,
-                'headers': {
-                    **cors_headers,
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-                    **get_security_headers()
-                }
-            }
 
         # Check authorization for protected endpoints
         requires_auth, is_authorized, auth_error, jwt_claims = require_auth(event, path)
@@ -628,15 +638,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Skip rate limiting for health check endpoints (required for uptime monitoring)
         is_health_check = path in RATE_LIMIT_EXEMPT_PATHS
-
-        # Health check (exempt from rate limiting — required for frontend monitoring)
-        if path in ['/health', '/api/health']:
-            cors_headers = get_cors_headers(event)
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
-            }
 
         # Detailed health check
         if path in ['/health/detailed', '/api/health/detailed']:
