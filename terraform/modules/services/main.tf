@@ -686,7 +686,7 @@ resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
   principal     = "states.amazonaws.com"
   # Allow any Step Functions state machine in this account/region to invoke
   # (principal already restricted to states.amazonaws.com)
-  source_arn = "arn:aws:states:${data.aws_caller_identity.current.account_id}:${var.aws_region}:*"
+  source_arn = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*:*"
 }
 
 # ============================================================
