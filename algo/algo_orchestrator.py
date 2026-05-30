@@ -23,6 +23,7 @@ from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.algo_trade_executor import TradeExecutor
+from utils.database_context import DatabaseContext
 import logging
 from monitoring.metrics_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
@@ -77,7 +78,6 @@ class Orchestrator:
     def _check_db_connectivity(self) -> bool:
         """Test if database is reachable. Returns True if OK, False if failed."""
         try:
-            from utils.database_context import DatabaseContext
             with DatabaseContext('read') as cur:
                 cur.execute("SELECT 1")
             return True
