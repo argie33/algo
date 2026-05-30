@@ -12,7 +12,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
         try:
             if path in ['/api/scores', '/api/scores/stockscores'] or path.startswith('/api/scores?') or path.startswith('/api/scores/stockscores?'):
                 limit_str = params.get('limit', [None])[0] if params else None
-                limit = safe_limit(limit_str, max_val=50000, default=50000)
+                limit = safe_limit(limit_str, max_val=1000, default=1000)
                 offset_str = params.get('offset', [None])[0] if params else None
                 offset = safe_offset(offset_str)
                 sort_by = params.get('sortBy', ['composite_score'])[0] if params else 'composite_score'

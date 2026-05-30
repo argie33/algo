@@ -94,7 +94,7 @@ export default function ScoresDashboard() {
 
   const queryResult = useApiQuery(
     ['stock-scores'],
-    () => api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=false'),
+    () => api.get('/api/scores/stockscores?limit=1000&offset=0&sortBy=composite_score&sp500Only=false'),
     { refetchInterval: 60000 }
   );
   const { data: rawData, loading: isLoading, error: dataError, refetch } = queryResult;
