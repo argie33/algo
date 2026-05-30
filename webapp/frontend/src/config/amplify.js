@@ -1,4 +1,4 @@
-﻿import { Amplify } from "aws-amplify";
+import { Amplify } from "aws-amplify";
 
 // Get runtime configuration values
 const getRuntimeConfig = () => {
@@ -47,18 +47,34 @@ const getAmplifyConfig = () => {
   };
 };
 
+// Track last configured values to avoid redundant reconfiguration
+let lastConfiguredPoolId = null;
+
 // Configure Amplify
 export function configureAmplify() {
   try {
     const config = getAmplifyConfig();
-    const _runtimeConfig = getRuntimeConfig();
+    const currentPoolId = config.Auth.Cognito.userPoolId;
 
+    // Only reconfigure if pool ID changed (new config loaded)
+    // Prevents redundant Amplify.configure() calls
+    if (lastConfiguredPoolId === currentPoolId) {
+      return;
+    }
+
+    lastConfiguredPoolId = currentPoolId;
     Amplify.configure(config);
+
+    const isConfigured = isCognitoConfigured();
+    if (isConfigured) {
+      console.log("[AMPLIFY] Configured with Cognito:", currentPoolId.substring(0, 12) + "...");
+    } else {
+      console.warn("[AMPLIFY] Configured with fallback values - real config may load later");
+    }
   } catch (error) {
-    console.error("❌ Failed to configure Amplify:", error);
+    console.error("Failed to configure Amplify:", error);
   }
 }
 
 export { isCognitoConfigured, getAmplifyConfig };
 export default getAmplifyConfig;
-

@@ -274,12 +274,7 @@ export function AuthProvider({ children }) {
     }
   }, []); // Empty dependency array since dispatch is stable
 
-  // Check if user is authenticated on app start
-  useEffect(() => {
-    checkAuthState();
-    // Register the refresh callback for API interceptor
-    setRefreshCallback(refreshSession);
-  }, [checkAuthState, refreshSession]);
+  // Check if user is authenticated on app start  // Wait for Cognito to be configured before attempting authentication  useEffect(() => {    const initAuth = async () => {      // Wait for Cognito config to be available (up to 5 seconds)      let attempts = 0;      const maxAttempts = 50; // 50 * 100ms = 5 seconds            while (!isCognitoConfigured() && attempts < maxAttempts) {        await new Promise(resolve => setTimeout(resolve, 100));        attempts++;      }            if (isCognitoConfigured()) {        console.log("[AUTH] Cognito configured, checking auth state");      } else {        console.warn("[AUTH] Cognito not configured after 5s, logging out");      }            // Now check auth with Cognito properly configured      checkAuthState();      // Register the refresh callback for API interceptor      setRefreshCallback(refreshSession);    };        initAuth().catch(error => {      console.error("[AUTH] Failed to initialize auth:", error);      // Fallback: just check auth anyway      checkAuthState();      setRefreshCallback(refreshSession);    });  }, [checkAuthState, refreshSession]);
 
   // Initialize session manager when authenticated
   useEffect(() => {

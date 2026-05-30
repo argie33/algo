@@ -138,25 +138,30 @@ if ("caches" in window) {
     });
 }
 
-// Check if config is already loaded by index.html, don't force reload
-if (window.__CONFIG__) {
-  // Config already loaded by index.html
-} else {
-  // Waiting for config.js to load from index.html
-  // Wait a bit for config to load naturally from index.html
-  setTimeout(() => {
-    if (window.__CONFIG__) {
-      // Config loaded after waiting
-    } else {
-      if (import.meta.env && import.meta.env.DEV) {
-        console.warn("⚠ï¸ Config not loaded yet, check index.html script tag");
-      }
-    }
-  }, 1000);
-}
 
-// Configure Amplify
-configureAmplify();
+// FIXED: Wait for config.js to load before configuring Amplify
+// This ensures window.__CONFIG__ is available when AuthContext checks auth
+const waitForConfig = async () => {
+  let attempts = 0;
+  const maxAttempts = 50; // 50 * 100ms = 5 seconds max wait
+
+  while (!window.__CONFIG__ && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    attempts++;
+  }
+
+  if (!window.__CONFIG__) {
+    if (import.meta.env.DEV) {
+      console.warn("Config not loaded after 5 seconds, check index.html");
+    }
+  }
+
+  // Configure Amplify after config is available
+  configureAmplify();
+};
+
+// Start waiting for config (non-blocking)
+waitForConfig().catch(() => configureAmplify());
 
 // Create React Query client
 const queryClient = new QueryClient({
