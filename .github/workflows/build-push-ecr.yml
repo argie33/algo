@@ -53,9 +53,7 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
           # Try to find the actual repo; fall back to constructed name
-          ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION \
-            --query 'repositories[?starts_with(repositoryName, "algo")].repositoryUri | [0]' \
-            --output text 2>/dev/null || echo "")
+          ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION --output json 2>/dev/null | jq -r '.repositories[] | select(.repositoryName | startswith("algo")) | .repositoryUri' | head -1 || echo "")
 
           if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
             ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/algo-registry"

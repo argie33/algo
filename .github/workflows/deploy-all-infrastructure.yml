@@ -596,9 +596,7 @@ jobs:
           # Handle cases where output might be empty or "None"
           if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
             echo "ECR URL not available from Terraform, discovering via AWS CLI..."
-            ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION \
-              --query 'repositories[?starts_with(repositoryName, "algo")].repositoryUri | [0]' \
-              --output text 2>/dev/null)
+            ECR_URL=$(aws ecr describe-repositories --region $AWS_REGION --output json 2>/dev/null | jq -r '.repositories[] | select(.repositoryName | startswith("algo")) | .repositoryUri' | head -1)
             if [ -z "$ECR_URL" ] || [ "$ECR_URL" = "None" ]; then
               echo "No ECR repository found, skipping image build"
               ECR_URL=""
@@ -854,33 +852,35 @@ jobs:
         run: |
           BUCKET="${{ needs.terraform.outputs.frontend_bucket }}"
           if [ -z "$BUCKET" ]; then
-            BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?starts_with(Name, "algo-frontend")].Name | [0]' \
-              --output text 2>/dev/null || echo "")
+            BUCKET=$(aws s3api list-buckets --output json 2>/dev/null | jq -r '.Buckets[] | select(.Name | startswith("algo-frontend")) | .Name' | head -1 || echo "")
           fi
           if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
             echo "ERROR: could not resolve frontend S3 bucket"
             exit 1
           fi
-          # Sync assets with correct Content-Type headers (charset=utf-8 prevents browser mojibake).
+          # First pass: delete all old files from S3 bucket
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" --delete
+          # Second pass: sync with proper Content-Type and cache headers (no delete flag)
+          # JavaScript files with immutable cache headers
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
-            --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --content-type "application/javascript; charset=utf-8" \
             --exclude "*" --include "*.js" --exclude "config.js"
+          # CSS files with immutable cache headers
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
-            --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --content-type "text/css; charset=utf-8" \
             --exclude "*" --include "*.css"
+          # Other assets (fonts, images, etc) with immutable cache headers
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
-            --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html" --exclude "*.js" --exclude "*.css" --exclude "config.js"
+          # HTML files with no-cache headers
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "no-cache, no-store, must-revalidate" \
             --exclude "*" --include "*.html"
+          # config.js with no-cache headers
           aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
             --content-type "application/javascript; charset=utf-8" \
             --cache-control "no-cache, no-store, must-revalidate" \
