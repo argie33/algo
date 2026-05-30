@@ -280,6 +280,55 @@ resource "aws_cloudwatch_dashboard" "main" {
         x      = 12
         y      = 30
       },
+
+      # ============================================================
+      # Loader Execution Status (Issue #3 - Dashboard for Issue #5)
+      # ============================================================
+      {
+        type = "metric"
+        properties = {
+          metrics = [
+            ["Algo/DataLoading", "LoaderSuccess", { stat = "Sum" }],
+            [".", "LoaderFailure", { stat = "Sum" }],
+          ]
+          period = 300
+          stat   = "Sum"
+          region = var.aws_region
+          title  = "Loader Execution Status - Successes vs Failures"
+          yAxis = {
+            left = {
+              min = 0
+            }
+          }
+        }
+        width  = 12
+        height = 6
+        x      = 0
+        y      = 36
+      },
+
+      {
+        type = "metric"
+        properties = {
+          metrics = [
+            ["Algo/DataLoading", "LoaderSuccess", { stat = "Sum" }],
+            [".", "LoaderFailure", { stat = "Sum" }],
+          ]
+          period = 86400
+          stat   = "Sum"
+          region = var.aws_region
+          title  = "Loader Execution Status - Daily Summary"
+          yAxis = {
+            left = {
+              min = 0
+            }
+          }
+        }
+        width  = 12
+        height = 6
+        x      = 12
+        y      = 36
+      },
     ]
   })
 }
