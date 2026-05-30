@@ -167,17 +167,16 @@ class OptimalLoader(ABC):
         return conn
 
 
-    def _ensure_unique_constraint(self, conn):
+    def _ensure_unique_constraint(self, cur):
         """Ensure the primary_key columns have a UNIQUE constraint.
 
         If not found, create it. This prevents "ON CONFLICT" errors on inserts.
-        Only runs once per loader instance.
+        Only runs once per loader instance. Called within DatabaseContext transaction.
         """
         if self._constraint_checked or not self.primary_key or not self.table_name:
             return
 
         self._constraint_checked = True
-        cur = conn.cursor()
         try:
             # Check if table exists
             cur.execute("""
@@ -226,23 +225,17 @@ class OptimalLoader(ABC):
                 ADD CONSTRAINT {constraint_name}
                 UNIQUE ({pk_cols})
                 """)
-                conn.commit()
             except psycopg2.IntegrityError as e:
                 # Constraint creation failed due to duplicates
                 log.warning(f"Cannot create constraint (duplicates exist): {e}")
-                conn.rollback()
                 # Continue anyway � will use DO NOTHING fallback
             except psycopg2.ProgrammingError as e:
                 if "already exists" in str(e):
                     log.debug(f"Constraint already exists: {e}")
                 else:
                     log.warning(f"Cannot create constraint: {e}")
-                conn.rollback()
         except Exception as e:
             log.warning(f"Error checking/creating constraint: {e}")
-            conn.rollback()
-        finally:
-            cur.close()
 
     # ---- Insert path: COPY for bulk + ON CONFLICT for safety ----
 
@@ -495,31 +488,30 @@ class OptimalLoader(ABC):
             log.debug("metrics unavailable: %s", e)
 
         try:
-            conn = self._connect()
-            cur = conn.cursor()
-            # Use actual table counts — not incremental delta — so the dashboard correctly
-            # shows tables as non-empty when no new rows were loaded (already up-to-date).
-            if self.watermark_field:
-                cur.execute(
-                    f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
-                )
-            else:
-                cur.execute(f"SELECT COUNT(*), NULL FROM {self.table_name}")
-            result = cur.fetchone()
-            total_rows = result[0] if result else 0
-            latest_date = result[1] if result else None
-            if hasattr(latest_date, 'date'):
-                latest_date = latest_date.date()
-            cur.execute("""
-                INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                VALUES (%s, %s, %s, NOW())
-                ON CONFLICT (table_name) DO UPDATE SET
-                  row_count = EXCLUDED.row_count,
-                  latest_date = EXCLUDED.latest_date,
-                  last_updated = NOW()
-            """, (self.table_name, total_rows, latest_date))
-            conn.commit()
-            cur.close()
+            from utils.database_context import DatabaseContext
+
+            with DatabaseContext() as cur:
+                if self.watermark_field:
+                    cur.execute(
+                        f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+                    )
+                else:
+                    cur.execute(f"SELECT COUNT(*), NULL FROM {self.table_name}")
+                result = cur.fetchone()
+                total_rows = result[0] if result else 0
+                latest_date = result[1] if result else None
+                if hasattr(latest_date, 'date'):
+                    latest_date = latest_date.date()
+
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (table_name) DO UPDATE SET
+                      row_count = EXCLUDED.row_count,
+                      latest_date = EXCLUDED.latest_date,
+                      last_updated = NOW()
+                """, (self.table_name, total_rows, latest_date))
         except Exception as e:
             log.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
