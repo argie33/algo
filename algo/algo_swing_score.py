@@ -696,11 +696,6 @@ class SwingTraderScore:
                     si_pts = 3.0
         except Exception as e:
             logger.debug(f"Short interest momentum failed: {e}")
-            try:
-                if self._owned:
-                    self._owned.rollback()
-            except Exception as rollback_err:
-                logger.debug(f"Rollback failed: {rollback_err}")
 
         # EARNINGS SURPRISE MOMENTUM removed (no earnings_metrics data source)
         earnings_pts = 0.0
