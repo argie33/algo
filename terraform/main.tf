@@ -225,6 +225,7 @@ module "services" {
   aws_account_id                         = local.aws_account_id
   vpc_id                                 = module.vpc.vpc_id
   private_subnet_ids                     = module.vpc.private_subnet_ids
+  ecs_tasks_security_group_id            = module.vpc.ecs_tasks_security_group_id
   api_lambda_security_group_id           = module.vpc.api_lambda_security_group_id
   algo_lambda_security_group_id          = module.vpc.algo_lambda_security_group_id
   rds_endpoint                           = module.database.rds_endpoint
