@@ -571,14 +571,15 @@ def run(
 
             if sector and entry_price > 0 and shares > 0:
                 try:
-                    with DatabaseContext('read') as cur_check:
-                        # Get current sector allocation
+                    with DatabaseContext('write') as cur_check:
+                        # Lock sector rows to prevent concurrent trades from violating concentration limits
                         cur_check.execute("""
                             SELECT COALESCE(SUM(position_value), 0) as sector_value
                             FROM algo_positions ap
                             LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
                             WHERE ap.status = 'open' AND ap.quantity > 0
                               AND COALESCE(cp.sector, 'Unknown') = %s
+                            FOR UPDATE OF ap
                         """, (sector,))
                         result = cur_check.fetchone()
                         sector_value = float(result[0] or 0) if result else 0

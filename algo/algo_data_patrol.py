@@ -240,7 +240,8 @@ class DataPatrol:
                   AND open = high AND high = low AND low = close
                   AND volume > 0
             """)
-            ident_count = int(cur.fetchone()[0] or 0)
+            result = cur.fetchone()
+            ident_count = int(result[0] or 0) if result else 0
             if ident_count > 30:
                 self.log(cur, 'identical_ohlc', WARN, 'price_daily',
                          f'{ident_count} symbols with identical OHLC (suspicious)',

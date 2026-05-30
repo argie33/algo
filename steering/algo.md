@@ -363,6 +363,35 @@ Phase 1 compares each table's latest date against the **previous trading day** (
 
 **Why:** Prevents trading on stale market data. The previous-trading-day comparison is implemented in `algo/orchestrator/phase1_data_freshness.py` using `MarketCalendar` to skip weekends and holidays when computing the expected data date.
 
+## DATABASE CONNECTION PATTERN (DatabaseContext)
+
+All database access must use `DatabaseContext` for automatic resource management:
+
+```python
+from utils.database_context import DatabaseContext
+
+# Read operations
+with DatabaseContext('read') as cur:
+    cur.execute("SELECT * FROM table WHERE id = %s", (id,))
+    result = cur.fetchone()
+# Connection automatically closed and rolled back on exception
+# No manual cur.close() needed
+
+# Write operations (auto-commits on success, auto-rollbacks on exception)
+with DatabaseContext('write') as cur:
+    cur.execute("INSERT INTO table VALUES (%s, %s)", (val1, val2))
+# Auto-committed on successful exit
+# Auto-rolled back if exception occurs
+```
+
+**DO NOT:**
+- ❌ Call `cur.close()` — DatabaseContext handles it
+- ❌ Call `conn.commit()` or `conn.rollback()` — DatabaseContext handles it
+- ❌ Store `self.conn = context.conn` and use it after the with block exits
+- ❌ Mix manual connections with DatabaseContext
+
+**Why:** The context manager pattern ensures transactions are atomic, connections are properly closed, and errors don't leave dangling connections. Manual commit/close calls defeat this guarantees.
+
 ## API GATEWAY ROUTING ARCHITECTURE
 
 **Stage name: `$default` (critical for correct routing)**

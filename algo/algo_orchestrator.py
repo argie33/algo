@@ -114,8 +114,7 @@ class Orchestrator:
             if self.db_failure_counter_file.exists():
                 self.db_failure_counter_file.unlink()
         except Exception as e:
-
-            logger.error(f"Unhandled exception: {e}")
+            logger.error(f"Failed to reset DB failure counter: {e}", exc_info=True)
 
     def _initialize_feature_flags(self) -> None:
         """Initialize feature flags with safe defaults on startup."""
@@ -209,8 +208,8 @@ class Orchestrator:
             for table_name, query in checks.items():
                 try:
                     cur.execute(query, (expected_date,))
-
-                    count = cur.fetchone()[0]
+                    result = cur.fetchone()
+                    count = result[0] if result else 0
                     if count == 0:
                         logger.error(f"[FRESHNESS] {table_name} has no data for {expected_date}")
                         freshness_ok = False
@@ -758,8 +757,7 @@ class Orchestrator:
                             message=f'DB unreachable for {failures} runs. System in degraded mode. No trading.'
                         )
                     except Exception as e:
-
-                        logger.error(f"Unhandled exception: {e}")
+                        logger.error(f"Failed to send alert notification: {e}", exc_info=True)
                     # Still try to reconcile and alert
                     if not self.dry_run:
                         self.phase_7_reconcile()

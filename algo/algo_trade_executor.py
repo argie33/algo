@@ -106,22 +106,23 @@ class TradeExecutor:
         # Database connection management
         self.cur = None
         self._db_context = None
+        self._should_rollback = False
 
     def connect(self):
         """Create a database connection via DatabaseContext."""
         if self.cur is None:
             self._db_context = DatabaseContext('write')
             self.cur = self._db_context.__enter__()
-            # Store connection for commit/rollback
-            self.conn = self._db_context.conn
+            self._should_rollback = False
 
     def disconnect(self):
         """Clean up DatabaseContext if we own it."""
         if self._db_context:
-            self._db_context.__exit__(None, None, None)
+            exc_type = Exception if self._should_rollback else None
+            self._db_context.__exit__(exc_type, None, None)
             self._db_context = None
             self.cur = None
-            self.conn = None
+            self._should_rollback = False
 
     # ---------- Entry ----------
 
@@ -585,8 +586,6 @@ class TradeExecutor:
                     ),
                 )
 
-            self.conn.commit()
-
             # Phase 3.2: Record execution quality (TCA) for every fill
             if order_status == 'filled' or (order_status == 'partially_filled' and execution_mode == 'auto'):
                 try:
@@ -749,10 +748,9 @@ class TradeExecutor:
         )
 
         if success:
-            self.conn.commit()
             return True, None
         else:
-            self.conn.rollback()
+            self._should_rollback = True
             return False, "Position quantity changed before update (race condition, retries exhausted)"
 
     def exit_trade(self, trade_id: int, exit_price: float, exit_reason: str, exit_fraction: float = 1.0,
@@ -1026,7 +1024,6 @@ class TradeExecutor:
             except Exception as notif_e:
                 logger.warning(f"Failed to send exit notification: {notif_e}")
 
-            self.conn.commit()
             return {
                 'success': True,
                 'trade_id': trade_id,
