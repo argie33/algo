@@ -44,7 +44,7 @@ orchestrator_dry_run   = false
 orchestrator_log_level = "info"
 data_patrol_enabled    = true
 data_patrol_timeout_ms = 30000
-alpaca_paper_trading   = true # PAPER trading mode — uses paper keys from Secrets Manager (algo/alpaca)
+alpaca_paper_trading   = false # LIVE trading mode — uses live keys from Secrets Manager (algo/alpaca)
 api_lambda_timeout                 = 300   # Increased from 120s to handle VPC cold-start (15-20s) + DNS + DB connection delays
 api_lambda_reserved_concurrency    = 50    # FIXED Issue #2: Increased from 10 to 50 to prevent 429 rate-limits with 40 loaders + API traffic
                                             # Cost: ~$350/month for 50 reserved instances (vs $70/month for 10)
@@ -60,8 +60,8 @@ algo_lambda_timeout    = 600  # Max Lambda timeout (10 min). RDS disk queue dept
 # Dev cost savings: shorter backup retention (30d default is overkill in dev)
 rds_backup_retention_period = 7
 
-# Alpaca API configuration - PAPER trading
-alpaca_api_base_url = "https://paper-api.alpaca.markets" # PAPER API
+# Alpaca API configuration - LIVE trading
+alpaca_api_base_url = "https://api.alpaca.markets" # LIVE API
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = true # Deploy execution monitor Lambda
