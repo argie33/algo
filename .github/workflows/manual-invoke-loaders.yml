@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       loader_type:
-        description: 'Loader to invoke (all, prices, technicals, earnings, economic)'
+        description: 'Loader to invoke (all, prices, technicals, earnings, economic, market_health)'
         required: false
         default: 'all'
 
@@ -103,6 +103,20 @@ jobs:
 
           sleep 90
           echo "Market data batch loader launched. Waiting for completion..."
+
+      - name: Invoke Market Health Daily Loader
+        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'market_health' }}
+        run: |
+          echo "Invoking market_health_daily loader (computes market stage from SPY prices)..."
+          aws ecs run-task \
+            --cluster algo-cluster \
+            --task-definition algo-market_health_daily-loader \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --region us-east-1
+
+          sleep 120
+          echo "Market health loader launched. Waiting for completion..."
 
       - name: Invoke Technical Data Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'technicals' }}
