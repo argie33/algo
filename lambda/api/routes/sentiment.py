@@ -4,10 +4,11 @@ from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
 from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_page, handle_db_error, check_data_freshness
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/sentiment/* endpoints."""
         try:
             if path == '/api/sentiment/summary':

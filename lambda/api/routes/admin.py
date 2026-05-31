@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
 from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
             logger.info(f"Access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}")
         return is_admin
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
         try:
             # Require admin role for all admin endpoints
