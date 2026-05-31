@@ -44,7 +44,8 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                 SELECT
                     bsd.id, bsd.symbol, bsd.signal, bsd.date,
                     bsd.timeframe, bsd.signal_type, bsd.strength,
-                    bsd.entry_quality_score, bsd.signal_quality_score,
+                    bsd.entry_quality_score,
+                    COALESCE(sqs.composite_sqs, bsd.signal_quality_score) AS signal_quality_score,
                     bsd.volume_surge_pct, bsd.risk_reward_ratio,
                     bsd.rsi, bsd.sma_50, bsd.sma_200, bsd.ema_21,
                     bsd.atr, bsd.adx, COALESCE(bsd.mansfield_rs, 0) as mansfield_rs,
@@ -64,8 +65,15 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     cp.sector, cp.industry
                 FROM buy_sell_daily bsd
                 LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
+                LEFT JOIN LATERAL (
+                    SELECT composite_sqs
+                    FROM signal_quality_scores
+                    WHERE symbol = bsd.symbol
+                    ORDER BY date DESC
+                    LIMIT 1
+                ) sqs ON true
                 """ + where_clause + """
-                ORDER BY bsd.date DESC, COALESCE(bsd.signal_quality_score, 0) DESC, bsd.symbol ASC
+                ORDER BY bsd.date DESC, COALESCE(sqs.composite_sqs, bsd.signal_quality_score, 0) DESC, bsd.symbol ASC
                 LIMIT %s
             """, tuple(params))
             signals = cur.fetchall()
