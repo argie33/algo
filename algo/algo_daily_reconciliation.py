@@ -18,22 +18,21 @@ class DailyReconciliation:
 
     def __init__(self, config):
         self.config = config
-        self.trading_client = None
+        self.trading_client = None  # Kept for backward compat; HTTP calls used directly
         try:
-            from alpaca_trade_api import REST
+            import requests as _req
             credential_manager = get_credential_manager()
             creds = credential_manager.get_alpaca_credentials()
-            if creds.get("key") and creds.get("secret"):
-                base_url = get_alpaca_base_url()
-                self.trading_client = REST(
-                    key_id=creds["key"],
-                    secret_key=creds["secret"],
-                    base_url=base_url,
-                    api_version='v2'
-                )
+            self._alpaca_key = creds.get("key")
+            self._alpaca_secret = creds.get("secret")
+            self._alpaca_base_url = get_alpaca_base_url()
+            if self._alpaca_key and self._alpaca_secret:
+                self.trading_client = True  # Signals credentials are available
         except Exception as e:
             logger.warning(f"Alpaca client initialization failed: {e}")
-            self.trading_client = None
+            self._alpaca_key = None
+            self._alpaca_secret = None
+            self._alpaca_base_url = None
 
     def run_daily_reconciliation(self, reconcile_date=None):
         """Run full daily reconciliation."""
@@ -297,36 +296,25 @@ class DailyReconciliation:
         For positions in Alpaca but not us → import as 'imported_external'
         For positions in us but not Alpaca → flag as orphaned (don't auto-close)
         """
-        if not self.trading_client:
-            return {'imported': 0, 'orphaned': 0, 'message': 'No Alpaca client'}
+        if not self._alpaca_key or not self._alpaca_secret:
+            return {'imported': 0, 'orphaned': 0, 'message': 'No Alpaca credentials'}
         try:
-            import signal
-            import threading
-
-            alpaca_positions = None
-            error_msg = None
-
-            def fetch_positions():
-                nonlocal alpaca_positions, error_msg
-                try:
-                    alpaca_positions = self.trading_client.list_positions()
-                except Exception as e:
-                    error_msg = str(e)
-
-            # Run with 30-second timeout
-            thread = threading.Thread(target=fetch_positions, daemon=True)
-            thread.start()
-            thread.join(timeout=30)
-
-            if thread.is_alive():
-                return {'imported': 0, 'orphaned': 0, 'message': 'Alpaca list_positions timed out after 30s'}
-
-            if error_msg:
-                return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {error_msg}'}
-
-            if alpaca_positions is None:
-                return {'imported': 0, 'orphaned': 0, 'message': 'No positions returned from Alpaca'}
-
+            import requests
+            from algo.algo_config import get_api_timeout
+            resp = requests.get(
+                f'{self._alpaca_base_url}/v2/positions',
+                headers={'APCA-API-KEY-ID': self._alpaca_key,
+                         'APCA-API-SECRET-KEY': self._alpaca_secret},
+                timeout=get_api_timeout(),
+            )
+            if resp.status_code != 200:
+                return {'imported': 0, 'orphaned': 0, 'message': f'Alpaca /v2/positions HTTP {resp.status_code}'}
+            raw_positions = resp.json()
+            # Wrap raw dicts to match expected attribute access pattern
+            class _Pos:
+                def __init__(self, d):
+                    self.__dict__.update(d)
+            alpaca_positions = [_Pos(p) for p in raw_positions]
         except Exception as e:
             return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {e}'}
 
@@ -696,47 +684,28 @@ class DailyReconciliation:
             return {'updated': 0, 'reason': f'Error: {e}'}
 
     def _fetch_alpaca_account(self):
-        """Fetch account data from Alpaca using REST client with timeout."""
+        """Fetch account data from Alpaca via direct HTTP REST call."""
+        if not self._alpaca_key or not self._alpaca_secret:
+            return None
         try:
-            if not self.trading_client:
-                return None
-
-            import threading
-
-            account = None
-            error_msg = None
-
-            def fetch_account():
-                nonlocal account, error_msg
-                try:
-                    account = self.trading_client.get_account()
-                except Exception as e:
-                    error_msg = str(e)
-
-            # Run with 30-second timeout
-            thread = threading.Thread(target=fetch_account, daemon=True)
-            thread.start()
-            thread.join(timeout=30)
-
-            if thread.is_alive():
-                logger.error("Alpaca get_account timed out after 30s")
-                return None
-
-            if error_msg:
-                logger.warning(f"Could not fetch Alpaca account: {error_msg}")
-                return None
-
-            if account is None:
-                logger.warning("No account data returned from Alpaca")
-                return None
-
-            return {
-                'cash': float(account.cash),
-                'equity': float(account.equity),
-                'portfolio_value': float(account.portfolio_value),
-                'buying_power': float(account.buying_power)
-            }
-
+            import requests
+            from algo.algo_config import get_api_timeout
+            resp = requests.get(
+                f'{self._alpaca_base_url}/v2/account',
+                headers={'APCA-API-KEY-ID': self._alpaca_key,
+                         'APCA-API-SECRET-KEY': self._alpaca_secret},
+                timeout=get_api_timeout(),
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    'cash': float(data.get('cash') or 0),
+                    'equity': float(data.get('equity') or 0),
+                    'portfolio_value': float(data.get('portfolio_value') or data.get('equity') or 0),
+                    'buying_power': float(data.get('buying_power') or 0),
+                }
+            logger.warning(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
+            return None
         except Exception as e:
             logger.warning(f"Could not fetch Alpaca account (skipping): {e}")
             return None

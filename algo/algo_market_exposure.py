@@ -326,7 +326,7 @@ class MarketExposure:
     def _ibd_state(self, eval_date, cur):
         """Classify market state using DD count + FTD presence per IBD thresholds."""
         dd_count = self._distribution_days(eval_date, cur)
-        ftd = self._has_follow_through_day(eval_date)
+        ftd = self._has_follow_through_day(eval_date, cur)
         if dd_count <= 3 and ftd:
             state = 'confirmed_uptrend'
             sf = 1.0
