@@ -11,6 +11,10 @@ on:
         description: 'Dry run mode (true = plan only, false = live execution)'
         required: false
         default: 'false'
+      loosen_filters:
+        description: 'Loosen signal quality filters for testing (true = allow any signal through)'
+        required: false
+        default: 'false'
 
 permissions:
   id-token: write
@@ -75,7 +79,13 @@ jobs:
           echo "Invoking $FUNC with date=$RUN_DATE, dry_run=$DRY_RUN ..."
 
           # verbose=true (test:false) so we get detailed phase logs in CloudWatch
-          PAYLOAD="{\"source\":\"github-test\",\"test\":false,\"date\":\"${RUN_DATE}\",\"dry_run\":${DRY_RUN}}"
+          LOOSEN="${{ github.event.inputs.loosen_filters || 'false' }}"
+          if [ "$LOOSEN" = "true" ]; then
+            CONFIG_OVERRIDES='"config_overrides":{"min_close_quality_pct":0.0,"min_breakout_volume_ratio":0.5,"min_trend_template_score":4,"require_weekly_stage_2":false,"min_swing_score":0.0,"min_signal_quality_score":0,"disable_regime_swing_floor":true},'
+          else
+            CONFIG_OVERRIDES=''
+          fi
+          PAYLOAD="{${CONFIG_OVERRIDES}\"source\":\"github-test\",\"test\":false,\"date\":\"${RUN_DATE}\",\"dry_run\":${DRY_RUN}}"
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
           INVOKE_START=$(date -u +%s)
