@@ -1,0 +1,75 @@
+name: Check Recent Lambda Logs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get All Recent Lambda Log Streams
+        run: |
+          LOG_GROUP="/aws/lambda/algo-algo-dev"
+          
+          echo "=== Last 5 log streams ==="
+          aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --limit 5 \
+            --region $AWS_REGION \
+            --query 'logStreams[*].{name:logStreamName,last:lastEventTimestamp}' \
+            --output json
+          
+          echo ""
+          echo "=== Getting logs from stream 0 (latest) ==="
+          S0=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --limit 5 \
+            --region $AWS_REGION \
+            --query 'logStreams[0].logStreamName' \
+            --output text 2>/dev/null)
+          
+          if [ -n "$S0" ] && [ "$S0" != "None" ]; then
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$S0" \
+              --region $AWS_REGION \
+              --query 'events[*].message' \
+              --output text | head -200
+          fi
+          
+          echo ""
+          echo "=== Getting logs from stream 1 (second latest) ==="
+          S1=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --limit 5 \
+            --region $AWS_REGION \
+            --query 'logStreams[1].logStreamName' \
+            --output text 2>/dev/null)
+          
+          if [ -n "$S1" ] && [ "$S1" != "None" ]; then
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$S1" \
+              --region $AWS_REGION \
+              --query 'events[*].message' \
+              --output text | head -200
+          fi
