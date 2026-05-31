@@ -500,9 +500,8 @@ if __name__ == "__main__":
         stop_loss_price=142.50
     )
 
-    print(f"Position Size Calculation Test:")
-    print(f"  Status: {result['status']}")
-    print(f"  Shares: {result['shares']}")
-    print(f"  Position Value: ${result.get('position_value', 0):.2f}")
-    print(f"  Risk %: {result['position_size_pct']:.2f}%")
-    print(f"  Reason: {result['reason']}")
+    logger.info(f"Position Size Calculation Test: {result['status']}")
+    logger.info(f"  Shares: {result['shares']}")
+    logger.info(f"  Position Value: ${result.get('position_value', 0):.2f}")
+    logger.info(f"  Risk %: {result['position_size_pct']:.2f}%")
+    logger.info(f"  Reason: {result['reason']}")

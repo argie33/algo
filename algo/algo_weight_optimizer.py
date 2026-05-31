@@ -89,12 +89,6 @@ class WeightOptimizer:
         Returns:
             {component: weight (int 0-100)} or None if insufficient data
         """
-        # Issue #25: Guard against zero portfolio
-        portfolio_value = self.config.get('portfolio_value', 0)
-        if portfolio_value <= 0:
-            logger.warning("Portfolio value is 0 or negative, skipping weight optimization")
-            return None
-
         try:
             # Get IC values
             attribution = SignalAttributionEngine()
@@ -265,11 +259,15 @@ class WeightOptimizer:
                 largest_comp = max(blended, key=blended.get)
                 blended[largest_comp] += delta
 
-            # Track changes
+            # Track changes as dicts (consumed by phase7 as change['component'] etc.)
             changes = []
             for comp in self.COMPONENTS:
                 if current[comp] != blended[comp]:
-                    changes.append((comp, current[comp], blended[comp]))
+                    changes.append({
+                        'component': comp,
+                        'old_weight': current[comp],
+                        'new_weight': blended[comp],
+                    })
 
             logger.info(f"Weight optimization {report_date}: {len(changes)} changes, alpha={blend_alpha:.2f}")
 
@@ -311,7 +309,7 @@ class WeightOptimizer:
     ) -> None:
         """Log weight changes to algo_weight_history."""
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext('write') as cur:
                 for comp in self.COMPONENTS:
                     old_w = old_weights[comp]
                     new_w = new_weights[comp]
