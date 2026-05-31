@@ -116,9 +116,9 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
 
         mh_date, mh_rows, mh_nulls = cur.fetchone()
 
-        # Economic data (FRED)
+        # Economic data (FRED) — uses series_id not symbol
         cur.execute("""
-            SELECT MAX(date) as latest_date, COUNT(DISTINCT symbol) as indicators
+            SELECT MAX(date) as latest_date, COUNT(DISTINCT series_id) as indicators
             FROM economic_data
             WHERE date > NOW() - INTERVAL '30 days'
         """)
