@@ -55,48 +55,44 @@ class SignalComputer(SignalBase, SignalTrendMixin, SignalPatternsMixin,
     pass
 
 if __name__ == "__main__":
-    from utils.database_context import DatabaseContext
-
     s = SignalComputer()
-    with DatabaseContext('read') as cur:
-        s.cur = cur  # Temporarily set for test script
-        eval_date = _date(2026, 4, 24)
-        for sym in ('AROC', 'NBHC', 'EW', 'LRCX', 'NVDA', 'AAPL'):
-            logger.info(f"\n{'='*70}\n{sym}\n{'='*70}")
-            mt = s.minervini_trend_template(sym, eval_date)
-            logger.info(f"\nMinervini 8-Pt Trend Template: score={mt['score']}/8, pass={mt['pass']}")
-            for k, v in mt['criteria'].items():
-                if not k.startswith('_'):
-                    logger.info(f"   {k:42s} : {v}")
-                else:
-                    logger.info(f"   ({k:40s}: {v})")
+    eval_date = _date(2026, 4, 24)
+    for sym in ('AROC', 'NBHC', 'EW', 'LRCX', 'NVDA', 'AAPL'):
+        logger.info(f"\n{'='*70}\n{sym}\n{'='*70}")
+        mt = s.minervini_trend_template(sym, eval_date)
+        logger.info(f"\nMinervini 8-Pt Trend Template: score={mt['score']}/8, pass={mt['pass']}")
+        for k, v in mt['criteria'].items():
+            if not k.startswith('_'):
+                logger.info(f"   {k:42s} : {v}")
+            else:
+                logger.info(f"   ({k:40s}: {v})")
 
-            ws = s.weinstein_stage(sym, eval_date)
-            logger.info(f"Weinstein Stage: {ws.get('stage')} (slope={ws.get('slope_pct', 0):+.2f}%, "
-                  f"price_vs_ma={ws.get('price_vs_ma_pct', 0):+.2f}%, conf={ws.get('confidence', 0)})")
+        ws = s.weinstein_stage(sym, eval_date)
+        logger.info(f"Weinstein Stage: {ws.get('stage')} (slope={ws.get('slope_pct', 0):+.2f}%, "
+              f"price_vs_ma={ws.get('price_vs_ma_pct', 0):+.2f}%, conf={ws.get('confidence', 0)})")
 
-            bd = s.base_detection(sym, eval_date)
-            logger.info(f"Base Detection: in_base={bd.get('in_base')}, "
-                  f"depth={bd.get('base_depth_pct')}%, weeks={bd.get('weeks_in_base')}, "
-                  f"pivot=${bd.get('pivot_high')}, breakout_imminent={bd.get('breakout_imminent')}, "
-                  f"volume_dryup={bd.get('volume_dryup')}")
+        bd = s.base_detection(sym, eval_date)
+        logger.info(f"Base Detection: in_base={bd.get('in_base')}, "
+              f"depth={bd.get('base_depth_pct')}%, weeks={bd.get('weeks_in_base')}, "
+              f"pivot=${bd.get('pivot_high')}, breakout_imminent={bd.get('breakout_imminent')}, "
+              f"volume_dryup={bd.get('volume_dryup')}")
 
-            td = s.td_sequential(sym, eval_date)
-            logger.info(f"TD Sequential: count={td['setup_count']}, type={td['setup_type']}, "
-                  f"completed_9={td['completed_9']}, perfected={td['perfected']}")
+        td = s.td_sequential(sym, eval_date)
+        logger.info(f"TD Sequential: count={td['setup_count']}, type={td['setup_type']}, "
+              f"completed_9={td['completed_9']}, perfected={td['perfected']}")
 
-            vcp = s.vcp_detection(sym, eval_date)
-            logger.info(f"VCP: is_vcp={vcp.get('is_vcp')}, contractions={vcp.get('contractions')}, "
-                  f"depths={vcp.get('depth_progression')}, tight={vcp.get('tight_pattern')}")
+        vcp = s.vcp_detection(sym, eval_date)
+        logger.info(f"VCP: is_vcp={vcp.get('is_vcp')}, contractions={vcp.get('contractions')}, "
+              f"depths={vcp.get('depth_progression')}, tight={vcp.get('tight_pattern')}")
 
-            pt = s.power_trend(sym, eval_date)
-            logger.info(f"\nPower Trend: {pt}")
+        pt = s.power_trend(sym, eval_date)
+        logger.info(f"\nPower Trend: {pt}")
 
-            rs = s.mansfield_rs(sym, eval_date)
-            logger.info(f"Mansfield RS: {rs}")
+        rs = s.mansfield_rs(sym, eval_date)
+        logger.info(f"Mansfield RS: {rs}")
 
-            pivot = s.pivot_breakout(sym, eval_date)
-            logger.info(f"Pivot breakout: {pivot}")
+        pivot = s.pivot_breakout(sym, eval_date)
+        logger.info(f"Pivot breakout: {pivot}")
 
-            dd = s.distribution_days(sym, eval_date)
-            logger.info(f"Distribution days (last 20): {dd}")
+        dd = s.distribution_days(sym, eval_date)
+        logger.info(f"Distribution days (last 20): {dd}")

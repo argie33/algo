@@ -27,7 +27,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
     def __init__(self, exposure_risk_multiplier=1.0):
         self.config = get_config()
         self.exposure_risk_multiplier = exposure_risk_multiplier  # From exposure policy tier
-        self.cur = None
         self._market_health_cache = None
         self._market_health_date = None
         self._portfolio_state_cache = None
@@ -97,7 +96,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
     def _evaluate_signals_impl(self, eval_date=None, cur=None) -> List[Dict[str, Any]]:
         """Internal implementation of signal evaluation."""
         if not eval_date:
-            eval_date = self._resolve_evaluation_date()
+            eval_date = self._resolve_evaluation_date(cur)
 
             # Snapshot eval_date immutably for this run (prevents sector rotation mid-evaluation)
             self._snapshot_eval_date = eval_date
@@ -109,7 +108,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"FILTER PIPELINE EVALUATION - {eval_date}")
             logger.info(f"{'='*70}\n")
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT b.symbol, b.date, b.signal_type
                 FROM buy_sell_daily b
@@ -119,14 +118,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (eval_date,),
             )
-            signals = self.cur.fetchall()
+            signals = cur.fetchall()
             logger.info(f"Found {len(signals)} BUY signals to evaluate from {eval_date}")
             if not signals:
                 logger.warning(f"[CRITICAL] No BUY signals found in buy_sell_daily for {eval_date} — signal generation will return 0 trades")
             logger.info("")
 
             if self.advanced is None:
-                self.advanced = AdvancedFilters(self.config, cur=self.cur)
+                self.advanced = AdvancedFilters(self.config, cur=cur)
             ctx = self.advanced.load_market_context(eval_date)
             logger.info(f"Market context: top sectors = {ctx['strong_sectors']}")
             if ctx['market_breadth']:
@@ -151,7 +150,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             tracker = RejectionTracker()
 
             earnings_blackout = EarningsBlackout(self.config)
-            trendline = TrendlineSupport(cur=self.cur)
+            trendline = TrendlineSupport(cur=cur)
 
             today = _date.today()
 
@@ -191,7 +190,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     continue
 
                 # Fetch stage, trend score, and price data for signal date
-                self.cur.execute(
+                cur.execute(
                     """SELECT t.weinstein_stage, p.volume, p.high, p.low, p.close,
                               (SELECT AVG(volume) FROM price_daily WHERE symbol = %s
                                AND date >= %s - INTERVAL '50 days' AND date <= %s) AS avg_vol_50d
@@ -200,7 +199,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                        WHERE t.symbol = %s AND t.date = %s LIMIT 1""",
                     (symbol, signal_date, signal_date, symbol, signal_date),
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 if row:
                     stage_number, volume, day_high, day_low, close, avg_vol_50d = row
 
@@ -238,8 +237,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     continue
 
                 # Fetch fresh market close for entry date (Day 1: signal_date or next trading day)
-                entry_date = self._get_next_trading_day(signal_date)
-                entry_price = self._get_market_close(symbol, entry_date)
+                entry_date = self._get_next_trading_day(signal_date, cur)
+                entry_price = self._get_market_close(symbol, entry_date, cur)
                 if entry_price is None:
                     pre_tier_rejections['no_entry_price'] += 1
                     tracker.log_pre_tier_rejection(eval_date, symbol, f"no_entry_price: No market close for {entry_date}")
@@ -250,14 +249,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     logger.info(f"  WARN {symbol}: {trendline_check['reason']}")
                     # Note: This is a soft check (warn, not skip) - trendline is optional confluence
 
-                result = self.evaluate_signal(symbol, signal_date, float(entry_price))
+                result = self.evaluate_signal(symbol, signal_date, float(entry_price), cur)
                 for t in (1, 2, 3, 4, 5):
                     if result['tiers'][t]['pass']:
                         tier_pass_counts[t] += 1
 
                 if result['passed_all_tiers']:
                     # Get sector info (needed for swing score and results)
-                    sector_info = self._get_sector_info(symbol) or {'sector': '', 'industry': ''}
+                    sector_info = self._get_sector_info(symbol, cur) or {'sector': '', 'industry': ''}
 
                     # Run advanced filters (if enabled)
                     enable_advanced = bool(self.config.get('enable_advanced_filters', True))
@@ -284,11 +283,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         # OPTIMIZED: Look up pre-computed swing trader scores (no inline computation)
                         # Scores are pre-computed overnight by load_swing_trader_scores.py
                         try:
-                            self.cur.execute(
+                            cur.execute(
                                 "SELECT score, grade, components FROM swing_trader_scores WHERE symbol = %s AND date = %s LIMIT 1",
                                 (symbol, signal_date)
                             )
-                            swing_row = self.cur.fetchone()
+                            swing_row = cur.fetchone()
                             if swing_row:
                                 swing_score, swing_grade, swing_comp_json = swing_row
                                 import json
@@ -350,7 +349,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     tracker.log_rejection(eval_date, symbol, float(entry_price), tier_results, adv_result)
 
                 self._log_signal_evaluation(result)
-                self._persist_signal_evaluation(result, eval_date)
+                self._persist_signal_evaluation(result, eval_date, cur)
 
             logger.info(f"\n{'='*70}")
             logger.info("FILTER REJECTION ANALYSIS:")
@@ -459,9 +458,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
             return final_trades
 
-    def _resolve_evaluation_date(self) -> _date:
+    def _resolve_evaluation_date(self, cur) -> _date:
         """Pick the most recent date that has BUY signals + market health + trend data."""
-        self.cur.execute(
+        cur.execute(
             """
             SELECT bs.date
             FROM buy_sell_daily bs
@@ -473,10 +472,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             LIMIT 1
             """
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         return row[0] if row else _date.today()
 
-    def evaluate_signal(self, symbol, signal_date, entry_price) -> Dict[str, Any]:
+    def evaluate_signal(self, symbol, signal_date, entry_price, cur) -> Dict[str, Any]:
         """Evaluate single signal through all 5 tiers (short-circuits on first failure)."""
         flags = get_flags()
         result = {
@@ -499,7 +498,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][1] = {'pass': True, 'reason': 'Tier 1 disabled by feature flag'}
             logger.info(f"    T1 disabled by feature flag (pass-through)")
         else:
-            t1 = self._tier1_data_quality(symbol, cur)
+            t1 = self._tier1_data_quality(symbol, cur, cur)
             result['tiers'][1] = t1
             result['completeness_pct'] = t1.get('completeness_pct', 0)
             if not t1['pass']:
@@ -510,7 +509,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][2] = {'pass': True, 'reason': 'Tier 2 disabled by feature flag'}
             logger.info(f"    T2 disabled by feature flag (pass-through)")
         else:
-            t2 = self._tier2_market_health(signal_date, cur)
+            t2 = self._tier2_market_health(signal_date, cur, cur)
             result['tiers'][2] = t2
             if not t2['pass']:
                 return result
@@ -520,7 +519,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][3] = {'pass': True, 'reason': 'Tier 3 disabled by feature flag', 'trend_score': 0}
             logger.info(f"    T3 disabled by feature flag (pass-through)")
         else:
-            t3 = self._tier3_trend_template(symbol, signal_date, cur)
+            t3 = self._tier3_trend_template(symbol, signal_date, cur, cur)
             result['tiers'][3] = t3
             result['trend_score'] = t3.get('trend_score', 0)
             result['stop_loss_price'] = t3.get('stop_loss_price')
@@ -534,7 +533,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][4] = {'pass': True, 'reason': 'Tier 4 disabled by feature flag', 'sqs': 0}
             logger.info(f"    T4 disabled by feature flag (pass-through)")
         else:
-            t4 = self._tier4_signal_quality(symbol, signal_date, cur)
+            t4 = self._tier4_signal_quality(symbol, signal_date, cur, cur)
             result['tiers'][4] = t4
             result['sqs'] = t4.get('sqs', 0)
             if not t4['pass']:
@@ -558,16 +557,16 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
     # ---------- Tier implementations ----------
 
-    def _tier1_data_quality(self, symbol) -> Dict[str, Any]:
+    def _tier1_data_quality(self, symbol, cur) -> Dict[str, Any]:
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT composite_completeness_pct, is_tradeable
                 FROM data_completeness_scores WHERE symbol = %s
                 """,
                 (symbol,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             completeness = 0
             if row and row[0] is not None:
                 completeness = float(row[0])
@@ -579,11 +578,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         'completeness_pct': completeness,
                     }
 
-            self.cur.execute(
+            cur.execute(
                 "SELECT close, date FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
                 (symbol,),
             )
-            price_row = self.cur.fetchone()
+            price_row = cur.fetchone()
             if not price_row or price_row[0] is None:
                 return {'pass': False, 'reason': 'No price data', 'completeness_pct': completeness}
 
@@ -604,14 +603,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'completeness_pct': 0}
 
-    def _tier2_market_health(self, signal_date) -> Dict[str, Any]:
+    def _tier2_market_health(self, signal_date, cur) -> Dict[str, Any]:
         """Market health for the signal's date, with 5-day fallback."""
         try:
             if self._market_health_date == signal_date:
                 # Use cached result (even if None — no market health data for this date)
                 row = self._market_health_cache
             else:
-                self.cur.execute(
+                cur.execute(
                     """
                     SELECT date, market_stage, distribution_days_4w, vix_level, market_trend
                     FROM market_health_daily
@@ -620,7 +619,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     """,
                     (signal_date, signal_date),
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 self._market_health_cache = row
                 self._market_health_date = signal_date
 
@@ -651,7 +650,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}'}
 
-    def _tier3_trend_template(self, symbol, signal_date) -> Dict[str, Any]:
+    def _tier3_trend_template(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """Trend template (Minervini) + Weinstein stage + compute stop from MA/ATR/swing.
 
         Pulls every swing-trading-canon factor we have for the stock:
@@ -665,7 +664,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         self._last_stop_method = None
         self._last_stop_reasoning = None
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT
                     tt.minervini_trend_score,
@@ -684,7 +683,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (symbol, signal_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row:
                 return {'pass': False, 'reason': 'No trend data'}
 
@@ -735,7 +734,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
             # Minervini rule: RS-line (stock vs SPY) must be making new highs or near new highs
             # Don't exit on Minervini break if RS line is strong
-            rs_check = self._check_rs_line_strength(symbol, signal_date)
+            rs_check = self._check_rs_line_strength(symbol, signal_date, cur)
             if rs_check and not rs_check.get('pass', True):
                 return {
                     'pass': False,
@@ -746,7 +745,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             # A4: Weekly Chart Hard Gate — require weekly chart Stage 2 (currently only scored)
             require_weekly_stage_2 = bool(self.config.get('require_weekly_stage_2', True))
             if require_weekly_stage_2:
-                weekly_check = self._check_weekly_stage_2(symbol, signal_date)
+                weekly_check = self._check_weekly_stage_2(symbol, signal_date, cur)
                 if not weekly_check.get('pass', True):
                     return {
                         'pass': False,
@@ -755,7 +754,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     }
 
             # A5: RS Line Trending Up — RS line must have positive slope (not just "near high")
-            rs_slope_check = self._check_rs_line_slope(symbol, signal_date)
+            rs_slope_check = self._check_rs_line_slope(symbol, signal_date, cur)
             if not rs_slope_check.get('pass', True):
                 return {
                     'pass': False,
@@ -764,7 +763,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 }
 
             # Volume decay check: declining volume into breakout = false breakout (Minervini warning)
-            vol_check = self._check_volume_decay(symbol, signal_date)
+            vol_check = self._check_volume_decay(symbol, signal_date, cur)
             if vol_check and not vol_check.get('pass', True):
                 return {
                     'pass': False,
@@ -773,7 +772,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 }
 
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
-            stop_info = self._compute_stop_loss(symbol, signal_date, sma_50, atr)
+            stop_info = self._compute_stop_loss(symbol, signal_date, sma_50, atr, cur)
             stop_loss_price = stop_info.get('stop_price') if isinstance(stop_info, dict) else stop_info
             stop_method = stop_info.get('method', self._last_stop_method) if isinstance(stop_info, dict) else self._last_stop_method
             stop_reasoning = stop_info.get('reasoning', self._last_stop_reasoning) if isinstance(stop_info, dict) else self._last_stop_reasoning
@@ -812,14 +811,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}
 
-    def _check_volume_decay(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_volume_decay(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """Minervini warning: declining volume into breakout signals false breakout.
 
         Checks if 10-day average volume is declining relative to 50-day average.
         A breakout with declining volume = weak accumulation = false setup.
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT volume FROM price_daily
                 WHERE symbol = %s AND date <= %s
@@ -827,7 +826,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (symbol, signal_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 50:
                 return {'pass': True, 'reason': 'Insufficient volume history'}
 
@@ -854,7 +853,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.debug(f'Volume decay check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'Volume check error (continuing)'}
 
-    def _check_rs_line_strength(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_rs_line_strength(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """Minervini rule: RS-line (stock vs SPY) should be strong (at/near new highs).
 
         Checks if the 60-day RS-line (stock close / SPY close) is within the configured
@@ -863,7 +862,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         If RS-line is weak/broken, it's a warning even if price looks good.
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT s.close, spy.close
                 FROM price_daily s
@@ -874,7 +873,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (symbol, signal_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 60:
                 return {'pass': True, 'reason': 'Insufficient data for RS check'}
 
@@ -901,14 +900,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.debug(f'RS-line check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'RS check error (continuing)'}
 
-    def _check_weekly_stage_2(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_weekly_stage_2(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """A4: Weekly Chart Hard Gate — Require weekly chart Stage 2.
 
         Even if daily is Stage 2, entering when weekly is Stage 3/4 is dangerous.
         Weekly chart shows the longer-term trend.
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT signal FROM buy_sell_weekly
                 WHERE symbol = %s AND date <= %s
@@ -916,7 +915,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (symbol, signal_date),
             )
-            weekly_signal_row = self.cur.fetchone()
+            weekly_signal_row = cur.fetchone()
             if weekly_signal_row:
                 weekly_signal = weekly_signal_row[0]
                 if weekly_signal == 'SELL':
@@ -925,7 +924,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         'reason': 'Weekly chart in SELL mode (avoid entries in Stage 3/4)',
                     }
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT pw.close,
                        AVG(pw.close) OVER (ORDER BY pw.date ASC ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) as sma_30w
@@ -935,7 +934,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (symbol, signal_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0] and row[1]:
                 close = float(row[0])
                 sma_30w = float(row[1])
@@ -950,7 +949,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.debug(f'Weekly Stage 2 check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'Weekly check error (continuing)'}
 
-    def _check_rs_line_slope(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_rs_line_slope(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """A5: RS Line Trending Up — RS line must have positive slope over last N days.
 
         Currently the system checks if RS line is within 5% of its 52-week high.
@@ -959,7 +958,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         try:
             slope_days = int(self.config.get('min_rs_line_slope_days', 10))
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT s.close, spy.close, s.date
                 FROM price_daily s
@@ -970,7 +969,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (symbol, signal_date, slope_days + 5),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < slope_days:
                 return {'pass': True, 'reason': f'Insufficient data for {slope_days}d slope'}
 
@@ -1008,7 +1007,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.debug(f'RS-line slope check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'RS slope check error (continuing)'}
 
-    def _compute_stop_loss(self, symbol, signal_date, sma_50, atr) -> Dict[str, Any]:
+    def _compute_stop_loss(self, symbol, signal_date, sma_50, atr, cur) -> Dict[str, Any]:
         """Compute stop loss — base-type-specific when possible, falls back to MA/ATR.
 
         First tries the base-type-specific stop (cup-handle uses handle low,
@@ -1018,11 +1017,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
         Returns dict with keys: stop_price, method, reasoning, candidates
         """
-        self.cur.execute(
+        cur.execute(
             "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
             (symbol, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return {'stop_price': None, 'method': 'none', 'reasoning': 'No price data', 'candidates': {}}
         entry = float(row[0])
@@ -1030,7 +1029,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         # Try base-type-specific stop first (most accurate per the canon)
         try:
             from algo.algo_signals import SignalComputer
-            sc = SignalComputer(cur=self.cur)
+            sc = SignalComputer()
             base_stop_info = sc.base_type_stop(symbol, signal_date, entry, atr)
             if base_stop_info and base_stop_info['stop_price'] > 0:
                 # Stash the metadata so the pipeline can show WHY this stop was chosen
@@ -1049,7 +1048,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.error(f"  (base_type_stop failed for {symbol}: {e})")
 
         # Fallback: structural stops (MA / swing / ATR)
-        self.cur.execute(
+        cur.execute(
             """
             SELECT MIN(low) FROM price_daily
             WHERE symbol = %s AND date <= %s
@@ -1057,7 +1056,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             """,
             (symbol, signal_date, signal_date),
         )
-        swing_row = self.cur.fetchone()
+        swing_row = cur.fetchone()
         swing_low = float(swing_row[0]) if swing_row and swing_row[0] is not None else None
 
         atr_stop = (entry - (2.0 * atr)) if atr else None
@@ -1095,9 +1094,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             'candidates': candidates_dict,
         }
 
-    def _tier4_signal_quality(self, symbol, signal_date) -> Dict[str, Any]:
+    def _tier4_signal_quality(self, symbol, signal_date, cur) -> Dict[str, Any]:
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT composite_sqs FROM signal_quality_scores
                 WHERE symbol = %s AND date <= %s
@@ -1105,7 +1104,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 (symbol, signal_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             sqs = float(row[0]) if row and row[0] is not None else 0
             min_sqs = float(self.config.get('min_signal_quality_score', 60))
             if sqs < min_sqs:
@@ -1114,7 +1113,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'sqs': 0}
 
-    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price, signal_date=None) -> Dict[str, Any]:
+    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price, signal_date=None, cur=None) -> Dict[str, Any]:
         """Portfolio health check + actual share calculation using PositionSizer."""
         try:
             # Production safeguards (Phase 1)
@@ -1128,7 +1127,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 except Exception as e:
                     logger.warning(f'Liquidity check error for {symbol}: {e}')
 
-            state = self._load_portfolio_state()
+            state = self._load_portfolio_state(cur)
             existing_symbols = state['symbols']
 
             # No duplicate position in same symbol
@@ -1140,7 +1139,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 }
 
             # Sector / industry concentration limits (PositionSizer doesn't check these)
-            new_sector_info = self._get_sector_info(symbol)
+            new_sector_info = self._get_sector_info(symbol, cur)
             if new_sector_info and (existing_symbols or self._candidate_holdings):
                 sector_count, industry_count = self._count_sector_industry_overlap(
                     new_sector_info, existing_symbols
@@ -1178,11 +1177,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 # Stop calculation failed. Try ATR-based stop if available; otherwise REJECT signal.
                 atr_value = None
                 try:
-                    self.cur.execute(
+                    cur.execute(
                         """SELECT atr FROM technical_data_daily WHERE symbol = %s AND date = %s""",
                         (symbol, signal_date)
                     )
-                    atr_row = self.cur.fetchone()
+                    atr_row = cur.fetchone()
                     if atr_row and atr_row[0]:
                         atr_value = float(atr_row[0])
                 except Exception as e:
@@ -1242,13 +1241,13 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'shares': 0}
 
-    def _get_sector_info(self, symbol) -> Dict[str, Any]:
+    def _get_sector_info(self, symbol, cur) -> Dict[str, Any]:
         try:
-            self.cur.execute(
+            cur.execute(
                 "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
                 (symbol,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or not row[0]:
                 return None
             return {'sector': row[0], 'industry': row[1] or ''}
@@ -1291,12 +1290,12 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
     # ---------- Market Data Helpers ----------
 
-    def _get_next_trading_day(self, from_date) -> _date:
+    def _get_next_trading_day(self, from_date, cur) -> _date:
         """Get the next trading day after from_date (first day with price data).
 
         For entry purposes, this gives us Day 1 to confirm the signal on real market data.
         """
-        self.cur.execute(
+        cur.execute(
             """
             SELECT date FROM price_daily
             WHERE symbol = 'SPY' AND date > %s
@@ -1304,13 +1303,13 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             """,
             (from_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if row:
             return row[0]
         # Fallback: add 1 day and hope it's a trading day
         return from_date + timedelta(days=1)
 
-    def _get_market_close(self, symbol, date) -> Optional[float]:
+    def _get_market_close(self, symbol, date, cur) -> Optional[float]:
         """Get market close price for a symbol on a given date.
 
         Returns the actual market close from price_daily table.
@@ -1318,19 +1317,19 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         most recent available price to avoid rejecting same-day signals.
         This is appropriate for paper/sim trading.
         """
-        self.cur.execute(
+        cur.execute(
             """
             SELECT close FROM price_daily
             WHERE symbol = %s AND date = %s
             """,
             (symbol, date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if row and row[0] is not None:
             return float(row[0])
 
         # Fallback: use most recent price <= requested date (for same-day signal evaluation)
-        self.cur.execute(
+        cur.execute(
             """
             SELECT close FROM price_daily
             WHERE symbol = %s AND date <= %s
@@ -1338,40 +1337,40 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             """,
             (symbol, date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if row and row[0] is not None:
             return float(row[0])
         return None
 
     # ---------- Helpers ----------
 
-    def _load_portfolio_state(self) -> Dict[str, Any]:
+    def _load_portfolio_state(self, cur) -> Dict[str, Any]:
         """Cache portfolio state for the run (positions, value, drawdown)."""
         if self._portfolio_state_cache is not None:
             return self._portfolio_state_cache
 
         # Open positions
-        self.cur.execute(
+        cur.execute(
             "SELECT symbol, position_value FROM algo_positions WHERE status = %s",
             (PositionStatus.OPEN.value,)
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         position_count = len(rows)
         symbols = {r[0] for r in rows}
         positions_value = sum(float(r[1] or 0) for r in rows)
 
         # Portfolio value: prefer latest snapshot
-        self.cur.execute(
+        cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
-        snap = self.cur.fetchone()
+        snap = cur.fetchone()
         portfolio_value = float(snap[0]) if snap and snap[0] else 100000.0
 
         # Drawdown adjustment from peak
-        self.cur.execute(
+        cur.execute(
             "SELECT MAX(total_portfolio_value) FROM algo_portfolio_snapshots"
         )
-        peak_row = self.cur.fetchone()
+        peak_row = cur.fetchone()
         peak = float(peak_row[0]) if peak_row and peak_row[0] else portfolio_value
         drawdown_pct = max(0.0, (peak - portfolio_value) / peak * 100.0) if peak > 0 else 0.0
 
@@ -1413,7 +1412,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         log_fn = logger.info if passed else logger.debug
         log_fn(f"{symbol:6s} | [{passed}] | {first_fail_reason}")
 
-    def _persist_signal_evaluation(self, result, eval_date) -> bool:
+    def _persist_signal_evaluation(self, result, eval_date, cur) -> bool:
         """Persist evaluation result to algo_signals_evaluated for audit / dashboard."""
         try:
             tiers = result['tiers']
@@ -1425,7 +1424,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     break
             reason = first_fail or f"PASS — {tiers[5]['reason']}"
 
-            self.cur.execute(
+            cur.execute(
                 """
                 INSERT INTO algo_signals_evaluated (
                     signal_date, symbol, source_table, source_timeframe,
@@ -1467,7 +1466,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             # Don't fail the pipeline because of audit logging
             logger.info(f"  (audit log skipped for {result['symbol']}: {e})")
 
-    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None) -> Dict[str, Any]:
+    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None, cur=None) -> Dict[str, Any]:
         """Check if new symbol is highly correlated (>0.80) with existing open positions.
 
         Returns {'pass': bool, 'reason': str, 'highest_correlation': float}
@@ -1480,7 +1479,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             symbols_to_check = [new_symbol] + list(existing_symbols)
             # Build placeholders dynamically: %s, %s, %s, ... one for each symbol
             placeholders = ','.join(['%s'] * len(symbols_to_check))
-            self.cur.execute(
+            cur.execute(
                 f"""
                 SELECT symbol, date, close FROM price_daily
                 WHERE symbol IN ({placeholders})
@@ -1489,7 +1488,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 """,
                 tuple(symbols_to_check)
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if not rows:
                 return {'pass': True, 'reason': 'Insufficient price data'}
 

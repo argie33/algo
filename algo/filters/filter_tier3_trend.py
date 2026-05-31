@@ -354,7 +354,7 @@ class FilterTier3Mixin:
         # Try base-type-specific stop first (most accurate per the canon)
         try:
             from algo.algo_signals import SignalComputer
-            sc = SignalComputer(cur=self.cur)
+            sc = SignalComputer()
             base_stop_info = sc.base_type_stop(symbol, signal_date, entry, atr)
             if base_stop_info and base_stop_info['stop_price'] > 0:
                 # Stash the metadata so the pipeline can show WHY this stop was chosen
