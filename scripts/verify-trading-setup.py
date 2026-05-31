@@ -131,7 +131,6 @@ def check_lambda_environment():
 def check_recent_trades():
     """Check what trades have been executed and in what mode."""
     try:
-        from config.credential_manager import get_db_password, get_db_config, DEFAULT_DB_PORT, DEFAULT_DB_USER, DEFAULT_DB_NAME
 
         db_config = get_db_config()
         password = get_db_password()

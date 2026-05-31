@@ -377,7 +377,6 @@ class DataProvenanceTracker:
             return
 
         try:
-            from utils.database_context import DatabaseContext
 
             with DatabaseContext('write') as cur:
                 cur.execute(

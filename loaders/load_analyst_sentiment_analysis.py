@@ -41,7 +41,6 @@ import logging
 logger = logging.getLogger(__name__)
 from utils.loader_helpers import get_active_symbols
 import os
-import sys
 from datetime import date, timedelta
 from typing import List, Optional
 

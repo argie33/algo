@@ -1,4 +1,3 @@
-"""
 SEC EDGAR direct client for official fundamentals.
 
 Free, unlimited, official US SEC fundamentals via XBRL.
@@ -961,7 +960,6 @@ class SecEdgarClient:
         much longer backoff times to avoid cascading failures. Also handles
         403 Forbidden errors with exponential backoff (likely temporary throttling).
         """
-        import random
         max_retries = 8
         for attempt in range(max_retries):
             try:

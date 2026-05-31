@@ -107,7 +107,6 @@ class SignalAttributionEngine:
                         trade_id, swing_score, swing_components_json, r_multiple, exit_date, symbol, signal_date = trade
 
                         try:
-                            import json
 
                             swing_components = json.loads(swing_components_json) if swing_components_json else {}
                             comp_data = swing_components.get(component, {})

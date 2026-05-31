@@ -16,7 +16,6 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 import os
-from pathlib import Path
 from datetime import date, timedelta
 from typing import List, Optional
 

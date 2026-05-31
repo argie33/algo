@@ -62,7 +62,6 @@ class EarningsHistoryLoader(OptimalLoader):
                             return None
 
                     # Derive quarter start date (the quarter in which earnings fall)
-                    from datetime import datetime
                     try:
                         dt = datetime.fromisoformat(ed)
                         q = (dt.month - 1) // 3 + 1

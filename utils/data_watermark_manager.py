@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Atomic watermark manager for incremental loaders - ensures "load only once" guarantee via transactions."""
 
 import logging
 import json
 from datetime import date as _date, datetime
 from typing import Optional, Dict, Any
-
 logger = logging.getLogger(__name__)
 
 class WatermarkManager:
@@ -253,7 +251,6 @@ class WatermarkManager:
     def get_status(self) -> Dict[str, Any]:
         """Get status of all watermarks for this loader."""
         try:
-            from utils.database_context import DatabaseContext
 
             with DatabaseContext('read') as cur:
                 cur.execute(

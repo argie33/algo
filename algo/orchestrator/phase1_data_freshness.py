@@ -352,7 +352,6 @@ def run(
             # Using trading-day comparison prevents false halts after 3-day weekends where
             # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
             try:
-                from algo.algo_market_calendar import MarketCalendar
                 expected_date = run_date - timedelta(days=1)
                 for _ in range(10):
                     if MarketCalendar.is_trading_day(expected_date):

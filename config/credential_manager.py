@@ -187,7 +187,6 @@ class CredentialManager:
 
         Raises ValueError if credentials not found (required for live trading).
         """
-        import json as _json
 
         # Try ALGO_SECRETS_ARN first (Terraform-managed secret: algo-algo-secrets-dev)
         algo_secrets_arn = os.getenv('ALGO_SECRETS_ARN')

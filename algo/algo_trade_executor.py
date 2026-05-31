@@ -267,6 +267,9 @@ class TradeExecutor:
             # B10: Entire entry sequence is wrapped in a single transaction.
             # If any step fails, the transaction rolls back and no partial state is left.
 
+            # Schema migration: add idempotency_key if missing (older DB deployments)
+            cur.execute("ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64)")
+
             cur.execute(
                 "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
                 (idempotency_key,)

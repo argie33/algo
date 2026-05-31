@@ -102,7 +102,6 @@ class SignalsDailyLoader(OptimalLoader):
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> List[dict]:
         """Fetch technical and price data needed for signal generation."""
-        from utils.database_context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(

@@ -199,7 +199,6 @@ class MarketHealthDailyLoader(OptimalLoader):
             return {}
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
-        from utils.database_context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(
@@ -307,7 +306,6 @@ class MarketHealthDailyLoader(OptimalLoader):
         return results
 
 def main():
-    import argparse
     parser = argparse.ArgumentParser(description="Load market health daily metrics")
     parser.add_argument("--symbols", type=str, help="(Ignored - always uses SPY)")
     parser.add_argument("--parallelism", type=int, default=1, help="Parallel workers")

@@ -194,9 +194,6 @@ class AlgoConfig:
 
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
-        import time
-        import os
-        from utils.database_context import DatabaseContext
 
         # In AWS Lambda, skip database load - use defaults only for speed
         # Lambda config is immutable anyway (set via Terraform env vars)

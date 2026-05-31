@@ -78,7 +78,6 @@ class TechnicalDataDailyLoader(OptimalLoader):
         return indicators
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
-        from utils.database_context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(

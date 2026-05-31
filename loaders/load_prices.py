@@ -154,7 +154,6 @@ class PriceLoader(OptimalLoader):
         if not rows:
             return []
 
-        from algo.algo_market_calendar import MarketCalendar
 
         # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
@@ -297,7 +296,6 @@ class PriceLoader(OptimalLoader):
             logger.debug("metrics unavailable: %s", e)
 
         try:
-            from utils.database_context import DatabaseContext
 
             with DatabaseContext('read') as cur:
                 cur.execute(
@@ -418,7 +416,6 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
 
 def main():
     """Read config from environment variables (set by ECS task definition)."""
-    import time
     start_time = time.time()
 
     try:

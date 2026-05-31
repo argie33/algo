@@ -192,7 +192,6 @@ class Orchestrator:
             # "signal_quality_scores EMPTY" from days ago) are not actionable and
             # would incorrectly block the orchestrator on fresh data.
             try:
-                from algo.algo_market_calendar import MarketCalendar
                 expected_patrol_date = self.run_date - timedelta(days=1)
                 for _ in range(10):
                     if MarketCalendar.is_trading_day(expected_patrol_date):
@@ -459,7 +458,6 @@ class Orchestrator:
     # ---------- Main entrypoint ----------
 
     def run(self) -> Dict[str, Any]:
-        import time
         run_start = time.time()
         logger.info(f"\n{'#'*70}")
         logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")

@@ -1,4 +1,3 @@
-"""
 Unified data source router with automatic fallback.
 
 One-stop shop for all loaders. Routes each data type to the best source

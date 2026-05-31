@@ -1,10 +1,7 @@
-"""Unit tests for Phase 7: Reconciliation & Analytics."""
 
 import pytest
 from unittest.mock import Mock, patch
 from algo.algo_daily_reconciliation import DailyReconciliation
-
-
 class TestDailyReconciliationDatabaseContext:
     """Test that DailyReconciliation properly uses DatabaseContext."""
 
@@ -82,7 +79,6 @@ class TestPhase7MethodSignatures:
 
     def test_sync_alpaca_positions_signature(self):
         """Verify sync_alpaca_positions has cur parameter."""
-        import inspect
         sig = inspect.signature(DailyReconciliation.sync_alpaca_positions)
         params = list(sig.parameters.keys())
         assert 'self' in params

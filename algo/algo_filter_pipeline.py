@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 import os
+import traceback
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, List, Any, Optional, Tuple
 
 from utils.database_context import DatabaseContext
-from typing import Dict, List, Any, Optional, Tuple
 
 from algo.algo_config import get_config
 from algo.algo_advanced_filters import AdvancedFilters
@@ -43,7 +43,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             with DatabaseContext('write') as cur:
                 return operation(cur)
         except Exception as e:
-            import traceback
             logger.error(f"FilterPipeline._with_cursor: operation failed: {e}\n{traceback.format_exc()}")
             return None
 
@@ -89,7 +88,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             return self._with_cursor(_evaluate_with_cursor) or []
         except Exception as e:
             logger.error(f"ERROR in evaluate_signals: {e}")
-            import traceback
             traceback.print_exc()
             return []
 

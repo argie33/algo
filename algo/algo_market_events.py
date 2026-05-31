@@ -1,4 +1,3 @@
-"""
 Market Events & Corporate Actions Handler
 
 Detects and responds to market anomalies:
@@ -286,7 +285,6 @@ class MarketEventHandler:
             dict with action taken
         """
         try:
-            from utils.database_context import database_transaction
 
             if level == 3:
                 # L3: Full halt, no new orders, close positions

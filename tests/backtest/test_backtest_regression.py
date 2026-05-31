@@ -1,11 +1,8 @@
-"""Backtest regression tests for orchestrator."""
 import os
 import pytest
 from datetime import date, datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
 import psycopg2
-
-
 @pytest.fixture
 def db_config():
     """Get database config from environment."""
@@ -122,7 +119,6 @@ def test_position_scaling(position_count):
 
 def test_dry_run_mode(db_config):
     """Test that dry_run=True prevents any trades."""
-    from algo.algo_orchestrator import Orchestrator
 
     with patch.dict(os.environ, {
         'DB_HOST': db_config['host'],

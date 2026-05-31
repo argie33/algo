@@ -109,7 +109,6 @@ def handler(event, context):
         "SecretVersion": "..."
     }
     """
-    import psycopg2
 
     secret_id = event['SecretId']
     client_request_token = event['ClientRequestToken']

@@ -526,7 +526,6 @@ class DailyReconciliation:
             if len(trades) >= 10:  # Need min 10 trades for meaningful IC
                 # Compute rank correlation (Spearman) between swing_score and 5d returns
                 try:
-                    import statistics
                     scores = [float(t[0]) for t in trades]
                     returns = [float(t[1]) for t in trades]
 
@@ -688,8 +687,6 @@ class DailyReconciliation:
         if not self._alpaca_key or not self._alpaca_secret:
             return None
         try:
-            import requests
-            from algo.algo_config import get_api_timeout
             resp = requests.get(
                 f'{self._alpaca_base_url}/v2/account',
                 headers={'APCA-API-KEY-ID': self._alpaca_key,

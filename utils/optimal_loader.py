@@ -476,7 +476,6 @@ class OptimalLoader(ABC):
           3. Transform, bulk-insert, and update data_loader_status.
           4. Return count of rows inserted.
         """
-        from utils.database_context import DatabaseContext
 
         start = time.time()
         logger.info("[%s] Starting global load", self.table_name)
@@ -544,7 +543,6 @@ class OptimalLoader(ABC):
 
     def _run_parallel(self, symbols: List[str], workers: int) -> None:
         from concurrent.futures import ThreadPoolExecutor, as_completed
-        import time
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0

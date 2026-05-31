@@ -32,7 +32,6 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
         timeout_secs: Timeout for database query (default: 120 seconds for parallel batch execution)
     """
     import signal
-    import threading
 
     def timeout_handler(signum, frame):
         raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
