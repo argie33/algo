@@ -11,7 +11,11 @@ import logging
 from datetime import date as _date
 from typing import Dict, Optional, List, Tuple
 import numpy as np
-from scipy.optimize import minimize
+
+try:
+    from scipy.optimize import minimize
+except ImportError:
+    minimize = None  # type: ignore[assignment]
 
 from utils.database_context import DatabaseContext
 from algo.algo_config import AlgoConfig

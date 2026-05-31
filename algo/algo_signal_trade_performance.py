@@ -13,9 +13,14 @@ import logging
 import json
 from datetime import date as _date, timedelta
 from typing import Dict, Any, Optional, List
-from scipy.stats import pearsonr
 
 from utils.database_context import DatabaseContext
+
+try:
+    from scipy.stats import pearsonr
+except ImportError:
+    def pearsonr(x, y):  # type: ignore[misc]
+        return (float('nan'), float('nan'))
 
 logger = logging.getLogger(__name__)
 

@@ -12,7 +12,11 @@ import logging
 from datetime import date as _date, timedelta
 from typing import Dict, List, Optional, Tuple
 import numpy as np
-from scipy import stats
+
+try:
+    from scipy import stats
+except ImportError:
+    stats = None  # type: ignore[assignment]
 
 from utils.database_context import DatabaseContext
 from algo.algo_regime_manager import RegimeManager
