@@ -188,8 +188,68 @@ git push main
 |----------|---------|-------------|
 | `deploy-all-infrastructure.yml` | `git push main` (automatic) | Terraform apply + Lambda layer rebuild + ECS tasks + code deploy |
 | `deploy-code.yml` | `git push main` (automatic) | Tests, lint, security scan |
+| `deploy-staging.yml` | `git push staging` (automatic) | Deploy N+1 Lambda (algo-algo-staging) — dry_run, no schedules |
 | `test-orchestrator.yml` | Manual dispatch | Invoke orchestrator Lambda directly |
 | `manual-invoke-loaders.yml` | Manual dispatch | Manually run individual ECS loader tasks |
+
+## N / N+1 MULTI-VERSION WORKFLOW
+
+Run the current version live while developing the next version in parallel.
+
+**Environments:**
+
+| | N (current) | N+1 (in development) |
+|---|---|---|
+| **Branch** | `main` | `staging` |
+| **Lambda** | `algo-algo-dev` | `algo-algo-staging` |
+| **Schedules** | Enabled (9:30 AM, 1 PM, 3 PM ET) | Disabled |
+| **Dry run** | `false` (real paper trades) | `true` (never trades) |
+| **RDS** | `algo-db` | Shared with dev (same data) |
+| **Deploy trigger** | `git push main` | `git push staging` |
+
+**How to use:**
+
+```bash
+# Start developing N+1 on the staging branch
+git checkout -b staging
+# (or switch to existing staging branch)
+git checkout staging
+
+# Make changes to algo logic
+# Push to trigger deploy-staging.yml
+git push origin staging
+
+# Test staging Lambda manually (never auto-executes)
+aws lambda invoke \
+  --function-name algo-algo-staging \
+  --payload '{"source":"manual-test","dry_run":true}' \
+  --region us-east-1 /tmp/staging-response.json
+
+# Inspect response
+cat /tmp/staging-response.json | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+body = json.loads(d.get('body','{}')) if isinstance(d.get('body','{}'),str) else d.get('body',{})
+for ph, info in sorted(body.get('phases',{}).items(), key=lambda x: str(x[0])):
+    print(f'  Phase {ph} [{info.get(\"status\",\"?\")}]: {info.get(\"summary\",\"\")[:80]}')
+"
+
+# When N+1 is ready to go live: merge staging → main
+git checkout main
+git merge staging
+git push origin main
+# deploy-code.yml automatically updates algo-algo-dev (N becomes N+1)
+```
+
+**What staging shares with dev:**
+- Same RDS instance (reads live market data — no stale test data)
+- Same VPC, subnets, security groups (staging Lambda copied from dev config on first deploy)
+- Same Secrets Manager secrets (`algo-db-credentials-dev`, `algo/alpaca`)
+
+**What staging does NOT share:**
+- No EventBridge rules (no automatic invocations ever)
+- No provisioned concurrency (cold starts are fine for manual testing)
+- Separate Lambda layer (`algo-orchestrator-layer-staging`) — independent from dev layer
 
 ## AWS RESOURCES (us-east-1)
 
