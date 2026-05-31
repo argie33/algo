@@ -850,7 +850,7 @@ function VixCard({ markets }) {
 
 function InternalsCard({ data }) {
   if (!data) return <Empty title="Market Internals" desc="Loading" wrap />;
-  const breadth = data.data || data.breadth || {};
+  const breadth = data.breadth || {};
   const advancing = parseInt(breadth.advancing) || 0;
   const declining = parseInt(breadth.declining) || 0;
   const unchanged = parseInt(breadth.unchanged) || 0;
@@ -1430,15 +1430,7 @@ function useTermPoint(sym) {
     },
     { staleTime: 60000, refetchInterval: 60000 }
   );
-  // Handle different response structures: array, {items: []}, {data: []}
-  let prices = [];
-  if (Array.isArray(data)) {
-    prices = data;
-  } else if (data?.items && Array.isArray(data.items)) {
-    prices = data.items;
-  } else if (data?.data && Array.isArray(data.data)) {
-    prices = data.data;
-  }
+  const prices = Array.isArray(data) ? data : (data?.items || []);
   const series = prices;
   const last = series[0]?.close ?? series[series.length - 1]?.close;
   return last != null ? parseFloat(last) : null;
