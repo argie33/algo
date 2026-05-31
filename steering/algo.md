@@ -518,12 +518,16 @@ terraform plan -var-file=terraform.tfvars  # Should succeed now
 
 ## ORCHESTRATOR PHASES
 
-1. **Phase 1 — Data Freshness:** Verify price_daily, technical_data_daily recent (< 7 days). Halt if stale.
-2. **Phase 2 — Circuit Breakers:** Check drawdown, daily loss, consecutive losses, VIX, market stage. Halt if any triggered.
+1. **Phase 1 — Data Freshness:** Verify SPY price, market_health_daily, trend_template_data are from last trading day. `buy_sell_daily` and `signal_quality_scores` are observe-only (logged, never halt). Halt if critical data stale.
+2. **Phase 2 — Circuit Breakers:** Check drawdown, daily loss, consecutive losses, win-rate floor, VIX, market stage, weekly loss, intraday health, data freshness. Halt if any triggered — still runs Phase 3/3b/4/7 but skips 4b/5/6.
 3. **Phase 3 — Position Monitor:** Evaluate each open position (price, P&L, trailing stop, health score). Propose: HOLD, RAISE_STOP, or EARLY_EXIT.
-4. **Phase 4 — Exit Execution:** Execute exits from Phase 3 + exit_engine rules (trailing stops, tiered targets, time decay).
-5. **Phase 5 — Signal Generation:** Evaluate today's BUY signals through Tier 1-6 filters (data quality, market, trend, SQS, portfolio, advanced). Rank and take top N.
-6. **Phase 6 — Entry Execution:** Execute trades for ranked candidates (final checks, position sizing, order placement).
-7. **Phase 7 — Reconciliation:** Pull live Alpaca account, sync positions, calculate P&L, write portfolio snapshot to `algo_audit_log`.
+4. **Phase 3b — Exposure Policy:** Compute 11-factor market exposure score. Apply tier-based constraints (risk multiplier, max new positions, min grade). Actions: tighten stop, partial exit, force exit.
+5. **Phase 4 — Exit Execution:** Execute exits from Phase 3 + exposure policy actions + exit_engine rules (trailing stops, tiered targets, time decay).
+6. **Phase 4b — Pyramid Adds:** Add to winning positions at defined extension points (fail-open).
+7. **Phase 5 — Signal Generation:** Evaluate today's BUY signals through 6 tiers. Rank by swing_score. Fail-open on exception.
+8. **Phase 6 — Entry Execution:** Execute trades (final price check, position sizing, sector limit, Alpaca order). Per-trade sector concentration enforced here.
+9. **Phase 7 — Reconciliation:** Pull live Alpaca account, sync positions, compute IC/attribution, run weight optimizer, generate daily report.
 
-All phases write audit logs. Fail-closed on critical (Phase 1, 2), fail-open on operational (Phases 3-7).
+All phases write to `algo_audit_log`. Fail-closed on critical (Phase 1, 2), fail-open on operational (Phases 3-7).
+
+**`_final_report()` returns:** `success=True` if no error/fail statuses; `halted=True` if any phase halted (expected behavior). Lambda returns 200 regardless — use `halted` field to distinguish intended halt from error.

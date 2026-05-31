@@ -445,23 +445,40 @@ class MarketExposure:
         }
 
     def _pct_above_ma(self, eval_date, ma_days):
-        """% of all stocks (>$5, with sufficient history) above their N-day MA."""
+        """% of all stocks (>$5, with sufficient history) above their N-day MA.
+
+        Uses window functions instead of correlated subqueries.
+        Original ran 2 correlated subqueries per symbol (~10,000 for 5000 symbols).
+        Window function approach does a single pass over the date range.
+        """
+        lookback_days = ma_days * 2  # generous calendar-day window for ma_days trading days
         self.cur.execute(
             f"""
-            WITH stocks AS (
-                SELECT symbol,
-                       (SELECT close FROM price_daily WHERE symbol = pd.symbol AND date <= %s ORDER BY date DESC LIMIT 1) AS price,
-                       (SELECT AVG(close) FROM (
-                           SELECT close FROM price_daily WHERE symbol = pd.symbol AND date <= %s
-                           ORDER BY date DESC LIMIT {ma_days}
-                       ) t) AS ma_n
-                FROM (SELECT DISTINCT symbol FROM price_daily WHERE date >= %s::date - INTERVAL '5 days') pd
+            WITH windowed AS (
+                SELECT
+                    symbol, date, close,
+                    AVG(close) OVER (
+                        PARTITION BY symbol ORDER BY date
+                        ROWS BETWEEN {ma_days - 1} PRECEDING AND CURRENT ROW
+                    ) AS ma_n,
+                    COUNT(*) OVER (
+                        PARTITION BY symbol ORDER BY date
+                        ROWS BETWEEN {ma_days - 1} PRECEDING AND CURRENT ROW
+                    ) AS ma_count
+                FROM price_daily
+                WHERE date <= %s AND date >= %s::date - INTERVAL '{lookback_days} days'
+            ),
+            latest AS (
+                SELECT DISTINCT ON (symbol) symbol, close, ma_n, ma_count
+                FROM windowed
+                WHERE date >= %s::date - INTERVAL '5 days'
+                ORDER BY symbol, date DESC
             )
             SELECT
-                COUNT(*) FILTER (WHERE price > ma_n) AS above,
-                COUNT(*) FILTER (WHERE price IS NOT NULL AND ma_n IS NOT NULL AND price > 5) AS total
-            FROM stocks
-            WHERE price IS NOT NULL AND ma_n IS NOT NULL AND price > 5
+                COUNT(*) FILTER (WHERE close > ma_n AND ma_count >= {ma_days}) AS above,
+                COUNT(*) FILTER (WHERE close > 5 AND ma_count >= {ma_days}) AS total
+            FROM latest
+            WHERE close > 5 AND ma_n IS NOT NULL
             """,
             (eval_date, eval_date, eval_date),
         )
@@ -527,29 +544,40 @@ class MarketExposure:
 
         Approximate using SPY component proxy: count daily advancers/decliners
         in the broad universe.
+
+        Uses LAG() window function instead of correlated subquery self-join.
+        Original required a subquery per row to find the previous trading date
+        (~300,000 lookups for 5000 symbols × 60 days).
         """
-        # Count advancers/decliners over last 60 days
         self.cur.execute(
             """
-            WITH days AS (
-                SELECT DISTINCT date FROM price_daily WHERE date <= %s
-                  AND date >= %s::date - INTERVAL '90 days' ORDER BY date DESC LIMIT 60
+            WITH universe AS (
+                SELECT DISTINCT symbol FROM price_daily
+                WHERE date >= %s::date - INTERVAL '7 days' AND date <= %s AND close > 5
             ),
-            ad AS (
-                SELECT pd.date,
-                       COUNT(*) FILTER (WHERE pd.close > prev.close) AS adv,
-                       COUNT(*) FILTER (WHERE pd.close < prev.close) AS dec
+            with_lag AS (
+                SELECT pd.date, pd.close,
+                       LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev_close
                 FROM price_daily pd
-                JOIN price_daily prev ON prev.symbol = pd.symbol
-                                     AND prev.date = (SELECT MAX(date) FROM price_daily
-                                                       WHERE symbol = pd.symbol AND date < pd.date)
-                WHERE pd.date IN (SELECT date FROM days)
-                  AND pd.close > 5
-                GROUP BY pd.date
+                JOIN universe u ON pd.symbol = u.symbol
+                WHERE pd.date >= %s::date - INTERVAL '95 days' AND pd.date <= %s
+            ),
+            ad_by_day AS (
+                SELECT date,
+                       COUNT(*) FILTER (WHERE close > prev_close) AS adv,
+                       COUNT(*) FILTER (WHERE close < prev_close) AS dec
+                FROM with_lag
+                WHERE prev_close IS NOT NULL
+                GROUP BY date
+            ),
+            recent_60 AS (
+                SELECT date, adv, dec FROM ad_by_day
+                WHERE date >= %s::date - INTERVAL '90 days'
+                ORDER BY date DESC LIMIT 60
             )
-            SELECT date, adv, dec FROM ad ORDER BY date
+            SELECT date, adv, dec FROM recent_60 ORDER BY date ASC
             """,
-            (eval_date, eval_date),
+            (eval_date, eval_date, eval_date, eval_date, eval_date),
         )
         rows = self.cur.fetchall()
         if len(rows) < 39:
@@ -588,25 +616,46 @@ class MarketExposure:
         return {'score_factor': sf, 'value': round(oscillator, 1)}
 
     def _new_highs_lows(self, eval_date):
-        """52-week new highs vs new lows ratio."""
+        """52-week new highs vs new lows ratio.
+
+        Uses window functions (MAX/MIN OVER) instead of correlated subqueries.
+        Original ran 2 subqueries per symbol (~10,000 for 5000 symbols).
+        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING = the 252 prior trading days
+        excluding today, so we compare today's close against the prior year's range.
+        """
         self.cur.execute(
             """
-            WITH stocks AS (
-                SELECT pd.symbol, pd.close,
-                       (SELECT MAX(high) FROM price_daily p2 WHERE p2.symbol = pd.symbol
-                          AND p2.date >= pd.date - INTERVAL '252 days' AND p2.date < pd.date) AS hi_52w,
-                       (SELECT MIN(low) FROM price_daily p2 WHERE p2.symbol = pd.symbol
-                          AND p2.date >= pd.date - INTERVAL '252 days' AND p2.date < pd.date) AS lo_52w
-                FROM price_daily pd
-                WHERE pd.date = %s AND pd.close > 5
+            WITH recent AS (
+                SELECT symbol, date, close, high, low
+                FROM price_daily
+                WHERE date >= %s::date - INTERVAL '400 days' AND date <= %s
+                  AND close > 5
+            ),
+            windowed AS (
+                SELECT
+                    symbol, date, close,
+                    MAX(high) OVER (
+                        PARTITION BY symbol ORDER BY date
+                        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING
+                    ) AS hi_52w,
+                    MIN(low) OVER (
+                        PARTITION BY symbol ORDER BY date
+                        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING
+                    ) AS lo_52w,
+                    COUNT(*) OVER (
+                        PARTITION BY symbol ORDER BY date
+                        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING
+                    ) AS hist_count
+                FROM recent
             )
             SELECT
                 COUNT(*) FILTER (WHERE close > hi_52w) AS new_hi,
                 COUNT(*) FILTER (WHERE close < lo_52w) AS new_lo
-            FROM stocks
-            WHERE hi_52w IS NOT NULL AND lo_52w IS NOT NULL
+            FROM windowed
+            WHERE date = %s AND hist_count >= 50
+              AND hi_52w IS NOT NULL AND lo_52w IS NOT NULL
             """,
-            (eval_date,),
+            (eval_date, eval_date, eval_date),
         )
         row = self.cur.fetchone()
         if not row:
@@ -623,32 +672,45 @@ class MarketExposure:
         }
 
     def _ad_line(self, eval_date):
-        """A/D line: cumulative advancers - decliners. Confirms or diverges from index."""
+        """A/D line: cumulative advancers - decliners. Confirms or diverges from index.
+
+        Uses LAG() instead of correlated self-join for previous day's price.
+        """
         self.cur.execute(
             """
-            WITH ad AS (
-                SELECT pd.date,
-                       COUNT(*) FILTER (WHERE pd.close > prev.close) AS adv,
-                       COUNT(*) FILTER (WHERE pd.close < prev.close) AS dec
-                FROM price_daily pd
-                JOIN price_daily prev ON prev.symbol = pd.symbol
-                  AND prev.date = (SELECT MAX(date) FROM price_daily WHERE symbol = pd.symbol AND date < pd.date)
-                WHERE pd.date <= %s AND pd.date >= %s::date - INTERVAL '30 days'
-                  AND pd.close > 5
-                GROUP BY pd.date
+            WITH universe AS (
+                SELECT DISTINCT symbol FROM price_daily
+                WHERE date >= %s::date - INTERVAL '7 days' AND date <= %s AND close > 5
             ),
-            spy_dates AS (
-                SELECT date, close FROM price_daily WHERE symbol = 'SPY'
-                  AND date <= %s AND date >= %s::date - INTERVAL '30 days'
+            with_lag AS (
+                SELECT pd.date, pd.close,
+                       LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev_close
+                FROM price_daily pd
+                JOIN universe u ON pd.symbol = u.symbol
+                WHERE pd.date >= %s::date - INTERVAL '35 days' AND pd.date <= %s AND pd.close > 5
+            ),
+            ad_by_day AS (
+                SELECT date,
+                       COUNT(*) FILTER (WHERE close > prev_close) AS adv,
+                       COUNT(*) FILTER (WHERE close < prev_close) AS dec
+                FROM with_lag
+                WHERE prev_close IS NOT NULL
+                  AND date >= %s::date - INTERVAL '30 days'
+                GROUP BY date
+            ),
+            spy_prices AS (
+                SELECT date, close FROM price_daily
+                WHERE symbol = 'SPY' AND date <= %s AND date >= %s::date - INTERVAL '30 days'
             )
             SELECT
                 ad.date,
                 SUM(adv - dec) OVER (ORDER BY ad.date) AS ad_cum,
-                spy_dates.close
-            FROM ad JOIN spy_dates ON ad.date = spy_dates.date
+                spy.close
+            FROM ad_by_day ad
+            JOIN spy_prices spy ON ad.date = spy.date
             ORDER BY ad.date
             """,
-            (eval_date, eval_date, eval_date, eval_date),
+            (eval_date, eval_date, eval_date, eval_date, eval_date, eval_date, eval_date),
         )
         rows = self.cur.fetchall()
         if len(rows) < 10:

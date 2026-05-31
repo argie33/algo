@@ -577,7 +577,12 @@ class CircuitBreaker:
             return {'halted': False, 'reason': f'Prior-day check skipped (data error): {e}'}
 
     def _check_sector_concentration(self, current_date: Any, cur) -> Dict[str, Any]:
-        """Halt if any sector exceeds max position cap (default 3 positions per sector)."""
+        """Log warning if any sector exceeds max position cap — does not halt all entries.
+
+        Phase 6 already blocks per-symbol sector violations with a FOR UPDATE lock
+        before each trade. A circuit-breaker full halt would incorrectly prevent entries
+        in all other sectors just because one sector is full.
+        """
         try:
             max_sector_positions = int(self.config.get('max_sector_positions', 3))
 
@@ -593,19 +598,18 @@ class CircuitBreaker:
             if not rows:
                 return {'halted': False, 'reason': 'No open positions'}
 
-            # Count positions per sector
             sector_counts: Dict[str, int] = {}
             for _, sector in rows:
                 sector_counts[sector] = sector_counts.get(sector, 0) + 1
 
-            # Halt if any sector exceeds max cap (hard limit)
-            concentrated = {s: n for s, n in sector_counts.items() if n > max_sector_positions and s != 'Unknown'}
+            concentrated = {s: n for s, n in sector_counts.items() if n >= max_sector_positions and s != 'Unknown'}
             if concentrated:
-                # Hard halt: exceeding max sector positions blocks all new entries
                 sector_details = ', '.join(f"{s}({n})" for s, n in concentrated.items())
+                logger.warning(f'Sector at/near cap: {sector_details} (max {max_sector_positions}) — Phase 6 will block same-sector entries')
                 return {
-                    'halted': True,
-                    'reason': f'Sector concentration limit exceeded: {sector_details} (max {max_sector_positions} per sector)',
+                    'halted': False,
+                    'reason': f'At-cap sectors (per-trade enforcement in Phase 6): {sector_details}',
+                    'at_cap_sectors': concentrated,
                 }
 
             return {

@@ -55,7 +55,7 @@ def run(
             from utils.database_context import DatabaseContext
             recorder = TradeRecorder()
 
-            with DatabaseContext() as cursor:
+            with DatabaseContext('read') as cursor:
                 # Find positions that were closed today
                 cursor.execute("""
                     SELECT symbol, entry_price, current_price, quantity

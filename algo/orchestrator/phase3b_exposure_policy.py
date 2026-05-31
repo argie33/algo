@@ -57,9 +57,7 @@ def run(
         # Evening refresh (after 5 PM) recomputes for next day's trading decisions
         force_recompute = _is_evening_run()
         exposure = me.compute(run_date, force_recompute=force_recompute)
-        cache_status = " (RECOMPUTED)" if force_recompute or exposure.get('_cached') else " (RECOMPUTED, no cache)"
-        if exposure.get('_cached'):
-            cache_status = " ✓ cached"
+        cache_status = " ✓ cached" if exposure.get('_cached') else " (recomputed)"
         logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']}){cache_status}")
         if exposure.get('halt_reasons'):
             logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")

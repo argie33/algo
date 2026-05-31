@@ -1,14 +1,14 @@
 ﻿/**
- * Swing Trading Algo Dashboard — Institutional Grade
+ * Swing Trading Algo Dashboard
  *
- * Tabs: Setups / Risk / Pipeline / Config
- * Markets → /app/markets  |  Positions → /app/portfolio
- * Trades → /app/trades    |  Audit → /app/audit
+ * Focus: orchestrator run status, signal pipeline, exposure, circuit breakers, config.
+ * Portfolio P&L → /app/portfolio  |  Market internals → /app/markets
+ * Trade history → /app/trades     |  Audit trail → /app/audit
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  Shield, RefreshCw,
+  Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
@@ -64,6 +64,55 @@ const Stat = ({ label, value, sub, color }) => (
 
 
 // ============================================================================
+// LAST RUN SUMMARY (small inline component for the header card)
+// ============================================================================
+function LastRunSummary({ lastRun }) {
+  if (!lastRun?.run_id) {
+    return <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>No run data yet</div>;
+  }
+
+  const runAt = lastRun.run_at ? new Date(lastRun.run_at) : null;
+  const ageMinutes = runAt ? Math.round((Date.now() - runAt.getTime()) / 60000) : null;
+  const ageLabel = ageMinutes == null ? '—'
+    : ageMinutes < 60 ? `${ageMinutes}m ago`
+    : ageMinutes < 1440 ? `${Math.round(ageMinutes / 60)}h ago`
+    : `${Math.round(ageMinutes / 1440)}d ago`;
+
+  const Icon = lastRun.success && !lastRun.halted ? CheckCircle
+    : lastRun.halted ? AlertTriangle
+    : XCircle;
+  const iconColor = lastRun.success && !lastRun.halted ? 'var(--success)'
+    : lastRun.halted ? 'var(--amber)'
+    : 'var(--danger)';
+  const label = lastRun.success && !lastRun.halted ? 'COMPLETED'
+    : lastRun.halted ? 'HALTED'
+    : 'ERROR';
+
+  const phases = (lastRun.phases || []).filter(p =>
+    p.action_type?.startsWith('phase_') && !p.action_type.includes('pipeline_health')
+  );
+  const lastPhase = phases[phases.length - 1];
+
+  return (
+    <div style={{ marginTop: 'var(--space-3)' }}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 'var(--space-2)' }}>
+        <Icon size={16} style={{ color: iconColor, flexShrink: 0 }} />
+        <span className="mono t-xs strong" style={{ color: iconColor }}>{label}</span>
+        <span className="t-2xs muted">{ageLabel}</span>
+      </div>
+      {lastPhase && (
+        <div className="t-2xs muted" style={{ marginBottom: 'var(--space-1)' }}>
+          Last: {lastPhase.action_type?.replace('phase_', 'P').replace(/_/g, ' ')}
+        </div>
+      )}
+      <div className="t-2xs muted mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {lastRun.run_id}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 function AlgoTradingDashboard() {
   const [tab, setTab] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -72,7 +121,6 @@ function AlgoTradingDashboard() {
   const adminOpts = { ...qOpts, retry: false }; // don't retry on 401/403
 
   // One hook per endpoint — React Query deduplicates and caches
-  const { data: status,         isLoading: loading,   error: err0,  refetch: r0  } = useApiQuery(['algo','status'],        () => api.get('/api/algo/status'), qOpts);
   const { data: markets,        isLoading: mLoading,  error: err1,  refetch: r1  } = useApiQuery(['algo','markets'],        () => api.get('/api/algo/markets'), qOpts);
   const { items: scores,        isLoading: _sLoading, error: err2,  refetch: r2  } = useApiPaginatedQuery(['algo','scores'], () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
   const { data: config,         isLoading: _cLoading, error: err5,  refetch: r5  } = useApiQuery(['algo','config'],         () => api.get('/api/algo/config'), qOpts);
@@ -82,10 +130,11 @@ function AlgoTradingDashboard() {
   const { data: circuitBreakers,isLoading: _cbLoading,error: err11, refetch: r11 } = useApiQuery(['algo','circuit'],        () => api.get('/api/algo/circuit-breakers'), adminOpts);
   const { data: dataQuality,    isLoading: _dqLoading,error: err12, refetch: r12 } = useApiQuery(['algo','dq'],             () => api.get('/api/algo/data-quality'), qOpts);
   const { data: rejectionFunnel,isLoading: _rfLoading,error: err13, refetch: r13 } = useApiQuery(['algo','funnel'],         () => api.get('/api/algo/rejection-funnel'), qOpts);
+  const { data: lastRun,                              error: err14, refetch: r14 } = useApiQuery(['algo','last-run'],       () => api.get('/api/algo/last-run'), qOpts);
 
   const refetchAll = useCallback(() => {
-    [r0,r1,r2,r5,r6,r7,r8,r11,r12,r13].forEach(fn => fn?.());
-  }, [r0,r1,r2,r5,r6,r7,r8,r11,r12,r13]);
+    [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14].forEach(fn => fn?.());
+  }, [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14]);
 
   // Transform config from array [{key, value, ...}] to dict {key: {value, ...}}
   const configMap = useMemo(() => {
@@ -95,7 +144,6 @@ function AlgoTradingDashboard() {
 
   // Stable data shape consumed by sub-components
   const data = {
-    status,
     scores:           scores || [],
     config:           configMap,
     dataStatus,
@@ -104,13 +152,12 @@ function AlgoTradingDashboard() {
     circuitBreakers,
     dataQuality,
     rejectionFunnel,
+    lastRun,
   };
 
-  const portfolio = status?.portfolio || {};
   const market = markets;
-  const openPositions = status?.portfolio?.open_positions ?? 0;
 
-  if (loading && !status) {
+  if (mLoading && !markets) {
     return (
       <div className="main-content">
         <div className="empty"><div className="empty-title">Loading…</div></div>
@@ -127,17 +174,17 @@ function AlgoTradingDashboard() {
           <div className="page-head-sub">Pine signals · multi-factor scoring · composite exposure · hedge-fund discipline</div>
         </div>
         <div className="page-head-actions">
-          {[err0,err1,err2,err5,err6,err7,err8,err11,err12,err13].some(Boolean) && (
-            <span className="badge badge-danger" title={`Failed: ${['status','markets','scores','config','data-status','policy','evaluate','circuit-breakers','data-quality','rejection-funnel']
-              .filter((_, i) => [err0,err1,err2,err5,err6,err7,err8,err11,err12,err13][i])
+          {[err1,err2,err5,err6,err7,err8,err11,err12,err13,err14].some(Boolean) && (
+            <span className="badge badge-danger" title={`Failed: ${['markets','scores','config','data-status','policy','evaluate','circuit-breakers','data-quality','rejection-funnel','last-run']
+              .filter((_, i) => [err1,err2,err5,err6,err7,err8,err11,err12,err13,err14][i])
               .join(', ')}`}>
-              ⚠ {[err0,err1,err2,err5,err6,err7,err8,err11,err12,err13].filter(Boolean).length} data source(s) failed
+              ⚠ {[err1,err2,err5,err6,err7,err8,err11,err12,err13,err14].filter(Boolean).length} source(s) failed
             </span>
           )}
           <span className={`badge ${data.dataStatus?.ready_to_trade ? 'badge-success' : 'badge-danger'}`}>
             {data.dataStatus?.ready_to_trade ? 'DATA READY' : 'DATA STALE'}
           </span>
-          <button className="btn btn-outline btn-sm" onClick={refetchAll} disabled={loading || mLoading} title="Refresh all data">
+          <button className="btn btn-outline btn-sm" onClick={refetchAll} disabled={mLoading} title="Refresh all data">
             <RefreshCw size={14} /> Refresh
           </button>
           <button className={`btn ${autoRefresh ? 'btn-primary' : 'btn-outline'} btn-sm`}
@@ -147,13 +194,15 @@ function AlgoTradingDashboard() {
         </div>
       </div>
 
-      {/* TOP STRIP — 4 KPI CARDS */}
+      {/* TOP STRIP — 4 ALGO-SPECIFIC KPI CARDS */}
       <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
+
+        {/* Card 1: Market Exposure + Tier */}
         <div className="card" style={{ background: tierColor(market?.active_tier?.name), color: 'white', border: 'none' }}>
           <div style={{ padding: 'var(--space-4)' }}>
             <div className="flex justify-between items-start">
               <div>
-                <div className="eyebrow" style={{ color: 'rgba(255,255,255,0.85)', opacity: 0.85 }}>Market Exposure</div>
+                <div className="eyebrow" style={{ color: 'rgba(255,255,255,0.85)' }}>Market Exposure</div>
                 <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-bold)', lineHeight: 1, marginTop: 8 }}>
                   {market?.current?.exposure_pct ?? '--'}<span style={{ fontSize: 'var(--t-lg)', marginLeft: 4 }}>%</span>
                 </div>
@@ -169,34 +218,10 @@ function AlgoTradingDashboard() {
           </div>
         </div>
 
+        {/* Card 2: Active Tier Entry Rules */}
         <div className="card">
           <div className="card-body">
-            <Stat label="Portfolio Value"
-              value={`$${(portfolio.total_value || 0).toLocaleString()}`}
-              sub={
-                <span style={{
-                  color: (Number(portfolio.unrealized_pnl_pct) || 0) >= 0 ? 'var(--success)' : 'var(--danger)',
-                  fontWeight: 'var(--w-semibold)',
-                }}>
-                  {formatPercentageChange(portfolio.unrealized_pnl_pct)} unrealized
-                </span>
-              }
-            />
-            <div style={{ height: 1, background: 'var(--border)', margin: 'var(--space-3) 0' }} />
-            <div className="flex gap-4">
-              <Stat label="Daily" value={
-                <span style={{ color: (Number(portfolio.daily_return_pct) || 0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {formatPercentageChange(portfolio.daily_return_pct)}
-                </span>
-              } />
-              <Stat label="Positions" value={`${openPositions}/${data.config?.max_positions?.value || 6}`} />
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-body">
-            <div className="eyebrow">Active Tier Policy</div>
+            <div className="eyebrow">Entry Rules — Active Tier</div>
             <div style={{ marginTop: 'var(--space-3)' }}>
               <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
                 <span className="t-xs muted">Risk multiplier</span>
@@ -214,8 +239,8 @@ function AlgoTradingDashboard() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="t-xs muted">Entries</span>
-                <span className={`mono tnum t-xs ${market?.active_tier?.halt ? 'down' : 'up'}`}>
+                <span className="t-xs muted">New entries</span>
+                <span className={`mono tnum t-xs strong ${market?.active_tier?.halt ? 'down' : 'up'}`}>
                   {market?.active_tier?.halt ? 'HALTED' : 'ALLOWED'}
                 </span>
               </div>
@@ -223,40 +248,46 @@ function AlgoTradingDashboard() {
           </div>
         </div>
 
+        {/* Card 3: Signal Pipeline Today */}
         <div className="card">
           <div className="card-body">
-            <div className="eyebrow">Market Internals</div>
+            <div className="eyebrow">Signal Pipeline</div>
             <div style={{ marginTop: 'var(--space-3)' }}>
               <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Distribution days (4w)</span>
-                <span className={`mono tnum t-xs ${
-                  market?.current?.distribution_days >= 5 ? 'down' :
-                  market?.current?.distribution_days >= 4 ? '' : 'up'
-                }`}>
-                  {market?.current?.distribution_days ?? '--'}
-                </span>
+                <span className="t-xs muted">Raw BUY signals</span>
+                <span className="mono tnum t-xs">{data.evaluated?.candidates?.screened ?? '--'}</span>
               </div>
               <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Trend</span>
-                <span className="mono tnum t-xs">{market?.market_health?.market_trend || '--'}</span>
+                <span className="t-xs muted">Passed all 6 tiers</span>
+                <span className="mono tnum t-xs up">{(data.scores || []).filter(s => s.pass_gates).length}</span>
               </div>
               <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Stage</span>
-                <span className="mono tnum t-xs">{market?.market_health?.market_stage || '--'}</span>
+                <span className="t-xs muted">Blocked / filtered</span>
+                <span className="mono tnum t-xs muted">{(data.scores || []).filter(s => !s.pass_gates).length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="t-xs muted">VIX</span>
-                <span className="mono tnum t-xs">{market?.market_health?.vix_level ?? '--'}</span>
+                <span className="t-xs muted">Data ready</span>
+                <span className={`mono tnum t-xs ${data.dataStatus?.ready_to_trade ? 'up' : 'down'}`}>
+                  {data.dataStatus?.ready_to_trade ? 'YES' : 'NO'}
+                </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Card 4: Last Orchestrator Run */}
+        <div className="card">
+          <div className="card-body">
+            <div className="eyebrow">Last Orchestrator Run</div>
+            <LastRunSummary lastRun={data.lastRun} />
           </div>
         </div>
       </div>
 
       {/* HALT REASONS BANNER */}
-      {market?.current?.halt_reasons && (
+      {market?.current?.halt_reasons?.length > 0 && (
         <div className="alert alert-warn" style={{ marginBottom: 'var(--space-4)' }}>
-          <span className="mono tnum strong">ACTIVE EXPOSURE VETOES: {market.current.halt_reasons}</span>
+          <span className="mono tnum strong">ACTIVE EXPOSURE VETOES: {Array.isArray(market.current.halt_reasons) ? market.current.halt_reasons.join(' · ') : market.current.halt_reasons}</span>
         </div>
       )}
 
@@ -291,7 +322,7 @@ function AlgoTradingDashboard() {
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load risk data:</strong> {err11?.message || 'Unknown error'}</div></div>
           : data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={[]} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No circuit breaker data</div></div>
         )}
-        {tab === 2 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} dataStatus={data.dataStatus} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} error={err7 || err12 || err13} />}
+        {tab === 2 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} dataStatus={data.dataStatus} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} lastRun={data.lastRun} error={err7 || err12 || err13 || err14} />}
         {tab === 3 && (err5 ?
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load config:</strong> {err5?.message || 'Unknown error'}</div></div>
           : data.config ? <ConfigTab config={data.config} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No config data</div></div>
@@ -444,7 +475,7 @@ const ScoreDetailExpanded = ({ details, _symbol }) => {
 // ============================================================================
 // PIPELINE TAB — live 7-phase orchestrator status + data loader health
 // ============================================================================
-function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, circuitBreakers }) {
+function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, circuitBreakers, lastRun }) {
   const loaders = dataStatus?.sources || [];
   const funnelTiers = (rejectionFunnel?.funnel || []).map(f => ({
     name: (f.stage || '').replace('All Signals Generated', 'All Signals').replace('Passed Quality Filters', 'Quality OK').replace(/High-Quality.*/, 'SQS ≥ 60'),
@@ -454,54 +485,99 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
   const overallStatus = dataStatus?.ready_to_trade ? 'ok' : dataQuality?.accuracy_check === 'warning' ? 'warning' : 'error';
   const statusColor2 = overallStatus === 'ok' ? 'var(--success)' : overallStatus === 'warning' ? 'var(--amber)' : 'var(--danger)';
 
-  const PHASES = [
-    { n: '1', name: 'Data Freshness', desc: 'Halt if any CRITICAL data > 7d stale', mode: 'fail-closed',
-      live: overallStatus === 'ok' ? 'ok' : overallStatus === 'warning' ? 'warn' : 'fail' },
-    { n: '2', name: 'Circuit Breakers', desc: 'Drawdown / consec losses / VIX / breadth / data', mode: 'fail-closed',
-      live: circuitBreakers?.system_halted ? 'fail' : 'ok' },
-    { n: '3', name: 'Position Monitor', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
-    { n: '3b', name: 'Exposure Policy', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
-    { n: '4', name: 'Exit Execution', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
-    { n: '5', name: 'Signal Generation', desc: `Pine BUYs → 6 tiers → swing_score ranking${rejectionFunnel?.summary?.total_initial ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
-    { n: '6', name: 'Entry Execution', desc: 'Idempotent fills, tier caps, grade filter', mode: 'fail-open', live: 'ok' },
-    { n: '7', name: 'Reconciliation', desc: 'Alpaca sync, P&L, snapshot, audit trail', mode: 'fail-open', live: 'ok' },
-  ];
+  // Build phase status map from last run's audit log entries
+  const phaseStatusMap = {};
+  if (lastRun?.phases) {
+    for (const p of lastRun.phases) {
+      const m = p.action_type?.match(/^phase_(\w+)_/);
+      if (m) phaseStatusMap[m[1]] = p.status;
+    }
+  }
+  const hasLastRun = !!lastRun?.run_id;
+  const runAge = lastRun?.run_at
+    ? Math.round((Date.now() - new Date(lastRun.run_at).getTime()) / 60000)
+    : null;
 
-  const liveColor = (s) => s === 'ok' ? 'var(--success)' : s === 'warn' ? 'var(--amber)' : 'var(--danger)';
+  const phaseColor = (n) => {
+    if (!hasLastRun) return overallStatus === 'ok' ? 'ok' : 'unknown';
+    const s = phaseStatusMap[n];
+    if (!s) return 'unknown';
+    if (s === 'success') return 'ok';
+    if (s === 'halt') return 'warn';
+    if (s === 'warn' || s === 'skip' || s === 'error') return s === 'error' ? 'fail' : 'warn';
+    return 'ok';
+  };
+  const phaseBadge = (n) => {
+    if (!hasLastRun) return '—';
+    const s = phaseStatusMap[n];
+    if (!s) return '—';
+    if (s === 'success') return '✓ OK';
+    if (s === 'halt') return '⊘ HALT';
+    if (s === 'warn' || s === 'skip') return '⚠ WARN';
+    if (s === 'error') return '✗ ERR';
+    return s;
+  };
+  const phaseBarColor = (n) => {
+    const c = phaseColor(n);
+    return c === 'ok' ? 'var(--success)' : c === 'warn' ? 'var(--amber)' : c === 'fail' ? 'var(--danger)' : 'var(--border)';
+  };
+
+  const PHASES = [
+    { n: '1', name: 'Data Freshness', desc: 'Halt if SPY price / market health / trend template stale', mode: 'fail-closed' },
+    { n: '2', name: 'Circuit Breakers', desc: 'Drawdown / daily loss / VIX / market stage / consec losses', mode: 'fail-closed' },
+    { n: '3', name: 'Position Monitor', desc: 'Review open positions: hold / raise stop / early exit', mode: 'fail-open' },
+    { n: '3b', name: 'Exposure Policy', desc: 'Tier-based stops, partial exits, force-exit losers', mode: 'fail-open' },
+    { n: '4', name: 'Exit Execution', desc: 'Execute stops, T1/T2/T3 targets, time decay, RS-break', mode: 'fail-open' },
+    { n: '4b', name: 'Pyramid Adds', desc: 'Add to winners at defined extension points', mode: 'fail-open' },
+    { n: '5', name: 'Signal Generation', desc: `Pine BUYs → 6-tier filter → swing_score rank${rejectionFunnel?.summary?.total_initial ? ` · ${rejectionFunnel?.summary?.total_initial} signals` : ''}`, mode: 'fail-open' },
+    { n: '6', name: 'Entry Execution', desc: 'Idempotent fills, tier caps, grade filter, sector limit', mode: 'fail-open' },
+    { n: '7', name: 'Reconciliation', desc: 'Alpaca sync, P&L snapshot, attribution, weight tuning', mode: 'fail-open' },
+  ];
 
   return (
     <div style={{ padding: 'var(--space-4)' }}>
       <div className="grid grid-2" style={{ gap: 'var(--space-4)' }}>
         {/* Phase status */}
-        <SectionCard title="7-Phase Daily Workflow — Live Status">
-          {PHASES.map(ph => (
-            <div key={ph.n} style={{
-              padding: 'var(--space-3)',
-              marginBottom: 'var(--space-2)',
-              background: 'var(--surface-2)',
-              border: `1px solid var(--border)`,
-              borderLeft: `4px solid ${liveColor(ph.live)}`,
-              borderRadius: 'var(--r-md)',
-            }}>
-              <div className="flex justify-between items-center">
-                <div style={{ flex: 1 }}>
-                  <div className="t-2xs strong mono" style={{ color: 'var(--brand)' }}>PHASE {ph.n}</div>
-                  <div className="strong">{ph.name}</div>
-                  <div className="t-2xs muted">{ph.desc}</div>
-                </div>
-                <div className="flex gap-2 items-center">
-                  <span className={`badge ${ph.live === 'ok' ? 'badge-success' : ph.live === 'warn' ? 'badge-amber' : 'badge-danger'}`}
-                    style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)' }}>
-                    {ph.live === 'ok' ? 'âœ“ OK' : ph.live === 'warn' ? '⚠ WARN' : 'âœ— FAIL'}
-                  </span>
-                  <span className={`badge ${ph.mode === 'fail-closed' ? 'badge-danger' : ''}`}
-                    style={{ fontSize: 'var(--t-2xs)' }}>
-                    {ph.mode}
-                  </span>
+        <SectionCard title={`Orchestrator Phases${hasLastRun && runAge != null ? ` — last run ${runAge < 60 ? `${runAge}m ago` : `${Math.round(runAge/60)}h ago`}` : ''}`}>
+          {!hasLastRun && (
+            <div className=”t-xs muted” style={{ marginBottom: 'var(--space-3)' }}>
+              No run history yet — statuses shown below are design-time defaults.
+            </div>
+          )}
+          {PHASES.map(ph => {
+            const color = phaseBarColor(ph.n);
+            const badge = phaseBadge(ph.n);
+            const badgeClass = phaseColor(ph.n) === 'ok' ? 'badge-success' : phaseColor(ph.n) === 'warn' ? 'badge-amber' : phaseColor(ph.n) === 'fail' ? 'badge-danger' : '';
+            return (
+              <div key={ph.n} style={{
+                padding: 'var(--space-3)',
+                marginBottom: 'var(--space-2)',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderLeft: `4px solid ${color}`,
+                borderRadius: 'var(--r-md)',
+              }}>
+                <div className=”flex justify-between items-center”>
+                  <div style={{ flex: 1 }}>
+                    <div className=”t-2xs strong mono” style={{ color: 'var(--brand)' }}>PHASE {ph.n}</div>
+                    <div className=”strong”>{ph.name}</div>
+                    <div className=”t-2xs muted”>{ph.desc}</div>
+                  </div>
+                  <div className=”flex gap-2 items-center”>
+                    {hasLastRun && (
+                      <span className={`badge ${badgeClass}`} style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)' }}>
+                        {badge}
+                      </span>
+                    )}
+                    <span className={`badge ${ph.mode === 'fail-closed' ? 'badge-danger' : ''}`}
+                      style={{ fontSize: 'var(--t-2xs)' }}>
+                      {ph.mode}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </SectionCard>
 
         <div>

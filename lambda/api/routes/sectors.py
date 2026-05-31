@@ -103,6 +103,18 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         FROM sector_performance
                         ORDER BY sector, date DESC
                     ),
+                    sector_perf_1d_prior AS (
+                        SELECT DISTINCT ON (sector) sector, return_pct AS prior_1d
+                        FROM sector_performance
+                        WHERE date <= CURRENT_DATE - INTERVAL '1 day'
+                        ORDER BY sector, date DESC
+                    ),
+                    sector_perf_5d_prior AS (
+                        SELECT DISTINCT ON (sector) sector, return_pct AS prior_5d
+                        FROM sector_performance
+                        WHERE date <= CURRENT_DATE - INTERVAL '5 days'
+                        ORDER BY sector, date DESC
+                    ),
                     sector_perf_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_ytd
                         FROM sector_performance
@@ -111,8 +123,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     ),
                     sector_perf AS (
                         SELECT l.sector,
+                               ROUND((l.latest_ytd - COALESCE(p1.prior_1d, l.latest_ytd))::numeric, 2) AS perf_1d,
+                               ROUND((l.latest_ytd - COALESCE(p5.prior_5d, l.latest_ytd))::numeric, 2) AS perf_5d,
                                ROUND((l.latest_ytd - COALESCE(p.prior_ytd, l.latest_ytd))::numeric, 2) AS perf_20d
                         FROM sector_perf_latest l
+                        LEFT JOIN sector_perf_1d_prior p1 ON p1.sector = l.sector
+                        LEFT JOIN sector_perf_5d_prior p5 ON p5.sector = l.sector
                         LEFT JOIN sector_perf_prior p ON p.sector = l.sector
                     ),
                     sector_scores AS (
@@ -125,12 +141,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                             AVG(ss.quality_score) as quality_score,
                             AVG(ss.growth_score) as growth_score,
                             AVG(ss.stability_score) as stability_score,
+                            COALESCE(sp.perf_1d, 0) as perf_1d,
+                            COALESCE(sp.perf_5d, 0) as perf_5d,
                             COALESCE(sp.perf_20d, 0) as perf_20d
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         LEFT JOIN sector_perf sp ON sp.sector = cp.sector
                         WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
-                        GROUP BY cp.sector, sp.perf_20d
+                        GROUP BY cp.sector, sp.perf_1d, sp.perf_5d, sp.perf_20d
                     ),
                     ranked AS (
                         SELECT *,
@@ -174,6 +192,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 for row in sectors_data:
                     s = dict(row)
                     composite = float(s.get('composite_score') or 0)
+                    perf1d = float(s.get('perf_1d') or 0) if s.get('perf_1d') is not None else None
+                    perf5d = float(s.get('perf_5d') or 0) if s.get('perf_5d') is not None else None
                     perf20d = float(s.get('perf_20d') or 0)
                     momentum_label = 'Strong' if composite >= 60 else 'Moderate' if composite >= 45 else 'Weak'
                     trend_label = 'Uptrend' if perf20d > 2 else 'Downtrend' if perf20d < -2 else 'Sideways'
@@ -193,6 +213,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         'stability_score': float(s.get('stability_score') or 0),
                         'current_momentum': momentum_label,
                         'current_trend': trend_label,
+                        'performance_1d': perf1d,
+                        'performance_5d': perf5d,
                         'performance_20d': perf20d,
                         'pe': {
                             'trailing': float(s.get('avg_trailing_pe') or 0),

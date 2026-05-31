@@ -160,4 +160,6 @@ def run(
     except Exception as e:
         traceback.print_exc()
         log_phase_result_fn(5, 'signal_generation', 'error', str(e))
-        return PhaseResult(5, 'signal_generation', 'ok', {'qualified_trades': []}, False, str(e))
+        # Fail-open: log error but don't halt — Phase 6 gets empty qualified_trades
+        # and will log "no qualified trades" rather than blocking exits/reconciliation.
+        return PhaseResult(5, 'signal_generation', 'error', {'qualified_trades': []}, False, str(e))

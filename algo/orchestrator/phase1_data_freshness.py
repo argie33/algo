@@ -401,33 +401,14 @@ def run(
                 _metrics.flush()
 
             if stale_items:
-                # FAILSAFE: Try to trigger loaders if EventBridge failed
-                logger.warning(f"[FAILSAFE] Data stale, attempting automatic loader trigger: {stale_items}")
-                if _trigger_loader_failsafe('stock_prices_daily', verbose=verbose):
-                    # Wait for loader to run
-                    import time
-                    logger.info("[FAILSAFE] Waiting 30s for loader to complete...")
-                    time.sleep(30)
+                # FAILSAFE: Fire async loader trigger if EventBridge failed.
+                # The loader runs asynchronously (ECS task startup takes 60-120s minimum),
+                # so we do NOT wait — halting is the right call for this run.
+                # The next scheduled orchestrator invocation will see fresh data.
+                logger.warning(f"[FAILSAFE] Data stale, firing async loader trigger: {stale_items}")
+                _trigger_loader_failsafe('stock_prices_daily', verbose=verbose)
 
-                    # Re-check if prices loaded
-                    try:
-                        cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'")
-                        result = cur.fetchone()
-                        new_price_date = result[0] if result else None
-                        if new_price_date and new_price_date >= expected_date:
-                            logger.info(f"[FAILSAFE] ✓ Data recovered! Prices now: {new_price_date}")
-                            # Recalculate stale items with fresh data
-                            checks['price_daily'] = new_price_date
-                            stale_items = [item for item in stale_items if 'price_daily' not in item]
-                            if not stale_items:
-                                logger.info("[FAILSAFE] All critical data now fresh, proceeding")
-                                # Continue to patrol check
-                            else:
-                                logger.warning(f"[FAILSAFE] Some items still stale: {stale_items}")
-                    except Exception as e:
-                        logger.warning(f"[FAILSAFE] Could not verify data reload: {e}")
-
-                # If still stale after failsafe, halt
+                # If still stale, halt
                 if stale_items:
                     alerts.send_position_alert(
                         'DATA',

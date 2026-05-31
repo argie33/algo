@@ -165,65 +165,6 @@ class Orchestrator:
             logger.error(f"[TABLE-CHECK] Error validating tables: {e}")
             return False
 
-    def _check_data_freshness(self, cur: Any) -> bool:
-        """FIXED Issue #9: Validate that all critical data is fresh (from today or yesterday).
-
-        Checks:
-        - Prices exist for the last trading day (loaders load previous day's close)
-        - Technical indicators computed for the last trading day
-        - Signals generated for the last trading day
-        - Signal quality scores available
-        - Market health computed for the last trading day
-
-        Returns: True if data is fresh, False if critical data is stale.
-        """
-        try:
-            # Loaders fetch data for the PREVIOUS trading day (not today).
-            # E.g., at 9:30 AM ET today, we have yesterday's close available.
-            from algo.algo_market_calendar import MarketCalendar
-
-            expected_date = self.run_date - timedelta(days=1)
-            # If run_date is Monday, we need Friday's data (skip weekend)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(expected_date):
-                    break
-                expected_date -= timedelta(days=1)
-
-            checks = {
-                'price_daily': "SELECT COUNT(*) FROM price_daily WHERE date = %s",
-                'technical_data_daily': "SELECT COUNT(*) FROM technical_data_daily WHERE date = %s",
-                'buy_sell_daily': "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s",
-                'signal_quality_scores': "SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s",
-                'market_health_daily': "SELECT COUNT(*) FROM market_health_daily WHERE date >= CURRENT_DATE - INTERVAL '2 days'",
-            }
-
-            freshness_ok = True
-            for table_name, query in checks.items():
-                try:
-                    cur.execute(query, (expected_date,))
-                    result = cur.fetchone()
-                    count = result[0] if result else 0
-                    if count == 0:
-                        logger.error(f"[FRESHNESS] {table_name} has no data for {expected_date}")
-                        freshness_ok = False
-                    else:
-                        if self.verbose:
-                            logger.info(f"[FRESHNESS] {table_name}: {count} rows for {expected_date}")
-                except Exception as e:
-                    logger.error(f"[FRESHNESS] Failed to check {table_name}: {e}")
-                    freshness_ok = False
-
-            if not freshness_ok:
-                logger.error("[FRESHNESS] Critical data is stale — blocking orchestrator")
-                self.log_phase_result(1, 'data_freshness', 'halt', 'Critical data is not fresh (missing prices, technicals, or signals)')
-                return False
-
-            return True
-
-        except Exception as e:
-            logger.error(f"[FRESHNESS] Error checking data freshness: {e}")
-            return False
-
     def _check_data_patrol(self, cur: Any) -> bool:
         """Check data patrol results. Fail-closed if critical/error findings.
 
@@ -393,173 +334,6 @@ class Orchestrator:
         except Exception as e:
             logger.warning(f"Warning: Could not persist audit log entry: {e}")
 
-    # ---------- Pipeline Health & Visibility ----------
-
-    def _check_pipeline_health(self, cur: Any) -> None:
-        """Check that all required tables have recent data for signal processing."""
-        if not cur:
-            return
-
-        try:
-            five_days_ago = self.run_date - timedelta(days=5)
-
-            # Single query with one UNION ALL per table — avoids 10 round-trips
-            batch_sql = """
-                SELECT 'price_daily'          AS tbl, COUNT(*) FROM price_daily          WHERE date          >= %s
-                UNION ALL
-                SELECT 'buy_sell_daily',               COUNT(*) FROM buy_sell_daily               WHERE date          >= %s
-                UNION ALL
-                SELECT 'trend_template_data',          COUNT(*) FROM trend_template_data          WHERE date          >= %s
-                UNION ALL
-                SELECT 'technical_data_daily',         COUNT(*) FROM technical_data_daily         WHERE date          >= %s
-                UNION ALL
-                SELECT 'signal_quality_scores',        COUNT(*) FROM signal_quality_scores        WHERE date          >= %s
-                UNION ALL
-                SELECT 'swing_trader_scores',          COUNT(*) FROM swing_trader_scores          WHERE date          >= %s
-                UNION ALL
-                SELECT 'market_health_daily',          COUNT(*) FROM market_health_daily          WHERE date          >= %s
-                UNION ALL
-                SELECT 'sector_ranking',               COUNT(*) FROM sector_ranking               WHERE date_recorded >= %s
-                UNION ALL
-                SELECT 'industry_ranking',             COUNT(*) FROM industry_ranking             WHERE date_recorded >= %s
-                UNION ALL
-                SELECT 'stock_scores',                 COUNT(*) FROM stock_scores                 WHERE updated_at    >= %s
-            """
-            descriptions = {
-                'price_daily':          'price_daily (OHLCV)',
-                'buy_sell_daily':       'buy_sell_daily (entry signals)',
-                'trend_template_data':  'trend_template_data (Minervini/Weinstein scores)',
-                'technical_data_daily': 'technical_data_daily (MA/RSI/ATR)',
-                'signal_quality_scores':'signal_quality_scores (SQS >= 40 gate)',
-                'swing_trader_scores':  'swing_trader_scores (final ranking)',
-                'market_health_daily':  'market_health_daily (Tier 2 gate)',
-                'sector_ranking':       'sector_ranking (Tier 6 context)',
-                'industry_ranking':     'industry_ranking (Tier 6 context)',
-                'stock_scores':         'stock_scores (Tier 6 scoring)',
-            }
-            try:
-                cur.execute(batch_sql, (five_days_ago,) * 10)
-                status = {row[0]: row[1] for row in cur.fetchall()}
-            except Exception as e:
-                logger.warning(f"Pipeline health batch query failed: {e}")
-                status = {t: 0 for t in descriptions}
-
-            for table, description in descriptions.items():
-                count = status.get(table, 0)
-                flag = '[OK]' if count > 0 else '[EMPTY]'
-                if self.verbose:
-                    logger.info(f"    {flag} {description:50s}: {count:,} rows (5d)")
-
-            # Alert if any critical table is empty
-            empty_tables = [t for t in descriptions if status.get(t, 0) == 0]
-            if empty_tables:
-                empty_desc = ', '.join([descriptions[t] for t in empty_tables])
-                logger.error(f"  [ALERT] Pipeline missing data in: {empty_desc}")
-                logger.error(f"  Run the loaders to populate: {', '.join(empty_tables)}")
-                self.alerts.critical(
-                    f"Pipeline data gap: {empty_desc}. No signals can pass filters until data is loaded."
-                )
-
-        except Exception as e:
-            logger.warning(f"Pipeline health check failed: {e}")
-
-    def _report_signal_waterfall(self) -> None:
-        """Log signal count at each filter tier for visibility on rejections."""
-        try:
-            with DatabaseContext('write') as cur:
-                # Count total BUY signals for today
-                cur.execute(
-                    "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
-                    (self.run_date,)
-                )
-                result = cur.fetchone()
-                total_signals = result[0] if result else 0
-
-                # Count from trend_template_data where Stage 2 exists
-                # (Stage 2 check is in filter_pipeline, using pre-filtered signals)
-                cur.execute(
-                    """SELECT COUNT(DISTINCT symbol) FROM trend_template_data
-                       WHERE date = %s AND weinstein_stage = 2""",
-                    (self.run_date,)
-                )
-                result = cur.fetchone()
-                stage2_count = result[0] if result else 0
-
-                # Count rejections per tier in a single query (uses composite index on eval_date, rejected_at_tier)
-                tier_rejections = {f'Tier {i}': 0 for i in range(1, 7)}
-                try:
-                    cur.execute(
-                        """SELECT rejected_at_tier, COUNT(DISTINCT symbol)
-                           FROM filter_rejection_log
-                           WHERE eval_date = %s AND rejected_at_tier BETWEEN 1 AND 6
-                           GROUP BY rejected_at_tier""",
-                        (self.run_date,)
-                    )
-                    for tier_num, count in cur.fetchall():
-                        tier_rejections[f'Tier {tier_num}'] = count or 0
-                except Exception as e:
-                    logger.debug(f"Signal rejection tiers table may not exist or schema mismatch: {e}")
-                    pass
-
-                # Final qualified count
-                qualified = getattr(self, '_qualified_trades', [])
-                final_count = len(qualified)
-
-                if self.verbose or total_signals > 0:
-                    logger.info(f"\n  [WATERFALL] Signal filtering on {self.run_date}:")
-                    logger.info(f"    Total BUY signals:        {total_signals:4d}")
-                    logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
-                    logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
-                    logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
-                    logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
-                    logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
-                    logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
-                    logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
-                    logger.info(f"    Final qualified trades:   {final_count:4d}")
-
-                    interpretation = self._interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)
-                    logger.info(f"  Interpretation: {interpretation}")
-
-                    # FIXED Issue #24: Log waterfall to database for audit trail
-                    try:
-                        waterfall_data = {
-                            'total_signals': total_signals,
-                            'stage2_count': stage2_count,
-                            'tier_1_rejected': tier_rejections.get('Tier 1', 0),
-                            'tier_2_rejected': tier_rejections.get('Tier 2', 0),
-                            'tier_3_rejected': tier_rejections.get('Tier 3', 0),
-                            'tier_4_rejected': tier_rejections.get('Tier 4', 0),
-                            'tier_5_rejected': tier_rejections.get('Tier 5', 0),
-                            'tier_6_rejected': tier_rejections.get('Tier 6', 0),
-                            'final_qualified': final_count,
-                            'interpretation': interpretation,
-                        }
-                        cur.execute(
-                            """INSERT INTO algo_audit_log (run_id, phase, status, detail, created_at)
-                               VALUES (%s, %s, %s, %s, %s)""",
-                            (self.run_id, 'signal_waterfall', 'info', json.dumps(waterfall_data), datetime.now(timezone.utc))
-                        )
-                        logger.debug(f"[WATERFALL] Logged to algo_audit_log for persistence")
-                    except Exception as e:
-                        logger.warning(f"[WATERFALL] Could not persist to database: {e}")
-
-        except Exception as e:
-            logger.warning(f"Signal waterfall report failed: {e}")
-
-    def _interpret_waterfall(self, total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
-        """Interpret the signal waterfall to help diagnose 'no trades' situations."""
-        if total == 0:
-            return "No BUY signals generated today. Check buy_sell_daily loader or market conditions."
-        if stage2 == 0:
-            return f"{total} signals exist but NONE are Stage 2. RSI<30 in Stage 2 stocks is rare. Check market stage."
-        if final > 0:
-            return f"[OK] {final} candidates qualified. Ready to execute."
-
-        # Find the biggest rejection point
-        max_reject_tier = max(tier_rejections, key=tier_rejections.get) if tier_rejections else "Unknown"
-        max_reject_count = tier_rejections.get(max_reject_tier, 0)
-        return f"Stage 2 signals exist but {max_reject_count} rejected at {max_reject_tier}. Review config thresholds."
-
     # ---------- Phase implementations ----------
 
     def phase_1_data_freshness(self) -> bool:
@@ -714,22 +488,16 @@ class Orchestrator:
             logger.info("[CRITICAL] Running critical data checks...")
             try:
                 with DatabaseContext('read') as cur:
-                    # Validate required tables exist (schema check)
+                    # Validate required tables exist (schema check only).
+                    # Data freshness and patrol are handled by Phase 1 with proper
+                    # halt/observe-only distinctions and fresh patrol execution.
                     if not self._validate_required_tables(cur):
                         logger.error("[HALT] Required tables missing — cannot proceed")
                         return self._final_report()
 
-                    # Data patrol for critical quality issues only (schema, data corruption)
-                    # Data freshness is handled by Phase 1 which correctly distinguishes
-                    # halt-critical tables (price_daily, market_health, trend_template) from
-                    # observe-only tables (buy_sell_daily, signal_quality_scores).
-                    if not self._check_data_patrol(cur):
-                        logger.error("[HALT] Data patrol check failed — cannot proceed")
-                        return self._final_report()
-
                     logger.info("[OK] All pre-flight checks passed")
             except Exception as e:
-                logger.error(f"  [HALT] Data patrol check failed: {e}")
+                logger.error(f"  [HALT] Pre-flight check failed: {e}")
                 return self._final_report()
 
             logger.info("\n[CHECK] Database connectivity...")
@@ -898,34 +666,6 @@ class Orchestrator:
         finally:
             self._release_run_lock()
 
-    def _pid_alive(self, pid):
-        """Check if a PID is still running (cross-platform).
-
-        Rejects system PIDs (< 100) which are kernel processes and not real orchestrator instances.
-        """
-        try:
-            if pid < 100:
-                # System/kernel PIDs (0-99) can never be orchestrator processes
-                # PID 1 = init, PID 2 = kernel scheduler, etc.
-                # Treat these as dead (stale lock)
-                return False
-
-            if os.name == 'nt':
-                # Windows
-                import subprocess
-                result = subprocess.run(
-                    ['tasklist', '/FI', f'PID eq {pid}'],
-                    capture_output=True, text=True, timeout=get_subprocess_timeout(),
-                )
-                return str(pid) in result.stdout
-            else:
-                # POSIX — kill -0 just checks existence
-                os.kill(pid, 0)
-                return True
-        except Exception as e:
-            logger.debug(f"Process {pid} check failed (likely not running): {e}")
-            return False
-
     def _final_report(self):
         logger.info(f"\n{'#'*70}")
         logger.info(f"#   FINAL REPORT — {self.run_id}")
@@ -940,11 +680,14 @@ class Orchestrator:
             logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
         logger.info(f"{'#'*70}\n")
 
+        any_error = any(p['status'] in ('error', 'fail') for p in self.phase_results.values())
+        any_halt = any(p['status'] == 'halt' for p in self.phase_results.values())
         result = {
             'run_id': self.run_id,
             'run_date': self.run_date.isoformat(),
             'phases': self.phase_results,
-            'success': all(p['status'] in ('success', 'halt') for p in self.phase_results.values()),
+            'success': not any_error,
+            'halted': any_halt,
         }
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)

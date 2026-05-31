@@ -376,11 +376,13 @@ function IndexCell({ idx }) {
   } else if (data?.data && Array.isArray(data.data)) {
     prices = data.data;
   }
-  const series = prices.slice(-30).map(p => ({
+  // prices are DESC (newest first); take latest 30 and reverse for chart display
+  const seriesDesc = prices.slice(0, 30).map(p => ({
     date: p.date, close: parseFloat(p.close || p.adj_close),
   }));
-  const last = series[series.length - 1]?.close;
-  const prev = series[series.length - 2]?.close;
+  const series = [...seriesDesc].reverse(); // ascending for the sparkline chart
+  const last = seriesDesc[0]?.close;  // most recent entry
+  const prev = seriesDesc[1]?.close;  // previous day
   const chg = last && prev ? last - prev : null;
   const chgPct = chg && prev ? (chg / prev) * 100 : null;
   const positive = chgPct != null && chgPct >= 0;
@@ -1272,7 +1274,7 @@ function SectorRotationSignalCard() {
   const latest = items[items.length - 1];
   const _prior = items[items.length - 2] || latest;
 
-  const signalColor = latest?.signal === 'defensive_lead' ? C.cyan : latest?.signal === 'cyclical_strength' ? C.success : C.amber;
+  const signalColor = latest?.signal === 'DEFENSIVE' ? C.cyan : latest?.signal === 'CYCLICAL' ? C.success : C.amber;
 
   return (
     <div className="card">
