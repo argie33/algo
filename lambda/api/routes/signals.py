@@ -31,6 +31,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
         """Get stock trading signals with all available technical and analytical data."""
         try:
+            cur.execute("SET statement_timeout TO '25s'")
             where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND LOWER(bsd.signal) IN ('buy', 'sell')"
             params = [limit]
 
