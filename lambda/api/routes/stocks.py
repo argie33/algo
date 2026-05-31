@@ -165,21 +165,21 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     ROUND((md.op_margin_cur - md.op_margin_pri)::numeric, 2) AS op_margin_trend_pp,
                     ROUND((md.gross_margin_cur - md.gross_margin_pri)::numeric, 2) AS gross_margin_trend_pp,
                     ROUND((md.roe_cur - md.roe_pri)::numeric, 2) AS roe_trend_pp
-                FROM stock_symbols ss
-                LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
-                LEFT JOIN key_metrics km ON km.symbol = ss.symbol
-                LEFT JOIN latest_prices lp ON lp.symbol = ss.symbol
-                LEFT JOIN stats_52w s52 ON s52.symbol = ss.symbol
-                LEFT JOIN stats_3y s3y ON s3y.symbol = ss.symbol
-                LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
-                LEFT JOIN quality_metrics qm ON qm.symbol = ss.symbol
-                LEFT JOIN growth_metrics gm ON gm.symbol = ss.symbol
-                LEFT JOIN stock_scores sc ON sc.symbol = ss.symbol
+                FROM value_stocks vs
+                JOIN stock_symbols ss ON ss.symbol = vs.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = vs.symbol
+                LEFT JOIN key_metrics km ON km.symbol = vs.symbol
+                LEFT JOIN latest_prices lp ON lp.symbol = vs.symbol
+                LEFT JOIN stats_52w s52 ON s52.symbol = vs.symbol
+                LEFT JOIN stats_3y s3y ON s3y.symbol = vs.symbol
+                LEFT JOIN value_metrics vm ON vm.symbol = vs.symbol
+                LEFT JOIN quality_metrics qm ON qm.symbol = vs.symbol
+                LEFT JOIN growth_metrics gm ON gm.symbol = vs.symbol
+                LEFT JOIN stock_scores sc ON sc.symbol = vs.symbol
                 LEFT JOIN sector_medians sm ON sm.sector = cp.sector
-                LEFT JOIN margin_data md ON md.symbol = ss.symbol
-                LEFT JOIN fcf_data fg ON fg.symbol = ss.symbol
+                LEFT JOIN margin_data md ON md.symbol = vs.symbol
+                LEFT JOIN fcf_data fg ON fg.symbol = vs.symbol
                 CROSS JOIN market_median mm
-                WHERE ss.symbol NOT LIKE '^%%'
                 ORDER BY generational_score DESC NULLS LAST
                 LIMIT %s
             """, (limit,))
