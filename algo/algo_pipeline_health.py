@@ -132,9 +132,15 @@ class PipelineHealth:
             safe_table = assert_safe_table(table_name)
             safe_date_col = assert_safe_column(date_column)
 
-            cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
+            # Use pg_class.reltuples for O(1) approximate row count instead of
+            # COUNT(*) full scan. reltuples is updated by ANALYZE and is accurate
+            # enough to detect empty vs populated tables without blocking I/O.
+            cur.execute(
+                "SELECT GREATEST(reltuples, 0)::BIGINT FROM pg_class WHERE relname = %s LIMIT 1",
+                (table_name,)
+            )
             result = cur.fetchone()
-            health.row_count = result[0] if result else 0
+            health.row_count = int(result[0]) if result else 0
 
             if health.row_count == 0:
                 health.status = HealthStatus.MISSING

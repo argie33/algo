@@ -17,7 +17,6 @@ class E2EIntegrationTest:
     def test_database(self) -> bool:
         """Verify database connectivity."""
         try:
-            from config.credential_manager import get_db_config
             from utils.db_connection import get_db_connection
 
             conn = get_db_connection()

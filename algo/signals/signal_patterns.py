@@ -21,12 +21,8 @@ class SignalPatternsMixin:
             return None
 
     def base_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
-        try:
-            # Use existing cursor from parent class, don't reconnect
-            if not hasattr(self, 'cur') or self.cur is None:
-                self.connect()
-            # Look at the last 60 trading days
-            self.cur.execute(
+        def _fetch_and_analyze(cur):
+            cur.execute(
                 """
                 SELECT date, high, low, close, volume FROM price_daily
                 WHERE symbol = %s AND date <= %s
@@ -34,7 +30,7 @@ class SignalPatternsMixin:
                 """,
                 (symbol, eval_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 20:
                 return {'in_base': False, 'reason': 'Insufficient history'}
 
@@ -43,12 +39,8 @@ class SignalPatternsMixin:
             closes = [float(r[3]) for r in rows]
             volumes = [float(r[4]) for r in rows]
 
-            # Find the MOST RECENT occurrence of the max high (lowest index in DESC-ordered data).
-            # This is the current resistance level. Earlier peaks are old setup failures.
             peak_val = max(highs)
             peak_idx = min(i for i, h in enumerate(highs) if h == peak_val)
-            peak = peak_val
-            # Slice from start of base (peak) through present
             base_highs = highs[:peak_idx + 1]
             base_lows = lows[:peak_idx + 1]
             base_closes = closes[:peak_idx + 1]
@@ -60,17 +52,14 @@ class SignalPatternsMixin:
             base_high = max(base_highs)
             base_low = min(base_lows)
             base_depth = ((base_high - base_low) / base_high * 100.0) if base_high > 0 else 0
-            weeks_in_base = len(base_highs) // 5  # 5 trading days per week
+            weeks_in_base = len(base_highs) // 5
 
             cur_price = closes[0]
-            # In-base = depth in the 8%-35% range, length >= 4 weeks (20 bars)
             in_base = (8.0 <= base_depth <= 35.0) and len(base_highs) >= 20
 
-            # Breakout imminent: current price within 2% of pivot (base_high)
             pct_to_pivot = ((base_high - cur_price) / base_high * 100.0) if base_high > 0 else 100
             breakout_imminent = in_base and pct_to_pivot <= 2.0
 
-            # Volume drying up: recent 10-bar avg vol < base 30-bar avg vol
             recent_vol = sum(base_vols[:10]) / 10 if len(base_vols) >= 10 else 0
             prior_vol = sum(volumes[20:50]) / 30 if len(volumes) >= 50 else recent_vol
             volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
@@ -84,6 +73,9 @@ class SignalPatternsMixin:
                 'breakout_imminent': breakout_imminent,
                 'volume_dryup': volume_dryup,
             }
+
+        try:
+            return self._with_cursor(_fetch_and_analyze) or {'in_base': False, 'reason': 'Database error'}
         except (ValueError, TypeError, IndexError) as e:
             logger.debug(f"Base detection error for {symbol}: {e}")
             return {'in_base': False, 'reason': f'Calculation error: {str(e)[:50]}'}
@@ -106,12 +98,8 @@ class SignalPatternsMixin:
           'tight_pattern': bool   # last contraction <= 5% deep
         }
         """
-        try:
-            # Use existing cursor from parent class, don't reconnect
-            if not hasattr(self, 'cur') or self.cur is None:
-                self.connect()
-            # Last 60 bars
-            self.cur.execute(
+        def _analyze_vcp(cur):
+            cur.execute(
                 """
                 SELECT date, high, low, close FROM price_daily
                 WHERE symbol = %s AND date <= %s
@@ -119,16 +107,14 @@ class SignalPatternsMixin:
                 """,
                 (symbol, eval_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 30:
                 return {'is_vcp': False, 'reason': 'Insufficient bars'}
 
-            rows = list(reversed(rows))  # chronological
+            rows = list(reversed(rows))
             highs = [float(r[1]) for r in rows]
             lows = [float(r[2]) for r in rows]
 
-            # Find local peaks (high higher than 5 bars on either side) and identify
-            # base depths between consecutive peaks.
             peaks = []
             for i in range(5, len(highs) - 5):
                 if highs[i] == max(highs[i - 5:i + 6]):
@@ -136,7 +122,6 @@ class SignalPatternsMixin:
             if len(peaks) < 2:
                 return {'is_vcp': False, 'contractions': 0}
 
-            # Compute depths between consecutive peaks
             depths = []
             for j in range(len(peaks) - 1):
                 p1, p2 = peaks[j], peaks[j + 1]
@@ -144,7 +129,6 @@ class SignalPatternsMixin:
                 depth = ((highs[p1] - window_low) / highs[p1] * 100.0) if highs[p1] > 0 else 0
                 depths.append(round(depth, 1))
 
-            # VCP = each subsequent depth <= prior * 0.7
             contractions = 0
             for i in range(1, len(depths)):
                 if depths[i] <= depths[i - 1] * 0.7:
@@ -159,48 +143,22 @@ class SignalPatternsMixin:
                 'tight_pattern': tight_pattern,
             }
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Exception (expected): {e}")
-                pass
+        return self._with_cursor(_analyze_vcp) or {'is_vcp': False, 'contractions': 0}
 
     def classify_base_type(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
-        Classify the current base into canonical chart pattern types:
-
-          - cup_with_handle   (O'Neil): U-shape body + small handle pullback
-          - flat_base         (Minervini): tight rectangle, depth <= 15%
-          - vcp               (Minervini): 2-4 progressively tighter contractions
-          - double_bottom     (W-shape): two lows within 3-5% of each other
-          - ascending_base    (Minervini): three higher lows + higher highs
-          - saucer            (rounded U with no handle, longer duration)
-          - wide_and_loose    (AVOID): large erratic swings, > 35% depth
-
-        Returns: {
-          'type': str,
-          'quality': 'A' | 'B' | 'C' | 'D' (D = avoid),
-          'depth_pct': float,
-          'duration_weeks': int,
-          'pivot_high': float,
-          'breakout_imminent': bool,
-          'characteristics': dict
-        }
+        Classify the current base into canonical chart pattern types.
         """
-        try:
-            self.connect()
-            # Use the existing base_detection as starting point
-            base_info = self.base_detection(symbol, eval_date)
-            if not base_info.get('in_base'):
-                return {
-                    'type': 'no_base',
-                    'quality': 'D',
-                    'characteristics': base_info,
-                }
+        base_info = self.base_detection(symbol, eval_date)
+        if not base_info.get('in_base'):
+            return {
+                'type': 'no_base',
+                'quality': 'D',
+                'characteristics': base_info,
+            }
 
-            # Pull last 60 bars
-            self.cur.execute(
+        def _classify_with_cursor(cur):
+            cur.execute(
                 """
                 SELECT date, high, low, close, volume FROM price_daily
                 WHERE symbol = %s AND date <= %s
@@ -208,14 +166,13 @@ class SignalPatternsMixin:
                 """,
                 (symbol, eval_date),
             )
-            rows = list(reversed(self.cur.fetchall()))
+            rows = list(reversed(cur.fetchall()))
             if len(rows) < 20:
                 return {'type': 'no_base', 'quality': 'D'}
 
             highs = [float(r[1]) for r in rows]
             lows = [float(r[2]) for r in rows]
             closes = [float(r[3]) for r in rows]
-            volumes = [float(r[4]) for r in rows]
 
             depth = base_info['base_depth_pct']
             duration = base_info['weeks_in_base']
@@ -228,7 +185,6 @@ class SignalPatternsMixin:
                 'volume_dryup': base_info['volume_dryup'],
             }
 
-            # Wide-and-loose: large erratic swings >35% — AVOID
             if depth > 35:
                 return {
                     'type': 'wide_and_loose',
@@ -237,7 +193,6 @@ class SignalPatternsMixin:
                     **characteristics,
                 }
 
-            # Try VCP first (multiple tightening contractions)
             vcp = self.vcp_detection(symbol, eval_date)
             if vcp.get('is_vcp'):
                 return {
@@ -248,9 +203,7 @@ class SignalPatternsMixin:
                     'vcp': vcp,
                 }
 
-            # Flat base: depth <= 15%, duration >= 5 weeks, low spread
             spread = (max(highs) - min(lows)) / max(highs) * 100.0 if max(highs) > 0 else 0
-            # Tight = closes within narrow range
             recent_closes = closes[-25:] if len(closes) >= 25 else closes
             recent_high = max(recent_closes)
             recent_low = min(recent_closes)
@@ -263,12 +216,9 @@ class SignalPatternsMixin:
                     **characteristics,
                 }
 
-            # Cup-with-handle detection: U-shape (low in middle) + smaller pullback at end
             if duration >= 7 and 12 <= depth <= 35:
-                mid_idx = len(lows) // 2
                 mid_third_low = min(lows[len(lows)//3 : 2*len(lows)//3])
                 full_low = min(lows)
-                # Low must be roughly in middle third
                 mid_low_match = abs(mid_third_low - full_low) / full_low < 0.02
                 handle_high = max(highs[-15:-5]) if len(highs) >= 15 else max(highs[-5:])
                 recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0 if handle_high > 0 else 0
@@ -281,7 +231,6 @@ class SignalPatternsMixin:
                         'handle_dip_pct': round(recent_dip, 1),
                         **characteristics,
                     }
-                # Saucer (cup without handle)
                 if mid_low_match:
                     return {
                         'type': 'saucer',
@@ -290,8 +239,6 @@ class SignalPatternsMixin:
                         **characteristics,
                     }
 
-            # Double bottom: two distinct lows within 3-5% of each other
-            # Find two local minima
             min_indices = []
             for i in range(3, len(lows) - 3):
                 if lows[i] == min(lows[max(0, i-3):min(len(lows), i+4)]):
@@ -309,7 +256,6 @@ class SignalPatternsMixin:
                         **characteristics,
                     }
 
-            # Ascending base: three higher lows
             if len(lows) >= 30:
                 third_thirds = [
                     min(lows[:len(lows)//3]),
@@ -327,7 +273,6 @@ class SignalPatternsMixin:
                             **characteristics,
                         }
 
-            # Generic consolidation
             return {
                 'type': 'consolidation',
                 'quality': 'C' if depth <= 25 else 'D',
@@ -335,12 +280,11 @@ class SignalPatternsMixin:
                 **characteristics,
             }
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Exception (expected): {e}")
-                pass
+        return self._with_cursor(_classify_with_cursor) or {
+            'type': 'no_base',
+            'quality': 'D',
+            'characteristics': base_info,
+        }
 
     def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: Optional[float] = None) -> Dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
@@ -359,28 +303,22 @@ class SignalPatternsMixin:
 
         Returns: { 'stop_price': float, 'method': str, 'reasoning': str }
         """
-        try:
-            # Use existing cursor from parent class, don't reconnect
-            if not hasattr(self, 'cur') or self.cur is None:
-                self.connect()
+        base = self.classify_base_type(symbol, eval_date)
+        base_type = base.get('type', 'no_base')
+        twt = self.three_weeks_tight(symbol, eval_date)
+        htf = self.high_tight_flag(symbol, eval_date)
 
-            base = self.classify_base_type(symbol, eval_date)
-            base_type = base.get('type', 'no_base')
-
-            # classify_base_type disconnects internally; reconnect for ATR and stop queries
-            if not hasattr(self, 'cur') or self.cur is None:
-                self.connect()
-
+        def _compute_stop(cur):
+            nonlocal atr
             if atr is None:
-                self.cur.execute(
+                cur.execute(
                     "SELECT atr FROM technical_data_daily WHERE symbol = %s AND date <= %s "
                     "ORDER BY date DESC LIMIT 1",
                     (symbol, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 atr = float(r[0]) if r and r[0] else entry_price * 0.02
 
-            # 8% hard floor — nothing wider than this
             max_stop_pct = 0.08
             floor_stop = entry_price * (1.0 - max_stop_pct)
 
@@ -389,41 +327,38 @@ class SignalPatternsMixin:
             reasoning = '8% hard floor (no specific base detected)'
 
             if base_type == 'cup_with_handle':
-                # Stop below handle low (last 7 bars)
-                self.cur.execute(
+                cur.execute(
                     "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
                     "AND date >= %s::date - INTERVAL '7 days'",
                     (symbol, eval_date, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     handle_low = float(r[0])
-                    candidate = handle_low * 0.99  # 1% buffer below handle low
+                    candidate = handle_low * 0.99
                     method = 'handle_low'
                     reasoning = f'Cup-handle: 1% below handle low ${handle_low:.2f}'
 
             elif base_type == 'flat_base':
-                # Stop below base low (full base lookback ~30 days)
-                self.cur.execute(
+                cur.execute(
                     "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
                     "AND date >= %s::date - INTERVAL '35 days'",
                     (symbol, eval_date, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     base_low = float(r[0])
-                    candidate = base_low * 0.995  # 0.5% buffer
+                    candidate = base_low * 0.995
                     method = 'flat_base_low'
                     reasoning = f'Flat base: 0.5% below base low ${base_low:.2f}'
 
             elif base_type == 'vcp':
-                # Stop below last contraction low (tightest — last 10 bars)
-                self.cur.execute(
+                cur.execute(
                     "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
                     "AND date >= %s::date - INTERVAL '10 days'",
                     (symbol, eval_date, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     vcp_low = float(r[0])
                     candidate = vcp_low * 0.99
@@ -431,13 +366,12 @@ class SignalPatternsMixin:
                     reasoning = f'VCP: 1% below last contraction low ${vcp_low:.2f}'
 
             elif base_type == 'double_bottom':
-                # Stop below 2nd low - 0.5×ATR (room for shake-out)
-                self.cur.execute(
+                cur.execute(
                     "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
                     "AND date >= %s::date - INTERVAL '20 days'",
                     (symbol, eval_date, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     second_low = float(r[0])
                     candidate = second_low - (0.5 * atr)
@@ -445,67 +379,59 @@ class SignalPatternsMixin:
                     reasoning = f'Double-bottom: 2nd low ${second_low:.2f} - 0.5×ATR (${atr:.2f})'
 
             elif base_type == 'ascending_base':
-                # Stop below most recent higher-low (last 1/3 of base)
-                self.cur.execute(
+                cur.execute(
                     "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
                     "AND date >= %s::date - INTERVAL '14 days'",
                     (symbol, eval_date, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     last_hl = float(r[0])
-                    candidate = last_hl * 0.985  # 1.5% buffer
+                    candidate = last_hl * 0.985
                     method = 'ascending_base_last_higher_low'
                     reasoning = f'Ascending base: 1.5% below last higher low ${last_hl:.2f}'
 
             elif base_type == 'saucer':
-                # Wider stop, saucer base low
-                self.cur.execute(
+                cur.execute(
                     "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
                     "AND date >= %s::date - INTERVAL '60 days'",
                     (symbol, eval_date, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     saucer_low = float(r[0])
                     candidate = saucer_low * 0.99
                     method = 'saucer_base_low'
                     reasoning = f'Saucer: 1% below saucer low ${saucer_low:.2f}'
 
-            twt = self.three_weeks_tight(symbol, eval_date)
             if twt.get('is_3wt') and method == 'fallback_8pct':
-                # 3WT: stop below the 3-week range low (subquery limits rows BEFORE aggregating)
-                self.cur.execute(
+                cur.execute(
                     "SELECT MIN(low) FROM ("
                     "  SELECT low FROM price_weekly WHERE symbol = %s AND date <= %s"
                     "  ORDER BY date DESC LIMIT 3"
                     ") AS recent_3w",
                     (symbol, eval_date),
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 if row and row[0] is not None:
                     three_wk_low = float(row[0])
                     candidate = three_wk_low * 0.985
                     method = '3wt_low'
                     reasoning = f'3-Weeks-Tight: 1.5% below 3wk low ${three_wk_low:.2f}'
 
-            htf = self.high_tight_flag(symbol, eval_date)
             if htf.get('is_htf') and htf.get('pivot_high'):
-                # HTF: typically wider stop given volatility
                 cons_low = htf.get('pivot_high', 0) * (1 - htf.get('consolidation_pct', 25) / 100)
-                candidate = max(candidate, cons_low * 0.95)  # 5% buffer for HTF volatility
+                candidate = max(candidate, cons_low * 0.95)
                 method = 'htf_consolidation_low'
                 reasoning = f'HTF: 5% below consolidation low ${cons_low:.2f}'
 
-            # Enforce 8% floor (never wider than 8%)
             if candidate < floor_stop:
                 candidate = floor_stop
                 reasoning = f'{reasoning} -> capped at 8% floor (${floor_stop:.2f})'
                 method = method + '_capped'
 
-            # Enforce sanity: stop must be below entry
             if candidate >= entry_price:
-                candidate = entry_price * 0.93  # 7% fallback
+                candidate = entry_price * 0.93
                 method = 'sanity_fallback_7pct'
                 reasoning = '7% sanity fallback (computed stop was >= entry)'
 
@@ -518,12 +444,14 @@ class SignalPatternsMixin:
                 'risk_pct': round((entry_price - candidate) / entry_price * 100, 2),
             }
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Exception (expected): {e}")
-                pass
+        return self._with_cursor(_compute_stop) or {
+            'stop_price': entry_price * 0.93,
+            'method': 'sanity_fallback_7pct',
+            'reasoning': 'Database error',
+            'base_type': base_type,
+            'risk_per_share': round(entry_price * 0.07, 2),
+            'risk_pct': 7.0,
+        }
 
     def three_weeks_tight(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
@@ -545,12 +473,8 @@ class SignalPatternsMixin:
           'breakout_imminent': bool,
         }
         """
-        try:
-            # Use existing cursor from parent class, don't reconnect
-            if not hasattr(self, 'cur') or self.cur is None:
-                self.connect()
-            # Need 4+ weeks of weekly data
-            self.cur.execute(
+        def _analyze_3wt(cur):
+            cur.execute(
                 """
                 SELECT date, high, low, close FROM price_weekly
                 WHERE symbol = %s AND date <= %s
@@ -558,28 +482,24 @@ class SignalPatternsMixin:
                 """,
                 (symbol, eval_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 4:
                 return {'is_3wt': False, 'reason': 'insufficient weekly history'}
-            # rows[0]=most recent, rows[1..3] = 3 weeks back
-            # Take last 3 weekly closes
+
             last3 = rows[:3]
             closes = [float(r[3]) for r in last3]
             highs = [float(r[1]) for r in last3]
             lows = [float(r[2]) for r in last3]
 
-            # All 3 closes within 1.5% of each other (spread of max-min)
             cmax = max(closes)
             cmin = min(closes)
             spread_pct = (cmax - cmin) / cmin * 100.0 if cmin > 0 else 100
             is_tight = spread_pct <= 1.5
 
-            # Each weekly range is small (< 5% of price)
             ranges_pct = [(h - l) / l * 100.0 for h, l in zip(highs, lows) if l > 0]
             avg_range = sum(ranges_pct) / len(ranges_pct) if ranges_pct else 100
             is_quiet = avg_range <= 6.0
 
-            # Must be in a rising trend (close above 3 weeks ago)
             if len(rows) >= 4:
                 week_ago_close = float(rows[3][3])
                 in_uptrend = closes[0] > week_ago_close * 1.02
@@ -589,12 +509,11 @@ class SignalPatternsMixin:
             is_3wt = is_tight and is_quiet and in_uptrend
             pivot_high = max(highs)
 
-            # Latest daily close
-            self.cur.execute(
+            cur.execute(
                 "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
                 (symbol, eval_date),
             )
-            r = self.cur.fetchone()
+            r = cur.fetchone()
             cur_close = float(r[0]) if r else 0
             breakout_imminent = is_3wt and cur_close >= pivot_high * 0.98
 
@@ -607,12 +526,7 @@ class SignalPatternsMixin:
                 'breakout_imminent': breakout_imminent,
             }
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Exception (expected): {e}")
-                pass
+        return self._with_cursor(_analyze_3wt) or {'is_3wt': False, 'reason': 'Database error'}
 
     def high_tight_flag(self, symbol: str, eval_date) -> Dict[str, Any]:
         """

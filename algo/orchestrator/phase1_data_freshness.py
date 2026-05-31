@@ -274,7 +274,10 @@ def run(
             from algo.algo_pipeline_health import PipelineHealth
             health = PipelineHealth()
             status = health.get_pipeline_status()
-            health.log_health_check(status)
+            # log_health_check writes to data_loader_status — skip in Lambda to
+            # avoid an extra DB round-trip on every Phase 1 run.
+            if not os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
+                health.log_health_check(status)
             logger.debug(f"Phase 1: Pipeline health check complete - {status.healthy_count}/{status.total_count} healthy")
 
             if verbose:
@@ -297,6 +300,10 @@ def run(
 
         with DatabaseContext('read') as cur:
             logger.debug("Phase 1: Database connection established")
+            # Prevent any individual query from hanging indefinitely under DB load.
+            # 20s is generous for a simple MAX() lookup; a 2.5-minute hang indicates
+            # heavy contention from concurrent ECS loaders on t4g.micro.
+            cur.execute("SET statement_timeout = 20000")
 
             cur.execute(
                 """
@@ -434,15 +441,24 @@ def run(
                                      f'Stale: {"; ".join(stale_items)}')
 
             # Run data patrol (quick checks only for speed in orchestrator context)
+            # Enforce a hard 45-second timeout — on t4g.micro the patrol can hang
+            # for 6+ minutes and exhaust the Lambda's 600s budget before Phase 2.
             try:
+                import concurrent.futures
                 from algo.algo_data_patrol import DataPatrol
                 patrol = DataPatrol()
                 if verbose:
-                    logger.info("  [PATROL] Running quick data integrity checks...")
-                patrol.run(quick=True, validate_alpaca=False)
-                if verbose:
-                    logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
-                log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
+                    logger.info("  [PATROL] Running quick data integrity checks (45s timeout)...")
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(patrol.run, True, False)
+                    try:
+                        future.result(timeout=45)
+                        if verbose:
+                            logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
+                        log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
+                    except concurrent.futures.TimeoutError:
+                        future.cancel()
+                        logger.warning("  [PATROL] Timed out after 45s — skipping, will read last stored patrol results")
             except Exception as e:
                 logger.warning(f"  [WARN] Data patrol execution failed: {e} (continuing with cache)")
 
