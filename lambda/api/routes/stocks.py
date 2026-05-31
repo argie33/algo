@@ -39,11 +39,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
+                max_date AS (SELECT MAX(date) AS d FROM price_daily),
                 latest_prices AS (
-                    SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS current_price
+                    SELECT pd.symbol, pd.close AS current_price
                     FROM price_daily pd
                     JOIN value_stocks vs ON pd.symbol = vs.symbol
-                    ORDER BY pd.symbol, pd.date DESC
+                    WHERE pd.date = (SELECT d FROM max_date)
                 ),
                 stats_52w AS (
                     SELECT pd.symbol, MAX(pd.high) AS high_52w, MIN(pd.low) AS low_52w
