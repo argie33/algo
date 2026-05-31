@@ -177,9 +177,6 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
 
 def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
     """Check that all required tables have recent data for signal processing."""
-    if not cur:
-        return
-
     try:
         # Count recent rows (from last 5 days) in each critical table
         required_tables = {
