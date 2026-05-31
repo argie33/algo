@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class FilterTier3Mixin:
     """Tier 3 (trend template) filtering logic."""
 
-    def _tier3_trend_template(self, symbol, signal_date) -> Dict[str, Any]:
+    def _tier3_trend_template(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """Trend template (Minervini) + Weinstein stage + compute stop from MA/ATR/swing.
 
         Pulls every swing-trading-canon factor we have for the stock:
@@ -21,7 +21,7 @@ class FilterTier3Mixin:
           - Consolidation flag (Darvas/Bassal favor breakout-from-consolidation)
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT
                     tt.minervini_trend_score,
@@ -40,7 +40,7 @@ class FilterTier3Mixin:
                 """,
                 (symbol, signal_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row:
                 return {'pass': False, 'reason': 'No trend data'}
 
@@ -140,14 +140,14 @@ class FilterTier3Mixin:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}
 
-    def _check_volume_decay(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_volume_decay(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """Minervini warning: declining volume into breakout signals false breakout.
 
         Checks if 10-day average volume is declining relative to 50-day average.
         A breakout with declining volume = weak accumulation = false setup.
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT volume FROM price_daily
                 WHERE symbol = %s AND date <= %s
@@ -155,7 +155,7 @@ class FilterTier3Mixin:
                 """,
                 (symbol, signal_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 50:
                 return {'pass': True, 'reason': 'Insufficient volume history'}
 
@@ -182,14 +182,14 @@ class FilterTier3Mixin:
             logger.debug(f'Volume decay check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'Volume check error (continuing)'}
 
-    def _check_rs_line_strength(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_rs_line_strength(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """Minervini rule: RS-line (stock vs SPY) should be strong (at/near new highs).
 
         Checks if the 60-day RS-line (stock close / SPY close) is within 5% of its
         52-week high. If RS-line is weak/broken, it's a warning even if price looks good.
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT s.close, spy.close
                 FROM price_daily s
@@ -200,7 +200,7 @@ class FilterTier3Mixin:
                 """,
                 (symbol, signal_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 60:
                 return {'pass': True, 'reason': 'Insufficient data for RS check'}
 
@@ -227,14 +227,14 @@ class FilterTier3Mixin:
             logger.debug(f'RS-line check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'RS check error (continuing)'}
 
-    def _check_weekly_stage_2(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_weekly_stage_2(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """A4: Weekly Chart Hard Gate — Require weekly chart Stage 2.
 
         Even if daily is Stage 2, entering when weekly is Stage 3/4 is dangerous.
         Weekly chart shows the longer-term trend.
         """
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT signal FROM buy_sell_weekly
                 WHERE symbol = %s AND date <= %s
@@ -242,7 +242,7 @@ class FilterTier3Mixin:
                 """,
                 (symbol, signal_date),
             )
-            weekly_signal_row = self.cur.fetchone()
+            weekly_signal_row = cur.fetchone()
             if weekly_signal_row:
                 weekly_signal = weekly_signal_row[0]
                 if weekly_signal == 'SELL':
@@ -251,7 +251,7 @@ class FilterTier3Mixin:
                         'reason': 'Weekly chart in SELL mode (avoid entries in Stage 3/4)',
                     }
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT pw.close,
                        AVG(pw.close) OVER (ORDER BY pw.date ASC ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) as sma_30w
@@ -261,7 +261,7 @@ class FilterTier3Mixin:
                 """,
                 (symbol, signal_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0] and row[1]:
                 close = float(row[0])
                 sma_30w = float(row[1])
@@ -276,7 +276,7 @@ class FilterTier3Mixin:
             logger.debug(f'Weekly Stage 2 check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'Weekly check error (continuing)'}
 
-    def _check_rs_line_slope(self, symbol, signal_date) -> Dict[str, Any]:
+    def _check_rs_line_slope(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """A5: RS Line Trending Up — RS line must have positive slope over last N days.
 
         Currently the system checks if RS line is within 5% of its 52-week high.
@@ -285,7 +285,7 @@ class FilterTier3Mixin:
         try:
             slope_days = int(self.config.get('min_rs_line_slope_days', 10))
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT s.close, spy.close, s.date
                 FROM price_daily s
@@ -296,7 +296,7 @@ class FilterTier3Mixin:
                 """,
                 (symbol, signal_date, slope_days + 5),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < slope_days:
                 return {'pass': True, 'reason': f'Insufficient data for {slope_days}d slope'}
 
@@ -334,7 +334,7 @@ class FilterTier3Mixin:
             logger.debug(f'RS-line slope check failed for {symbol}: {e}')
             return {'pass': True, 'reason': 'RS slope check error (continuing)'}
 
-    def _compute_stop_loss(self, symbol, signal_date, sma_50, atr) -> Dict[str, Any]:
+    def _compute_stop_loss(self, symbol, signal_date, sma_50, atr, cur) -> Dict[str, Any]:
         """Compute stop loss — base-type-specific when possible, falls back to MA/ATR.
 
         First tries the base-type-specific stop (cup-handle uses handle low,
@@ -342,11 +342,11 @@ class FilterTier3Mixin:
         that's not available, uses best of (50-DMA, swing low, 2x ATR)
         capped at 8% below entry.
         """
-        self.cur.execute(
+        cur.execute(
             "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
             (symbol, signal_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return None
         entry = float(row[0])
@@ -368,7 +368,7 @@ class FilterTier3Mixin:
             logger.error(f"  (base_type_stop failed for {symbol}: {e})")
 
         # Fallback: structural stops (MA / swing / ATR)
-        self.cur.execute(
+        cur.execute(
             """
             SELECT MIN(low) FROM price_daily
             WHERE symbol = %s AND date <= %s
@@ -376,7 +376,7 @@ class FilterTier3Mixin:
             """,
             (symbol, signal_date, signal_date),
         )
-        swing_row = self.cur.fetchone()
+        swing_row = cur.fetchone()
         swing_low = float(swing_row[0]) if swing_row and swing_row[0] is not None else None
 
         atr_stop = (entry - (2.0 * atr)) if atr else None

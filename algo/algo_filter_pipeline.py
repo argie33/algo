@@ -84,8 +84,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         coverage. This avoids evaluating today when no fresh data has been loaded.
         """
         def _evaluate_with_cursor(cur):
-            self.cur = cur
-            return self._evaluate_signals_impl(eval_date)
+            return self._evaluate_signals_impl(eval_date, cur)
 
         try:
             return self._with_cursor(_evaluate_with_cursor) or []
@@ -95,8 +94,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             traceback.print_exc()
             return []
 
-    def _evaluate_signals_impl(self, eval_date=None) -> List[Dict[str, Any]]:
-        """Internal implementation of signal evaluation with cursor already set."""
+    def _evaluate_signals_impl(self, eval_date=None, cur=None) -> List[Dict[str, Any]]:
+        """Internal implementation of signal evaluation."""
         if not eval_date:
             eval_date = self._resolve_evaluation_date()
 

@@ -10,16 +10,16 @@ logger = logging.getLogger(__name__)
 class FilterTiers12Mixin:
     """Tier 1 & 2 filtering logic."""
 
-    def _tier1_data_quality(self, symbol) -> Dict[str, Any]:
+    def _tier1_data_quality(self, symbol, cur) -> Dict[str, Any]:
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT composite_completeness_pct, is_tradeable
                 FROM data_completeness_scores WHERE symbol = %s
                 """,
                 (symbol,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             completeness = 0
             if row and row[0] is not None:
                 completeness = float(row[0])
@@ -31,11 +31,11 @@ class FilterTiers12Mixin:
                         'completeness_pct': completeness,
                     }
 
-            self.cur.execute(
+            cur.execute(
                 "SELECT close, date FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
                 (symbol,),
             )
-            price_row = self.cur.fetchone()
+            price_row = cur.fetchone()
             if not price_row or price_row[0] is None:
                 return {'pass': False, 'reason': 'No price data', 'completeness_pct': completeness}
 
@@ -62,7 +62,7 @@ class FilterTiers12Mixin:
             if self._market_health_date == signal_date:
                 row = self._market_health_cache
             else:
-                self.cur.execute(
+                cur.execute(
                     """
                     SELECT date, market_stage, distribution_days_4w, vix_level, market_trend
                     FROM market_health_daily
@@ -71,7 +71,7 @@ class FilterTiers12Mixin:
                     """,
                     (signal_date, signal_date),
                 )
-                row = self.cur.fetchone()
+                row = cur.fetchone()
                 self._market_health_cache = row
                 self._market_health_date = signal_date
 
