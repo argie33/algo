@@ -298,6 +298,7 @@ locals {
     "market_health_daily" = "load_market_health_daily.py"
     "fred_economic_data"  = "load_fred_economic_data.py"
     "trend_template_data" = "load_trend_criteria_data.py"
+    "seasonality"         = "load_seasonality.py"
   }
 
   scheduled_loaders = {
@@ -332,6 +333,10 @@ locals {
     "fred_economic_data" = {
       schedule    = "cron(30 20 ? * MON-FRI *)"
       description = "FRED economic indicators (T10Y2Y, yields, jobless claims) - 4:30pm ET (before EOD pipeline)"
+    }
+    "seasonality" = {
+      schedule    = "cron(0 10 ? * SUN *)"
+      description = "SPY seasonality statistics (monthly + day-of-week) - Sunday 10am UTC"
     }
 
     # Financial statements — run Sunday night only (data changes quarterly, not daily)
@@ -442,6 +447,10 @@ locals {
     "earnings_calendar" = {
       schedule    = "cron(29 4 ? * MON-FRI *)"
       description = "Earnings calendar (next 180 days) - Daily 4:29am ET"
+    }
+    "seasonality" = {
+      schedule    = "cron(0 11 ? * MON *)"
+      description = "Seasonality stats (SPY monthly + day-of-week returns) - Monday 6:00am ET"
     }
 
     # Market sentiment data — run daily (data published at irregular intervals, daily refresh is fine)
@@ -584,6 +593,9 @@ locals {
 
     # Trend template
     "trend_template_data" = { cpu = 512, memory = 1024, timeout = 10800, parallelism = 1 }
+
+    # Seasonality stats (SPY-derived, weekly refresh)
+    "seasonality" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
   }
 
   # For backward compatibility
