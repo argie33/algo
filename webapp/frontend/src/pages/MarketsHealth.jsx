@@ -367,15 +367,7 @@ function IndexCell({ idx }) {
     () => api.get(`/api/prices/history/${idx.symbol}?timeframe=daily&limit=30`),
     { staleTime: 60000 }
   );
-  // Handle different response structures: array, {items: []}, {data: []}
-  let prices = [];
-  if (Array.isArray(data)) {
-    prices = data;
-  } else if (data?.items && Array.isArray(data.items)) {
-    prices = data.items;
-  } else if (data?.data && Array.isArray(data.data)) {
-    prices = data.data;
-  }
+  let prices = Array.isArray(data) ? data : (data?.items || []);
   // prices are DESC (newest first); take latest 30 and reverse for chart display
   const seriesDesc = prices.slice(0, 30).map(p => ({
     date: p.date, close: parseFloat(p.close || p.adj_close),
@@ -1044,15 +1036,7 @@ function SectorTile({ etf, name, weight, onSelect }) {
     () => api.get(`/api/prices/history/${etf}?timeframe=daily&limit=2`),
     { staleTime: 30000, refetchInterval: 60000 }
   );
-  // Handle different response structures: array, {items: []}, {data: []}
-  let prices = [];
-  if (Array.isArray(data)) {
-    prices = data;
-  } else if (data?.items && Array.isArray(data.items)) {
-    prices = data.items;
-  } else if (data?.data && Array.isArray(data.data)) {
-    prices = data.data;
-  }
+  const prices = Array.isArray(data) ? data : (data?.items || []);
   const series = prices;
   const last = series[0]?.close ?? series[series.length - 1]?.close;
   const prev = series[1]?.close ?? series[series.length - 2]?.close;
