@@ -20,11 +20,11 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get Full Logs from Latest Lambda Stream
+      - name: Get Phase 2-7 Logs from c6ab6340 Lambda
         run: |
           LOG_GROUP="/aws/lambda/algo-algo-dev"
           
-          # Get the latest stream (c6ab6340 Lambda)
+          # Get latest stream (c6ab6340)
           S0=$(aws logs describe-log-streams \
             --log-group-name "$LOG_GROUP" \
             --order-by LastEventTime \
@@ -34,11 +34,16 @@ jobs:
             --query 'logStreams[0].logStreamName' \
             --output text 2>/dev/null)
           
-          echo "=== FULL LOGS FROM LATEST STREAM ($S0) ==="
-          # Get ALL events from this stream (no limit)
+          echo "Stream: $S0"
+          echo ""
+          echo "=== EVENTS FROM 01:38:56 UTC onwards (Phase 2-7) ==="
+          
+          # Phase 1 completed at 01:38:56 = 1748651936 = timestamp 1748651936000
+          # Get events starting from Phase 1 end
           aws logs get-log-events \
             --log-group-name "$LOG_GROUP" \
             --log-stream-name "$S0" \
+            --start-time 1748651936000 \
             --region $AWS_REGION \
             --query 'events[*].message' \
-            --output text | grep -E "(PHASE|Phase|HALT|halt|circuit|signal|trade|TRADE|waterfall|WATERFALL|qualified|entered|ENTERED|LOCK|lock|Position|position|Final|FINAL|Phase 2|Phase 3|Phase 4|Phase 5|Phase 6|Phase 7|ERROR|error|ok\]|OK\]|SUCCESS|success|market stage|Stage 2|SPY)" | head -200
+            --output text | head -500
