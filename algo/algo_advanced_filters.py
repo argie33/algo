@@ -229,9 +229,9 @@ class AdvancedFilters:
     def _mansfield_rs_score(self, symbol, signal_date, cur):
         # Use proper percentile ranking instead of linear excess return
         if self._signals is None:
-            self._signals = SignalComputer(cur=cur)
+            self._signals = SignalComputer()
 
-        rs_percentile = self._signals._rs_percentile_vs_spy(symbol, signal_date, lookback=60)
+        rs_percentile = self._signals._rs_percentile_vs_spy(cur, symbol, signal_date, lookback=60)
         if rs_percentile is None:
             return 0.0, None
 
@@ -320,7 +320,7 @@ class AdvancedFilters:
         """
         try:
             if self._signals is None:
-                self._signals = SignalComputer(cur=cur)
+                self._signals = SignalComputer()
             base = self._signals.base_detection(symbol, signal_date)
             vcp = self._signals.vcp_detection(symbol, signal_date)
             pivot = self._signals.pivot_breakout(symbol, signal_date)

@@ -565,7 +565,7 @@ class ExitEngine:
         if cur is None:
             return False
         try:
-            sc = SignalComputer(cur=cur)
+            sc = SignalComputer()
             td = sc.td_sequential(symbol, current_date)
             return td.get('completed_9', False) and td.get('setup_type') == 'sell'
         except Exception as e:
@@ -577,7 +577,7 @@ class ExitEngine:
         if cur is None:
             return {}
         try:
-            sc = SignalComputer(cur=cur)
+            sc = SignalComputer()
             return sc.td_sequential(symbol, current_date)
         except Exception as e:
             logger.error(f"Warning: _get_td_state({symbol}) failed: {e}")

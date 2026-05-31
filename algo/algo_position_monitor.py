@@ -266,7 +266,7 @@ class PositionMonitor:
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(
             symbol, current_date, entry_price, active_stop,
-            cur_price, atr, sma_50, target_hits, t1_price, t2_price, cur,
+            cur_price, atr, sma_50, target_hits, t1_price, t2_price,
         )
 
         if proposed_stop > cur_price:
@@ -380,7 +380,7 @@ class PositionMonitor:
 
     def _compute_trailing_stop(self, symbol, current_date, entry_price, active_stop,
                                 cur_price, atr, sma_50, target_hits,
-                                t1_price, t2_price, cur):
+                                t1_price, t2_price):
         """Stop ratchets up only.
 
         - Before T1: keep initial stop OR use 50-DMA (whichever higher) capped at entry-2*ATR

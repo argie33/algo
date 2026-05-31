@@ -129,7 +129,7 @@ class SwingTraderScore:
 
                 # Compute components (wrap each in error handling to prevent cascade failures)
                 try:
-                    setup_pts, setup_detail = self._setup_component(symbol, eval_date, cur)
+                    setup_pts, setup_detail = self._setup_component(symbol, eval_date)
                 except Exception as e:
                     logger.debug(f"Setup component failed for {symbol}: {e}")
                     setup_pts, setup_detail = 0, {'error': str(e)[:50]}
@@ -404,7 +404,7 @@ class SwingTraderScore:
 
     # ============= COMPONENTS =============
 
-    def _setup_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
+    def _setup_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate setup quality (25 max points).
 
