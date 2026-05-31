@@ -165,11 +165,75 @@ jobs:
           EOF
 
   # ------------------------------------------------------------
+  # Run Database Migrations (Issue #9)
+  # ------------------------------------------------------------
+  run-migrations:
+    name: Run Database Migrations
+    needs: resolve-infra
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch Database Credentials from Secrets Manager
+        id: db_creds
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/database \
+            --query SecretString \
+            --output text 2>/dev/null || echo "{}")
+
+          if [ -z "$SECRET" ] || [ "$SECRET" = "{}" ]; then
+            echo "WARNING: Could not fetch database credentials, skipping migrations"
+            echo "DB_HOST=localhost" >> $GITHUB_ENV
+            echo "DB_PORT=5432" >> $GITHUB_ENV
+            echo "DB_USER=postgres" >> $GITHUB_ENV
+            echo "DB_PASSWORD=" >> $GITHUB_ENV
+            echo "DB_NAME=algo" >> $GITHUB_ENV
+            echo "DB_SSL=require" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          # Extract credentials from JSON secret
+          echo "DB_HOST=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("host", "localhost"))')" >> $GITHUB_ENV
+          echo "DB_PORT=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("port", "5432"))')" >> $GITHUB_ENV
+          echo "DB_USER=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("username", "postgres"))')" >> $GITHUB_ENV
+          echo "DB_PASSWORD=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("password", ""))')" >> $GITHUB_ENV
+          echo "DB_NAME=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("dbname", "algo"))')" >> $GITHUB_ENV
+          echo "DB_SSL=require" >> $GITHUB_ENV
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install PostgreSQL Client
+        run: |
+          pip install --quiet psycopg2-binary
+
+      - name: Run Migrations
+        continue-on-error: true
+        run: |
+          echo "=== Running Database Migrations ==="
+          python migrations/run.py status
+          echo ""
+          python migrations/run.py apply --all
+          echo ""
+          echo "[OK] Migrations completed successfully"
+
+  # ------------------------------------------------------------
   # Algo Lambda
   # ------------------------------------------------------------
   deploy-algo-lambda:
     name: Deploy Algo Lambda
-    needs: resolve-infra
+    needs: [resolve-infra, run-migrations]
     runs-on: ubuntu-latest
 
     steps:
@@ -692,7 +756,7 @@ jobs:
   # ------------------------------------------------------------
   deploy-api-lambda:
     name: Deploy API Lambda
-    needs: resolve-infra
+    needs: [resolve-infra, run-migrations]
     runs-on: ubuntu-latest
 
     steps:
