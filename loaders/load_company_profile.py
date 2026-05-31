@@ -58,7 +58,7 @@ def main():
     if args.symbols:
         symbols = args.symbols.split(',')
     else:
-        symbols = get_active_symbols(limit=500)
+        symbols = get_active_symbols()
 
     result = loader.run(symbols, parallelism=args.parallelism)
 

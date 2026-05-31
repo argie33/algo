@@ -430,7 +430,7 @@ def main():
     asset_classes_str = os.getenv("LOADER_ASSET_CLASSES", "stock,etf")
     symbols_str = os.getenv("LOADER_SYMBOLS", "")
     parallelism = int(os.getenv("LOADER_PARALLELISM", "2"))
-    max_symbols_limit = int(os.getenv("LOADER_MAX_SYMBOLS", "500"))  # Configurable; default 500 symbols per run
+    max_symbols_limit = int(os.getenv("LOADER_MAX_SYMBOLS", "0"))  # 0 = no limit (loads all symbols)
 
     # Parse comma-separated values
     intervals = [x.strip() for x in intervals_str.split(",")]
@@ -453,10 +453,11 @@ def main():
             symbols = [s.strip().upper() for s in symbols_str.split(",")]
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from environment")
         else:
-            # Limit symbols per run to prevent timeout, but configurable via LOADER_MAX_SYMBOLS
-            # Watermark system ensures all symbols are processed across multiple runs
-            symbols = get_active_symbols(max_symbols=max_symbols_limit, timeout_secs=60)
-            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database (max {max_symbols_limit} for timeout protection)")
+            # max_symbols_limit=0 means no limit (loads all ~5000 symbols).
+            # ECS task timeout is 12h which is sufficient for all symbols across all intervals.
+            limit = max_symbols_limit if max_symbols_limit > 0 else None
+            symbols = get_active_symbols(max_symbols=limit, timeout_secs=120)
+            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
             if len(symbols) == 0:
                 logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
                 log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg='No symbols found', duration_seconds=round(time.time() - start_time, 2))

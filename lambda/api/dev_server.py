@@ -118,7 +118,12 @@ class APIHandler(BaseHTTPRequestHandler):
             # Send response
             self.send_response(status_code)
             self.send_header('Content-Type', 'application/json')
-            self._set_cors_headers()
+            # CORS headers come from lambda_function; don't double-send them
+            cors_keys = {'access-control-allow-origin', 'access-control-allow-credentials',
+                         'access-control-allow-methods', 'access-control-allow-headers'}
+            has_cors = any(k.lower() in cors_keys for k in response_headers)
+            if not has_cors:
+                self._set_cors_headers()
 
             # Add response headers
             for k, v in response_headers.items():
