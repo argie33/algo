@@ -2696,6 +2696,10 @@ CREATE TABLE IF NOT EXISTS loader_watermarks (
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- market_exposure_daily: add missing columns used by algo_market_exposure.py
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS long_exposure_pct DECIMAL(8, 4);
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS short_exposure_pct DECIMAL(8, 4);
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS is_entry_allowed BOOLEAN;
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS exposure_tier VARCHAR(20);
 
 -- sector_ranking: add missing historical rank columns used by sector rotation
 ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER;

@@ -57,12 +57,12 @@ def run(
             log_phase_result_fn(3, 'halt_check_error', 'warn', f'Halt check failed: {str(e)[:100]}')
 
         stale_result = monitor.check_stale_orders(run_date)
-        if stale_result['status'] == 'STALE_ORDERS_FOUND':
+        if stale_result and stale_result.get('status') == 'STALE_ORDERS_FOUND':
             alerts.send_position_alert(
                 'STALE_ORDERS',
                 'STALE_ORDER_ALERT',
-                f'{stale_result["count"]} orders pending >1 hour',
-                {'orders': stale_result['count']}
+                f'{stale_result.get("count", 0)} orders pending >1 hour',
+                {'orders': stale_result.get('count', 0)}
             )
 
         recommendations = monitor.review_positions(run_date)

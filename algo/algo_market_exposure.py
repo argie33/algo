@@ -136,6 +136,9 @@ class MarketExposure:
         logger.info(f"Computing market exposure for {eval_date} (11 sequential queries)")
         with DatabaseContext('read') as cur:
             self.cur = cur
+            # Prevent any single query from hanging on t4g.micro under DB load.
+            # 15s per query × 11 queries = 165s max; with index hits ~2s total is typical.
+            cur.execute("SET statement_timeout = 15000")
             factors = {}
             score = 0.0
 

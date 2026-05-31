@@ -112,7 +112,10 @@ def run(
     logger.info(f"\n{'='*70}")
     logger.info(f"PHASE 5: SIGNAL GENERATION & RANKING")
     logger.info(f"{'='*70}")
-    logger.info(f"Exposure constraints: risk_mult={exposure_constraints.get('risk_multiplier', 1.0):.2f}x, tier='{exposure_constraints.get('tier_name', 'N/A')}'")
+    if exposure_constraints:
+        logger.info(f"Exposure constraints: risk_mult={exposure_constraints.get('risk_multiplier', 1.0):.2f}x, tier='{exposure_constraints.get('tier_name', 'N/A')}'")
+    else:
+        logger.info("Exposure constraints: None (no tier active, using defaults)")
 
     try:
         from algo.algo_filter_pipeline import FilterPipeline
