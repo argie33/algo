@@ -32,22 +32,28 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=600)
             cur.execute("SET statement_timeout TO '25s'")
             cur.execute("""
-                WITH latest_prices AS (
-                    SELECT DISTINCT ON (symbol) symbol, close AS current_price
-                    FROM price_daily
-                    ORDER BY symbol, date DESC
+                WITH value_stocks AS (
+                    SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
+                ),
+                latest_prices AS (
+                    SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS current_price
+                    FROM price_daily pd
+                    JOIN value_stocks vs ON pd.symbol = vs.symbol
+                    ORDER BY pd.symbol, pd.date DESC
                 ),
                 stats_52w AS (
-                    SELECT symbol, MAX(high) AS high_52w, MIN(low) AS low_52w
-                    FROM price_daily
-                    WHERE date >= CURRENT_DATE - INTERVAL '52 weeks'
-                    GROUP BY symbol
+                    SELECT pd.symbol, MAX(pd.high) AS high_52w, MIN(pd.low) AS low_52w
+                    FROM price_daily pd
+                    JOIN value_stocks vs ON pd.symbol = vs.symbol
+                    WHERE pd.date >= CURRENT_DATE - INTERVAL '52 weeks'
+                    GROUP BY pd.symbol
                 ),
                 stats_3y AS (
-                    SELECT symbol, MAX(high) AS high_3y
-                    FROM price_daily
-                    WHERE date >= CURRENT_DATE - INTERVAL '3 years'
-                    GROUP BY symbol
+                    SELECT pd.symbol, MAX(pd.high) AS high_3y
+                    FROM price_daily pd
+                    JOIN value_stocks vs ON pd.symbol = vs.symbol
+                    WHERE pd.date >= CURRENT_DATE - INTERVAL '3 years'
+                    GROUP BY pd.symbol
                 ),
                 sector_medians AS (
                     SELECT cp.sector,
