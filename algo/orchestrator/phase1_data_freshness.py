@@ -317,29 +317,34 @@ def run(
         except Exception as e:
             logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
 
-        # Fall back to direct scan only for tables missing from data_loader_status
+        # Fall back to direct scan only for tables missing from data_loader_status.
+        # Use ORDER BY date DESC LIMIT 1 instead of MAX(date) — forces an index scan
+        # regardless of stale PostgreSQL statistics (avoids sequential scan on t4g.micro).
+        # Each table gets a separate 30s timeout so one slow query can't block the rest.
         missing = [t for t in ('price_daily', 'market_health_daily', 'trend_template_data') if t not in dates]
-        if missing:
+        for table in missing:
             try:
                 with DatabaseContext('read') as cur:
-                    cur.execute("SET statement_timeout = 120000")
-                    parts = []
-                    if 'price_daily' in missing:
-                        parts.append("COALESCE((SELECT MAX(date) FROM price_daily WHERE symbol='SPY'),(SELECT MAX(date) FROM etf_price_daily WHERE symbol='SPY')) AS price_daily")
-                    if 'market_health_daily' in missing:
-                        parts.append("(SELECT MAX(date) FROM market_health_daily) AS market_health_daily")
-                    if 'trend_template_data' in missing:
-                        parts.append("(SELECT MAX(date) FROM trend_template_data) AS trend_template_data")
-                    cur.execute(f"SELECT {', '.join(parts)}")
-                    row = cur.fetchone()
+                    cur.execute("SET statement_timeout = 30000")  # 30s per table
+                    if table == 'price_daily':
+                        # Try price_daily first, then etf_price_daily as fallback
+                        cur.execute(
+                            "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
+                        )
+                        row = cur.fetchone()
+                        if not row:
+                            cur.execute(
+                                "SELECT date FROM etf_price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
+                            )
+                            row = cur.fetchone()
+                    else:
+                        cur.execute(f"SELECT date FROM {table} ORDER BY date DESC LIMIT 1")
+                        row = cur.fetchone()
                     if row:
-                        for col in missing:
-                            if col in (row.keys() if hasattr(row, 'keys') else []):
-                                dates[col] = row[col]
-                            elif isinstance(row, (list, tuple)) and missing.index(col) < len(row):
-                                dates[col] = row[missing.index(col)]
+                        dates[table] = row[0]
+                        logger.info(f"Phase 1: direct scan found {table} latest={row[0]}")
             except Exception as e:
-                logger.warning(f"Phase 1: direct table scan failed ({e})")
+                logger.warning(f"Phase 1: direct scan for {table} failed ({e})")
 
         spy_date = dates.get('price_daily') or dates.get('etf_price_daily')
         mh_date = dates.get('market_health_daily')
