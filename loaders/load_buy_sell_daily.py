@@ -208,7 +208,9 @@ class SignalsDailyLoader(OptimalLoader):
                     if recent_vols:
                         avg_vol = sum(recent_vols) / len(recent_vols)
                         if avg_vol > 0:
-                            vol_surge = round((volume / avg_vol - 1) * 100, 2)
+                            raw_surge = (volume / avg_vol - 1) * 100
+                            # Cap at 9999 to fit DECIMAL(8,4) column (max 9999.9999)
+                            vol_surge = round(min(raw_surge, 9999.0), 2)
 
                 # Compute 50-bar average volume
                 avg_vol_50d = None
