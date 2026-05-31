@@ -90,10 +90,13 @@ def test_db_connection():
     Validates that the database is reachable and responsive.
     Fails fast if connection cannot be established, preventing silent failures later.
 
+    Uses a 5-second timeout (not the default 60s) so cold-start overhead
+    stays well within the 29s API Gateway limit.
+
     Returns: (success: bool, error_msg: Optional[str])
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext('read', timeout=5) as cur:
             cur.execute("SELECT 1 as connection_test")
             result = cur.fetchone()
             if result and result.get('connection_test') == 1:
