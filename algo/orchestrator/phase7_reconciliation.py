@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict
 from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_alerts import AlertManager
 from utils.trade_recorder import TradeRecorder
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,6 @@ def run(
 
         # Record exits for recently closed positions
         try:
-            from utils.database_context import DatabaseContext
             recorder = TradeRecorder()
 
             with DatabaseContext('read') as cursor:

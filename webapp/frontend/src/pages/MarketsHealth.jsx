@@ -1425,7 +1425,7 @@ function useTermPoint(sym) {
       try {
         return await api.get(`/api/prices/history/${encodeURIComponent(sym)}?timeframe=daily&limit=2`);
       } catch {
-        return { data: { data: { items: [] } } };
+        return { data: { items: [] } };
       }
     },
     { staleTime: 60000, refetchInterval: 60000 }
