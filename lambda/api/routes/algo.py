@@ -137,9 +137,11 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             offset_str = params.get('offset', [None])[0] if params else None
             offset = safe_offset(offset_str)
             action_type = params.get('action_type', [None])[0] if params else None
-            # Validate action_type parameter
+            # Validate action_type parameter (normalize to lowercase for case-insensitive matching)
             if action_type:
+                action_type = action_type.lower()
                 VALID_ACTION_TYPES = {'entry', 'exit', 'alert', 'halt', 'reconciliation', 'error',
+                                      'stop', 'pyramid', 'skip', 'pass',
                                       'phase_1_data_freshness', 'phase_2_circuit_breakers', 'phase_3_position_monitor',
                                       'phase_4_exit_execution', 'phase_5_signal_generation', 'phase_6_entry_execution',
                                       'phase_7_reconciliation', 'halt_flag_detected'}

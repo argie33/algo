@@ -22,7 +22,8 @@ class SwingTraderScore:
     W_MULTI_TF = 5      # Multi-timeframe alignment (1h/4h/daily confirmation)
 
     def __init__(self):
-        self._signals = None
+        from algo.algo_signals import SignalComputer
+        self._signals = SignalComputer()
 
     def _with_cursor(self, operation, mode='read'):
         """Execute operation with a cursor via DatabaseContext."""
@@ -363,43 +364,32 @@ class SwingTraderScore:
             'days_to_earnings': days_to_earn,
         }
 
-    def _days_to_earnings(self, symbol: str, eval_date, cur) -> Optional[int]:
+    def _days_to_earnings(self, symbol: str, eval_date) -> Optional[int]:
         """Days until next earnings from earnings_calendar. Returns None if unknown."""
         try:
-            cur.execute(
-                """SELECT earnings_date FROM earnings_calendar
-                   WHERE symbol = %s AND earnings_date > %s
-                   ORDER BY earnings_date ASC LIMIT 1""",
-                (symbol, eval_date),
-            )
-            row = cur.fetchone()
-            if row and row[0]:
-                return (row[0] - eval_date).days
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    """SELECT earnings_date FROM earnings_calendar
+                       WHERE symbol = %s AND earnings_date > %s
+                       ORDER BY earnings_date ASC LIMIT 1""",
+                    (symbol, eval_date),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return (row[0] - eval_date).days
             return None
         except Exception as e:
             logger.debug(f"earnings check failed for {symbol}: {e}")
             return None
 
-    def _load_config_val(self, key: str, default, cur):
-        """Load a config value, with fallback to default."""
+    def _load_config_val(self, key: str, default):
+        """Load a config value from AlgoConfig, with fallback to default."""
         try:
-            if not self._signals:
-                return default
-            cur.execute("SELECT value, value_type FROM algo_config WHERE key = %s", (key,))
-            row = cur.fetchone()
-            if not row:
-                return default
-            val_str, val_type = row
-            if val_type == 'int':
-                return int(val_str)
-            elif val_type == 'float':
-                return float(val_str)
-            elif val_type == 'bool':
-                return val_str.lower() in ('true', '1', 'yes')
-            else:
-                return val_str or default
+            from algo.algo_config import get_config
+            val = get_config().get(key)
+            return val if val is not None else default
         except Exception as e:
-            logger.warning(f"Exception: {e}")
+            logger.debug(f"_load_config_val({key}) failed: {e}")
             return default
 
     # ============= COMPONENTS =============
@@ -568,7 +558,7 @@ class SwingTraderScore:
         Returns: (pts, detail_dict) where pts is 0-20 and detail contains breakdown
         """
         # RS percentile vs SPY (60-day)
-        rs_60 = self._signals._rs_percentile_vs_spy(symbol, eval_date, lookback=60)
+        rs_60 = self._signals._rs_percentile_vs_spy(cur, symbol, eval_date, lookback=60)
         rs_pts = 0.0
         if rs_60 is not None:
             # Minervini bar: 70 = pass, 90 = sweet spot
@@ -583,9 +573,9 @@ class SwingTraderScore:
             else:
                 rs_pts = 0
 
-        r1 = self._signals._period_return(symbol, eval_date, 21) or 0
-        r3 = self._signals._period_return(symbol, eval_date, 63) or 0
-        r6 = self._signals._period_return(symbol, eval_date, 126) or 0
+        r1 = self._signals._period_return(cur, symbol, eval_date, 21) or 0
+        r3 = self._signals._period_return(cur, symbol, eval_date, 63) or 0
+        r6 = self._signals._period_return(cur, symbol, eval_date, 126) or 0
         blend_pts = 0.0
         for ret, weight in [(r1, 3), (r3, 3), (r6, 2)]:
             if ret > 0.20:
@@ -1041,27 +1031,10 @@ class SwingTraderScore:
     # ============= helpers =============
 
     def _persist(self, symbol: str, eval_date, result: Dict[str, Any]) -> None:
-        """
-        Persist computed swing score to swing_trader_scores table.
-
-        Extracts component points, final score, grade, and full component detail dict,
-        then inserts/upserts to the database. Stores results for frontend display,
-        historical tracking, and post-trade performance analysis.
-
-        Handles sparse data by providing default component values if not present.
-
-        Args:
-            symbol: Stock ticker
-            eval_date: Date evaluated
-            result: Full result dict from compute() with components and scores
-
-        Returns:
-            None (writes to database)
-        """
+        """Persist computed swing score to swing_trader_scores table."""
         try:
             comp = result.get('components', {})
 
-            # Ensure all components have default structure for sparse data handling
             default_components = {
                 'setup_quality': {'pts': 0.0, 'max': self.W_SETUP},
                 'trend_quality': {'pts': 0.0, 'max': self.W_TREND},
@@ -1072,7 +1045,6 @@ class SwingTraderScore:
                 'multi_timeframe': {'pts': 0.0, 'max': self.W_MULTI_TF},
             }
 
-            # Merge provided components with defaults (override where data exists)
             for key in default_components:
                 if key in comp:
                     default_components[key].update(comp[key])
@@ -1084,17 +1056,18 @@ class SwingTraderScore:
                 'reason': result.get('reason'),
             }
 
-            cur.execute(
-                """
-                INSERT INTO swing_trader_scores (symbol, date, score, components)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                    score = EXCLUDED.score,
-                    components = EXCLUDED.components,
-                    created_at = CURRENT_TIMESTAMP
-                """,
-                (symbol, eval_date, float(result.get('swing_score', 0)), json.dumps(components_json)),
-            )
+            with DatabaseContext('write') as cur:
+                cur.execute(
+                    """
+                    INSERT INTO swing_trader_scores (symbol, date, score, components)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                        score = EXCLUDED.score,
+                        components = EXCLUDED.components,
+                        created_at = CURRENT_TIMESTAMP
+                    """,
+                    (symbol, eval_date, float(result.get('swing_score', 0)), json.dumps(components_json)),
+                )
         except Exception as e:
             logger.error(f"persist swing_score failed for {symbol}: {e}", exc_info=True)
 

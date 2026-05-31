@@ -687,6 +687,7 @@ class DailyReconciliation:
         if not self._alpaca_key or not self._alpaca_secret:
             return None
         try:
+            import requests
             resp = requests.get(
                 f'{self._alpaca_base_url}/v2/account',
                 headers={'APCA-API-KEY-ID': self._alpaca_key,

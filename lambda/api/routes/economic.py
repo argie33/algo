@@ -163,10 +163,22 @@ def _get_leading_indicators(cur) -> Dict:
                 else:
                     trend = 'flat'
 
+                # Compute MoM change from the most recent two history entries
+                change = None
+                if len(history) >= 2:
+                    cur_v  = history[-1].get('value')
+                    prev_v = history[-2].get('value')
+                    if cur_v is not None and prev_v is not None:
+                        change = round(float(cur_v) - float(prev_v), 2)
+
+                display_str = str(round(float(display_value), 2)) if display_value is not None else None
+
                 indicators.append({
                     'name': name,
                     'series_id': series_id,
                     'rawValue': display_value,
+                    'value': display_str,
+                    'change': change,
                     'date': str(dt),
                     'history': history,
                     'trend': trend

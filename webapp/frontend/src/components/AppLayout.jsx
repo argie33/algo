@@ -106,7 +106,7 @@ export default function AppLayout({ children }) {
           api.get('/api/algo/notifications').catch(() => null),
         ]);
         if (cancelled) return;
-        setExposure(e?.data?.data?.current || null);
+        setExposure(e?.data?.current || null);
         setNotifications(n?.data?.items || []);
       } catch { /* silent */ }
     };

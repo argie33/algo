@@ -82,6 +82,7 @@ class AlgoConfig:
         'max_rs_pct_from_60d_high': ('15.0', 'float', 'Max % RS-line below 60d high (Minervini strict = 5%)'),
 
         # Exit Rules
+        'require_target_pullback': ('false', 'bool', 'Require 2%+ pullback before partial profit exits at T1/T2 (false = exit immediately at target)'),
         't1_target_r_multiple': ('1.5', 'float', 'Tier 1 profit target R-mult'),
         't2_target_r_multiple': ('3.0', 'float', 'Tier 2 profit target R-mult'),
         't3_target_r_multiple': ('4.0', 'float', 'Tier 3 profit target R-mult'),

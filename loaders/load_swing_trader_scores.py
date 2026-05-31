@@ -167,16 +167,28 @@ class SwingTraderScoresLoader(OptimalLoader):
             # Multi-timeframe: blend of trend + momentum (confirming at multiple scales)
             multi_tf = (trend * 0.6 + momentum * 0.4)
 
-            # --- Grade and gates ---
-            if composite >= 85:
+            # Compute weighted score (0-100) matching SwingTraderScore weights:
+            # setup=25, trend=20, momentum=20, volume=12, fundamentals=10, sector=8, multi_tf=5
+            weighted_score = (
+                (setup / 100.0) * 25 +
+                (trend / 100.0) * 20 +
+                (momentum / 100.0) * 20 +
+                (volume / 100.0) * 12 +
+                (fundamentals / 100.0) * 10 +
+                (sector / 100.0) * 8 +
+                (multi_tf / 100.0) * 5
+            )
+
+            # --- Grade based on weighted composite (0-100) ---
+            if weighted_score >= 85:
                 grade = 'A+'
-            elif composite >= 75:
+            elif weighted_score >= 75:
                 grade = 'A'
-            elif composite >= 65:
+            elif weighted_score >= 65:
                 grade = 'B'
-            elif composite >= 55:
+            elif weighted_score >= 55:
                 grade = 'C'
-            elif composite >= 45:
+            elif weighted_score >= 45:
                 grade = 'D'
             else:
                 grade = 'F'
@@ -189,20 +201,20 @@ class SwingTraderScoresLoader(OptimalLoader):
             return {
                 'symbol': symbol,
                 'date': score_date,
-                'score': round(composite, 2),
+                'score': round(weighted_score, 2),
                 'components': json.dumps({
                     'grade': grade,
                     'composite_sqs': round(composite, 1),
                     'pass_gates': pass_gates,
                     'fail_reason': fail_reason,
-                    # 7-component breakdown (displayed in SwingCandidates radar chart)
-                    'setup': round(setup, 1),
-                    'trend': round(trend, 1),
-                    'momentum': round(momentum, 1),
-                    'volume': round(volume, 1),
-                    'fundamentals': round(fundamentals, 1),
-                    'sector': round(sector, 1),
-                    'multi_tf': round(multi_tf, 1),
+                    # Component names match algo_filter_pipeline.py expectations (pts + max keys)
+                    'setup_quality': {'pts': round((setup / 100.0) * 25, 1), 'max': 25},
+                    'trend_quality': {'pts': round((trend / 100.0) * 20, 1), 'max': 20},
+                    'momentum_rs':   {'pts': round((momentum / 100.0) * 20, 1), 'max': 20},
+                    'volume':        {'pts': round((volume / 100.0) * 12, 1), 'max': 12},
+                    'fundamentals':  {'pts': round((fundamentals / 100.0) * 10, 1), 'max': 10},
+                    'sector_industry': {'pts': round((sector / 100.0) * 8, 1), 'max': 8},
+                    'multi_timeframe': {'pts': round((multi_tf / 100.0) * 5, 1), 'max': 5},
                 })
             }
         except Exception as e:

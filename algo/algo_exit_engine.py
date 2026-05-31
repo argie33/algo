@@ -280,24 +280,26 @@ class ExitEngine:
             hit_date = hit_time.date() if hasattr(hit_time, 'date') else hit_time
             return hit_date == current_date
 
+        require_pb = bool(self.config.get('require_target_pullback', False))
+
         # First check T1 if it hasn't been hit yet
         if target_hits == 0 and t1_price is not None and cur_price >= t1_price:
-            if not _was_hit_today(t1_hit_time) and self._is_pulling_back(cur, symbol, current_date):
+            if not _was_hit_today(t1_hit_time) and (not require_pb or self._is_pulling_back(cur, symbol, current_date)):
                 return {
                     'stage': 'target_1',
                     'fraction': 0.50,
-                    'reason': f'T1 pullback exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)',
+                    'reason': f'T1 exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)',
                     'new_stop': max(active_stop, entry_price),
                 }
 
         # Then check T2 only if T1 already hit
         if target_hits == 1 and t2_price is not None and cur_price >= t2_price:
-            if not _was_hit_today(t2_hit_time) and self._is_pulling_back(cur, symbol, current_date):
+            if not _was_hit_today(t2_hit_time) and (not require_pb or self._is_pulling_back(cur, symbol, current_date)):
                 stop_for_t2 = max(active_stop, t1_price) if t1_price is not None else active_stop
                 return {
                     'stage': 'target_2',
                     'fraction': 0.50,
-                    'reason': f'T2 pullback exit: ${cur_price:.2f} >= ${t2_price:.2f} (3R)',
+                    'reason': f'T2 exit: ${cur_price:.2f} >= ${t2_price:.2f} (3R)',
                     'new_stop': stop_for_t2,
                 }
 

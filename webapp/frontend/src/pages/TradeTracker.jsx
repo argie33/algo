@@ -359,12 +359,12 @@ function ActivityView() {
         <div className="flex gap-3" style={{ marginBottom: 'var(--space-4)' }}>
           <select className="select" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 180 }}>
             <option value="">All actions</option>
-            <option value="ENTRY">Entries</option>
-            <option value="EXIT">Exits</option>
-            <option value="STOP">Stop adjustments</option>
-            <option value="PYRAMID">Pyramid adds</option>
-            <option value="HALT">Halts / breakers</option>
-            <option value="SKIP">Skipped signals</option>
+            <option value="entry">Entries</option>
+            <option value="exit">Exits</option>
+            <option value="stop">Stop adjustments</option>
+            <option value="pyramid">Pyramid adds</option>
+            <option value="halt">Halts / breakers</option>
+            <option value="skip">Skipped signals</option>
           </select>
           <div style={{ position: 'relative', flex: 1 }}>
             <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)' }} />

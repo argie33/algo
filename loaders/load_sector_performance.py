@@ -39,9 +39,11 @@ def _load_sector_performance(today: date) -> int:
     year_start = date(today.year, 1, 1)
 
     with DatabaseContext('write') as cur:
-        # Fetch closing prices for all sector ETFs since year start.
-        # Try price_daily first (many loaders write ETF prices there too),
-        # then fall back to etf_price_daily.
+        # Fetch closing prices from both tables and merge.
+        # SPY lands in price_daily (stock class loader).
+        # Sector ETFs (XLK, XLF, etc.) land in etf_price_daily (etf class loader).
+        # We must query both and deduplicate so no symbol is missed.
+        all_rows_by_key = {}
         for table in ('price_daily', 'etf_price_daily'):
             cur.execute(f"""
                 SELECT symbol, date, close
@@ -52,9 +54,11 @@ def _load_sector_performance(today: date) -> int:
                   AND close > 0
                 ORDER BY symbol, date ASC
             """, (etf_symbols, year_start, today))
-            rows = cur.fetchall()
-            if rows:
-                break
+            for r in cur.fetchall():
+                key = (r['symbol'], r['date'])
+                if key not in all_rows_by_key:
+                    all_rows_by_key[key] = r
+        rows = list(all_rows_by_key.values())
 
         if not rows:
             logger.warning("No ETF price data found for sector performance — skipping")

@@ -468,6 +468,23 @@ def main():
         log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
         return 1
 
+    # Essential symbols that must be present in price_daily regardless of what stock_symbols contains.
+    # stock_symbols excludes ETFs, so these never appear via get_active_symbols().
+    # SPY is required by: load_technical_data_daily (Mansfield RS), load_seasonality,
+    #   load_market_health_daily breadth check, and algo_market_exposure yield-curve factor.
+    # GLD/TLT are used by the correlation matrix endpoint and macro regime logic.
+    ESSENTIAL_STOCK_PRICE_DAILY = ['SPY', 'QQQ', 'IWM', 'DIA', 'GLD', 'TLT']
+
+    # Sector ETFs: required by load_sector_performance (YTD returns), SectorHeatMap,
+    # and the prices route /api/prices/history/{etf} called by the frontend.
+    # These land in etf_price_daily (the prices route falls back to this table).
+    ESSENTIAL_ETF_SYMBOLS = [
+        'SPY', 'QQQ', 'IWM', 'DIA',            # Index ETFs — IndicesStrip sparklines
+        'XLK', 'XLF', 'XLV', 'XLY', 'XLC',     # Sector ETFs — SectorHeatMap + sector_performance
+        'XLI', 'XLP', 'XLE', 'XLU', 'XLRE', 'XLB',
+        'GLD', 'TLT', 'IVV', 'VXX',             # Macro ETFs — correlation matrix
+    ]
+
     # Run price loader for each interval + asset_class combination
     total_stats = {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
     fail_count = 0
@@ -475,24 +492,31 @@ def main():
     for asset_class in asset_classes:
         for interval in intervals:
             try:
+                # Build per-asset-class symbol list by appending essentials to the DB list.
+                # dict.fromkeys preserves insertion order and deduplicates.
+                if asset_class == 'stock':
+                    run_symbols = list(dict.fromkeys(symbols + ESSENTIAL_STOCK_PRICE_DAILY))
+                    logger.info(f"[MAIN] stock symbols: {len(symbols)} from DB + {len(ESSENTIAL_STOCK_PRICE_DAILY)} essential ETFs = {len(run_symbols)} total")
+                else:  # etf
+                    run_symbols = list(dict.fromkeys(symbols + ESSENTIAL_ETF_SYMBOLS))
+                    logger.info(f"[MAIN] etf symbols: {len(symbols)} from DB + {len(ESSENTIAL_ETF_SYMBOLS)} essential ETFs = {len(run_symbols)} total")
+
                 loader = PriceLoader(interval=interval, asset_class=asset_class)
                 logger.info(f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}")
                 with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
-                    stats = loader.run(symbols, parallelism=parallelism)
+                    stats = loader.run(run_symbols, parallelism=parallelism)
 
                 logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
                 total_stats["symbols_loaded"] += stats.get("symbols_loaded", 0)
                 total_stats["symbols_failed"] += stats.get("symbols_failed", 0)
                 total_stats["rows_inserted"] += stats.get("rows_inserted", 0)
 
-                fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-                # Increased threshold to 10% - with small batches (30 symbols), transient API failures are common
-                # 5% threshold meant even 2-3 transient failures would fail the entire loader
+                fail_rate = stats.get("symbols_failed", 0) / max(len(run_symbols), 1)
                 if fail_rate > 0.10:
-                    logger.error(f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+                    logger.error(f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)")
                     fail_count += 1
                 else:
-                    logger.info(f"Acceptable failure rate for {asset_class}/{interval}: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)")
+                    logger.info(f"Acceptable failure rate for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)")
 
                 loader.close()
             except Exception as e:

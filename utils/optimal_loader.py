@@ -160,7 +160,21 @@ class OptimalLoader(ABC):
                     logger.debug(f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})")
                     return
 
-            # No matching constraint found � create one
+            # Also check unique indexes created via CREATE UNIQUE INDEX — these don't appear
+            # in information_schema.table_constraints but are valid for ON CONFLICT clauses.
+            cur.execute("""
+            SELECT indexname, indexdef FROM pg_indexes
+            WHERE tablename = %s AND indexdef ILIKE '%%UNIQUE%%'
+            """, (self.table_name,))
+            for idx_name, idx_def in cur.fetchall():
+                idx_cols_str = idx_def.split('(', 1)[-1].rstrip(')')
+                idx_cols = set(c.strip().strip('"').lower() for c in idx_cols_str.split(','))
+                pk_col_set = set(c.lower() for c in self.primary_key)
+                if idx_cols == pk_col_set:
+                    logger.debug(f"Unique index {idx_name} already covers {self.table_name}({pk_cols})")
+                    return
+
+            # No matching constraint or unique index found � create one
             constraint_name = f"{self.table_name}_{'_'.join(self.primary_key)}_unique"
             try:
                 logger.info(f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})")
