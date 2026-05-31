@@ -29,7 +29,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             return error_response(404, 'not_found', f'Stock {symbol} not found')
 
         if path == '/api/stocks/deep-value':
-            limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=600)
+            limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=200)
             # Fast check: return empty if no financial data loaded yet
             cur.execute("SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1")
             if not cur.fetchone():

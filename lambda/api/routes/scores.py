@@ -38,6 +38,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
+            cur.execute("SET statement_timeout TO '25s'")
             allowed_sorts = {
                 'composite_score': 'sc.composite_score',
                 'momentum_score': 'sc.momentum_score',
@@ -64,6 +65,21 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 params_list.append(symbol.upper())
 
             query = f"""
+                WITH price_dates AS (
+                    SELECT MAX(date) AS cur_date FROM price_daily
+                ),
+                latest_prices AS (
+                    SELECT pd.symbol, pd.close AS current_close
+                    FROM price_daily pd, price_dates
+                    WHERE pd.date = price_dates.cur_date
+                ),
+                prev_prices AS (
+                    SELECT pd.symbol, pd.close AS prev_close
+                    FROM price_daily pd, price_dates
+                    WHERE pd.date = (
+                        SELECT MAX(date) FROM price_daily WHERE date < price_dates.cur_date
+                    )
+                )
                 SELECT
                     sc.symbol,
                     ss.security_name AS company_name,
@@ -71,10 +87,10 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
                     sc.updated_at AS last_updated,
-                    pd.current_close AS current_price,
-                    pd.current_close AS price,
+                    lp.current_close AS current_price,
+                    lp.current_close AS price,
                     ROUND(CASE
-                        WHEN pd.prev_close IS NOT NULL THEN ((pd.current_close - pd.prev_close) / NULLIF(pd.prev_close, 0)) * 100
+                        WHEN pp.prev_close IS NOT NULL THEN ((lp.current_close - pp.prev_close) / NULLIF(pp.prev_close, 0)) * 100
                         ELSE NULL
                     END, 2) AS change_percent,
                     km.market_cap,
@@ -108,13 +124,8 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
                 LEFT JOIN stability_metrics sm ON sm.symbol = sc.symbol
                 LEFT JOIN positioning_metrics pm ON pm.symbol = sc.symbol
-                LEFT JOIN LATERAL (
-                    SELECT
-                        (SELECT close FROM price_daily p1
-                         WHERE p1.symbol = sc.symbol ORDER BY p1.date DESC LIMIT 1) AS current_close,
-                        (SELECT close FROM price_daily p2
-                         WHERE p2.symbol = sc.symbol ORDER BY p2.date DESC LIMIT 1 OFFSET 1) AS prev_close
-                ) pd ON true
+                LEFT JOIN latest_prices lp ON lp.symbol = sc.symbol
+                LEFT JOIN prev_prices pp ON pp.symbol = sc.symbol
                 {where_clause}
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s

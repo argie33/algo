@@ -958,36 +958,59 @@ function Mover({ symbol, chg, dir }) {
 
 function SeasonalityCard({ data }) {
   if (!data) return null;
-  const ytd = parseFloat(data.currentYearReturn || 0);
-  const cur = data.currentPosition || {};
-  const periods = cur.activePeriods || [];
+  const bestMonth = data.summary?.best_month;
+  const worstMonth = data.summary?.worst_month;
+  const bestDay = data.summary?.best_day;
+  const worstDay = data.summary?.worst_day;
+  const currentMonthNum = new Date().getMonth() + 1;
+  const currentMonthData = (data.monthly || []).find(m => m.month === currentMonthNum);
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Seasonality &amp; Cycle Context</div>
-          <div className="card-sub">Where we are in the calendar / political cycle</div>
+          <div className="card-title">Seasonality Context</div>
+          <div className="card-sub">Historical return patterns by month &amp; day of week</div>
         </div>
       </div>
       <div className="card-body">
         <div className="grid grid-4">
           <div className="stile">
-            <div className="stile-label">{data.currentYear || '—'} YTD</div>
-            <div className={`stile-value ${ytd >= 0 ? 'up' : 'down'}`}>{ytd >= 0 ? '+' : ''}{num(ytd, 2)}%</div>
+            <div className="stile-label">This Month Hist. Avg</div>
+            <div className={`stile-value ${(currentMonthData?.avg_return || 0) >= 0 ? 'up' : 'down'}`}>
+              {currentMonthData ? `${currentMonthData.avg_return >= 0 ? '+' : ''}${num(currentMonthData.avg_return, 2)}%` : '—'}
+            </div>
+            <div className="stile-sub">{currentMonthData?.month_name || '—'}</div>
           </div>
-          <div className="stile"><div className="stile-label">Cycle</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.presidentialCycle || '—'}</div></div>
-          <div className="stile"><div className="stile-label">Monthly Avg</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.monthlyTrend || '—'}</div></div>
-          <div className="stile"><div className="stile-label">Quarterly</div><div className="stile-value" style={{ fontSize: 'var(--t-sm)' }}>{cur.quarterlyTrend || '—'}</div></div>
+          <div className="stile">
+            <div className="stile-label">Best Month</div>
+            <div className="stile-value up">{bestMonth?.name || '—'}</div>
+            <div className="stile-sub">{bestMonth ? `+${num(bestMonth.avg_return_pct, 2)}% avg` : '—'}</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Worst Month</div>
+            <div className="stile-value down">{worstMonth?.name || '—'}</div>
+            <div className="stile-sub">{worstMonth ? `${num(worstMonth.avg_return_pct, 2)}% avg` : '—'}</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Best Day of Week</div>
+            <div className="stile-value up">{bestDay?.name || '—'}</div>
+            <div className="stile-sub">{worstDay ? `Worst: ${worstDay.name}` : '—'}</div>
+          </div>
         </div>
-        {periods.length > 0 && (
-          <div className="flex gap-2" style={{ marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
-            {periods.map((p, i) => <span key={i} className="badge badge-amber">{p}</span>)}
-          </div>
-        )}
-        {cur.nextMajorEvent?.month && (
-          <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-            <span className="strong">Next major event:</span>{' '}
-            {cur.nextMajorEvent.month} — {cur.nextMajorEvent.description || cur.nextMajorEvent.name || ''}
+        {data.monthly?.length > 0 && (
+          <div style={{ marginTop: 'var(--space-4)', height: 80 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <XAxis dataKey="month_name" tick={{ fill: C.textFaint, fontSize: 9 }} tickFormatter={m => String(m).slice(0, 3)} />
+                <YAxis hide />
+                <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v >= 0 ? '+' : ''}${num(v, 2)}%`, 'Hist. Avg']} />
+                <Bar dataKey="avg_return">
+                  {(data.monthly || []).map((m, i) => (
+                    <Cell key={i} fill={(m.avg_return || 0) >= 0 ? C.success : C.danger} fillOpacity={0.7} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>

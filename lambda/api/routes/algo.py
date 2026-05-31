@@ -98,7 +98,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 min_score = float(min_score_str) if min_score_str else None
             except (ValueError, TypeError):
                 return error_response(400, 'bad_request', 'min_score must be numeric')
-            return _get_swing_scores(cur, limit, min_score)
+            symbol_filter = params.get('symbol', [None])[0] if params else None
+            return _get_swing_scores(cur, limit, min_score, symbol_filter)
         elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=30)
@@ -225,7 +226,8 @@ def _get_algo_positions(cur) -> Dict:
                 SELECT position_id, symbol, quantity, avg_entry_price, current_price,
                        position_value, unrealized_pnl, unrealized_pnl_pct, status,
                        days_since_entry, distribution_day_count, target_levels_hit,
-                       current_stop_price, stage_in_exit_plan, created_at, updated_at
+                       current_stop_price, current_stop_price AS stop_loss_price,
+                       stage_in_exit_plan, created_at, updated_at
                 FROM algo_positions
                 WHERE LOWER(status) = 'open'
                 ORDER BY position_value DESC
@@ -403,6 +405,8 @@ def _get_algo_performance(cur) -> Dict:
                 'best_win_streak': best_win_streak,
                 'worst_loss_streak': worst_loss_streak,
                 'current_streak': current_streak,
+                'gross_win_dollars': round(wins_sum, 2),
+                'gross_loss_dollars': round(losses_sum, 2),
                 'data_freshness': freshness,
             }
             return json_response(200, result)
@@ -728,11 +732,11 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
             invested = float(portfolio_row.get('invested') or 0)
 
             cur.execute("""
-                SELECT total_equity FROM algo_portfolio_snapshots
-                ORDER BY created_at DESC LIMIT 1
+                SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date DESC LIMIT 1
             """)
             snap = cur.fetchone()
-            portfolio_value = float(snap[0]) if snap and snap[0] else 100000.0
+            portfolio_value = float(snap['total_portfolio_value']) if snap and snap['total_portfolio_value'] else 100000.0
 
             cur.execute("""
                 SELECT sector, industry FROM company_profile WHERE ticker = %s
@@ -1017,6 +1021,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
 def _get_sector_breadth(cur) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages."""
         try:
+            cur.execute("SET statement_timeout TO '20s'")
             cur.execute("""
                 WITH latest_date AS (
                     SELECT MAX(date) AS date FROM price_daily
@@ -1056,12 +1061,20 @@ def _get_sector_breadth(cur) -> Dict:
         except Exception as e:
             logger.warning(f'Sector breadth unavailable: {e}', extra={'operation': 'get sector breadth'})
             return list_response([])
-def _get_swing_scores(cur, limit: int = 100, min_score: float = None) -> Dict:
+def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
             cur.execute("SET statement_timeout TO '25s'")
-            score_filter = "AND s.score >= %s" if min_score is not None else ""
-            query_params = [limit] if min_score is None else [min_score, limit]
+            filters = ["s.date >= CURRENT_DATE - INTERVAL '7 days'"]
+            query_params = []
+            if min_score is not None:
+                filters.append("s.score >= %s")
+                query_params.append(min_score)
+            if symbol:
+                filters.append("s.symbol = %s")
+                query_params.append(symbol.upper())
+            where_clause = " AND ".join(filters)
+            query_params.append(limit)
             cur.execute(f"""
                 SELECT
                     s.symbol, s.date, s.score AS swing_score,
@@ -1075,8 +1088,7 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None) -> Dict:
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
                 LEFT JOIN trend_template_data t ON s.symbol = t.symbol AND s.date = t.date
-                WHERE s.date >= CURRENT_DATE - INTERVAL '7 days'
-                {score_filter}
+                WHERE {where_clause}
                 ORDER BY s.date DESC, s.score DESC
                 LIMIT %s
             """, query_params)
@@ -1366,8 +1378,8 @@ def _get_algo_evaluate(cur) -> Dict:
             # Current portfolio positions and constraints
             cur.execute("""
                 SELECT COUNT(*) as open_positions
-                FROM algo_trades
-                WHERE status = 'open'
+                FROM algo_positions
+                WHERE LOWER(status) = 'open'
             """)
             pos_row = cur.fetchone()
             open_positions = pos_row['open_positions'] if pos_row else 0
@@ -1442,12 +1454,12 @@ def _get_data_quality(cur) -> Dict:
             # Get patrol log entries from last 24 hours
             cur.execute("""
                 SELECT
-                    table_name,
+                    target_table AS table_name,
                     severity,
                     message,
-                    data_detail,
+                    NULL AS data_detail,
                     created_at,
-                    ROW_NUMBER() OVER (PARTITION BY table_name ORDER BY created_at DESC) as rn
+                    ROW_NUMBER() OVER (PARTITION BY target_table ORDER BY created_at DESC) as rn
                 FROM data_patrol_log
                 WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
             """)

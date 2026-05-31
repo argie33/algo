@@ -756,11 +756,11 @@ function RLadderPanel({ positions, loading, onSelect }) {
   const ladders = useMemo(() => {
     if (!positions) return [];
     return positions
-      .filter(p => p.avg_entry_price && p.current_price && p.stop_loss_price)
+      .filter(p => p.avg_entry_price && p.current_price && (p.stop_loss_price || p.current_stop_price))
       .map(p => {
         const entry = p.avg_entry_price;
         const cur = p.current_price;
-        const stop = p.stop_loss_price;
+        const stop = p.stop_loss_price || p.current_stop_price;
         const t1 = p.target_1_price;
         const t2 = p.target_2_price;
         const t3 = p.target_3_price;

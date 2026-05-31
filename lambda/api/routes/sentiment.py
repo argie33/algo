@@ -113,7 +113,27 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT 12
                 """, (symbol,))
                 rows = cur.fetchall()
-                return list_response([dict(r) for r in rows] if rows else [])
+                items = []
+                for r in rows:
+                    d = dict(r)
+                    total = int(d.get('analyst_count') or 0)
+                    bull = int(d.get('bullish_count') or 0)
+                    bear = int(d.get('bearish_count') or 0)
+                    neut = int(d.get('neutral_count') or 0)
+                    d['totalAnalysts'] = total
+                    d['bullishPercent'] = round(bull / total * 100, 1) if total > 0 else None
+                    d['bearishPercent'] = round(bear / total * 100, 1) if total > 0 else None
+                    d['neutralPercent'] = round(neut / total * 100, 1) if total > 0 else None
+                    d['avgPriceTarget'] = float(d['target_price']) if d.get('target_price') else None
+                    d['priceTargetVsCurrent'] = float(d['upside_downside_percent']) if d.get('upside_downside_percent') else None
+                    d['consensus'] = (
+                        'Strong Buy' if d['bullishPercent'] and d['bullishPercent'] > 70 else
+                        'Buy' if d['bullishPercent'] and d['bullishPercent'] > 55 else
+                        'Sell' if d['bearishPercent'] and d['bearishPercent'] > 55 else
+                        'Hold'
+                    ) if total > 0 else None
+                    items.append(d)
+                return list_response(items)
             elif path.startswith('/api/sentiment/social/insights/'):
                 # Social sentiment not yet implemented; return 200 with empty data and informative message
                 return json_response(200, {

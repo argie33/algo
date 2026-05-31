@@ -322,10 +322,10 @@ function SetupsTab({ scores, evaluated, error }) {
   return (
     <div style={{ padding: 'var(--space-4)' }}>
       <div className="flex gap-4 flex-wrap" style={{ marginBottom: 'var(--space-4)' }}>
-        <Stat label="Raw Buy Signals" value={evaluated?.total_buy_signals || 0} />
+        <Stat label="Raw Buy Signals" value={evaluated?.candidates?.screened || 0} />
         <Stat label="Passing Score" value={passing.length} color="var(--success)" />
         <Stat label="Blocked" value={blocked.length} color="var(--amber)" />
-        <Stat label="Latest Date" value={scores?.[0]?.eval_date || '—'} />
+        <Stat label="Latest Date" value={scores?.[0]?.date || '—'} />
       </div>
 
       <div className="t-xs mono muted" style={{ marginBottom: 'var(--space-4)', display: 'block' }}>
@@ -446,7 +446,11 @@ const ScoreDetailExpanded = ({ details, _symbol }) => {
 // ============================================================================
 function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, circuitBreakers }) {
   const loaders = dataStatus?.sources || [];
-  const funnelTiers = rejectionFunnel?.tiers || [];
+  const funnelTiers = (rejectionFunnel?.funnel || []).map(f => ({
+    name: (f.stage || '').replace('All Signals Generated', 'All Signals').replace('Passed Quality Filters', 'Quality OK').replace(/High-Quality.*/, 'SQS ≥ 60'),
+    pass: f.count || 0,
+    reject: f.rejection_count || 0,
+  }));
   const overallStatus = dataStatus?.ready_to_trade ? 'ok' : dataQuality?.accuracy_check === 'warning' ? 'warning' : 'error';
   const statusColor2 = overallStatus === 'ok' ? 'var(--success)' : overallStatus === 'warning' ? 'var(--amber)' : 'var(--danger)';
 
@@ -458,7 +462,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
     { n: '3', name: 'Position Monitor', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
     { n: '3b', name: 'Exposure Policy', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
     { n: '4', name: 'Exit Execution', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
-    { n: '5', name: 'Signal Generation', desc: `Pine BUYs → 6 tiers → swing_score ranking${rejectionFunnel?.total_signals ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
+    { n: '5', name: 'Signal Generation', desc: `Pine BUYs → 6 tiers → swing_score ranking${rejectionFunnel?.summary?.total_initial ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
     { n: '6', name: 'Entry Execution', desc: 'Idempotent fills, tier caps, grade filter', mode: 'fail-open', live: 'ok' },
     { n: '7', name: 'Reconciliation', desc: 'Alpaca sync, P&L, snapshot, audit trail', mode: 'fail-open', live: 'ok' },
   ];
@@ -503,7 +507,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
         <div>
           {/* Signal Rejection Funnel */}
           {funnelTiers.length > 0 && (
-            <SectionCard title={`Signal Filter Funnel (${rejectionFunnel?.total_signals || 0} total)`} style={{ marginBottom: 'var(--space-4)' }}>
+            <SectionCard title={`Signal Filter Funnel (${rejectionFunnel?.summary?.total_initial || 0} total)`} style={{ marginBottom: 'var(--space-4)' }}>
               <div style={{ height: 160 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={funnelTiers} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
