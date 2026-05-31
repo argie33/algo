@@ -36,6 +36,7 @@ import hashlib
 import json
 from datetime import datetime, date as _date
 from typing import Dict, List, Optional, Any
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -230,8 +231,6 @@ class DataProvenanceTracker:
                 "errors": [e for e in self.error_log if e["run_id"] == run_id],
             }
 
-        from utils.database_context import DatabaseContext
-
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(
@@ -284,8 +283,6 @@ class DataProvenanceTracker:
     ):
         """Insert the loader run record."""
         try:
-            from utils.database_context import DatabaseContext
-
             with DatabaseContext('write') as cur:
                 cur.execute(
                     """
@@ -313,8 +310,6 @@ class DataProvenanceTracker:
             return
 
         try:
-            from utils.database_context import DatabaseContext
-
             with DatabaseContext('write') as cur:
                 cur.execute(
                     """
@@ -344,8 +339,6 @@ class DataProvenanceTracker:
     def _insert_error_record(self, error_record: Dict):
         """Insert an error record."""
         try:
-            from utils.database_context import DatabaseContext
-
             with DatabaseContext('write') as cur:
                 cur.execute(
                     """

@@ -4,6 +4,8 @@ import logging
 import json
 from datetime import date as _date, datetime
 from typing import Optional, Dict, Any
+from utils.database_context import DatabaseContext
+
 logger = logging.getLogger(__name__)
 
 class WatermarkManager:
@@ -36,8 +38,6 @@ class WatermarkManager:
             watermark date, or None if never loaded
         """
         try:
-            from utils.database_context import DatabaseContext
-
             with DatabaseContext('read') as cur:
                 if self.granularity == "symbol":
                     if not symbol:
@@ -99,8 +99,6 @@ class WatermarkManager:
             True if watermark was updated, False if failed
         """
         try:
-            from utils.database_context import DatabaseContext
-
             with DatabaseContext('write') as cur:
                 watermark_str = new_watermark.isoformat()
 
@@ -198,8 +196,6 @@ class WatermarkManager:
     ):
         """Record an error for this watermark entry."""
         try:
-            from utils.database_context import DatabaseContext
-
             with DatabaseContext('write') as cur:
                 if self.granularity == "symbol":
                     if not symbol:
