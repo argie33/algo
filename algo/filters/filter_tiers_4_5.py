@@ -43,7 +43,7 @@ class FilterTiers45Mixin:
                 except Exception as e:
                     logger.warning(f'Liquidity check error for {symbol}: {e}')
 
-            state = self._load_portfolio_state()
+            state = self._load_portfolio_state(cur)
             existing_symbols = state['symbols']
 
             # No duplicate position in same symbol
@@ -55,10 +55,10 @@ class FilterTiers45Mixin:
                 }
 
             # Sector / industry concentration limits (PositionSizer doesn't check these)
-            new_sector_info = self._get_sector_info(symbol)
+            new_sector_info = self._get_sector_info(symbol, cur)
             if new_sector_info and (existing_symbols or self._candidate_holdings):
                 sector_count, industry_count = self._count_sector_industry_overlap(
-                    new_sector_info, existing_symbols
+                    new_sector_info, existing_symbols, cur
                 )
                 max_per_sector = int(self.config.get('max_positions_per_sector', 3))
                 max_per_industry = int(self.config.get('max_positions_per_industry', 2))
@@ -160,7 +160,7 @@ class FilterTiers45Mixin:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'shares': 0}
 
-    def _get_sector_info(self, symbol) -> Dict[str, Any]:
+    def _get_sector_info(self, symbol, cur) -> Dict[str, Any]:
         try:
             cur.execute(
                 "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
@@ -174,7 +174,7 @@ class FilterTiers45Mixin:
             logger.warning(f"Exception: {e}")
             return None
 
-    def _count_sector_industry_overlap(self, new_info, existing_symbols) -> int:
+    def _count_sector_industry_overlap(self, new_info, existing_symbols, cur) -> int:
         """Count how many open positions + same-run candidates share sector/industry with new_info.
 
         Checks both existing open positions AND candidates already approved in this run so
@@ -187,7 +187,7 @@ class FilterTiers45Mixin:
         for sym in existing_symbols:
             info = self._sector_cache.get(sym)
             if info is None:
-                info = self._get_sector_info(sym)
+                info = self._get_sector_info(sym, cur)
                 self._sector_cache[sym] = info
             if not info:
                 continue
@@ -207,7 +207,7 @@ class FilterTiers45Mixin:
 
         return sector_count, industry_count
 
-    def _load_portfolio_state(self) -> Dict[str, Any]:
+    def _load_portfolio_state(self, cur) -> Dict[str, Any]:
         """Cache portfolio state for the run (positions, value, drawdown)."""
         if self._portfolio_state_cache is not None:
             return self._portfolio_state_cache
@@ -348,7 +348,7 @@ class FilterTiers45Mixin:
         log_fn = logger.info if passed else logger.debug
         log_fn(f"{symbol:6s} | [{passed}] | {first_fail_reason}")
 
-    def _persist_signal_evaluation(self, result, eval_date) -> bool:
+    def _persist_signal_evaluation(self, result, eval_date, cur) -> bool:
         """Persist evaluation result to algo_signals_evaluated for audit / dashboard."""
         try:
             tiers = result['tiers']
