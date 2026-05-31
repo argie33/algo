@@ -57,12 +57,6 @@ Terraform/Lambda/S3 deployments execute with transient credentials
 Zero static keys, credentials auto-expire after 1 hour
 ```
 
-**Status:** ✅ VERIFIED WORKING (2026-05-29 run 26637955418)
-- Frontend deployment succeeded
-- All Lambda functions updated
-- CloudFront cache invalidated
-- Zero authentication errors
-
 **NEVER use local terraform apply or credential refresh scripts for production work.** Those are only for local development/debugging.
 
 ---
@@ -364,8 +358,6 @@ Phase 1 compares each table's latest date against the **previous trading day** (
 **Why:** Prevents trading on stale market data. The previous-trading-day comparison is implemented in `algo/orchestrator/phase1_data_freshness.py` using `MarketCalendar` to skip weekends and holidays when computing the expected data date.
 
 ## DATABASE CONNECTION PATTERN (DatabaseContext)
-
-**Status: ✅ REFACTORING COMPLETE (2026-05-30)**
 
 All database access must use `DatabaseContext` for automatic resource management:
 
