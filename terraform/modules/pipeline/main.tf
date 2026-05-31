@@ -859,7 +859,7 @@ resource "aws_iam_role_policy" "loader_failure_handler_cloudwatch" {
 
 data "archive_file" "loader_failure_handler" {
   type        = "zip"
-  source_file = "${path.module}/../../lambda/loader_failure_handler.py"
+  source_file = "${path.root}/../lambda/loader_failure_handler.py"
   output_path = "${path.module}/.terraform/loader_failure_handler.zip"
 }
 
