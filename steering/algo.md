@@ -280,7 +280,11 @@ The orchestrator runs **4 times daily** on trading days:
 - **russell2000_constituents** — Mark Russell 2000 membership (runs at 3:35 AM ET)
 
 ### Price Data (1 unified loader — EventBridge scheduled + pipeline included)
-- **stock_prices_daily** — Daily OHLCV for 5000+ symbols, handles all timeframes (1d, 1wk, 1mo) and asset classes (stocks, ETFs) via environment variables (runs at 4:00 AM ET via EventBridge; also included in EOD pipeline for consistency)
+- **stock_prices_daily** — Daily OHLCV for 5000+ symbols, handles all timeframes (1d, 1wk, 1mo) and asset classes (stocks, ETFs). Runs 4:00 AM ET via EventBridge; also in EOD pipeline.
+  - **stock class** → `price_daily`: all ~5000 stock symbols from `stock_symbols` table, PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, GLD, TLT (SPY required by load_technical_data_daily Mansfield RS, load_seasonality, and algo_market_exposure)
+  - **etf class** → `etf_price_daily`: all stock symbols (redundant but harmless) PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, XLK, XLF, XLV, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB, GLD, TLT, IVV, VXX (sector ETFs required by load_sector_performance and SectorHeatMap frontend)
+  - **Why not in stock_symbols table:** `load_stock_symbols.py` intentionally excludes ETFs from NASDAQ/NYSE files. Essential ETFs are hardcoded in `load_prices.py` `ESSENTIAL_STOCK_PRICE_DAILY` and `ESSENTIAL_ETF_SYMBOLS` lists.
+  - **Prices route fallback:** `/api/prices/history/{sym}` checks `price_daily` first, then `etf_price_daily` — so any frontend ETF price call works as long as data is in either table.
 
 ### Financial Data (8 loaders — EventBridge scheduled)
 - **financials_annual_income** — Annual income statements
