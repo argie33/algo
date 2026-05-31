@@ -18,8 +18,8 @@ class IndustryRankingLoader(OptimalLoader):
     """Rank industries by performance metrics."""
 
     table_name = "industry_ranking"
-    primary_key = ("industry", "date")
-    watermark_field = "date"
+    primary_key = ("industry", "date_recorded")
+    watermark_field = "date_recorded"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Compute industry rankings from stock performance data."""
@@ -36,7 +36,7 @@ class IndustryRankingLoader(OptimalLoader):
                 cur.execute("""
                     SELECT
                         f.industry,
-                        %s::date as date,
+                        %s::date as date_recorded,
                         COUNT(DISTINCT p.symbol) as stock_count,
                         AVG(CASE WHEN p.close > 0 AND p.open > 0
                             THEN (p.close - p.open) / p.open * 100
@@ -61,7 +61,7 @@ class IndustryRankingLoader(OptimalLoader):
                 return [
                     {
                         'industry': r[0],
-                        'date': r[1],
+                        'date_recorded': r[1],
                         'stock_count': r[2],
                         'avg_daily_return': float(r[3]) if r[3] else None,
                         'industry_rank': r[4],
