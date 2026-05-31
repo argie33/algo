@@ -651,21 +651,6 @@ def run(
                 )
                 if result.get('success'):
                     entered += 1
-                    # Record entry in trade history
-                    try:
-                        recorder.record_entry(
-                            symbol=trade['symbol'],
-                            entry_date=run_date,
-                            entry_price=trade['entry_price'],
-                            quantity=int(trade['shares']),
-                            signal_type=trade.get('swing_grade', 'minervini_trend_follow'),
-                            reason=f"Swing: {trade.get('swing_score', 0):.1f}, "
-                                   f"Trend: {trade.get('trend_score', 0)}, "
-                                   f"SQS: {trade.get('sqs', 0):.1f}",
-                            portfolio_allocation=exposure_constraints.get('exposure_pct') if exposure_constraints else None,
-                        )
-                    except Exception as e:
-                        logger.warning(f"  Failed to record entry for {trade['symbol']}: {e}")
                     if verbose:
                         logger.info(f"  ENTERED: {result['message']}")
                 elif result.get('duplicate'):

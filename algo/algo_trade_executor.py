@@ -639,7 +639,6 @@ class TradeExecutor:
                         'trade_id': trade_id,
                     }
                 )
-                notif_service.close()
             except Exception as notif_e:
                 logger.warning(f"Failed to send entry notification: {notif_e}")
 
@@ -967,7 +966,6 @@ class TradeExecutor:
                         'trade_id': trade_id,
                     }
                 )
-                notif_service.close()
             except Exception as notif_e:
                 logger.warning(f"Failed to send exit notification: {notif_e}")
 
