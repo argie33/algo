@@ -54,7 +54,7 @@ def run(
                 cursor.execute("""
                     SELECT symbol, avg_entry_price, current_price, quantity
                     FROM algo_positions
-                    WHERE status = 'CLOSED' AND closed_at::date = %s
+                    WHERE status = 'closed' AND closed_at::date = %s
                 """, (run_date,))
 
                 closed_positions = cursor.fetchall()

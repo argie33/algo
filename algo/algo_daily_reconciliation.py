@@ -193,7 +193,7 @@ class DailyReconciliation:
                     if peak_val > 0:
                         max_drawdown_pct = ((peak_val - trough_val) / peak_val) * 100.0
 
-                # Calculate Sharpe ratio (simplified: std dev of daily returns * sqrt(252))
+                # Calculate Sharpe ratio: mean_return / std_dev * sqrt(252)
                 sharpe_ratio = 0.0
                 cur.execute("""
                     SELECT daily_return_pct FROM algo_portfolio_snapshots
@@ -205,7 +205,8 @@ class DailyReconciliation:
                     import statistics
                     try:
                         std_dev = statistics.stdev(returns)
-                        sharpe_ratio = (std_dev * (252 ** 0.5)) if std_dev > 0 else 0.0
+                        mean_return = statistics.mean(returns)
+                        sharpe_ratio = (mean_return / std_dev * (252 ** 0.5)) if std_dev > 0 else 0.0
                     except Exception as e:
                         logger.warning(f"Exception: {e}")
                         sharpe_ratio = 0.0

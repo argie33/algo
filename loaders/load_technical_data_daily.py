@@ -19,6 +19,7 @@ import pandas as pd
 
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.database_context import DatabaseContext
 from loaders.technical_indicators import (
     compute_rsi, compute_macd, compute_moving_averages,
     compute_atr, compute_bollinger_bands, compute_volume_ma, compute_adx
@@ -44,7 +45,6 @@ class TechnicalDataDailyLoader(OptimalLoader):
         # Read the actual DB max date to avoid re-fetching 5 years of history.
         if since is None:
             try:
-                from utils.database_context import DatabaseContext
                 with DatabaseContext('read') as cur:
                     cur.execute(
                         "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s",

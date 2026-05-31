@@ -307,7 +307,7 @@ class PyramidEngine:
             return {'success': False, 'message': f"Alpaca order failed: {alpaca_result.get('message')}"}
 
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute(
                     """UPDATE algo_positions
                        SET quantity = quantity + %s,

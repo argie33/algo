@@ -19,6 +19,7 @@ import pandas as pd
 import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.database_context import DatabaseContext
 from loaders.technical_indicators import compute_moving_averages
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,6 @@ class TrendCriteriaLoader(OptimalLoader):
         # MarketHealthDailyLoader in commit 97230793b.
         if since is None:
             try:
-                from utils.database_context import DatabaseContext
                 with DatabaseContext('read') as cur:
                     cur.execute(
                         "SELECT MAX(date) FROM trend_template_data WHERE symbol = %s",
@@ -74,7 +74,6 @@ class TrendCriteriaLoader(OptimalLoader):
         return results
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
-        from utils.database_context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(

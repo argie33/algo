@@ -19,6 +19,7 @@ import pandas as pd
 import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,6 @@ class SignalQualityScoresLoader(OptimalLoader):
         # On ECS restart the in-memory watermark is empty, so since=None.
         # Read the actual DB max date to avoid re-querying 5 years of history.
         if since is None:
-            from utils.database_context import DatabaseContext
             max_retries = 2
             for attempt in range(max_retries):
                 try:
@@ -85,7 +85,6 @@ class SignalQualityScoresLoader(OptimalLoader):
         return scores
 
     def _fetch_buy_sell_signals(self, symbol: str, start: date, end: date) -> List[dict]:
-        from utils.database_context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(

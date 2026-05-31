@@ -40,7 +40,6 @@ class SignalsDailyLoader(OptimalLoader):
         # Read the actual DB max date to avoid re-fetching old data and causing constraint violations.
         if since is None:
             try:
-                from utils.database_context import DatabaseContext
                 with DatabaseContext('read') as cur:
                     cur.execute(
                         "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
@@ -61,7 +60,6 @@ class SignalsDailyLoader(OptimalLoader):
 
         # FIXED Issue #20: Validate technical data is fresh before generating signals
         try:
-            from utils.database_context import DatabaseContext
             with DatabaseContext('read') as cur:
                 # Check if technical data exists for end date, fall back to most recent available date
                 cur.execute(

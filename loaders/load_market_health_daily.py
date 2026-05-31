@@ -19,6 +19,7 @@ import pandas as pd
 import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.database_context import DatabaseContext
 from loaders.technical_indicators import compute_moving_averages, compute_volume_ma
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,6 @@ class MarketHealthDailyLoader(OptimalLoader):
         # BUT: if the table is nearly empty (< 5 rows), assume it needs backfilling and start from scratch
         if since is None:
             try:
-                from utils.database_context import DatabaseContext
                 with DatabaseContext('read') as cur:
                     cur.execute("SELECT MAX(date), COUNT(*) FROM market_health_daily")
                     row = cur.fetchone()
