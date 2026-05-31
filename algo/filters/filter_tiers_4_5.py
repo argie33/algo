@@ -78,7 +78,7 @@ class FilterTiers45Mixin:
             # Correlation check: prevent entering if highly correlated with existing positions (>0.80 correlation)
             if existing_symbols:
                 try:
-                    corr_check = self._check_correlation_with_holdings(symbol, existing_symbols, signal_date)
+                    corr_check = self._check_correlation_with_holdings(symbol, existing_symbols, cur)
                     if not corr_check['pass']:
                         return {
                             'pass': False,
@@ -259,7 +259,7 @@ class FilterTiers45Mixin:
         }
         return self._portfolio_state_cache
 
-    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None, cur=None) -> Dict[str, Any]:
+    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, cur) -> Dict[str, Any]:
         """Check if new symbol is highly correlated (>0.80) with existing open positions.
 
         Returns {'pass': bool, 'reason': str, 'highest_correlation': float}
