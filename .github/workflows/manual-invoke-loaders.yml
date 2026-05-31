@@ -93,33 +93,9 @@ jobs:
           sleep 90
           echo "Loader executing in background. Monitor via CloudWatch logs."
 
-      - name: Invoke Stock Prices Weekly Loader
-        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
-        run: |
-          echo "Invoking stock_prices_weekly loader..."
-          aws ecs run-task \
-            --cluster algo-cluster \
-            --task-definition algo-stock_prices_weekly-loader \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
-            --region us-east-1
-
-          sleep 90
-          echo "Stock prices weekly loader launched. Waiting for completion..."
-
-      - name: Invoke Market Data Batch Loader
-        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
-        run: |
-          echo "Invoking market_data_batch loader..."
-          aws ecs run-task \
-            --cluster algo-cluster \
-            --task-definition algo-market_data_batch-loader \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
-            --region us-east-1
-
-          sleep 90
-          echo "Market data batch loader launched. Waiting for completion..."
+      # NOTE: stock_prices_weekly and market_data_batch task definitions are obsolete.
+      # All price intervals (daily, weekly, monthly) for stocks+ETFs are handled by
+      # algo-stock_prices_daily-loader which uses load_prices.py with LOADER_INTERVALS env var.
 
       - name: Invoke Market Health Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'market_health' }}
@@ -149,19 +125,8 @@ jobs:
           sleep 120
           echo "Technical data loader launched."
 
-      - name: Invoke Signals Daily Loader
-        if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'signals' }}
-        run: |
-          echo "Invoking signals_daily loader..."
-          aws ecs run-task \
-            --cluster algo-cluster \
-            --task-definition algo-signals_daily-loader \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
-            --region us-east-1
-
-          sleep 120
-          echo "Signals daily loader launched."
+      # NOTE: signals_daily is obsolete — signals are now managed by the Step Functions
+      # EOD pipeline (buy_sell_daily, signal_quality_scores via algo-pipeline module)
 
       - name: Invoke Algo Metrics Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'metrics' }}
