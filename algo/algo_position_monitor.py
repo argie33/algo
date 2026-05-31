@@ -36,6 +36,15 @@ logger = logging.getLogger(__name__)
 class PositionMonitor:
     """Daily position health checker and stop adjuster."""
 
+    def _with_cursor(self, operation, mode='read'):
+        """Execute operation with cursor via DatabaseContext."""
+        try:
+            with DatabaseContext(mode) as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
+
     def __init__(self, config):
         self.config = config
         self.cur = None
