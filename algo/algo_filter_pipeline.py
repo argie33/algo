@@ -598,7 +598,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][5] = {'pass': True, 'reason': 'Tier 5 disabled by feature flag', 'shares': 0, 'risk_dollars': 0.0}
             logger.info(f"    T5 disabled by feature flag (pass-through)")
         else:
-            t5 = self._tier5_portfolio_health(symbol, entry_price, result['stop_loss_price'], signal_date, cur)
+            t5 = self._tier5_portfolio_health(symbol, entry_price, result['stop_loss_price'], cur, signal_date)
             result['tiers'][5] = t5
             result['shares'] = t5.get('shares', 0)
             result['risk_dollars'] = t5.get('risk_dollars', 0.0)
