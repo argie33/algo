@@ -326,8 +326,9 @@ The orchestrator runs **4 times daily** on trading days:
 - **signal_themes** — Signal themes (momentum, reversal, breakout classification)
 - (Note: buy_sell_daily handled in pipeline; signal_quality_scores also in pipeline)
 
-### Economic Data (1 loader — EventBridge scheduled)
+### Economic Data (2 loaders — EventBridge scheduled)
 - **fred_economic_data** — FRED economic indicators (T10Y2Y, yields, jobless claims, etc.) loaded at 4:30 PM ET (before EOD pipeline)
+- **economic_calendar** — Upcoming macro release dates (FOMC, CPI, NFP, GDP, etc.) fetched via FRED releases API + static FOMC schedule. Runs 1:16 AM ET. Populates `economic_calendar` table (90-day forward window).
 
 **SEC/EDGAR Request Header:** `User-Agent: algo-trading argeropolos@gmail.com` (required for SEC rate limits, hardcoded in `loaders/loader_loop.py`)
 

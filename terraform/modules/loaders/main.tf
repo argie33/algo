@@ -272,6 +272,7 @@ locals {
     "industry_ranking"            = "load_industry_ranking.py"
     "sector_ranking"              = "load_sector_ranking.py"
     "sector_performance"          = "load_sector_performance.py"
+    "economic_calendar"           = "load_economic_calendar.py"
 
     # Market sentiment
     "feargreed"  = "load_fear_greed_index.py"
@@ -434,6 +435,10 @@ locals {
       schedule    = "cron(14 6 ? * MON-FRI *)"
       description = "Sector performance (YTD returns via SPDR ETFs) - Daily 1:14am ET"
     }
+    "economic_calendar" = {
+      schedule    = "cron(16 6 ? * MON-FRI *)"
+      description = "Economic calendar (FOMC/CPI/NFP release dates via FRED) - Daily 1:16am ET"
+    }
     "earnings_calendar" = {
       schedule    = "cron(29 4 ? * MON-FRI *)"
       description = "Earnings calendar (next 180 days) - Daily 4:29am ET"
@@ -544,6 +549,7 @@ locals {
     "industry_ranking"            = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
     "sector_ranking"              = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
     "sector_performance"          = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "economic_calendar"           = { cpu = 256, memory = 512, timeout = 1800, parallelism = 1 }
 
     # Market sentiment data
     "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
