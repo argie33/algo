@@ -1,4 +1,5 @@
-Market Events & Corporate Actions Handler
+#!/usr/bin/env python3
+"""Market Events & Corporate Actions Handler
 
 Detects and responds to market anomalies:
 - Single-stock halts (trading paused, then resumed)

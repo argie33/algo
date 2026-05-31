@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 
 from config.credential_manager import get_credential_manager
 from config.alpaca_config import get_alpaca_base_url, get_alpaca_data_url

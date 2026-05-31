@@ -1,4 +1,5 @@
-SEC EDGAR direct client for official fundamentals.
+#!/usr/bin/env python3
+"""SEC EDGAR direct client for official fundamentals.
 
 Free, unlimited, official US SEC fundamentals via XBRL.
 - 10K/10Q/8K filings

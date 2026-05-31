@@ -1,4 +1,5 @@
-Unified data source router with automatic fallback.
+#!/usr/bin/env python3
+"""Unified data source router with automatic fallback.
 
 One-stop shop for all loaders. Routes each data type to the best source
 with health-check based fallback. Tracks per-source success rate so
