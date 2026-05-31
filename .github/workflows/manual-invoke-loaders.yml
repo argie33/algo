@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       loader_type:
-        description: 'Loader to invoke (all, prices, technicals, earnings, economic, market_health)'
+        description: 'Loader to invoke (all, prices, technicals, earnings, economic, market_health, spy_only)'
         required: false
         default: 'all'
 
@@ -60,6 +60,23 @@ jobs:
           echo "VPC: $VPC_ID"
           echo "Subnet: $SUBNET"
           echo "Security Group: $SG"
+
+      - name: Load SPY Prices Only (targeted - unblocks Phase 1 data freshness)
+        if: ${{ inputs.loader_type == 'spy_only' }}
+        run: |
+          echo "Loading SPY prices only (to unblock Phase 1 freshness check)..."
+          # Override LOADER_SYMBOLS and LOADER_INTERVALS to load just SPY daily
+          aws ecs run-task \
+            --cluster algo-cluster \
+            --task-definition algo-stock_prices_daily-loader \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"loader","environment":[{"name":"LOADER_SYMBOLS","value":"SPY,QQQ,IWM"},{"name":"LOADER_INTERVALS","value":"1d"},{"name":"LOADER_ASSET_CLASSES","value":"stock"}]}]}' \
+            --region us-east-1
+
+          echo "SPY price loader launched with symbol override. Waiting 120 seconds..."
+          sleep 120
+          echo "SPY load task running in background. Should complete in ~3 minutes total."
 
       - name: Invoke Stock Prices Daily Loader
         if: ${{ inputs.loader_type == 'all' || inputs.loader_type == 'prices' }}
