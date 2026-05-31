@@ -1141,15 +1141,22 @@ jobs:
           VITE_COGNITO_CLIENT_ID="${CLIENT_ID:-}" \
           VITE_AWS_REGION="$AWS_REGION" \
           npm run build 2>&1 | tee build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "[ERROR] Frontend build failed with exit code $BUILD_EXIT — see build.log above"
+            exit $BUILD_EXIT
+          fi
+          echo "[OK] Frontend build succeeded"
 
       - name: Run Frontend Unit & Integration Tests
         working-directory: webapp/frontend
         run: |
           echo "=== Running Frontend Unit & Integration Tests ==="
           npm run test:ci 2>&1 | tee unit-tests.log
-          if [ $? -ne 0 ]; then
+          TEST_EXIT=${PIPESTATUS[0]}
+          if [ $TEST_EXIT -ne 0 ]; then
             echo "[ERROR] Unit/integration tests failed - deployment blocked"
-            exit 1
+            exit $TEST_EXIT
           fi
           echo "[OK] Unit and integration tests passed"
 
