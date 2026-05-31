@@ -29,6 +29,8 @@ lambda-deployment.tar.gz
 !init_db.sql
 !terraform/modules/database/init.sql
 !lambda/db-init/schema.sql
+!migrations/*.sql
+!migrations/versions/*.sql
 
 # Logs
 *.log

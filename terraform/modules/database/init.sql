@@ -3057,3 +3057,18 @@ CREATE TABLE IF NOT EXISTS algo_runtime_config (
     updated_by VARCHAR(255)
 );
 CREATE INDEX IF NOT EXISTS idx_runtime_config_key ON algo_runtime_config(config_key);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SCHEMA EVOLUTION: Columns added after initial table creation
+-- (CREATE TABLE IF NOT EXISTS does not add new columns to existing tables)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- technical_data_daily: additional indicator columns added 2026-05-30
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS rsi_14 DECIMAL(8, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS macd_histogram DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS sma_150 DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS atr_14 DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_upper DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_middle DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_lower DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS volume_ma_50 BIGINT;
