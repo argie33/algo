@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       loader_type:
-        description: 'Loader to invoke (all, prices, technicals, earnings, economic, market_health, spy_only, analytics)'
+        description: 'Loader to invoke (all, prices, technicals, earnings, economic, market_health, spy_only, analytics, scores, sentiment)'
         required: false
         default: 'all'
 
@@ -172,6 +172,58 @@ jobs:
             sleep 5
           done
           echo "Analytics loaders triggered. Allow 10-60 minutes to complete."
+
+      # Scores loaders: metric inputs + composite stock scores (needed for sector ranking quality)
+      - name: Invoke Scores Loaders (metrics + stock_scores)
+        if: ${{ inputs.loader_type == 'scores' }}
+        run: |
+          LOADERS=(
+            "growth_metrics"
+            "quality_metrics"
+            "value_metrics"
+            "stability_metrics"
+            "positioning_metrics"
+            "stock_scores"
+            "sector_ranking"
+            "industry_ranking"
+          )
+          SUBNET="${{ steps.network.outputs.subnet }}"
+          SG="${{ steps.network.outputs.security_group }}"
+          for LOADER in "${LOADERS[@]}"; do
+            echo "Invoking $LOADER..."
+            aws ecs run-task \
+              --cluster algo-cluster \
+              --task-definition "algo-${LOADER}-loader" \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${SUBNET}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
+              --region us-east-1 || echo "  Warning: $LOADER task failed to launch"
+            sleep 5
+          done
+          echo "Scores loaders triggered. Allow 20-90 minutes to complete."
+
+      # Sentiment loaders: all sentiment data sources
+      - name: Invoke Sentiment Loaders
+        if: ${{ inputs.loader_type == 'sentiment' }}
+        run: |
+          LOADERS=(
+            "feargreed"
+            "aaiidata"
+            "naaim_data"
+            "sentiment_aggregate"
+          )
+          SUBNET="${{ steps.network.outputs.subnet }}"
+          SG="${{ steps.network.outputs.security_group }}"
+          for LOADER in "${LOADERS[@]}"; do
+            echo "Invoking $LOADER..."
+            aws ecs run-task \
+              --cluster algo-cluster \
+              --task-definition "algo-${LOADER}-loader" \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${SUBNET}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
+              --region us-east-1 || echo "  Warning: $LOADER task failed to launch"
+            sleep 5
+          done
+          echo "Sentiment loaders triggered."
 
       - name: Wait for Loaders to Complete
         if: ${{ inputs.loader_type == 'all' }}
