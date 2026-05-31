@@ -7,6 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from utils.database_context import DatabaseContext
+
 
 class TestIntegration:
     """Test integrated functionality across modules."""
@@ -31,7 +33,6 @@ class TestIntegration:
     def test_database_context_available(self):
         """Test that database context can be imported."""
         try:
-            from utils.database_context import DatabaseContext
             assert DatabaseContext is not None
         except ImportError:
             pytest.skip("DatabaseContext not available")
