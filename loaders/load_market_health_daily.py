@@ -120,7 +120,6 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def _fetch_breadth_data(self, start: date, end: date) -> dict:
         """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
-        from utils.database_context import DatabaseContext
         try:
             with DatabaseContext('read') as cur:
                 # For efficiency: only compute breadth for the last 30 days (most recent data)
@@ -324,7 +323,6 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     """
     try:
         import yfinance as yf
-        from utils.database_context import DatabaseContext
 
         records = []
         for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:

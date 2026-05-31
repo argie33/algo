@@ -36,7 +36,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     rows = cur.fetchall()
                     result[sector] = [dict(r) for r in rows] if rows else []
 
-                return json_response(200, {'data': result})
+                return json_response(200, result)
 
             # Extract sector name if provided: /api/sectors/Technology
             parts = path.split('/')
