@@ -47,7 +47,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.error(f"FilterPipeline._with_cursor: operation failed: {e}\n{traceback.format_exc()}")
             return None
 
-    def _apply_tier_multiplier(self, base_size: float, tier: str, base_risk_pct: float) -> float:
+    def _apply_tier_multiplier(self, base_size: float, tier: str) -> float:
         """Apply exposure tier multiplier to position size.
 
         Multipliers based on market exposure tier:
@@ -58,7 +58,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         Args:
             base_size: Base position size in dollars
             tier: Exposure tier ('NORMAL', 'CAUTION', 'PRESSURE')
-            base_risk_pct: Base risk as percentage (for context, not used in multiplier)
 
         Returns:
             Adjusted position size after applying tier multiplier
@@ -1185,7 +1184,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             # Correlation check: prevent entering if highly correlated with existing positions (>0.80 correlation)
             if existing_symbols:
                 try:
-                    corr_check = self._check_correlation_with_holdings(symbol, existing_symbols, signal_date)
+                    corr_check = self._check_correlation_with_holdings(symbol, existing_symbols, cur)
                     if not corr_check['pass']:
                         return {
                             'pass': False,
@@ -1489,7 +1488,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             # Don't fail the pipeline because of audit logging
             logger.info(f"  (audit log skipped for {result['symbol']}: {e})")
 
-    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None, cur=None) -> Dict[str, Any]:
+    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, cur) -> Dict[str, Any]:
         """Check if new symbol is highly correlated (>0.80) with existing open positions.
 
         Returns {'pass': bool, 'reason': str, 'highest_correlation': float}

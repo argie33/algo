@@ -128,6 +128,8 @@ class TradeAuditLogger:
                 }
         """
         try:
+            if entry_price is None or stop_loss_price is None:
+                return  # Cannot compute distance without valid prices
             distance_pct = ((entry_price - stop_loss_price) / entry_price) * 100
 
             # Build candidate list for logging
