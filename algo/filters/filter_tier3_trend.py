@@ -20,6 +20,9 @@ class FilterTier3Mixin:
           - Stage-aligned moving averages
           - Consolidation flag (Darvas/Bassal favor breakout-from-consolidation)
         """
+        # Reset state variables to prevent carryover from previous signals
+        self._last_stop_method = None
+        self._last_stop_reasoning = None
         try:
             cur.execute(
                 """
@@ -129,13 +132,41 @@ class FilterTier3Mixin:
                 }
 
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
-            stop_loss_price = self._compute_stop_loss(symbol, signal_date, sma_50, atr, cur)
+            stop_info = self._compute_stop_loss(symbol, signal_date, sma_50, atr, cur)
+            stop_loss_price = stop_info.get('stop_price') if isinstance(stop_info, dict) else stop_info
+            stop_method = stop_info.get('method', self._last_stop_method) if isinstance(stop_info, dict) else self._last_stop_method
+            stop_reasoning = stop_info.get('reasoning', self._last_stop_reasoning) if isinstance(stop_info, dict) else self._last_stop_reasoning
+
+            # Fail if no valid stop can be computed (insufficient structural levels)
+            if stop_loss_price is None:
+                return {
+                    'pass': False,
+                    'reason': 'No valid stop loss available (insufficient technical indicators)',
+                    'trend_score': trend_score,
+                }
+
+            # Log stop loss calculation for audit trail
+            if isinstance(stop_info, dict):
+                try:
+                    from algo.algo_trade_audit_logger import TradeAuditLogger
+                    audit = TradeAuditLogger()
+                    audit.log_stop_loss_calculation(
+                        symbol, signal_date, None,
+                        stop_loss_price,
+                        stop_info.get('method', 'unknown'),
+                        stop_info.get('reasoning', ''),
+                        stop_info.get('candidates', {}),
+                    )
+                except Exception as e:
+                    logger.debug(f"Stop loss audit logging failed: {e}")
 
             return {
                 'pass': True,
                 'reason': f'Trend {trend_score}/8, {pct_from_low:.0f}% from low',
                 'trend_score': trend_score,
                 'stop_loss_price': stop_loss_price,
+                'stop_method': stop_method,
+                'stop_reasoning': stop_reasoning,
             }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}
