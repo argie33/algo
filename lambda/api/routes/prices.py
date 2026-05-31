@@ -11,6 +11,11 @@ _TABLE_MAP = {
     'weekly': 'price_weekly',
     'monthly': 'price_monthly',
 }
+_ETF_TABLE_MAP = {
+    'daily': 'etf_price_daily',
+    'weekly': 'etf_price_weekly',
+    'monthly': 'etf_price_monthly',
+}
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     try:
@@ -38,6 +43,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 except ValueError:
                     pass
 
+            # Query stock price table first; fall back to ETF table if no results
+            etf_table_name = _ETF_TABLE_MAP.get(timeframe, 'etf_price_daily')
             query = psycopg2.sql.SQL("""
                 SELECT date, open, high, low, close, volume
                 FROM {}
@@ -50,7 +57,23 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             )
             cur.execute(query, qparams + [limit])
             rows = cur.fetchall()
-            freshness = check_data_freshness(cur, table_name, 'date', warning_days=1)
+            used_table = table_name
+            if not rows:
+                # No data in stock table — try ETF table
+                etf_query = psycopg2.sql.SQL("""
+                    SELECT date, open, high, low, close, volume
+                    FROM {}
+                    WHERE {}
+                    ORDER BY date DESC
+                    LIMIT %s
+                """).format(
+                    psycopg2.sql.Identifier(etf_table_name),
+                    psycopg2.sql.SQL(" AND ").join(where_parts),
+                )
+                cur.execute(etf_query, qparams + [limit])
+                rows = cur.fetchall()
+                used_table = etf_table_name
+            freshness = check_data_freshness(cur, used_table, 'date', warning_days=1)
             return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
 
         return error_response(404, 'not_found', f'No prices handler for {path}')

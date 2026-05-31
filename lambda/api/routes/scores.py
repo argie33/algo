@@ -55,7 +55,6 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
             where_clause = """
             WHERE sc.composite_score > 0
             AND COALESCE(ss.etf, 'N') != 'Y'
-            AND sc.symbol NOT IN (SELECT symbol FROM etf_symbols)
             """
             params_list = []
 
@@ -118,6 +117,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     pm.short_interest_percent AS short_pct_val
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
+                LEFT JOIN etf_symbols etfs ON etfs.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
                 LEFT JOIN key_metrics km ON km.symbol = sc.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
@@ -128,6 +128,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 LEFT JOIN latest_prices lp ON lp.symbol = sc.symbol
                 LEFT JOIN prev_prices pp ON pp.symbol = sc.symbol
                 {where_clause}
+                AND etfs.symbol IS NULL
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
             """

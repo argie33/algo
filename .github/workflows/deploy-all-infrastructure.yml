@@ -922,6 +922,11 @@ jobs:
             --content-type "application/javascript; charset=utf-8" \
             --cache-control "no-cache, no-store, must-revalidate" \
             --exclude "*" --include "config.js"
+          # WASM files with correct content-type (for any crypto/performance modules)
+          aws s3 sync webapp/frontend/dist/ "s3://${BUCKET}/" \
+            --content-type "application/wasm" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*" --include "*.wasm"
           echo "[OK] Frontend synced to s3://${BUCKET}/"
 
       - name: Invalidate CloudFront

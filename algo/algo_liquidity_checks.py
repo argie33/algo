@@ -18,7 +18,9 @@ class LiquidityChecks:
         self.min_adv_shares = config.get('min_adv_shares', 50_000)
         self.min_adv_dollars = config.get('min_adv_dollars', 500_000)
 
-    def run_all(self, symbol: str, entry_price: float, signal_date) -> tuple:
+    def run_all(self, symbol: str, entry_price: float, signal_date=None) -> tuple:
+        if signal_date is None:
+            return True, "Liquidity checks skipped (no signal_date)"
         try:
             age_passed, age_reason = self._check_price_history_age(symbol, signal_date)
             if not age_passed:

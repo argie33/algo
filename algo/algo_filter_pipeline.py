@@ -472,29 +472,37 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
                 # stop_method and stop_reasoning are captured per-signal inside the evaluation loop above.
 
-            logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")
-            logger.info("=" * 100)
-            logger.info(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"
-                        f"{'Trend':>6}{'Mom':>5}{'Vol':>5}{'Fund':>5}{'Sec':>5}{'MTF':>5}  {'Sector':<20}")
-            logger.info("-" * 100)
-            for i, trade in enumerate(final_trades, 1):
-                comp = trade.get('swing_components', {})
-                gr = trade.get('swing_grade', 'D')
-                logger.info(
-                    f"{i:<3d}{trade['symbol']:<8}{gr:<6}{trade['final_score']:>6.1f}  "
-                    f"${trade['entry_price']:>8.2f}${trade['stop_loss_price']:>8.2f}"
-                    f"{comp.get('setup_quality', {}).get('pts', 0):>6.1f}"
-                    f"{comp.get('trend_quality', {}).get('pts', 0):>6.1f}"
-                    f"{comp.get('momentum_rs', {}).get('pts', 0):>5.1f}"
-                    f"{comp.get('volume', {}).get('pts', 0):>5.1f}"
-                    f"{comp.get('fundamentals', {}).get('pts', 0):>5.1f}"
-                    f"{comp.get('sector_industry', {}).get('pts', 0):>5.1f}"
-                    f"{comp.get('multi_timeframe', {}).get('pts', 0):>5.1f}  "
-                    f"{(trade.get('sector') or 'N/A')[:20]:<20}"
-                )
-            if not final_trades:
-                logger.info("(no qualifying trades — gates too strict for current market)")
-            logger.info(f"\n{'='*70}\n")
+            try:
+                def _comp_pts(v):
+                    if isinstance(v, dict):
+                        return float(v.get('pts', 0))
+                    return float(v) if isinstance(v, (int, float)) else 0.0
+
+                logger.info(f"\nFinal Trades (Top {max_positions} by swing_score):")
+                logger.info("=" * 100)
+                logger.info(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"
+                            f"{'Trend':>6}{'Mom':>5}{'Vol':>5}{'Fund':>5}{'Sec':>5}{'MTF':>5}  {'Sector':<20}")
+                logger.info("-" * 100)
+                for i, trade in enumerate(final_trades, 1):
+                    comp = trade.get('swing_components', {}) or {}
+                    gr = trade.get('swing_grade', 'D')
+                    logger.info(
+                        f"{i:<3d}{trade['symbol']:<8}{gr:<6}{trade['final_score']:>6.1f}  "
+                        f"${trade['entry_price']:>8.2f}${trade['stop_loss_price']:>8.2f}"
+                        f"{_comp_pts(comp.get('setup_quality', 0)):>6.1f}"
+                        f"{_comp_pts(comp.get('trend_quality', 0)):>6.1f}"
+                        f"{_comp_pts(comp.get('momentum_rs', 0)):>5.1f}"
+                        f"{_comp_pts(comp.get('volume', 0)):>5.1f}"
+                        f"{_comp_pts(comp.get('fundamentals', 0)):>5.1f}"
+                        f"{_comp_pts(comp.get('sector_industry', 0)):>5.1f}"
+                        f"{_comp_pts(comp.get('multi_timeframe', 0)):>5.1f}  "
+                        f"{(trade.get('sector') or 'N/A')[:20]:<20}"
+                    )
+                if not final_trades:
+                    logger.info("(no qualifying trades — gates too strict for current market)")
+                logger.info(f"\n{'='*70}\n")
+            except Exception as _disp_err:
+                logger.warning(f"Trade table display error (non-fatal): {_disp_err}")
 
             return final_trades
 

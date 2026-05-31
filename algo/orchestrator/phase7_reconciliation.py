@@ -52,7 +52,7 @@ def run(
             with DatabaseContext('read') as cursor:
                 # Find positions that were closed today
                 cursor.execute("""
-                    SELECT symbol, entry_price, current_price, quantity
+                    SELECT symbol, avg_entry_price, current_price, quantity
                     FROM algo_positions
                     WHERE status = 'CLOSED' AND updated_at::date = %s
                     AND exit_date IS NULL

@@ -102,7 +102,7 @@ class FeatureFlags:
 
             with DatabaseContext('read') as cur:
                 cur.execute("""
-                    SELECT value, enabled FROM feature_flags
+                    SELECT value FROM feature_flags
                     WHERE flag_name = %s
                     ORDER BY updated_at DESC
                     LIMIT 1
@@ -110,11 +110,7 @@ class FeatureFlags:
 
                 row = cur.fetchone()
                 if row:
-                    value, enabled = row[0], row[1]
-                    # If flag is disabled, return False; otherwise parse and return value
-                    if not enabled:
-                        self._cache[flag_name] = False
-                        return False
+                    value = row[0]
                     if isinstance(value, str):
                         if value.lower() in ('true', 'false'):
                             value = value.lower() == 'true'
@@ -148,7 +144,7 @@ class FeatureFlags:
         try:
             with DatabaseContext('read') as cur:
                 cur.execute("""
-                    SELECT flag_name, flag_type, value, description, enabled, updated_at
+                    SELECT flag_name, flag_type, value, description, updated_at
                     FROM feature_flags
                     ORDER BY updated_at DESC
                 """)
@@ -284,7 +280,7 @@ if __name__ == "__main__":
             logger.info("=" * 85)
             for flag in all_flags:
                 logger.info(f"{flag['flag_name']:<40} {flag['flag_type']:<20} "
-                      f"{flag['value']:<15} {str(flag['enabled']):<10}")
+                      f"{flag['value']:<15}")
 
     elif args.enable:
         success = flags.enable_flag(args.enable)
