@@ -20,22 +20,11 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get All Recent Lambda Log Streams
+      - name: Get Full Logs from Latest Lambda Stream
         run: |
           LOG_GROUP="/aws/lambda/algo-algo-dev"
           
-          echo "=== Last 5 log streams ==="
-          aws logs describe-log-streams \
-            --log-group-name "$LOG_GROUP" \
-            --order-by LastEventTime \
-            --descending \
-            --limit 5 \
-            --region $AWS_REGION \
-            --query 'logStreams[*].{name:logStreamName,last:lastEventTimestamp}' \
-            --output json
-          
-          echo ""
-          echo "=== Getting logs from stream 0 (latest) ==="
+          # Get the latest stream (c6ab6340 Lambda)
           S0=$(aws logs describe-log-streams \
             --log-group-name "$LOG_GROUP" \
             --order-by LastEventTime \
@@ -45,31 +34,11 @@ jobs:
             --query 'logStreams[0].logStreamName' \
             --output text 2>/dev/null)
           
-          if [ -n "$S0" ] && [ "$S0" != "None" ]; then
-            aws logs get-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --log-stream-name "$S0" \
-              --region $AWS_REGION \
-              --query 'events[*].message' \
-              --output text | head -200
-          fi
-          
-          echo ""
-          echo "=== Getting logs from stream 1 (second latest) ==="
-          S1=$(aws logs describe-log-streams \
+          echo "=== FULL LOGS FROM LATEST STREAM ($S0) ==="
+          # Get ALL events from this stream (no limit)
+          aws logs get-log-events \
             --log-group-name "$LOG_GROUP" \
-            --order-by LastEventTime \
-            --descending \
-            --limit 5 \
+            --log-stream-name "$S0" \
             --region $AWS_REGION \
-            --query 'logStreams[1].logStreamName' \
-            --output text 2>/dev/null)
-          
-          if [ -n "$S1" ] && [ "$S1" != "None" ]; then
-            aws logs get-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --log-stream-name "$S1" \
-              --region $AWS_REGION \
-              --query 'events[*].message' \
-              --output text | head -200
-          fi
+            --query 'events[*].message' \
+            --output text | grep -E "(PHASE|Phase|HALT|halt|circuit|signal|trade|TRADE|waterfall|WATERFALL|qualified|entered|ENTERED|LOCK|lock|Position|position|Final|FINAL|Phase 2|Phase 3|Phase 4|Phase 5|Phase 6|Phase 7|ERROR|error|ok\]|OK\]|SUCCESS|success|market stage|Stage 2|SPY)" | head -200
