@@ -190,8 +190,12 @@ class CredentialManager:
         """
 
         # Try ALGO_SECRETS_ARN first (Terraform-managed secret: algo-algo-secrets-dev)
+        # LIVE MODE EXCEPTION: ALGO_SECRETS_ARN always contains PAPER keys (hardcoded in deploy
+        # workflow as ALPACA_API_KEY_ID). For live trading, skip this source and fall through to
+        # algo/alpaca which is updated by update-credentials.yml -f trading_mode=live.
         algo_secrets_arn = os.getenv('ALGO_SECRETS_ARN')
-        if algo_secrets_arn and self._is_aws:
+        is_paper_mode = os.getenv('ALPACA_PAPER_TRADING', 'true').strip().lower() != 'false'
+        if algo_secrets_arn and self._is_aws and is_paper_mode:
             try:
                 client = self._get_secrets_client()
                 if client:
@@ -200,12 +204,14 @@ class CredentialManager:
                     key = creds.get('APCA_API_KEY_ID')
                     secret = creds.get('APCA_API_SECRET_KEY')
                     if key and secret:
-                        logger.info(f"[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN")
+                        logger.info(f"[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN (paper mode)")
                         return {'key': key, 'secret': secret}
                     else:
                         logger.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN found but missing Alpaca key fields")
             except Exception as e:
                 logger.error(f"[CREDENTIALS] Could not fetch Alpaca credentials from ALGO_SECRETS_ARN: {e}")
+        elif algo_secrets_arn and self._is_aws and not is_paper_mode:
+            logger.info("[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), using algo/alpaca")
 
         # Try 'algo/alpaca' JSON blob (legacy secrets module format)
         if self._is_aws:

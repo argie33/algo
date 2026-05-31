@@ -125,18 +125,23 @@ Step Functions (IAM roles) → reads from environment
 
 ## LIVE TRADING CONFIG
 
-To switch from paper to live trading:
-1. Get valid live keys from alpaca.markets → API Keys → Live Trading
-2. Store live keys in GitHub Secrets: `ALPACA_API_KEY` and `ALPACA_SECRET_KEY`
-3. `gh workflow run update-credentials.yml -f trading_mode=live`
-4. Edit `terraform/terraform.tfvars`: set `alpaca_paper_trading = false`
-5. `git push` — deploy-all-infrastructure.yml applies Terraform and redeploys Lambda
+**Current state: LIVE trading** (`alpaca_paper_trading = false` in terraform.tfvars, live keys in `algo/alpaca`).
+Trades go to `api.alpaca.markets` with live Alpaca keys routed via credential_manager.
 
-For paper trading (testing):
-```
-alpaca_paper_trading = true  (in terraform.tfvars)
-```
-Lambda endpoint and keys are set automatically by deploy based on tfvars value.
+**Credential routing for live mode (credential_manager.py):**
+- `ALPACA_PAPER_TRADING=false` → skips `ALGO_SECRETS_ARN` (always contains paper keys from Terraform)
+- Falls through to `algo/alpaca` Secrets Manager secret (live keys from `update-credentials.yml -f trading_mode=live`)
+
+**To re-enable paper trading:**
+1. Edit `terraform/terraform.tfvars`: set `alpaca_paper_trading = true`, `alpaca_api_base_url = "https://paper-api.alpaca.markets"`
+2. `git push`
+
+**To set up live trading from scratch:**
+1. Get live keys from alpaca.markets → API Keys → Live Trading
+2. `gh secret set ALPACA_API_KEY --body "live_key"`; `gh secret set ALPACA_SECRET_KEY --body "live_secret"`
+3. `gh workflow run update-credentials.yml -f trading_mode=live`
+4. Verify `alpaca_paper_trading = false` in terraform.tfvars + `alpaca_api_base_url = "https://api.alpaca.markets"`
+5. `git push` to redeploy
 
 ## CREDENTIAL ROTATION SCHEDULE
 

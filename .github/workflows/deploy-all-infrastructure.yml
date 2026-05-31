@@ -169,6 +169,16 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Set Alpaca keys for trading mode
+        run: |
+          if grep -q "alpaca_paper_trading *= *false" terraform.tfvars; then
+            echo "Trading mode: LIVE -- using live keys"
+            echo "TF_VAR_alpaca_api_key_id=${{ secrets.ALPACA_API_KEY }}" >> $GITHUB_ENV
+            echo "TF_VAR_alpaca_api_secret_key=${{ secrets.ALPACA_SECRET_KEY }}" >> $GITHUB_ENV
+          else
+            echo "Trading mode: PAPER -- using paper keys"
+          fi
+
       - name: Delete Orphaned RDS Parameter Group
         run: |
           # Check if DB instance exists and is using this parameter group
