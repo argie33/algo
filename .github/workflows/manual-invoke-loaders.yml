@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       loader_type:
-        description: 'Loader to invoke (all, prices, technicals, earnings, economic, market_health, spy_only)'
+        description: 'Loader to invoke (all, prices, technicals, earnings, economic, market_health, spy_only, analytics)'
         required: false
         default: 'all'
 
@@ -176,6 +176,37 @@ jobs:
 
           sleep 120
           echo "All loaders triggered successfully."
+
+      # Analytics loaders: sector/industry rankings, performance, economic calendar, seasonality, analyst sentiment
+      - name: Invoke Analytics Loaders (rankings, performance, calendar)
+        if: ${{ inputs.loader_type == 'analytics' }}
+        run: |
+          LOADERS=(
+            "company_profile"
+            "analyst_sentiment"
+            "analyst_upgrades_downgrades"
+            "sector_ranking"
+            "sector_performance"
+            "industry_ranking"
+            "economic_calendar"
+            "seasonality"
+            "feargreed"
+            "naaim_data"
+            "sentiment_aggregate"
+          )
+          SUBNET="${{ steps.network.outputs.subnet }}"
+          SG="${{ steps.network.outputs.security_group }}"
+          for LOADER in "${LOADERS[@]}"; do
+            echo "Invoking $LOADER..."
+            aws ecs run-task \
+              --cluster algo-cluster \
+              --task-definition "algo-${LOADER}-loader" \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${SUBNET}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
+              --region us-east-1 || echo "  Warning: $LOADER task failed to launch (may not have task def yet)"
+            sleep 5
+          done
+          echo "Analytics loaders triggered. Allow 10-60 minutes to complete."
 
       - name: Wait for Loaders to Complete
         if: ${{ inputs.loader_type == 'all' }}
