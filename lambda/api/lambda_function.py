@@ -217,23 +217,13 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
             'Access-Control-Allow-Credentials': 'true',
         }
 
-    # In dev mode, only accept whitelisted localhost ports (3000, 5173)
+    # In dev mode, accept any localhost/127.0.0.1 origin (Vite uses dynamic ports)
     if origin:
-        allowed_localhost_ports = {'3000', '5173'}
-        if origin.startswith('http://localhost:'):
-            port = origin.split(':')[-1]
-            if port in allowed_localhost_ports:
-                return {
-                    'Access-Control-Allow-Origin': origin,
-                    'Access-Control-Allow-Credentials': 'true',
-                }
-        elif origin.startswith('http://127.0.0.1:'):
-            port = origin.split(':')[-1]
-            if port in allowed_localhost_ports:
-                return {
-                    'Access-Control-Allow-Origin': origin,
-                    'Access-Control-Allow-Credentials': 'true',
-                }
+        if origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:'):
+            return {
+                'Access-Control-Allow-Origin': origin,
+                'Access-Control-Allow-Credentials': 'true',
+            }
 
     # Reject cross-origin requests from unknown sources
     return {
@@ -709,45 +699,49 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
 
         try:
-            params = parse_query_params(event)
-            body = None
-            if event.get('body'):
-                body_str = event['body']
-                if len(body_str) > MAX_REQUEST_BODY_SIZE:
-                    cors_headers = get_cors_headers(event)
-                    logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
-                    log_api_request(event, 413, error_msg='request_entity_too_large')
-                    return {
-                        'statusCode': 413,
-                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
-                    }
-                try:
-                    body = json.loads(body_str)
-                except json.JSONDecodeError as e:
-                    cors_headers = get_cors_headers(event)
-                    logger.warning(f'Failed to parse JSON body: {e}')
-                    log_api_request(event, 400, error_msg='invalid_json')
-                    return {
-                        'statusCode': 400,
-                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
-                    }
-                except Exception as e:
-                    logger.warning(f"Exception caught: {e}")
-                    pass
+            with DatabaseContext('write') as cur:
+                cur.execute("SET statement_timeout TO '10s'")
 
-            # Route request to appropriate handler
-            response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
+                params = parse_query_params(event)
+                body = None
+                if event.get('body'):
+                    body_str = event['body']
+                    if len(body_str) > MAX_REQUEST_BODY_SIZE:
+                        cors_headers = get_cors_headers(event)
+                        logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
+                        log_api_request(event, 413, error_msg='request_entity_too_large')
+                        return {
+                            'statusCode': 413,
+                            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                            'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
+                        }
+                    try:
+                        body = json.loads(body_str)
+                    except json.JSONDecodeError as e:
+                        cors_headers = get_cors_headers(event)
+                        logger.warning(f'Failed to parse JSON body: {e}')
+                        log_api_request(event, 400, error_msg='invalid_json')
+                        return {
+                            'statusCode': 400,
+                            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                            'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
+                        }
+                    except Exception as e:
+                        logger.warning(f"Exception caught: {e}")
+                        pass
+
+                # Route request to appropriate handler
+                response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
-            logger.error(f'[HANDLER_ERROR] Unhandled exception: {e}', exc_info=True)
+            error_detail = f'{type(e).__name__}: {str(e)}'
+            logger.error(f'[HANDLER_ERROR] Unhandled exception: {error_detail}', exc_info=True)
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
                     'error': 'service_error',
-                    'message': 'Service temporarily unavailable. Check CloudWatch Logs for details.'
+                    'message': error_detail
                 })
             }
 
