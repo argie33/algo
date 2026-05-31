@@ -323,7 +323,17 @@ The orchestrator runs **4 times daily** on trading days:
 - (Note: buy_sell_daily handled in pipeline; signal_quality_scores also in pipeline)
 
 ### Economic Data (2 loaders — EventBridge scheduled)
-- **fred_economic_data** — FRED economic indicators (T10Y2Y, yields, jobless claims, etc.) loaded at 4:30 PM ET (before EOD pipeline)
+- **fred_economic_data** — FRED economic time-series, 29 series, 3-year lookback. Runs 4:30 PM ET Mon-Fri via EventBridge AND 9:00 AM UTC Mon-Fri via `run-fred-loader.yml` GitHub Actions cron. Populates `economic_data` table. Series loaded:
+  - **Treasury yield curve**: DGS3MO, DGS6MO, DGS1, DGS2, DGS3, DGS5, DGS7, DGS10, DGS20, DGS30 — powers YieldCurveCard in MarketsHealth
+  - **Yield/credit spreads**: T10Y2Y, T10Y3M, BAMLH0A0HYM2 (HY OAS), BAMLC0A0CM (IG OAS) — powers orchestrator market exposure + yield curve card
+  - **Volatility**: VIXCLS — powers EconomicDashboard
+  - **Labor**: UNRATE, PAYEMS, ICSA, CIVPART — powers EconomicDashboard Labor tab + orchestrator jobless-claims factor
+  - **Activity**: INDPRO, RSXFS — powers EconomicDashboard Growth/Business-Cycle tabs
+  - **Inflation**: CPIAUCSL — powers EconomicDashboard Inflation tab
+  - **Monetary**: FEDFUNDS, M2SL — powers EconomicDashboard Rates tab
+  - **GDP**: GDPC1 — powers EconomicDashboard Business-Cycle tab (quarterly, YoY%)
+  - **Consumer/Housing**: UMCSENT, HOUST, MORTGAGE30US — powers EconomicDashboard Housing tab
+  - **Credit**: BUSLOANS — powers EconomicDashboard
 - **economic_calendar** — Upcoming macro release dates (FOMC, CPI, NFP, GDP, etc.) fetched via FRED releases API + static FOMC schedule. Runs 1:16 AM ET. Populates `economic_calendar` table (90-day forward window).
 
 ### Market Statistics (1 loader — Weekly)
@@ -352,7 +362,7 @@ Phase 1 compares each table's latest date against the **previous trading day** (
 | `trend_template_data` | Phase 1 halts | Required for Minervini trend filter |
 | `signal_quality_scores` | Observe-only (logged, no halt) | Loaded by morning pipeline AFTER Lambda fires; halt would cause circular dependency |
 | `buy_sell_daily` | Observe-only (logged, no halt) | Same — loaded post-Lambda by pipeline |
-| `economic_data` | No halt | Stores FRED macro series (T10Y2Y, BAMLH0A0HYM2, ICSA etc). Refreshed daily at 9:00 AM UTC (5 AM ET) Mon-Fri by `run-fred-loader.yml` cron schedule. If missing, `algo_market_exposure.py` falls back to 0.7 default factor. |
+| `economic_data` | No halt | Stores 29 FRED series (full yield curve DGS*, T10Y2Y, T10Y3M, BAMLH0A0HYM2, BAMLC0A0CM, ICSA, FEDFUNDS, UNRATE, PAYEMS, CIVPART, INDPRO, RSXFS, CPIAUCSL, M2SL, GDPC1, UMCSENT, HOUST, MORTGAGE30US, BUSLOANS, VIXCLS). Refreshed daily at 4:30 PM ET via EventBridge AND 9:00 AM UTC via `run-fred-loader.yml`. If missing, `algo_market_exposure.py` falls back to 0.7 default. Missing data = EconomicDashboard and YieldCurveCard empty. |
 | `company_profile`, `key_metrics` | Warning logged only | Background enrichment, 30-day SLA |
 
 **Important:** `PipelineHealth.is_critical` only halts on `stock_symbols`, `price_daily`, and `market_health_daily`. All other tables generate warnings, not halts.

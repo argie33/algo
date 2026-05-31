@@ -107,40 +107,23 @@ class StabilityMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _get_beta_yfinance(symbol: str) -> Optional[float]:
-        """Fetch beta from yfinance with rate-limit handling."""
-        import time
-        import yfinance as yf
+        """Fetch beta from yfinance via the rate-limiting wrapper."""
+        from utils.yfinance_wrapper import get_ticker
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
+        ticker = get_ticker(symbol)
+        if not ticker:
+            return None
 
-                # yfinance returns beta, try common keys
-                if 'beta' in info and info['beta'] is not None:
-                    return float(info['beta'])
-                if 'beta3Year' in info and info['beta3Year'] is not None:
-                    return float(info['beta3Year'])
-
-                return None
-
-            except Exception as e:
-                error_str = str(e).lower()
-                # Rate limit - back off exponentially
-                if 'rate' in error_str or '429' in error_str or 'too many' in error_str:
-                    if attempt < max_retries - 1:
-                        wait_time = (2 ** attempt) * 2  # 2s, 4s, 8s
-                        logger.debug(f"Rate limited for {symbol}, retrying in {wait_time}s...")
-                        time.sleep(wait_time)
-                        continue
-                    logger.debug(f"Rate limit after {max_retries} attempts for {symbol}")
-                    return None
-
-                logger.debug(f"Could not fetch beta for {symbol}: {e}")
-                return None
-
-        return None
+        try:
+            info = ticker.info
+            if 'beta' in info and info['beta'] is not None:
+                return float(info['beta'])
+            if 'beta3Year' in info and info['beta3Year'] is not None:
+                return float(info['beta3Year'])
+            return None
+        except Exception as e:
+            logger.debug(f"Could not read beta for {symbol}: {e}")
+            return None
 
     def transform(self, rows):
         """Rows are clean."""
@@ -155,7 +138,7 @@ class StabilityMetricsLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Stability Metrics Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=2, help="Concurrent workers")
     args = parser.parse_args()
 
     symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)

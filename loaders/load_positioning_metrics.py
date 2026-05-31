@@ -43,75 +43,55 @@ class PositioningMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> Optional[Dict]:
-        """Fetch institutional ownership and short interest from yfinance with rate-limit handling."""
-        import time
-        import yfinance as yf
+        """Fetch institutional ownership and short interest from yfinance via the rate-limiting wrapper."""
+        from utils.yfinance_wrapper import get_ticker
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
+        ticker = get_ticker(symbol)
+        if not ticker:
+            return None
 
-                # Extract positioning metrics from info dict
-                # yfinance keys vary; support multiple common names
-                institutional_ownership = None
-                insider_ownership = None
-                short_interest_percent = None
-                short_interest_trend = None
+        try:
+            info = ticker.info
 
-                # Institutional ownership
-                if 'heldPercentInstitutions' in info and info['heldPercentInstitutions'] is not None:
-                    institutional_ownership = float(info['heldPercentInstitutions']) * 100  # Convert to percentage
-                elif 'institutional_ownership' in info and info['institutional_ownership'] is not None:
-                    institutional_ownership = float(info['institutional_ownership'])
+            institutional_ownership = None
+            insider_ownership = None
+            short_interest_percent = None
+            short_interest_trend = None
 
-                # Insider ownership
-                if 'heldPercentInsiders' in info and info['heldPercentInsiders'] is not None:
-                    insider_ownership = float(info['heldPercentInsiders']) * 100  # Convert to percentage
-                elif 'insider_ownership' in info and info['insider_ownership'] is not None:
-                    insider_ownership = float(info['insider_ownership'])
+            if 'heldPercentInstitutions' in info and info['heldPercentInstitutions'] is not None:
+                institutional_ownership = float(info['heldPercentInstitutions']) * 100
+            elif 'institutional_ownership' in info and info['institutional_ownership'] is not None:
+                institutional_ownership = float(info['institutional_ownership'])
 
-                # Short interest
-                if 'shortPercentOfFloat' in info and info['shortPercentOfFloat'] is not None:
-                    short_interest_percent = float(info['shortPercentOfFloat']) * 100  # Convert to percentage
-                elif 'short_percent_of_float' in info and info['short_percent_of_float'] is not None:
-                    short_interest_percent = float(info['short_percent_of_float'])
-                elif 'shortRatio' in info and info['shortRatio'] is not None:
-                    short_interest_percent = float(info['shortRatio'])
+            if 'heldPercentInsiders' in info and info['heldPercentInsiders'] is not None:
+                insider_ownership = float(info['heldPercentInsiders']) * 100
+            elif 'insider_ownership' in info and info['insider_ownership'] is not None:
+                insider_ownership = float(info['insider_ownership'])
 
-                # Short interest trend (trying to get from any available field)
-                if 'sharesShort' in info and info['sharesShort'] is not None:
-                    short_interest_trend = 'stable'  # Default if we have any short data
+            if 'shortPercentOfFloat' in info and info['shortPercentOfFloat'] is not None:
+                short_interest_percent = float(info['shortPercentOfFloat']) * 100
+            elif 'short_percent_of_float' in info and info['short_percent_of_float'] is not None:
+                short_interest_percent = float(info['short_percent_of_float'])
+            elif 'shortRatio' in info and info['shortRatio'] is not None:
+                short_interest_percent = float(info['shortRatio'])
 
-                # If we have at least one metric, return the row
-                if institutional_ownership or insider_ownership or short_interest_percent:
-                    return {
-                        'symbol': symbol,
-                        'institutional_ownership': round(institutional_ownership, 2) if institutional_ownership else None,
-                        'insider_ownership': round(insider_ownership, 2) if insider_ownership else None,
-                        'short_interest_percent': round(short_interest_percent, 2) if short_interest_percent else None,
-                        'short_interest_trend': short_interest_trend,
-                    }
+            if 'sharesShort' in info and info['sharesShort'] is not None:
+                short_interest_trend = 'stable'
 
-                return None
+            if institutional_ownership or insider_ownership or short_interest_percent:
+                return {
+                    'symbol': symbol,
+                    'institutional_ownership': round(institutional_ownership, 2) if institutional_ownership else None,
+                    'insider_ownership': round(insider_ownership, 2) if insider_ownership else None,
+                    'short_interest_percent': round(short_interest_percent, 2) if short_interest_percent else None,
+                    'short_interest_trend': short_interest_trend,
+                }
 
-            except Exception as e:
-                error_str = str(e).lower()
-                # Rate limit - back off exponentially
-                if 'rate' in error_str or '429' in error_str or 'too many' in error_str:
-                    if attempt < max_retries - 1:
-                        wait_time = (2 ** attempt) * 3  # 3s, 6s, 12s
-                        logger.debug(f"Rate limited for {symbol}, retrying in {wait_time}s...")
-                        time.sleep(wait_time)
-                        continue
-                    logger.debug(f"Rate limit after {max_retries} attempts for {symbol}")
-                    return None
+            return None
 
-                logger.debug(f"Could not fetch positioning metrics for {symbol}: {e}")
-                return None
-
-        return None
+        except Exception as e:
+            logger.debug(f"Could not fetch positioning metrics for {symbol}: {e}")
+            return None
 
     def transform(self, rows):
         """Rows are clean."""
@@ -126,7 +106,7 @@ class PositioningMetricsLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Positioning Metrics Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=2, help="Concurrent workers")
     args = parser.parse_args()
 
     symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)

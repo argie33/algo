@@ -8,10 +8,9 @@ import logging
 from datetime import date
 from typing import Optional, List
 
-import yfinance as yf
-
 from utils.optimal_loader import OptimalLoader
 from utils.loader_helpers import get_active_symbols
+from utils.yfinance_wrapper import get_ticker
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +24,10 @@ class CompanyProfileLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch company info from yfinance for a symbol."""
+        ticker = get_ticker(symbol)
+        if not ticker:
+            return None
         try:
-            ticker = yf.Ticker(symbol)
             info = ticker.info or {}
             market_cap = info.get('marketCap') or info.get('market_cap')
             return [{

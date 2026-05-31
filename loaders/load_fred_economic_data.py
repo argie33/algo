@@ -17,11 +17,47 @@ logger = logging.getLogger(__name__)
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 
 SERIES = [
-    "T10Y2Y",
-    "BAMLH0A0HYM2",
-    "ICSA",
-    "FEDFUNDS",
-    "UNRATE",
+    # Treasury yield curve (needed by YieldCurveCard + _get_yield_curve_full)
+    "DGS3MO",     # 3-Month Treasury
+    "DGS6MO",     # 6-Month Treasury
+    "DGS1",       # 1-Year Treasury
+    "DGS2",       # 2-Year Treasury
+    "DGS3",       # 3-Year Treasury
+    "DGS5",       # 5-Year Treasury
+    "DGS7",       # 7-Year Treasury
+    "DGS10",      # 10-Year Treasury
+    "DGS20",      # 20-Year Treasury
+    "DGS30",      # 30-Year Treasury
+    # Yield spreads (inversion signals)
+    "T10Y2Y",     # 10Y-2Y spread (orchestrator + yield curve card)
+    "T10Y3M",     # 10Y-3M spread (yield curve card)
+    # Credit spreads (orchestrator market exposure + yield curve card)
+    "BAMLH0A0HYM2",  # HY corporate OAS
+    "BAMLC0A0CM",    # IG corporate OAS
+    # Volatility proxy
+    "VIXCLS",        # CBOE VIX (FRED daily)
+    # Labor market (leading indicators + orchestrator jobless-claims factor)
+    "UNRATE",        # Unemployment Rate
+    "PAYEMS",        # Nonfarm Payroll (level; displayed as YoY %)
+    "ICSA",          # Initial Jobless Claims (weekly)
+    "CIVPART",       # Labor Force Participation Rate
+    # Activity / production
+    "INDPRO",        # Industrial Production (level; displayed as YoY %)
+    "RSXFS",         # Retail Sales ex-Food Services (level; displayed as YoY %)
+    # Inflation
+    "CPIAUCSL",      # CPI All Urban (level; displayed as YoY %)
+    # Monetary / rates
+    "FEDFUNDS",      # Federal Funds Effective Rate
+    "M2SL",          # M2 Money Supply (level; displayed as YoY %)
+    # GDP & growth
+    "GDPC1",         # Real GDP (quarterly; displayed as YoY %)
+    # Consumer confidence
+    "UMCSENT",       # University of Michigan Consumer Sentiment
+    # Housing
+    "HOUST",         # Housing Starts (level; displayed as YoY %)
+    "MORTGAGE30US",  # 30-Year Fixed Rate Mortgage Average
+    # Lending / credit
+    "BUSLOANS",      # Commercial & Industrial Loans (Business Loans)
 ]
 
 
@@ -64,7 +100,8 @@ class FredEconomicDataLoader(OptimalLoader):
             raise ValueError("FRED_API_KEY not found")
 
         end_date = date.today().isoformat()
-        start_date = (date.today() - timedelta(days=730)).isoformat()
+        # 3 years covers quarterly series (GDP, HOUST) plus gives YoY% enough lookback
+        start_date = (date.today() - timedelta(days=1095)).isoformat()
 
         all_rows = []
 

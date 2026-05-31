@@ -82,10 +82,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         JOIN yesterday y ON t.symbol = y.symbol
                     """)
                     brow = cur.fetchone()
-                    base['data'] = dict(brow) if brow else {}
+                    base['breadth'] = dict(brow) if brow else {}
                 except Exception as e:
                     logger.warning(f"Exception: {e}")
-                    base['data'] = {}
+                    base['breadth'] = {}
                 # Build 30-day McClellan Oscillator history from market_exposure_daily.
                 # The factors JSONB column stores the true McClellan value (19-EMA minus
                 # 39-EMA of net advances) computed by algo_market_exposure._mcclellan().

@@ -588,8 +588,8 @@ locals {
     # Swing trader scores
     "swing_trader_scores" = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
 
-    # FRED macro data
-    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # FRED macro data — 27 series × ~2s each; 900s gives safe margin
+    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
 
     # Trend template
     "trend_template_data" = { cpu = 512, memory = 1024, timeout = 10800, parallelism = 1 }

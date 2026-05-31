@@ -2,8 +2,13 @@
 """yfinance wrapper with AWS VPC compatibility and retry logic.
 
 Handles 'Invalid Crumb' errors common in AWS Lambda/ECS environments.
+
+Rate limiting: All yfinance requests from this process share a global throttle
+(max 2 concurrent, 500ms minimum between requests) to avoid Yahoo Finance banning
+the shared NAT gateway IP used by all ECS tasks.
 """
 import time
+import threading
 import logging
 from typing import Optional
 import requests
@@ -14,6 +19,32 @@ except ImportError:
     yf = None
 
 logger = logging.getLogger(__name__)
+
+# Global per-process rate limiter: prevents >2 concurrent requests and enforces
+# a minimum interval between consecutive requests. This reduces Yahoo Finance
+# crumb invalidation when multiple threads share the same ECS task.
+_yf_semaphore = threading.Semaphore(2)
+_yf_rate_lock = threading.Lock()
+_yf_last_request_time = [0.0]  # list for mutable access across threads
+_YF_MIN_INTERVAL_SECS = 0.5    # 500ms between requests
+
+# When Yahoo bans this process (all retries exhausted with 401), pause the
+# entire process briefly so the shared IP can cool down before next attempt.
+_yf_ban_lock = threading.Lock()
+_yf_ban_until = [0.0]
+_YF_BAN_COOLDOWN_SECS = 30  # pause 30s when Yahoo bans our IP
+
+
+def _throttled_yf_request(fn):
+    """Call fn() under global rate limiting (semaphore + min interval)."""
+    with _yf_semaphore:
+        with _yf_rate_lock:
+            elapsed = time.time() - _yf_last_request_time[0]
+            if elapsed < _YF_MIN_INTERVAL_SECS:
+                time.sleep(_YF_MIN_INTERVAL_SECS - elapsed)
+            _yf_last_request_time[0] = time.time()
+        return fn()
+
 
 class YFinanceWrapper:
     """Wrapper for yfinance with AWS VPC compatibility."""
@@ -41,7 +72,6 @@ class YFinanceWrapper:
         for attempt in range(max_retries):
             try:
                 session = requests.Session()
-                # Add headers to mimic browser request
                 session.headers.update({
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 })
@@ -50,7 +80,7 @@ class YFinanceWrapper:
             except Exception as e:
                 logger.warning(f"Failed to create session (attempt {attempt + 1}): {e}")
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                    time.sleep(2 ** attempt)
 
         return None
 
@@ -58,8 +88,8 @@ class YFinanceWrapper:
     def get_ticker(cls, symbol: str, max_retries: int = 5):
         """Get yfinance Ticker with retry logic for Invalid Crumb/401 errors.
 
-        Uses longer exponential backoff for 401 auth errors (2s, 4s, 8s, 16s, 32s)
-        similar to SEC EDGAR rate limiting strategy.
+        Uses longer exponential backoff for 401 auth errors (2s, 4s, 8s, 16s, 32s).
+        All requests go through the global rate limiter to stay within Yahoo's limits.
         """
         if not yf:
             logger.error("yfinance not installed")
@@ -67,46 +97,55 @@ class YFinanceWrapper:
 
         import random
 
+        # Respect IP-level ban cooldown set by a previous exhausted caller
+        ban_until = _yf_ban_until[0]
+        if ban_until > time.time():
+            wait = ban_until - time.time()
+            logger.info(f"[{symbol}] Yahoo IP cooldown active, waiting {wait:.0f}s...")
+            time.sleep(wait)
+
         for attempt in range(max_retries):
             try:
-                session = cls.get_session()
-                if session:
-                    ticker = yf.Ticker(symbol, session=session)
-                else:
-                    ticker = yf.Ticker(symbol)
+                def _make_ticker():
+                    session = cls.get_session()
+                    t = yf.Ticker(symbol, session=session) if session else yf.Ticker(symbol)
+                    _ = t.info  # trigger auth check early
+                    return t
 
-                # Try to access data to trigger auth error early
-                _ = ticker.info
+                ticker = _throttled_yf_request(_make_ticker)
                 logger.debug(f"Successfully created ticker for {symbol}")
                 return ticker
 
             except Exception as e:
                 error_str = str(e).lower()
 
-                # Check for auth/crumb errors (including rate limiting)
                 if 'invalid crumb' in error_str or '401' in error_str or 'unauthorized' in error_str or 'too many requests' in error_str:
                     logger.warning(f"Auth error for {symbol} (attempt {attempt + 1}): {e}")
 
-                    # Reset session on auth error
+                    # Reset session so next attempt gets a fresh crumb
                     cls._session = None
                     cls._last_session_time = 0
 
                     if attempt < max_retries - 1:
-                        # Longer exponential backoff: 2s, 4s, 8s, 16s, 32s
-                        # Similar to SEC EDGAR to handle API rate limits
-                        base_wait = 2 * (2 ** attempt)
-                        jitter = random.uniform(0, base_wait * 0.2)  # 0-20% jitter
+                        base_wait = 2 * (2 ** attempt)  # 2s, 4s, 8s, 16s, 32s
+                        jitter = random.uniform(0, base_wait * 0.2)
                         wait_time = base_wait + jitter
                         logger.info(f"Retrying {symbol} in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})...")
                         time.sleep(wait_time)
+                    else:
+                        # All retries exhausted — set process-level ban cooldown so other
+                        # threads back off and give Yahoo's per-IP limit time to reset.
+                        with _yf_ban_lock:
+                            _yf_ban_until[0] = time.time() + _YF_BAN_COOLDOWN_SECS
+                        logger.warning(f"[{symbol}] All retries exhausted; setting {_YF_BAN_COOLDOWN_SECS}s IP cooldown")
                     continue
                 else:
-                    # Other errors (data not available, etc.) - return None
                     logger.debug(f"Data not available for {symbol}: {e}")
                     return None
 
         logger.error(f"Failed to get ticker for {symbol} after {max_retries} attempts")
         return None
+
 
 def get_ticker(symbol: str) -> Optional[object]:
     """Convenience function to get yfinance ticker with retry logic."""

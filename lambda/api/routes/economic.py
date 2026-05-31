@@ -81,6 +81,8 @@ def _get_leading_indicators(cur) -> Dict:
             'GDPC1': 'GDP Growth',
             'UMCSENT': 'Consumer Sentiment',
             'HOUST': 'Housing Starts',
+            'MORTGAGE30US': '30Y Mortgage Rate',
+            'BUSLOANS': 'Business Loans',
         }
         # Series that report absolute levels but should be shown as YoY % change
         yoy_pct_series = {'GDPC1', 'INDPRO', 'RSXFS', 'PAYEMS', 'HOUST'}
