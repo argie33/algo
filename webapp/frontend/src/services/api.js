@@ -58,7 +58,7 @@ if (typeof window !== "undefined") {
   let initCheckCount = 0;
   const checkConfigInit = setInterval(() => {
     initCheckCount++;
-    if (window.__CONFIG__ && currentConfig.baseURL !== window.__CONFIG__.API_URL) {
+    if (typeof window !== "undefined" && window.__CONFIG__ && currentConfig.baseURL !== window.__CONFIG__.API_URL) {
       console.log(`[API] Detected config.js loaded, reinitializing API config`);
       initializeApiConfig();
       clearInterval(checkConfigInit);

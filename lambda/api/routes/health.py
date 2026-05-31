@@ -25,16 +25,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
     }
 
     try:
-        # Test database connectivity
-        if cur is None:
-            health["status"] = "critical"
-            health["database"] = "disconnected"
-            return {
-                'statusCode': 503,
-                'body': json.dumps(health),
-                'headers': {'Content-Type': 'application/json'}
-            }
-
         # Verify DB is responsive
         cur.execute("SELECT 1")
         health["database"] = "connected"

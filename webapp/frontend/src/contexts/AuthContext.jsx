@@ -232,8 +232,18 @@ export function AuthProvider({ children }) {
       // Strict AWS Cognito only - no development auth fallback
       if (cognitoConfigured) {
         try {
-          const user = await getCurrentUser();
-          const session = await fetchAuthSession();
+          // Race against 10s timeout — prevents infinite hang when tokens are stale
+          // and Amplify's refresh network call to Cognito never resolves.
+          const { user, session } = await Promise.race([
+            (async () => {
+              const u = await getCurrentUser();
+              const s = await fetchAuthSession();
+              return { user: u, session: s };
+            })(),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Auth check timed out')), 10000)
+            ),
+          ]);
 
           if (user && session.tokens) {
             const tokens = {
