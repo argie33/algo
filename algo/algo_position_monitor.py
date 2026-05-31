@@ -47,7 +47,6 @@ class PositionMonitor:
 
     def __init__(self, config):
         self.config = config
-        self.cur = None
 
     def check_stale_orders(self, current_date=None):
         """Check for orders stuck in pending state >1 hour. Alert if found.
@@ -160,22 +159,21 @@ class PositionMonitor:
 
         recs = []
         with DatabaseContext('write') as cur:
-            self.cur = cur
             # Issue #24: Check margin utilization and warn/halt if excessive
             try:
-                self.cur.execute("""
+                cur.execute("""
                     SELECT total_equity FROM algo_portfolio_snapshots
                     ORDER BY snapshot_date DESC LIMIT 1
                 """)
-                eq_row = self.cur.fetchone()
+                eq_row = cur.fetchone()
                 if eq_row and eq_row[0]:
                     total_equity = float(eq_row[0])
                     # Compute margin usage = (equity - buying_power) / equity
                     # Using proxy: if total open position value > 90% of equity, halt new entries
-                    self.cur.execute("""
+                    cur.execute("""
                         SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
                     """)
-                    pos_val_row = self.cur.fetchone()
+                    pos_val_row = cur.fetchone()
                     pos_value = float(pos_val_row[0]) if pos_val_row and pos_val_row[0] else 0
                     margin_util_pct = (pos_value / total_equity * 100) if total_equity > 0 else 0
                     if margin_util_pct > 90:
@@ -189,7 +187,7 @@ class PositionMonitor:
             if conc['status'] == 'HIGH_CONCENTRATION':
                 logger.info(f"  [WARNING]  Portfolio concentration risk detected")
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
                        t.target_1_price, t.target_2_price, t.target_3_price,
@@ -202,7 +200,7 @@ class PositionMonitor:
                   AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
                 """
             )
-            positions = self.cur.fetchall()
+            positions = cur.fetchall()
 
             logger.info(f"\n{'='*70}")
             logger.info(f"POSITION MONITOR — {current_date}")
@@ -210,19 +208,19 @@ class PositionMonitor:
             logger.info(f"Reviewing {len(positions)} open position(s)\n")
 
             for row in positions:
-                rec = self._evaluate_position(row, current_date)
+                rec = self._evaluate_position(row, current_date, cur)
                 if rec is None:
                     continue
                 recs.append(rec)
                 self._print_recommendation(rec)
                 try:
-                    self._persist_review(rec, current_date)
+                    self._persist_review(rec, current_date, cur)
                 except Exception as e:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
                     continue
             return recs
 
-    def _evaluate_position(self, row, current_date):
+    def _evaluate_position(self, row, current_date, cur):
         (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
          trade_date, signal_date, position_id, quantity, target_hits,
          current_stop, db_current_price) = row
@@ -245,7 +243,7 @@ class PositionMonitor:
         max_hold = int(self.config.get('max_hold_days', 20))
 
         # 1. Current market data
-        cur_price, atr, sma_50, ema_12 = self._fetch_current_market(symbol, current_date)
+        cur_price, atr, sma_50, ema_12 = self._fetch_current_market(symbol, current_date, cur)
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts stop-loss and P&L calculations.
         # If market data is unavailable, skip the position entirely.
@@ -268,7 +266,7 @@ class PositionMonitor:
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(
             symbol, current_date, entry_price, active_stop,
-            cur_price, atr, sma_50, target_hits, t1_price, t2_price,
+            cur_price, atr, sma_50, target_hits, t1_price, t2_price, cur,
         )
 
         if proposed_stop > cur_price:
@@ -280,18 +278,18 @@ class PositionMonitor:
         flags = []
 
         # 3a. Relative strength vs SPY (degrading?)
-        rs_state = self._check_relative_strength(symbol, current_date)
+        rs_state = self._check_relative_strength(symbol, current_date, cur)
         if rs_state == 'weakening':
             flags.append('RS_WEAKENING')
         rs_label = rs_state
 
         # 3b. Sector turned weak?
-        sector_state = self._check_sector_health(symbol, current_date)
+        sector_state = self._check_sector_health(symbol, current_date, cur)
         if sector_state == 'weakening':
             flags.append('SECTOR_WEAK')
 
         # 3c. Giving back gains (>33% retrace from peak)?
-        peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price)
+        peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price, cur)
         if peak_pct > 5 and unrealized_pct < peak_pct * 0.66:
             flags.append('GIVING_BACK_GAINS')
 
@@ -300,12 +298,12 @@ class PositionMonitor:
             flags.append('TIME_DECAY_NO_PROGRESS')
 
         # 3e. Earnings proximity
-        days_to_earn = self._days_to_earnings(symbol, current_date)
+        days_to_earn = self._days_to_earnings(symbol, current_date, cur)
         if days_to_earn is not None and 0 <= days_to_earn <= 3:
             flags.append(f'EARNINGS_IN_{days_to_earn}D')
 
         # 3f. Distribution-day stress
-        market_dist_days = self._fetch_market_dist_days(current_date)
+        market_dist_days = self._fetch_market_dist_days(current_date, cur)
         if market_dist_days is not None and market_dist_days > int(self.config.get('max_distribution_days', 4)):
             flags.append('MARKET_DISTRIBUTION_STRESS')
 
@@ -359,8 +357,8 @@ class PositionMonitor:
 
     # ---------- Helpers ----------
 
-    def _fetch_current_market(self, symbol, current_date):
-        self.cur.execute(
+    def _fetch_current_market(self, symbol, current_date, cur):
+        cur.execute(
             """
             SELECT pd.close, td.atr, td.sma_50, td.ema_12
             FROM price_daily pd
@@ -370,7 +368,7 @@ class PositionMonitor:
             """,
             (symbol, current_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return None, None, None, None
         return (
@@ -382,7 +380,7 @@ class PositionMonitor:
 
     def _compute_trailing_stop(self, symbol, current_date, entry_price, active_stop,
                                 cur_price, atr, sma_50, target_hits,
-                                t1_price, t2_price):
+                                t1_price, t2_price, cur):
         """Stop ratchets up only.
 
         - Before T1: keep initial stop OR use 50-DMA (whichever higher) capped at entry-2*ATR
@@ -419,10 +417,10 @@ class PositionMonitor:
         # NEVER lower the trailing stop below its prior level
         return round(max(new_stop, active_stop), 2)
 
-    def _check_relative_strength(self, symbol, current_date):
+    def _check_relative_strength(self, symbol, current_date, cur):
         """20-day relative return vs SPY: weakening / neutral / strong."""
-        stock = self._period_return(symbol, current_date, 20)
-        spy = self._period_return('SPY', current_date, 20)
+        stock = self._period_return(symbol, current_date, 20, cur)
+        spy = self._period_return('SPY', current_date, 20, cur)
         if stock is None or spy is None:
             logger.warning(f"RS data missing for {symbol}: stock={stock}, spy={spy} — treating as unknown, not weakening")
             return 'unknown'
@@ -433,17 +431,17 @@ class PositionMonitor:
             return 'strong'
         return 'neutral'
 
-    def _check_sector_health(self, symbol, current_date):
+    def _check_sector_health(self, symbol, current_date, cur):
         """Is the symbol's sector currently weakening?"""
         # Skip sector checks for ETFs/indices
         if symbol in ('SPY', 'QQQ', 'IWM', 'DIA', 'XLK', 'XLE', 'XLV', 'XLF', 'XLI', 'XLY', 'XLRE', 'XLC'):
             return 'neutral'
 
-        self.cur.execute(
+        cur.execute(
             "SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1",
             (symbol,),
         )
-        srow = self.cur.fetchone()
+        srow = cur.fetchone()
         if not srow:
             logger.debug(f"Sector data not found for {symbol} — assuming neutral")
             return 'neutral'
@@ -452,7 +450,7 @@ class PositionMonitor:
             return 'neutral'
         sector = srow[0]
 
-        self.cur.execute(
+        cur.execute(
             """
             SELECT current_rank, date_recorded FROM sector_ranking
             WHERE sector_name = %s
@@ -461,7 +459,7 @@ class PositionMonitor:
             """,
             (sector, current_date),
         )
-        cur_row = self.cur.fetchone()
+        cur_row = cur.fetchone()
         if not cur_row:
             logger.warning(f"Missing sector ranking data for {sector} — cannot assess health")
             return 'unknown'
@@ -469,7 +467,7 @@ class PositionMonitor:
 
         # Get rank from ~4 weeks ago for comparison
         four_weeks_ago = current_date - timedelta(days=28)
-        self.cur.execute(
+        cur.execute(
             """
             SELECT current_rank FROM sector_ranking
             WHERE sector_name = %s
@@ -479,7 +477,7 @@ class PositionMonitor:
             """,
             (sector, four_weeks_ago, four_weeks_ago + timedelta(days=3)),
         )
-        old_row = self.cur.fetchone()
+        old_row = cur.fetchone()
         old_rank = int(old_row[0]) if old_row and old_row[0] else cur_rank
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return 'weakening'
@@ -487,21 +485,21 @@ class PositionMonitor:
             return 'strengthening'
         return 'stable'
 
-    def _max_unrealized_pct(self, symbol, trade_date, current_date, entry_price):
+    def _max_unrealized_pct(self, symbol, trade_date, current_date, entry_price, cur):
         """Highest closing price since entry, expressed as % gain."""
-        self.cur.execute(
+        cur.execute(
             """
             SELECT MAX(close) FROM price_daily
             WHERE symbol = %s AND date >= %s AND date <= %s
             """,
             (symbol, trade_date, current_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[0] or entry_price <= 0:
             return 0.0
         return ((float(row[0]) - entry_price) / entry_price) * 100.0
 
-    def _days_to_earnings(self, symbol, current_date):
+    def _days_to_earnings(self, symbol, current_date, cur):
         """Get days until next earnings. Returns None if earnings data missing.
 
         Primary: query earnings_calendar for accurate scheduled dates.
@@ -509,22 +507,22 @@ class PositionMonitor:
         """
         try:
             # Primary: use earnings_calendar (populated by earnings loader)
-            self.cur.execute(
+            cur.execute(
                 """SELECT earnings_date FROM earnings_calendar
                    WHERE symbol = %s AND earnings_date >= %s
                    ORDER BY earnings_date ASC LIMIT 1""",
                 (symbol, current_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0]:
                 return (row[0] - current_date).days
 
             # Fallback: estimate from last reported quarter + 90-day cycle
-            self.cur.execute(
+            cur.execute(
                 "SELECT MAX(quarter) FROM earnings_history WHERE symbol = %s",
                 (symbol,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or not row[0]:
                 return None
             est = row[0] + timedelta(days=45)
@@ -538,16 +536,16 @@ class PositionMonitor:
             logger.warning(f"  [WARN] Could not compute days_to_earnings for {symbol}: {e}")
             return None
 
-    def _fetch_market_dist_days(self, current_date):
-        self.cur.execute(
+    def _fetch_market_dist_days(self, current_date, cur):
+        cur.execute(
             "SELECT distribution_days_4w FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
-    def _period_return(self, symbol, end_date, lookback_days):
-        self.cur.execute(
+    def _period_return(self, symbol, end_date, lookback_days, cur):
+        cur.execute(
             """
             WITH bracket AS (
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
@@ -561,7 +559,7 @@ class PositionMonitor:
             """,
             (symbol, end_date, end_date, lookback_days + 5),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             return None
         recent, oldest = float(row[0]), float(row[1])
@@ -569,9 +567,9 @@ class PositionMonitor:
             return None
         return (recent - oldest) / oldest
 
-    def _persist_review(self, rec, current_date):
+    def _persist_review(self, rec, current_date, cur):
         """Update algo_positions with current price/PnL and log a monitoring audit row (atomic)."""
-        self.cur.execute(
+        cur.execute(
             """
             UPDATE algo_positions
             SET current_price = %s,
@@ -589,7 +587,7 @@ class PositionMonitor:
             ),
         )
         # Log the review to audit (same transaction)
-        self.cur.execute(
+        cur.execute(
             """
             INSERT INTO algo_audit_log (action_type, symbol, action_date,
                                         details, actor, status, created_at)
@@ -637,14 +635,13 @@ class PositionMonitor:
         adjustments = []
         ctx = DatabaseContext('write')
         with ctx as cur:
-            self.cur = cur
-            self.cur.execute("""
+            cur.execute("""
                 SELECT ap.position_id, ap.symbol, ap.quantity, ap.current_stop_price,
                        ap.avg_entry_price AS entry_price
                 FROM algo_positions ap
                 WHERE ap.status = 'open'
             """)
-            positions = self.cur.fetchall()
+            positions = cur.fetchall()
 
             alpaca_base_url = get_alpaca_base_url()
             try:
@@ -682,7 +679,7 @@ class PositionMonitor:
 
                     if alpaca_qty == 0:
                         # Position closed at Alpaca but open in DB — likely filled by stop
-                        self.cur.execute("""
+                        cur.execute("""
                             UPDATE algo_positions SET status = 'closed'
                             WHERE position_id = %s
                         """, (pos_id,))
@@ -703,12 +700,12 @@ class PositionMonitor:
                                 # FAIL-CLOSED: Can't apply split ratio without knowing original stop
                                 logger.critical(f'STOCK SPLIT DETECTED but no stop price in DB for {symbol} {pos_id}. Cannot auto-adjust stop. Manual review required.')
                                 # Update quantity but leave stop untouched
-                                self.cur.execute("""
+                                cur.execute("""
                                     UPDATE algo_positions
                                     SET quantity = %s
                                     WHERE position_id = %s
                                 """, (alpaca_qty, pos_id))
-                                self.cur.execute("""
+                                cur.execute("""
                                     INSERT INTO algo_audit_log (
                                         action_type, action_date, details, severity
                                     ) VALUES (%s, %s, %s, %s)
@@ -722,14 +719,14 @@ class PositionMonitor:
 
                             new_stop = db_stop / split_ratio
 
-                            self.cur.execute("""
+                            cur.execute("""
                                 UPDATE algo_positions
                                 SET quantity = %s, current_stop_price = %s
                                 WHERE position_id = %s
                             """, (alpaca_qty, new_stop, pos_id))
 
                             # Log the corporate action
-                            self.cur.execute("""
+                            cur.execute("""
                                 INSERT INTO algo_audit_log (
                                     action_type, action_date, details, severity
                                 ) VALUES (%s, %s, %s, %s)
@@ -755,6 +752,66 @@ class PositionMonitor:
                     continue
 
             return adjustments
+
+    def can_enter_new_position(self):
+        """Check if buying power allows a new entry.
+
+        Returns (True, None) if entries are allowed, (False, reason) if blocked.
+        Fails open on error so check failures don't silently block trading.
+        """
+        try:
+            from config.alpaca_config import get_alpaca_base_url
+            from config.credential_manager import get_alpaca_credentials
+            import requests
+            from algo.algo_config import get_api_timeout
+
+            creds = get_alpaca_credentials()
+            base_url = get_alpaca_base_url()
+            resp = requests.get(
+                f'{base_url}/v2/account',
+                headers={'APCA-API-KEY-ID': creds['key'], 'APCA-API-SECRET-KEY': creds['secret']},
+                timeout=get_api_timeout(),
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                buying_power = float(data.get('buying_power') or data.get('cash') or 0)
+                if buying_power < 100:
+                    return False, f'Insufficient buying power: ${buying_power:.2f}'
+                logger.debug(f"[MARGIN] Buying power ${buying_power:.2f} — entry allowed")
+            return True, None
+        except Exception as e:
+            logger.debug(f"[MARGIN] can_enter_new_position skipped ({e}); defaulting to allow")
+            return True, None
+
+    def get_margin_usage(self):
+        """Return current margin usage dict with margin_usage_pct key, or None if unavailable."""
+        try:
+            from config.alpaca_config import get_alpaca_base_url
+            from config.credential_manager import get_alpaca_credentials
+            import requests
+            from algo.algo_config import get_api_timeout
+
+            creds = get_alpaca_credentials()
+            base_url = get_alpaca_base_url()
+            resp = requests.get(
+                f'{base_url}/v2/account',
+                headers={'APCA-API-KEY-ID': creds['key'], 'APCA-API-SECRET-KEY': creds['secret']},
+                timeout=get_api_timeout(),
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                equity = float(data.get('equity') or data.get('portfolio_value') or 1)
+                long_market_value = float(data.get('long_market_value') or 0)
+                margin_usage_pct = (long_market_value / equity * 100.0) if equity > 0 else 0.0
+                return {
+                    'margin_usage_pct': round(margin_usage_pct, 1),
+                    'long_market_value': long_market_value,
+                    'equity': equity,
+                }
+            return None
+        except Exception as e:
+            logger.debug(f"[MARGIN] get_margin_usage skipped: {e}")
+            return None
 
     def get_open_positions(self):
         """Get list of open positions for halt checking and monitoring.

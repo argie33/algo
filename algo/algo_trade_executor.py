@@ -87,12 +87,28 @@ class TradeExecutor:
             and not url_says_paper
         )
 
-        logger.info(f"Executor mode: {execution_mode}, live_intent: {live_intent} ({'LIVE' if live_intent else 'PAPER'})")
+        logger.info(
+            f"[EXECUTOR] mode={execution_mode} live_intent={live_intent} "
+            f"({'LIVE TRADING → api.alpaca.markets' if live_intent else 'PAPER TRADING → paper-api.alpaca.markets'}) | "
+            f"live_ack={'SET' if live_ack == 'I_UNDERSTAND_REAL_MONEY' else 'NOT SET'} "
+            f"paper_flag={paper_flag} url_says_paper={url_says_paper} "
+            f"key_set={bool(self.alpaca_key)} secret_set={bool(self.alpaca_secret)}"
+        )
 
         if not live_intent:
             # Force paper trading — CRITICAL: explicitly use paper URL, ignore APCA_API_BASE_URL
             self.alpaca_base_url = 'https://paper-api.alpaca.markets'
             self.is_paper = True
+            if execution_mode == 'auto':
+                # execution_mode is auto but live_intent is False — log exactly why
+                reasons = []
+                if live_ack != 'I_UNDERSTAND_REAL_MONEY':
+                    reasons.append(f"ALGO_LIVE_TRADING not set to 'I_UNDERSTAND_REAL_MONEY' (got '{live_ack}')")
+                if paper_flag == 'true':
+                    reasons.append("ALPACA_PAPER_TRADING=true")
+                if url_says_paper:
+                    reasons.append(f"APCA_API_BASE_URL contains 'paper': {self.alpaca_base_url}")
+                logger.warning(f"[EXECUTOR] execution_mode=auto but forced to PAPER. Reason(s): {'; '.join(reasons) or 'unknown'}")
         else:
             self.is_paper = False
 

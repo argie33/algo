@@ -23,7 +23,6 @@ class SwingTraderScore:
 
     def __init__(self):
         self._signals = None
-        self.cur = None
 
     def _with_cursor(self, operation, mode='read'):
         """Execute operation with a cursor via DatabaseContext."""
@@ -109,11 +108,10 @@ class SwingTraderScore:
             Dict with swing_score, grade, components breakdown, and hard-gate details
         """
         with DatabaseContext('read') as cur:
-            self.cur = cur
             try:
                 # Hard gates
                 try:
-                    gates = self._check_hard_gates(symbol, eval_date, sector, industry)
+                    gates = self._check_hard_gates(symbol, eval_date, sector, industry, cur)
                 except Exception as gate_err:
                     logger.warning(f"Swing score hard gates failed for {symbol}: {gate_err} (proceeding with soft pass)")
                     gates = {'pass': True}
@@ -131,43 +129,43 @@ class SwingTraderScore:
 
                 # Compute components (wrap each in error handling to prevent cascade failures)
                 try:
-                    setup_pts, setup_detail = self._setup_component(symbol, eval_date)
+                    setup_pts, setup_detail = self._setup_component(symbol, eval_date, cur)
                 except Exception as e:
                     logger.debug(f"Setup component failed for {symbol}: {e}")
                     setup_pts, setup_detail = 0, {'error': str(e)[:50]}
 
                 try:
-                    trend_pts, trend_detail = self._trend_component(symbol, eval_date)
+                    trend_pts, trend_detail = self._trend_component(symbol, eval_date, cur)
                 except Exception as e:
                     logger.debug(f"Trend component failed for {symbol}: {e}")
                     trend_pts, trend_detail = 0, {'error': str(e)[:50]}
 
                 try:
-                    mom_pts, mom_detail = self._momentum_component(symbol, eval_date)
+                    mom_pts, mom_detail = self._momentum_component(symbol, eval_date, cur)
                 except Exception as e:
                     logger.debug(f"Momentum component failed for {symbol}: {e}")
                     mom_pts, mom_detail = 0, {'error': str(e)[:50]}
 
                 try:
-                    vol_pts, vol_detail = self._volume_component(symbol, eval_date)
+                    vol_pts, vol_detail = self._volume_component(symbol, eval_date, cur)
                 except Exception as e:
                     logger.debug(f"Volume component failed for {symbol}: {e}")
                     vol_pts, vol_detail = 0, {'error': str(e)[:50]}
 
                 try:
-                    fund_pts, fund_detail = self._fundamentals_component(symbol)
+                    fund_pts, fund_detail = self._fundamentals_component(symbol, cur)
                 except Exception as e:
                     logger.debug(f"Fundamentals component failed for {symbol}: {e}")
                     fund_pts, fund_detail = 0, {'error': str(e)[:50]}
 
                 try:
-                    sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry)
+                    sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry, cur)
                 except Exception as e:
                     logger.debug(f"Sector component failed for {symbol}: {e}")
                     sec_pts, sec_detail = 0, {'error': str(e)[:50]}
 
                 try:
-                    mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date)
+                    mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date, cur)
                 except Exception as e:
                     logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
                     mtf_pts, mtf_detail = 0, {'error': str(e)[:50]}
@@ -220,7 +218,7 @@ class SwingTraderScore:
 
     # ============= HARD GATES =============
 
-    def _check_hard_gates(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str]) -> Dict[str, Any]:
+    def _check_hard_gates(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str], cur) -> Dict[str, Any]:
         """
         Apply hard-fail gates that block scoring entirely if violated.
 
@@ -251,12 +249,12 @@ class SwingTraderScore:
         trend_score = 0
         stage = 1
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT minervini_trend_score, weinstein_stage FROM trend_template_data
                    WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row:
                 trend_score = int(row[0]) if row[0] is not None else 0
                 stage = int(row[1]) if row[1] is not None else 1
@@ -281,12 +279,12 @@ class SwingTraderScore:
         # Gate 3: Not too extended from 52-week high
         try:
             max_extension_pct = self._load_config_val('swing_max_extension_pct', 25)
-            self.cur.execute(
+            cur.execute(
                 """SELECT percent_from_52w_high FROM trend_template_data
                    WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0] is not None:
                 pct_from_high = float(row[0])
                 # pct_from_high is (close - high52w) / high52w * 100, always ≤ 0.
@@ -325,13 +323,13 @@ class SwingTraderScore:
         if industry:
             try:
                 max_industry_rank = self._load_config_val('swing_min_industry_rank', 100)
-                self.cur.execute(
+                cur.execute(
                     """SELECT current_rank FROM industry_ranking
                        WHERE industry = %s AND date_recorded <= %s
                        ORDER BY date_recorded DESC LIMIT 1""",
                     (industry, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     industry_rank = int(r[0])
                     if industry_rank > max_industry_rank:
@@ -365,16 +363,16 @@ class SwingTraderScore:
             'days_to_earnings': days_to_earn,
         }
 
-    def _days_to_earnings(self, symbol: str, eval_date) -> Optional[int]:
+    def _days_to_earnings(self, symbol: str, eval_date, cur) -> Optional[int]:
         """Days until next earnings from earnings_calendar. Returns None if unknown."""
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT earnings_date FROM earnings_calendar
                    WHERE symbol = %s AND earnings_date > %s
                    ORDER BY earnings_date ASC LIMIT 1""",
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0]:
                 return (row[0] - eval_date).days
             return None
@@ -382,13 +380,13 @@ class SwingTraderScore:
             logger.debug(f"earnings check failed for {symbol}: {e}")
             return None
 
-    def _load_config_val(self, key: str, default):
+    def _load_config_val(self, key: str, default, cur):
         """Load a config value, with fallback to default."""
         try:
             if not self._signals:
                 return default
-            self.cur.execute("SELECT value, value_type FROM algo_config WHERE key = %s", (key,))
-            row = self.cur.fetchone()
+            cur.execute("SELECT value, value_type FROM algo_config WHERE key = %s", (key,))
+            row = cur.fetchone()
             if not row:
                 return default
             val_str, val_type = row
@@ -406,7 +404,7 @@ class SwingTraderScore:
 
     # ============= COMPONENTS =============
 
-    def _setup_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+    def _setup_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate setup quality (25 max points).
 
@@ -489,7 +487,7 @@ class SwingTraderScore:
             'is_htf': htf.get('is_htf'),
         }
 
-    def _trend_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+    def _trend_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate trend quality (20 max points).
 
@@ -504,11 +502,11 @@ class SwingTraderScore:
 
         Returns: (pts, detail_dict) where pts is 0-20 and detail contains breakdown
         """
-        self.cur.execute(
+        cur.execute(
             "SELECT minervini_trend_score FROM trend_template_data WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
             (symbol, eval_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         mt_score = int(row[0]) if row and row[0] is not None else 0
 
         # Minervini 7/8 → 75% pts, 8/8 → 100%
@@ -523,12 +521,12 @@ class SwingTraderScore:
         weeks_uptrend = 0
 
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT consolidation_flag FROM trend_template_data
                    WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date),
             )
-            phase_row = self.cur.fetchone()
+            phase_row = cur.fetchone()
             if phase_row and phase_row[0]:
                 phase_mult = 1.0
                 phase_name = 'early'
@@ -547,7 +545,7 @@ class SwingTraderScore:
             'estimated_base_count': estimated_base_count,
         }
 
-    def _momentum_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+    def _momentum_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate momentum and relative strength (20 max points).
 
@@ -604,16 +602,16 @@ class SwingTraderScore:
         si_pts = 0.0
         short_interest = None
         try:
-            self.cur.execute(
+            cur.execute(
                 """SELECT short_interest_percent FROM positioning_metrics WHERE symbol = %s
                    ORDER BY date DESC LIMIT 1""",
                 (symbol,),
             )
-            r = self.cur.fetchone()
+            r = cur.fetchone()
             if r and r[0] is not None:
                 short_interest = float(r[0])
                 # Also get volume ratio
-                self.cur.execute(
+                cur.execute(
                     """
                     WITH d AS (
                         SELECT date, volume,
@@ -625,7 +623,7 @@ class SwingTraderScore:
                     """,
                     (symbol, eval_date),
                 )
-                vol_row = self.cur.fetchone()
+                vol_row = cur.fetchone()
                 vol_ratio = float(vol_row[0]) if vol_row and vol_row[0] is not None else 0
 
                 # Trigger: SI > 15% AND volume_ratio > 1.5x AND RS percentile > 70
@@ -665,7 +663,7 @@ class SwingTraderScore:
             'options_signals': opts_detail,
         }
 
-    def _volume_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+    def _volume_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate volume characteristics (12 max points).
 
@@ -686,7 +684,7 @@ class SwingTraderScore:
         Returns: (pts, detail_dict) where pts is 0-12 and detail contains breakdown
         """
         # Latest day volume vs 50d avg
-        self.cur.execute(
+        cur.execute(
             """
             WITH d AS (
                 SELECT date, volume,
@@ -698,7 +696,7 @@ class SwingTraderScore:
             """,
             (symbol, eval_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         ratio = None
         ratio_pts = 0.0
         if row and row[0] and row[1]:
@@ -716,7 +714,7 @@ class SwingTraderScore:
                 ratio_pts = 1
 
         # Accumulation days (last 20 days where close up + volume above 50-day avg)
-        self.cur.execute(
+        cur.execute(
             """
             WITH d AS (
                 SELECT date, close, volume,
@@ -732,7 +730,7 @@ class SwingTraderScore:
             """,
             (symbol, eval_date, eval_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         accum = int(row[0]) if row else 0
         dist = int(row[1]) if row else 0
         net = accum - dist
@@ -778,7 +776,7 @@ class SwingTraderScore:
 
         Returns: (pts, detail_dict) where pts is 0-10 and detail contains breakdown
         """
-        self.cur.execute(
+        cur.execute(
             """
             SELECT eps_growth_3y_cagr, revenue_growth_3y_cagr,
                    net_income_growth_yoy, revenue_growth_yoy
@@ -787,7 +785,7 @@ class SwingTraderScore:
             """,
             (symbol,),
         )
-        gm = self.cur.fetchone()
+        gm = cur.fetchone()
         eps_3y = float(gm[0]) if gm and gm[0] is not None else 0
         rev_3y = float(gm[1]) if gm and gm[1] is not None else 0
         ni_yoy = float(gm[2]) if gm and gm[2] is not None else 0
@@ -849,11 +847,11 @@ class SwingTraderScore:
         Returns: (pts, detail_dict) where pts is 0-8 and detail contains breakdown
         """
         if sector is None or industry is None:
-            self.cur.execute(
+            cur.execute(
                 "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
                 (symbol,),
             )
-            r = self.cur.fetchone()
+            r = cur.fetchone()
             if r:
                 sector, industry = r[0], r[1]
 
@@ -866,13 +864,13 @@ class SwingTraderScore:
         ind_accel_4w = 0
 
         if industry:
-            self.cur.execute(
+            cur.execute(
                 """SELECT current_rank, rank_4w_ago FROM industry_ranking
                    WHERE industry = %s AND date_recorded <= %s
                    ORDER BY date_recorded DESC LIMIT 1""",
                 (industry, eval_date),
             )
-            r = self.cur.fetchone()
+            r = cur.fetchone()
             if r and r[0]:
                 ind_rank = int(r[0])
                 # top 20 = 3pts, top 40 = 2, top 80 = 1
@@ -887,13 +885,13 @@ class SwingTraderScore:
                     ind_accel_4w = int(r[1]) - ind_rank  # positive = improving
 
         if sector:
-            self.cur.execute(
+            cur.execute(
                 """SELECT current_rank, rank_4w_ago, momentum_score FROM sector_ranking
                    WHERE sector_name = %s AND date_recorded <= %s
                    ORDER BY date_recorded DESC LIMIT 1""",
                 (sector, eval_date),
             )
-            r = self.cur.fetchone()
+            r = cur.fetchone()
             if r and r[0]:
                 sec_rank = int(r[0])
                 if sec_rank <= 3:
@@ -917,13 +915,13 @@ class SwingTraderScore:
         rotation_pts = 0.0
         if sector:
             try:
-                self.cur.execute(
+                cur.execute(
                     """SELECT signal FROM sector_rotation_signal
                        WHERE sector_name = %s AND date <= %s
                        ORDER BY date DESC LIMIT 1""",
                     (sector, eval_date),
                 )
-                r = self.cur.fetchone()
+                r = cur.fetchone()
                 if r and r[0]:
                     rotation_status = r[0]
                     if rotation_status == 'Leading':
@@ -971,15 +969,15 @@ class SwingTraderScore:
         monthly_above_ma = False
         try:
             # Weekly BUY signal in last 90 days (~13 weeks, captures most active uptrends)
-            self.cur.execute(
+            cur.execute(
                 """SELECT 1 FROM buy_sell_weekly WHERE symbol = %s AND signal_type = 'BUY'
                    AND date >= %s::date - INTERVAL '90 days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )
-            weekly_buy = self.cur.fetchone() is not None
+            weekly_buy = cur.fetchone() is not None
 
             # Fallback: weekly close above 30-week SMA — Stage-2 condition (Weinstein)
-            self.cur.execute(
+            cur.execute(
                 """WITH w AS (
                        SELECT close,
                               AVG(close) OVER (ORDER BY date
@@ -990,20 +988,20 @@ class SwingTraderScore:
                    SELECT close, sma30 FROM w WHERE rn = 1""",
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0] and row[1]:
                 weekly_above_ma = float(row[0]) > float(row[1])
 
             # Monthly BUY in last 270 days (~9 months — long-term confirmation window)
-            self.cur.execute(
+            cur.execute(
                 """SELECT 1 FROM buy_sell_monthly WHERE symbol = %s AND signal_type = 'BUY'
                    AND date >= %s::date - INTERVAL '270 days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )
-            monthly_up = self.cur.fetchone() is not None
+            monthly_up = cur.fetchone() is not None
 
             # Fallback: monthly close above 10-month MA — long-term uptrend (Faber)
-            self.cur.execute(
+            cur.execute(
                 """WITH m AS (
                        SELECT close,
                               AVG(close) OVER (ORDER BY date
@@ -1014,7 +1012,7 @@ class SwingTraderScore:
                    SELECT close, sma10 FROM m WHERE rn = 1""",
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0] and row[1]:
                 monthly_above_ma = float(row[0]) > float(row[1])
         except Exception as e:
@@ -1086,7 +1084,7 @@ class SwingTraderScore:
                 'reason': result.get('reason'),
             }
 
-            self.cur.execute(
+            cur.execute(
                 """
                 INSERT INTO swing_trader_scores (symbol, date, score, components)
                 VALUES (%s, %s, %s, %s)

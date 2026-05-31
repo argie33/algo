@@ -21,29 +21,12 @@ class RejectionTracker:
             return None
 
     def __init__(self):
-        self.cur = None
-        self._db_context = None
+        pass
 
     def log_rejection(self, eval_date: date, symbol: str, entry_price: float,
                       tier_results: Dict, advanced_results: Optional[Dict] = None):
-        """
-        Log signal rejection with reason at each tier.
-
-        Args:
-            eval_date: Evaluation date
-            symbol: Stock symbol
-            entry_price: Entry price from signal
-            tier_results: dict {
-                1: {'pass': bool, 'reason': '...'},
-                2: {'pass': bool, 'reason': '...'},
-                ...
-            }
-            advanced_results: dict with 'reason' key (optional)
-        """
-        self.connect()
-
-        try:
-            # Find which tier rejected it (first tier that failed)
+        """Log signal rejection with reason at each tier."""
+        def _log_rejection(cur):
             rejected_at_tier = None
             for tier in [1, 2, 3, 4, 5]:
                 if not tier_results.get(tier, {}).get('pass', False):
@@ -54,8 +37,7 @@ class RejectionTracker:
             if rejected_at_tier:
                 rejection_reason = tier_results.get(rejected_at_tier, {}).get('reason', 'Unknown')
 
-            # Build rejection log entry
-            self.cur.execute("""
+            cur.execute("""
                 INSERT INTO filter_rejection_log
                 (eval_date, symbol, entry_price, rejected_at_tier, rejection_reason,
                  tier_1_pass, tier_2_pass, tier_2_reason,
@@ -80,27 +62,16 @@ class RejectionTracker:
                 advanced_results.get('reason', '') if advanced_results else None
             ))
 
+        try:
+            self._with_cursor(_log_rejection)
         except Exception as e:
             logger.error(f"Failed to log rejection for {symbol}: {e}")
 
-        finally:
-            self.disconnect()
-
     def log_pre_tier_rejection(self, eval_date: date, symbol: str, tier_0_reason: str,
                               entry_price: float = None):
-        """
-        Log signal rejection at pre-tier stage (before Tier 1).
-
-        Args:
-            eval_date: Evaluation date
-            symbol: Stock symbol
-            tier_0_reason: Reason for pre-tier rejection (e.g., 'earnings_blackout', 'signal_age')
-            entry_price: Entry price (optional, may not be available at pre-tier stage)
-        """
-        self.connect()
-
-        try:
-            self.cur.execute("""
+        """Log signal rejection at pre-tier stage (before Tier 1)."""
+        def _log_pre_tier(cur):
+            cur.execute("""
                 INSERT INTO filter_rejection_log
                 (eval_date, symbol, entry_price, rejected_at_tier, rejection_reason,
                  tier_0_pass, tier_0_reason)
@@ -109,34 +80,21 @@ class RejectionTracker:
                 eval_date,
                 symbol,
                 entry_price,
-                0,  # Pre-tier is tier 0
+                0,
                 tier_0_reason,
-                False,  # Pre-tier rejection means tier_0_pass is False
+                False,
                 tier_0_reason
             ))
 
+        try:
+            self._with_cursor(_log_pre_tier)
         except Exception as e:
             logger.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
 
-        finally:
-            self.disconnect()
-
     def get_rejection_funnel(self, eval_date: date):
-        """
-        Get rejection counts by tier for funnel visualization.
-
-        Returns:
-            dict {
-                'total_signals': 150,
-                'tier_1': {'pass': 100, 'reject': 50},
-                'tier_2': {'pass': 80, 'reject': 20},
-                ...
-            }
-        """
-        self.connect()
-
-        try:
-            self.cur.execute("""
+        """Get rejection counts by tier for funnel visualization."""
+        def _get_funnel(cur):
+            cur.execute("""
                 SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN tier_1_pass THEN 1 ELSE 0 END) as t1_pass,
@@ -148,12 +106,9 @@ class RejectionTracker:
                 WHERE eval_date = %s
             """, (eval_date,))
 
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row:
-                return {
-                    'total_signals': 0,
-                    'tiers': []
-                }
+                return {'total_signals': 0, 'tiers': []}
 
             total, t1, t2, t3, t4, t5 = row
             t1 = t1 or 0
@@ -162,66 +117,28 @@ class RejectionTracker:
             t4 = t4 or 0
             t5 = t5 or 0
 
-            result = {
+            return {
                 'total_signals': total,
                 'tiers': [
-                    {
-                        'tier': 1,
-                        'name': 'Data Quality',
-                        'pass': t1,
-                        'reject': total - t1
-                    },
-                    {
-                        'tier': 2,
-                        'name': 'Market Health',
-                        'pass': t2,
-                        'reject': t1 - t2
-                    },
-                    {
-                        'tier': 3,
-                        'name': 'Trend Confirmation',
-                        'pass': t3,
-                        'reject': t2 - t3
-                    },
-                    {
-                        'tier': 4,
-                        'name': 'Signal Quality',
-                        'pass': t4,
-                        'reject': t3 - t4
-                    },
-                    {
-                        'tier': 5,
-                        'name': 'Portfolio Health',
-                        'pass': t5,
-                        'reject': t4 - t5
-                    },
+                    {'tier': 1, 'name': 'Data Quality', 'pass': t1, 'reject': total - t1},
+                    {'tier': 2, 'name': 'Market Health', 'pass': t2, 'reject': t1 - t2},
+                    {'tier': 3, 'name': 'Trend Confirmation', 'pass': t3, 'reject': t2 - t3},
+                    {'tier': 4, 'name': 'Signal Quality', 'pass': t4, 'reject': t3 - t4},
+                    {'tier': 5, 'name': 'Portfolio Health', 'pass': t5, 'reject': t4 - t5},
                 ]
             }
 
-            return result
-
+        try:
+            return self._with_cursor(_get_funnel) or {'total_signals': 0, 'tiers': []}
         except Exception as e:
             logger.error(f"Failed to get rejection funnel: {e}")
             return {'total_signals': 0, 'tiers': []}
 
-        finally:
-            self.disconnect()
-
     def get_rejection_reasons(self, eval_date: date, tier: int, limit: int = 20):
-        """
-        Get top rejection reasons for a specific tier.
-
-        Returns:
-            list of dicts: [
-                {'reason': 'Distribution days 5 > 4', 'count': 25, 'symbols': ['XYZ', 'ABC', ...]},
-                ...
-            ]
-        """
-        self.connect()
-
-        try:
+        """Get top rejection reasons for a specific tier."""
+        def _get_reasons(cur):
             col_name = f'tier_{tier}_reason'
-            self.cur.execute(f"""
+            cur.execute(f"""
                 SELECT
                     {col_name} as reason,
                     COUNT(*) as count,
@@ -234,39 +151,26 @@ class RejectionTracker:
             """, (eval_date, limit))
 
             results = []
-            for row in self.cur.fetchall():
+            for row in cur.fetchall():
                 results.append({
                     'reason': row[0],
                     'count': row[1],
-                    'symbols': row[2][:5],  # First 5 symbols
+                    'symbols': row[2][:5],
                     'total_symbols': len(row[2])
                 })
 
             return results
 
+        try:
+            return self._with_cursor(_get_reasons) or []
         except Exception as e:
             logger.error(f"Failed to get rejection reasons for tier {tier}: {e}")
             return []
 
-        finally:
-            self.disconnect()
-
     def get_signals_by_rejection_status(self, eval_date: date):
-        """
-        Get summary of signals by whether they were rejected and at which tier.
-
-        Returns:
-            dict {
-                'qualified': 8,
-                'rejected_tier_1': 50,
-                'rejected_tier_2': 20,
-                ...
-            }
-        """
-        self.connect()
-
-        try:
-            self.cur.execute("""
+        """Get summary of signals by whether they were rejected and at which tier."""
+        def _get_status(cur):
+            cur.execute("""
                 SELECT
                     SUM(CASE WHEN tier_5_pass THEN 1 ELSE 0 END) as qualified,
                     SUM(CASE WHEN NOT tier_1_pass THEN 1 ELSE 0 END) as t1_reject,
@@ -278,7 +182,7 @@ class RejectionTracker:
                 WHERE eval_date = %s
             """, (eval_date,))
 
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row:
                 return {}
 
@@ -291,10 +195,9 @@ class RejectionTracker:
                 'rejected_tier_5': row[5] or 0,
             }
 
+        try:
+            return self._with_cursor(_get_status) or {}
         except Exception as e:
             logger.error(f"Failed to get rejection summary: {e}")
             return {}
-
-        finally:
-            self.disconnect()
 
