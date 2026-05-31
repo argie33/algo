@@ -311,7 +311,7 @@ class WeightOptimizer:
     ) -> None:
         """Log weight changes to algo_weight_history."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 for comp in self.COMPONENTS:
                     old_w = old_weights[comp]
                     new_w = new_weights[comp]

@@ -37,7 +37,7 @@ class EarningsBlackout:
         If earnings_calendar table doesn't exist, passes through.
         """
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 # Issue #27: Compute trading day windows instead of calendar days
                 # Count back N trading days before, forward N trading days after
                 lookback_date = eval_date - timedelta(days=self.days_before * 2)  # Conservative estimate
@@ -85,7 +85,7 @@ class EarningsBlackout:
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
         """Get upcoming earnings for symbol."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """SELECT earnings_date FROM earnings_calendar
                        WHERE symbol = %s

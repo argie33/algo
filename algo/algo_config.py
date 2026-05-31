@@ -317,7 +317,7 @@ class AlgoConfig:
         try:
             self._validate_value(key, str(value), value_type)
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("""
                     INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
                     VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 'system')
@@ -341,7 +341,7 @@ class AlgoConfig:
     def initialize_defaults(self):
         """Initialize all default configs in database."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('write') as cur:
                 for key, (value, dtype, desc) in self.DEFAULTS.items():
                     cur.execute("""
                         INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
@@ -476,7 +476,7 @@ class RuntimeConfig:
     def _refresh_cache(cls) -> bool:
         """Refresh configuration cache from RDS."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """SELECT config_key, config_value FROM algo_runtime_config
                        ORDER BY config_key"""

@@ -83,7 +83,7 @@ class TradeAuditLogger:
             logger.info(audit_msg)
 
             # Persist to database for dashboard visibility
-            with DatabaseContext() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("""
                     INSERT INTO algo_position_sizing_audit (
                         symbol, signal_date, entry_price, stop_loss_price,
@@ -145,7 +145,7 @@ class TradeAuditLogger:
             logger.info(audit_msg)
 
             # Persist to database
-            with DatabaseContext() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("""
                     INSERT INTO algo_stop_loss_audit (
                         symbol, signal_date, entry_price, stop_loss_price,
@@ -196,7 +196,7 @@ class TradeAuditLogger:
             logger.info(audit_msg)
 
             # Track exit rule distribution
-            with DatabaseContext() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("""
                     INSERT INTO algo_exit_rules_distribution (
                         symbol, position_id, exit_rule, exit_reason,
@@ -215,7 +215,7 @@ class TradeAuditLogger:
     def get_position_sizing_summary(self, days: int = 30) -> Dict[str, Any]:
         """Get position sizing statistics for dashboard."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
@@ -244,7 +244,7 @@ class TradeAuditLogger:
     def get_exit_rule_distribution(self, days: int = 30) -> Dict[str, int]:
         """Get which exit rules fire most (diagnostic)."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute("""
                     SELECT exit_rule, COUNT(*) as count
                     FROM algo_exit_rules_distribution

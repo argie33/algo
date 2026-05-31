@@ -433,7 +433,7 @@ class OptimalLoader(ABC):
         try:
             from utils.database_context import DatabaseContext
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 if self.watermark_field:
                     cur.execute(
                         f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"

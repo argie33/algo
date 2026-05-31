@@ -39,7 +39,7 @@ class AdvancedFilters:
     # ---------- Pre-load: market context ----------
 
     def load_market_context(self, eval_date):
-        with DatabaseContext() as cur:
+        with DatabaseContext('read') as cur:
             cur.execute(
                 """
                 SELECT sector_name, current_rank, momentum_score
@@ -114,7 +114,7 @@ class AdvancedFilters:
           'subscores': {momentum, quality, catalyst, risk}
           'components': dict
         """
-        with DatabaseContext() as cur:
+        with DatabaseContext('read') as cur:
             components = {}
             subscores = {'momentum': 0.0, 'quality': 0.0, 'catalyst': 0.0, 'risk': 0.0}
             max_subscores = {'momentum': 40.0, 'quality': 30.0, 'catalyst': 15.0, 'risk': 15.0}

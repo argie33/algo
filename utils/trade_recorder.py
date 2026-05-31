@@ -41,7 +41,7 @@ class TradeRecorder:
             True if recorded successfully
         """
         try:
-            with DatabaseContext() as cursor:
+            with DatabaseContext('write') as cursor:
                 # Insert trade record
                 cursor.execute("""
                     INSERT INTO algo_trades (
@@ -102,7 +102,7 @@ class TradeRecorder:
             True if recorded successfully
         """
         try:
-            with DatabaseContext() as cursor:
+            with DatabaseContext('write') as cursor:
                 # Get existing position if quantity not specified
                 if quantity is None:
                     cursor.execute("SELECT quantity FROM algo_positions WHERE symbol = %s", (symbol,))
@@ -169,7 +169,7 @@ class TradeRecorder:
             True if updated successfully
         """
         try:
-            with DatabaseContext() as cursor:
+            with DatabaseContext('write') as cursor:
                 cursor.execute("""
                     UPDATE algo_positions
                     SET current_price = %s, updated_at = CURRENT_TIMESTAMP
@@ -189,7 +189,7 @@ class TradeRecorder:
             List of dicts with symbol, quantity, entry_price, current_price, etc.
         """
         try:
-            with DatabaseContext() as cursor:
+            with DatabaseContext('read') as cursor:
                 cursor.execute("""
                     SELECT symbol, quantity, entry_price, current_price, entry_date,
                            (current_price - entry_price) * quantity as unrealized_pnl

@@ -233,7 +233,7 @@ class DataProvenanceTracker:
         from utils.database_context import DatabaseContext
 
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     SELECT run_id, loader_name, table_name, source_api, parameters, start_at

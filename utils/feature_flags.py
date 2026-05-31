@@ -100,7 +100,7 @@ class FeatureFlags:
                 self._cache.clear()
                 self._cache_updated_at = now
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute("""
                     SELECT value, enabled FROM feature_flags
                     WHERE flag_name = %s
@@ -146,7 +146,7 @@ class FeatureFlags:
     def list_flags(self) -> List[Dict[str, Any]]:
         """Get all feature flags."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute("""
                     SELECT flag_name, flag_type, value, description, enabled, updated_at
                     FROM feature_flags
@@ -227,7 +227,7 @@ def initialize_safe_defaults():
         initialized_count = 0
 
         for flag_name, (flag_type, default_value, description) in DEFAULT_FEATURE_FLAGS.items():
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute("""
                     SELECT value FROM feature_flags WHERE flag_name = %s
                 """, (flag_name,))

@@ -77,7 +77,7 @@ class RegimeManager:
             if as_of_date is None:
                 as_of_date = _date.today()
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """SELECT regime FROM market_exposure_daily
                        WHERE date <= %s AND regime IS NOT NULL
@@ -170,7 +170,7 @@ class RegimeManager:
         try:
             start_date = _date.today() - timedelta(days=days)
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     SELECT DISTINCT ON (date) date, regime FROM market_exposure_daily
@@ -220,7 +220,7 @@ class RegimeManager:
             if as_of_date is None:
                 as_of_date = _date.today()
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """SELECT raw_score FROM market_exposure_daily
                        WHERE date <= %s AND raw_score IS NOT NULL

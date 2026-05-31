@@ -29,7 +29,7 @@ class SignalTradePerformancePopulator:
 
     def populate_closed_trades(self, lookback_days: int = 7) -> Dict[str, Any]:
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 # Find closed trades not yet in signal_trade_performance
                 cutoff_date = _date.today() - timedelta(days=lookback_days)
 
@@ -178,7 +178,7 @@ class SignalTradePerformancePopulator:
             return []
         col = f"{component}_score"
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cutoff = _date.today() - timedelta(days=days)
 
                 # For each exit_date, compute IC using trades exited on/before that date

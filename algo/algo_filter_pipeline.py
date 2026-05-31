@@ -43,7 +43,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             with DatabaseContext('write') as cur:
                 return operation(cur)
         except Exception as e:
-            logger.debug(f"Database operation failed: {e}")
+            import traceback
+            logger.error(f"FilterPipeline._with_cursor: operation failed: {e}\n{traceback.format_exc()}")
             return None
 
     def _apply_tier_multiplier(self, base_size: float, tier: str, base_risk_pct: float) -> float:
@@ -125,7 +126,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info("")
 
             if self.advanced is None:
-                self.advanced = AdvancedFilters(self.config, cur=cur)
+                self.advanced = AdvancedFilters(self.config)
             ctx = self.advanced.load_market_context(eval_date)
             logger.info(f"Market context: top sectors = {ctx['strong_sectors']}")
             if ctx['market_breadth']:
@@ -150,7 +151,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             tracker = RejectionTracker()
 
             earnings_blackout = EarningsBlackout(self.config)
-            trendline = TrendlineSupport(cur=cur)
+            trendline = TrendlineSupport()
 
             today = _date.today()
 

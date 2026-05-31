@@ -40,7 +40,7 @@ class WatermarkManager:
         try:
             from utils.database_context import DatabaseContext
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 if self.granularity == "symbol":
                     if not symbol:
                         raise ValueError("symbol required for granularity='symbol'")
@@ -255,7 +255,7 @@ class WatermarkManager:
         try:
             from utils.database_context import DatabaseContext
 
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     "SELECT symbol, granularity, watermark, error_count, last_error FROM loader_watermarks WHERE loader = %s",
                     (self.loader_name,),

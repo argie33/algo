@@ -29,7 +29,7 @@ class TrendlineSupport:
     def get_price_history(self, symbol: str, end_date: date, days: int = 130) -> list:
         """Get closing prices for the lookback period."""
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     SELECT date, low, close FROM price_daily

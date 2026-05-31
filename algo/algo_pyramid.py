@@ -58,7 +58,7 @@ class PyramidEngine:
             return []
 
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
@@ -192,7 +192,7 @@ class PyramidEngine:
 
     def _is_new_closing_high(self, symbol, current_date, days=5):
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     WITH d AS (
@@ -216,7 +216,7 @@ class PyramidEngine:
 
     def _is_volume_confirmed(self, symbol, current_date, mult=1.2):
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     WITH d AS (
@@ -239,7 +239,7 @@ class PyramidEngine:
 
     def _is_pivot_breakout(self, symbol, current_date, lookback=20):
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     f"""
                     WITH d AS (
@@ -268,7 +268,7 @@ class PyramidEngine:
         r = recommendation
 
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
                     "ORDER BY snapshot_date DESC LIMIT 1"
@@ -308,7 +308,7 @@ class PyramidEngine:
             return {'success': False, 'message': f"Alpaca order failed: {alpaca_result.get('message')}"}
 
         try:
-            with DatabaseContext() as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """UPDATE algo_positions
                        SET quantity = quantity + %s,
