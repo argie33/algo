@@ -522,54 +522,83 @@ class OptimalLoader(ABC):
           4. Return count of rows inserted.
         """
 
-        start = time.time()
-        logger.info("[%s] Starting global load", self.table_name)
-
-        # Get current watermark from DB so fetch_global can do incremental loads
-        since = None
+        _lock_conn = None
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    f"SELECT MAX({self.watermark_field}) FROM {self.table_name}"
+            from utils.db_connection import get_db_connection
+            _lock_conn = get_db_connection(timeout=30)
+            _lock_conn.autocommit = True
+            with _lock_conn.cursor() as _cur:
+                _cur.execute("SELECT pg_try_advisory_lock(hashtext(%s)::bigint)", (self.table_name,))
+                acquired = _cur.fetchone()[0]
+            if not acquired:
+                logger.warning(
+                    "[%s] Skipping global load: another instance already running (advisory lock held)",
+                    self.table_name,
                 )
-                row = cur.fetchone()
-                since = self._parse_watermark_date(row[0]) if row and row[0] else None
-        except Exception as e:
-            logger.warning("[%s] Could not read watermark: %s — doing full refresh", self.table_name, e)
+                try:
+                    _lock_conn.close()
+                except Exception:
+                    pass
+                return 0
+        except Exception as _lock_err:
+            logger.warning("[%s] Advisory lock check failed (%s) — proceeding without lock", self.table_name, _lock_err)
+            _lock_conn = None
 
-        rows = self.fetch_global(since)
-        if not rows:
-            logger.info("[%s] fetch_global returned no rows", self.table_name)
-            return 0
-
-        rows = self.transform(rows)
-        inserted = self._bulk_insert(rows)
-
-        duration = round(time.time() - start, 2)
-        logger.info("[%s] load_global done: %d rows inserted in %.1fs", self.table_name, inserted, duration)
-
-        # Update data_loader_status
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
-                result = cur.fetchone()
-                total_rows = result[0] if result else 0
-                latest_date = result[1] if result else None
-                if hasattr(latest_date, 'date'):
-                    latest_date = latest_date.date()
-            with DatabaseContext('write') as cur:
-                cur.execute("""
-                    INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                    VALUES (%s, %s, %s, NOW())
-                    ON CONFLICT (table_name) DO UPDATE SET
-                      row_count = EXCLUDED.row_count,
-                      latest_date = EXCLUDED.latest_date,
-                      last_updated = NOW()
-                """, (self.table_name, total_rows, latest_date))
-        except Exception as e:
-            logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+            start = time.time()
+            logger.info("[%s] Starting global load", self.table_name)
 
-        return inserted
+            # Get current watermark from DB so fetch_global can do incremental loads
+            since = None
+            try:
+                with DatabaseContext('read') as cur:
+                    cur.execute(
+                        f"SELECT MAX({self.watermark_field}) FROM {self.table_name}"
+                    )
+                    row = cur.fetchone()
+                    since = self._parse_watermark_date(row[0]) if row and row[0] else None
+            except Exception as e:
+                logger.warning("[%s] Could not read watermark: %s — doing full refresh", self.table_name, e)
+
+            rows = self.fetch_global(since)
+            if not rows:
+                logger.info("[%s] fetch_global returned no rows", self.table_name)
+                return 0
+
+            rows = self.transform(rows)
+            inserted = self._bulk_insert(rows)
+
+            duration = round(time.time() - start, 2)
+            logger.info("[%s] load_global done: %d rows inserted in %.1fs", self.table_name, inserted, duration)
+
+            # Update data_loader_status
+            try:
+                with DatabaseContext('read') as cur:
+                    cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
+                    result = cur.fetchone()
+                    total_rows = result[0] if result else 0
+                    latest_date = result[1] if result else None
+                    if hasattr(latest_date, 'date'):
+                        latest_date = latest_date.date()
+                with DatabaseContext('write') as cur:
+                    cur.execute("""
+                        INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
+                        VALUES (%s, %s, %s, NOW())
+                        ON CONFLICT (table_name) DO UPDATE SET
+                          row_count = EXCLUDED.row_count,
+                          latest_date = EXCLUDED.latest_date,
+                          last_updated = NOW()
+                    """, (self.table_name, total_rows, latest_date))
+            except Exception as e:
+                logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+
+            return inserted
+        finally:
+            if _lock_conn:
+                try:
+                    _lock_conn.close()
+                except Exception:
+                    pass
 
     def _run_serial(self, symbols: List[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
