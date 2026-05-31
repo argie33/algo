@@ -4,7 +4,6 @@ from typing import Dict
 import logging
 import re
 from .utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness
-from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,6 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict
 import logging
 from .utils import error_response, list_response, handle_db_error, safe_limit, check_data_freshness
-from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

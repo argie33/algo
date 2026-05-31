@@ -5,7 +5,6 @@ import logging
 import json
 from datetime import datetime, timezone
 from .utils import check_data_freshness
-from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

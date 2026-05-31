@@ -1,4 +1,3 @@
-from utils.database_context import DatabaseContext
 """Route: settings — user preferences stored per authenticated user."""
 import psycopg2, psycopg2.extras, psycopg2.errors
 import json

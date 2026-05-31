@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from utils.database_context import DatabaseContext
 """
 API: GET /api/data-coverage
 
