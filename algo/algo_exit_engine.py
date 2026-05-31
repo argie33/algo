@@ -414,8 +414,6 @@ class ExitEngine:
 
         Real pullbacks show clear consolidation, not just a 0.5% afternoon dip.
         This prevents hair-trigger exits on winners."""
-        if cur is None:
-            return True
         cur.execute(
             """
             SELECT close, high FROM price_daily
@@ -441,8 +439,6 @@ class ExitEngine:
 
     def _rs_line_breaking(self, cur, symbol, current_date) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
-        if cur is None:
-            return False
         try:
             cur.execute(
                 """
@@ -476,7 +472,7 @@ class ExitEngine:
     def _eight_week_rule_active(self, cur, symbol, current_date, entry_price, days_held,
                                  threshold_pct, window_days) -> bool:
         """O'Neil 8-week rule: if stock gained 20%+ in first 3 weeks, hold for 8 weeks."""
-        if cur is None or days_held < window_days:
+        if days_held < window_days:
             return False
         try:
             cur.execute(
@@ -503,8 +499,6 @@ class ExitEngine:
     def _chandelier_or_ema_stop(self, cur, symbol, current_date, days_held) -> float | None:
         """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
         then 21-EMA after."""
-        if cur is None:
-            return None
         try:
             switch_days = int(self.config.get('switch_to_21ema_after_days', 10))
             if days_held >= switch_days:
@@ -562,8 +556,6 @@ class ExitEngine:
 
     def _is_td_sequential_top(self, cur, symbol, current_date) -> bool:
         """Use rigorous DeMark TD Sequential — fires when sell-setup count = 9."""
-        if cur is None:
-            return False
         try:
             sc = SignalComputer()
             td = sc.td_sequential(symbol, current_date)
@@ -574,8 +566,6 @@ class ExitEngine:
 
     def _get_td_state(self, cur, symbol, current_date) -> Dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection)."""
-        if cur is None:
-            return {}
         try:
             sc = SignalComputer()
             return sc.td_sequential(symbol, current_date)
@@ -585,8 +575,6 @@ class ExitEngine:
 
     def _is_minervini_break(self, cur, symbol, current_date, cur_price) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
-        if cur is None:
-            return False
         cur.execute(
             """
             SELECT td.sma_50, td.ema_21,
@@ -619,8 +607,6 @@ class ExitEngine:
 
     def _check_volume_spike(self, cur, symbol, current_date, volume_multiplier) -> bool:
         """Check if today's volume is >= volume_multiplier * average volume."""
-        if cur is None:
-            return False
         try:
             cur.execute(
                 """
@@ -646,8 +632,6 @@ class ExitEngine:
 
     def _compute_gain_last_n_days(self, cur, symbol, current_date, n_days) -> float | None:
         """Compute % gain over the last N days (from close N days ago to current close)."""
-        if cur is None:
-            return None
         try:
             cur.execute(
                 """
