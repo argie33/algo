@@ -7,7 +7,7 @@ from .utils import error_response, success_response, list_response, json_respons
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/market/* endpoints."""
         try:
             if path in ['/api/market', '/api/market/status'] or path.startswith('/api/market?'):

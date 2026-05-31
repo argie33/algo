@@ -8,7 +8,7 @@ from .utils import check_data_freshness
 
 logger = logging.getLogger(__name__)
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/health endpoint - PUBLIC health check (no auth required).
 
     Returns comprehensive system health status including:

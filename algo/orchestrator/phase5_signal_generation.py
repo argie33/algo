@@ -12,7 +12,7 @@ from algo.algo_metrics import MetricsPublisher
 
 logger = logging.getLogger(__name__)
 
-def _report_signal_waterfall(cur: Any, run_date: _date, verbose: bool, final_count: int = 0) -> None:
+def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) -> None:
     """Log signal count at each filter tier for visibility on rejections."""
     try:
         # Count total BUY signals for today
@@ -127,7 +127,7 @@ def run(
         # Signal count waterfall report (for visibility on where signals die)
         try:
             with DatabaseContext('read') as cur:
-                _report_signal_waterfall(cur, eval_date, verbose, len(qualified))
+                _report_signal_waterfall(cur, eval_date, len(qualified))
                 # When nothing qualifies, emit a clear diagnostic so we know exactly why
                 if len(qualified) == 0:
                     cur.execute(

@@ -230,7 +230,7 @@ def get_overall_coverage_summary(cur) -> Dict[str, Any]:
 
     return summary
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle GET /api/data-coverage request."""
     if method != 'GET':
         return {

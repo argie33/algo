@@ -15,7 +15,7 @@ def _sf(v):
     except (TypeError, ValueError):
         return None
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
     try:
         parts = [p for p in path.split('/') if p]

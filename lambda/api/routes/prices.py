@@ -12,7 +12,7 @@ _TABLE_MAP = {
     'monthly': 'price_monthly',
 }
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     try:
         parts = path.split('/')
         # /api/prices/history/{symbol}
