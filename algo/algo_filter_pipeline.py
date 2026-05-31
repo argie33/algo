@@ -299,8 +299,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                             cur.execute("RELEASE SAVEPOINT swing_score")
                             if swing_row:
                                 swing_score, swing_grade, swing_comp_json = swing_row
-                                import json
-                                swing_components = json.loads(swing_comp_json) if swing_comp_json else {}
+                                import json as _json
+                                # psycopg2 auto-parses JSONB to dict; handle both str and dict
+                                if isinstance(swing_comp_json, dict):
+                                    swing_components = swing_comp_json
+                                elif swing_comp_json:
+                                    swing_components = _json.loads(swing_comp_json)
+                                else:
+                                    swing_components = {}
                                 swing = {'pass': True, 'reason': 'precomputed', 'swing_score': float(swing_score or 0), 'grade': swing_grade or 'C', 'components': swing_components}
                             else:
                                 logger.debug(f"No precomputed swing score for {symbol} on {signal_date}")
@@ -363,7 +369,18 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     tracker.log_rejection(eval_date, symbol, float(entry_price), tier_results, adv_result)
 
                 self._log_signal_evaluation(result)
-                self._persist_signal_evaluation(result, eval_date, cur)
+                # Use SAVEPOINT so a persist failure never aborts the outer transaction
+                try:
+                    cur.execute("SAVEPOINT persist_eval")
+                    self._persist_signal_evaluation(result, eval_date, cur)
+                    cur.execute("RELEASE SAVEPOINT persist_eval")
+                except Exception as e_persist:
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT persist_eval")
+                        cur.execute("RELEASE SAVEPOINT persist_eval")
+                    except Exception:
+                        pass
+                    logger.debug(f"Signal evaluation persist failed for {result.get('symbol','?')}: {e_persist}")
 
             logger.info(f"\n{'='*70}")
             logger.info("FILTER REJECTION ANALYSIS:")
