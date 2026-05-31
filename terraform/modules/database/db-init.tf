@@ -85,7 +85,7 @@ resource "aws_lambda_function" "db_init" {
   role             = aws_iam_role.db_init.arn
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
-  timeout          = 300 # 5 minutes for schema creation
+  timeout          = 600 # 10 minutes for schema creation on busy DB
   source_code_hash = filebase64sha256(var.db_init_code_file)
 
   # VPC access for RDS

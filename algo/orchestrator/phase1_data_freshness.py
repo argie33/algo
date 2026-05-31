@@ -427,7 +427,7 @@ def run(
                     f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
                     {'stale_items': stale_items, 'expected_date': str(expected_date)}
                 )
-                log_phase_result_fn(1, 'data_freshness', 'fail',
+                log_phase_result_fn(1, 'data_freshness', 'halt',
                                    f'Stale: {"; ".join(stale_items)}')
                 return PhaseResult(1, 'data_freshness', 'halted', {}, True,
                                  f'Stale: {"; ".join(stale_items)}')
