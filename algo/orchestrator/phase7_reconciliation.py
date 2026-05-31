@@ -152,7 +152,7 @@ def run(
             logger.warning(f"Daily report generation failed: {e}")
             log_phase_result_fn(7, 'daily_report', 'warn', f"error: {str(e)[:60]}")
 
-        # Compute and log live performance metrics (legacy, kept for compatibility)
+        # Step 5: Compute and log live performance metrics
         perf_status = 'warn'
         perf_summary = 'N/A'
         try:
