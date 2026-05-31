@@ -11,7 +11,11 @@ import json
 import logging
 from datetime import date as _date, timedelta
 from typing import Dict, List, Optional, Tuple
-import numpy as np
+
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore[assignment]
 
 try:
     from scipy import stats

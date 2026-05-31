@@ -10,7 +10,11 @@ persists to algo_config (live reloading via SwingTraderScore._load_config_weight
 import logging
 from datetime import date as _date
 from typing import Dict, Optional, List, Tuple
-import numpy as np
+
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore[assignment]
 
 try:
     from scipy.optimize import minimize
