@@ -1,229 +1,217 @@
 #!/usr/bin/env python3
-"""
-Database Migration Runner
+"""Database schema migration runner.
 
-Manages schema migrations with version tracking and rollback support.
+Manages versioning and execution of SQL migrations with rollback support.
 
 Usage:
-    python migrations/run.py --apply      # Apply pending migrations
-    python migrations/run.py --status     # Show migration status
-    python migrations/run.py --rollback <version>  # Rollback specific version
+    python migrations/run.py apply                # Apply all pending migrations
+    python migrations/run.py rollback <version>   # Rollback to version
+    python migrations/run.py status               # Show migration status
+    python migrations/run.py list                 # List all migrations
 """
 
-import os
 import sys
-import hashlib
-import argparse
+import os
 import logging
-from datetime import datetime
 from pathlib import Path
+from datetime import datetime
+import psycopg2
+import psycopg2.extras
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.database_context import DatabaseContext
 
-from config.credential_manager import get_db_config
-import psycopg2
-from psycopg2.extras import DictCursor
-
-logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s [%(levelname)s] %(message)s'
 )
+logger = logging.getLogger(__name__)
+
+MIGRATIONS_DIR = Path(__file__).parent / "versions"
+
 
 class MigrationRunner:
-    """Manages database migrations with version tracking."""
-
     def __init__(self):
-        self.migrations_dir = Path(__file__).parent / 'versions'
-        self.init_file = Path(__file__).parent / '0001_init_schema_version.sql'
-        self.db_config = get_db_config()
-        self.conn = None
-        self.cur = None
+        self.migrations_dir = MIGRATIONS_DIR
+        self.migrations_dir.mkdir(parents=True, exist_ok=True)
 
-    def connect(self):
-        """Connect to database."""
-        try:
-            self.conn = psycopg2.connect(**self.db_config)
-            self.cur = self.conn.cursor(cursor_factory=DictCursor)
-            logger.info("Connected to database")
-        except Exception as e:
-            logger.error(f"Failed to connect to database: {e}")
-            raise
-
-    def disconnect(self):
-        """Disconnect from database."""
-        if self.cur:
-            self.cur.close()
-        if self.conn:
-            self.conn.close()
-            logger.info("Disconnected from database")
-
-    def init_schema_version_table(self):
-        """Create schema_version table if it doesn't exist."""
-        try:
-            with open(self.init_file, 'r') as f:
-                sql = f.read()
-
-            self.cur.execute(sql)
-            self.conn.commit()
-            logger.info("Initialized schema_version table")
-        except Exception as e:
-            self.conn.rollback()
-            logger.error(f"Failed to initialize schema_version table: {e}")
-            raise
-
-    def get_applied_migrations(self):
-        """Get list of applied migrations."""
-        try:
-            self.cur.execute(
-                "SELECT version FROM schema_version WHERE rolled_back_at IS NULL ORDER BY applied_at"
+    def _ensure_tracking_table(self, cur):
+        """Ensure schema_version table exists."""
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schema_version (
+                id INT PRIMARY KEY,
+                version VARCHAR(100) UNIQUE NOT NULL,
+                description TEXT,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                rolled_back_at TIMESTAMP NULL
             )
-            return [row['version'] for row in self.cur.fetchall()]
-        except psycopg2.errors.UndefinedTable:
-            return []
+        """)
 
-    def get_pending_migrations(self):
-        """Get list of migrations that need to be applied."""
+    def _get_applied_versions(self, cur) -> set:
+        """Return set of applied migration versions."""
+        self._ensure_tracking_table(cur)
+        cur.execute("SELECT version FROM schema_version WHERE rolled_back_at IS NULL ORDER BY id")
+        return {row[0] for row in cur.fetchall()}
+
+    def _get_pending_migrations(self) -> list:
+        """Return list of (version, path) for migrations not yet applied."""
         if not self.migrations_dir.exists():
             return []
 
-        applied = self.get_applied_migrations()
+        migration_files = sorted(self.migrations_dir.glob("*.sql"))
+        with DatabaseContext('read') as cur:
+            applied = self._get_applied_versions(cur)
+
         pending = []
-
-        for migration_file in sorted(self.migrations_dir.glob('*.sql')):
-            version = migration_file.stem
+        for path in migration_files:
+            version = path.stem
             if version not in applied:
-                pending.append({
-                    'version': version,
-                    'file': migration_file,
-                    'description': self._get_description(migration_file)
-                })
-
+                pending.append((version, path))
         return pending
 
-    def _get_description(self, migration_file):
-        """Extract description from migration file."""
+    def _read_migration_file(self, path: Path) -> tuple:
+        """Parse migration file into up and down SQL.
+
+        Format:
+        -- Up
+        CREATE TABLE ...;
+        -- Down
+        DROP TABLE ...;
+        """
+        content = path.read_text()
+        parts = content.split("-- Down")
+        up_sql = parts[0].replace("-- Up", "").strip() if len(parts) > 0 else ""
+        down_sql = parts[1].strip() if len(parts) > 1 else ""
+        return up_sql, down_sql
+
+    def apply_migration(self, version: str, path: Path) -> bool:
+        """Apply a single migration and record in schema_version."""
         try:
-            with open(migration_file, 'r') as f:
-                for line in f:
-                    if 'Description:' in line:
-                        return line.split('Description:')[1].strip()
-        except:
-            pass
-        return ""
+            up_sql, _ = self._read_migration_file(path)
+            if not up_sql:
+                logger.warning(f"Migration {version}: no Up SQL found")
+                return False
 
-    def _calculate_checksum(self, sql_content):
-        """Calculate SHA-256 checksum of SQL content."""
-        return hashlib.sha256(sql_content.encode()).hexdigest()
-
-    def apply_migration(self, version, migration_file):
-        """Apply a single migration."""
-        try:
-            with open(migration_file, 'r') as f:
-                sql = f.read()
-
-            # Execute migration
-            self.cur.execute(sql)
-
-            # Record in schema_version table
-            checksum = self._calculate_checksum(sql)
-            description = self._get_description(migration_file)
-
-            self.cur.execute(
-                """INSERT INTO schema_version (version, description, checksum, applied_at)
-                   VALUES (%s, %s, %s, %s)""",
-                (version, description, checksum, datetime.now())
-            )
-
-            self.conn.commit()
-            logger.info(f"✓ Applied migration: {version}")
-            return True
+            with DatabaseContext('write') as cur:
+                self._ensure_tracking_table(cur)
+                logger.info(f"Applying migration {version}...")
+                cur.execute(up_sql)
+                cur.execute(
+                    "INSERT INTO schema_version (id, version, description) VALUES (%s, %s, %s)",
+                    (self._next_version_id(cur), version, path.stem)
+                )
+                logger.info(f"✅ Migration {version} applied successfully")
+                return True
         except Exception as e:
-            self.conn.rollback()
-            logger.error(f"✗ Failed to apply migration {version}: {e}")
+            logger.error(f"❌ Migration {version} failed: {e}")
             return False
 
-    def apply_all_pending(self):
-        """Apply all pending migrations."""
-        self.connect()
-        try:
-            self.init_schema_version_table()
-            pending = self.get_pending_migrations()
+    def _next_version_id(self, cur) -> int:
+        """Get next ID for migration tracking."""
+        cur.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM schema_version")
+        return cur.fetchone()[0]
 
-            if not pending:
-                logger.info("No pending migrations")
+    def rollback_migration(self, version: str) -> bool:
+        """Rollback a migration and mark as rolled back."""
+        try:
+            path = self.migrations_dir / f"{version}.sql"
+            if not path.exists():
+                logger.error(f"Migration file not found: {version}")
+                return False
+
+            _, down_sql = self._read_migration_file(path)
+            if not down_sql:
+                logger.warning(f"Migration {version}: no Down SQL found, skipping rollback")
+                return False
+
+            with DatabaseContext('write') as cur:
+                self._ensure_tracking_table(cur)
+                logger.info(f"Rolling back migration {version}...")
+                cur.execute(down_sql)
+                cur.execute(
+                    "UPDATE schema_version SET rolled_back_at = CURRENT_TIMESTAMP WHERE version = %s",
+                    (version,)
+                )
+                logger.info(f"✅ Migration {version} rolled back successfully")
                 return True
+        except Exception as e:
+            logger.error(f"❌ Rollback {version} failed: {e}")
+            return False
 
-            logger.info(f"Found {len(pending)} pending migrations")
-            success = True
-
-            for migration in pending:
-                if not self.apply_migration(migration['version'], migration['file']):
-                    success = False
-                    break
-
-            return success
-        finally:
-            self.disconnect()
-
-    def show_status(self):
-        """Show migration status."""
-        self.connect()
+    def status(self):
+        """Display migration status."""
         try:
-            applied = self.get_applied_migrations()
-            pending = self.get_pending_migrations()
+            with DatabaseContext('read') as cur:
+                applied = self._get_applied_versions(cur)
+            pending = self._get_pending_migrations()
 
-            logger.info("\n" + "="*70)
-            logger.info("MIGRATION STATUS")
-            logger.info("="*70)
+            print(f"\n📊 Migration Status")
+            print(f"  Applied: {len(applied)}")
+            print(f"  Pending: {len(pending)}")
 
             if applied:
-                logger.info(f"\nApplied ({len(applied)}):")
-                for version in applied:
-                    logger.info(f"  ✓ {version}")
-            else:
-                logger.info("\nApplied: None")
+                print(f"\n✅ Applied Migrations:")
+                for v in sorted(applied):
+                    print(f"   • {v}")
 
             if pending:
-                logger.info(f"\nPending ({len(pending)}):")
-                for m in pending:
-                    logger.info(f"  ○ {m['version']} - {m['description']}")
+                print(f"\n⏳ Pending Migrations:")
+                for version, _ in pending:
+                    print(f"   • {version}")
             else:
-                logger.info("\nPending: None (database is up-to-date)")
+                print(f"\n✨ All migrations applied!")
+        except Exception as e:
+            logger.error(f"Error checking status: {e}")
 
-            logger.info("="*70 + "\n")
-        finally:
-            self.disconnect()
+    def list_migrations(self):
+        """List all available migrations."""
+        if not self.migrations_dir.exists() or not list(self.migrations_dir.glob("*.sql")):
+            print("No migrations found")
+            return
 
-    def rollback_migration(self, version):
-        """Rollback a specific migration."""
-        logger.warning(f"Rollback requested for {version}")
-        logger.warning("Rollback functionality requires reverse migrations - not yet implemented")
-        logger.warning("To rollback: restore database from backup and re-apply remaining migrations")
-        return False
+        print("\n📋 Available Migrations:")
+        for path in sorted(self.migrations_dir.glob("*.sql")):
+            print(f"   • {path.stem}")
+
+    def apply_all(self) -> bool:
+        """Apply all pending migrations."""
+        pending = self._get_pending_migrations()
+        if not pending:
+            logger.info("✨ All migrations already applied")
+            return True
+
+        success = True
+        for version, path in pending:
+            if not self.apply_migration(version, path):
+                success = False
+        return success
+
 
 def main():
-    parser = argparse.ArgumentParser(description='Database migration runner')
-    parser.add_argument('--apply', action='store_true', help='Apply pending migrations')
-    parser.add_argument('--status', action='store_true', help='Show migration status')
-    parser.add_argument('--rollback', type=str, help='Rollback specific version')
-
-    args = parser.parse_args()
-
     runner = MigrationRunner()
 
-    if args.apply:
-        success = runner.apply_all_pending()
-        sys.exit(0 if success else 1)
-    elif args.status:
-        runner.show_status()
-        sys.exit(0)
-    elif args.rollback:
-        success = runner.rollback_migration(args.rollback)
-        sys.exit(0 if success else 1)
-    else:
-        runner.show_status()
-        sys.exit(0)
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
 
-if __name__ == '__main__':
+    command = sys.argv[1]
+
+    if command == "apply":
+        success = runner.apply_all()
+        sys.exit(0 if success else 1)
+    elif command == "rollback" and len(sys.argv) > 2:
+        version = sys.argv[2]
+        success = runner.rollback_migration(version)
+        sys.exit(0 if success else 1)
+    elif command == "status":
+        runner.status()
+    elif command == "list":
+        runner.list_migrations()
+    else:
+        print(f"Unknown command: {command}")
+        print(__doc__)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
     main()

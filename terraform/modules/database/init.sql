@@ -2,6 +2,15 @@
 -- CORE TABLES - Required for all systems
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- Schema versioning and migration tracking
+CREATE TABLE IF NOT EXISTS schema_version (
+    id INT PRIMARY KEY,
+    version VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    rolled_back_at TIMESTAMP NULL
+);
+
 -- Stock symbols and identifiers
 CREATE TABLE IF NOT EXISTS stock_symbols (
     symbol VARCHAR(20) PRIMARY KEY,
