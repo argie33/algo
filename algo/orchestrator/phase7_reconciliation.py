@@ -83,12 +83,17 @@ def run(
             logger.warning(f"Failed to record exits: {e}")
 
         # Step 1: Populate signal_trade_performance from closed trades
-        stpp = SignalTradePerformancePopulator()
-        stpp_result = stpp.populate_closed_trades(lookback_days=7)
+        stpp_result = {'success': False, 'trades_processed': 0}
+        try:
+            stpp = SignalTradePerformancePopulator()
+            stpp_result = stpp.populate_closed_trades(lookback_days=7)
+            trades_processed = stpp_result.get('trades_processed', 0)
+            logger.info(f"Signal trade performance: {stpp_result.get('message', 'N/A')}")
+            if stpp_result.get('ic_values'):
+                logger.info(f"  IC values computed: {stpp_result['ic_values']}")
+        except Exception as e:
+            logger.warning(f"Signal trade performance failed (numpy/scipy not available): {e}")
         trades_processed = stpp_result.get('trades_processed', 0)
-        logger.info(f"Signal trade performance: {stpp_result.get('message', 'N/A')}")
-        if stpp_result.get('ic_values'):
-            logger.info(f"  IC values computed: {stpp_result['ic_values']}")
         log_phase_result_fn(7, 'signal_attribution', 'success' if stpp_result.get('success') else 'warn',
                           f"{trades_processed} trades processed")
 
