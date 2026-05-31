@@ -62,7 +62,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
         def fetch_symbols():
             try:
                 with DatabaseContext('read') as cur:
-                    cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+                    cur.execute("SELECT symbol FROM stock_symbols WHERE COALESCE(etf, 'N') != 'Y' ORDER BY symbol")
                     rows = cur.fetchall()
                     result['symbols'] = [row[0] for row in rows]
             except Exception as e:
