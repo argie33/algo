@@ -295,33 +295,43 @@ def run(
             logger.warning(f"  [WARN] Pipeline health check failed: {e}")
             # Don't fail-close on health check error, let other checks handle it
 
-        with DatabaseContext('read') as cur:
-            logger.debug("Phase 1: Database connection established")
-            # 120s allows MAX() lookups to complete even under extreme t4g.micro I/O
-            # contention from concurrent analytics ECS loaders (company_profile, analyst_sentiment).
-            # These loaders run long parallel writes; MAX(date) queries need time to get through.
-            cur.execute("SET statement_timeout = 120000")
+        row = None
+        last_exc = None
+        for _attempt in range(3):  # retry up to 3x under heavy DB load
+            try:
+                with DatabaseContext('read') as cur:
+                    logger.debug("Phase 1: Database connection established")
+                    # 300s: EOD pipeline runs 5000-symbol price loads concurrently.
+                    # RDS t4g.micro I/O saturation causes MAX(date) lookups to take
+                    # 100-200s; 300s gives 3 attempts worth of headroom.
+                    cur.execute("SET statement_timeout = 300000")
 
-            cur.execute(
-                """
-                SELECT
-                    COALESCE(
-                        (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'),
-                        (SELECT MAX(date) FROM etf_price_daily WHERE symbol = 'SPY')
-                    ) AS spy_latest,
-                    (SELECT MAX(date) FROM market_health_daily) AS mh_latest,
-                    (SELECT MAX(date) FROM trend_template_data) AS tt_latest,
-                    (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest,
-                    (SELECT MAX(date) FROM buy_sell_daily) AS buys_latest
-                """
-            )
-            row = cur.fetchone()
-            if not row:
-                logger.error("DATA FRESHNESS: Critical query returned no results")
-                log_phase_result_fn(1, 'data_freshness', 'error', 'Could not query data freshness')
-                return PhaseResult(1, 'data_freshness', 'ok', {}, False, 'Could not query data freshness')
+                    cur.execute(
+                        """
+                        SELECT
+                            COALESCE(
+                                (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'),
+                                (SELECT MAX(date) FROM etf_price_daily WHERE symbol = 'SPY')
+                            ) AS spy_latest,
+                            (SELECT MAX(date) FROM market_health_daily) AS mh_latest,
+                            (SELECT MAX(date) FROM trend_template_data) AS tt_latest,
+                            (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest,
+                            (SELECT MAX(date) FROM buy_sell_daily) AS buys_latest
+                        """
+                    )
+                    row = cur.fetchone()
+                    break
+            except Exception as _e:
+                last_exc = _e
+                logger.warning(f"Phase 1: freshness query attempt {_attempt + 1}/3 failed: {_e}")
 
-            spy_date, mh_date, tt_date, sqs_date, buys_date = row
+        if not row:
+            err_msg = f'Could not query data freshness after 3 attempts: {last_exc}'
+            logger.error(f"DATA FRESHNESS: {err_msg}")
+            log_phase_result_fn(1, 'data_freshness', 'error', err_msg)
+            return PhaseResult(1, 'data_freshness', 'ok', {}, False, err_msg)
+
+        spy_date, mh_date, tt_date, sqs_date, buys_date = row
             # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
             # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
             # their staleness creates a deadlock: Phase 1 blocks before Phase 5 can populate them.
