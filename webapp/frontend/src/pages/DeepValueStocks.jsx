@@ -18,7 +18,7 @@ const DeepValueStocks = () => {
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [sortBy, setSortBy] = useState("generational_score");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [limit, setLimit] = useState(600); // Allow user to change limit
+  const [limit, setLimit] = useState(200); // Default 200; full 600 available via UI
 
   const { data: rawStocks = [], loading, error } = useApiQuery(
     ['deepValueStocks', limit],
