@@ -307,11 +307,13 @@ The orchestrator runs **4 times daily** on trading days:
 - **earnings_history** — Historical earnings data
 - **earnings_calendar** — Upcoming earnings dates
 
-### Company & Analyst Data (4 loaders — EventBridge scheduled)
+### Company & Analyst Data (6 loaders — EventBridge scheduled)
 - **company_profile** — Company fundamentals and sector/industry classification
 - **analyst_sentiment** — Analyst sentiment scores
 - **analyst_upgrades_downgrades** — Recent analyst rating changes
-- **industry_ranking** — Sector and industry relative performance
+- **industry_ranking** — Industry relative rankings computed from company_profile + stock_scores (runs 1:10 AM ET). Writes `industry_ranking` table (`date_recorded` column).
+- **sector_ranking** — Sector relative rankings computed from company_profile + stock_scores (runs 1:12 AM ET). Writes `sector_ranking` table (`date_recorded` column). Required by Sector Analysis page.
+- **sector_performance** — YTD cumulative returns per sector via SPDR ETFs (XLK, XLF, XLV, etc.) (runs 1:14 AM ET). Writes `sector_performance` table. Required by Sector Analysis relative-performance chart.
 
 ### Market Sentiment (5 loaders — EventBridge scheduled)
 - **feargreed** — CNN Fear & Greed Index
