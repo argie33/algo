@@ -485,6 +485,19 @@ jobs:
             echo "db-init Lambda not found -- Terraform will create it"
           fi
 
+          # Import loader_failure_handler Lambda if it already exists in AWS
+          echo ""
+          echo "Querying AWS for loader_failure_handler Lambda function..."
+          LFH_FUNCTION=$(aws lambda get-function \
+            --function-name "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}" \
+            --query 'Configuration.FunctionArn' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          if [ -n "$LFH_FUNCTION" ] && [ "$LFH_FUNCTION" != "None" ]; then
+            echo "Found loader_failure_handler Lambda: $LFH_FUNCTION"
+            import_if_missing "module.pipeline.aws_lambda_function.loader_failure_handler" "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}"
+          else
+            echo "loader_failure_handler Lambda not found -- Terraform will create it"
+          fi
+
       - name: Terraform Plan
         run: |
           terraform plan \
