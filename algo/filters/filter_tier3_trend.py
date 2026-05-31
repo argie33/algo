@@ -372,6 +372,8 @@ class FilterTier3Mixin:
         VCP uses last contraction, etc — research-backed per pattern). If
         that's not available, uses best of (50-DMA, swing low, 2x ATR)
         capped at 8% below entry.
+
+        Returns dict with keys: stop_price, method, reasoning, candidates
         """
         cur.execute(
             "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
@@ -379,7 +381,7 @@ class FilterTier3Mixin:
         )
         row = cur.fetchone()
         if not row:
-            return None
+            return {'stop_price': None, 'method': 'none', 'reasoning': 'No price data', 'candidates': {}}
         entry = float(row[0])
 
         # Try base-type-specific stop first (most accurate per the canon)
@@ -394,7 +396,12 @@ class FilterTier3Mixin:
                 self._last_stop_base_type = base_stop_info['base_type']
                 # Only use base-type stop if it's NOT the fallback (real base detected)
                 if 'fallback' not in base_stop_info['method'] and 'sanity' not in base_stop_info['method']:
-                    return base_stop_info['stop_price']
+                    return {
+                        'stop_price': base_stop_info['stop_price'],
+                        'method': base_stop_info['method'],
+                        'reasoning': base_stop_info['reasoning'],
+                        'candidates': {'base_type': base_stop_info['stop_price']},
+                    }
         except Exception as e:
             logger.error(f"  (base_type_stop failed for {symbol}: {e})")
 
@@ -414,14 +421,33 @@ class FilterTier3Mixin:
         max_stop_pct = float(self.config.get('max_stop_distance_pct', 8.0)) / 100.0
         floor_stop = entry * (1.0 - max_stop_pct)
 
+        candidates_dict = {
+            'sma_50': sma_50,
+            'swing_low_10d': swing_low,
+            'atr_2x': atr_stop,
+            'floor_stop_8pct': floor_stop,
+        }
+
         candidates = [c for c in (sma_50, swing_low, atr_stop) if c is not None and 0 < c < entry]
         if not candidates:
-            self._last_stop_method = 'fallback_8pct_floor'
-            self._last_stop_reasoning = '8% floor — no structural levels available'
-            return round(floor_stop, 2)
+            # FAIL-CLOSED: No structural stops available (data quality issue)
+            self._last_stop_method = 'none'
+            self._last_stop_reasoning = 'No structural levels available (SMA-50, swing low, ATR all missing)'
+            logger.error(f'[Stop] No structural levels for {symbol} on {signal_date} (sma_50={sma_50}, swing={swing_low}, atr_stop={atr_stop})')
+            return {
+                'stop_price': None,
+                'method': 'none',
+                'reasoning': self._last_stop_reasoning,
+                'candidates': candidates_dict,
+            }
 
         viable = [c for c in candidates if c >= floor_stop]
         stop = max(viable) if viable else floor_stop
         self._last_stop_method = 'best_of_ma_swing_atr'
         self._last_stop_reasoning = f'Best of (50-DMA, swing low, 2×ATR), capped at 8%'
-        return round(stop, 2)
+        return {
+            'stop_price': round(stop, 2),
+            'method': self._last_stop_method,
+            'reasoning': self._last_stop_reasoning,
+            'candidates': candidates_dict,
+        }
