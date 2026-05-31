@@ -80,16 +80,14 @@ jobs:
 
           INVOKE_START=$(date -u +%s)
 
-          # Synchronous invocation — captures last 4KB of logs inline via Tail
+          # Synchronous invocation - writes response to file, metadata to stdout
+          # Note: --log-type Tail with --query broke file writes; use separate metadata capture
           timeout 600 aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type RequestResponse \
-            --log-type Tail \
             --payload "$ENCODED" \
             --region $AWS_REGION \
-            /tmp/response.json \
-            --query LogResult \
-            --output text 2>/dev/null | base64 -d > /tmp/lambda_tail.log || true
+            /tmp/response.json 2>&1 || echo "Lambda invocation returned non-zero exit"
 
           INVOKE_END=$(date -u +%s)
           DURATION=$((INVOKE_END - INVOKE_START))
