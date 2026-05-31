@@ -10,13 +10,6 @@ Period determined by LOADER_PERIOD env var (financials_annual_income / financial
 or --period CLI flag for manual runs.
 """
 import logging
-
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 import argparse
 logger = logging.getLogger(__name__)
 import os
