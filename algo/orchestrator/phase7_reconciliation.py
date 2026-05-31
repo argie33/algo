@@ -54,8 +54,7 @@ def run(
                 cursor.execute("""
                     SELECT symbol, avg_entry_price, current_price, quantity
                     FROM algo_positions
-                    WHERE status = 'CLOSED' AND updated_at::date = %s
-                    AND exit_date IS NULL
+                    WHERE status = 'CLOSED' AND closed_at::date = %s
                 """, (run_date,))
 
                 closed_positions = cursor.fetchall()
@@ -134,7 +133,6 @@ def run(
 
             # Log to algo_audit_log for historical tracking
             try:
-                from utils.database_context import DatabaseContext
                 with DatabaseContext('write') as cur:
                     cur.execute(
                         """
