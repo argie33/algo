@@ -6,7 +6,7 @@ import threading
 import time
 import psycopg2
 import uuid
-from abc import ABC, abstractmethod
+from abc import ABC
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, List, Optional, Sequence
 
@@ -64,9 +64,13 @@ class OptimalLoader(ABC):
 
     # ---- Subclass interface ----
 
-    @abstractmethod
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
-        """Return rows newer than `since`. None or [] = nothing new."""
+        """Return rows newer than `since` for the given symbol. Override for per-symbol loaders."""
+        raise NotImplementedError("Implement fetch_incremental (per-symbol) or fetch_global (market-wide)")
+
+    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+        """Return new rows for market-wide data (no symbol dimension). Override for global loaders."""
+        return None
 
     def transform(self, rows: List[dict]) -> List[dict]:
         """Override to apply domain-specific cleaning. Default = identity."""
@@ -462,6 +466,69 @@ class OptimalLoader(ABC):
             logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
         return self._stats
+
+    def load_global(self) -> int:
+        """Execute a market-wide data load using fetch_global(). Returns rows inserted.
+
+        For loaders that handle aggregate/market-wide data (e.g. sentiment surveys,
+        economic indicators) rather than per-symbol incremental data.
+
+        Steps:
+          1. Read current max(watermark_field) from the table as the 'since' date.
+          2. Call fetch_global(since) to retrieve new rows.
+          3. Transform, bulk-insert, and update data_loader_status.
+          4. Return count of rows inserted.
+        """
+        from utils.database_context import DatabaseContext
+
+        start = time.time()
+        logger.info("[%s] Starting global load", self.table_name)
+
+        # Get current watermark from DB so fetch_global can do incremental loads
+        since = None
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    f"SELECT MAX({self.watermark_field}) FROM {self.table_name}"
+                )
+                row = cur.fetchone()
+                since = self._parse_watermark_date(row[0]) if row and row[0] else None
+        except Exception as e:
+            logger.warning("[%s] Could not read watermark: %s — doing full refresh", self.table_name, e)
+
+        rows = self.fetch_global(since)
+        if not rows:
+            logger.info("[%s] fetch_global returned no rows", self.table_name)
+            return 0
+
+        rows = self.transform(rows)
+        inserted = self._bulk_insert(rows)
+
+        duration = round(time.time() - start, 2)
+        logger.info("[%s] load_global done: %d rows inserted in %.1fs", self.table_name, inserted, duration)
+
+        # Update data_loader_status
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
+                result = cur.fetchone()
+                total_rows = result[0] if result else 0
+                latest_date = result[1] if result else None
+                if hasattr(latest_date, 'date'):
+                    latest_date = latest_date.date()
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (table_name) DO UPDATE SET
+                      row_count = EXCLUDED.row_count,
+                      latest_date = EXCLUDED.latest_date,
+                      last_updated = NOW()
+                """, (self.table_name, total_rows, latest_date))
+        except Exception as e:
+            logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+
+        return inserted
 
     def _run_serial(self, symbols: List[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
