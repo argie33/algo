@@ -895,7 +895,7 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'analyze pre trade impact', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to analyze trade impact')
-def _trigger_data_patrol(cur) -> Dict:
+def _trigger_data_patrol() -> Dict:
         """Trigger async data patrol ECS task."""
         try:
             ecs = boto3.client('ecs')

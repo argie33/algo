@@ -175,7 +175,7 @@ class AdvancedFilters:
             components['price_trend_pts'] = round(trend_pts, 1)
             subscores['momentum'] += trend_pts
 
-            setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date, cur)
+            setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
             components['setup_quality'] = setup_breakdown
             subscores['momentum'] += setup_pts
 
@@ -309,7 +309,7 @@ class AdvancedFilters:
 
         return min(score, self.W_MOMENTUM_PRICE_TREND)
 
-    def _setup_quality_score(self, symbol, signal_date, cur):
+    def _setup_quality_score(self, symbol, signal_date):
         """Bonus pts for entering on a real base breakout / VCP (canonical swing setup).
 
         +3 pts: in identified base AND breakout imminent (within 2% of pivot)
