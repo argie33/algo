@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations  # Defer annotation evaluation so np.ndarray doesn't fail when np=None
 
 """
 Dynamic Weight Optimizer — Adapts swing score component weights based on realized IC.
