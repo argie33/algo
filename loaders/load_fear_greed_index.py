@@ -290,22 +290,40 @@ async def main():
 
     logging.info("All done.")
 
-if __name__ == "__main__":
-    try:
-        # Handle event loop properly for Python 3.10+
-        import platform
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+class FearGreedLoader(MasterDataLoader):
+    """Load CNN Fear & Greed Index data."""
+
+    async def _async_main(self):
+        """Async entry point for fear and greed loading."""
+        loop = asyncio.get_event_loop()
         try:
-            loop.run_until_complete(main())
-        finally:
-            # Don't close the loop if it's already closed by pyppeteer
+            await main()
+            return {"success": True, "rows": 1}  # Placeholder; actual count in main()
+        except Exception as e:
+            logging.error(f"Error loading fear/greed data: {e}")
+            return {"success": False, "rows": 0, "error": str(e)}
+
+    def run(self):
+        """Run the loader."""
+        try:
+            # Handle event loop properly for Python 3.10+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                loop.close()
-            except RuntimeError:
-                pass  # Loop already closed by pyppeteer
-    except Exception as e:
-        logging.error(f"❌ CRITICAL ERROR in Fear & Greed loader: {e}")
-        import traceback
-        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
-        sys.exit(1) 
+                loop.run_until_complete(self._async_main())
+                return {"success": True, "rows": 1}
+            finally:
+                try:
+                    loop.close()
+                except RuntimeError:
+                    pass
+        except Exception as e:
+            logging.error(f"Failed to run fear/greed loader: {e}")
+            return {"success": False, "rows": 0, "error": str(e)}
+
+
+if __name__ == "__main__":
+    import sys
+    loader = FearGreedLoader()
+    result = loader.run()
+    sys.exit(0 if result["success"] else 1) 

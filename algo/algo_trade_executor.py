@@ -17,8 +17,8 @@ from config.credential_manager import (
     DEFAULT_DB_PORT,
     DEFAULT_DB_USER,
     DEFAULT_DB_NAME,
+    get_alpaca_credentials,
 )
-from config.credential_manager import get_alpaca_credentials
 from config.alpaca_config import get_alpaca_base_url
 from algo.algo_config import get_api_timeout, get_alpaca_timeout
 
@@ -103,26 +103,14 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
-        # Database connection management
-        self.cur = None
-        self._db_context = None
-        self._should_rollback = False
-
-    def connect(self):
-        """Create a database connection via DatabaseContext."""
-        if self.cur is None:
-            self._db_context = DatabaseContext('write')
-            self.cur = self._db_context.__enter__()
-            self._should_rollback = False
-
-    def disconnect(self):
-        """Clean up DatabaseContext if we own it."""
-        if self._db_context:
-            exc_type = Exception if self._should_rollback else None
-            self._db_context.__exit__(exc_type, None, None)
-            self._db_context = None
-            self.cur = None
-            self._should_rollback = False
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext('write') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            raise
 
     # ---------- Entry ----------
 

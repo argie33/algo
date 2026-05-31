@@ -241,14 +241,13 @@ def load_sentiment_data(cur):
 # -------------------------------
 # Entrypoint
 # -------------------------------
-if __name__ == "__main__":
-    try:
-        logging.info(f"Starting {SCRIPT_NAME} execution")
-        log_mem("startup")
+class AAIISentimentLoader(MasterDataLoader):
+    """Load AAII investor sentiment survey data."""
 
-        with DatabaseContext('write') as cur:
-            # Ensure aaii_sentiment table exists (never drop - avoid data loss)
-            logging.info("Ensuring aaii_sentiment table...")
+    def run(self):
+        """Load AAII sentiment data from Excel."""
+        def _load(cur):
+            # Ensure table exists
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS aaii_sentiment (
                     id          SERIAL PRIMARY KEY,
@@ -261,37 +260,55 @@ if __name__ == "__main__":
             """)
 
             # Load sentiment data
-            import time as _time
-            _t0 = _time.monotonic()
-            total, inserted, failed = load_sentiment_data(cur)
-            _duration = _time.monotonic() - _t0
+            logging.info("Loading AAII sentiment data")
+            try:
+                df = get_aaii_sentiment_data()
+                if df.empty:
+                    return {"success": False, "rows": 0, "error": "No data downloaded"}
 
-            # Record last run
-            cur.execute("""
-              INSERT INTO last_updated (script_name, last_run)
-              VALUES (%s, NOW())
-              ON CONFLICT (script_name) DO UPDATE
-                SET last_run = EXCLUDED.last_run;
-            """, (SCRIPT_NAME,))
+                inserted = 0
+                for _, row in df.iterrows():
+                    try:
+                        cur.execute("""
+                            INSERT INTO aaii_sentiment (date, bullish, neutral, bearish)
+                            VALUES (%s, %s, %s, %s)
+                            ON CONFLICT (date) DO UPDATE SET
+                                bullish=EXCLUDED.bullish,
+                                neutral=EXCLUDED.neutral,
+                                bearish=EXCLUDED.bearish
+                        """, (
+                            row["Date"],
+                            None if pd.isna(row["Bullish"]) else float(row["Bullish"]),
+                            None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
+                            None if pd.isna(row["Bearish"]) else float(row["Bearish"])
+                        ))
+                        inserted += 1
+                    except Exception as e:
+                        logging.warning(f"Failed to insert row {row}: {e}")
+                        continue
 
-        peak = get_rss_mb()
-        logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-        logging.info(f"AAII Sentiment — total: {total}, inserted: {inserted}, failed: {len(failed)}")
+                logging.info(f"Successfully inserted {inserted} sentiment records")
+                return {"success": True, "rows": inserted}
 
-        try:
-            from algo.algo_metrics import MetricsPublisher
-            with MetricsPublisher() as _m:
-                _m.put_loader_result("aaii_sentiment", {
-                    'rows_inserted': inserted,
-                    'symbols_failed': len(failed),
-                    'duration_sec': _duration,
-                })
-        except Exception as _me:
-            logging.debug(f"Metrics unavailable: {_me}")
+            except Exception as e:
+                logging.error(f"Error loading sentiment data: {e}")
+                return {"success": False, "rows": 0, "error": str(e)}
 
-        logging.info("All done.")
-    except Exception as e:
-        logging.error(f"❌ CRITICAL ERROR in AAII loader: {e}")
-        import traceback
-        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
-        sys.exit(1) 
+        return self.execute_with_db(_load, 'load_aaii_sentiment', 'write')
+
+
+def main():
+    """Main entrypoint for AAII sentiment loader."""
+    loader = AAIISentimentLoader()
+    result = loader.run()
+
+    if result["success"]:
+        logging.info(f"SUCCESS: {result['rows']} AAII sentiment records loaded")
+        return 0
+    else:
+        logging.error(f"FAILED: {result.get('error', 'unknown error')}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main()) 
