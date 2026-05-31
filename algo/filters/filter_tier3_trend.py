@@ -91,7 +91,7 @@ class FilterTier3Mixin:
 
             # Minervini rule: RS-line (stock vs SPY) must be making new highs or near new highs
             # Don't exit on Minervini break if RS line is strong
-            rs_check = self._check_rs_line_strength(symbol, signal_date)
+            rs_check = self._check_rs_line_strength(symbol, signal_date, cur)
             if rs_check and not rs_check.get('pass', True):
                 return {
                     'pass': False,
@@ -102,7 +102,7 @@ class FilterTier3Mixin:
             # A4: Weekly Chart Hard Gate — require weekly chart Stage 2 (currently only scored)
             require_weekly_stage_2 = bool(self.config.get('require_weekly_stage_2', True))
             if require_weekly_stage_2:
-                weekly_check = self._check_weekly_stage_2(symbol, signal_date)
+                weekly_check = self._check_weekly_stage_2(symbol, signal_date, cur)
                 if not weekly_check.get('pass', True):
                     return {
                         'pass': False,
@@ -111,7 +111,7 @@ class FilterTier3Mixin:
                     }
 
             # A5: RS Line Trending Up — RS line must have positive slope (not just "near high")
-            rs_slope_check = self._check_rs_line_slope(symbol, signal_date)
+            rs_slope_check = self._check_rs_line_slope(symbol, signal_date, cur)
             if not rs_slope_check.get('pass', True):
                 return {
                     'pass': False,
@@ -120,7 +120,7 @@ class FilterTier3Mixin:
                 }
 
             # Volume decay check: declining volume into breakout = false breakout (Minervini warning)
-            vol_check = self._check_volume_decay(symbol, signal_date)
+            vol_check = self._check_volume_decay(symbol, signal_date, cur)
             if vol_check and not vol_check.get('pass', True):
                 return {
                     'pass': False,
@@ -129,7 +129,7 @@ class FilterTier3Mixin:
                 }
 
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
-            stop_loss_price = self._compute_stop_loss(symbol, signal_date, sma_50, atr)
+            stop_loss_price = self._compute_stop_loss(symbol, signal_date, sma_50, atr, cur)
 
             return {
                 'pass': True,
