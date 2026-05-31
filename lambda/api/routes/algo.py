@@ -141,6 +141,53 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
+def _get_last_run(cur) -> Dict:
+    """Get the most recent orchestrator run with per-phase status."""
+    try:
+        # Find most recent run_id
+        cur.execute("""
+            SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
+            FROM algo_audit_log
+            WHERE details->>'run_id' IS NOT NULL
+            GROUP BY details->>'run_id'
+            ORDER BY MAX(created_at) DESC
+            LIMIT 1
+        """)
+        latest = cur.fetchone()
+        if not latest or not latest['run_id']:
+            return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
+
+        run_id = latest['run_id']
+        run_at = latest['run_at']
+
+        cur.execute("""
+            SELECT action_type, status, action_date, created_at,
+                   details->>'summary' AS summary,
+                   error_message AS error
+            FROM algo_audit_log
+            WHERE details->>'run_id' = %s
+            ORDER BY created_at ASC
+        """, (run_id,))
+        phases = [dict(r) for r in cur.fetchall()]
+
+        halted = any(p.get('status') == 'halt' for p in phases)
+        errored = any(p.get('status') == 'error' for p in phases)
+        success = len(phases) > 0 and not errored
+
+        return json_response(200, {
+            'run_id': run_id,
+            'run_at': run_at.isoformat() if run_at else None,
+            'success': success,
+            'halted': halted,
+            'phases': phases,
+        })
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        logger.error(f'Data unavailable: {e}', extra={'operation': 'get last run'})
+        return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
+    except Exception as e:
+        logger.warning(f'Exception in get_last_run: {e}')
+        return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
+
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
         try:
