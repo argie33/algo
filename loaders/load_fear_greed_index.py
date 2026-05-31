@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class FearGreedIndexLoader(OptimalLoader):
     """Load CNN Fear & Greed Index sentiment data."""
 
-    table_name = "fear_greed"
+    table_name = "fear_greed_index"
     primary_key = ("date",)
     watermark_field = "date"
 
