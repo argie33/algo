@@ -495,11 +495,14 @@ If missing, rebuild schema by invoking the `db-init` Lambda manually (reads `lam
 
 **Orchestrator Lambda timeout (600+ second hangs):**
 - NOT a cold-start issue. Root cause: RDS disk I/O contention during Phase 3b market exposure computation.
-- Phase 3b runs 11 sequential database queries (IBD state, trend, breadth, VIX, McClellan, etc.)
-- With high DiskQueueDepth (30+), each query waits for I/O → timeout after 600s.
-- **Fix:** Enable RDS Proxy in terraform.tfvars: `enable_rds_proxy = true` (connection pooling + query multiplexing).
-- RDS Proxy endpoint automatically replaces direct RDS connection in Lambda env vars (terraform/modules/services/main.tf line 502).
-- Symptoms: Lambda logs show DB connection succeeds, then hangs in Phase 3b (market exposure computation).
+- Phase 3b previously ran 2 expensive breadth queries (window functions across 2M+ price_daily rows), timing out in 15s on t4g.micro.
+- **Fix deployed:** `_pct_above_ma()` now reads pre-computed `sma_50`/`sma_200` from `technical_data_daily` (fast indexed lookup, <1s). Statement timeout raised to 30s.
+- Phase 1 data freshness query timeout raised to 45s (was 20s).
+- **DO NOT run company_profile + analyst_sentiment + analyst_upgrades_downgrades simultaneously with the orchestrator** — these 3 loaders combined hammer the t4g.micro so hard that even new DB connections time out. Run them sequentially or separately from the orchestrator.
+- **NEVER use `loader_type=analytics` via manual-invoke-loaders while the orchestrator is running.** It will cause total DB saturation on t4g.micro without RDS Proxy.
+- For permanent fix: `enable_rds_proxy = true` in terraform.tfvars ($11/month — eliminates all I/O contention issues).
+- `market_exposure_daily` was also not persisting due to undefined `cur` in `_persist()` method (Python scope bug). Fixed: `_persist()` now opens its own `DatabaseContext('write')`.
+- Symptoms: Lambda logs show "canceling statement due to statement timeout" in Phase 1 or Phase 3b.
 - Check RDS metrics: `aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DiskQueueDepth --dimensions Name=DBInstanceIdentifier,Value=algo-db`
 
 **API Lambda cold-start timeout (500 errors on first request):**
