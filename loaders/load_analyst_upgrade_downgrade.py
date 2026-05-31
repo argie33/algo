@@ -20,37 +20,8 @@ from pathlib import Path
 from datetime import date, timedelta
 from typing import List, Optional
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
-try:
-    from config.credential_manager import get_db_password, get_db_config
-    from utils.loader_helpers import get_active_symbols
-except ImportError:
-    # Fallback if config modules don't exist - use env vars directly
-    # DB_HOST is REQUIRED - no localhost fallback
-    def _get_db_host():
-        host = os.getenv('DB_HOST')
-        if not host:
-            raise ValueError("DB_HOST environment variable is required")
-        return host
-
-    get_db_password = lambda: os.getenv('DB_PASSWORD')
-    get_db_config = lambda: {
-        'host': _get_db_host(),
-        'port': int(os.getenv('DB_PORT', 5432)),
-        'user': os.getenv('DB_USER', 'postgres'),
-        'database': os.getenv('DB_NAME', 'stocks'),
-    }
-
-try:
-    from utils.optimal_loader import OptimalLoader
-except ImportError:
-    # Fallback: create simple loader class if utils not available
-    OptimalLoader = object
+from utils.loader_helpers import get_active_symbols
+from utils.optimal_loader import OptimalLoader
 
 class AnalystRatingsLoader(OptimalLoader):
     table_name = "analyst_upgrade_downgrade"

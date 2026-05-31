@@ -1,254 +1,102 @@
 #!/usr/bin/env python3
+"""Value Metrics Loader - PE, PB, PS, dividend yield from yfinance."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-"""
-Value Metrics Loader
-
-Fetches PE, PB, PS, PEG, dividend yield from yfinance.
-Writes ratios to value_metrics and market_cap to key_metrics in one pass.
-Falls back to computing from SEC financial data when yfinance returns nothing.
-"""
-
 import argparse
 import logging
-import os
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Optional, List
+import time
 
 from utils.yfinance_wrapper import get_ticker
-from utils.database_context import DatabaseContext
-from utils.master_data_loader import MasterDataLoader
+from utils.optimal_loader import OptimalLoader
+from utils.loader_helpers import get_active_symbols
 
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def get_symbols() -> List[str]:
-    with DatabaseContext('read') as cur:
-        cur.execute("SELECT DISTINCT symbol FROM price_daily ORDER BY symbol")
-        return [r[0] for r in cur.fetchall()]
 
-def _fetch_yfinance(symbol: str, retries: int = 2) -> Optional[Dict]:
-    """Fetch value ratios from yfinance. Retries on rate limit. Returns None if no usable data."""
-    for attempt in range(retries + 1):
-        try:
-            info = get_ticker(symbol).info
-            mkt_cap = info.get('marketCap')
-            pe = info.get('trailingPE')
-            pb = info.get('priceToBook')
-            ps = info.get('priceToSalesTrailing12Months')
-            peg = info.get('trailingPegRatio')
-            div = info.get('dividendYield')
-            held_insiders = info.get('heldPercentInsiders')
-            held_institutions = info.get('heldPercentInstitutions')
+class ValueMetricsLoader(OptimalLoader):
+    """Load value metrics (PE, PB, PS, etc) from yfinance."""
 
-            if not any([mkt_cap, pe, pb, ps]):
-                return None
+    table_name = "value_metrics"
+    primary_key = ("symbol",)
+    watermark_field = "date"
 
-            return {
-                'symbol': symbol,
-                'market_cap': float(mkt_cap) if mkt_cap else None,
-                'pe_ratio': float(pe) if pe and pe > 0 else None,
-                'pb_ratio': float(pb) if pb and pb > 0 else None,
-                'ps_ratio': float(ps) if ps and ps > 0 else None,
-                'peg_ratio': float(peg) if peg and peg > 0 else None,
-                'dividend_yield': float(div) if div else None,
-                'held_percent_insiders': float(held_insiders) if held_insiders else None,
-                'held_percent_institutions': float(held_institutions) if held_institutions else None,
-            }
-        except Exception as e:
-            err = str(e)
-            if 'RateLimit' in err or 'Too Many Requests' in err or '429' in err:
-                if attempt < retries:
-                    wait = (attempt + 1) * 30
-                    logger.warning(f"Rate limited on {symbol}, waiting {wait}s (attempt {attempt+1}/{retries})")
-                    time.sleep(wait)
-                    continue
-                logger.warning(f"Rate limit exceeded for {symbol} after {retries} retries")
-            else:
-                logger.debug(f"yfinance failed for {symbol}: {e}")
-            return None
-
-def _fetch_from_financials(symbol: str) -> Optional[Dict]:
-    """Compute ratios from SEC financial data + existing key_metrics market_cap."""
-    try:
-        with DatabaseContext('read') as cur:
-            cur.execute("""
-                SELECT net_income, revenue FROM annual_income_statement
-                WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT 1
-            """, (symbol,))
-            income = cur.fetchone()
-
-            cur.execute("""
-                SELECT stockholders_equity FROM annual_balance_sheet
-                WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT 1
-            """, (symbol,))
-            equity = cur.fetchone()
-
-            cur.execute("""
-                SELECT market_cap FROM key_metrics WHERE symbol = %s LIMIT 1
-            """, (symbol,))
-            km = cur.fetchone()
-
-        mkt_cap = km[0] if km else None
-        net_income = income[0] if income else None
-        revenue = income[1] if income else None
-        eq = equity[0] if equity else None
-
-        if not mkt_cap:
-            return None
-
-        return {
-            'symbol': symbol,
-            'market_cap': float(mkt_cap),
-            'pe_ratio': round(mkt_cap / net_income, 2) if net_income and net_income > 0 else None,
-            'pb_ratio': round(mkt_cap / eq, 2) if eq and eq > 0 else None,
-            'ps_ratio': round(mkt_cap / revenue, 2) if revenue and revenue > 0 else None,
-            'peg_ratio': None,
-            'dividend_yield': None,
-        }
-    except Exception as e:
-        logger.debug(f"Financial fallback failed for {symbol}: {e}")
-        return None
-
-def _fetch_from_earnings_estimates(symbol: str) -> Optional[Dict]:
-    """Third fallback — forward PE from current price ÷ annualized next-quarter EPS estimate."""
-    try:
-        with DatabaseContext('read') as cur:
-            cur.execute("""
-                SELECT market_cap FROM key_metrics WHERE symbol = %s LIMIT 1
-            """, (symbol,))
-            km = cur.fetchone()
-            mkt_cap = km[0] if km else None
-
-            if not mkt_cap:
-                return None
-
-            cur.execute("""
-                SELECT close FROM price_daily
-                WHERE symbol = %s ORDER BY date DESC LIMIT 1
-            """, (symbol,))
-            price_row = cur.fetchone()
-            current_price = float(price_row[0]) if price_row and price_row[0] else None
-
-            if not current_price:
-                return None
-
-            cur.execute("""
-                SELECT eps_estimate FROM earnings_estimates
-                WHERE symbol = %s AND eps_estimate > 0
-                ORDER BY earnings_date DESC LIMIT 1
-            """, (symbol,))
-            est = cur.fetchone()
-            quarterly_eps = float(est[0]) if est and est[0] else None
-
-        if not quarterly_eps or quarterly_eps <= 0:
-            return None
-
-        annual_eps = quarterly_eps * 4
-        forward_pe = round(current_price / annual_eps, 2)
-
-        return {
-            'symbol': symbol,
-            'market_cap': float(mkt_cap),
-            'pe_ratio': forward_pe,
-            'pb_ratio': None,
-            'ps_ratio': None,
-            'peg_ratio': None,
-            'dividend_yield': None,
-        }
-    except Exception as e:
-        logger.debug(f"Earnings estimate fallback failed for {symbol}: {e}")
-        return None
-
-def fetch_symbol(symbol: str) -> Optional[Dict]:
-    """Try three sources in order to maximize PE coverage.
-
-    1. yfinance (real-time, best data)
-    2. SEC financials (historical, reliable)
-    3. Earnings estimates (forward PE from price / annualized quarterly EPS)
-    """
-    result = _fetch_yfinance(symbol)
-    if result is None:
-        result = _fetch_from_financials(symbol)
-    if result is None:
-        result = _fetch_from_earnings_estimates(symbol)
-    return result
-
-def persist(metrics_list: List[Dict]) -> int:
-    """Upsert value_metrics and write market_cap to key_metrics."""
-    if not metrics_list:
-        return 0
-
-    with DatabaseContext('write') as cur:
-        updated = 0
-        for m in metrics_list:
-            sym = m['symbol']
+    def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
+        """Fetch value metrics from yfinance for a symbol."""
+        for attempt in range(3):
             try:
-                cur.execute("""
-                    INSERT INTO value_metrics
-                        (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio,
-                         dividend_yield, fcf_yield, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NULL, NOW())
-                    ON CONFLICT (symbol) DO UPDATE SET
-                        pe_ratio       = EXCLUDED.pe_ratio,
-                        pb_ratio       = EXCLUDED.pb_ratio,
-                        ps_ratio       = EXCLUDED.ps_ratio,
-                        peg_ratio      = EXCLUDED.peg_ratio,
-                        dividend_yield = EXCLUDED.dividend_yield
-                """, (sym, m['pe_ratio'], m['pb_ratio'], m['ps_ratio'],
-                      m['peg_ratio'], m['dividend_yield']))
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    return None
 
-                if m.get('market_cap'):
-                    cur.execute("""
-                        INSERT INTO key_metrics
-                            (ticker, symbol, market_cap, held_percent_insiders, held_percent_institutions, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, NOW())
-                        ON CONFLICT (ticker) DO UPDATE SET
-                            market_cap = EXCLUDED.market_cap,
-                            held_percent_insiders = EXCLUDED.held_percent_insiders,
-                            held_percent_institutions = EXCLUDED.held_percent_institutions,
-                            updated_at = NOW()
-                    """, (sym, sym, m['market_cap'], m.get('held_percent_insiders'), m.get('held_percent_institutions')))
+                info = ticker.info
+                if not info:
+                    return None
 
-                updated += 1
+                mkt_cap = info.get('marketCap')
+                pe = info.get('trailingPE')
+                pb = info.get('priceToBook')
+                ps = info.get('priceToSalesTrailing12Months')
+                peg = info.get('trailingPegRatio')
+                div = info.get('dividendYield')
+                held_insiders = info.get('heldPercentInsiders')
+                held_institutions = info.get('heldPercentInstitutions')
+
+                if not any([mkt_cap, pe, pb, ps]):
+                    return None
+
+                return [{
+                    'symbol': symbol,
+                    'date': date.today(),
+                    'market_cap': float(mkt_cap) if mkt_cap else None,
+                    'pe_ratio': float(pe) if pe and pe > 0 else None,
+                    'pb_ratio': float(pb) if pb and pb > 0 else None,
+                    'ps_ratio': float(ps) if ps and ps > 0 else None,
+                    'peg_ratio': float(peg) if peg and peg > 0 else None,
+                    'dividend_yield': float(div) if div else None,
+                    'held_percent_insiders': float(held_insiders) if held_insiders else None,
+                    'held_percent_institutions': float(held_institutions) if held_institutions else None,
+                }]
+
             except Exception as e:
-                logger.warning(f"Failed to persist {sym}: {e}")
-                raise
+                err = str(e)
+                if 'RateLimit' in err or 'Too Many Requests' in err or '429' in err:
+                    if attempt < 2:
+                        wait = (attempt + 1) * 30
+                        logger.warning(f"Rate limited on {symbol}, waiting {wait}s...")
+                        time.sleep(wait)
+                        continue
+                logger.debug(f"yfinance failed for {symbol}: {e}")
+                return None
 
-    return updated
+        return None
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Load value metrics from yfinance")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all with prices.")
-    parser.add_argument("--parallelism", type=int, default=4)
+    parser = argparse.ArgumentParser(description='Value Metrics Loader')
+    parser.add_argument('--symbols', type=str, help='Comma-separated symbols or blank for all')
+    parser.add_argument('--parallelism', type=int, default=2, help='Parallel workers')
     args = parser.parse_args()
 
-    symbols = (
-        [s.strip().upper() for s in args.symbols.split(",")]
-        if args.symbols else get_symbols()
-    )
-    logger.info(f"Loading value metrics for {len(symbols)} symbols")
+    loader = ValueMetricsLoader()
 
-    results = []
-    with ThreadPoolExecutor(max_workers=args.parallelism) as executor:
-        futures = {executor.submit(fetch_symbol, s): s for s in symbols}
-        done = 0
-        for fut in as_completed(futures):
-            done += 1
-            r = fut.result()
-            if r:
-                results.append(r)
-            if done % 200 == 0:
-                logger.info(f"  {done}/{len(symbols)} fetched ({len(results)} with data)")
+    if args.symbols:
+        symbols = args.symbols.split(',')
+    else:
+        symbols = get_active_symbols()
 
-    logger.info(f"Fetched metrics for {len(results)}/{len(symbols)} symbols")
-    updated = persist(results)
-    logger.info(f"Persisted {updated} value_metrics rows")
-    return 0 if results else 1
+    result = loader.run(symbols, parallelism=args.parallelism)
 
-if __name__ == "__main__":
+    if result["rows_inserted"] > 0:
+        logger.info(f"SUCCESS: {result['rows_inserted']} value metrics loaded")
+        return 0
+    else:
+        logger.warning(f"COMPLETED: No metrics loaded (rows_fetched={result['rows_fetched']})")
+        return 0
+
+
+if __name__ == '__main__':
     sys.exit(main())

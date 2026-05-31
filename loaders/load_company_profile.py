@@ -1,109 +1,74 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Company Profile Loader - populate from yfinance with sector/industry enrichment."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import logging
-from typing import Dict
+from datetime import date
+from typing import Optional, List
+
 import yfinance as yf
 
-from utils.master_data_loader import MasterDataLoader
-from utils.database_context import DatabaseContext
+from utils.optimal_loader import OptimalLoader
+from utils.loader_helpers import get_active_symbols
 
 logger = logging.getLogger(__name__)
 
 
-class CompanyProfileLoader(MasterDataLoader):
+class CompanyProfileLoader(OptimalLoader):
     """Load company profiles with sector and industry from yfinance."""
 
-    def fetch_company_info(self, symbol: str) -> Dict:
-        """Fetch company info from yfinance."""
+    table_name = "company_profile"
+    primary_key = ("symbol",)
+    watermark_field = "created_at"
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
+        """Fetch company info from yfinance for a symbol."""
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.info or {}
-            return {
+            return [{
+                'symbol': symbol,
+                'ticker': symbol,
+                'short_name': info.get('longName', ''),
+                'long_name': info.get('longName', ''),
+                'display_name': info.get('longName', ''),
                 'sector': info.get('sector'),
                 'industry': info.get('industry'),
-                'long_name': info.get('longName'),
+                'exchange': info.get('exchange', ''),
                 'website': info.get('website'),
                 'employees': info.get('fullTimeEmployees'),
-            }
+            }]
         except Exception as e:
             logger.debug(f"Could not fetch yfinance data for {symbol}: {e}")
-            return {}
+            return None
 
-    def run(self) -> Dict:
-        """Populate company_profile from stock_symbols and yfinance."""
-        def _load(cur):
-            cur.execute("""
-                SELECT symbol, security_name, exchange
-                FROM stock_symbols
-                WHERE symbol IS NOT NULL
-                ORDER BY symbol
-                LIMIT 500
-            """)
-            rows = cur.fetchall()
-            if not rows:
-                logger.warning("No stock symbols found")
-                return {"success": False, "rows": 0}
-
-            inserted = 0
-            for (symbol, name, exchange) in rows:
-                company_info = self.fetch_company_info(symbol)
-                cur.execute("""
-                    INSERT INTO company_profile
-                    (ticker, symbol, short_name, long_name, display_name, sector, industry, exchange, website, employees, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (ticker) DO UPDATE SET
-                    sector = COALESCE(EXCLUDED.sector, company_profile.sector),
-                    industry = COALESCE(EXCLUDED.industry, company_profile.industry),
-                    long_name = COALESCE(EXCLUDED.long_name, company_profile.long_name),
-                    website = COALESCE(EXCLUDED.website, company_profile.website),
-                    employees = COALESCE(EXCLUDED.employees, company_profile.employees),
-                    exchange = EXCLUDED.exchange,
-                    updated_at = CURRENT_TIMESTAMP
-                """, (
-                    symbol, symbol, name,
-                    company_info.get('long_name', name),
-                    name,
-                    company_info.get('sector'),
-                    company_info.get('industry'),
-                    exchange,
-                    company_info.get('website'),
-                    company_info.get('employees')
-                ))
-                inserted += 1
-
-            logger.info(f"Loaded {inserted} company profiles with sector/industry")
-            return {"success": True, "rows": inserted}
-
-        return self.execute_with_db(_load, 'load_company_profile', 'write')
 
 def main():
     import argparse
-    from utils.loader_history_tracker import LoaderHistoryTracker
 
     parser = argparse.ArgumentParser(description='Company Profile Loader')
-    parser.add_argument('--symbols', type=str, help='(Unused - for compatibility)')
-    parser.add_argument('--parallelism', type=int, help='(Unused - for compatibility)')
+    parser.add_argument('--symbols', type=str, help='Comma-separated symbols, or blank for all active')
+    parser.add_argument('--parallelism', type=int, default=2, help='Number of parallel workers')
     args = parser.parse_args()
 
-    tracker = LoaderHistoryTracker('company_profile')
-    tracker.start()
-
     loader = CompanyProfileLoader()
-    result = loader.run()
 
-    if result["success"]:
-        logger.info(f"SUCCESS: {result['rows']} company profiles loaded")
-        tracker.complete(symbols_processed=result['rows'], errors=0)
+    if args.symbols:
+        symbols = args.symbols.split(',')
+    else:
+        symbols = get_active_symbols(limit=500)
+
+    result = loader.run(symbols, parallelism=args.parallelism)
+
+    if result["rows_inserted"] > 0:
+        logger.info(f"SUCCESS: {result['rows_inserted']} company profiles loaded")
         return 0
     else:
-        logger.error(f"FAILED: {result.get('error', 'unknown error')}")
-        tracker.failed(error_message=result.get('error', 'unknown error'))
-        return 1
+        logger.warning(f"COMPLETED: No profiles loaded (rows_fetched={result['rows_fetched']})")
+        return 0
+
 
 if __name__ == '__main__':
     sys.exit(main())
-

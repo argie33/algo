@@ -1,64 +1,77 @@
 #!/usr/bin/env python3
-"""
-Load market sentiment data from available sources (AAII, market_sentiment, fear_greed_index).
-"""
+"""Market Sentiment Loader - Load market sentiment from available sources (Market-wide compute)."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import logging
+from datetime import date
+from typing import Optional, List
+
+from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
-from utils.master_data_loader import MasterDataLoader
 
 logger = logging.getLogger(__name__)
 
-def load_sentiment():
+
+class SentimentLoader(OptimalLoader):
     """Load market sentiment from available sources."""
-    try:
-        with DatabaseContext('write') as cur:
-            # Clear old sentiment data (keep last 90 days)
-            cur.execute("""
-                DELETE FROM sentiment
-                WHERE created_at < NOW() - INTERVAL '90 days'
-            """)
 
-            # Insert sentiment from AAII data (if available)
-            cur.execute("""
-                INSERT INTO sentiment (symbol, sentiment_score, sentiment_label, created_at, updated_at)
-                SELECT
-                    COALESCE(symbol, 'MARKET') AS symbol,
-                    CASE
-                        WHEN bullish = true THEN 0.5
-                        WHEN neutral = true THEN 0.0
-                        ELSE -0.5
-                    END AS sentiment_score,
-                    CASE
-                        WHEN bullish = true THEN 'Bullish'
-                        WHEN neutral = true THEN 'Neutral'
-                        ELSE 'Bearish'
-                    END AS sentiment_label,
-                    NOW(),
-                    NOW()
-                FROM aaii_sentiment
-                WHERE created_at > NOW() - INTERVAL '1 day'
-                ON CONFLICT (symbol) DO UPDATE SET
-                    sentiment_score = EXCLUDED.sentiment_score,
-                    sentiment_label = EXCLUDED.sentiment_label,
-                    updated_at = NOW()
-            """)
+    table_name = "sentiment"
+    primary_key = ("symbol", "date")
+    watermark_field = "created_at"
 
-            inserted = cur.rowcount
-
-            # If no AAII data, insert neutral market sentiment
-            if inserted == 0:
+    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+        """Fetch market sentiment data."""
+        try:
+            with DatabaseContext('read') as cur:
+                # Get sentiment from aggregated sources
                 cur.execute("""
-                    INSERT INTO sentiment (symbol, sentiment_score, sentiment_label, created_at, updated_at)
-                    VALUES ('MARKET', 0.0, 'Neutral', NOW(), NOW())
-                    ON CONFLICT (symbol) DO NOTHING
+                    SELECT
+                        COALESCE(symbol, 'MARKET') AS symbol,
+                        MAX(date) as date,
+                        AVG(aggregate_sentiment) as sentiment_score,
+                        CASE
+                            WHEN AVG(aggregate_sentiment) > 65 THEN 'Bullish'
+                            WHEN AVG(aggregate_sentiment) > 40 THEN 'Neutral'
+                            ELSE 'Bearish'
+                        END AS sentiment_label
+                    FROM sentiment
+                    WHERE created_at > NOW() - INTERVAL '1 day'
+                    GROUP BY symbol
                 """)
-                inserted = cur.rowcount
 
-            logger.info(f"Loaded {inserted} sentiment records")
-            return inserted
-    except Exception as e:
-        logger.error(f"Error loading sentiment: {e}", exc_info=True)
-        raise
+                rows = cur.fetchall()
+                if not rows:
+                    logger.info("No sentiment data available")
+                    return None
+
+                return [
+                    {
+                        'symbol': r[0],
+                        'date': r[1] or date.today(),
+                        'sentiment_score': float(r[2]) if r[2] else 0.0,
+                        'sentiment_label': r[3],
+                    }
+                    for r in rows
+                ]
+
+        except Exception as e:
+            logger.error(f"Failed to fetch sentiment: {e}")
+            return None
+
+
+def main():
+    loader = SentimentLoader()
+    result = loader.load_global()
+
+    if result > 0:
+        logger.info(f"SUCCESS: {result} sentiment records loaded")
+        return 0
+    else:
+        logger.warning(f"COMPLETED: No sentiment loaded")
+        return 0
+
 
 if __name__ == "__main__":
-    load_sentiment()
+    sys.exit(main())

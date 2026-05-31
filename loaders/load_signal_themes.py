@@ -1,66 +1,88 @@
 #!/usr/bin/env python3
-"""
-Load signal themes from signal_quality_scores data.
-Identifies thematic groups among high-scoring signals.
-"""
+"""Signal Themes Loader - Identify thematic groups among high-scoring signals."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import logging
+from datetime import date
+from typing import Optional, List
+
+from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
-from utils.master_data_loader import MasterDataLoader
 
 logger = logging.getLogger(__name__)
 
-def load_signal_themes():
-    """Load signal themes from scoring data."""
-    try:
-        with DatabaseContext('write') as cur:
-            # Get the latest price data date
-            cur.execute("""
-                SELECT MAX(date) FROM price_daily
-            """)
-            latest_date = cur.fetchone()[0]
 
-            if not latest_date:
-                logger.warning("No price data found")
-                return 0
+class SignalThemesLoader(OptimalLoader):
+    """Load signal themes from signal quality scores (market-wide aggregate)."""
 
-            # Clear old signal themes
-            cur.execute("""
-                DELETE FROM signal_themes
-                WHERE created_at < NOW() - INTERVAL '90 days'
-            """)
+    table_name = "signal_themes"
+    primary_key = ("symbol", "date")
+    watermark_field = "created_at"
 
-            # Insert signal themes based on top stock scores
-            # Group high-scoring stocks by patterns
-            cur.execute("""
-                INSERT INTO signal_themes (symbol, date, sector_theme, thematic_group, correlation_cluster, created_at)
-                SELECT
-                    sqs.symbol,
-                    %s::date,
-                    'high_momentum'::text AS sector_theme,
-                    CASE
-                        WHEN sqs.composite_sqs > 85 THEN 'Elite'
-                        WHEN sqs.composite_sqs > 75 THEN 'Premium'
-                        WHEN sqs.composite_sqs > 65 THEN 'Standard'
-                        ELSE 'Monitor'
-                    END AS thematic_group,
-                    'Primary'::text AS correlation_cluster,
-                    NOW()
-                FROM signal_quality_scores sqs
-                WHERE sqs.date = %s
-                AND sqs.composite_sqs > 50
-                ORDER BY sqs.composite_sqs DESC
-                LIMIT 500
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                    sector_theme = EXCLUDED.sector_theme,
-                    thematic_group = EXCLUDED.thematic_group
-            """, (latest_date, latest_date))
+    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+        """Fetch and group signal themes from quality scores."""
+        try:
+            with DatabaseContext('read') as cur:
+                # Get the latest price data date
+                cur.execute("SELECT MAX(date) FROM price_daily")
+                latest_date = cur.fetchone()[0]
 
-            inserted = cur.rowcount
-            logger.info(f"Loaded {inserted} signal themes")
-            return inserted
-    except Exception as e:
-        logger.error(f"Error loading signal themes: {e}", exc_info=True)
-        raise
+                if not latest_date:
+                    logger.warning("No price data found")
+                    return None
+
+                # Fetch high-scoring signals grouped by theme
+                cur.execute("""
+                    SELECT
+                        symbol,
+                        %s::date as date,
+                        'high_momentum'::text AS sector_theme,
+                        CASE
+                            WHEN composite_sqs > 85 THEN 'Elite'
+                            WHEN composite_sqs > 75 THEN 'Premium'
+                            WHEN composite_sqs > 65 THEN 'Standard'
+                            ELSE 'Monitor'
+                        END AS thematic_group,
+                        'Primary'::text AS correlation_cluster
+                    FROM signal_quality_scores
+                    WHERE date = %s
+                    AND composite_sqs > 50
+                    ORDER BY composite_sqs DESC
+                    LIMIT 500
+                """, (latest_date, latest_date))
+
+                rows = cur.fetchall()
+                if not rows:
+                    return None
+
+                return [
+                    {
+                        'symbol': r[0],
+                        'date': r[1],
+                        'sector_theme': r[2],
+                        'thematic_group': r[3],
+                        'correlation_cluster': r[4],
+                    }
+                    for r in rows
+                ]
+        except Exception as e:
+            logger.error(f"Error fetching signal themes: {e}")
+            return None
+
+
+def main():
+    loader = SignalThemesLoader()
+    result = loader.load_global()
+
+    if result > 0:
+        logger.info(f"SUCCESS: {result} signal themes loaded")
+        return 0
+    else:
+        logger.warning(f"COMPLETED: No themes loaded")
+        return 0
+
 
 if __name__ == "__main__":
-    load_signal_themes()
+    sys.exit(main())

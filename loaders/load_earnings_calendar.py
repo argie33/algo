@@ -1,49 +1,38 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
+"""Earnings Calendar Loader - Fetches upcoming earnings dates."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-"""
-Earnings Calendar Loader - Fetches upcoming earnings dates.
-
-Run:
-    python3 load_earnings_calendar.py [--symbols AAPL,MSFT] [--days-ahead 180]
-"""
 import argparse
 import logging
-from datetime import date, timedelta
-from typing import List, Optional, Dict, Any
+from datetime import date
+from typing import List, Optional
 
-from utils.database_context import DatabaseContext
-from utils.master_data_loader import MasterDataLoader
+from utils.optimal_loader import OptimalLoader
+from utils.loader_helpers import get_active_symbols
 
 logger = logging.getLogger(__name__)
 
-class EarningsCalendarLoader(MasterDataLoader):
+
+class EarningsCalendarLoader(OptimalLoader):
     """Load upcoming earnings dates for all symbols."""
 
-    def get_symbols(self, cur) -> List[str]:
-        """Get all active symbols from database."""
-        try:
-            cur.execute("SELECT symbol FROM stock_symbols WHERE symbol NOT LIKE '%.%'")
-            return [row[0] for row in cur.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to fetch symbols: {e}")
-            return []
+    table_name = "earnings_calendar"
+    primary_key = ("symbol", "earnings_date")
+    watermark_field = "updated_at"
 
-    def fetch_earnings_from_yfinance(self, symbol: str) -> List[Dict[str, Any]]:
-        """Fetch earnings dates from yfinance."""
+    def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
+        """Fetch earnings dates from yfinance for a symbol."""
         try:
             from utils.yfinance_wrapper import get_ticker
             import pandas as pd
 
             ticker = get_ticker(symbol)
             if not ticker:
-                return []
+                return None
 
             results = []
-
-            # Try ticker.calendar
             try:
                 cal = ticker.calendar
                 if cal and isinstance(cal, dict) and 'Earnings Date' in cal:
@@ -62,80 +51,34 @@ class EarningsCalendarLoader(MasterDataLoader):
             except Exception as e:
                 logger.debug(f"[{symbol}] ticker.calendar error: {e}")
 
-            return results
+            return results if results else None
         except Exception as e:
-            logger.warning(f"yfinance fetch failed for {symbol}: {e}")
-            return []
+            logger.debug(f"yfinance fetch failed for {symbol}: {e}")
+            return None
 
-    def load_earnings(self, cur, symbols: Optional[List[str]] = None) -> int:
-        """Load earnings dates for symbols."""
-        if symbols is None:
-            symbols = self.get_symbols(cur)
-
-        if not symbols:
-            logger.warning("No symbols to load")
-            return 0
-
-        total_loaded = 0
-
-        for symbol in symbols:
-            try:
-                earnings = self.fetch_earnings_from_yfinance(symbol)
-                for earning in earnings:
-                    try:
-                        cur.execute("""
-                            INSERT INTO earnings_calendar
-                            (symbol, earnings_date, announce_time, eps_estimate, actual_eps,
-                             revenue_estimate, actual_revenue, fiscal_period)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (symbol, earnings_date) DO UPDATE SET
-                                announce_time = EXCLUDED.announce_time,
-                                eps_estimate = EXCLUDED.eps_estimate,
-                                actual_eps = EXCLUDED.actual_eps,
-                                revenue_estimate = EXCLUDED.revenue_estimate,
-                                actual_revenue = EXCLUDED.actual_revenue,
-                                fiscal_period = EXCLUDED.fiscal_period,
-                                updated_at = CURRENT_TIMESTAMP
-                        """, (
-                            earning['symbol'],
-                            earning['earnings_date'],
-                            earning['announce_time'],
-                            earning['eps_estimate'],
-                            earning['actual_eps'],
-                            earning['revenue_estimate'],
-                            earning['actual_revenue'],
-                            earning['fiscal_period'],
-                        ))
-                        total_loaded += 1
-                    except Exception as e:
-                        logger.error(f"Failed to insert earnings for {symbol}: {e}")
-
-                if earnings:
-                    logger.info(f"{symbol}: Loaded {len(earnings)} earnings dates")
-
-            except Exception as e:
-                logger.warning(f"Failed to load earnings for {symbol}: {e}")
-
-        logger.info(f"Loaded {total_loaded} earnings calendar records")
-        return total_loaded
-
-    def run(self, symbols: Optional[List[str]] = None) -> int:
-        """Run the loader."""
-        with DatabaseContext('write') as cur:
-            return self.load_earnings(cur, symbols)
 
 def main():
     parser = argparse.ArgumentParser(description="Earnings Calendar Loader")
-    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols, or blank for all active")
     parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
     args = parser.parse_args()
 
     loader = EarningsCalendarLoader()
-    symbols = args.symbols.split(",") if args.symbols else None
-    count = loader.run(symbols)
 
-    sys.exit(0 if count >= 0 else 1)
+    if args.symbols:
+        symbols = args.symbols.split(",")
+    else:
+        symbols = get_active_symbols()
+
+    result = loader.run(symbols, parallelism=args.parallelism)
+
+    if result["rows_inserted"] > 0:
+        logger.info(f"SUCCESS: {result['rows_inserted']} earnings dates loaded")
+        return 0
+    else:
+        logger.warning(f"COMPLETED: No earnings loaded (rows_fetched={result['rows_fetched']})")
+        return 0
+
 
 if __name__ == "__main__":
-    main()
-
+    sys.exit(main())

@@ -35,16 +35,10 @@ Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
 Run:
     python3 loadanalystsentiment.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
 
 import argparse
 import logging
 logger = logging.getLogger(__name__)
-from config.credential_manager import get_db_password, get_db_config
 from utils.loader_helpers import get_active_symbols
 import os
 import sys
