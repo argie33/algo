@@ -11,7 +11,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | API (REST endpoints) | `lambda/api/lambda_function.py` | Lambda (algo-api-dev) | API Gateway HTTP requests |
 | Frontend (dashboard) | `webapp/frontend/src/` | S3 + CloudFront | npm run build (React app) |
 | Signals (Phase 5) | `algo/algo_signals.py` | Lambda Phase 5 | Called by orchestrator |
-| Database (data storage) | PostgreSQL | RDS (algo-db) | Schema: `terraform/modules/database/init.sql` |
+| Database (data storage) | PostgreSQL | RDS (algo-db) | Schema: `lambda/db-init/schema.sql` (via Lambda on first deployment) |
 
 ## CREDENTIALS & SECRETS
 
@@ -413,6 +413,43 @@ The `/health` and `/api/health` endpoints return 200 immediately, before DB conn
 - API GW `$default` stage preserves the full `/api/...` path in rawPath
 - `lambda/api/api_router.py` matches against `/api/` prefixed paths
 
+## DATABASE SCHEMA (Single Source of Truth)
+
+**Schema versioning:** `lambda/db-init/schema.sql` is the single source of truth for database structure (3031 lines, all CREATE TABLE IF NOT EXISTS statements).
+
+**On first deployment:**
+- Terraform creates RDS instance (empty)
+- Terraform invokes `db-init` Lambda function
+- Lambda reads `lambda/db-init/schema.sql` and creates all tables/indexes
+- Schema is now live and ready for application code
+
+**Making schema changes post-deployment:**
+When you need to modify the schema after the initial deployment:
+
+1. Edit `lambda/db-init/schema.sql` directly (update table definitions)
+2. In your Python code, apply ALTER statements to add new columns (idempotent with `IF NOT EXISTS`)
+3. No migration system needed — schema.sql defines the target state; code applies changes as needed
+
+**Example: Adding a new column**
+```sql
+-- In lambda/db-init/schema.sql (update table definition)
+CREATE TABLE IF NOT EXISTS my_table (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    new_column VARCHAR(100)  -- newly added
+);
+```
+
+```python
+# In your Python code (on startup)
+from utils.database_context import DatabaseContext
+
+with DatabaseContext('write') as cur:
+    cur.execute("ALTER TABLE my_table ADD COLUMN IF NOT EXISTS new_column VARCHAR(100)")
+```
+
+**Why no migration framework?** This is a greenfield project with a single deployment environment (production). Schema.sql defines the target state; code applies ALTER statements as needed. This avoids the complexity of versioned migrations (valuable for multi-environment deployments with downtime constraints, but unnecessary here).
+
 ## DEBUGGING & TROUBLESHOOTING
 
 **Schema validation:** Verify these tables exist in RDS:
@@ -420,7 +457,7 @@ The `/health` and `/api/health` endpoints return 200 immediately, before DB conn
 - `data_loader_status` — loader execution history
 - `algo_audit_log` — orchestrator decisions
 
-If missing, rebuild schema via `deploy-code.yml` (loads `terraform/modules/database/init.sql` to RDS).
+If missing, rebuild schema by invoking the `db-init` Lambda manually (reads `lambda/db-init/schema.sql`). Or redeploy infrastructure via `deploy-all-infrastructure.yml` (Terraform re-invokes Lambda).
 
 **Lambda environment variables:** All Lambdas require:
 - `DB_SECRET_ARN` — Points to RDS password in Secrets Manager (must match actual Secrets Manager path)
