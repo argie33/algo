@@ -17,7 +17,6 @@ from typing import List, Optional
 
 import pandas as pd
 
-import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from loaders.technical_indicators import (

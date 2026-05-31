@@ -16,7 +16,6 @@ import logging
 
 import argparse
 from utils.loader_helpers import get_active_symbols
-import logging
 logger = logging.getLogger(__name__)
 import os
 from datetime import date

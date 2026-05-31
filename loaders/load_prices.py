@@ -28,7 +28,6 @@ from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
 from utils.loader_helpers import get_active_symbols
-import logging
 from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 

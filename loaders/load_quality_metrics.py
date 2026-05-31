@@ -19,7 +19,6 @@ Requires: annual_income_statement, annual_balance_sheet populated
 import logging
 
 import argparse
-import logging
 import os
 from datetime import date
 from typing import List, Optional

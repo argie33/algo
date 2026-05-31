@@ -24,7 +24,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import logging
 import argparse
-import logging
 logger = logging.getLogger(__name__)
 import os
 from utils.loader_helpers import get_active_symbols

@@ -19,7 +19,6 @@ except ImportError:
     credential_manager = None
 
 import argparse
-import logging
 logger = logging.getLogger(__name__)
 import os
 from datetime import date

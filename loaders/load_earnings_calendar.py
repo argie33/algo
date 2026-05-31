@@ -14,7 +14,6 @@ import logging
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 
-import logging
 from utils.database_context import DatabaseContext
 from utils.master_data_loader import MasterDataLoader
 

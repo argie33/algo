@@ -19,11 +19,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 import os
 from datetime import date, timedelta
-from typing import List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 
 import requests
-import psycopg2
-from psycopg2.extras import execute_values
 
 from utils.database_context import DatabaseContext
 from utils.master_data_loader import MasterDataLoader
@@ -100,29 +98,28 @@ def fetch_series(series_id: str, api_key: str, start: str, end: str) -> List[Tup
 def upsert_rows(cur, rows: List[Tuple]) -> int:
     if not rows:
         return 0
-    execute_values(
-        cur,
-        """
+    for series_id, date_val, value in rows:
+        cur.execute("""
         INSERT INTO economic_data (series_id, date, value)
-        VALUES %s
+        VALUES (%s, %s, %s)
         ON CONFLICT (series_id, date) DO UPDATE SET value = EXCLUDED.value
-        """,
-        rows,
-    )
+        """, (series_id, date_val, value))
     return len(rows)
 
-def main():
-    api_key = get_fred_api_key()
-    if not api_key:
-        logger.error("FRED_API_KEY not found in environment or Secrets Manager")
-        sys.exit(1)
 
-    end_date = date.today().isoformat()
-    # Load 2 years of history on first run; subsequent runs just update recent data
-    start_date = (date.today() - timedelta(days=730)).isoformat()
+class FredEconomicDataLoader(MasterDataLoader):
+    """Load FRED economic time-series data."""
 
-    try:
-        with DatabaseContext('write') as cur:
+    def run(self) -> Dict[str, Any]:
+        """Load FRED economic data."""
+        api_key = get_fred_api_key()
+        if not api_key:
+            return {"success": False, "rows": 0, "error": "FRED_API_KEY not found"}
+
+        end_date = date.today().isoformat()
+        start_date = (date.today() - timedelta(days=730)).isoformat()
+
+        def _load(cur):
             total = 0
             for series_id in SERIES:
                 logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
@@ -135,10 +132,22 @@ def main():
                     logger.error(f"  {series_id}: FAILED — {e}", exc_info=True)
                     raise
 
-        logger.info(f"Done. Total rows upserted: {total}")
-    except Exception as e:
-        logger.error(f"Fatal error loading FRED data: {e}", exc_info=True)
-        sys.exit(1)
+            logger.info(f"Done. Total rows upserted: {total}")
+            return {"success": True, "rows": total}
+
+        return self.execute_with_db(_load, 'load_fred_economic_data', 'write')
+
+
+def main():
+    loader = FredEconomicDataLoader()
+    result = loader.run()
+
+    if result["success"]:
+        logger.info(f"SUCCESS: {result['rows']} economic data records loaded")
+        return 0
+    else:
+        logger.error(f"FAILED: {result.get('error', 'unknown error')}")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

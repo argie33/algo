@@ -10,7 +10,6 @@ from typing import Dict
 
 from utils.database_context import DatabaseContext
 from utils.master_data_loader import MasterDataLoader
-import logging
 
 logger = logging.getLogger(__name__)
 

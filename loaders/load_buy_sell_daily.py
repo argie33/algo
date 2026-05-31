@@ -13,7 +13,6 @@ import logging
 from datetime import date, timedelta
 from typing import List, Optional
 
-import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
