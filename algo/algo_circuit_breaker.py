@@ -29,7 +29,6 @@ from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any, List
 from utils.trade_status import TradeStatus, PositionStatus
 import logging
-import inspect
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +67,7 @@ class CircuitBreaker:
                     ('data_freshness', self._check_data_freshness),
                 ]:
                     try:
-                        sig = inspect.signature(fn)
-                        if 'current_date' in sig.parameters:
-                            state = fn(current_date, cur)
-                        else:
-                            state = fn(cur)
+                        state = fn(current_date, cur)
                     except Exception as e:
                         import traceback
                         tb = traceback.format_exc()
@@ -125,7 +120,7 @@ class CircuitBreaker:
 
     # ---------- Individual checks ----------
 
-    def _check_drawdown(self, cur) -> Dict[str, Any]:
+    def _check_drawdown(self, current_date: Any, cur) -> Dict[str, Any]:
         cur.execute(
             """
             SELECT MAX(total_portfolio_value),
@@ -249,7 +244,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_consecutive_losses(self, cur) -> Dict[str, Any]:
+    def _check_consecutive_losses(self, current_date: Any, cur) -> Dict[str, Any]:
         cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
@@ -278,7 +273,7 @@ class CircuitBreaker:
             'threshold': threshold,
         }
 
-    def _check_win_rate_floor(self, cur) -> Dict[str, Any]:
+    def _check_win_rate_floor(self, current_date: Any, cur) -> Dict[str, Any]:
         """Halt if recent win rate drops below floor (e.g., 40% of last 30 closed trades).
 
         Win rate = wins / (wins + losses), excluding break-even trades to avoid dilution.
@@ -320,7 +315,7 @@ class CircuitBreaker:
             'trades_sampled': total,
         }
 
-    def _check_total_risk(self, cur) -> Dict[str, Any]:
+    def _check_total_risk(self, current_date: Any, cur) -> Dict[str, Any]:
         """Sum of (entry - stop) * qty across open positions vs portfolio value."""
         cur.execute(
             """
@@ -581,7 +576,7 @@ class CircuitBreaker:
             # Core gates (Phase 1 freshness, CB drawdown, VIX) handle true safety halts.
             return {'halted': False, 'reason': f'Prior-day check skipped (data error): {e}'}
 
-    def _check_sector_concentration(self, cur) -> Dict[str, Any]:
+    def _check_sector_concentration(self, current_date: Any, cur) -> Dict[str, Any]:
         """Log warning if any sector exceeds max position cap — does not halt all entries.
 
         Phase 6 already blocks per-symbol sector violations with a FOR UPDATE lock

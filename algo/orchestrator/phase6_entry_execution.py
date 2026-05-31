@@ -19,7 +19,6 @@ def _recalculate_position_size_after_exits(
     trade: Dict[str, Any],
     config: Any,
     exposure_multiplier: float = 1.0,
-    verbose: bool = False
 ) -> Dict[str, Any]:
     """
     Recalculate position size based on current portfolio value (after Phase 4 exits).
@@ -564,7 +563,7 @@ def run(
                 continue
 
             # Recalculate position size based on current portfolio value (after Phase 4 exits)
-            trade = _recalculate_position_size_after_exits(trade, config, exposure_mult, verbose=verbose)
+            trade = _recalculate_position_size_after_exits(trade, config, exposure_mult)
 
             # Re-check sector limits before execution to prevent race condition
             # where two same-sector trades could violate sector concentration limits

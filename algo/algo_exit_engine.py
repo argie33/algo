@@ -675,27 +675,6 @@ class ExitEngine:
             logger.warning(f"Warning: _compute_gain_last_n_days({symbol}) failed: {e}")
             return None
 
-    # ---------- Backwards-compat shim used by old tests ----------
-
-    def _check_exit_conditions(self, symbol, current_price, entry_price,
-                                t1_price, t2_price, t3_price, stop_price,
-                                days_held, eval_date) -> Dict[str, Any]:
-        """Pure-function exit check used by FULL_BUILD_VERIFICATION.py."""
-        signal = self._evaluate_position(
-            None, symbol, eval_date,
-            cur_price=current_price, prev_close=current_price,
-            entry_price=entry_price, active_stop=stop_price, init_stop=stop_price,
-            t1_price=t1_price, t2_price=t2_price, t3_price=t3_price,
-            target_hits=0, days_held=days_held, dist_days_today=None,
-        )
-        if not signal:
-            return None
-        return {
-            'reason': signal['reason'],
-            'exit_stage': signal['stage'],
-            'fraction': signal['fraction'],
-        }
-
 if __name__ == "__main__":
     from algo.algo_config import get_config
     config = get_config()
