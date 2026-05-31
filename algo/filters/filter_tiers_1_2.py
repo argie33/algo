@@ -56,7 +56,7 @@ class FilterTiers12Mixin:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'completeness_pct': 0}
 
-    def _tier2_market_health(self, signal_date) -> Dict[str, Any]:
+    def _tier2_market_health(self, signal_date, cur) -> Dict[str, Any]:
         """Market health for the signal's date, with 5-day fallback."""
         try:
             if self._market_health_date == signal_date:

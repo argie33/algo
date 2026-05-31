@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 class FilterTiers45Mixin:
     """Tier 4 & 5 filtering logic."""
 
-    def _tier4_signal_quality(self, symbol, signal_date) -> Dict[str, Any]:
+    def _tier4_signal_quality(self, symbol, signal_date, cur) -> Dict[str, Any]:
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT composite_sqs FROM signal_quality_scores
                 WHERE symbol = %s AND date <= %s
@@ -20,7 +20,7 @@ class FilterTiers45Mixin:
                 """,
                 (symbol, signal_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             sqs = float(row[0]) if row and row[0] is not None else 0
             min_sqs = float(self.config.get('min_signal_quality_score', 60))
             if sqs < min_sqs:
@@ -29,7 +29,7 @@ class FilterTiers45Mixin:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'sqs': 0}
 
-    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price, signal_date=None) -> Dict[str, Any]:
+    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price, signal_date=None, cur=None) -> Dict[str, Any]:
         """Portfolio health check + actual share calculation using PositionSizer."""
         try:
             # Production safeguards (Phase 1)
@@ -94,11 +94,11 @@ class FilterTiers45Mixin:
                 # Compute ATR fresh from price data
                 atr_value = None
                 try:
-                    self.cur.execute(
+                    cur.execute(
                         """SELECT atr FROM technical_data_daily WHERE symbol = %s AND date = %s""",
                         (symbol, signal_date)
                     )
-                    atr_row = self.cur.fetchone()
+                    atr_row = cur.fetchone()
                     if atr_row and atr_row[0]:
                         atr_value = float(atr_row[0])
                 except Exception as e:
@@ -162,11 +162,11 @@ class FilterTiers45Mixin:
 
     def _get_sector_info(self, symbol) -> Dict[str, Any]:
         try:
-            self.cur.execute(
+            cur.execute(
                 "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
                 (symbol,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or not row[0]:
                 return None
             return {'sector': row[0], 'industry': row[1] or ''}
@@ -214,27 +214,27 @@ class FilterTiers45Mixin:
 
         # Open positions
         from utils.trade_status import PositionStatus
-        self.cur.execute(
+        cur.execute(
             "SELECT symbol, position_value FROM algo_positions WHERE status = %s",
             (PositionStatus.OPEN.value,)
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         position_count = len(rows)
         symbols = {r[0] for r in rows}
         positions_value = sum(float(r[1] or 0) for r in rows)
 
         # Portfolio value: prefer latest snapshot
-        self.cur.execute(
+        cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
-        snap = self.cur.fetchone()
+        snap = cur.fetchone()
         portfolio_value = float(snap[0]) if snap and snap[0] else 100000.0
 
         # Drawdown adjustment from peak
-        self.cur.execute(
+        cur.execute(
             "SELECT MAX(total_portfolio_value) FROM algo_portfolio_snapshots"
         )
-        peak_row = self.cur.fetchone()
+        peak_row = cur.fetchone()
         peak = float(peak_row[0]) if peak_row and peak_row[0] else portfolio_value
         drawdown_pct = max(0.0, (peak - portfolio_value) / peak * 100.0) if peak > 0 else 0.0
 
@@ -259,7 +259,7 @@ class FilterTiers45Mixin:
         }
         return self._portfolio_state_cache
 
-    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None) -> Dict[str, Any]:
+    def _check_correlation_with_holdings(self, new_symbol, existing_symbols, signal_date=None, cur=None) -> Dict[str, Any]:
         """Check if new symbol is highly correlated (>0.80) with existing open positions.
 
         Returns {'pass': bool, 'reason': str, 'highest_correlation': float}
@@ -272,7 +272,7 @@ class FilterTiers45Mixin:
             symbols_to_check = [new_symbol] + list(existing_symbols)
             # Build placeholders dynamically: %s, %s, %s, ... one for each symbol
             placeholders = ','.join(['%s'] * len(symbols_to_check))
-            self.cur.execute(
+            cur.execute(
                 f"""
                 SELECT symbol, date, close FROM price_daily
                 WHERE symbol IN ({placeholders})
@@ -281,7 +281,7 @@ class FilterTiers45Mixin:
                 """,
                 tuple(symbols_to_check)
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if not rows:
                 return {'pass': True, 'reason': 'Insufficient price data'}
 
@@ -360,7 +360,7 @@ class FilterTiers45Mixin:
                     break
             reason = first_fail or f"PASS — {tiers[5]['reason']}"
 
-            self.cur.execute(
+            cur.execute(
                 """
                 INSERT INTO algo_signals_evaluated (
                     signal_date, symbol, source_table, source_timeframe,
