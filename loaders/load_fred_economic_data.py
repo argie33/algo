@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""FRED Economic Data Loader — Loads key macro time-series from FRED API.
-
-Series loaded:
-  T10Y2Y       — 10Y minus 2Y Treasury spread (yield curve), daily
-  BAMLH0A0HYM2 — ICE BofA US HY OAS credit spread, daily
-  ICSA         — Initial jobless claims, weekly
-  FEDFUNDS     — Effective federal funds rate, monthly
-  UNRATE       — Unemployment rate, monthly
-
-Requires FRED_API_KEY in environment or Secrets Manager (algo/fred).
-
-Run: python3 loaders/load_fred_economic_data.py
-"""
+"""FRED Economic Data Loader — Market-wide macroeconomic indicators."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -19,14 +7,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 import os
 from datetime import date, timedelta
-from typing import Dict, Any, List, Tuple
-
+from typing import List, Optional, Dict, Any
 import requests
 
-from utils.database_context import DatabaseContext
-from utils.master_data_loader import MasterDataLoader
+from utils.optimal_loader import OptimalLoader
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
@@ -39,27 +24,19 @@ SERIES = [
     "UNRATE",
 ]
 
-def get_fred_api_key() -> str:
-    """Get FRED API key from environment, credential_manager, or Secrets Manager.
 
-    Priority:
-    1. FRED_API_KEY env var (local dev, or passed by Lambda)
-    2. credential_manager (unified handler - tries Secrets Manager then env vars)
-    3. Direct Secrets Manager lookup (fallback for non-Lambda contexts)
-    """
-    # First try environment variable
+def get_fred_api_key() -> str:
+    """Get FRED API key from environment or credential_manager."""
     key = os.getenv("FRED_API_KEY", "")
     if key:
         return key
 
-    # Try credential_manager if available (works in Lambda with proper IAM)
     try:
         from config.credential_manager import get_secret
         return get_secret("fred/api_key", default="")
     except Exception as e:
         logger.debug(f"credential_manager lookup failed: {e}")
 
-    # Fallback: Try direct Secrets Manager (for ECS tasks, local development with boto3)
     try:
         import boto3, json
         client = boto3.client("secretsmanager", region_name="us-east-1")
@@ -71,83 +48,74 @@ def get_fred_api_key() -> str:
 
     return ""
 
-def fetch_series(series_id: str, api_key: str, start: str, end: str) -> List[Tuple]:
-    """Fetch observations for a FRED series. Returns list of (series_id, date, value)."""
-    params = {
-        "series_id": series_id,
-        "api_key": api_key,
-        "file_type": "json",
-        "observation_start": start,
-        "observation_end": end,
-        "sort_order": "asc",
-    }
-    resp = requests.get(FRED_BASE, params=params, timeout=30)
-    resp.raise_for_status()
-    observations = resp.json().get("observations", [])
-    rows = []
-    for obs in observations:
-        val_str = obs.get("value", ".")
-        if val_str == ".":
-            continue
-        try:
-            rows.append((series_id, obs["date"], float(val_str)))
-        except (ValueError, KeyError):
-            continue
-    return rows
 
-def upsert_rows(cur, rows: List[Tuple]) -> int:
-    if not rows:
-        return 0
-    for series_id, date_val, value in rows:
-        cur.execute("""
-        INSERT INTO economic_data (series_id, date, value)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (series_id, date) DO UPDATE SET value = EXCLUDED.value
-        """, (series_id, date_val, value))
-    return len(rows)
+class FredEconomicDataLoader(OptimalLoader):
+    """Load FRED economic time-series data (market-wide)."""
 
+    table_name = "economic_data"
+    primary_key = ("series_id", "date")
+    watermark_field = "date"
 
-class FredEconomicDataLoader(MasterDataLoader):
-    """Load FRED economic time-series data."""
-
-    def run(self) -> Dict[str, Any]:
-        """Load FRED economic data."""
+    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+        """Fetch FRED economic data for all configured series."""
         api_key = get_fred_api_key()
         if not api_key:
-            return {"success": False, "rows": 0, "error": "FRED_API_KEY not found"}
+            logger.error("FRED_API_KEY not found")
+            raise ValueError("FRED_API_KEY not found")
 
         end_date = date.today().isoformat()
         start_date = (date.today() - timedelta(days=730)).isoformat()
 
-        def _load(cur):
-            total = 0
-            for series_id in SERIES:
-                logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
-                try:
-                    rows = fetch_series(series_id, api_key, start_date, end_date)
-                    n = upsert_rows(cur, rows)
-                    logger.info(f"  {series_id}: {n} rows upserted")
-                    total += n
-                except Exception as e:
-                    logger.error(f"  {series_id}: FAILED — {e}", exc_info=True)
-                    raise
+        all_rows = []
 
-            logger.info(f"Done. Total rows upserted: {total}")
-            return {"success": True, "rows": total}
+        for series_id in SERIES:
+            logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
+            try:
+                params = {
+                    "series_id": series_id,
+                    "api_key": api_key,
+                    "file_type": "json",
+                    "observation_start": start_date,
+                    "observation_end": end_date,
+                    "sort_order": "asc",
+                }
+                resp = requests.get(FRED_BASE, params=params, timeout=30)
+                resp.raise_for_status()
+                observations = resp.json().get("observations", [])
 
-        return self.execute_with_db(_load, 'load_fred_economic_data', 'write')
+                for obs in observations:
+                    val_str = obs.get("value", ".")
+                    if val_str == ".":
+                        continue
+                    try:
+                        all_rows.append({
+                            'series_id': series_id,
+                            'date': obs["date"],
+                            'value': float(val_str)
+                        })
+                    except (ValueError, KeyError):
+                        continue
+
+                logger.info(f"  {series_id}: {len([r for r in all_rows if r['series_id'] == series_id])} rows")
+
+            except Exception as e:
+                logger.error(f"  {series_id}: FAILED — {e}")
+                raise
+
+        return all_rows if all_rows else None
 
 
 def main():
     loader = FredEconomicDataLoader()
-    result = loader.run()
+    result = loader.load_global()
 
-    if result["success"]:
-        logger.info(f"SUCCESS: {result['rows']} economic data records loaded")
+    if result > 0:
+        logger.info(f"SUCCESS: {result} economic data records loaded")
         return 0
     else:
-        logger.error(f"FAILED: {result.get('error', 'unknown error')}")
-        return 1
+        logger.warning(f"COMPLETED: No records loaded")
+        return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

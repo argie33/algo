@@ -16,50 +16,19 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-# Try to get credential manager
-_cred_mgr = None
-try:
-    _cred_mgr = get_credential_manager()
-except Exception as e:
-    logger.warning(f"Credential manager not available (expected in CI): {e}")
-    # Continue without credential_manager; we'll use environment variables instead
-
 def validate_environment():
-    """Validate that all required environment variables are set.
-
-    Called on module load. Logs issues and continues; raises on critical failures.
-    Uses credential_validator for centralized validation if available.
-    """
-    # Run credential validation if credential_manager is available
-    if _cred_mgr is not None:
-        try:
-            assert_credentials(on_failure="warn")  # Log issues but continue
-        except Exception as e:
-            logger.error(f"Credential validation failed: {e}")
-            raise RuntimeError(f"Critical credential error: {e}")
-
-    return True
+    """Validate that all required environment variables are set."""
+    try:
+        assert_credentials(on_failure="warn")
+    except Exception as e:
+        logger.error(f"Credential validation failed: {e}")
+        raise RuntimeError(f"Critical credential error: {e}")
 
 try:
     validate_environment()
 except Exception as e:
     logger.error(f"ERROR: Environment validation failed: {e}")
-    # Don't raise in CI environments; just log and continue
-    if _cred_mgr is None:
-        logger.warning("Skipping validation error in CI mode")
-    else:
-        raise
-
-DB_CONFIG = None
-
-# Try to load DB config, but gracefully handle tests without credentials
-try:
-    DB_CONFIG = get_db_config()
-except Exception as e:
-    logger.debug(f"DB_CONFIG not available at import time (may be test environment): {e}")
-
-# Alias for backwards compatibility
-DATABASE_CONFIG = DB_CONFIG
+    raise
 
 class AlgoConfig:
     """Configuration manager with hot-reload from database."""

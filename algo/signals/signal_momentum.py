@@ -4,18 +4,27 @@
 
 from typing import Dict, Any, Optional
 import logging
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 class SignalMomentumMixin:
     """Momentum and breakout signals."""
 
-    def td_sequential(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor via DatabaseContext."""
         try:
-            self.connect()
+            with DatabaseContext('read') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
+
+    def td_sequential(self, symbol: str, eval_date) -> Dict[str, Any]:
+        def _fetch_data(cur):
             # M6: Compute count fresh from price data each time
             # Count inherently resets daily as it's based on bar-by-bar closes
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT date, high, low, close FROM price_daily
                 WHERE symbol = %s AND date <= %s
@@ -23,7 +32,7 @@ class SignalMomentumMixin:
                 """,
                 (symbol, eval_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 14:
                 return {'setup_count': 0, 'setup_type': None, 'completed_9': False, 'perfected': False}
 
@@ -134,39 +143,31 @@ class SignalMomentumMixin:
                 'combo_13_complete': combo_13_complete,
             }
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Failed to disconnect: {e}")
+        return self._with_cursor(_fetch_data) or {
+            'setup_count': 0, 'setup_type': None, 'completed_9': False, 'perfected': False
+        }
 
     def power_trend(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Minervini "Power Trend" indicator: 20%+ gain in 21 trading days.
         These are the strongest setups for stocks already in motion.
         """
-        try:
-            self.connect()
-            ret_21 = self._period_return(symbol, eval_date, 21)
+        def _compute(cur):
+            ret_21 = self._period_return(symbol, eval_date, 21, cur)
             return {
                 'power_trend': ret_21 is not None and ret_21 >= 0.20,
                 'return_21d': round(ret_21 * 100, 2) if ret_21 is not None else None,
             }
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Failed to disconnect: {e}")
+        return self._with_cursor(_compute) or {'power_trend': False, 'return_21d': None}
 
     def pivot_breakout(self, symbol: str, eval_date) -> Dict[str, Any]:
         """
         Livermore-style pivot point: price closing decisively above the highest
         high of the prior 20 trading days, on volume > 50d avg.
         """
-        try:
-            self.connect()
-            self.cur.execute(
+        def _check_pivot(cur):
+            cur.execute(
                 """
                 WITH d AS (
                     SELECT date, close, volume,
@@ -180,14 +181,14 @@ class SignalMomentumMixin:
                 """,
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or row[1] is None:
                 return {'breakout': False}
             close = float(row[0])
             pivot = float(row[1])
             volume = float(row[2]) if row[2] else 0
             avg_vol = float(row[3]) if row[3] else 0
-            breakout = close > pivot * 1.005   # 0.5% buffer to avoid noise
+            breakout = close > pivot * 1.005
             on_volume = avg_vol > 0 and volume > avg_vol
             return {
                 'breakout': breakout and on_volume,
@@ -196,14 +197,12 @@ class SignalMomentumMixin:
                 'pct_above_pivot': round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0,
                 'volume_ratio': round(volume / avg_vol, 2) if avg_vol > 0 else None,
             }
+
+        try:
+            return self._with_cursor(_check_pivot) or {'breakout': False}
         except Exception as e:
             logger.debug(f"Pivot breakout check failed: {e}")
             return {'breakout': False}
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Failed to disconnect: {e}")
 
     def pocket_pivot(self, symbol: str, eval_date, lookback_days: int = 10) -> Dict[str, Any]:
         """

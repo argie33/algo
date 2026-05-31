@@ -1,314 +1,117 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""AAII Sentiment Survey Loader - Investor Sentiment Indicators (Market-wide data)."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-"""
-AAII Sentiment Survey Loader - Investor Sentiment Indicators
-
-DEPLOYMENT MODES:
-  - AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
-    |- Fetches DB credentials from AWS Secrets Manager
-    |- Downloads AAII sentiment Excel file via HTTPS
-    |- Extracts bullish/neutral/bearish percentages
-    |- Writes to PostgreSQL RDS database
-
-  - Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
-    |- Falls back if DB_SECRET_ARN not set
-    |- Same data fetching & processing logic
-    |- Perfect for testing without AWS infrastructure
-
-DATA SOURCE:
-  - AAII Sentiment Survey (https://www.aaii.com/files/surveys/sentiment.xls)
-  - Excel file with historical sentiment data
-  - Extracts: date, bullish%, neutral%, bearish%
-
-TABLES:
-  - aaii_sentiment: Stores weekly sentiment survey results
-
-OUTPUTS:
-  - market page: AAII investor sentiment indicators
-
-Version: v1.0
-Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
-"""
-import time
 import logging
-import json
+from datetime import date
+from typing import Optional, List
 import os
-import gc
-import math
-
-try:
-    import resource
-except ImportError:
-    resource = None  # Windows doesn't have resource module
-
-from utils.database_context import DatabaseContext
-from utils.master_data_loader import MasterDataLoader
-import psycopg2
-from psycopg2.extras import execute_values
-from datetime import datetime
-
-import boto3
-import pandas as pd
 import requests
 from io import BytesIO
+import pandas as pd
+
+from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-# -------------------------------
-# Script metadata & logging setup
-# -------------------------------
-SCRIPT_NAME = "loadaaiidata.py"
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    stream=sys.stdout
-)
-
-# -------------------------------
-# Memory-logging helper (RSS in MB)
-# -------------------------------
-def get_rss_mb():
-    if resource is None:
-        return 0  # Windows doesn't support resource module
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
-
-def log_mem(stage: str):
-    if resource:
-        logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
-
-# -------------------------------
-# Retry settings
-# -------------------------------
-MAX_DOWNLOAD_RETRIES = 5  
-RETRY_DELAY = 3.0  # seconds between download retries
-BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
-
-# -------------------------------
-# AAII Sentiment columns
-# -------------------------------
-SENTIMENT_COLUMNS = ["date", "bullish", "neutral", "bearish"]
-COL_LIST = ", ".join(SENTIMENT_COLUMNS)
-
-# -------------------------------
-# Direct URL to the AAII sentiment survey Excel file
-# -------------------------------
 AAII_EXCEL_URL = os.getenv("AAII_SENTIMENT_URL", "https://www.aaii.com/files/surveys/sentiment.xls")
 
-# -------------------------------
-# DB config loader
-# -------------------------------
 
-def get_aaii_sentiment_data():
-    """
-    Downloads the AAII sentiment survey Excel file and extracts historical data.
-    Returns a DataFrame with the columns: Date, Bullish, Neutral, and Bearish.
-    """
-    logging.info(f"Starting AAII sentiment data download from: {AAII_EXCEL_URL}")
-    
-    # Custom headers to mimic a browser request for an Excel file
-    headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36"),
-        "Referer": "https://www.aaii.com/",
-        "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-    
-    for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
-        try:
-            logging.info(f"Download attempt {attempt}/{MAX_DOWNLOAD_RETRIES}")
-            response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=60)
-            response.raise_for_status()
-            
-            # Check the content-type header for debugging
-            content_type = response.headers.get("Content-Type", "")
-            content_length = response.headers.get("Content-Length", "unknown")
-            logging.info(f"Response received - Content-Type: {content_type}, Content-Length: {content_length}")
-            
-            # If the response looks like HTML rather than an Excel file, raise an error
-            if "html" in content_type.lower():
-                logging.error(f"Server returned HTML instead of Excel file")
-                logging.error(f"Response preview: {response.content[:500]}")
-                raise ValueError("Server returned HTML instead of an Excel file. Check the URL or headers.")
-            
-            # Validate file size
-            if len(response.content) < 1000:  # Excel files should be larger than 1KB
-                logging.error(f"Response too small ({len(response.content)} bytes) - likely not an Excel file")
-                raise ValueError(f"Response too small ({len(response.content)} bytes) - likely not an Excel file")
-            
-            # Load the Excel file from the downloaded bytes using xlrd
-            excel_data = BytesIO(response.content)
-            logging.info("Attempting to parse Excel file...")
-            df = pd.read_excel(excel_data, skiprows=3, engine="xlrd")
-            
-            # Remove extra whitespace from column names
-            df.columns = df.columns.str.strip()
-            
-            # We need at least these columns; adjust if necessary
-            required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
-            logging.info(f"Found columns: {df.columns.tolist()}")
-            
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            if missing_cols:
-                logging.error(f"Missing required columns: {missing_cols}")
-                logging.error(f"Available columns: {df.columns.tolist()}")
-                raise ValueError(f"Expected columns {missing_cols} not found. Found columns: {df.columns.tolist()}")
-            
-            # Select only the required columns
-            df = df[required_cols]
-            logging.info(f"Selected {len(df)} rows with required columns")
-            
-            # Clean percentage columns: remove "%" and convert to numeric
-            for col in ["Bullish", "Neutral", "Bearish"]:
-                df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            
-            # Convert the Date column to datetime and then to string in YYYY-MM-DD format
-            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-            df = df.dropna(subset=["Date"])  # Drop rows where date conversion failed
-            df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-            
-            # Sort by Date (oldest first) and reset index
-            df.sort_values("Date", inplace=True)
-            df.reset_index(drop=True, inplace=True)
-            
-            logging.info(f"Successfully downloaded AAII sentiment data: {len(df)} records")
-            return df
-            
-        except Exception as e:
-            logging.error(f"Download attempt {attempt} failed: {e}")
-            logging.error(f"Error type: {type(e).__name__}")
-            import traceback
-            logging.error(f"Stack trace: {traceback.format_exc()}")
-            if attempt < MAX_DOWNLOAD_RETRIES:
-                retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
-                logging.info(f"Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_DOWNLOAD_RETRIES})")
-                time.sleep(retry_delay)
-            else:
-                logging.error(f"CRITICAL: Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts")
-                logging.error(f"Final error: {e}")
-                raise Exception(f"Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
+class AAIISentimentLoader(OptimalLoader):
+    """Load AAII investor sentiment survey data (market-wide, non-symbol based)."""
 
-# -------------------------------
-# Main loader with batched inserts
-# -------------------------------
-def load_sentiment_data(cur):
-    logging.info("Loading AAII sentiment data")
+    table_name = "aaii_sentiment"
+    primary_key = ("date",)
+    watermark_field = "date"
 
-    try:
-        # Download the sentiment data
-        df = get_aaii_sentiment_data()
+    def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
+        """Fetch AAII sentiment data from Excel file."""
+        logging.info(f"Downloading AAII sentiment data from: {AAII_EXCEL_URL}")
 
-        if df.empty:
-            logging.warning("No sentiment data downloaded")
-            return 0, 0, []
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://www.aaii.com/",
+            "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
 
-        # Convert DataFrame to list of tuples for batch insert
-        rows = []
-        for _, row in df.iterrows():
-            rows.append([
-                row["Date"],
-                None if pd.isna(row["Bullish"]) else float(row["Bullish"]),
-                None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
-                None if pd.isna(row["Bearish"]) else float(row["Bearish"])
-            ])
-
-        if not rows:
-            logging.warning("No valid rows after processing")
-            return 0, 0, []
-
-        # Batch insert the data with conflict handling
-        sql = f"INSERT INTO aaii_sentiment ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET bullish=EXCLUDED.bullish, neutral=EXCLUDED.neutral, bearish=EXCLUDED.bearish"
-        execute_values(cur, sql, rows)
-
-        inserted = len(rows)
-        logging.info(f"Successfully inserted {inserted} sentiment records")
-
-        return len(df), inserted, []
-
-    except Exception as e:
-        logging.error(f"Error loading sentiment data: {e}")
-        return 0, 0, [str(e)]
-
-# -------------------------------
-# Entrypoint
-# -------------------------------
-class AAIISentimentLoader(MasterDataLoader):
-    """Load AAII investor sentiment survey data."""
-
-    def run(self):
-        """Load AAII sentiment data from Excel."""
-        def _load(cur):
-            # Ensure table exists
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS aaii_sentiment (
-                    id          SERIAL PRIMARY KEY,
-                    date        DATE         NOT NULL UNIQUE,
-                    bullish     DOUBLE PRECISION,
-                    neutral     DOUBLE PRECISION,
-                    bearish     DOUBLE PRECISION,
-                    fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-
-            # Load sentiment data
-            logging.info("Loading AAII sentiment data")
+        for attempt in range(1, 6):  # 5 retries
             try:
-                df = get_aaii_sentiment_data()
-                if df.empty:
-                    return {"success": False, "rows": 0, "error": "No data downloaded"}
+                logging.info(f"Download attempt {attempt}/5")
+                response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=60)
+                response.raise_for_status()
 
-                inserted = 0
+                content_type = response.headers.get("Content-Type", "")
+                if "html" in content_type.lower():
+                    logging.error("Server returned HTML instead of Excel")
+                    raise ValueError("Server returned HTML instead of Excel")
+
+                if len(response.content) < 1000:
+                    logging.error(f"Response too small ({len(response.content)} bytes)")
+                    raise ValueError(f"Response too small ({len(response.content)} bytes)")
+
+                excel_data = BytesIO(response.content)
+                df = pd.read_excel(excel_data, skiprows=3, engine="xlrd")
+
+                df.columns = df.columns.str.strip()
+                required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
+                missing_cols = [col for col in required_cols if col not in df.columns]
+                if missing_cols:
+                    raise ValueError(f"Missing columns: {missing_cols}")
+
+                df = df[required_cols]
+
+                for col in ["Bullish", "Neutral", "Bearish"]:
+                    df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+                df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+                df = df.dropna(subset=["Date"])
+                df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+
+                df.sort_values("Date", inplace=True)
+                df.reset_index(drop=True, inplace=True)
+
+                logging.info(f"Successfully downloaded {len(df)} records")
+
+                # Convert to list of dicts matching table schema
+                rows = []
                 for _, row in df.iterrows():
-                    try:
-                        cur.execute("""
-                            INSERT INTO aaii_sentiment (date, bullish, neutral, bearish)
-                            VALUES (%s, %s, %s, %s)
-                            ON CONFLICT (date) DO UPDATE SET
-                                bullish=EXCLUDED.bullish,
-                                neutral=EXCLUDED.neutral,
-                                bearish=EXCLUDED.bearish
-                        """, (
-                            row["Date"],
-                            None if pd.isna(row["Bullish"]) else float(row["Bullish"]),
-                            None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
-                            None if pd.isna(row["Bearish"]) else float(row["Bearish"])
-                        ))
-                        inserted += 1
-                    except Exception as e:
-                        logging.warning(f"Failed to insert row {row}: {e}")
-                        continue
+                    rows.append({
+                        'date': row["Date"],
+                        'bullish': None if pd.isna(row["Bullish"]) else float(row["Bullish"]),
+                        'neutral': None if pd.isna(row["Neutral"]) else float(row["Neutral"]),
+                        'bearish': None if pd.isna(row["Bearish"]) else float(row["Bearish"]),
+                    })
 
-                logging.info(f"Successfully inserted {inserted} sentiment records")
-                return {"success": True, "rows": inserted}
+                return rows if rows else None
 
             except Exception as e:
-                logging.error(f"Error loading sentiment data: {e}")
-                return {"success": False, "rows": 0, "error": str(e)}
+                logging.error(f"Download attempt {attempt} failed: {e}")
+                if attempt < 5:
+                    import time
+                    wait_time = 3 * (2 ** (attempt - 1))  # 3s, 6s, 12s, 24s, 48s
+                    logging.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise Exception(f"Failed after 5 attempts: {e}")
 
-        return self.execute_with_db(_load, 'load_aaii_sentiment', 'write')
+        return None
 
 
 def main():
-    """Main entrypoint for AAII sentiment loader."""
     loader = AAIISentimentLoader()
-    result = loader.run()
+    result = loader.load_global()
 
-    if result["success"]:
-        logging.info(f"SUCCESS: {result['rows']} AAII sentiment records loaded")
+    if result > 0:
+        logger.info(f"SUCCESS: {result} AAII sentiment records loaded")
         return 0
     else:
-        logging.error(f"FAILED: {result.get('error', 'unknown error')}")
-        return 1
+        logger.warning(f"COMPLETED: No records loaded")
+        return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())
