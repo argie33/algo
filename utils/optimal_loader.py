@@ -467,6 +467,10 @@ class OptimalLoader(ABC):
 
         return self._stats
 
+    def close(self) -> None:
+        """No-op. DatabaseContext handles connection cleanup automatically."""
+        pass
+
     def load_global(self) -> int:
         """Execute a market-wide data load using fetch_global(). Returns rows inserted.
 
