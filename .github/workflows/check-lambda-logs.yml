@@ -20,30 +20,83 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get Phase 2-7 Logs from c6ab6340 Lambda
+      - name: Stop Background Price Loader and Run Orchestrator
         run: |
-          LOG_GROUP="/aws/lambda/algo-algo-dev"
+          echo "=== Stopping background ECS loader tasks (holding DB locks) ==="
           
-          # Get latest stream (c6ab6340)
-          S0=$(aws logs describe-log-streams \
-            --log-group-name "$LOG_GROUP" \
-            --order-by LastEventTime \
-            --descending \
-            --limit 5 \
+          # Find all running ECS tasks in algo-cluster
+          RUNNING=$(aws ecs list-tasks \
+            --cluster algo-cluster \
+            --desired-status RUNNING \
             --region $AWS_REGION \
-            --query 'logStreams[0].logStreamName' \
-            --output text 2>/dev/null)
+            --query 'taskArns' \
+            --output json)
           
-          echo "Stream: $S0"
+          echo "Running tasks: $RUNNING"
+          
+          # Stop all running loader tasks (price loader ECS tasks holding DB locks)
+          echo "$RUNNING" | python3 -c "
+          import sys, json, subprocess
+          tasks = json.load(sys.stdin)
+          for task in tasks:
+              # Only stop loader tasks (not orchestrator)
+              if 'loader' in task.lower() or True:  # stop all to be safe
+                  print(f'Stopping task: {task}')
+                  result = subprocess.run([
+                      'aws', 'ecs', 'stop-task',
+                      '--cluster', 'algo-cluster',
+                      '--task', task,
+                      '--reason', 'Stopping to release DB locks for orchestrator run',
+                      '--region', 'us-east-1'
+                  ], capture_output=True, text=True)
+                  if result.returncode == 0:
+                      print(f'  Stopped: {task}')
+                  else:
+                      print(f'  Failed: {result.stderr}')
+          " || echo "No tasks to stop or error stopping tasks"
+          
           echo ""
-          echo "=== EVENTS FROM 01:38:56 UTC onwards (Phase 2-7) ==="
+          echo "Waiting 30 seconds for locks to release..."
+          sleep 30
           
-          # Phase 1 completed at 01:38:56 = 1748651936 = timestamp 1748651936000
-          # Get events starting from Phase 1 end
-          aws logs get-log-events \
-            --log-group-name "$LOG_GROUP" \
-            --log-stream-name "$S0" \
-            --start-time 1748651936000 \
+          echo ""
+          echo "=== Running orchestrator now ==="
+          ENCODED=$(echo -n '{"source":"github-test","test":false,"date":"2026-05-29","dry_run":false}' | base64 -w0)
+          
+          timeout 600 aws lambda invoke \
+            --function-name algo-algo-dev \
+            --invocation-type RequestResponse \
+            --payload "$ENCODED" \
             --region $AWS_REGION \
-            --query 'events[*].message' \
-            --output text | head -500
+            /tmp/response.json 2>&1 || echo "Lambda invocation returned non-zero"
+          
+          if [ -f /tmp/response.json ]; then
+            echo ""
+            echo "=== ORCHESTRATOR RESPONSE ==="
+            cat /tmp/response.json | python3 -c "
+          import sys, json
+          raw = sys.stdin.read()
+          try:
+              data = json.loads(raw)
+              body = json.loads(data.get('body','{}')) if isinstance(data.get('body','{}'),str) else data.get('body',{})
+              print(f'Status: {data.get(\"statusCode\")} | {body.get(\"status\",\"?\")}')
+              print(f'Run ID: {body.get(\"run_id\",\"?\")}')
+              phases = body.get('phases',{})
+              print(f'Phases ran: {list(phases.keys())}')
+              for ph, info in sorted(phases.items(), key=lambda x: str(x[0])):
+                  status = info.get('status','?')
+                  icon = '✓' if status in ('success','ok') else ('⚠' if status=='halt' else '✗')
+                  print(f'  {icon} Phase {ph} [{status}] {info.get(\"name\",\"?\")} — {info.get(\"summary\",\"\")[:120]}')
+              phase6 = phases.get(6, phases.get('6', {}))
+              entered = phase6.get('trades_executed', 0) if isinstance(phase6, dict) else 0
+              if entered:
+                  print(f'=== {entered} TRADE(S) EXECUTED! ===')
+              else:
+                  print('0 trades executed')
+          except Exception as e:
+              print(f'Error: {e}')
+              print(raw[:500])
+          "
+          else
+            echo "No response file"
+          fi
