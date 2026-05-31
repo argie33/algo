@@ -96,6 +96,35 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
+        self.cur = None
+        self._db_context = None
+        self._should_rollback = False
+
+    def connect(self) -> None:
+        """Open a write-capable database connection for this executor."""
+        if self.cur is not None:
+            return
+        self._should_rollback = False
+        self._db_context = DatabaseContext('write')
+        self.cur = self._db_context.__enter__()
+
+    def disconnect(self) -> None:
+        """Commit or rollback the executor transaction and close the connection."""
+        if self._db_context is None:
+            return
+        try:
+            should_rb = getattr(self, '_should_rollback', False)
+            if should_rb:
+                self._db_context.__exit__(Exception, Exception('rollback'), None)
+            else:
+                self._db_context.__exit__(None, None, None)
+        except Exception as e:
+            logger.warning(f'Error during database cleanup: {e}')
+        finally:
+            self.cur = None
+            self._db_context = None
+            self._should_rollback = False
+
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
         try:
@@ -245,16 +274,15 @@ class TradeExecutor:
         key_source = f"{symbol}|{signal_date}|{entry_price:.4f}|{stop_loss_price:.4f}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
-        self.connect()
-        try:
+        def _execute_entry(cur):
             # B10: Entire entry sequence is wrapped in a single transaction.
             # If any step fails, the transaction rolls back and no partial state is left.
 
-            self.cur.execute(
+            cur.execute(
                 "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
                 (idempotency_key,)
             )
-            existing_idempotent = self.cur.fetchone()
+            existing_idempotent = cur.fetchone()
             if existing_idempotent:
                 logger.warning(f"DUPLICATE EXECUTION BLOCKED: Idempotency key exists for {symbol} (trade_id: {existing_idempotent[0]})")
                 return {
@@ -262,17 +290,17 @@ class TradeExecutor:
                     'message': f'Trade already exists for {symbol} on {signal_date} (idempotent duplicate)'
                 }
 
-            self.cur.execute(
+            cur.execute(
                 "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
                 (symbol, PositionStatus.OPEN.value),
             )
-            if self.cur.fetchone():
+            if cur.fetchone():
                 return {
                     'success': False, 'trade_id': '', 'status': 'duplicate', 'duplicate': True,
                     'message': f'Already have open position in {symbol}'
                 }
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT trade_id FROM algo_trades
                 WHERE symbol = %s AND COALESCE(signal_date, '1900-01-01') = COALESCE(%s, '1900-01-01')
@@ -281,7 +309,7 @@ class TradeExecutor:
                 """,
                 (symbol, signal_date, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
             )
-            existing = self.cur.fetchone()
+            existing = cur.fetchone()
             if existing:
                 # B9: Log duplicate with visibility for pattern monitoring
                 signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
@@ -292,7 +320,7 @@ class TradeExecutor:
                 }
 
             # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT COUNT(*) FROM algo_trades
                 WHERE symbol = %s AND status IN (%s, %s)
@@ -300,7 +328,7 @@ class TradeExecutor:
                 """,
                 (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
             )
-            result = self.cur.fetchone()
+            result = cur.fetchone()
             pending_count = result[0] if result else 0
             if pending_count > 0:
                 return {
@@ -309,7 +337,7 @@ class TradeExecutor:
                 }
 
             # Find most recent CLOSED trade for this symbol in the last 30 days
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT trade_id, exit_date, exit_reason, profit_loss_pct,
                        COALESCE(reentry_count, 0) AS reentry_count
@@ -321,7 +349,7 @@ class TradeExecutor:
                 """,
                 (symbol, TradeStatus.CLOSED.value),
             )
-            prior = self.cur.fetchone()
+            prior = cur.fetchone()
             reentry_count = 0
             prior_trade_id = None
             if prior:
@@ -464,7 +492,7 @@ class TradeExecutor:
             entry_reason = ' | '.join(entry_reason_parts)
 
             # Insert with FULL reasoning and idempotency key
-            self.cur.execute(
+            cur.execute(
                 """
                 INSERT INTO algo_trades (
                     trade_id, idempotency_key, symbol, signal_date, trade_date,
@@ -548,7 +576,7 @@ class TradeExecutor:
                         'success': False, 'trade_id': trade_id, 'status': 'invalid',
                         'message': f'Invalid position value: {actual_shares} shares @ ${executed_price:.2f} = ${position_value:.2f}'
                     }
-                self.cur.execute(
+                cur.execute(
                     """
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
@@ -626,34 +654,16 @@ class TradeExecutor:
                 'message': f'{shares} sh {symbol} @ ${executed_price:.2f} (stop ${stop_loss_price:.2f})',
             }
 
+        try:
+            return self._with_cursor(_execute_entry) or {'success': False, 'trade_id': '', 'status': 'error', 'message': 'Unknown error'}
         except Exception as e:
             # B6: Orphaned order prevention — if Alpaca filled but DB write failed,
             # cancel the order before rollback to prevent naked position
-            if 'alpaca_order_id' in locals() and alpaca_order_id:
-                if not alpaca_order_id.startswith(('LOCAL-', 'PENDING-')):
-                    try:
-                        cancel_result = self._cancel_bracket_orders(alpaca_order_id)
-                        if cancel_result['success']:
-                            logger.critical(f"DB write failed after Alpaca fill — order {alpaca_order_id} cancelled to prevent orphan")
-                        else:
-                            logger.critical(f"DB write failed AND order cancellation failed — MANUAL INTERVENTION REQUIRED: {alpaca_order_id}")
-                        try:
-                            notify(
-                                'critical',
-                                title='ORPHANED ORDER PREVENTION TRIGGERED',
-                                message=f'DB write failed after Alpaca fill for {symbol}. Order {alpaca_order_id} {"cancelled" if cancel_result["success"] else "FAILED TO CANCEL"}. Manual review required.'
-                            )
-                        except Exception as alert_e:
-                            logger.debug(f"Failed to send orphaned order alert: {alert_e}")
-                    except Exception as cancel_e:
-                        logger.critical(f"Exception during orphaned order cancellation: {cancel_e}")
-            self._should_rollback = True
+            logger.error(f"Trade execution failed: {e}")
             return {
                 'success': False, 'trade_id': '', 'status': 'error',
                 'message': f'{type(e).__name__}: {e}'
             }
-        finally:
-            self.disconnect()
 
     # ---------- Exit (full or partial) ----------
 
@@ -668,11 +678,11 @@ class TradeExecutor:
 
         def do_update():
             # Re-read current quantity and stop (fresh for each retry)
-            self.cur.execute(
+            cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
                 (position_id,)
             )
-            result = self.cur.fetchone()
+            result = cur.fetchone()
             if not result:
                 raise ValueError(f"Position {position_id} not found")
 
@@ -687,7 +697,7 @@ class TradeExecutor:
 
             # Attempt update
             if full_exit or new_qty <= 0:
-                self.cur.execute(
+                cur.execute(
                     """UPDATE algo_positions
                        SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP
                        WHERE position_id = %s AND quantity = %s""",
@@ -717,9 +727,9 @@ class TradeExecutor:
                 update_sql += " WHERE position_id = %s AND quantity = %s"
                 params.extend([position_id, current_qty])
 
-                self.cur.execute(update_sql, params)
+                cur.execute(update_sql, params)
 
-            return self.cur.rowcount > 0  # True if update succeeded
+            return cur.rowcount > 0  # True if update succeeded
 
         success = OptimisticLockRetry.retry_on_race_condition(
             do_update,
@@ -755,7 +765,7 @@ class TradeExecutor:
             self.connect()
             try:
                 # Only raise (never lower) the stop — idempotent guard
-                self.cur.execute(
+                cur.execute(
                     """UPDATE algo_positions p
                        SET current_stop_price = %s
                        FROM algo_trades t
@@ -787,13 +797,13 @@ class TradeExecutor:
 
         self.connect()
         try:
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT status FROM algo_trades WHERE trade_id = %s
                 """,
                 (trade_id,),
             )
-            trade_status_row = self.cur.fetchone()
+            trade_status_row = cur.fetchone()
             if trade_status_row and trade_status_row[0] == 'closed':
                 return {
                     'success': False,
@@ -801,7 +811,7 @@ class TradeExecutor:
                     'duplicate': True
                 }
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
@@ -812,7 +822,7 @@ class TradeExecutor:
                 """,
                 (trade_id,),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row:
                 return {'success': False, 'message': f'Trade {trade_id} not found'}
             symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id, position_id, current_qty, target_hits, position_status = row
@@ -898,7 +908,7 @@ class TradeExecutor:
                 pnl_pct = 0.0
 
             if full_exit:
-                self.cur.execute(
+                cur.execute(
                     """
                     UPDATE algo_trades
                     SET exit_date = CURRENT_DATE,
@@ -915,7 +925,7 @@ class TradeExecutor:
                 )
             else:
                 # Partial exit — append to exit log column, keep status active
-                self.cur.execute(
+                cur.execute(
                     """
                     UPDATE algo_trades
                     SET partial_exits_log = COALESCE(partial_exits_log, '') ||
@@ -956,7 +966,7 @@ class TradeExecutor:
 
             # Audit log
             try:
-                self.cur.execute(
+                cur.execute(
                     """
                     INSERT INTO algo_audit_log (action_type, symbol, action_date,
                                                 details, actor, status, created_at)
@@ -1055,11 +1065,11 @@ class TradeExecutor:
                 # Called before connect(); DB fallback unavailable — don't crash
                 logger.debug("[PORTFOLIO] DB cursor not available for snapshot fallback")
                 return None
-            self.cur.execute(
+            cur.execute(
                 "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots "
                 "ORDER BY snapshot_date DESC LIMIT 1"
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if row and row[0]:
                 pv = float(row[0])
                 snapshot_date = row[1]
