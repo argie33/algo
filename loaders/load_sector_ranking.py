@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Industry Ranking Loader - Rank industries by composite stock scores."""
+"""Sector Ranking Loader - Rank sectors by composite stock scores."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -14,83 +14,83 @@ from utils.database_context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-class IndustryRankingLoader(OptimalLoader):
-    """Rank industries by composite score from stock_scores + company_profile."""
+class SectorRankingLoader(OptimalLoader):
+    """Rank sectors by composite score from stock_scores + company_profile."""
 
-    table_name = "industry_ranking"
-    primary_key = ("industry", "date_recorded")
+    table_name = "sector_ranking"
+    primary_key = ("sector_name", "date_recorded")
     watermark_field = "date_recorded"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
-        """Compute industry rankings from stock scores and company profile data."""
+        """Compute sector rankings from stock scores and company profile data."""
         try:
             with DatabaseContext('read') as cur:
                 cur.execute("SELECT MAX(date) FROM price_daily")
                 latest_date = cur.fetchone()[0]
 
                 if not latest_date:
-                    logger.warning("No price data found — skipping industry ranking")
+                    logger.warning("No price data found — skipping sector ranking")
                     return None
 
-                # Rank industries by average composite score; pull historical ranks for comparison
+                # Rank sectors by average composite score; pull historical ranks for comparison
                 cur.execute("""
                     WITH current_ranks AS (
                         SELECT
-                            cp.industry,
+                            cp.sector AS sector_name,
                             COUNT(DISTINCT cp.ticker) AS stock_count,
                             AVG(ss.composite_score)   AS avg_composite_score,
-                            RANK() OVER (ORDER BY AVG(ss.composite_score) DESC NULLS LAST) AS industry_rank
+                            RANK() OVER (ORDER BY AVG(ss.composite_score) DESC NULLS LAST) AS sector_rank
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
-                        WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
-                        GROUP BY cp.industry
+                        WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
+                        GROUP BY cp.sector
                     ),
                     rank_1w AS (
-                        SELECT industry, current_rank AS rank_1w
-                        FROM industry_ranking
+                        SELECT sector_name, current_rank AS rank_1w
+                        FROM sector_ranking
                         WHERE date_recorded = (
-                            SELECT MAX(date_recorded) FROM industry_ranking
+                            SELECT MAX(date_recorded) FROM sector_ranking
                             WHERE date_recorded <= CURRENT_DATE - INTERVAL '7 days'
                         )
                     ),
                     rank_4w AS (
-                        SELECT industry, current_rank AS rank_4w
-                        FROM industry_ranking
+                        SELECT sector_name, current_rank AS rank_4w
+                        FROM sector_ranking
                         WHERE date_recorded = (
-                            SELECT MAX(date_recorded) FROM industry_ranking
+                            SELECT MAX(date_recorded) FROM sector_ranking
                             WHERE date_recorded <= CURRENT_DATE - INTERVAL '28 days'
                         )
                     ),
                     rank_12w AS (
-                        SELECT industry, current_rank AS rank_12w
-                        FROM industry_ranking
+                        SELECT sector_name, current_rank AS rank_12w
+                        FROM sector_ranking
                         WHERE date_recorded = (
-                            SELECT MAX(date_recorded) FROM industry_ranking
+                            SELECT MAX(date_recorded) FROM sector_ranking
                             WHERE date_recorded <= CURRENT_DATE - INTERVAL '84 days'
                         )
                     )
                     SELECT
-                        cr.industry,
-                        cr.industry_rank        AS current_rank,
+                        cr.sector_name,
+                        cr.sector_rank          AS current_rank,
                         cr.avg_composite_score  AS momentum_score,
                         r1.rank_1w              AS rank_1w_ago,
                         r4.rank_4w              AS rank_4w_ago,
                         r12.rank_12w            AS rank_12w_ago
                     FROM current_ranks cr
-                    LEFT JOIN rank_1w  r1  ON r1.industry  = cr.industry
-                    LEFT JOIN rank_4w  r4  ON r4.industry  = cr.industry
-                    LEFT JOIN rank_12w r12 ON r12.industry = cr.industry
-                    ORDER BY cr.industry_rank
+                    LEFT JOIN rank_1w  r1  ON r1.sector_name  = cr.sector_name
+                    LEFT JOIN rank_4w  r4  ON r4.sector_name  = cr.sector_name
+                    LEFT JOIN rank_12w r12 ON r12.sector_name = cr.sector_name
+                    ORDER BY cr.sector_rank
                 """)
 
                 rows = cur.fetchall()
                 if not rows:
-                    logger.warning("No industry ranking data computed — check company_profile and stock_scores tables")
+                    logger.warning("No sector ranking data computed — check company_profile and stock_scores tables")
                     return None
 
                 return [
                     {
-                        'industry':       r[0],
+                        'sector_name':    r[0],
                         'date_recorded':  latest_date,
                         'current_rank':   r[1],
                         'momentum_score': float(r[2]) if r[2] is not None else None,
@@ -102,19 +102,19 @@ class IndustryRankingLoader(OptimalLoader):
                 ]
 
         except Exception as e:
-            logger.error(f"Failed to compute industry rankings: {e}")
+            logger.error(f"Failed to compute sector rankings: {e}")
             return None
 
 
 def main():
-    loader = IndustryRankingLoader()
+    loader = SectorRankingLoader()
     result = loader.load_global()
 
     if result > 0:
-        logger.info(f"SUCCESS: {result} industries ranked")
+        logger.info(f"SUCCESS: {result} sectors ranked")
         return 0
     else:
-        logger.warning(f"COMPLETED: No rankings computed")
+        logger.warning("COMPLETED: No sector rankings computed")
         return 0
 
 

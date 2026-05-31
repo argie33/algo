@@ -1351,7 +1351,7 @@ def _get_markets(cur) -> Dict:
 
             try:
                 cur.execute("""
-                    SELECT MAX(date) as max_date FROM sector_ranking LIMIT 1
+                    SELECT MAX(date_recorded) as max_date FROM sector_ranking LIMIT 1
                 """)
                 max_date_row = cur.fetchone()
                 max_date = max_date_row['max_date'] if max_date_row else None
@@ -1360,7 +1360,7 @@ def _get_markets(cur) -> Dict:
                     cur.execute("""
                         SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
                         FROM sector_ranking
-                        WHERE date = %s
+                        WHERE date_recorded = %s
                         ORDER BY current_rank
                     """, (max_date,))
                     sectors = [dict(s) for s in cur.fetchall()]

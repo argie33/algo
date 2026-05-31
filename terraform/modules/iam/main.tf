@@ -1012,11 +1012,16 @@ data "aws_iam_policy_document" "developer" {
   }
 }
 
-# Separate policy for Cognito (inline policies capped at 2048 bytes; split avoids the limit)
-resource "aws_iam_user_policy" "developer_cognito" {
-  name   = "${var.project_name}-developer-cognito-policy"
-  user   = aws_iam_user.developer.name
+# Managed policy for Cognito (inline policies are capped at 2048 bytes combined per user;
+# managed policies bypass that limit and are the correct approach for larger permission sets)
+resource "aws_iam_policy" "developer_cognito" {
+  name   = "${var.project_name}-developer-cognito"
   policy = data.aws_iam_policy_document.developer_cognito.json
+}
+
+resource "aws_iam_user_policy_attachment" "developer_cognito" {
+  user       = aws_iam_user.developer.name
+  policy_arn = aws_iam_policy.developer_cognito.arn
 }
 
 data "aws_iam_policy_document" "developer_cognito" {
