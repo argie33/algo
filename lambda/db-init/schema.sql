@@ -3012,4 +3012,19 @@ CREATE INDEX IF NOT EXISTS idx_config_audit_key ON algo_runtime_config_audit(con
 GRANT SELECT ON algo_runtime_config TO stocks;
 GRANT SELECT ON algo_runtime_config_audit TO stocks;
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- SCHEMA EVOLUTION: Add columns missing from production database
+-- (CREATE TABLE IF NOT EXISTS does not add new columns to existing tables)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- technical_data_daily: indicator columns added 2026-05-30
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS rsi_14 DECIMAL(8, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS macd_histogram DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS sma_150 DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS atr_14 DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_upper DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_middle DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_lower DECIMAL(12, 4);
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS volume_ma_50 BIGINT;
+
 -- Note: INSERT/UPDATE requires dedicated service role with audit logging
