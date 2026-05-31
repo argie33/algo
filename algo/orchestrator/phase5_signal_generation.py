@@ -82,10 +82,8 @@ def _interpret_waterfall(total: int, stage2: int, tier_rejections: Dict[str, int
     return f"Stage 2 signals exist but {max_reject_count} rejected at {max_reject_tier}. Review config thresholds."
 
 def run(
-    config: Any,
     run_date: _date,
     dry_run: bool,
-    alerts: AlertManager,
     verbose: bool,
     log_phase_result_fn: Callable,
     exposure_constraints: Dict[str, Any],
@@ -94,10 +92,8 @@ def run(
     """Execute Phase 5: Signal Generation & Ranking.
 
     Args:
-        config: Configuration object
         run_date: Date for this run
         dry_run: Whether running in dry-run mode
-        alerts: AlertManager instance
         verbose: Whether to log verbose output
         log_phase_result_fn: Function to log phase results
         exposure_constraints: Exposure constraints from Phase 3b
