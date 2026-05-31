@@ -217,7 +217,6 @@ class OptimalLoader(ABC):
             return 0
         import io
         import csv
-        from utils.database_context import DatabaseContext
 
         with DatabaseContext('write') as cur:
             # Ensure the unique constraint exists (one-time per loader instance)
@@ -447,8 +446,6 @@ class OptimalLoader(ABC):
             logger.debug("metrics unavailable: %s", e)
 
         try:
-            from utils.database_context import DatabaseContext
-
             with DatabaseContext('read') as cur:
                 if self.watermark_field:
                     cur.execute(
