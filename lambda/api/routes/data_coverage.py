@@ -109,7 +109,7 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
             SELECT
                 MAX(date) as latest_date,
                 COUNT(*) as rows,
-                COUNT(CASE WHEN distribution_days IS NULL THEN 1 END) as null_dist_days
+                COUNT(CASE WHEN distribution_days_4w IS NULL THEN 1 END) as null_dist_days
             FROM market_health_daily
             WHERE date > NOW() - INTERVAL '7 days'
         """)
@@ -146,28 +146,27 @@ def get_loader_health(cur) -> Dict[str, Any]:
     try:
         cur.execute("""
             SELECT
-                loader_name,
+                table_name,
                 status,
-                MAX(executed_at) as latest_run,
-                COUNT(*) as total_runs,
-                SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed_count
+                last_updated,
+                row_count
             FROM data_loader_status
-            WHERE executed_at > NOW() - INTERVAL '7 days'
-            GROUP BY loader_name, status
-            ORDER BY loader_name, latest_run DESC
+            WHERE last_updated > NOW() - INTERVAL '7 days'
+               OR last_updated IS NULL
+            ORDER BY table_name
         """)
 
         rows = cur.fetchall()
 
-        failed_loaders = [
-            row[0] for row in rows if row[1] == 'FAILED'
+        stale_loaders = [
+            row[0] for row in rows if row[1] in ('stale', 'error') or row[1] is None
         ]
 
         return {
-            'total_checks': len(rows),
-            'failed_loaders': list(set(failed_loaders)),
-            'recent_failures': len(set(failed_loaders)),
-            'status': 'healthy' if not failed_loaders else 'degraded'
+            'total_tracked': len(rows),
+            'stale_loaders': list(set(stale_loaders)),
+            'stale_count': len(set(stale_loaders)),
+            'status': 'healthy' if not stale_loaders else 'degraded'
         }
     except Exception as e:
         return error_response(500, 'error', str(e))

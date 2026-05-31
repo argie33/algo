@@ -301,7 +301,10 @@ def run(
             cur.execute(
                 """
                 SELECT
-                    (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY') AS spy_latest,
+                    COALESCE(
+                        (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'),
+                        (SELECT MAX(date) FROM etf_price_daily WHERE symbol = 'SPY')
+                    ) AS spy_latest,
                     (SELECT MAX(date) FROM market_health_daily) AS mh_latest,
                     (SELECT MAX(date) FROM trend_template_data) AS tt_latest,
                     (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest,
