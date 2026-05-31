@@ -295,205 +295,203 @@ def run(
             logger.warning(f"  [WARN] Pipeline health check failed: {e}")
             # Don't fail-close on health check error, let other checks handle it
 
-        row = None
-        last_exc = None
-        for _attempt in range(3):  # retry up to 3x under heavy DB load
+        # Use data_loader_status (tiny, always fast) as primary source.
+        # Scanning price_daily directly takes 130s+ when the EOD pipeline is writing
+        # millions of rows concurrently — data_loader_status is a single-row-per-table
+        # lookup that returns in milliseconds regardless of write load.
+        dates = {}
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute("SET statement_timeout = 15000")  # 15s — should be instant
+                cur.execute("""
+                    SELECT table_name, latest_date
+                    FROM data_loader_status
+                    WHERE table_name IN (
+                        'price_daily', 'etf_price_daily',
+                        'market_health_daily', 'trend_template_data',
+                        'signal_quality_scores', 'buy_sell_daily'
+                    )
+                """)
+                for r in cur.fetchall():
+                    dates[r['table_name']] = r['latest_date']
+        except Exception as e:
+            logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
+
+        # Fall back to direct scan only for tables missing from data_loader_status
+        missing = [t for t in ('price_daily', 'market_health_daily', 'trend_template_data') if t not in dates]
+        if missing:
             try:
                 with DatabaseContext('read') as cur:
-                    logger.debug("Phase 1: Database connection established")
-                    # 300s: EOD pipeline runs 5000-symbol price loads concurrently.
-                    # RDS t4g.micro I/O saturation causes MAX(date) lookups to take
-                    # 100-200s; 300s gives 3 attempts worth of headroom.
-                    cur.execute("SET statement_timeout = 300000")
-
-                    cur.execute(
-                        """
-                        SELECT
-                            COALESCE(
-                                (SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'),
-                                (SELECT MAX(date) FROM etf_price_daily WHERE symbol = 'SPY')
-                            ) AS spy_latest,
-                            (SELECT MAX(date) FROM market_health_daily) AS mh_latest,
-                            (SELECT MAX(date) FROM trend_template_data) AS tt_latest,
-                            (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest,
-                            (SELECT MAX(date) FROM buy_sell_daily) AS buys_latest
-                        """
-                    )
+                    cur.execute("SET statement_timeout = 120000")
+                    parts = []
+                    if 'price_daily' in missing:
+                        parts.append("COALESCE((SELECT MAX(date) FROM price_daily WHERE symbol='SPY'),(SELECT MAX(date) FROM etf_price_daily WHERE symbol='SPY')) AS price_daily")
+                    if 'market_health_daily' in missing:
+                        parts.append("(SELECT MAX(date) FROM market_health_daily) AS market_health_daily")
+                    if 'trend_template_data' in missing:
+                        parts.append("(SELECT MAX(date) FROM trend_template_data) AS trend_template_data")
+                    cur.execute(f"SELECT {', '.join(parts)}")
                     row = cur.fetchone()
+                    if row:
+                        for col in missing:
+                            dates[col] = row[col] if col in (row.keys() if hasattr(row, 'keys') else []) else row[0]
+            except Exception as e:
+                logger.warning(f"Phase 1: direct table scan failed ({e})")
+
+        spy_date = dates.get('price_daily') or dates.get('etf_price_daily')
+        mh_date = dates.get('market_health_daily')
+        tt_date = dates.get('trend_template_data')
+        sqs_date = dates.get('signal_quality_scores')
+        buys_date = dates.get('buy_sell_daily')
+
+        # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
+        # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
+        # their staleness creates a deadlock: Phase 1 blocks before Phase 5 can populate them.
+        # They are logged for observability but excluded from the halt decision.
+        halt_checks = {
+            'SPY price data': spy_date,
+            'Market health': mh_date,
+            'Trend template': tt_date,
+        }
+        observe_checks = {
+            'Signal quality scores': sqs_date,
+            'Buy/sell signals': buys_date,
+        }
+        checks = {**halt_checks, **observe_checks}
+        table_keys = {
+            'SPY price data': 'price_daily',
+            'Market health': 'market_health_daily',
+            'Trend template': 'trend_template_data',
+            'Signal quality scores': 'signal_quality_scores',
+            'Buy/sell signals': 'buy_sell_daily',
+        }
+        stale_items = []
+
+        # Compute the most recent trading day before run_date as the expected data date.
+        # Using trading-day comparison prevents false halts after 3-day weekends where
+        # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
+        try:
+            expected_date = run_date - timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected_date):
                     break
-            except Exception as _e:
-                last_exc = _e
-                logger.warning(f"Phase 1: freshness query attempt {_attempt + 1}/3 failed: {_e}")
+                expected_date -= timedelta(days=1)
+        except Exception as cal_e:
+            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
+            expected_date = run_date - timedelta(days=1)
+            while expected_date.weekday() >= 5:
+                expected_date -= timedelta(days=1)
 
-        if not row:
-            err_msg = f'Could not query data freshness after 3 attempts: {last_exc}'
-            logger.error(f"DATA FRESHNESS: {err_msg}")
-            log_phase_result_fn(1, 'data_freshness', 'error', err_msg)
-            return PhaseResult(1, 'data_freshness', 'ok', {}, False, err_msg)
+        try:
+            from algo.algo_metrics import MetricsPublisher
+            _metrics = MetricsPublisher(dry_run=dry_run)
+        except Exception as mp_e:
+            logger.debug(f"MetricsPublisher unavailable: {mp_e}")
+            _metrics = None
 
-        spy_date, mh_date, tt_date, sqs_date, buys_date = row
-            # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
-            # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
-            # their staleness creates a deadlock: Phase 1 blocks before Phase 5 can populate them.
-            # They are logged for observability but excluded from the halt decision.
-            halt_checks = {
-                'SPY price data': spy_date,
-                'Market health': mh_date,
-                'Trend template': tt_date,
-            }
-            observe_checks = {
-                'Signal quality scores': sqs_date,
-                'Buy/sell signals': buys_date,
-            }
-            checks = {**halt_checks, **observe_checks}
-            table_keys = {
-                'SPY price data': 'price_daily',
-                'Market health': 'market_health_daily',
-                'Trend template': 'trend_template_data',
-                'Signal quality scores': 'signal_quality_scores',
-                'Buy/sell signals': 'buy_sell_daily',
-            }
-            stale_items = []
+        for name, d in checks.items():
+            is_halt_check = name in halt_checks
+            if d is None:
+                if is_halt_check:
+                    stale_items.append(f"{name}: missing")
+                else:
+                    logger.warning(f"  [WARN] {name}: missing (observe-only, not blocking)")
+                if _metrics:
+                    _metrics.put_data_freshness(table_keys[name], 999)
+            elif d is not None:
+                age = (run_date - d).days
+                if _metrics:
+                    _metrics.put_data_freshness(table_keys[name], age)
+                is_stale = d < expected_date
+                if is_stale and is_halt_check:
+                    stale_items.append(f"{name}: {age}d old (expected {expected_date})")
+                if verbose:
+                    flag = '[WARN]' if (is_stale and not is_halt_check) else '[STALE]' if is_stale else '[OK]'
+                    logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
-            # Compute the most recent trading day before run_date as the expected data date.
-            # Using trading-day comparison prevents false halts after 3-day weekends where
-            # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
-            try:
-                expected_date = run_date - timedelta(days=1)
-                for _ in range(10):
-                    if MarketCalendar.is_trading_day(expected_date):
-                        break
-                    expected_date -= timedelta(days=1)
-            except Exception as cal_e:
-                logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
-                # Fallback: step back over weekends only
-                expected_date = run_date - timedelta(days=1)
-                while expected_date.weekday() >= 5:
-                    expected_date -= timedelta(days=1)
+        if _metrics:
+            _metrics.flush()
 
-            try:
-                from algo.algo_metrics import MetricsPublisher
-                _metrics = MetricsPublisher(dry_run=dry_run)
-            except Exception as mp_e:
-                logger.debug(f"MetricsPublisher unavailable: {mp_e}")
-                _metrics = None
-
-            for name, d in checks.items():
-                is_halt_check = name in halt_checks
-                if d is None:
-                    if is_halt_check:
-                        stale_items.append(f"{name}: missing")
-                    else:
-                        logger.warning(f"  [WARN] {name}: missing (observe-only, not blocking)")
-                    if _metrics:
-                        _metrics.put_data_freshness(table_keys[name], 999)
-                elif d is not None:
-                    age = (run_date - d).days
-                    if _metrics:
-                        _metrics.put_data_freshness(table_keys[name], age)
-                    is_stale = d < expected_date
-                    if is_stale and is_halt_check:
-                        stale_items.append(f"{name}: {age}d old (expected {expected_date})")
-                    if verbose:
-                        if is_stale and not is_halt_check:
-                            flag = '[WARN]'
-                        elif is_stale:
-                            flag = '[STALE]'
-                        else:
-                            flag = '[OK]'
-                        logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
-
-            if _metrics:
-                _metrics.flush()
+        if stale_items:
+            logger.warning(f"[FAILSAFE] Data stale, firing async loader trigger: {stale_items}")
+            _trigger_loader_failsafe('stock_prices_daily', verbose=verbose)
 
             if stale_items:
-                # FAILSAFE: Fire async loader trigger if EventBridge failed.
-                # The loader runs asynchronously (ECS task startup takes 60-120s minimum),
-                # so we do NOT wait — halting is the right call for this run.
-                # The next scheduled orchestrator invocation will see fresh data.
-                logger.warning(f"[FAILSAFE] Data stale, firing async loader trigger: {stale_items}")
-                _trigger_loader_failsafe('stock_prices_daily', verbose=verbose)
+                alerts.send_position_alert(
+                    'DATA',
+                    'STALE_DATA_HALT',
+                    f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
+                    {'stale_items': stale_items, 'expected_date': str(expected_date)}
+                )
+                log_phase_result_fn(1, 'data_freshness', 'fail',
+                                   f'Stale: {"; ".join(stale_items)}')
+                return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                 f'Stale: {"; ".join(stale_items)}')
 
-                # If still stale, halt
-                if stale_items:
-                    alerts.send_position_alert(
-                        'DATA',
-                        'STALE_DATA_HALT',
-                        f'Data freshness check failed. Stale items: {"; ".join(stale_items)}',
-                        {'stale_items': stale_items, 'expected_date': str(expected_date)}
-                    )
-                    log_phase_result_fn(1, 'data_freshness', 'fail',
-                                       f'Stale: {"; ".join(stale_items)}')
-                    return PhaseResult(1, 'data_freshness', 'halted', {}, True,
-                                     f'Stale: {"; ".join(stale_items)}')
+        # Run data patrol (quick checks only for speed in orchestrator context)
+        try:
+            import concurrent.futures
+            from algo.algo_data_patrol import DataPatrol
+            patrol = DataPatrol()
+            if verbose:
+                logger.info("  [PATROL] Running quick data integrity checks (45s timeout)...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(patrol.run, True, False)
+                try:
+                    future.result(timeout=45)
+                    if verbose:
+                        logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
+                    log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
+                except concurrent.futures.TimeoutError:
+                    future.cancel()
+                    logger.warning("  [PATROL] Timed out after 45s — using cached patrol results")
+        except Exception as e:
+            logger.warning(f"  [WARN] Data patrol execution failed: {e} (continuing with cache)")
 
-            # Run data patrol (quick checks only for speed in orchestrator context)
-            # Enforce a hard 45-second timeout — on t4g.micro the patrol can hang
-            # for 6+ minutes and exhaust the Lambda's 600s budget before Phase 2.
-            try:
-                import concurrent.futures
-                from algo.algo_data_patrol import DataPatrol
-                patrol = DataPatrol()
-                if verbose:
-                    logger.info("  [PATROL] Running quick data integrity checks (45s timeout)...")
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(patrol.run, True, False)
-                    try:
-                        future.result(timeout=45)
-                        if verbose:
-                            logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
-                        log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
-                    except concurrent.futures.TimeoutError:
-                        future.cancel()
-                        logger.warning("  [PATROL] Timed out after 45s — skipping, will read last stored patrol results")
-            except Exception as e:
-                logger.warning(f"  [WARN] Data patrol execution failed: {e} (continuing with cache)")
+        with DatabaseContext('read') as _patrol_cur:
+            patrol_ok = _check_data_patrol(_patrol_cur, run_date, verbose, log_phase_result_fn)
 
-            patrol_ok = _check_data_patrol(cur, run_date, verbose, log_phase_result_fn)
+        if not patrol_ok:
+            return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
 
-            if not patrol_ok:
-                return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
-
-            # Observability: log signal_quality_scores row count — not a halt condition.
-            # SQS is loaded by the Step Functions pipeline before the ECS orchestrator runs,
-            # but the Lambda orchestrator fires at 9:30 AM ET before that pipeline completes.
-            try:
-                cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
-                sqs_row = cur.fetchone()
-                total_sqs, latest_sqs_date = sqs_row if sqs_row else (0, None)
+        # Observability: log signal_quality_scores row count — not a halt condition.
+        try:
+            with DatabaseContext('read') as _sqs_cur:
+                _sqs_cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
+                sqs_row = _sqs_cur.fetchone()
+                total_sqs, latest_sqs_date = (sqs_row[0], sqs_row[1]) if sqs_row else (0, None)
                 if total_sqs == 0:
                     logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
                     log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, first run expected')
                 elif verbose:
                     logger.info(f"  [OK] signal_quality_scores: {total_sqs} rows, latest {latest_sqs_date}")
-            except Exception as e:
-                logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
+        except Exception as e:
+            logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
 
-            # Margin health check (Phase 1 - production safeguard)
-            try:
-                from algo.algo_position_monitor import PositionMonitor
-                pm = PositionMonitor(config)
-                margin_info = pm.get_margin_usage()
-                if margin_info and margin_info['margin_usage_pct'] > 70:
-                    alerts.send_position_alert(
-                        'ACCOUNT',
-                        'MARGIN_ALERT',
-                        f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
-                        margin_info
-                    )
-                    if verbose:
-                        logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
-                elif verbose and margin_info:
-                    logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
-            except Exception as e:
-                logger.warning(f'Margin check failed: {e}')
+        # Margin health check
+        try:
+            from algo.algo_position_monitor import PositionMonitor
+            pm = PositionMonitor(config)
+            margin_info = pm.get_margin_usage()
+            if margin_info and margin_info['margin_usage_pct'] > 70:
+                alerts.send_position_alert(
+                    'ACCOUNT', 'MARGIN_ALERT',
+                    f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
+                    margin_info
+                )
+                if verbose:
+                    logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
+            elif verbose and margin_info:
+                logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
+        except Exception as e:
+            logger.warning(f'Margin check failed: {e}')
 
-            # Pipeline health check: verify all required tables have recent data
-            _check_pipeline_health(cur, run_date, verbose)
+        # Pipeline health check
+        with DatabaseContext('read') as _health_cur:
+            _check_pipeline_health(_health_cur, run_date, verbose)
 
-            log_phase_result_fn(1, 'data_freshness', 'success',
-                               'All data fresh within window')
-            return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
+        log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
+        return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
 
     except Exception as e:
         log_phase_result_fn(1, 'data_freshness', 'error', str(e))
