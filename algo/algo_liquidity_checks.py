@@ -29,7 +29,7 @@ class LiquidityChecks:
                 return False, f"ADV check failed: {adv_reason}"
 
             dollar_vol_passed, dollar_reason = self._check_dollar_volume(
-                symbol, entry_price, signal_date
+                symbol, signal_date
             )
             if not dollar_vol_passed:
                 return False, f"Dollar volume check failed: {dollar_reason}"
@@ -81,7 +81,7 @@ class LiquidityChecks:
             logger.warning(f"ADV check error for {symbol}: {e}")
             return True, "ADV check skipped"
 
-    def _check_dollar_volume(self, symbol: str, entry_price: float, signal_date) -> tuple:
+    def _check_dollar_volume(self, symbol: str, signal_date) -> tuple:
         """
         Check average dollar volume (volume * price) for position sizing.
 

@@ -47,14 +47,13 @@ class PreTradeChecks:
         logger.debug(f"Slippage adjustment: {shares} → {adjusted_shares} shares, cost ${entry_price:.2f} → ${actual_cost:.2f}")
         return adjusted_shares, actual_cost
 
-    def run_all(self, symbol: str, entry_price: float, position_value: float,
+    def run_all(self, symbol: str, position_value: float,
                 portfolio_value: float, side: str = 'BUY') -> Tuple[bool, Optional[str]]:
         """
         Run all pre-trade validation checks.
 
         Args:
             symbol: Stock symbol (e.g., 'AAPL')
-            entry_price: Entry price per share
             position_value: Total position value (shares * price)
             portfolio_value: Current portfolio value
             side: 'BUY' or 'SELL'

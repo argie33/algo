@@ -283,7 +283,6 @@ class PyramidEngine:
         position_value = r['add_size_shares'] * r['add_price']
         checks_passed, check_reason = pretrade_checks.run_all(
             symbol=r['symbol'],
-            entry_price=r['add_price'],
             position_value=position_value,
             portfolio_value=portfolio_value,
             side='BUY'  # Pyramid adds are always BUY (adding to winners)

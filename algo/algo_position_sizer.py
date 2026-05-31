@@ -250,7 +250,7 @@ class PositionSizer:
             logger.debug(f"VIX multiplier calculation failed: {vix_e}")
             return 1.0
 
-    def get_phase_size_multiplier(self, symbol, signal_date=None):
+    def get_phase_size_multiplier(self):
         """Stage-2 phase mult: always 1.0 (DB schema has no late/climax phase column)."""
         return 1.0
 
@@ -386,7 +386,7 @@ class PositionSizer:
 
             base_risk_pct = float(self.config.get('base_risk_pct', 0.75)) / 100
             exposure_mult = self.get_market_exposure_multiplier()
-            phase_mult = self.get_phase_size_multiplier(symbol, signal_date)
+            phase_mult = self.get_phase_size_multiplier()
             vix_mult = self.get_vix_caution_multiplier()
             regime_mult = self.get_position_size_multiplier_from_regime(signal_date)
 

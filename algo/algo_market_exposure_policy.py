@@ -175,7 +175,7 @@ class ExposurePolicy:
                 positions = cur.fetchall()
                 actions = []
                 for row in positions:
-                    action = self._evaluate_position(row, tier, active, eval_date)
+                    action = self._evaluate_position(row, tier)
                     if action and action['action'] != 'hold':
                         actions.append(action)
                 return actions
@@ -183,7 +183,7 @@ class ExposurePolicy:
             logger.error(f"Failed to review positions: {e}")
             return []
 
-    def _evaluate_position(self, row, tier, active, eval_date):
+    def _evaluate_position(self, row, tier):
         (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
          trade_date, position_id, qty, target_hits, cur_stop, cur_price, pnl_pct) = row
 

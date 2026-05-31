@@ -111,7 +111,7 @@ class SwingTraderScore:
             try:
                 # Hard gates
                 try:
-                    gates = self._check_hard_gates(symbol, eval_date, sector, industry, cur)
+                    gates = self._check_hard_gates(symbol, eval_date, industry, cur)
                 except Exception as gate_err:
                     logger.warning(f"Swing score hard gates failed for {symbol}: {gate_err} (proceeding with soft pass)")
                     gates = {'pass': True}
@@ -218,7 +218,7 @@ class SwingTraderScore:
 
     # ============= HARD GATES =============
 
-    def _check_hard_gates(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str], cur) -> Dict[str, Any]:
+    def _check_hard_gates(self, symbol: str, eval_date, industry: Optional[str], cur) -> Dict[str, Any]:
         """
         Apply hard-fail gates that block scoring entirely if violated.
 

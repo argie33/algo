@@ -677,7 +677,7 @@ class ExitEngine:
 
     # ---------- Backwards-compat shim used by old tests ----------
 
-    def _check_exit_conditions(self, symbol, current_price, entry_price, qty,
+    def _check_exit_conditions(self, symbol, current_price, entry_price,
                                 t1_price, t2_price, t3_price, stop_price,
                                 days_held, eval_date) -> Dict[str, Any]:
         """Pure-function exit check used by FULL_BUILD_VERIFICATION.py."""

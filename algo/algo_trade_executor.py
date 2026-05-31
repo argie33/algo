@@ -183,7 +183,6 @@ class TradeExecutor:
         position_value = shares * entry_price
         pretrade_passed, pretrade_reason = self.pretrade.run_all(
             symbol=symbol,
-            entry_price=entry_price,
             position_value=position_value,
             portfolio_value=portfolio_value,
             side='BUY'
@@ -657,7 +656,7 @@ class TradeExecutor:
 
     # ---------- Exit (full or partial) ----------
 
-    def _update_position_with_retry(self, cur, position_id: int, new_qty: float, new_stop_price: Optional[float] = None, full_exit: bool = False, target_levels_hit: int = 0, exit_stage: Optional[str] = None) -> tuple:
+    def _update_position_with_retry(self, cur, position_id: int, new_qty: float, new_stop_price: Optional[float] = None, full_exit: bool = False, exit_stage: Optional[str] = None) -> tuple:
         """Update position with retry logic for race condition safety.
 
         Handles concurrent updates by re-reading position before each retry.
@@ -909,7 +908,6 @@ class TradeExecutor:
                 new_qty=new_qty,
                 new_stop_price=effective_stop,
                 full_exit=full_exit or new_qty <= 0,
-                target_levels_hit=target_hits or 0,
                 exit_stage=exit_stage
             )
 

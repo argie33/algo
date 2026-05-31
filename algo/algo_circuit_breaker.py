@@ -68,7 +68,11 @@ class CircuitBreaker:
                     ('data_freshness', self._check_data_freshness),
                 ]:
                     try:
-                        state = fn(current_date, cur)
+                        sig = inspect.signature(fn)
+                        if 'current_date' in sig.parameters:
+                            state = fn(current_date, cur)
+                        else:
+                            state = fn(cur)
                     except Exception as e:
                         import traceback
                         tb = traceback.format_exc()

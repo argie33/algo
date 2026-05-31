@@ -214,7 +214,7 @@ class PositionMonitor:
                 recs.append(rec)
                 self._print_recommendation(rec)
                 try:
-                    self._persist_review(rec, current_date, cur)
+                    self._persist_review(rec, cur)
                 except Exception as e:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
                     continue
@@ -265,8 +265,7 @@ class PositionMonitor:
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(
-            symbol, current_date, entry_price, active_stop,
-            cur_price, atr, sma_50, target_hits, t1_price, t2_price,
+            entry_price, active_stop, cur_price, atr, sma_50, target_hits,
         )
 
         if proposed_stop > cur_price:
@@ -378,9 +377,8 @@ class PositionMonitor:
             float(row[3]) if row[3] is not None else None,
         )
 
-    def _compute_trailing_stop(self, symbol, current_date, entry_price, active_stop,
-                                cur_price, atr, sma_50, target_hits,
-                                t1_price, t2_price):
+    def _compute_trailing_stop(self, entry_price, active_stop,
+                                cur_price, atr, sma_50, target_hits):
         """Stop ratchets up only.
 
         - Before T1: keep initial stop OR use 50-DMA (whichever higher) capped at entry-2*ATR
@@ -567,7 +565,7 @@ class PositionMonitor:
             return None
         return (recent - oldest) / oldest
 
-    def _persist_review(self, rec, current_date, cur):
+    def _persist_review(self, rec, cur):
         """Update algo_positions with current price/PnL and log a monitoring audit row (atomic)."""
         cur.execute(
             """
