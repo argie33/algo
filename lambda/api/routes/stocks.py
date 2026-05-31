@@ -53,13 +53,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     WHERE pd.date >= CURRENT_DATE - INTERVAL '52 weeks'
                     GROUP BY pd.symbol
                 ),
-                stats_3y AS (
-                    SELECT pd.symbol, MAX(pd.high) AS high_3y
-                    FROM price_daily pd
-                    JOIN value_stocks vs ON pd.symbol = vs.symbol
-                    WHERE pd.date >= CURRENT_DATE - INTERVAL '3 years'
-                    GROUP BY pd.symbol
-                ),
                 sector_medians AS (
                     SELECT cp.sector,
                            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY vm.pe_ratio) AS sector_median_pe
@@ -148,9 +141,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     qm.current_ratio,
                     s52.high_52w,
                     s52.low_52w,
-                    s3y.high_3y,
+                    NULL::numeric AS high_3y,
                     ROUND(((s52.high_52w - lp.current_price) / NULLIF(s52.high_52w, 0) * 100)::numeric, 2) AS drop_from_52w_high_pct,
-                    ROUND(((s3y.high_3y - lp.current_price) / NULLIF(s3y.high_3y, 0) * 100)::numeric, 2) AS drop_from_3y_high_pct,
+                    NULL::numeric AS drop_from_3y_high_pct,
                     sm.sector_median_pe,
                     mm.market_median_pe,
                     ROUND(((sm.sector_median_pe - vm.pe_ratio) / NULLIF(sm.sector_median_pe, 0) * 100)::numeric, 2) AS discount_vs_sector_pe_pct,
@@ -171,7 +164,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                 LEFT JOIN key_metrics km ON km.symbol = vs.symbol
                 LEFT JOIN latest_prices lp ON lp.symbol = vs.symbol
                 LEFT JOIN stats_52w s52 ON s52.symbol = vs.symbol
-                LEFT JOIN stats_3y s3y ON s3y.symbol = vs.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = vs.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = vs.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = vs.symbol
