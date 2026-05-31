@@ -267,6 +267,11 @@ class TradeExecutor:
             # B10: Entire entry sequence is wrapped in a single transaction.
             # If any step fails, the transaction rolls back and no partial state is left.
 
+            # nonlocal: allow conditional slippage recalculation to update these without
+            # causing UnboundLocalError for earlier uses (Python treats any assignment in a
+            # closure as local for the entire function scope).
+            nonlocal target_1_price, target_2_price, target_3_price
+
             # Schema migration: add idempotency_key if missing (older DB deployments)
             cur.execute("ALTER TABLE algo_trades ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64)")
 
