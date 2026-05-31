@@ -305,13 +305,21 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         return results
 
-VIX_FAMILY_SYMBOLS = ['^VIX', '^VIX9D', '^VIX3M', '^VIX6M']
+# Index symbols stored in price_daily to power frontend charts that call /api/prices/history/{sym}
+# VIX family: VolTermStructureCard in MarketsHealth
+# Market indices: IndicesStrip sparklines + Distribution Days timeline
+INDEX_SYMBOLS_FOR_PRICE_DAILY = [
+    '^VIX', '^VIX9D', '^VIX3M', '^VIX6M',
+    '^GSPC', '^IXIC', '^NYA', '^DJI', '^RUT',
+]
 
 
 def _write_vix_family_prices(start: date, end: date) -> int:
-    """Download VIX-family index prices from yfinance and upsert into price_daily.
+    """Download VIX-family and market-index prices from yfinance and upsert into price_daily.
 
-    These index prices power the Volatility Term Structure card in MarketsHealth.
+    Supplies data for:
+    - VolTermStructureCard (^VIX9D / ^VIX3M / ^VIX6M)
+    - Distribution Days timeline (^GSPC / ^IXIC / ^NYA / ^DJI)
     Returns the number of rows upserted.
     """
     try:
@@ -319,7 +327,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         from utils.database_context import DatabaseContext
 
         records = []
-        for sym in VIX_FAMILY_SYMBOLS:
+        for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:
             try:
                 df = yf.download(
                     sym,

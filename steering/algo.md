@@ -267,7 +267,7 @@ The orchestrator runs **4 times daily** on trading days:
 1. **stock_symbols** — Reference data for all tradable symbols (foundation for all trading)
 2. **stock_prices_daily** — Unified loader for OHLCV (daily, weekly, monthly intervals for stocks + ETFs)
 3. **technical_data_daily** — Technical indicators (RSI, SMA, EMA, ATR, ADX, Bollinger Bands, etc.)
-4. **market_health_daily** — Market breadth, advance/decline, distribution days, VIX, market stage
+4. **market_health_daily** — Market breadth, advance/decline, distribution days, VIX, market stage. Also writes VIX-family (^VIX, ^VIX9D, ^VIX3M, ^VIX6M) and market-index (^GSPC, ^IXIC, ^NYA, ^DJI, ^RUT) OHLCV into `price_daily` — powers VolTermStructureCard and Distribution Days timeline in MarketsHealth.
 5. **trend_template_data** — Minervini 8-point, Weinstein stage scoring
 6. **buy_sell_daily** — BUY/SELL trade signals from technical indicators
 7. **signal_quality_scores** — Signal win rate, profit factor, expectancy (quality filters)
@@ -308,16 +308,15 @@ The orchestrator runs **4 times daily** on trading days:
 - **company_profile** — Company fundamentals and sector/industry classification
 - **analyst_sentiment** — Analyst sentiment scores
 - **analyst_upgrades_downgrades** — Recent analyst rating changes
-- **industry_ranking** — Industry relative rankings computed from company_profile + stock_scores (runs 1:10 AM ET). Writes `industry_ranking` table (`date_recorded` column).
+- **industry_ranking** — Industry relative rankings computed from company_profile + stock_scores (runs 1:10 AM ET). Writes `industry_ranking` table (`date_recorded` column). The `/api/industries` endpoint computes 1D/5D/20D performance dynamically from `price_daily` averages (no separate industry_performance loader needed).
 - **sector_ranking** — Sector relative rankings computed from company_profile + stock_scores (runs 1:12 AM ET). Writes `sector_ranking` table (`date_recorded` column). Required by Sector Analysis page.
-- **sector_performance** — YTD cumulative returns per sector via SPDR ETFs (XLK, XLF, XLV, etc.) (runs 1:14 AM ET). Writes `sector_performance` table. Required by Sector Analysis relative-performance chart.
+- **sector_performance** — YTD cumulative returns per sector via SPDR ETFs (XLK, XLF, XLV, etc.) (runs 1:14 AM ET). Writes `sector_performance` table. Required by Sector Analysis relative-performance chart and Sector Rotation chart. **Sector name mapping uses yfinance conventions:** Technology, Financial Services, Healthcare, Consumer Cyclical, Consumer Defensive, Basic Materials, Communication Services, Industrials, Energy, Utilities, Real Estate.
 
-### Market Sentiment (5 loaders — EventBridge scheduled)
+### Market Sentiment (4 loaders — EventBridge scheduled)
 - **feargreed** — CNN Fear & Greed Index
 - **aaiidata** — AAII investor sentiment survey
 - **naaim_data** — NAAIM exposure index
 - **sentiment** — Aggregate sentiment index (combines multiple sources)
-- **sentiment_social** — Social media sentiment scores
 
 ### Signal Processing (2 loaders — EventBridge scheduled)
 - **signal_themes** — Signal themes (momentum, reversal, breakout classification)
