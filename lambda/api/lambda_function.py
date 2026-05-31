@@ -734,14 +734,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
-            error_detail = f'{type(e).__name__}: {str(e)}'
-            logger.error(f'[HANDLER_ERROR] Unhandled exception: {error_detail}', exc_info=True)
+            logger.error(f'[HANDLER_ERROR] Unhandled exception: {type(e).__name__}: {e}', exc_info=True)
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
-                    'error': 'service_error',
-                    'message': error_detail
+                    'error': 'service_unavailable',
+                    'message': 'Service temporarily unavailable'
                 })
             }
 

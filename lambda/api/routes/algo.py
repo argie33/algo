@@ -13,14 +13,12 @@ logger = logging.getLogger(__name__)
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
         try:
-         return _handle_inner(cur, path, method, params, body, jwt_claims)
+            return _dispatch(cur, path, method, params, body, jwt_claims)
         except Exception as e:
-         import traceback
-         logger.error(f'[ALGO_UNHANDLED] {type(e).__name__}: {e}\n{traceback.format_exc()}')
-         return {"statusCode": 500, "errorType": "algo_error", "message": f"{type(e).__name__}: {str(e)}"}
+            logger.error(f'[ALGO] unhandled {type(e).__name__}: {e}', exc_info=True)
+            return error_response(500, 'internal_error', f'Algo handler error: {type(e).__name__}')
 
-def _handle_inner(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-        """Handle /api/algo/* endpoints."""
+def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         # User identity from verified JWT claims (sub is the Cognito user ID)
         user_id = (jwt_claims or {}).get('sub', '')
 
