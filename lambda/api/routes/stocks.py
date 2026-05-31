@@ -157,7 +157,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     NULL::numeric AS sustainable_growth_pct,
                     ROUND((md.op_margin_cur - md.op_margin_pri)::numeric, 2) AS op_margin_trend_pp,
                     ROUND((md.gross_margin_cur - md.gross_margin_pri)::numeric, 2) AS gross_margin_trend_pp,
-                    ROUND((md.roe_cur - md.roe_pri)::numeric, 2) AS roe_trend_pp
+                    ROUND((md.roe_cur - md.roe_pri)::numeric, 2) AS roe_trend_pp,
+                    CASE
+                        WHEN COALESCE(qm.roe, 0) >= 25 AND COALESCE(qm.operating_margin, 0) >= 15 THEN 'tier1'
+                        WHEN COALESCE(qm.roe, 0) >= 20 AND COALESCE(qm.operating_margin, 0) >= 12 THEN 'tier2'
+                        ELSE 'other'
+                    END AS quality_rank
                 FROM value_stocks vs
                 JOIN stock_symbols ss ON ss.symbol = vs.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = vs.symbol

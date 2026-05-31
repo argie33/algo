@@ -151,10 +151,17 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                         SELECT *,
                             PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
                         FROM sector_pe
+                    ),
+                    latest_sector_ranking AS (
+                        SELECT sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
+                        FROM sector_ranking
+                        WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
                     )
-                    SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile
+                    SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile,
+                           sr.rank_1w_ago, sr.rank_4w_ago, sr.rank_12w_ago
                     FROM ranked r
                     LEFT JOIN sector_pe_ranked spe ON spe.sector = r.sector_name
+                    LEFT JOIN latest_sector_ranking sr ON sr.sector_name = r.sector_name
                     ORDER BY r.current_rank, r.stock_count DESC
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
@@ -174,6 +181,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     sectors.append({
                         'sector_name': s.get('sector_name'),
                         'current_rank': int(s.get('current_rank') or 0),
+                        'rank_1w_ago': int(s['rank_1w_ago']) if s.get('rank_1w_ago') is not None else None,
+                        'rank_4w_ago': int(s['rank_4w_ago']) if s.get('rank_4w_ago') is not None else None,
+                        'rank_12w_ago': int(s['rank_12w_ago']) if s.get('rank_12w_ago') is not None else None,
                         'stock_count': int(s.get('stock_count') or 0),
                         'composite_score': float(s.get('composite_score') or 0),
                         'momentum_score': float(s.get('momentum_score') or 0),
