@@ -1182,7 +1182,7 @@ class DataPatrol:
     def run(self, quick=False, validate_alpaca=False):
         self._run_id = f"PATROL-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
         start_time = time.time()
-        with DatabaseContext('read') as cur:
+        with DatabaseContext('write') as cur:
             logger.info(f"DATA PATROL — {self._run_id}")
 
             # Log configuration at start of run
