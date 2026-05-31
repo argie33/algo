@@ -47,6 +47,17 @@ FOMC_DATES_2026 = [
     ("2026-12-16", "FOMC Meeting Decision"),
 ]
 
+FOMC_DATES_2027 = [
+    ("2027-01-27", "FOMC Meeting Decision"),
+    ("2027-03-17", "FOMC Meeting Decision"),
+    ("2027-05-05", "FOMC Meeting Decision"),
+    ("2027-06-16", "FOMC Meeting Decision"),
+    ("2027-07-28", "FOMC Meeting Decision"),
+    ("2027-09-15", "FOMC Meeting Decision"),
+    ("2027-11-03", "FOMC Meeting Decision"),
+    ("2027-12-15", "FOMC Meeting Decision"),
+]
+
 
 def _get_fred_api_key() -> str:
     key = os.getenv("FRED_API_KEY", "")
@@ -137,8 +148,8 @@ def _load_economic_calendar(today: date) -> int:
                 "previous_value":  None,
             })
 
-    # Add FOMC dates
-    for fomc_date_str, fomc_name in FOMC_DATES_2026:
+    # Add FOMC dates (both years so 90-day window works in late 2026)
+    for fomc_date_str, fomc_name in FOMC_DATES_2026 + FOMC_DATES_2027:
         fomc_date = date.fromisoformat(fomc_date_str)
         if start <= fomc_date <= end:
             records.append({

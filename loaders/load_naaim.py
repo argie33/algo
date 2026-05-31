@@ -45,8 +45,14 @@ class NAAIMExposureLoader(OptimalLoader):
                 logger.warning(f"Unexpected table format: {df.columns.tolist()}")
                 return None
 
-            # Rename columns for consistency
-            df.columns = ['Date', 'NAAIM Mean', 'Bearish', 'Q1', 'Q2', 'Q3', 'Bullish', 'Deviation']
+            # Rename columns for consistency — only if exactly 8 columns match expected layout
+            if len(df.columns) == 8:
+                df.columns = ['Date', 'NAAIM Mean', 'Bearish', 'Q1', 'Q2', 'Q3', 'Bullish', 'Deviation']
+            else:
+                # Try to find columns by position heuristic (date first, mean second)
+                logger.warning(f"NAAIM table has {len(df.columns)} columns (expected 8): {df.columns.tolist()}")
+                col_names = ['Date', 'NAAIM Mean', 'Bearish', 'Q1', 'Q2', 'Q3', 'Bullish', 'Deviation']
+                df.columns = col_names[:len(df.columns)]
 
             # Clean data
             df['Date'] = pd.to_datetime(df['Date'], errors='coerce')

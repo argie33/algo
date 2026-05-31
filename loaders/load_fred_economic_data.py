@@ -137,7 +137,7 @@ class FredEconomicDataLoader(OptimalLoader):
 
             except Exception as e:
                 logger.error(f"  {series_id}: FAILED — {e}")
-                raise
+                continue
 
         return all_rows if all_rows else None
 
