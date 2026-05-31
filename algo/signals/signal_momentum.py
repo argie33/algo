@@ -210,17 +210,9 @@ class SignalMomentumMixin:
         down-day volume in the prior lookback_days.
 
         Indicates institutional absorption of selling pressure and setup for breakout.
-        Returns: {
-          'pocket_pivot': bool,
-          'days_since_fired': int or None (0 = today, 1 = yesterday, etc),
-          'current_vol': float,
-          'max_down_vol': float,
-          'vol_ratio': float,
-        }
         """
-        try:
-            self.connect()
-            self.cur.execute(
+        def _check_pocket(cur):
+            cur.execute(
                 """
                 WITH daily AS (
                     SELECT date, close, volume,
@@ -237,7 +229,7 @@ class SignalMomentumMixin:
                 """,
                 (symbol, eval_date, lookback_days + 5),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if not rows:
                 return {'pocket_pivot': False}
 
@@ -289,11 +281,7 @@ class SignalMomentumMixin:
 
             return {'pocket_pivot': False}
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Failed to disconnect: {e}")
+        return self._with_cursor(_check_pocket) or {'pocket_pivot': False}
 
     def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> Dict[str, Any]:
         """
@@ -303,9 +291,8 @@ class SignalMomentumMixin:
 
         Returns count over lookback window (IBD standard: 25 trading days).
         """
-        try:
-            self.connect()
-            self.cur.execute(
+        def _count_dist(cur):
+            cur.execute(
                 """
                 WITH d AS (
                     SELECT date, close, volume,
@@ -322,11 +309,7 @@ class SignalMomentumMixin:
                 """,
                 (symbol, eval_date, lookback),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             return int(row[0]) if row and row[0] else 0
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Failed to disconnect: {e}")
+        return self._with_cursor(_count_dist) or 0

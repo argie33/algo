@@ -23,12 +23,6 @@ from utils.yfinance_wrapper import get_ticker
 from utils.database_context import DatabaseContext
 from utils.master_data_loader import MasterDataLoader
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
