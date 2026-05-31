@@ -1808,6 +1808,7 @@ CREATE TABLE IF NOT EXISTS swing_trader_scores (
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
     score DECIMAL(8, 4),
+    grade VARCHAR(4),
     components JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)

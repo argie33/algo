@@ -96,6 +96,12 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
     def _evaluate_signals_impl(self, eval_date=None, cur=None, max_date: Optional[_date] = None) -> List[Dict[str, Any]]:
         """Internal implementation of signal evaluation."""
+        # Schema migration: ensure swing_trader_scores.grade column exists
+        try:
+            cur.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS grade VARCHAR(4)")
+        except Exception:
+            pass  # Column already exists or table doesn't exist yet
+
         if not eval_date:
             eval_date = self._resolve_evaluation_date(cur, max_date=max_date)
 
@@ -283,12 +289,15 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
                         # OPTIMIZED: Look up pre-computed swing trader scores (no inline computation)
                         # Scores are pre-computed overnight by load_swing_trader_scores.py
+                        # Use SAVEPOINT to prevent SQL errors from aborting the outer transaction
                         try:
+                            cur.execute("SAVEPOINT swing_score")
                             cur.execute(
                                 "SELECT score, grade, components FROM swing_trader_scores WHERE symbol = %s AND date = %s LIMIT 1",
                                 (symbol, signal_date)
                             )
                             swing_row = cur.fetchone()
+                            cur.execute("RELEASE SAVEPOINT swing_score")
                             if swing_row:
                                 swing_score, swing_grade, swing_comp_json = swing_row
                                 import json
@@ -298,6 +307,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                                 logger.debug(f"No precomputed swing score for {symbol} on {signal_date}")
                                 swing = {'pass': True, 'reason': 'score_unavailable', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
                         except Exception as e:
+                            try:
+                                cur.execute("ROLLBACK TO SAVEPOINT swing_score")
+                                cur.execute("RELEASE SAVEPOINT swing_score")
+                            except Exception:
+                                pass
                             logger.warning(f"Error fetching swing trader score for {symbol}: {e}")
                             swing = {'pass': True, 'reason': 'lookup_error', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
 
