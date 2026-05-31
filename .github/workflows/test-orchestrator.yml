@@ -81,12 +81,16 @@ jobs:
           INVOKE_START=$(date -u +%s)
 
           # Synchronous invocation - writes response to file, metadata to stdout
-          # Note: --log-type Tail with --query broke file writes; use separate metadata capture
+          # cli-read-timeout 580 prevents botocore's default 60s HTTP socket timeout
+          # from dropping the connection mid-Lambda and retrying (which causes
+          # TooManyRequestsException when reserved_concurrency=1).
           timeout 600 aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type RequestResponse \
             --payload "$ENCODED" \
             --region $AWS_REGION \
+            --cli-read-timeout 580 \
+            --cli-connect-timeout 30 \
             /tmp/response.json 2>&1 || echo "Lambda invocation returned non-zero exit"
 
           INVOKE_END=$(date -u +%s)
