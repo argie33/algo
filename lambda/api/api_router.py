@@ -27,13 +27,13 @@ HANDLERS = {
     '/api/data-coverage': data_coverage,
 }
 
-def route_request(cur, path, method, params, body=None, jwt_claims=None):
+def route_request(path, method, params, body=None, jwt_claims=None):
     """Route request to handler. Public handlers checked first (no auth required)."""
     # Check public handlers first (health, etc.) - these don't require JWT
     for prefix, handler in PUBLIC_HANDLERS.items():
         if path.startswith(prefix):
             try:
-                return handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                return handler.handle(path, method, params, body, jwt_claims=jwt_claims)
             except Exception as e:
                 logger.error(f"Public handler error for {path}: {e}", exc_info=True)
                 return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
@@ -45,7 +45,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     for prefix, handler in HANDLERS.items():
         if path.startswith(prefix):
             try:
-                return handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                return handler.handle(path, method, params, body, jwt_claims=jwt_claims)
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
                 # Return 200+empty for data endpoints so browser doesn't log red F12 errors

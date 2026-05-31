@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Utils are packaged in the same directory as lambda_function.py (/var/task)
 # Explicitly add /var/task to ensure utils module can be imported
 sys.path.insert(0, '/var/task')
-if __file__.startswith('/Users') or __file__.startswith('/home'):
-    # Local dev: add project root for imports
+if not __file__.startswith('/var/task'):
+    # Local dev (Mac, Linux, Windows): add project root so utils/ is importable
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 IMPORT_ERROR = None
@@ -709,48 +709,44 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
 
         try:
-            with DatabaseContext('write') as cur:
-                # Set query timeout to prevent long-running queries from blocking API responses
-                cur.execute("SET statement_timeout TO '10s'")
+            params = parse_query_params(event)
+            body = None
+            if event.get('body'):
+                body_str = event['body']
+                if len(body_str) > MAX_REQUEST_BODY_SIZE:
+                    cors_headers = get_cors_headers(event)
+                    logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
+                    log_api_request(event, 413, error_msg='request_entity_too_large')
+                    return {
+                        'statusCode': 413,
+                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                        'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
+                    }
+                try:
+                    body = json.loads(body_str)
+                except json.JSONDecodeError as e:
+                    cors_headers = get_cors_headers(event)
+                    logger.warning(f'Failed to parse JSON body: {e}')
+                    log_api_request(event, 400, error_msg='invalid_json')
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                        'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
+                    }
+                except Exception as e:
+                    logger.warning(f"Exception caught: {e}")
+                    pass
 
-                params = parse_query_params(event)
-                body = None
-                if event.get('body'):
-                    body_str = event['body']
-                    if len(body_str) > MAX_REQUEST_BODY_SIZE:
-                        cors_headers = get_cors_headers(event)
-                        logger.warning(f'Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}')
-                        log_api_request(event, 413, error_msg='request_entity_too_large')
-                        return {
-                            'statusCode': 413,
-                            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                            'body': json.dumps({'error': 'request_entity_too_large', 'message': 'Request body too large'})
-                        }
-                    try:
-                        body = json.loads(body_str)
-                    except json.JSONDecodeError as e:
-                        cors_headers = get_cors_headers(event)
-                        logger.warning(f'Failed to parse JSON body: {e}')
-                        log_api_request(event, 400, error_msg='invalid_json')
-                        return {
-                            'statusCode': 400,
-                            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                            'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
-                        }
-                    except Exception as e:
-                        logger.warning(f"Exception caught: {e}")
-                        pass
-
-                # Route request to appropriate handler
-                response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
+            # Route request to appropriate handler (each route manages its own DB connection)
+            response = api_router.route_request(path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
-            logger.error(f'[DB_ERROR] Failed to get database connection: {e}', exc_info=True)
+            logger.error(f'[HANDLER_ERROR] Unhandled exception: {e}', exc_info=True)
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
-                    'error': 'database_unavailable',
+                    'error': 'service_error',
                     'message': 'Service temporarily unavailable. Check CloudWatch Logs for details.'
                 })
             }
