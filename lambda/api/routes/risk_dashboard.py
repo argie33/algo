@@ -18,7 +18,7 @@ from .utils import error_response, success_response, json_response, safe_limit, 
 
 logger = logging.getLogger(__name__)
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Route risk dashboard endpoints."""
     if path == '/api/algo/risk-dashboard':
         return _get_comprehensive_risk_dashboard(cur)

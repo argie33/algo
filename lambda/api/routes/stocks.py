@@ -8,7 +8,7 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     try:
         parts = path.split('/')
         symbol = parts[3] if len(parts) > 3 and parts[3] not in ('deep-value',) else None

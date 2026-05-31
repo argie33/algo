@@ -231,7 +231,7 @@ def get_overall_coverage_summary(cur) -> Dict[str, Any]:
 
     return summary
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     mode = 'write' if method in ['POST', 'PATCH', 'DELETE', 'PUT'] else 'read'
     
     with DatabaseContext(mode) as cur:

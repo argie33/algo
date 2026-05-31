@@ -134,7 +134,7 @@ const AuthContext = createContext(null);
 const defaultContextValue = {
   user: null,
   isAuthenticated: false,
-  isLoading: true,
+  isLoading: false,
   error: null,
   tokens: null,
   login: async () => {},

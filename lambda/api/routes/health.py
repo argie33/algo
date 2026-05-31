@@ -9,7 +9,7 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/health endpoint - PUBLIC health check (no auth required).
 
     Returns comprehensive system health status including:

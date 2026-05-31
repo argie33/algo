@@ -7,7 +7,7 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     mode = 'write' if method in ['POST', 'PATCH', 'DELETE', 'PUT'] else 'read'
 
     with DatabaseContext(mode) as cur:

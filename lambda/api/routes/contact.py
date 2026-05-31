@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/contact/* endpoints."""
     mode = 'write' if method in ['POST', 'PATCH', 'DELETE', 'PUT'] else 'read'
     

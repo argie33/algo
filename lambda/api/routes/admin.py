@@ -22,7 +22,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
             logger.info(f"Access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}")
         return is_admin
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
         try:
             # Require admin role for all admin endpoints

@@ -737,8 +737,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     logger.warning(f"Exception caught: {e}")
                     pass
 
-            # Route request to appropriate handler (each route manages its own DB connection)
-            response = api_router.route_request(path, method, params, body, jwt_claims=jwt_claims)
+            # Route request to appropriate handler
+            response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
             logger.error(f'[HANDLER_ERROR] Unhandled exception: {e}', exc_info=True)

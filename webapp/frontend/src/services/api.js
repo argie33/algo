@@ -9,6 +9,10 @@ export const getApiConfig = () => {
   // This allows empty string for localhost development
   if (typeof window !== "undefined" && window.__CONFIG__ && 'API_URL' in window.__CONFIG__) {
     const apiUrl = window.__CONFIG__.API_URL;
+    // Empty API_URL means local dev with Vite proxy — not serverless
+    if (!apiUrl) {
+      return { baseURL: "", apiUrl: "", isServerless: false, isDev: true, isDevelopment: true, isProduction: false };
+    }
     return { baseURL: apiUrl, apiUrl, isServerless: !apiUrl.includes("localhost"), isDev: false, isDevelopment: false, isProduction: true };
   }
 

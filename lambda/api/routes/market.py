@@ -8,7 +8,7 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/market/* endpoints."""
         try:
             if path in ['/api/market', '/api/market/status'] or path.startswith('/api/market?'):

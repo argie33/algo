@@ -10,7 +10,7 @@ from .utils import error_response, success_response, list_response, json_respons
 
 logger = logging.getLogger(__name__)
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
         # User identity from verified JWT claims (sub is the Cognito user ID)
         user_id = (jwt_claims or {}).get('sub', '')

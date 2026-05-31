@@ -18,7 +18,7 @@ _DEFAULTS = {
     },
 }
 
-def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/settings endpoints."""
     if path != '/api/settings':
         return error_response(404, 'not_found', f'No settings handler for {path}')
