@@ -419,16 +419,25 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"{'='*70}")
 
             # Regime-aware min_swing_score filter (from RegimeManager)
-            min_swing_score = self.config.get('min_swing_score', 55)
-            try:
-                from algo.algo_regime_manager import RegimeManager
-                regime_mgr = RegimeManager()
-                regime_params = regime_mgr.get_regime_params(eval_date)
-                min_swing_score = regime_params.get('min_swing_score', min_swing_score)
-                regime = regime_mgr.get_current_regime(eval_date)
-                logger.info(f"Regime: {regime}, min_swing_score threshold: {min_swing_score}")
-            except Exception as e:
-                logger.debug(f"Could not load regime min_swing_score: {e}. Using config default {min_swing_score}.")
+            # Config can explicitly override with a lower value (e.g., for testing):
+            # set 'disable_regime_swing_floor' = True in config_overrides to skip regime override
+            config_min_swing = self.config.get('min_swing_score', 55)
+            min_swing_score = config_min_swing
+            disable_regime = bool(self.config.get('disable_regime_swing_floor', False))
+            if not disable_regime:
+                try:
+                    from algo.algo_regime_manager import RegimeManager
+                    regime_mgr = RegimeManager()
+                    regime_params = regime_mgr.get_regime_params(eval_date)
+                    regime_min = regime_params.get('min_swing_score', config_min_swing)
+                    # Regime can raise the floor but never below config's explicit setting
+                    min_swing_score = max(config_min_swing, regime_min) if config_min_swing > 0 else regime_min
+                    regime = regime_mgr.get_current_regime(eval_date)
+                    logger.info(f"Regime: {regime}, min_swing_score threshold: {min_swing_score}")
+                except Exception as e:
+                    logger.debug(f"Could not load regime min_swing_score: {e}. Using config default {min_swing_score}.")
+            else:
+                logger.info(f"Regime override disabled (disable_regime_swing_floor=True); using config min_swing_score: {min_swing_score}")
 
             # Apply regime-aware minimum swing score filter
             passed_all_tiers = [t for t in passed_all_tiers if t.get('swing_score', 0) >= min_swing_score]
@@ -1160,7 +1169,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 try:
                     from algo.algo_liquidity_checks import LiquidityChecks
                     lq = LiquidityChecks(self.config)
-                    lq_passed, lq_reason = lq.run_all(symbol, entry_price, signal_date)
+                    lq_passed, lq_reason = lq.run_all(symbol, signal_date)
                     if not lq_passed:
                         return {'pass': False, 'reason': f'Liquidity: {lq_reason}', 'shares': 0}
                 except Exception as e:
