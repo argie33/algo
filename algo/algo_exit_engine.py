@@ -21,12 +21,6 @@ State tracked on algo_positions:
   - current_stop_price: trailed stop after T1/T2 hits
 """
 
-from config.credential_manager import (
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-)
-
 import os
 from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date, timezone

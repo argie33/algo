@@ -10,14 +10,7 @@ from abc import ABC
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, List, Optional, Sequence
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 logger = logging.getLogger(__name__)
-_credential_manager = credential_manager
 
 class OptimalLoader(ABC):
     """Base class for production-grade loaders.

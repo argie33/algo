@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 
-try:
-    from config.credential_manager import get_credential_manager
-    credential_manager = get_credential_manager()
-except ImportError:
-    credential_manager = None
-
 import os
 from utils.database_context import DatabaseContext
 from datetime import datetime, date

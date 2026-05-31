@@ -11,14 +11,7 @@ Features:
 - Paper, dry, review, and auto execution modes
 """
 
-from config.credential_manager import (
-    get_db_password,
-    get_db_config,
-    DEFAULT_DB_PORT,
-    DEFAULT_DB_USER,
-    DEFAULT_DB_NAME,
-    get_alpaca_credentials,
-)
+from config.credential_manager import get_alpaca_credentials
 from config.alpaca_config import get_alpaca_base_url
 from algo.algo_config import get_api_timeout, get_alpaca_timeout
 
