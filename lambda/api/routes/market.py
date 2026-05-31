@@ -30,22 +30,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
-                cur.execute("SET statement_timeout TO '25s'")
                 cur.execute("""
-                    WITH daily AS (
-                        SELECT symbol, date, close,
-                               LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
-                        FROM price_daily
-                        WHERE date >= CURRENT_DATE - INTERVAL '31 days'
-                          AND symbol NOT LIKE '^%%'
-                    )
                     SELECT date,
-                        COUNT(*) AS total,
-                        SUM(CASE WHEN close > prev_close THEN 1 ELSE 0 END) AS advances
-                    FROM daily
+                        ROUND(advance_decline_ratio * 1000) AS total,
+                        ROUND(advance_decline_ratio * 1000 / (1 + advance_decline_ratio)) AS advances
+                    FROM market_health_daily
                     WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                      AND prev_close IS NOT NULL
-                    GROUP BY date
                     ORDER BY date DESC
                 """)
                 breadth = cur.fetchall()

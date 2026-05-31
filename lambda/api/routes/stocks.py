@@ -30,6 +30,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 
         if path == '/api/stocks/deep-value':
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=600)
+            # Fast check: return empty if no financial data loaded yet
+            cur.execute("SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1")
+            if not cur.fetchone():
+                return list_response([])
             cur.execute("SET statement_timeout TO '25s'")
             cur.execute("""
                 WITH value_stocks AS (
