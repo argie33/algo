@@ -297,10 +297,9 @@ def run(
 
         with DatabaseContext('read') as cur:
             logger.debug("Phase 1: Database connection established")
-            # Prevent any individual query from hanging indefinitely under DB load.
-            # 20s is generous for a simple MAX() lookup; a 2.5-minute hang indicates
-            # heavy contention from concurrent ECS loaders on t4g.micro.
-            cur.execute("SET statement_timeout = 20000")
+            # 45s allows MAX() lookups to complete even under t4g.micro I/O contention
+            # from concurrent ECS loaders (e.g. company_profile writes to price_daily).
+            cur.execute("SET statement_timeout = 45000")
 
             cur.execute(
                 """
