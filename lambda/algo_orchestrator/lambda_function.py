@@ -149,6 +149,7 @@ def lambda_handler(event, context):
             run_id = result.get('run_id', 'unknown')
 
             # Return response
+            skipped = result.get('skipped', False)
             return {
                 'statusCode': 200 if success else 500,
                 'body': json.dumps({
@@ -156,6 +157,8 @@ def lambda_handler(event, context):
                     'message': 'Orchestrator completed successfully' if success else 'Orchestrator encountered errors',
                     'run_id': run_id,
                     'phases': result.get('phases', {}),
+                    'skipped': skipped,
+                    'reason': result.get('reason', ''),
                     'source': source,
                     'lambda_timeout_seconds': lambda_timeout,
                 })
