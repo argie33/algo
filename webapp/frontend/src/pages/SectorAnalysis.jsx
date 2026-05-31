@@ -301,7 +301,7 @@ function SectorRelativeChart({ sectors }) {
       if (top.length === 0) return [];
       const sectorsList = top.map(encodeURIComponent).join(',');
       const batchData = await api.get(`/api/sectors/trends-batch?sectors=${sectorsList}&days=90`)
-        .then(r => r.data?.data || r.data)
+        .then(r => r.data)
         .catch(() => ({}));
 
       const all = {};
@@ -570,7 +570,7 @@ function RankingTrendChart({ name, type, range }) {
 
   const { data: resp, isLoading } = useQuery({
     queryKey: [`${type}-rank-trend`, name],
-    queryFn: () => api.get(endpoint).then(r => r.data?.data || r.data).catch(() => null),
+    queryFn: () => api.get(endpoint).then(r => r.data).catch(() => null),
     enabled: !!name,
     staleTime: 1000 * 60 * 10,
     retry: false,

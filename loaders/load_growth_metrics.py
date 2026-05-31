@@ -19,7 +19,7 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 
 from utils.loader_helpers import get_active_symbols
-
+from utils.database_context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
 class GrowthMetricsLoader(OptimalLoader):
@@ -30,7 +30,6 @@ class GrowthMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute multi-year growth metrics from annual income statement."""
         try:
-            from utils.database_context import DatabaseContext
             with DatabaseContext('read') as cur:
                 # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
                 cur.execute("""

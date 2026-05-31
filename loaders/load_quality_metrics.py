@@ -24,7 +24,7 @@ from datetime import date
 from typing import List, Optional
 
 from utils.loader_helpers import get_active_symbols
-
+from utils.database_context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,6 @@ class QualityMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute quality metrics from balance sheet and income statement."""
         try:
-            from utils.database_context import DatabaseContext
             with DatabaseContext('read') as cur:
                 cur.execute("""
                     SELECT revenue, operating_income, net_income
