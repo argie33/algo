@@ -30,6 +30,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
 
         if path == '/api/stocks/deep-value':
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=600)
+            cur.execute("SET statement_timeout TO '25s'")
             cur.execute("""
                 WITH latest_prices AS (
                     SELECT DISTINCT ON (symbol) symbol, close AS current_price

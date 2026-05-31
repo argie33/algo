@@ -4,7 +4,7 @@
    ════════════════════════════════════════════════════════════════════════════ */
 
 /* Web font imports MUST be at the very top of the stylesheet */
-@import url('https://rsms.me/inter/inter.css');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* Design tokens + component classes */

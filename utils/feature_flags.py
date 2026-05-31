@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-from config.credential_manager import get_db_config, get_db_password
 import logging
 import os
-from utils.database_context import DatabaseContext
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
+
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

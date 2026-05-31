@@ -46,6 +46,7 @@ def _industry_list(cur, params):
     page = safe_page(page_str, default=1)
     offset = (page - 1) * limit
 
+    cur.execute("SET statement_timeout TO '25s'")
     cur.execute("""
         WITH recent_prices AS (
             SELECT symbol, date, close,

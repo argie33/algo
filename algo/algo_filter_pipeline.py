@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import os
-from utils.database_context import DatabaseContext
-from config.credential_manager import get_db_config
-import psycopg2
 from datetime import datetime, timedelta, date as _date
+from typing import Dict, List, Any, Optional, Tuple
+
+from utils.database_context import DatabaseContext
 from typing import Dict, List, Any, Optional, Tuple
 
 from algo.algo_config import get_config

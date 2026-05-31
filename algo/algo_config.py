@@ -10,7 +10,6 @@ import os
 import time
 import logging
 from typing import Optional, Any, Dict
-from config.credential_manager import get_credential_manager, get_db_config
 from config.credential_validator import assert_credentials
 from utils.database_context import DatabaseContext
 
