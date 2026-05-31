@@ -500,10 +500,10 @@ If missing, rebuild schema by invoking the `db-init` Lambda manually (reads `lam
 - Phase 1 data freshness query timeout raised to 45s (was 20s).
 - **DO NOT run company_profile + analyst_sentiment + analyst_upgrades_downgrades simultaneously with the orchestrator** — these 3 loaders combined hammer the t4g.micro so hard that even new DB connections time out. Run them sequentially or separately from the orchestrator.
 - **NEVER use `loader_type=analytics` via manual-invoke-loaders while the orchestrator is running.** It will cause total DB saturation on t4g.micro without RDS Proxy.
-- For permanent fix: `enable_rds_proxy = true` in terraform.tfvars ($11/month — eliminates all I/O contention issues).
+- **Advisory lock is in place:** `OptimalLoader.run()` and `load_global()` use `pg_try_advisory_lock(hashtext(table_name))` — only one instance per loader runs at a time. Lock auto-releases on container exit/crash. This only prevents new stacking; if old tasks were launched before the lock code was deployed, they must be stopped manually (see below).
+- **To stop runaway ECS tasks:** `aws ecs list-tasks --cluster algo-cluster --desired-status RUNNING --profile algo-developer` to list, then `aws ecs stop-task --cluster algo-cluster --task <ARN> --reason "remediation" --profile algo-developer` per task. Kill analytics loaders (analyst_sentiment, analyst_upgrades_downgrades, company_profile) but keep stock_prices_daily and technical_data_daily.
 - `market_exposure_daily` was also not persisting due to undefined `cur` in `_persist()` method (Python scope bug). Fixed: `_persist()` now opens its own `DatabaseContext('write')`.
-- Symptoms: Lambda logs show "canceling statement due to statement timeout" in Phase 1 or Phase 3b.
-- Check RDS metrics: `aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DiskQueueDepth --dimensions Name=DBInstanceIdentifier,Value=algo-db`
+- Symptoms: Lambda logs show "canceling statement due to statement timeout" in Phase 1 or Phase 3b. Check disk queue: `aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DiskQueueDepth --dimensions Name=DBInstanceIdentifier,Value=algo-db --start-time <ISO> --end-time <ISO> --period 60 --statistics Maximum --profile algo-developer`
 
 **API Lambda cold-start timeout (500 errors on first request):**
 - Lambda in VPC takes 15-40s to initialize (ENI provisioning + imports) on cold-start
