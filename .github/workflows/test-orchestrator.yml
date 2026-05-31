@@ -81,7 +81,7 @@ jobs:
           INVOKE_START=$(date -u +%s)
 
           # Synchronous invocation — captures last 4KB of logs inline via Tail
-          timeout 300 aws lambda invoke \
+          timeout 600 aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type RequestResponse \
             --log-type Tail \
