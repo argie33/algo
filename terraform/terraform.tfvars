@@ -43,7 +43,7 @@ orchestrator_dry_run            = false
 orchestrator_log_level          = "info"
 data_patrol_enabled             = true
 data_patrol_timeout_ms          = 30000
-alpaca_paper_trading            = false # LIVE trading mode — uses live keys from Secrets Manager (algo/alpaca)
+alpaca_paper_trading            = true  # PAPER trading mode — keys in Secrets Manager are paper keys; switch to false when live keys are configured
 api_lambda_timeout              = 300
 api_lambda_reserved_concurrency = 0    # COST OPTIMIZED: Eliminated reserved concurrency. On-demand only (~$0.20/invocation). API is low-traffic during trading hours.
 algo_lambda_timeout = 600
@@ -58,7 +58,7 @@ algo_lambda_timeout = 600
 rds_backup_retention_period = 1
 
 # Alpaca API configuration - LIVE trading
-alpaca_api_base_url = "https://api.alpaca.markets" # LIVE API
+alpaca_api_base_url = "https://paper-api.alpaca.markets" # PAPER API (matches keys in Secrets Manager)
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = true # Deploy execution monitor Lambda
