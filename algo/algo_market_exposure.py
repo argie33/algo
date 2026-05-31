@@ -65,8 +65,8 @@ class MarketExposure:
     W_AAII = 4
     W_NAAIM = 3
 
-    def __init__(self, cur=None):
-        self.cur = cur
+    def __init__(self):
+        pass
 
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
@@ -135,7 +135,6 @@ class MarketExposure:
 
         logger.info(f"Computing market exposure for {eval_date} (11 sequential queries)")
         with DatabaseContext('read') as cur:
-            self.cur = cur
             # Prevent any single query from hanging on t4g.micro under DB load.
             # 15s per query × 11 queries = 165s max; with index hits ~2s total is typical.
             cur.execute("SET statement_timeout = 15000")
@@ -143,7 +142,7 @@ class MarketExposure:
             score = 0.0
 
             # --- 1. IBD market state ---
-            ibd = self._ibd_state(eval_date)
+            ibd = self._ibd_state(eval_date, cur)
             ibd_pts = self.W_IBD_STATE * ibd['score_factor']
             factors['ibd_state'] = {
                 **ibd,
@@ -154,70 +153,70 @@ class MarketExposure:
             logger.debug(f"  IBD state: {ibd['state']}, {ibd_pts:.1f} pts")
 
             # --- 2. Trend 30-week MA (SPY vs SMA_150 + slope) ---
-            t30 = self._trend_30wk(eval_date)
+            t30 = self._trend_30wk(eval_date, cur)
             t30_pts = self.W_TREND_30WK * t30['score_factor']
             factors['trend_30wk'] = {**t30, 'pts': round(t30_pts, 1), 'max': self.W_TREND_30WK}
             score += t30_pts
             logger.debug(f"  Trend 30-week: {t30_pts:.1f} pts")
 
             # --- 3. Breadth: % stocks above 50-DMA ---
-            b50 = self._pct_above_ma(eval_date, ma_days=50)
+            b50 = self._pct_above_ma(eval_date, ma_days=50, cur=cur)
             b50_pts = self.W_BREADTH_50 * b50['score_factor']
             factors['breadth_50dma'] = {**b50, 'pts': round(b50_pts, 1), 'max': self.W_BREADTH_50}
             score += b50_pts
             logger.debug(f"  Breadth 50-DMA: {b50.get('value', 0):.1f}%, {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
-            b200 = self._pct_above_ma(eval_date, ma_days=200)
+            b200 = self._pct_above_ma(eval_date, ma_days=200, cur=cur)
             b200_pts = self.W_BREADTH_200 * b200['score_factor']
             factors['breadth_200dma'] = {**b200, 'pts': round(b200_pts, 1), 'max': self.W_BREADTH_200}
             score += b200_pts
             logger.debug(f"  Breadth 200-DMA: {b200.get('value', 0):.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. VIX regime ---
-            vix = self._vix_regime(eval_date)
+            vix = self._vix_regime(eval_date, cur)
             vix_pts = self.W_VIX * vix['score_factor']
             factors['vix_regime'] = {**vix, 'pts': round(vix_pts, 1), 'max': self.W_VIX}
             score += vix_pts
             logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
 
             # --- 6. McClellan oscillator ---
-            mc = self._mcclellan(eval_date)
+            mc = self._mcclellan(eval_date, cur)
             mc_pts = self.W_MCCLELLAN * mc['score_factor']
             factors['mcclellan'] = {**mc, 'pts': round(mc_pts, 1), 'max': self.W_MCCLELLAN}
             score += mc_pts
             logger.debug(f"  McClellan: {mc_pts:.1f} pts")
 
             # --- 7. New highs vs new lows ---
-            nhnl = self._new_highs_lows(eval_date)
+            nhnl = self._new_highs_lows(eval_date, cur)
             nhnl_pts = self.W_NEW_HIGHS_LOWS * nhnl['score_factor']
             factors['new_highs_lows'] = {**nhnl, 'pts': round(nhnl_pts, 1), 'max': self.W_NEW_HIGHS_LOWS}
             score += nhnl_pts
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
             # --- 8. A/D line confirmation ---
-            ad = self._ad_line(eval_date)
+            ad = self._ad_line(eval_date, cur)
             ad_pts = self.W_AD_LINE * ad['score_factor']
             factors['ad_line'] = {**ad, 'pts': round(ad_pts, 1), 'max': self.W_AD_LINE}
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
             # --- 9. Credit spreads (HY OAS — credit leads equity) ---
-            cs = self._credit_spread(eval_date)
+            cs = self._credit_spread(eval_date, cur)
             cs_pts = self.W_CREDIT_SPREAD * cs['score_factor']
             factors['credit_spread'] = {**cs, 'pts': round(cs_pts, 1), 'max': self.W_CREDIT_SPREAD}
             score += cs_pts
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
             # --- 10. AAII sentiment (contrarian at extremes) ---
-            aaii = self._aaii(eval_date)
+            aaii = self._aaii(eval_date, cur)
             aaii_pts = self.W_AAII * aaii['score_factor']
             factors['aaii_sentiment'] = {**aaii, 'pts': round(aaii_pts, 1), 'max': self.W_AAII}
             score += aaii_pts
             logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
 
             # --- 11. NAAIM professional manager exposure (contrarian at extremes) ---
-            naaim = self._naaim(eval_date)
+            naaim = self._naaim(eval_date, cur)
             naaim_pts = self.W_NAAIM * naaim['score_factor']
             factors['naaim'] = {**naaim, 'pts': round(naaim_pts, 1), 'max': self.W_NAAIM}
             score += naaim_pts
@@ -324,7 +323,7 @@ class MarketExposure:
 
     # ====== Factor implementations ======
 
-    def _ibd_state(self, eval_date):
+    def _ibd_state(self, eval_date, cur):
         """Classify market state using DD count + FTD presence per IBD thresholds."""
         dd_count = self._distribution_days(eval_date)
         ftd = self._has_follow_through_day(eval_date)
@@ -344,7 +343,7 @@ class MarketExposure:
             'follow_through_day': ftd,
         }
 
-    def _distribution_days(self, eval_date):
+    def _distribution_days(self, eval_date, cur):
         """IBD distribution day count over last 25 trading sessions on SPY.
 
         Canonical IBD definition: a session where close declines >= 0.2%
@@ -352,7 +351,7 @@ class MarketExposure:
         25-session window. (LIMIT 26: first row lacks prev_close due to LAG,
         so only 25 valid comparisons are made.)
         """
-        self.cur.execute(
+        cur.execute(
             """
             WITH d AS (
                 SELECT date, close, volume,
@@ -369,12 +368,12 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         return int(row[0]) if row and row[0] else 0
 
-    def _has_follow_through_day(self, eval_date):
+    def _has_follow_through_day(self, eval_date, cur):
         """Detect FTD: index closes >= 1.7% on volume above prior in last 30 days."""
-        self.cur.execute(
+        cur.execute(
             """
             WITH d AS (
                 SELECT date, close, volume,
@@ -393,11 +392,11 @@ class MarketExposure:
             """,
             (eval_date, eval_date),
         )
-        return self.cur.fetchone() is not None
+        return cur.fetchone() is not None
 
-    def _trend_30wk(self, eval_date):
+    def _trend_30wk(self, eval_date, cur):
         """SPY vs 30-week (150d) MA + slope over 30 trading days."""
-        self.cur.execute(
+        cur.execute(
             """
             WITH d AS (
                 SELECT date, close,
@@ -411,7 +410,7 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         if not rows or rows[0][2] is None or int(rows[0][3]) < 150:
             # M2 FIX: Fail-closed on missing data (0.1 instead of 0.5 = more conservative)
             return {'score_factor': 0.1, 'value': None, 'reason': 'Insufficient history'}
@@ -444,7 +443,7 @@ class MarketExposure:
             'price_below_ma': cur_close < sma_now,
         }
 
-    def _pct_above_ma(self, eval_date, ma_days):
+    def _pct_above_ma(self, eval_date, ma_days, cur):
         """% of all stocks (>$5, with sufficient history) above their N-day MA.
 
         Uses window functions instead of correlated subqueries.
@@ -452,7 +451,7 @@ class MarketExposure:
         Window function approach does a single pass over the date range.
         """
         lookback_days = ma_days * 2  # generous calendar-day window for ma_days trading days
-        self.cur.execute(
+        cur.execute(
             f"""
             WITH windowed AS (
                 SELECT
@@ -482,7 +481,7 @@ class MarketExposure:
             """,
             (eval_date, eval_date, eval_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or not row[1]:
             return {'score_factor': 0.5, 'value': None}
         above, total = int(row[0]), int(row[1])
@@ -494,9 +493,9 @@ class MarketExposure:
             sf = max(0.0, min(1.0, (pct - 30) / 50))
         return {'score_factor': sf, 'value': round(pct, 1), 'above': above, 'total': total}
 
-    def _vix_regime(self, eval_date):
+    def _vix_regime(self, eval_date, cur):
         """VIX value -> regime score factor."""
-        self.cur.execute(
+        cur.execute(
             """
             SELECT close, LAG(close, 5) OVER (ORDER BY date) AS prior
             FROM price_daily WHERE symbol = '^VIX' AND date <= %s
@@ -504,14 +503,14 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None:
             # Fallback to market_health_daily if ^VIX missing
-            self.cur.execute(
+            cur.execute(
                 "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
-            r2 = self.cur.fetchone()
+            r2 = cur.fetchone()
             if not r2 or r2[0] is None:
                 # M2 FIX: Fail-closed on missing data (0.1 instead of 0.7)
                 return {'score_factor': 0.1, 'value': None}
@@ -539,7 +538,7 @@ class MarketExposure:
             sf *= 0.7
         return {'score_factor': sf, 'value': round(vix, 2), 'rising': rising}
 
-    def _mcclellan(self, eval_date):
+    def _mcclellan(self, eval_date, cur):
         """McClellan Oscillator: 19-EMA(adv-dec) - 39-EMA(adv-dec).
 
         Approximate using SPY component proxy: count daily advancers/decliners
@@ -549,7 +548,7 @@ class MarketExposure:
         Original required a subquery per row to find the previous trading date
         (~300,000 lookups for 5000 symbols × 60 days).
         """
-        self.cur.execute(
+        cur.execute(
             """
             WITH universe AS (
                 SELECT DISTINCT symbol FROM price_daily
@@ -579,7 +578,7 @@ class MarketExposure:
             """,
             (eval_date, eval_date, eval_date, eval_date, eval_date),
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         if len(rows) < 39:
             return {'score_factor': 0.5, 'value': None}
         # Compute ratio (adv-dec)/(adv+dec) per day
@@ -615,7 +614,7 @@ class MarketExposure:
             sf = 0.5
         return {'score_factor': sf, 'value': round(oscillator, 1)}
 
-    def _new_highs_lows(self, eval_date):
+    def _new_highs_lows(self, eval_date, cur):
         """52-week new highs vs new lows ratio.
 
         Uses window functions (MAX/MIN OVER) instead of correlated subqueries.
@@ -623,7 +622,7 @@ class MarketExposure:
         ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING = the 252 prior trading days
         excluding today, so we compare today's close against the prior year's range.
         """
-        self.cur.execute(
+        cur.execute(
             """
             WITH recent AS (
                 SELECT symbol, date, close, high, low
@@ -657,7 +656,7 @@ class MarketExposure:
             """,
             (eval_date, eval_date, eval_date),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row:
             return {'score_factor': 0.5, 'value': None}
         new_hi, new_lo = int(row[0] or 0), int(row[1] or 0)
@@ -671,12 +670,12 @@ class MarketExposure:
             'net': net,
         }
 
-    def _ad_line(self, eval_date):
+    def _ad_line(self, eval_date, cur):
         """A/D line: cumulative advancers - decliners. Confirms or diverges from index.
 
         Uses LAG() instead of correlated self-join for previous day's price.
         """
-        self.cur.execute(
+        cur.execute(
             """
             WITH universe AS (
                 SELECT DISTINCT symbol FROM price_daily
@@ -712,7 +711,7 @@ class MarketExposure:
             """,
             (eval_date, eval_date, eval_date, eval_date, eval_date, eval_date, eval_date),
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         if len(rows) < 10:
             return {'score_factor': 0.5, 'value': None}
         first_ad = float(rows[0][1])
@@ -738,7 +737,7 @@ class MarketExposure:
             'relation': relation,
         }
 
-    def _aaii(self, eval_date):
+    def _aaii(self, eval_date, cur):
         """AAII investor sentiment — contrarian: extreme bearish crowd → bullish signal.
 
         Bull-bear spread (bullish% - bearish%) is the key metric:
@@ -746,7 +745,7 @@ class MarketExposure:
         > +20: extreme greed → contrarian sell (sf=0.10)
         Linear scale in between.
         """
-        self.cur.execute(
+        cur.execute(
             """
             SELECT bullish, bearish
             FROM aaii_sentiment
@@ -755,7 +754,7 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None:
             return {'score_factor': 0.5, 'value': None, 'reason': 'No AAII data'}
 
@@ -784,14 +783,14 @@ class MarketExposure:
             'bearish_pct': round(bearish, 1),
         }
 
-    def _naaim(self, eval_date):
+    def _naaim(self, eval_date, cur):
         """NAAIM manager equity exposure — contrarian at extremes.
 
         Active manager exposure scale (0-100%):
         < 20: heavily underweight → contrarian bullish (managers will be forced to buy)
         > 80: heavily overweight → contrarian cautious (limited buying power left)
         """
-        self.cur.execute(
+        cur.execute(
             """
             SELECT naaim_number_mean
             FROM naaim
@@ -800,7 +799,7 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None:
             return {'score_factor': 0.5, 'value': None, 'reason': 'No NAAIM data'}
 
@@ -825,7 +824,7 @@ class MarketExposure:
             'value': round(exposure, 1),
         }
 
-    def _credit_spread(self, eval_date):
+    def _credit_spread(self, eval_date, cur):
         """HY OAS credit spread (BAMLH0A0HYM2) — credit leads equity.
 
         Based on Apollo/Torsten Slok research: HY spreads widen 4-6 weeks
@@ -834,7 +833,7 @@ class MarketExposure:
 
         Scale: <3.5% = tight/healthy, 4-5% = mild stress, >7% = severe stress.
         """
-        self.cur.execute(
+        cur.execute(
             """
             SELECT value::float, date
             FROM economic_data
@@ -843,7 +842,7 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         if not rows:
             return {'score_factor': 0.7, 'value': None, 'reason': 'No HY spread data'}
 
@@ -887,7 +886,7 @@ class MarketExposure:
         signals = []
 
         # Signal 1: Yield curve (T10Y2Y) — inversion duration matters
-        self.cur.execute(
+        cur.execute(
             """
             SELECT value::float, date FROM economic_data
             WHERE series_id = 'T10Y2Y' AND date <= %s
@@ -895,7 +894,7 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        curve_rows = self.cur.fetchall()
+        curve_rows = cur.fetchall()
         if curve_rows:
             latest_spread = float(curve_rows[0][0])
             # How many consecutive weeks inverted?
@@ -911,7 +910,7 @@ class MarketExposure:
                 signals.append(f'Curve flat {latest_spread:.2f}%')
 
         # Signal 2: HY credit spread trend — is credit stress building?
-        self.cur.execute(
+        cur.execute(
             """
             SELECT value::float, date FROM economic_data
             WHERE series_id = 'BAMLH0A0HYM2' AND date <= %s
@@ -919,7 +918,7 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        hy_rows = self.cur.fetchall()
+        hy_rows = cur.fetchall()
         if hy_rows:
             hy_now = float(hy_rows[0][0])
             hy_60d = float(hy_rows[-1][0]) if len(hy_rows) >= 50 else hy_now
@@ -935,7 +934,7 @@ class MarketExposure:
                 signals.append(f'HY spread widening +{hy_widening_60d:.2f}pp in 60d')
 
         # Signal 3: Jobless claims trend — rising claims precede recessions
-        self.cur.execute(
+        cur.execute(
             """
             SELECT value::float, date FROM economic_data
             WHERE series_id = 'ICSA' AND date <= %s
@@ -943,7 +942,7 @@ class MarketExposure:
             """,
             (eval_date,),
         )
-        claims_rows = self.cur.fetchall()
+        claims_rows = cur.fetchall()
         if len(claims_rows) >= 26:
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
@@ -1006,7 +1005,7 @@ class MarketExposure:
 
             factors_json = json.dumps(result.get('factors', {}))
             halt_reasons_json = json.dumps(result.get('halt_reasons', []))
-            self.cur.execute(
+            cur.execute(
                 """
                 INSERT INTO market_exposure_daily
                     (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons,

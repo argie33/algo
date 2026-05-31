@@ -747,7 +747,7 @@ class SwingTraderScore:
             'net_accumulation': net,
         }
 
-    def _fundamentals_component(self, symbol: str) -> Tuple[float, Dict[str, Any]]:
+    def _fundamentals_component(self, symbol: str, cur) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate fundamental quality (10 max points).
 
@@ -821,7 +821,7 @@ class SwingTraderScore:
             'rev_yoy': rev_yoy,
         }
 
-    def _sector_component(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str]) -> Tuple[float, Dict[str, Any]]:
+    def _sector_component(self, symbol: str, eval_date, sector: Optional[str], industry: Optional[str], cur) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate sector and industry momentum context (8 max points).
 
@@ -944,7 +944,7 @@ class SwingTraderScore:
             'rotation_pts': rotation_pts,
         }
 
-    def _multi_timeframe_component(self, symbol: str, eval_date) -> Tuple[float, Dict[str, Any]]:
+    def _multi_timeframe_component(self, symbol: str, eval_date, cur) -> Tuple[float, Dict[str, Any]]:
         """
         Evaluate multi-timeframe alignment (5 max points).
 
