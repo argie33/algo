@@ -132,6 +132,37 @@ def run(
         try:
             with DatabaseContext('read') as cur:
                 _report_signal_waterfall(cur, eval_date, verbose, len(qualified))
+                # When nothing qualifies, emit a clear diagnostic so we know exactly why
+                if len(qualified) == 0:
+                    cur.execute(
+                        "SELECT date, market_stage, market_trend, distribution_days_4w, vix_level "
+                        "FROM market_health_daily ORDER BY date DESC LIMIT 1"
+                    )
+                    mh = cur.fetchone()
+                    cur.execute(
+                        "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
+                        (eval_date,)
+                    )
+                    bsd_count = (cur.fetchone() or [0])[0]
+                    cur.execute(
+                        "SELECT COUNT(*) FROM trend_template_data WHERE date = %s AND weinstein_stage = 2",
+                        (eval_date,)
+                    )
+                    stage2_stocks = (cur.fetchone() or [0])[0]
+                    if mh:
+                        logger.warning(
+                            f"[ZERO TRADES DIAGNOSIS] eval_date={eval_date} | "
+                            f"market_health latest={mh[0]} stage={mh[1]} trend={mh[2]} "
+                            f"dist_days={mh[3]} vix={mh[4]} | "
+                            f"buy_signals={bsd_count} stage2_stocks={stage2_stocks}"
+                        )
+                        if mh[1] != 2:
+                            logger.warning(
+                                f"[ZERO TRADES] Primary blocker: market_stage={mh[1]} (need 2 for Tier 2). "
+                                f"Set require_stage_2_market=false in algo_config table to trade in other market stages."
+                            )
+                    else:
+                        logger.warning(f"[ZERO TRADES DIAGNOSIS] eval_date={eval_date} | market_health_daily: NO ROWS FOUND")
         except Exception as e:
             logger.warning(f"Signal waterfall report failed (non-blocking): {e}")
 

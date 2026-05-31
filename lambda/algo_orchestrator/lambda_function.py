@@ -73,7 +73,12 @@ def lambda_handler(event, context):
         # Parse event payload
         source = event.get('source', 'eventbridge')
         is_test = event.get('test', False)
-        dry_run = event.get('dry_run', False)
+
+        # ORCHESTRATOR_DRY_RUN env var (set by Terraform) is the baseline.
+        # Event payload 'dry_run' key overrides it for manual invocations.
+        env_dry_run = os.getenv('ORCHESTRATOR_DRY_RUN', 'false').strip().lower() in ('true', '1', 'yes')
+        dry_run = event['dry_run'] if 'dry_run' in event else env_dry_run
+
         # Support both 'date' and 'run_date' fields from EventBridge; treat 'now'/'today' as None (use today's date)
         run_date_str = event.get('date') or event.get('run_date')
 
@@ -95,6 +100,14 @@ def lambda_handler(event, context):
             execution_mode = 'auto'
 
         logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}")
+        # Startup diagnostic: surface critical config state in every CloudWatch log
+        logger.info(
+            f"[CONFIG] ORCHESTRATOR_DRY_RUN={os.getenv('ORCHESTRATOR_DRY_RUN','<unset>')} "
+            f"ORCHESTRATOR_EXECUTION_MODE={os.getenv('ORCHESTRATOR_EXECUTION_MODE','<unset>')} "
+            f"ALPACA_PAPER_TRADING={os.getenv('ALPACA_PAPER_TRADING','<unset>')} "
+            f"APCA_API_BASE_URL={os.getenv('APCA_API_BASE_URL','<unset>')} "
+            f"ALGO_LIVE_TRADING={'SET' if os.getenv('ALGO_LIVE_TRADING') else 'NOT SET'}"
+        )
 
         # FIXED Issue #18: Default Lambda timeout to 600s instead of 240s (close to Lambda max)
         lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 600

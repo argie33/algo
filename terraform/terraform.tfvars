@@ -107,5 +107,5 @@ rds_multi_az = false  # COST OPTIMIZED: Single-AZ for dev. Saves ~$15/month. No 
 # ============================================================
 # COST OPTIMIZATION: Logging & Observability
 # ============================================================
-cloudwatch_log_retention_days = 1   # COST OPTIMIZED: 1 day retention for Lambda/ECS logs. Saves ~$15/month. If you need logs, query CloudWatch Insights in 24h window.
-api_gateway_log_retention_days = 1  # COST OPTIMIZED: 1 day retention for API Gateway logs. Saves ~$5/month. Real-time alerts via alarms handle issues.
+cloudwatch_log_retention_days = 7   # Increased from 1: 1 day was too short to debug why orchestrator wasn't trading; 7 days covers a full week of runs
+api_gateway_log_retention_days = 3  # Increased from 1: enough to debug API issues across a few days
