@@ -3036,11 +3036,22 @@ ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS volume_ma_50 BIGINT;
 -- company_profile: add market_cap so routes can use it instead of unpopulated key_metrics
 ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS market_cap BIGINT;
 
--- economic_calendar: event_id/event_time/updated_at added to schema but missing from live table
+-- economic_calendar: live table may have been created from an older schema with
+-- different column names. Add all required columns idempotently.
 ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_id VARCHAR(100);
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_date DATE;
 ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_time TIME;
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_name VARCHAR(255);
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS country VARCHAR(50) DEFAULT 'US';
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS importance VARCHAR(20);
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS forecast_value DECIMAL(12, 4);
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS actual_value DECIMAL(12, 4);
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS previous_value DECIMAL(12, 4);
 ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
--- UNIQUE constraint required for ON CONFLICT (event_id, event_date) in load_economic_calendar.py
+-- UNIQUE index required for ON CONFLICT (event_id, event_date) in load_economic_calendar.py
+-- DROP first in case it was created without event_date being populated
+DROP INDEX IF EXISTS idx_economic_calendar_event;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_economic_calendar_event ON economic_calendar(event_id, event_date);
 
 -- Note: INSERT/UPDATE requires dedicated service role with audit logging
