@@ -3,8 +3,8 @@
  * Provides wrapper components and utilities for testing actual site functionality with NO MOCKS
  */
 
-
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -37,6 +37,25 @@ export const testTheme = createTheme({
     },
   },
 });
+
+// Complete useAuth mock factory - provides all methods that components expect
+export const createMockUseAuth = (overrides = {}) => {
+  return {
+    user: { id: "test-user", email: "test@example.com", role: "user", ...overrides.user },
+    isAuthenticated: true,
+    isLoading: false,
+    error: null,
+    tokens: { accessToken: "mock-token", idToken: "mock-id-token", refreshToken: "mock-refresh-token" },
+    checkAuthState: vi.fn(async () => ({ success: true })),
+    login: vi.fn(async () => ({ success: true })),
+    logout: vi.fn(async () => ({ success: true })),
+    register: vi.fn(async () => ({ success: true })),
+    refreshSession: vi.fn(async () => ({ success: true })),
+    updateTokens: vi.fn(),
+    clearError: vi.fn(),
+    ...overrides,
+  };
+};
 
 // Test wrapper that includes all necessary providers for REAL site testing
 export const TestWrapper = ({ children, initialUser = null }) => {

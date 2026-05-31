@@ -1,6 +1,12 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
+import { createMockUseAuth } from "../../../test-utils";
 import AuthModal from "../../../../components/auth/AuthModal";
+
+// Mock AuthContext with complete useAuth implementation
+vi.mock("../../../../contexts/AuthContext", () => ({
+  useAuth: vi.fn(() => createMockUseAuth()),
+}));
 
 // Mock API service with standardized pattern
 vi.mock("../../../../services/api.js", () => ({
