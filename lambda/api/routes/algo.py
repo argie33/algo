@@ -1050,7 +1050,9 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
                 SELECT
                     date,
                     ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_lead_score,
+                    ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_avg_rs,
                     ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_weak_score,
+                    ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_avg_rs,
                     ROUND((COALESCE(defensive_strength, 0) - COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS spread,
                     CASE
                         WHEN COALESCE(defensive_strength, 0) > COALESCE(cyclical_strength, 0) THEN 'DEFENSIVE'
