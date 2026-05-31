@@ -1059,6 +1059,7 @@ def _get_sector_breadth(cur) -> Dict:
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
+            cur.execute("SET statement_timeout TO '25s'")
             score_filter = "AND s.score >= %s" if min_score is not None else ""
             query_params = [limit] if min_score is None else [min_score, limit]
             cur.execute(f"""
