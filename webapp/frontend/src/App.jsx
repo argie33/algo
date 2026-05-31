@@ -40,6 +40,7 @@ const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
 const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
 const NotificationCenter = React.lazy(() => import("./pages/NotificationCenter"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
+const SystemBlueprint = React.lazy(() => import("./pages/SystemBlueprint"));
 
 import { useAuth } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -164,6 +165,13 @@ const menuItems = [
     text: "Audit Log",
     icon: <TrendingUpIcon />,
     path: "/app/audit",
+    category: "admin",
+    adminOnly: true,
+  },
+  {
+    text: "System Blueprint",
+    icon: <TrendingUpIcon />,
+    path: "/app/blueprint",
     category: "admin",
     adminOnly: true,
   },
@@ -462,6 +470,7 @@ function App() {
         <Route path="/app/health" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute></ErrorBoundary>} />
         <Route path="/app/notifications" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><NotificationCenter /></ProtectedRoute></ErrorBoundary>} />
         <Route path="/app/audit" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/blueprint" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><SystemBlueprint /></ProtectedRoute></ErrorBoundary>} />
         <Route path="/app/pre-trade-simulator" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><PreTradeSimulator /></ProtectedRoute></ErrorBoundary>} />
         <Route path="/app/settings" element={<ErrorBoundary><ProtectedRoute requireAuth><Settings /></ProtectedRoute></ErrorBoundary>} />
       </Routes>
