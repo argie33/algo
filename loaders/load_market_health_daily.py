@@ -305,6 +305,85 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         return results
 
+VIX_FAMILY_SYMBOLS = ['^VIX', '^VIX9D', '^VIX3M', '^VIX6M']
+
+
+def _write_vix_family_prices(start: date, end: date) -> int:
+    """Download VIX-family index prices from yfinance and upsert into price_daily.
+
+    These index prices power the Volatility Term Structure card in MarketsHealth.
+    Returns the number of rows upserted.
+    """
+    try:
+        import yfinance as yf
+        from utils.database_context import DatabaseContext
+
+        records = []
+        for sym in VIX_FAMILY_SYMBOLS:
+            try:
+                df = yf.download(
+                    sym,
+                    start=start.isoformat(),
+                    end=(end + timedelta(days=1)).isoformat(),
+                    progress=False,
+                    auto_adjust=True,
+                )
+                if df is None or df.empty:
+                    logger.warning(f"No data for {sym}")
+                    continue
+
+                for idx, row in df.iterrows():
+                    d = idx.date() if hasattr(idx, 'date') else date.fromisoformat(str(idx)[:10])
+
+                    def _v(col):
+                        val = row.get(col)
+                        if val is None:
+                            return None
+                        if hasattr(val, '__len__'):
+                            val = val.iloc[0] if len(val) > 0 else None
+                        try:
+                            f = float(val)
+                            return None if f != f else round(f, 4)
+                        except (TypeError, ValueError):
+                            return None
+
+                    close = _v('Close')
+                    if close is None:
+                        continue
+                    records.append((
+                        sym, d,
+                        _v('Open') or close,
+                        _v('High') or close,
+                        _v('Low') or close,
+                        close,
+                        int(_v('Volume') or 0),
+                    ))
+                logger.info(f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch {sym}: {e}")
+
+        if not records:
+            return 0
+
+        with DatabaseContext('write') as cur:
+            cur.executemany("""
+                INSERT INTO price_daily (symbol, date, open, high, low, close, volume)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, date) DO UPDATE SET
+                    open   = EXCLUDED.open,
+                    high   = EXCLUDED.high,
+                    low    = EXCLUDED.low,
+                    close  = EXCLUDED.close,
+                    volume = EXCLUDED.volume
+            """, records)
+
+        logger.info(f"Upserted {len(records)} VIX family price rows into price_daily")
+        return len(records)
+    except Exception as e:
+        logger.error(f"VIX family price write failed: {e}")
+        return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Load market health daily metrics")
     parser.add_argument("--symbols", type=str, help="(Ignored - always uses SPY)")
@@ -314,6 +393,15 @@ def main():
     try:
         loader = MarketHealthDailyLoader()
         loader.run(["SPY"], parallelism=args.parallelism)
+
+        # Also write VIX-family term structure prices to price_daily so the
+        # VolTermStructureCard in MarketsHealth can render.
+        end = date.today()
+        start = end - timedelta(days=90)
+        written = _write_vix_family_prices(start, end)
+        if written > 0:
+            logger.info(f"VIX family: {written} rows written to price_daily")
+
         logger.info("Market health daily load completed")
         return 0
     except Exception as e:

@@ -1013,16 +1013,16 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
                     SELECT DISTINCT date FROM sector_performance WHERE date >= %s ORDER BY date DESC LIMIT %s
                 ),
                 defensive_sectors AS (
-                    SELECT 'Consumer Staples' AS sector UNION ALL
+                    SELECT 'Consumer Defensive' AS sector UNION ALL
                     SELECT 'Utilities' UNION ALL
                     SELECT 'Healthcare' UNION ALL
                     SELECT 'Real Estate'
                 ),
                 cyclical_sectors AS (
-                    SELECT 'Consumer Discretionary' AS sector UNION ALL
+                    SELECT 'Consumer Cyclical' AS sector UNION ALL
                     SELECT 'Industrials' UNION ALL
-                    SELECT 'Materials' UNION ALL
-                    SELECT 'Information Technology'
+                    SELECT 'Basic Materials' UNION ALL
+                    SELECT 'Technology'
                 ),
                 sector_perf AS (
                     SELECT

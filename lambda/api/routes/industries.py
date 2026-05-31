@@ -47,9 +47,37 @@ def _industry_list(cur, params):
     page = safe_page(page_str, default=1)
     offset = (page - 1) * limit
 
-    cur.execute("SET statement_timeout TO '20s'")
+    cur.execute("SET statement_timeout TO '25s'")
     cur.execute("""
-        WITH industry_scores AS (
+        WITH industry_price_perf AS (
+            SELECT
+                cp.industry,
+                ROUND(
+                    (AVG(CASE WHEN pd.date = (SELECT MAX(date) FROM price_daily) THEN pd.close END) /
+                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT MAX(date) FROM price_daily) - INTERVAL '3 days'
+                                                      AND (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
+                                    THEN pd.close END), 0) - 1) * 100, 2
+                ) AS perf_1d,
+                ROUND(
+                    (AVG(CASE WHEN pd.date = (SELECT MAX(date) FROM price_daily) THEN pd.close END) /
+                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT MAX(date) FROM price_daily) - INTERVAL '8 days'
+                                                      AND (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
+                                    THEN pd.close END), 0) - 1) * 100, 2
+                ) AS perf_5d,
+                ROUND(
+                    (AVG(CASE WHEN pd.date = (SELECT MAX(date) FROM price_daily) THEN pd.close END) /
+                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT MAX(date) FROM price_daily) - INTERVAL '25 days'
+                                                      AND (SELECT MAX(date) FROM price_daily) - INTERVAL '18 days'
+                                    THEN pd.close END), 0) - 1) * 100, 2
+                ) AS perf_20d
+            FROM price_daily pd
+            JOIN company_profile cp ON pd.symbol = cp.ticker
+            WHERE pd.date >= (SELECT MAX(date) FROM price_daily) - INTERVAL '30 days'
+              AND cp.industry IS NOT NULL
+              AND pd.symbol NOT LIKE '^%%'
+            GROUP BY cp.industry
+        ),
+        industry_scores AS (
             SELECT
                 cp.industry,
                 cp.sector,
@@ -59,10 +87,7 @@ def _industry_list(cur, params):
                 AVG(ss.value_score)                 AS value_score,
                 AVG(ss.quality_score)               AS quality_score,
                 AVG(ss.growth_score)                AS growth_score,
-                AVG(ss.stability_score)             AS stability_score,
-                NULL::numeric AS perf_1d,
-                NULL::numeric AS perf_5d,
-                NULL::numeric AS perf_20d
+                AVG(ss.stability_score)             AS stability_score
             FROM company_profile cp
             LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
             WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
@@ -93,11 +118,17 @@ def _industry_list(cur, params):
             FROM industry_ranking
             WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
         )
-        SELECT r.*, ipe.avg_trailing_pe, ipe.avg_pb_ratio, ipe.pe_percentile,
-               lr.rank_1w_ago, lr.rank_4w_ago, lr.rank_12w_ago
+        SELECT
+            r.industry, r.sector, r.stock_count, r.composite_score,
+            r.momentum_score, r.value_score, r.quality_score, r.growth_score,
+            r.stability_score, r.current_rank,
+            ipe.avg_trailing_pe, ipe.avg_pb_ratio, ipe.pe_percentile,
+            lr.rank_1w_ago, lr.rank_4w_ago, lr.rank_12w_ago,
+            ipp.perf_1d, ipp.perf_5d, ipp.perf_20d
         FROM ranked r
         LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
         LEFT JOIN latest_ranking lr ON lr.industry = r.industry
+        LEFT JOIN industry_price_perf ipp ON ipp.industry = r.industry
         ORDER BY r.current_rank, r.stock_count DESC
         LIMIT %s OFFSET %s
     """, (limit, offset))
