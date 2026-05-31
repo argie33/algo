@@ -71,7 +71,7 @@ jobs:
             --task-definition algo-stock_prices_daily-loader \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
-            --overrides '{"containerOverrides":[{"name":"loader","environment":[{"name":"LOADER_SYMBOLS","value":"SPY,QQQ,IWM"},{"name":"LOADER_INTERVALS","value":"1d"},{"name":"LOADER_ASSET_CLASSES","value":"stock"}]}]}' \
+            --overrides '{"containerOverrides":[{"name":"algo-stock_prices_daily","environment":[{"name":"LOADER_SYMBOLS","value":"SPY,QQQ,IWM"},{"name":"LOADER_INTERVALS","value":"1d"},{"name":"LOADER_ASSET_CLASSES","value":"stock"}]}]}' \
             --region us-east-1
 
           echo "SPY price loader launched with symbol override. Waiting 120 seconds..."
