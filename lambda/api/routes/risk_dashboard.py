@@ -217,7 +217,7 @@ def _get_drawdown_metrics(cur) -> Dict:
     except Exception as e:
         return handle_db_error(e, logger, 'fetch drawdown metrics')
 
-def _get_exposure_tier_info_endpoint(cur) -> Dict:
+def _get_exposure_tier_info(cur) -> Dict:
     """GET /api/algo/risk-dashboard/exposure-tier"""
     try:
         info = _fetch_exposure_tier_info(cur)
