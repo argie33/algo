@@ -30,6 +30,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
+                cur.execute("SET statement_timeout TO '25s'")
                 cur.execute("""
                     WITH daily AS (
                         SELECT symbol, date, close,

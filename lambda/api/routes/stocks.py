@@ -72,11 +72,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     SELECT symbol, fiscal_year, gross_profit, revenue, operating_income, net_income,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
+                    WHERE symbol IN (SELECT symbol FROM value_stocks)
                 ),
                 balance_ranked AS (
                     SELECT symbol, stockholders_equity,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
+                    WHERE symbol IN (SELECT symbol FROM value_stocks)
                 ),
                 margin_data AS (
                     SELECT
@@ -110,6 +112,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                         FROM annual_cash_flow
                         WHERE free_cash_flow IS NOT NULL
+                          AND symbol IN (SELECT symbol FROM value_stocks)
                     ) t
                     GROUP BY symbol
                 )
