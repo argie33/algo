@@ -1003,38 +1003,39 @@ class MarketExposure:
 
             factors_json = json.dumps(result.get('factors', {}))
             halt_reasons_json = json.dumps(result.get('halt_reasons', []))
-            cur.execute(
-                """
-                INSERT INTO market_exposure_daily
-                    (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons,
-                     long_exposure_pct, short_exposure_pct, is_entry_allowed, exposure_tier)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (date) DO UPDATE SET
-                    exposure_pct = EXCLUDED.exposure_pct,
-                    raw_score = EXCLUDED.raw_score,
-                    regime = EXCLUDED.regime,
-                    distribution_days = EXCLUDED.distribution_days,
-                    factors = EXCLUDED.factors,
-                    halt_reasons = EXCLUDED.halt_reasons,
-                    long_exposure_pct = EXCLUDED.long_exposure_pct,
-                    short_exposure_pct = EXCLUDED.short_exposure_pct,
-                    is_entry_allowed = EXCLUDED.is_entry_allowed,
-                    exposure_tier = EXCLUDED.exposure_tier
-                """,
-                (
-                    eval_date,
-                    exposure_pct,
-                    result.get('raw_score', exposure_pct),
-                    result.get('regime', 'unknown'),
-                    result.get('distribution_days', 0),
-                    factors_json,
-                    halt_reasons_json,
-                    long_exp,
-                    short_exp,
-                    is_entry_allowed,
-                    tier,
-                ),
-            )
+            with DatabaseContext('write') as cur:
+                cur.execute(
+                    """
+                    INSERT INTO market_exposure_daily
+                        (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons,
+                         long_exposure_pct, short_exposure_pct, is_entry_allowed, exposure_tier)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (date) DO UPDATE SET
+                        exposure_pct = EXCLUDED.exposure_pct,
+                        raw_score = EXCLUDED.raw_score,
+                        regime = EXCLUDED.regime,
+                        distribution_days = EXCLUDED.distribution_days,
+                        factors = EXCLUDED.factors,
+                        halt_reasons = EXCLUDED.halt_reasons,
+                        long_exposure_pct = EXCLUDED.long_exposure_pct,
+                        short_exposure_pct = EXCLUDED.short_exposure_pct,
+                        is_entry_allowed = EXCLUDED.is_entry_allowed,
+                        exposure_tier = EXCLUDED.exposure_tier
+                    """,
+                    (
+                        eval_date,
+                        exposure_pct,
+                        result.get('raw_score', exposure_pct),
+                        result.get('regime', 'unknown'),
+                        result.get('distribution_days', 0),
+                        factors_json,
+                        halt_reasons_json,
+                        long_exp,
+                        short_exp,
+                        is_entry_allowed,
+                        tier,
+                    ),
+                )
             logger.info(f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}")
         except Exception as e:
             logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
