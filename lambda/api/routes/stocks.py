@@ -34,7 +34,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
             cur.execute("SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1")
             if not cur.fetchone():
                 return list_response([])
-            cur.execute("SET statement_timeout TO '25s'")
+            cur.execute("SET statement_timeout TO '28s'")
             cur.execute("""
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
