@@ -62,7 +62,7 @@ class AlgoConfig:
 
         # Market Conditions
         'max_distribution_days': ('4', 'int', 'Max market distribution days'),
-        'require_stage_2_market': ('true', 'bool', 'Require uptrend market stage'),
+        'require_stage_2_market': ('false', 'bool', 'Require market Stage 2 at Tier 2 (disabled: CB6 blocks Stage 4; per-stock weinstein_stage=2 check and exposure policy manage regime risk)'),
         'vix_max_threshold': ('35.0', 'float', 'VIX level to halt trading'),
         'vix_caution_threshold': ('25.0', 'float', 'VIX level to reduce positions'),
         'vix_caution_risk_reduction': ('0.75', 'float', 'Risk multiplier when VIX > caution threshold'),

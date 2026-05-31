@@ -525,3 +525,17 @@ terraform plan -var-file=terraform.tfvars  # Should succeed now
 All phases write to `algo_audit_log`. Fail-closed on critical (Phase 1, 2), fail-open on operational (Phases 3-7).
 
 **`_final_report()` returns:** `success=True` if no error/fail statuses; `halted=True` if any phase halted (expected behavior). Lambda returns 200 regardless — use `halted` field to distinguish intended halt from error.
+
+## SIGNAL FILTER ARCHITECTURE (Tier 2 market gate)
+
+**`require_stage_2_market` is `false` by default (changed 2026-05-31).**
+
+- **Old behavior (broken):** Tier 2 required `market_health_daily.market_stage == 2`. On any day the market isn't in a confirmed uptrend, ALL signals were rejected, regardless of individual stock quality.
+- **New behavior:** Tier 2 only checks VIX and distribution days. Market regime is handled by:
+  1. **Circuit Breaker (CB6):** Halts all new entries when `market_stage == 4` (confirmed downtrend).
+  2. **Per-stock Stage 2 check:** `trend_template_data.weinstein_stage` must be 2 for each individual stock (pre-tier filter, always active).
+  3. **Exposure Policy (Phase 3b):** Computes market exposure score (11 factors); maps to tier (correction/caution/pressure/uptrend) with corresponding risk multiplier and entry caps.
+
+**Why removed:** The triple gate (market Stage 2 + per-stock Stage 2 + exposure policy) was over-constrained. In Lambda, `algo_config` DB table is skipped (`AWS_LAMBDA_FUNCTION_NAME` check), so only Python defaults apply. The market Stage 2 gate in Tier 2 was blocking 100% of trades any time the market was in Stage 1 or 3 — including during healthy bull market consolidations.
+
+**To re-enable:** Set `require_stage_2_market = true` in `algo_config.py` defaults (requires code deploy). Do not use DB table — Lambda ignores it.
