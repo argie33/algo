@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   Box,
   Card,
@@ -76,11 +76,11 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
       breadthScore = (advancePercent - 50) * 0.6; // Max ±30 points
 
       if (advancePercent > 65) {
-        signals.push({ label: "Strong Breadth", color: "success", icon: "ðŸ“ˆ" });
+        signals.push({ label: "Strong Breadth", color: "success", icon: "📈" });
       } else if (advancePercent > 55) {
-        signals.push({ label: "Positive Breadth", color: "success", icon: "ðŸ“Š" });
+        signals.push({ label: "Positive Breadth", color: "success", icon: "📊" });
       } else if (advancePercent < 35) {
-        signals.push({ label: "Weak Breadth", color: "error", icon: "ðŸ“‰" });
+        signals.push({ label: "Weak Breadth", color: "error", icon: "📉" });
       } else if (advancePercent < 45) {
         signals.push({ label: "Declining Breadth", color: "warning", icon: "⚠ï¸" });
       }
@@ -105,13 +105,13 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
         sentimentScore = spxIndex.changePercent * 6.67;
 
         if (spxIndex.changePercent > 2) {
-          signals.push({ label: "Strong Market Up", color: "success", icon: "ðŸŸ¢" });
+          signals.push({ label: "Strong Market Up", color: "success", icon: "🟢" });
         } else if (spxIndex.changePercent > 0.5) {
-          signals.push({ label: "Market Up", color: "success", icon: "ðŸ“ˆ" });
+          signals.push({ label: "Market Up", color: "success", icon: "📈" });
         } else if (spxIndex.changePercent < -2) {
-          signals.push({ label: "Market Down", color: "error", icon: "ðŸ”´" });
+          signals.push({ label: "Market Down", color: "error", icon: "🔴" });
         } else if (spxIndex.changePercent < -0.5) {
-          signals.push({ label: "Market Declining", color: "warning", icon: "ðŸ“‰" });
+          signals.push({ label: "Market Declining", color: "warning", icon: "📉" });
         }
       }
     }
@@ -132,10 +132,10 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 
     if (recentDistribution >= 6) {
       distributionScore = -30; // Maximum penalty
-      signals.push({ label: "High Distribution ⚠ï¸", color: "error", icon: "â›”" });
+      signals.push({ label: "High Distribution ⚠ï¸", color: "error", icon: "⛔" });
     } else if (recentDistribution >= 4) {
       distributionScore = -20;
-      signals.push({ label: `${recentDistribution} Distribution Days`, color: "error", icon: "â›”" });
+      signals.push({ label: `${recentDistribution} Distribution Days`, color: "error", icon: "⛔" });
     } else if (recentDistribution >= 2) {
       distributionScore = -10;
       signals.push({ label: `${recentDistribution} Distribution Days`, color: "warning", icon: "⚠ï¸" });
@@ -464,12 +464,12 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
           <Grid container spacing={1}>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                ðŸ“ˆ If Bullish: Enter on strength
+                📈 If Bullish: Enter on strength
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                ðŸ“‰ If Bearish: Reduce exposure
+                📉 If Bearish: Reduce exposure
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -479,7 +479,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <Typography variant="caption" color="text.secondary" display="block">
-                ðŸ’° Scale in/out gradually
+                💰 Scale in/out gradually
               </Typography>
             </Grid>
           </Grid>

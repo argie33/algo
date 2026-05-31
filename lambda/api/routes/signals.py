@@ -54,6 +54,12 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     bsd.close, bsd.volume, bsd.base_type, bsd.base_length_days,
                     bsd.market_stage, bsd.buylevel, bsd.stoplevel,
                     bsd.signal_triggered_date, bsd.entry_price,
+                    bsd.buy_zone_start, bsd.buy_zone_end,
+                    bsd.pivot_price, bsd.initial_stop, bsd.trailing_stop,
+                    bsd.sell_level,
+                    bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
+                    bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
+                    bsd.avg_volume_50d,
                     cp.sector, cp.industry
                 FROM buy_sell_daily bsd
                 LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol

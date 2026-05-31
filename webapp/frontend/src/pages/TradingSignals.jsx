@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Trading Signals — analytical workbench for swing-trader signals.
  *
  * Sections:
@@ -790,9 +790,9 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
       <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)', lineHeight: 1.5 }}>
         <strong>Column meanings:</strong>
         <span> SQS = Composite signal quality (from algo evaluation, shows "—" if algo hasn't evaluated yet)</span>
-        <span> â€¢ Gates = Algo qualification (PASS/FAIL with grade, or "—" if unevaluated)</span>
-        <span> â€¢ Age = Days since signal triggered</span>
-        <span> â€¢ Click any row for full details</span>
+        <span> • Gates = Algo qualification (PASS/FAIL with grade, or "—" if unevaluated)</span>
+        <span> • Age = Days since signal triggered</span>
+        <span> • Click any row for full details</span>
       </div>
       <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
         <table className="data-table">

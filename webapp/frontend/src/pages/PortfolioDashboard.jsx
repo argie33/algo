@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Portfolio Dashboard — algo-only.
  *
  * Surfaces every metric the algo tracks: open positions w/ R/stop/targets,
@@ -142,13 +142,13 @@ export default function PortfolioDashboard() {
           <div style={{ padding: 'var(--space-4)' }}>
             <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>Failed to load portfolio data</div>
             <div className="muted t-sm" style={{ marginBottom: 'var(--space-4)' }}>
-              {statusError && <div>â€¢ Status unavailable</div>}
-              {posError && <div>â€¢ Positions unavailable</div>}
-              {perfError && <div>â€¢ Performance metrics unavailable</div>}
-              {tradesError && <div>â€¢ Trade history unavailable</div>}
-              {marketsError && <div>â€¢ Market data unavailable</div>}
-              {equityError && <div>â€¢ Equity curve unavailable</div>}
-              {breakersError && <div>â€¢ Circuit breakers unavailable</div>}
+              {statusError && <div>• Status unavailable</div>}
+              {posError && <div>• Positions unavailable</div>}
+              {perfError && <div>• Performance metrics unavailable</div>}
+              {tradesError && <div>• Trade history unavailable</div>}
+              {marketsError && <div>• Market data unavailable</div>}
+              {equityError && <div>• Equity curve unavailable</div>}
+              {breakersError && <div>• Circuit breakers unavailable</div>}
             </div>
             <button
               className="btn btn-sm"
@@ -611,7 +611,7 @@ function DailyReturnHistogram({ series }) {
           <div className="card-title">Daily Return Distribution</div>
           <div className="card-sub">
             {stats
-              ? `${stats.n} sessions · mean ${stats.mean.toFixed(2)}% · Ïƒ ${stats.std.toFixed(2)}%`
+              ? `${stats.n} sessions · mean ${stats.mean.toFixed(2)}% · σ ${stats.std.toFixed(2)}%`
               : 'Last 90 days'}
           </div>
         </div>
@@ -835,7 +835,7 @@ function RLadderPanel({ positions, loading, onSelect }) {
                   {l.pT1 != null && <Marker pct={l.pT1} color="var(--cyan)" label="T1" />}
                   {l.pT2 != null && <Marker pct={l.pT2} color="var(--purple)" label="T2" />}
                   {l.pT3 != null && <Marker pct={l.pT3} color="var(--success)" label="T3" />}
-                  <Marker pct={l.pCur} color="var(--brand)" label="â—†" big />
+                  <Marker pct={l.pCur} color="var(--brand)" label="◆" big />
                 </div>
               </div>
             ))}

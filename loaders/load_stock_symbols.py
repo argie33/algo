@@ -68,7 +68,7 @@ class StockSymbolsLoader(OptimalLoader):
                         'symbol': sym,
                         'security_name': name,
                         'exchange': r.get("Listing Exchange", "NASDAQ").upper(),
-                        'is_etf': False,
+                        'etf': 'N',
                     })
 
             return rows if rows else None

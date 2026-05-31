@@ -54,7 +54,8 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
 
             where_clause = """
             WHERE sc.composite_score > 0
-            AND (ss.etf IS NULL OR ss.etf != 'Y')
+            AND COALESCE(ss.etf, 'N') != 'Y'
+            AND sc.symbol NOT IN (SELECT symbol FROM etf_symbols)
             """
             params_list = []
 

@@ -496,7 +496,11 @@ def main():
         all_symbols = (args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60))
         # Filter out ETFs - only score actual stocks
         with DatabaseContext('read') as cur:
-            cur.execute("SELECT symbol FROM stock_symbols WHERE etf = 'Y'")
+            cur.execute("""
+                SELECT symbol FROM stock_symbols WHERE COALESCE(etf, 'N') = 'Y'
+                UNION
+                SELECT symbol FROM etf_symbols
+            """)
             etf_symbols = {row[0] for row in cur.fetchall()}
         symbols = [s for s in all_symbols if s not in etf_symbols]
         logger.info(f"Filtering out {len(all_symbols) - len(symbols)} ETFs from {len(all_symbols)} total symbols")

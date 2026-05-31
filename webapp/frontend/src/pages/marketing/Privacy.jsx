@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Container, Box, Typography, useTheme, List, ListItem } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -22,11 +22,11 @@ const Privacy = () => {
             We may collect the following types of information:
           </Typography>
           <List sx={{ color: theme.palette.text.secondary, ml: 2 }}>
-            <ListItem>â€¢ Email address when you sign up for our newsletter or services</ListItem>
-            <ListItem>â€¢ Name and contact information when you submit a contact form</ListItem>
-            <ListItem>â€¢ Usage data and analytics about how you interact with our website</ListItem>
-            <ListItem>â€¢ IP address and browser information for security and analytics purposes</ListItem>
-            <ListItem>â€¢ Account information if you create an account on our platform</ListItem>
+            <ListItem>• Email address when you sign up for our newsletter or services</ListItem>
+            <ListItem>• Name and contact information when you submit a contact form</ListItem>
+            <ListItem>• Usage data and analytics about how you interact with our website</ListItem>
+            <ListItem>• IP address and browser information for security and analytics purposes</ListItem>
+            <ListItem>• Account information if you create an account on our platform</ListItem>
           </List>
 
           <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 4 }}>
@@ -36,12 +36,12 @@ const Privacy = () => {
             We use the information we collect for the following purposes:
           </Typography>
           <List sx={{ color: theme.palette.text.secondary, ml: 2 }}>
-            <ListItem>â€¢ To send you newsletters and updates you've signed up for</ListItem>
-            <ListItem>â€¢ To respond to your inquiries and provide customer support</ListItem>
-            <ListItem>â€¢ To improve our website and services</ListItem>
-            <ListItem>â€¢ To analyze usage patterns and trends</ListItem>
-            <ListItem>â€¢ To comply with legal obligations</ListItem>
-            <ListItem>â€¢ To protect against fraud and ensure security</ListItem>
+            <ListItem>• To send you newsletters and updates you've signed up for</ListItem>
+            <ListItem>• To respond to your inquiries and provide customer support</ListItem>
+            <ListItem>• To improve our website and services</ListItem>
+            <ListItem>• To analyze usage patterns and trends</ListItem>
+            <ListItem>• To comply with legal obligations</ListItem>
+            <ListItem>• To protect against fraud and ensure security</ListItem>
           </List>
 
           <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 4 }}>
@@ -72,12 +72,12 @@ const Privacy = () => {
             Depending on your location, you may have the following rights:
           </Typography>
           <List sx={{ color: theme.palette.text.secondary, ml: 2 }}>
-            <ListItem>â€¢ Right to access your personal information</ListItem>
-            <ListItem>â€¢ Right to correct inaccurate information</ListItem>
-            <ListItem>â€¢ Right to request deletion of your information</ListItem>
-            <ListItem>â€¢ Right to unsubscribe from marketing communications</ListItem>
-            <ListItem>â€¢ Right to data portability</ListItem>
-            <ListItem>â€¢ Right to withdraw consent</ListItem>
+            <ListItem>• Right to access your personal information</ListItem>
+            <ListItem>• Right to correct inaccurate information</ListItem>
+            <ListItem>• Right to request deletion of your information</ListItem>
+            <ListItem>• Right to unsubscribe from marketing communications</ListItem>
+            <ListItem>• Right to data portability</ListItem>
+            <ListItem>• Right to withdraw consent</ListItem>
           </List>
 
           <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 4 }}>

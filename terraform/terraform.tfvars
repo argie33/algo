@@ -45,7 +45,7 @@ data_patrol_enabled             = true
 data_patrol_timeout_ms          = 30000
 alpaca_paper_trading            = true  # PAPER trading mode — keys in Secrets Manager are paper keys; switch to false when live keys are configured
 api_lambda_timeout              = 300
-api_lambda_reserved_concurrency = 0    # COST OPTIMIZED: Eliminated reserved concurrency. On-demand only (~$0.20/invocation). API is low-traffic during trading hours.
+api_lambda_reserved_concurrency = 10   # Supports concurrent dashboard requests (MarketsHealth makes 5+ simultaneous calls). Prevents 503 throttle errors.
 algo_lambda_timeout = 600
 # COST OPTIMIZED: Removed reserved concurrency for both Lambdas. Saves $170+/month. On-demand pricing is cheaper unless you have sustained high traffic.
 # Worst case: cold start delays (15-40s) on first request of the day. Acceptable for trading system with predictable schedules.

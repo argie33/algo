@@ -263,8 +263,8 @@ function RegimeBanner({ markets }) {
       <div className="alert alert-warn">
         <AlertTriangle size={18} />
         <div>
-          <div style={{ fontWeight: 'var(--w-semibold)' }}>Exposure not yet computed</div>
-          <div className="muted t-sm">Run algo_market_exposure.py to populate the 11-factor regime.</div>
+          <div style={{ fontWeight: 'var(--w-semibold)' }}>Market exposure not yet computed for today</div>
+          <div className="muted t-sm">The orchestrator computes the 11-factor regime at 9:30 AM and 1:00 PM ET on trading days. Check back after the next run.</div>
         </div>
       </div>
     );
@@ -1069,8 +1069,6 @@ function SectorTile({ etf, name, weight, onSelect }) {
   const borderC = chgPct == null ? 'var(--border)'
     : chgPct >= 0 ? 'var(--success)' : 'var(--danger)';
 
-  // Size proportional to weight (rough mcap proxy)
-  const fontSize = 11 + weight * 0.25; // 11.5 to 18.5px
   return (
     <button
       onClick={() => onSelect && onSelect(name)}
@@ -1083,9 +1081,7 @@ function SectorTile({ etf, name, weight, onSelect }) {
         color: 'var(--text)',
         cursor: 'pointer',
         textAlign: 'left',
-        gridColumn: `span ${Math.max(1, Math.round(weight / 3))}`,
-        gridRow:    `span ${Math.max(1, Math.round(weight / 6))}`,
-        minHeight: 70,
+        minHeight: 80,
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
         transition: 'transform 100ms',
       }}
@@ -1093,14 +1089,14 @@ function SectorTile({ etf, name, weight, onSelect }) {
       onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontWeight: 'var(--w-bold)', fontSize: `${fontSize}px` }}>{etf}</span>
+        <span style={{ fontWeight: 'var(--w-bold)', fontSize: 'var(--t-md)' }}>{etf}</span>
         <span className="t-2xs" style={{ color: 'var(--text-faint)' }}>{weight}%</span>
       </div>
       <div className="t-2xs" style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {name}
       </div>
       <div className="tnum" style={{
-        fontSize: `${fontSize + 2}px`,
+        fontSize: 'var(--t-lg)',
         fontWeight: 'var(--w-bold)',
         color: chgPct == null ? 'var(--text-faint)' : (chgPct >= 0 ? 'var(--success)' : 'var(--danger)'),
       }}>
@@ -1122,8 +1118,7 @@ function SectorHeatMap({ onSelect }) {
       <div className="card-body">
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(20, 1fr)',
-          gridAutoRows: '40px',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
           gap: 'var(--space-2)',
         }}>
           {SECTOR_ETFS.map(s => (

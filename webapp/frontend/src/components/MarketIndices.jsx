@@ -1,4 +1,4 @@
-﻿import {
+import {
   Box,
   Card,
   CardContent,
@@ -99,7 +99,7 @@ const MarketIndices = ({ data, isLoading, error }) => {
   return (
     <Box>
       <Alert severity="info" sx={{ mb: 3 }}>
-        ðŸ“Š <strong>Market Indices</strong> - Real-time market index data
+        📊 <strong>Market Indices</strong> - Real-time market index data
       </Alert>
 
       <Grid container spacing={3}>

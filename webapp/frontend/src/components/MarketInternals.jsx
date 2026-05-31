@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Card,
@@ -412,7 +412,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   <strong>Std Devs from Mean:</strong>{" "}
-                  {market_extremes.stddev_from_mean}Ïƒ
+                  {market_extremes.stddev_from_mean}σ
                 </Typography>
                 <Typography variant="body2">
                   <strong>Breadth Rank:</strong>{" "}

@@ -1,4 +1,4 @@
-﻿import ReactDOM from "react-dom/client";
+import ReactDOM from "react-dom/client";
 import "./index.css"; // Tailwind base + design system tokens
 import { theme } from "./services/theme";
 
@@ -66,7 +66,7 @@ window.addEventListener(
 
     // Log detailed error for .type access issues
     if (e.message && e.message.includes("Cannot read properties of undefined (reading 'type')")) {
-      console.group("ðŸ”´ CRITICAL: .type access on undefined detected!");
+      console.group("🔴 CRITICAL: .type access on undefined detected!");
       console.error("Message:", e.message);
       console.error("Location:", `${e.filename}:${e.lineno}:${e.colno}`);
       console.error("Stack trace:", e.error?.stack);

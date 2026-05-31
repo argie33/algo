@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   RefreshCw, TrendingUp, Activity,
   AlertCircle, Inbox, CalendarDays, BarChart2, Zap, DollarSign, Home,
@@ -365,7 +365,7 @@ export default function EconomicDashboard() {
                         <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                         <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
                         <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => (+v).toFixed(1)} />
-                        <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`${(+v).toFixed(2)} Ïƒ`, 'FCI']} />
+                        <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`${(+v).toFixed(2)} σ`, 'FCI']} />
                         <ReferenceLine y={0} stroke="var(--border-2)" strokeDasharray="4 4" />
                         <Area type="monotone" dataKey="fci" stroke="var(--purple)" strokeWidth={2}
                           fill={fci.at(-1)?.fci > 0 ? 'url(#fciUp)' : 'url(#fciDn)'} />
@@ -1088,7 +1088,7 @@ function EconomicRegimeClock({ indicators, _yieldData }) {
             <div className="stile">
               <div className="stile-label">Growth Axis</div>
               <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
-                <div>GDP trend: <strong style={{ color: gdpTrend > 0 ? 'var(--success)' : gdpTrend < 0 ? 'var(--danger)' : 'var(--text)' }}>{gdpTrend > 0 ? 'â†— Expanding' : gdpTrend < 0 ? 'â†˜ Contracting' : '→ Flat'}</strong></div>
+                <div>GDP trend: <strong style={{ color: gdpTrend > 0 ? 'var(--success)' : gdpTrend < 0 ? 'var(--danger)' : 'var(--text)' }}>{gdpTrend > 0 ? '↗ Expanding' : gdpTrend < 0 ? '↘ Contracting' : '→ Flat'}</strong></div>
                 <div style={{ marginTop: 4 }}>ISM Manufacturing: <strong className={ismVal > 50 ? 'up' : ismVal < 50 ? 'down' : ''}>{ismVal.toFixed(1)}</strong></div>
               </div>
             </div>
@@ -1315,7 +1315,7 @@ function LEIPanel({ indicators }) {
           <div className="stile">
             <div className="stile-label">6-Month Trend</div>
             <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
-              <div>vs 26-week avg: <strong className={sixMonthTrend === 'up' ? 'up' : sixMonthTrend === 'down' ? 'down' : ''}>{sixMonthTrend === 'up' ? 'â†— Improving' : sixMonthTrend === 'down' ? 'â†˜ Deteriorating' : '→ Flat'}</strong></div>
+              <div>vs 26-week avg: <strong className={sixMonthTrend === 'up' ? 'up' : sixMonthTrend === 'down' ? 'down' : ''}>{sixMonthTrend === 'up' ? '↗ Improving' : sixMonthTrend === 'down' ? '↘ Deteriorating' : '→ Flat'}</strong></div>
               <div style={{ marginTop: 4 }}>Latest: <strong>{chartData.length > 0 ? chartData[chartData.length - 1].lei.toFixed(0) : '—'}</strong></div>
             </div>
           </div>

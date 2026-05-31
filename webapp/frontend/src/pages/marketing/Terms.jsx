@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Container, Box, Typography, useTheme, List, ListItem } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
@@ -29,12 +29,12 @@ const Terms = () => {
             Permission is granted to temporarily download one copy of the materials (information or software) on Bullseye Financial's website for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
           </Typography>
           <List sx={{ color: theme.palette.text.secondary, ml: 2 }}>
-            <ListItem>â€¢ Modify or copy the materials</ListItem>
-            <ListItem>â€¢ Use the materials for any commercial purpose or for any public display</ListItem>
-            <ListItem>â€¢ Attempt to decompile or reverse engineer any software contained on the website</ListItem>
-            <ListItem>â€¢ Remove any copyright or other proprietary notations from the materials</ListItem>
-            <ListItem>â€¢ Transfer the materials to another person or "mirror" the materials on any other server</ListItem>
-            <ListItem>â€¢ Violate any applicable laws or regulations related to access to or use of the website</ListItem>
+            <ListItem>• Modify or copy the materials</ListItem>
+            <ListItem>• Use the materials for any commercial purpose or for any public display</ListItem>
+            <ListItem>• Attempt to decompile or reverse engineer any software contained on the website</ListItem>
+            <ListItem>• Remove any copyright or other proprietary notations from the materials</ListItem>
+            <ListItem>• Transfer the materials to another person or "mirror" the materials on any other server</ListItem>
+            <ListItem>• Violate any applicable laws or regulations related to access to or use of the website</ListItem>
           </List>
 
           <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 4 }}>

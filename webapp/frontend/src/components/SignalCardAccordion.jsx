@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   Accordion,
   AccordionSummary,
@@ -436,16 +436,16 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       EXIT TRIGGER STATUS:
                     </Typography>
                     {signal.exit_21ema_break && (
-                      <Chip label="ðŸŸ¡ 21-EMA Break" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="🟡 21-EMA Break" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {signal.exit_50dma_light_volume && (
-                      <Chip label="ðŸŸ  50-DMA (Light Vol)" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="🟠 50-DMA (Light Vol)" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {signal.exit_50dma_heavy_volume && (
-                      <Chip label="ðŸ”´ 50-DMA (Heavy Vol)" size="small" variant="outlined" color="error" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="🔴 50-DMA (Heavy Vol)" size="small" variant="outlined" color="error" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {signal.exit_power_trend_flag && (
-                      <Chip label="âš¡ Power Trend (8-Week Hold)" size="small" variant="outlined" color="warning" sx={{ mr: 0.5, mb: 0.5 }} />
+                      <Chip label="⚡ Power Trend (8-Week Hold)" size="small" variant="outlined" color="warning" sx={{ mr: 0.5, mb: 0.5 }} />
                     )}
                     {!signal.exit_21ema_break && !signal.exit_50dma_light_volume && !signal.exit_50dma_heavy_volume && (
                       <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>

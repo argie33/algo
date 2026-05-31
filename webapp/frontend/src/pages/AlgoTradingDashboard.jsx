@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Swing Trading Algo Dashboard
  *
  * Focus: orchestrator run status, signal pipeline, exposure, circuit breakers, config.
@@ -668,7 +668,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
                     return (
                       <tr key={t.name} style={{ background: isActive ? 'var(--surface-2)' : '' }}>
                         <td className="strong mono t-xs" style={{ color: tierColor(t.name) }}>
-                          {isActive && 'â–¶ '}{t.name}
+                          {isActive && '▶ '}{t.name}
                         </td>
                         <td className="mono t-xs">{t.min_pct}-{t.max_pct}%</td>
                         <td className="mono t-xs">{t.risk_multiplier}x</td>

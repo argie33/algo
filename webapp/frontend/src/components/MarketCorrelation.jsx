@@ -1,4 +1,4 @@
-﻿import {
+import {
   Box,
   Card,
   CardContent,
@@ -260,15 +260,15 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                   {analysis?.risk_assessment && (
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                       <Typography variant="caption">
-                        â€¢ <strong>Concentration:</strong>{" "}
+                        • <strong>Concentration:</strong>{" "}
                         {analysis.risk_assessment.concentration_risk}
                       </Typography>
                       <Typography variant="caption">
-                        â€¢ <strong>Diversification:</strong>{" "}
+                        • <strong>Diversification:</strong>{" "}
                         {analysis.risk_assessment.diversification_benefit}
                       </Typography>
                       <Typography variant="caption">
-                        â€¢ <strong>Stability:</strong>{" "}
+                        • <strong>Stability:</strong>{" "}
                         {analysis.risk_assessment.portfolio_stability}
                       </Typography>
                     </Box>

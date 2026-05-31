@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   TrendingUp,
   Download as DownloadIcon,
@@ -202,7 +202,7 @@ const DeepValueStocks = () => {
                 <span className="badge">{`Price: $${stock.current_price.toFixed(2)}`}</span>
               )}
             </div>
-            {stock.sector && <p style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>{stock.sector} â€¢ {stock.industry}</p>}
+            {stock.sector && <p style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>{stock.sector} • {stock.industry}</p>}
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
               <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: 'var(--text)' }}>Current Valuation</h3>
@@ -217,7 +217,7 @@ const DeepValueStocks = () => {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#6366f1' }}>ðŸ“Š DCF / Intrinsic Value</h3>
+              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#6366f1' }}>📊 DCF / Intrinsic Value</h3>
               <MetricGrid items={[
                 ["Current Price", stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "—"],
                 ["Intrinsic Value", stock.intrinsic_value_per_share != null ? `$${stock.intrinsic_value_per_share.toFixed(2)}` : "—"],
@@ -226,7 +226,7 @@ const DeepValueStocks = () => {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#ef4444' }}>ðŸ”¥ Price Action / Fire Sale</h3>
+              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#ef4444' }}>🔥 Price Action / Fire Sale</h3>
               <MetricGrid items={[
                 ["52w High", stock.high_52w != null ? `$${stock.high_52w.toFixed(2)}` : "—"],
                 ["3y High", stock.high_3y != null ? `$${stock.high_3y.toFixed(2)}` : "—"],
@@ -239,7 +239,7 @@ const DeepValueStocks = () => {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#22c55e' }}>ðŸ’Ž Quality & Profitability</h3>
+              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#22c55e' }}>💎 Quality & Profitability</h3>
               <MetricGrid items={[
                 ["ROE", fmtPct(stock.roe_pct), stock.roe_pct >= 35 ? "#22c55e" : "inherit"],
                 ["ROA", fmtPct(stock.roa_pct)],
@@ -252,7 +252,7 @@ const DeepValueStocks = () => {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#22c55e' }}>ðŸ“ˆ Growth Engine</h3>
+              <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#22c55e' }}>📈 Growth Engine</h3>
               <MetricGrid items={[
                 ["Rev 3Y CAGR", fmtPct(stock.revenue_growth_3y_pct), stock.revenue_growth_3y_pct >= 10 ? "#22c55e" : "inherit"],
                 ["EPS 3Y CAGR", fmtPct(stock.eps_growth_3y_pct), stock.eps_growth_3y_pct >= 15 ? "#22c55e" : "inherit"],
@@ -266,7 +266,7 @@ const DeepValueStocks = () => {
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
               <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: '#f97316' }}>⚠ï¸ Trap Detection (YoY Trends)</h3>
               <p style={{ margin: '0 0 var(--space-2) 0', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)' }}>
-                Are quality metrics improving âœ“ or declining âœ—? Negative = potential value trap.
+                Are quality metrics improving ✓ or declining ✗? Negative = potential value trap.
               </p>
               <MetricGrid items={[
                 ["Op M Trend", stock.op_margin_trend_pp != null ? `${stock.op_margin_trend_pp >= 0 ? "+" : ""}${stock.op_margin_trend_pp.toFixed(2)}pp` : "—", stock.op_margin_trend_pp >= 0 ? "#22c55e" : stock.op_margin_trend_pp > -3 ? "#f97316" : "#ef4444"],
@@ -360,7 +360,7 @@ const DeepValueStocks = () => {
 
             <div style={{ padding: 'var(--space-3)', backgroundColor: "rgba(245, 158, 11, 0.16)", borderRadius: 'var(--r-md)', borderLeft: '3px solid #f59e0b' }}>
               <p style={{ margin: 0, fontWeight: 'var(--w-semibold)', color: '#f59e0b' }}>
-                ðŸŽ¯ EXCEPTIONAL QUALITY meets ANOMALY PRICING. Rare — perhaps 5-30 stocks at any moment. Where generational wealth compounds.
+                🎯 EXCEPTIONAL QUALITY meets ANOMALY PRICING. Rare — perhaps 5-30 stocks at any moment. Where generational wealth compounds.
               </p>
             </div>
           </div>
