@@ -4,24 +4,28 @@ from typing import Dict
 import logging, re
 from datetime import datetime, timezone
 from .utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
-def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
+def handle(path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/contact/* endpoints."""
-    if path == '/api/contact':
-        if method == 'POST':
-            return _submit_contact(cur, body or {})
-        return error_response(405, 'method_not_allowed', 'POST required')
+    mode = 'write' if method in ['POST', 'PATCH', 'DELETE', 'PUT'] else 'read'
+    
+    with DatabaseContext(mode) as cur:
+        if path == '/api/contact':
+            if method == 'POST':
+                return _submit_contact(cur, body or {})
+            return error_response(405, 'method_not_allowed', 'POST required')
 
-    if path == '/api/contact/submissions':
-        if method == 'GET':
-            return _get_submissions(cur, params)
-        return error_response(405, 'method_not_allowed', 'GET required')
+        if path == '/api/contact/submissions':
+            if method == 'GET':
+                return _get_submissions(cur, params)
+            return error_response(405, 'method_not_allowed', 'GET required')
 
-    return error_response(404, 'not_found', f'No contact handler for {path}')
+        return error_response(404, 'not_found', f'No contact handler for {path}')
 
 def _submit_contact(cur, body: Dict) -> Dict:
     """Store a contact form submission."""
@@ -45,26 +49,20 @@ def _submit_contact(cur, body: Dict) -> Dict:
         logger.info(f"Contact form submission from {email}")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        # Table doesn't exist yet — log and succeed gracefully
         logger.warning(f"contact_submissions table missing; submission from {email} logged only")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        return handle_db_error(e, logger, 'submit contact')
+    except Exception as e:
+        return handle_db_error(e, logger, 'submit_contact')
 
 def _get_submissions(cur, params: Dict) -> Dict:
-    """Get contact form submissions (admin only)."""
+    """Get contact submissions."""
     try:
-        limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=200, default=50)
-        cur.execute("""
-            SELECT id, name, email, subject, message, submitted_at
-            FROM contact_submissions
-            ORDER BY submitted_at DESC
-            LIMIT %s
-        """, (limit,))
+        limit = safe_limit(params.get('limit', [100])[0] if params else 100)
+        cur.execute("SELECT * FROM contact_submissions ORDER BY submitted_at DESC LIMIT %s", (limit,))
         rows = cur.fetchall()
-        freshness = check_data_freshness(cur, 'contact_submissions', 'submitted_at', warning_days=1)
-        return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+        return list_response(rows, total=len(rows))
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+        logger.warning("contact_submissions table missing")
         return list_response([])
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        return handle_db_error(e, logger, 'get contact submissions')
+    except Exception as e:
+        return handle_db_error(e, logger, 'get_submissions')
