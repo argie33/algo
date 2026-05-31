@@ -270,10 +270,14 @@ def _validate_pre_trade_data_quality(
                 )
                 result = cur.fetchone()
                 if result and result[0]:
-                    # Strip tzinfo before subtraction — psycopg2 returns timezone-aware datetime
-                    # for TIMESTAMPTZ columns, which can't be compared to naive datetime.now().
-                    db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
-                    age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
+                    # Use UTC-aware comparison: keep db_ts as-is if tz-aware, else assume UTC.
+                    raw = result[0]
+                    if getattr(raw, 'tzinfo', None):
+                        db_ts = raw
+                        age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
+                    else:
+                        db_ts = raw
+                        age_hours = (datetime.utcnow() - db_ts).total_seconds() / 3600
                     if age_hours > 24:
                         issues.append(f"Price data too stale: {age_hours:.1f} hours old")
                     elif age_hours > 1:
@@ -326,8 +330,11 @@ def _validate_pre_trade_data_quality(
                 )
                 result = cur.fetchone()
                 if result and result[0]:
-                    db_ts = result[0].replace(tzinfo=None) if getattr(result[0], 'tzinfo', None) else result[0]
-                    age_hours = (datetime.now(timezone.utc) - db_ts).total_seconds() / 3600
+                    raw = result[0]
+                    if getattr(raw, 'tzinfo', None):
+                        age_hours = (datetime.now(timezone.utc) - raw).total_seconds() / 3600
+                    else:
+                        age_hours = (datetime.utcnow() - raw).total_seconds() / 3600
                     # Allow 72 hours of staleness for testing/backtesting data
                     # Production: revert to 24 hours when using real-time data feeds
                     if age_hours > 72:
