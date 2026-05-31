@@ -20,17 +20,21 @@ LOADERS = [
     # Earnings data
     "earnings_history", "earnings_calendar",
     # Company & analyst data
-    "company_profile", "analyst_sentiment", "analyst_upgrades_downgrades", "industry_ranking",
+    "company_profile", "analyst_sentiment", "analyst_upgrades_downgrades",
+    "industry_ranking", "sector_ranking", "sector_performance",
+    "economic_calendar",
     # Market sentiment
     "feargreed", "aaiidata", "naaim_data",
     # Sentiment aggregation
-    "sentiment", "sentiment_social",
+    "sentiment", "sentiment_aggregate",
     # Trading signals & scores
     "signal_themes", "signal_quality_scores", "buy_sell_daily",
     # Technical indicators & metrics
     "technical_data_daily", "algo_metrics_daily", "swing_trader_scores",
     # Market health & economic data
-    "market_health_daily", "fred_economic_data", "trend_template_data"
+    "market_health_daily", "fred_economic_data", "trend_template_data",
+    # Seasonality stats
+    "seasonality",
 ]
 
 def invoke_loaders(subnet, security_group):
