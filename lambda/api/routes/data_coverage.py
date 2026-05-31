@@ -232,32 +232,29 @@ def get_overall_coverage_summary(cur) -> Dict[str, Any]:
     return summary
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-    mode = 'write' if method in ['POST', 'PATCH', 'DELETE', 'PUT'] else 'read'
-    
-    with DatabaseContext(mode) as cur:
-        """Handle GET /api/data-coverage request."""
-        if method != 'GET':
-            return {
-                'statusCode': 405,
-                'body': json.dumps({'error': 'Method not allowed', 'allowed': ['GET']}),
-                'headers': {'Content-Type': 'application/json'}
-            }
+    """Handle GET /api/data-coverage request."""
+    if method != 'GET':
+        return {
+            'statusCode': 405,
+            'body': json.dumps({'error': 'Method not allowed', 'allowed': ['GET']}),
+            'headers': {'Content-Type': 'application/json'}
+        }
 
-        try:
-            summary = get_overall_coverage_summary(cur)
-            return {
-                'statusCode': 200,
-                'body': json.dumps(summary),
-                'headers': {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}
-            }
-        except Exception as e:
-            logger.error(f"Data coverage check error: {e}", exc_info=True)
-            return {
-                'statusCode': 500,
-                'body': json.dumps({
-                    'error': 'Data coverage check failed',
-                    'message': str(e)[:200],
-                    'timestamp': datetime.utcnow().isoformat()
-                }),
-                'headers': {'Content-Type': 'application/json'}
-            }
+    try:
+        summary = get_overall_coverage_summary(cur)
+        return {
+            'statusCode': 200,
+            'body': json.dumps(summary),
+            'headers': {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}
+        }
+    except Exception as e:
+        logger.error(f"Data coverage check error: {e}", exc_info=True)
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': 'Data coverage check failed',
+                'message': str(e)[:200],
+                'timestamp': datetime.utcnow().isoformat()
+            }),
+            'headers': {'Content-Type': 'application/json'}
+        }

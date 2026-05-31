@@ -8,46 +8,43 @@ from utils.database_context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-    mode = 'write' if method in ['POST', 'PATCH', 'DELETE', 'PUT'] else 'read'
+    try:
+        parts = path.split('/')
+        symbol = parts[3] if len(parts) > 3 else None
 
-    with DatabaseContext(mode) as cur:
-        try:
-            parts = path.split('/')
-            symbol = parts[3] if len(parts) > 3 else None
-
-            if symbol:
-                limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=200, default=20)
-                cur.execute("""
-                    SELECT symbol,
-                           earnings_date AS report_date,
-                           CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
-                           eps_actual, eps_estimate,
-                           eps_surprise_pct AS eps_surprise,
-                           revenue_actual, revenue_estimate,
-                           revenue_surprise_pct AS revenue_surprise
-                    FROM earnings_history
-                    WHERE symbol = %s
-                    ORDER BY earnings_date DESC
-                    LIMIT %s
-                """, (symbol.upper(), limit))
-                rows = cur.fetchall()
-                freshness = check_data_freshness(cur, 'earnings_history', 'earnings_date', warning_days=7)
-                return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
-
-            limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=100)
+        if symbol:
+            limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=200, default=20)
             cur.execute("""
                 SELECT symbol,
                        earnings_date AS report_date,
                        CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
                        eps_actual, eps_estimate,
-                       eps_surprise_pct AS eps_surprise
+                       eps_surprise_pct AS eps_surprise,
+                       revenue_actual, revenue_estimate,
+                       revenue_surprise_pct AS revenue_surprise
                 FROM earnings_history
+                WHERE symbol = %s
                 ORDER BY earnings_date DESC
                 LIMIT %s
-            """, (limit,))
+            """, (symbol.upper(), limit))
             rows = cur.fetchall()
             freshness = check_data_freshness(cur, 'earnings_history', 'earnings_date', warning_days=7)
             return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle earnings')
+
+        limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=100)
+        cur.execute("""
+            SELECT symbol,
+                   earnings_date AS report_date,
+                   CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
+                   eps_actual, eps_estimate,
+                   eps_surprise_pct AS eps_surprise
+            FROM earnings_history
+            ORDER BY earnings_date DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+        freshness = check_data_freshness(cur, 'earnings_history', 'earnings_date', warning_days=7)
+        return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        return handle_db_error(e, logger, 'handle earnings')

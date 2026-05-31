@@ -4,7 +4,6 @@ from typing import Dict
 import logging, re
 from datetime import datetime, timezone
 from .utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness
-from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +11,7 @@ _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/contact/* endpoints."""
-    mode = 'write' if method in ['POST', 'PATCH', 'DELETE', 'PUT'] else 'read'
-    
-    with DatabaseContext(mode) as cur:
+    try:
         if path == '/api/contact':
             if method == 'POST':
                 return _submit_contact(cur, body or {})
@@ -26,6 +23,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return error_response(405, 'method_not_allowed', 'GET required')
 
         return error_response(404, 'not_found', f'No contact handler for {path}')
+    except Exception as e:
+        logger.error(f'[CONTACT] unhandled {type(e).__name__}: {e}', exc_info=True)
+        return error_response(500, 'internal_error', f'Contact handler error: {type(e).__name__}')
 
 def _submit_contact(cur, body: Dict) -> Dict:
     """Store a contact form submission."""
