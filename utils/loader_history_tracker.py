@@ -17,6 +17,7 @@ Usage:
 import logging
 from datetime import datetime
 from typing import Optional
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +49,6 @@ class LoaderHistoryTracker:
             return
 
         try:
-            from utils.database_context import DatabaseContext
-
             duration = (self.end_time - self.start_time).total_seconds() if self.end_time else None
 
             with DatabaseContext('write') as cur:
