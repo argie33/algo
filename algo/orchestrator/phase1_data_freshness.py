@@ -297,9 +297,10 @@ def run(
 
         with DatabaseContext('read') as cur:
             logger.debug("Phase 1: Database connection established")
-            # 45s allows MAX() lookups to complete even under t4g.micro I/O contention
-            # from concurrent ECS loaders (e.g. company_profile writes to price_daily).
-            cur.execute("SET statement_timeout = 45000")
+            # 120s allows MAX() lookups to complete even under extreme t4g.micro I/O
+            # contention from concurrent analytics ECS loaders (company_profile, analyst_sentiment).
+            # These loaders run long parallel writes; MAX(date) queries need time to get through.
+            cur.execute("SET statement_timeout = 120000")
 
             cur.execute(
                 """
