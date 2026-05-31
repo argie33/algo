@@ -124,7 +124,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     ss.security_name AS company_name,
                     cp.sector,
                     cp.industry,
-                    km.market_cap,
+                    cp.market_cap,
                     lp.current_price,
                     ROUND((
                         COALESCE(sc.value_score, 0) * 0.5 +
@@ -171,7 +171,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 FROM value_stocks vs
                 JOIN stock_symbols ss ON ss.symbol = vs.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = vs.symbol
-                LEFT JOIN key_metrics km ON km.symbol = vs.symbol
                 LEFT JOIN latest_prices lp ON lp.symbol = vs.symbol
                 LEFT JOIN stats_52w s52 ON s52.symbol = vs.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = vs.symbol

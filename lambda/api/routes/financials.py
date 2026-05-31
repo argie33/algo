@@ -37,12 +37,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     qm.net_margin AS profit_margin,
                     qm.current_ratio,
                     qm.quick_ratio,
-                    km.market_cap,
-                    km.held_percent_insiders,
-                    km.held_percent_institutions
+                    cp.market_cap,
+                    pm.insider_ownership AS held_percent_insiders,
+                    pm.institutional_ownership AS held_percent_institutions
                 FROM value_metrics vm
                 LEFT JOIN quality_metrics qm ON vm.symbol = qm.symbol
-                LEFT JOIN key_metrics km ON vm.symbol = km.symbol
+                LEFT JOIN company_profile cp ON vm.symbol = cp.ticker
+                LEFT JOIN positioning_metrics pm ON vm.symbol = pm.symbol
                 WHERE vm.symbol = %s AND vm.symbol IS NOT NULL
                 ORDER BY vm.symbol DESC
                 LIMIT %s

@@ -94,7 +94,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                         WHEN pp.prev_close IS NOT NULL THEN ((lp.current_close - pp.prev_close) / NULLIF(pp.prev_close, 0)) * 100
                         ELSE NULL
                     END, 2) AS change_percent,
-                    km.market_cap,
+                    cp.market_cap,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
                     vm.ps_ratio AS ps_ratio_val,
@@ -120,7 +120,6 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN etf_symbols etfs ON etfs.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
-                LEFT JOIN key_metrics km ON km.symbol = sc.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol

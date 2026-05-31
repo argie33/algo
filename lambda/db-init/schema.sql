@@ -3033,4 +3033,7 @@ ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_middle DECIMAL(12, 
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_lower DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS volume_ma_50 BIGINT;
 
+-- company_profile: add market_cap so routes can use it instead of unpopulated key_metrics
+ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS market_cap BIGINT;
+
 -- Note: INSERT/UPDATE requires dedicated service role with audit logging

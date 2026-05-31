@@ -28,6 +28,7 @@ class CompanyProfileLoader(OptimalLoader):
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.info or {}
+            market_cap = info.get('marketCap') or info.get('market_cap')
             return [{
                 'symbol': symbol,
                 'ticker': symbol,
@@ -39,6 +40,7 @@ class CompanyProfileLoader(OptimalLoader):
                 'exchange': info.get('exchange', ''),
                 'website': info.get('website'),
                 'employees': info.get('fullTimeEmployees'),
+                'market_cap': int(market_cap) if market_cap and market_cap > 0 else None,
             }]
         except Exception as e:
             logger.debug(f"Could not fetch yfinance data for {symbol}: {e}")
