@@ -456,7 +456,7 @@ function ExposureFactors({ markets }) {
         <div>
           <div className="card-title">11-Factor Exposure Composite</div>
           <div className="card-sub">
-            {markets?.current ? `Raw ${num(markets.current.raw_score, 1)} â†’ capped ${markets.current.exposure_pct}%`
+            {markets?.current ? `Raw ${num(markets.current.raw_score, 1)} → capped ${markets.current.exposure_pct}%`
               : 'Each factor independently scored, summed for total exposure'}
           </div>
         </div>
@@ -503,7 +503,7 @@ function ExposureFactors({ markets }) {
             <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
               <span className="eyebrow" style={{ color: macroColor }}>MACRO REGIME OVERLAY</span>
               <span className="mono tnum t-xs" style={{ color: macroColor }}>
-                {macroPenalty > 0 ? `âˆ’${macroPenalty} pts` : macroPenalty < 0 ? `+${Math.abs(macroPenalty)} pts (favourable)` : 'neutral'}
+                {macroPenalty > 0 ? `−${macroPenalty} pts` : macroPenalty < 0 ? `+${Math.abs(macroPenalty)} pts (favourable)` : 'neutral'}
                 {eco.cap && eco.cap < 100 ? ` · cap ${eco.cap}%` : ''}
               </span>
             </div>
@@ -1183,7 +1183,7 @@ function SectorRotationMap({ markets, onSelect }) {
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
               <XAxis type="number" dataKey="rsRank" domain={[0, 100]}
                 tick={{ fill: C.textFaint, fontSize: 11 }}
-                label={{ value: 'RS-Rank â†’', position: 'insideBottom', offset: -8, fill: C.textFaint, fontSize: 11 }} />
+                label={{ value: 'RS-Rank →', position: 'insideBottom', offset: -8, fill: C.textFaint, fontSize: 11 }} />
               <YAxis type="number" dataKey="rsMomentum" domain={[-momRange, momRange]}
                 tick={{ fill: C.textFaint, fontSize: 11 }}
                 label={{ value: '4-week Δ rank', angle: -90, position: 'insideLeft', fill: C.textFaint, fontSize: 11 }} />
@@ -1539,7 +1539,7 @@ function DistributionDaysTimeline() {
         {indices.map(sym => {
           const idx = data[sym];
           const days = (idx.days || []).slice().sort((a, b) => (a.days_ago ?? 0) - (b.days_ago ?? 0));
-          // Build last 25-day timeline; oldest left â†’ newest right
+          // Build last 25-day timeline; oldest left → newest right
           const timeline = days.reverse();
           const sigColor = idx.signal === 'NORMAL' ? C.success
             : idx.signal === 'WATCH' ? C.brand2
@@ -1589,7 +1589,7 @@ function DistributionDaysTimeline() {
               </div>
               <div className="t-2xs faint" style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                 <span>â† 25 sessions ago</span>
-                <span>today â†’</span>
+                <span>today →</span>
               </div>
             </div>
           );

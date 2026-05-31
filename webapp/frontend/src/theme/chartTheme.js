@@ -396,7 +396,7 @@ export const formatChartPercent = (value) => {
 export const getTrendIcon = (value) => {
   if (value > 0) return 'â†—ï¸';
   if (value < 0) return 'â†˜ï¸';
-  return 'â†’';
+  return '→';
 };
 
 export default {

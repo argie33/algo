@@ -163,7 +163,7 @@ export default function BacktestResults() {
                     <tr key={r.run_id}>
                       <td><span className="strong">{r.run_name}</span></td>
                       <td className="muted t-xs">{r.strategy_name}</td>
-                      <td className="t-xs muted">{fmtDate(r.date_start)} â†’ {fmtDate(r.date_end)}</td>
+                      <td className="t-xs muted">{fmtDate(r.date_start)} → {fmtDate(r.date_end)}</td>
                       <td className="num mono tnum">{r.total_signals ?? '—'}</td>
                       <td className="num">
                         <span className={`badge ${(r.win_rate >= 50) ? 'badge-success' : 'badge-amber'}`}>
@@ -232,7 +232,7 @@ function RunDetail({ detail, onBack }) {
           </button>
           <div className="page-head-title">{r.run_name || 'Run'}</div>
           <div className="page-head-sub">
-            {r.strategy_name} · {fmtDate(r.date_start)} â†’ {fmtDate(r.date_end)}
+            {r.strategy_name} · {fmtDate(r.date_start)} → {fmtDate(r.date_end)}
           </div>
         </div>
       </div>

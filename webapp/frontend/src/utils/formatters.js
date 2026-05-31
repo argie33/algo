@@ -130,7 +130,7 @@ export const getChangeIcon = (value) => {
 
   if (num > 0) return "â†—";
   if (num < 0) return "â†˜";
-  return "â†’";
+  return "→";
 };
 
 // Format date strings

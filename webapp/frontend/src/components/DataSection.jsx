@@ -100,7 +100,7 @@ export function TruncatedList({
             </span>
             {hasMore && (
               <button className="btn btn-text btn-xs" style={{ cursor: 'pointer' }}>
-                View all {total} â†’
+                View all {total} →
               </button>
             )}
           </div>

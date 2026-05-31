@@ -458,7 +458,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
     { n: '3', name: 'Position Monitor', desc: 'RS, sector, time decay, earnings — flag for action', mode: 'fail-open', live: 'ok' },
     { n: '3b', name: 'Exposure Policy', desc: 'Tier-based stops, partials, force-exit losers', mode: 'fail-open', live: 'ok' },
     { n: '4', name: 'Exit Execution', desc: 'Stops, T1/T2/T3, time, TD, RS-break, distribution', mode: 'fail-open', live: 'ok' },
-    { n: '5', name: 'Signal Generation', desc: `Pine BUYs â†’ 6 tiers â†’ swing_score ranking${rejectionFunnel?.total_signals ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
+    { n: '5', name: 'Signal Generation', desc: `Pine BUYs → 6 tiers → swing_score ranking${rejectionFunnel?.total_signals ? ` · ${rejectionFunnel.total_signals} signals` : ''}`, mode: 'fail-open', live: 'ok' },
     { n: '6', name: 'Entry Execution', desc: 'Idempotent fills, tier caps, grade filter', mode: 'fail-open', live: 'ok' },
     { n: '7', name: 'Reconciliation', desc: 'Alpaca sync, P&L, snapshot, audit trail', mode: 'fail-open', live: 'ok' },
   ];
@@ -568,7 +568,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
           {/* Exposure Policy Matrix */}
           <SectionCard title="Exposure Tier Policy Matrix" style={{ marginTop: 'var(--space-4)' }}>
             <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)' }}>
-              Current exposure: {policy?.current_exposure_pct ?? '—'}% â†’ tier <span style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)' }}>{policy?.active_tier?.name?.toUpperCase()}</span>
+              Current exposure: {policy?.current_exposure_pct ?? '—'}% → tier <span style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)' }}>{policy?.active_tier?.name?.toUpperCase()}</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">

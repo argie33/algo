@@ -5,7 +5,7 @@
  * Plain React + Tailwind classes. No MUI imports. Authored to be easily ported
  * to Tamagui later for the iOS/Android app (cross-platform mobile stack).
  *
- * All visual tokens come from tailwind.config.js â†’ Bullseye design system.
+ * All visual tokens come from tailwind.config.js → Bullseye design system.
  *
  * Components exported from this file:
  *   - <Card>          surface for any data section

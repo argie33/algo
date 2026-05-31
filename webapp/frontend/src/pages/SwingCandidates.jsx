@@ -309,11 +309,11 @@ export default function SwingCandidates() {
               <option value="fail">Fail only</option>
             </select>
             <select className="select" value={minScore} onChange={e => setMinScore(Number(e.target.value))}>
-              <option value="0">Score â‰¥ 0</option>
-              <option value="40">Score â‰¥ 40</option>
-              <option value="60">Score â‰¥ 60</option>
-              <option value="75">Score â‰¥ 75</option>
-              <option value="85">Score â‰¥ 85</option>
+              <option value="0">Score ≥ 0</option>
+              <option value="40">Score ≥ 40</option>
+              <option value="60">Score ≥ 60</option>
+              <option value="75">Score ≥ 75</option>
+              <option value="85">Score ≥ 85</option>
             </select>
             <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
               <Filter size={12} style={{ verticalAlign: '-2px' }} /> {filtered.length} of {itemsList?.length || 0}
@@ -378,7 +378,7 @@ export default function SwingCandidates() {
                 </select>
                 <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="btn btn-outline btn-sm">â† Prev</button>
                 <div style={{ minWidth: '80px', textAlign: 'center', fontSize: 'var(--t-xs)' }}>Page {currentPage} of {totalPages}</div>
-                <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="btn btn-outline btn-sm">Next â†’</button>
+                <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="btn btn-outline btn-sm">Next →</button>
               </div>
             </div>
           )}
@@ -621,8 +621,8 @@ function GradeFunnel({ items: itemsProp }) {
     const buckets = {
       'Universe': total,
       'Has data': items.filter(i => i.swing_score != null).length,
-      'Score â‰¥ 40': items.filter(i => Number(i.swing_score) >= 40).length,
-      'Score â‰¥ 60': items.filter(i => Number(i.swing_score) >= 60).length,
+      'Score ≥ 40': items.filter(i => Number(i.swing_score) >= 40).length,
+      'Score ≥ 60': items.filter(i => Number(i.swing_score) >= 60).length,
       'Grade B+': items.filter(i => ['B', 'A', 'A+'].includes(i.grade)).length,
       'Pass gates': items.filter(i => i.pass_gates).length,
     };
@@ -724,13 +724,13 @@ function ComponentCorrelation({ items: itemsProp }) {
     return (
       <div className="card">
         <div className="card-head"><div><div className="card-title">Component Correlation Matrix</div></div></div>
-        <div className="card-body"><Empty title="Need â‰¥5 candidates for correlation" /></div>
+        <div className="card-body"><Empty title="Need ≥5 candidates for correlation" /></div>
       </div>
     );
   }
 
   const shade = (r) => {
-    // -1 â†’ red, 0 â†’ neutral, +1 â†’ success
+    // -1 → red, 0 → neutral, +1 → success
     if (r > 0) return `rgba(34, 197, 94, ${Math.abs(r) * 0.7 + 0.05})`;
     if (r < 0) return `rgba(239, 68, 68, ${Math.abs(r) * 0.7 + 0.05})`;
     return 'transparent';

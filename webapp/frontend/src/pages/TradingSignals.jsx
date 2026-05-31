@@ -239,7 +239,7 @@ export default function TradingSignals() {
       total: filtered.length,
       buys: buys.length,
       sells: sells.length,
-      ratio: sells.length === 0 ? 'âˆž' : (buys.length / sells.length).toFixed(2),
+      ratio: sells.length === 0 ? '∞' : (buys.length / sells.length).toFixed(2),
       // Total available (before filters) for reference
       totalAvailable: enriched.length,
       totalBuysAvailable: totalBuys.length,
@@ -329,7 +329,7 @@ export default function TradingSignals() {
         <div className="kpi">
           <div className="kpi-label">Fresh BUYs</div>
           <div className="kpi-value up">{kpi.fresh}</div>
-          <div className="kpi-sub">â‰¤ 3 days old</div>
+          <div className="kpi-sub">≤ 3 days old</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">High Quality BUYs</div>
@@ -745,7 +745,7 @@ function SqsHistogram({ rows }) {
             <div className="flex gap-4" style={{ marginTop: 'var(--space-2)', fontSize: 'var(--t-2xs)', flexWrap: 'wrap' }}>
               <div className="flex items-center gap-1">
                 <div style={{ width: 12, height: 12, background: 'var(--success)', borderRadius: 2 }} />
-                <span className="muted">â‰¥80 Excellent</span>
+                <span className="muted">≥80 Excellent</span>
               </div>
               <div className="flex items-center gap-1">
                 <div style={{ width: 12, height: 12, background: 'var(--brand)', borderRadius: 2 }} />
@@ -899,7 +899,7 @@ function SignalDetail({ row, kind, onSymbolClick }) {
       <div className="flex gap-3 items-center" style={{ marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
         {kind === 'stocks' && (
           <button className="btn btn-outline btn-sm" onClick={onSymbolClick}>
-            Open {row.symbol} detail â†’
+            Open {row.symbol} detail →
           </button>
         )}
         {row._grade && <span className={`badge badge-lg ${row._grade.startsWith('A') ? 'badge-success' : row._grade === 'B' ? 'badge-cyan' : row._grade === 'C' ? 'badge-amber' : 'badge'}`}>Grade {row._grade}</span>}

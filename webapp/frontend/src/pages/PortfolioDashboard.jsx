@@ -1083,10 +1083,10 @@ function PositionHealthTable({ positions, loading, onSelect }) {
                   <th className="num">Days</th>
                   <th className="num">R</th>
                   <th className="num">P&L %</th>
-                  <th className="num">â†’ Stop</th>
-                  <th className="num">â†’ T1</th>
-                  <th className="num">â†’ T2</th>
-                  <th className="num">â†’ T3</th>
+                  <th className="num">→ Stop</th>
+                  <th className="num">→ T1</th>
+                  <th className="num">→ T2</th>
+                  <th className="num">→ T3</th>
                   <th>Stage</th>
                   <th className="num">Trend</th>
                   <th className="num">% from low</th>

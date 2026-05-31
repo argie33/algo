@@ -211,7 +211,7 @@ export default function Sentiment() {
     return { score: Math.round(score), components };
   }, [summaryQ.data]);
 
-  // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bullâˆ’bear %)
+  // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bull−bear %)
   const changeLeaders = useMemo(() => {
     const byDate = {};
     const divItems = Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || divergenceQ.data || []);
@@ -391,7 +391,7 @@ function OverviewTab({
 
       <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
         <ContrarianCard title="Contrarian Buys (bearish sentiment, strong algo)"
-                        desc="Analyst score < 0, composite â‰¥ 70 — potential mispricing"
+                        desc="Analyst score < 0, composite ≥ 70 — potential mispricing"
                         rows={contrarianSetups.buys}
                         tone="up"
                         setSel={setSelectedSymbol} />
@@ -1346,7 +1346,7 @@ function ChangeLeadersCard({ title, rows, tone, setSel }) {
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {!rows || rows.length === 0 ? (
-          <Empty title="Insufficient history" desc="Need â‰¥ 7 days of analyst sentiment per symbol" />
+          <Empty title="Insufficient history" desc="Need ≥ 7 days of analyst sentiment per symbol" />
         ) : (
           <table className="data-table">
             <thead>
@@ -1425,7 +1425,7 @@ function ContrarianCard({ title, desc, rows, _tone, setSel }) {
   );
 }
 
-// ─── new: divergence timeline (universe-wide rolling avg of bullâˆ’bear) ─
+// ─── new: divergence timeline (universe-wide rolling avg of bull−bear) ─
 function DivergenceTimeline({ rows }) {
   const series = useMemo(() => {
     if (!Array.isArray(rows) || rows.length === 0) return [];
@@ -1451,7 +1451,7 @@ function DivergenceTimeline({ rows }) {
         <div className="card-head">
           <div>
             <div className="card-title">Universe Sentiment Trend (90d)</div>
-            <div className="card-sub">Average analyst bull% âˆ’ bear% across all covered symbols</div>
+            <div className="card-sub">Average analyst bull% − bear% across all covered symbols</div>
           </div>
         </div>
         <div className="card-body"><Empty title="No history" /></div>
@@ -1464,7 +1464,7 @@ function DivergenceTimeline({ rows }) {
       <div className="card-head">
         <div>
           <div className="card-title">Universe Sentiment Trend (90d)</div>
-          <div className="card-sub">Average analyst (bull% âˆ’ bear%) across {rows.length} readings</div>
+          <div className="card-sub">Average analyst (bull% − bear%) across {rows.length} readings</div>
         </div>
       </div>
       <div className="card-body">
@@ -1478,7 +1478,7 @@ function DivergenceTimeline({ rows }) {
                      tickFormatter={(v) => `${Math.round(v)}`} />
               <RechartsTooltip contentStyle={TT_STYLE}
                                labelFormatter={(d) => fmtDate(d)}
-                               formatter={(v) => [`${Number(v).toFixed(2)} pp`, 'Bull âˆ’ Bear']} />
+                               formatter={(v) => [`${Number(v).toFixed(2)} pp`, 'Bull − Bear']} />
               <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
               <Line type="monotone" dataKey="avg" stroke="var(--brand)"
                     strokeWidth={2} dot={false} />

@@ -4,11 +4,21 @@
 
 from typing import Dict, Any, Optional
 import logging
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 class SignalPatternsMixin:
     """Chart pattern detection signals."""
+
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext('read') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
 
     def base_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
         try:

@@ -231,8 +231,8 @@ const DeepValueStocks = () => {
                 ["52w High", stock.high_52w != null ? `$${stock.high_52w.toFixed(2)}` : "—"],
                 ["3y High", stock.high_3y != null ? `$${stock.high_3y.toFixed(2)}` : "—"],
                 ["52w Low", stock.low_52w != null ? `$${stock.low_52w.toFixed(2)}` : "—"],
-                ["â†“52w", fmtPct(stock.drop_from_52w_high_pct), stock.drop_from_52w_high_pct >= 30 ? "#ef4444" : "inherit"],
-                ["â†“3y", fmtPct(stock.drop_from_3y_high_pct), stock.drop_from_3y_high_pct >= 40 ? "#ef4444" : "inherit"],
+                ["↓52w", fmtPct(stock.drop_from_52w_high_pct), stock.drop_from_52w_high_pct >= 30 ? "#ef4444" : "inherit"],
+                ["↓3y", fmtPct(stock.drop_from_3y_high_pct), stock.drop_from_3y_high_pct >= 40 ? "#ef4444" : "inherit"],
                 ["Disc/Sector", fmtDiscount(stock.discount_vs_sector_pe_pct)],
                 ["Disc/Market", fmtDiscount(stock.discount_vs_market_pe_pct)],
               ]} />
@@ -335,8 +335,8 @@ const DeepValueStocks = () => {
           <div style={{ padding: 'var(--space-5)', fontSize: 'var(--t-sm)', lineHeight: 'var(--lh-normal)' }}>
             <h3 style={{ margin: '0 0 var(--space-2) 0', fontWeight: 'var(--w-semibold)', color: 'var(--text)' }}>Quality Criteria (Tier 1 & 2)</h3>
             <ul style={{ margin: '0 0 var(--space-3) var(--space-3)', color: 'var(--text-2)' }}>
-              <li><strong>Tier 1:</strong> ROE â‰¥ 25% + Op Margin â‰¥ 15%</li>
-              <li><strong>Tier 2:</strong> ROE â‰¥ 20% + Op Margin â‰¥ 12%</li>
+              <li><strong>Tier 1:</strong> ROE ≥ 25% + Op Margin ≥ 15%</li>
+              <li><strong>Tier 2:</strong> ROE ≥ 20% + Op Margin ≥ 12%</li>
               <li>Current Ratio &gt; 1.5 (financial fortress)</li>
               <li>Debt/Equity &lt; 2.0 (sustainable leverage)</li>
             </ul>
@@ -520,8 +520,8 @@ const DeepValueStocks = () => {
                   <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("trailing_pe")}>P/E</th>
                   <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("roe_pct")}>ROE%</th>
                   <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("op_margin_pct")}>OpM%</th>
-                  <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("drop_from_52w_high_pct")}>â†“52w</th>
-                  <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("drop_from_3y_high_pct")}>â†“3y</th>
+                  <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("drop_from_52w_high_pct")}>↓52w</th>
+                  <th style={{ textAlign: 'right', cursor: "pointer" }} onClick={() => handleSort("drop_from_3y_high_pct")}>↓3y</th>
                   <th style={{ textAlign: 'right', cursor: "pointer", backgroundColor: "rgba(99, 102, 241, 0.12)" }} onClick={() => handleSort("intrinsic_value_per_share")}>Intrinsic $</th>
                   <th style={{ textAlign: 'right', cursor: "pointer", backgroundColor: "rgba(99, 102, 241, 0.12)" }} onClick={() => handleSort("margin_of_safety_pct")}>MoS %</th>
                   <th style={{ textAlign: 'right' }}>RevYoY%</th>

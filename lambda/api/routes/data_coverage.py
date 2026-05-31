@@ -71,9 +71,9 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
                 MAX(date) as latest_date,
                 COUNT(*) as total_rows,
                 COUNT(CASE WHEN rsi IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as rsi_coverage,
-                COUNT(CASE WHEN ema_50 IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as ema50_coverage,
+                COUNT(CASE WHEN ema_21 IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as ema50_coverage,
                 COUNT(CASE WHEN atr IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as atr_coverage,
-                COUNT(CASE WHEN rsi IS NULL OR ema_50 IS NULL OR atr IS NULL THEN 1 END) as incomplete_rows
+                COUNT(CASE WHEN rsi IS NULL OR ema_21 IS NULL OR atr IS NULL THEN 1 END) as incomplete_rows
             FROM technical_data_daily
             WHERE date > NOW() - INTERVAL '7 days'
         """)
@@ -172,14 +172,40 @@ def get_loader_health(cur) -> Dict[str, Any]:
     except Exception as e:
         return error_response(500, 'error', str(e))
 
+def _safe_call(cur, fn) -> Dict[str, Any]:
+    """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.
+
+    Each sub-function already has its own try/except, but a failed psycopg2 query
+    marks the whole connection transaction as aborted. The SAVEPOINT lets us roll back
+    to the pre-call state so subsequent sub-functions can still query.
+    """
+    try:
+        cur.execute("SAVEPOINT coverage_check")
+    except Exception:
+        pass
+
+    result = fn(cur)
+
+    # fn handles its own exceptions, but if its internal query failed, the postgres
+    # transaction is now aborted. Attempt RELEASE; if that fails, ROLLBACK clears state.
+    try:
+        cur.execute("RELEASE SAVEPOINT coverage_check")
+    except Exception:
+        try:
+            cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
+        except Exception:
+            pass
+
+    return result
+
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:
     """Get overall data coverage summary."""
     summary = {
         'timestamp': datetime.utcnow().isoformat(),
-        'price_data': get_price_coverage(cur),
-        'technical_data': get_technical_coverage(cur),
-        'market_data': get_market_data_coverage(cur),
-        'loaders': get_loader_health(cur)
+        'price_data': _safe_call(cur, get_price_coverage),
+        'technical_data': _safe_call(cur, get_technical_coverage),
+        'market_data': _safe_call(cur, get_market_data_coverage),
+        'loaders': _safe_call(cur, get_loader_health),
     }
 
     # Determine overall status

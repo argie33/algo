@@ -118,7 +118,7 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     breakdown.sentiment = sentimentScore;
     score += sentimentScore;
 
-    // 3. DISTRIBUTION DAYS (âˆ’30 points max)
+    // 3. DISTRIBUTION DAYS (−30 points max)
     // Too many distribution days = market weakness
     let distributionScore = 0;
     const distributionDaysData_obj = distributionDaysData || {};

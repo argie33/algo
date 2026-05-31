@@ -223,7 +223,7 @@ export default function ScoresDashboard() {
 
       <div className="grid grid-4">
         <Kpi label="Universe" value={stats.total.toLocaleString()} sub="ranked stocks" />
-        <Kpi label="Composite â‰¥ 80" value={stats.top.toLocaleString()}
+        <Kpi label="Composite ≥ 80" value={stats.top.toLocaleString()}
              sub={`${stats.total ? Math.round(stats.top / stats.total * 100) : 0}% qualify`}
              tone={stats.top > 0 ? 'up' : ''} />
         <Kpi label="Market Avg" value={num(stats.avg, 1)} sub="composite score" />
@@ -248,8 +248,8 @@ export default function ScoresDashboard() {
               {SORT_FIELDS.map(f => <option key={f.value} value={f.value}>Sort: {f.label}</option>)}
             </select>
             <select className="select" value={sortOrder} onChange={e => setSortOrder(e.target.value)}>
-              <option value="desc">High â†’ Low</option>
-              <option value="asc">Low â†’ High</option>
+              <option value="desc">High → Low</option>
+              <option value="asc">Low → High</option>
             </select>
             <select className="select" value={sector} onChange={e => setSector(e.target.value)}>
               <option value="">All sectors</option>
@@ -257,11 +257,11 @@ export default function ScoresDashboard() {
             </select>
             <select className="select" value={minScore} onChange={e => setMinScore(Number(e.target.value))}>
               <option value="0">Min score: any</option>
-              <option value="50">â‰¥ 50</option>
-              <option value="60">â‰¥ 60</option>
-              <option value="70">â‰¥ 70</option>
-              <option value="80">â‰¥ 80</option>
-              <option value="90">â‰¥ 90</option>
+              <option value="50">≥ 50</option>
+              <option value="60">≥ 60</option>
+              <option value="70">≥ 70</option>
+              <option value="80">≥ 80</option>
+              <option value="90">≥ 90</option>
             </select>
             <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
             <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
@@ -277,7 +277,7 @@ export default function ScoresDashboard() {
         tabs={[
           { value: 'rankings',     label: 'Rankings' },
           { value: 'movers',       label: 'Top Movers' },
-          { value: 'leaderboard',  label: 'A-Grade â‰¥ 80' },
+          { value: 'leaderboard',  label: 'A-Grade ≥ 80' },
           { value: 'heatmap',      label: 'Factor Heatmap' },
           { value: 'distribution', label: 'Distributions' },
           { value: 'correlation',  label: 'Correlations' },
@@ -502,7 +502,7 @@ function FactorDetail({ stock, marketAvgs, sectorAvgs, onNavigate, onClose }) {
         </div>
         <div className="card-actions">
           <button className="btn btn-outline btn-sm" onClick={() => onNavigate(stock.symbol)}>
-            Open Stock â†’
+            Open Stock →
           </button>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
         </div>
@@ -865,7 +865,7 @@ function MoverCard({ title, rows, field, tone, onClick, fmt }) {
   );
 }
 
-// ─── tab: leaderboard â‰¥ 80 ────────────────────────────────────────────────
+// ─── tab: leaderboard ≥ 80 ────────────────────────────────────────────────
 function LeaderboardTab({ items, sectorFilter, onClick }) {
   const [activeSec, setActiveSec] = useState(sectorFilter || '');
   const eligible = items.filter((s) => Number(s.composite_score) >= 80);
@@ -877,7 +877,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
     return (
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-body">
-          <Empty title="No A-grade names" desc="No symbols currently rank â‰¥ 80 on composite." />
+          <Empty title="No A-grade names" desc="No symbols currently rank ≥ 80 on composite." />
         </div>
       </div>
     );
@@ -888,7 +888,7 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-head">
           <div>
-            <div className="card-title">A-Grade Leaderboard (Composite â‰¥ 80)</div>
+            <div className="card-title">A-Grade Leaderboard (Composite ≥ 80)</div>
             <div className="card-sub">{eligible.length} qualifying names · click chip to filter by sector</div>
           </div>
         </div>
@@ -991,7 +991,7 @@ function HeatmapTab({ items, sectorFilter, onClick }) {
   const heatColor = (v) => {
     if (v == null || isNaN(Number(v))) return 'var(--surface-2)';
     const n = Number(v);
-    // Stoplight gradient: red â†’ amber â†’ cyan â†’ green
+    // Stoplight gradient: red → amber → cyan → green
     if (n >= 80) return 'var(--success-soft)';
     if (n >= 60) return 'var(--cyan-soft)';
     if (n >= 40) return 'var(--amber-soft)';
@@ -1007,7 +1007,7 @@ function HeatmapTab({ items, sectorFilter, onClick }) {
       <div className="card-head">
         <div>
           <div className="card-title">Factor Heatmap (Top 50 by Composite)</div>
-          <div className="card-sub">Cell color = factor score 0-100 · click row â†’ stock detail</div>
+          <div className="card-sub">Cell color = factor score 0-100 · click row → stock detail</div>
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
@@ -1189,7 +1189,7 @@ function CorrelationTab({ items }) {
       <div className="card-head">
         <div>
           <div className="card-title">Factor Correlation Matrix</div>
-          <div className="card-sub">Pearson correlation across the universe · 1.0 = perfect, 0 = none, âˆ’1.0 = inverse</div>
+          <div className="card-sub">Pearson correlation across the universe · 1.0 = perfect, 0 = none, −1.0 = inverse</div>
         </div>
       </div>
       <div className="card-body">
@@ -1211,7 +1211,7 @@ function CorrelationTab({ items }) {
                     const v = matrix[rf.scoreKey]?.[cf.scoreKey];
                     return (
                       <td key={cf.key}
-                          title={`${rf.label} â†” ${cf.label}: ${v == null ? '—' : formatNumber(v, 3)}`}
+                          title={`${rf.label} ↔ ${cf.label}: ${v == null ? '—' : formatNumber(v, 3)}`}
                           style={{
                             background: corrColor(v),
                             textAlign: 'center',
@@ -1233,11 +1233,11 @@ function CorrelationTab({ items }) {
             marginTop: 'var(--space-4)', flexWrap: 'wrap',
           }}>
             <span className="t-xs muted">Legend:</span>
-            <LegendChip color="var(--success-soft)" label="â‰¥ 0.6 strong+" />
+            <LegendChip color="var(--success-soft)" label="≥ 0.6 strong+" />
             <LegendChip color="var(--cyan-soft)"    label="0.3 – 0.6"    />
-            <LegendChip color="var(--surface-2)"    label="âˆ’0.3 – 0.3"   />
-            <LegendChip color="var(--amber-soft)"   label="âˆ’0.6 – âˆ’0.3"  />
-            <LegendChip color="var(--danger-soft)"  label="< âˆ’0.6 strongâˆ’" />
+            <LegendChip color="var(--surface-2)"    label="−0.3 – 0.3"   />
+            <LegendChip color="var(--amber-soft)"   label="−0.6 – −0.3"  />
+            <LegendChip color="var(--danger-soft)"  label="< −0.6 strong−" />
           </div>
         </div>
       </div>

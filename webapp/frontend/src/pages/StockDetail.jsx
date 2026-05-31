@@ -192,7 +192,7 @@ export default function StockDetail() {
     const sma200 = computeSMA(rows, 200);
     const rsi = computeRSI(rows, 14);
 
-    // Map signal dates â†’ marker on the chart
+    // Map signal dates → marker on the chart
     const sigByDate = new Map();
     const signalItems = Array.isArray(signalsData) ? signalsData : (signalsData?.items || signalsData || []);
     (signalItems || []).forEach(s => {
@@ -941,9 +941,9 @@ function AnalystsTab({ data, last }) {
           {target && last && (
             <div style={{ marginTop: 'var(--space-4)' }}>
               <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-                <span className="eyebrow">Current â†’ Target</span>
+                <span className="eyebrow">Current → Target</span>
                 <span className="mono tnum t-sm">
-                  {fmtMoney(last)} â†’ {fmtMoney(target)}
+                  {fmtMoney(last)} → {fmtMoney(target)}
                 </span>
               </div>
               <div className="bar" style={{ height: 8 }}>

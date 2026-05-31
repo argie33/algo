@@ -96,7 +96,7 @@ export default function EconomicDashboard() {
         const sahm = hist.slice(-3).reduce((s, v) => s + v, 0) / 3 - Math.min(...hist);
         tiles.push({
           label: 'Sahm Rule', value: `${sahm >= 0 ? '+' : ''}${sahm.toFixed(2)} pp`,
-          threshold: 'â‰¥ 0.50 triggers', desc: '3-mo unemployment MA vs trailing 12-mo low',
+          threshold: '≥ 0.50 triggers', desc: '3-mo unemployment MA vs trailing 12-mo low',
           status: sahm >= 0.5 ? 'red' : sahm >= 0.3 ? 'amber' : 'green',
           weight: sahm >= 0.5 ? 100 : sahm >= 0.3 ? 60 : Math.max(0, sahm * 100),
         });
@@ -109,7 +109,7 @@ export default function EconomicDashboard() {
     if (spread != null) {
       const spr_bps = Math.round(spread * 100);
       tiles.push({
-        label: t10y3m != null ? '10Yâˆ’3M Curve' : '10Yâˆ’2Y Curve',
+        label: t10y3m != null ? '10Y−3M Curve' : '10Y−2Y Curve',
         value: `${spr_bps >= 0 ? '+' : ''}${spr_bps} bps`,
         threshold: '< 0 inverts', desc: 'Inversion preceded last 8 US recessions',
         status: spread < -0.5 ? 'red' : spread < 0 ? 'amber' : 'green',
@@ -282,7 +282,7 @@ export default function EconomicDashboard() {
             <RegimeStat label="Recession Risk" value={recession?.composite != null ? `${recession.composite}%` : '—'}
               color={recession?.composite >= 60 ? 'var(--danger)' : recession?.composite >= 35 ? 'var(--amber)' : 'var(--success)'} />
             <RegimeStat label="Fed Funds Rate" value={fedRate?.value || '—'} color="var(--brand)" />
-            <RegimeStat label="10Yâˆ’2Y Spread"
+            <RegimeStat label="10Y−2Y Spread"
               value={yieldData?.spreads?.T10Y2Y != null ? bps(yieldData.spreads.T10Y2Y) : '—'}
               color={yieldData?.isInverted ? 'var(--danger)' : 'var(--success)'} />
             <RegimeStat label="HY Spread"
@@ -346,7 +346,7 @@ export default function EconomicDashboard() {
                   <div className="card-head">
                     <div>
                       <div className="card-title">Financial Conditions Index</div>
-                      <div className="card-sub">Z-score: VIX + HY spread + IG spread âˆ’ yield curve · higher = tighter</div>
+                      <div className="card-sub">Z-score: VIX + HY spread + IG spread − yield curve · higher = tighter</div>
                     </div>
                   </div>
                   <div className="card-body" style={{ height: 260 }}>
@@ -379,7 +379,7 @@ export default function EconomicDashboard() {
                 <div className="card">
                   <div className="card-head">
                     <div>
-                      <div className="card-title">10Y âˆ’ 2Y Yield Spread</div>
+                      <div className="card-title">10Y − 2Y Yield Spread</div>
                       <div className="card-sub">Below zero = inverted · preceded last 8 recessions</div>
                     </div>
                     <span className={`badge ${yieldData?.isInverted ? 'badge-danger' : 'badge-success'}`}>
@@ -470,7 +470,7 @@ export default function EconomicDashboard() {
               <div className="card" style={{ marginTop: 'var(--space-4)' }}>
                 <div className="card-head">
                   <div>
-                    <div className="card-title">10Y âˆ’ 2Y Yield Spread (Historical)</div>
+                    <div className="card-title">10Y − 2Y Yield Spread (Historical)</div>
                     <div className="card-sub">Duration of inversions and recovery shape</div>
                   </div>
                 </div>
@@ -521,7 +521,7 @@ export default function EconomicDashboard() {
                   <div className="stile" style={{ maxWidth: 240 }}>
                     <div className="stile-label">Current Reading</div>
                     <div className="stile-value">{recession.tiles.find(t => t.label === 'Sahm Rule').value}</div>
-                    <div className="stile-sub muted t-xs">â‰¥ 0.50pp historically signals recession has started</div>
+                    <div className="stile-sub muted t-xs">≥ 0.50pp historically signals recession has started</div>
                   </div>
                 </div>
               </div>
@@ -552,7 +552,7 @@ export default function EconomicDashboard() {
                   <MacroKpi label="CPI (YoY)" ind={cpiInd} unit="%" invertGood />
                   <MacroKpi label="Fed Funds Rate" ind={fedRate} unit="%" />
                   <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
-                    <div className="eyebrow">Real Rate (10Y âˆ’ CPI YoY)</div>
+                    <div className="eyebrow">Real Rate (10Y − CPI YoY)</div>
                     <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
                       {realRate != null ? pct(realRate) : '—'}
                     </div>
@@ -1079,8 +1079,8 @@ function EconomicRegimeClock({ indicators, _yieldData }) {
             }} />
 
             {/* Axis Labels */}
-            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5 }}>Weak â† Growth â†’ Strong</div>
-            <div style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>Low â† Inflation â†’ High</div>
+            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5 }}>Weak â† Growth → Strong</div>
+            <div style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 'var(--t-2xs)', color: 'var(--text-3)', zIndex: 5, writingMode: 'vertical-rl', textOrientation: 'mixed' }}>Low â† Inflation → High</div>
           </div>
 
           {/* Key Inputs */}
@@ -1088,7 +1088,7 @@ function EconomicRegimeClock({ indicators, _yieldData }) {
             <div className="stile">
               <div className="stile-label">Growth Axis</div>
               <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
-                <div>GDP trend: <strong style={{ color: gdpTrend > 0 ? 'var(--success)' : gdpTrend < 0 ? 'var(--danger)' : 'var(--text)' }}>{gdpTrend > 0 ? 'â†— Expanding' : gdpTrend < 0 ? 'â†˜ Contracting' : 'â†’ Flat'}</strong></div>
+                <div>GDP trend: <strong style={{ color: gdpTrend > 0 ? 'var(--success)' : gdpTrend < 0 ? 'var(--danger)' : 'var(--text)' }}>{gdpTrend > 0 ? 'â†— Expanding' : gdpTrend < 0 ? 'â†˜ Contracting' : '→ Flat'}</strong></div>
                 <div style={{ marginTop: 4 }}>ISM Manufacturing: <strong className={ismVal > 50 ? 'up' : ismVal < 50 ? 'down' : ''}>{ismVal.toFixed(1)}</strong></div>
               </div>
             </div>
@@ -1315,7 +1315,7 @@ function LEIPanel({ indicators }) {
           <div className="stile">
             <div className="stile-label">6-Month Trend</div>
             <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
-              <div>vs 26-week avg: <strong className={sixMonthTrend === 'up' ? 'up' : sixMonthTrend === 'down' ? 'down' : ''}>{sixMonthTrend === 'up' ? 'â†— Improving' : sixMonthTrend === 'down' ? 'â†˜ Deteriorating' : 'â†’ Flat'}</strong></div>
+              <div>vs 26-week avg: <strong className={sixMonthTrend === 'up' ? 'up' : sixMonthTrend === 'down' ? 'down' : ''}>{sixMonthTrend === 'up' ? 'â†— Improving' : sixMonthTrend === 'down' ? 'â†˜ Deteriorating' : '→ Flat'}</strong></div>
               <div style={{ marginTop: 4 }}>Latest: <strong>{chartData.length > 0 ? chartData[chartData.length - 1].lei.toFixed(0) : '—'}</strong></div>
             </div>
           </div>
