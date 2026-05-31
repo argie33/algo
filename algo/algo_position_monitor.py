@@ -98,39 +98,14 @@ class PositionMonitor:
                     return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
                 return {'status': 'OK', 'count': 0}
 
-    def check_sector_concentration(self, current_date=None, cur=None):
+    def check_sector_concentration(self, current_date=None):
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
-
-        If cur is provided, uses that cursor. Otherwise creates its own DatabaseContext.
         """
         if not current_date:
             current_date = _date.today()
 
-        # If cursor provided, use it directly
-        if cur is not None:
-            try:
-                cur.execute("""
-                    SELECT COALESCE(cp.sector, 'Unknown') as sector, COUNT(DISTINCT ap.symbol) as position_count
-                    FROM algo_positions ap
-                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
-                    WHERE ap.status = 'open' AND ap.quantity > 0
-                    GROUP BY COALESCE(cp.sector, 'Unknown')
-                    HAVING COUNT(DISTINCT ap.symbol) > 3
-                    ORDER BY position_count DESC
-                """)
-                concentrated = cur.fetchall()
-                if concentrated:
-                    logger.info(f"\n  [CONCENTRATION ALERT]")
-                    for sector, count in concentrated:
-                        logger.info(f"    {sector}: {count} positions (>3 is risky)")
-                    return {'status': 'HIGH_CONCENTRATION', 'sectors': concentrated}
-                return {'status': 'OK', 'sectors': []}
-            except Exception as e:
-                return {'status': 'ERROR', 'error': str(e)}
-
-        # Otherwise create our own context
         with DatabaseContext('read') as cur:
             try:
                 cur.execute("""
@@ -784,10 +759,6 @@ class PositionMonitor:
     def get_margin_usage(self):
         """Return current margin usage dict with margin_usage_pct key, or None if unavailable."""
         try:
-            from config.alpaca_config import get_alpaca_base_url
-            from config.credential_manager import get_alpaca_credentials
-            import requests
-            from algo.algo_config import get_api_timeout
 
             creds = get_alpaca_credentials()
             base_url = get_alpaca_base_url()
