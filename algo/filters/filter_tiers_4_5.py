@@ -29,7 +29,7 @@ class FilterTiers45Mixin:
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'sqs': 0}
 
-    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price, signal_date=None, cur=None) -> Dict[str, Any]:
+    def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price, cur, signal_date=None) -> Dict[str, Any]:
         """Portfolio health check + actual share calculation using PositionSizer."""
         try:
             # Production safeguards (Phase 1)
