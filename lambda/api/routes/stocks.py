@@ -31,12 +31,16 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
         if path == '/api/stocks/deep-value':
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=200)
-            # Fast check: return empty if no financial data loaded yet
-            cur.execute("SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1")
-            if not cur.fetchone():
+            # Fast check: return empty if financial data not loaded yet (table missing or empty)
+            try:
+                cur.execute("SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1")
+                if not cur.fetchone():
+                    return list_response([])
+            except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError):
                 return list_response([])
-            cur.execute("SET statement_timeout TO '28s'")
-            cur.execute("""
+            try:
+                cur.execute("SET statement_timeout TO '28s'")
+                cur.execute("""
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
@@ -181,9 +185,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 ORDER BY generational_score DESC NULLS LAST
                 LIMIT %s
             """, (limit,))
-            rows = cur.fetchall()
-            freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
-            return list_response([dict(r) for r in rows], data_freshness=freshness)
+                rows = cur.fetchall()
+                freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
+                return list_response([dict(r) for r in rows], data_freshness=freshness)
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.errors.QueryCanceled) as e:
+                logger.warning(f'deep-value data not ready: {type(e).__name__}')
+                return list_response([])
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=50000, default=500)
         offset = safe_offset(params.get('offset', [None])[0] if params else None)

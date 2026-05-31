@@ -174,7 +174,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     latest_sector_ranking AS (
                         SELECT sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
                         FROM sector_ranking
-                        WHERE date = (SELECT MAX(date) FROM sector_ranking)
+                        WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
                     )
                     SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile,
                            sr.rank_1w_ago, sr.rank_4w_ago, sr.rank_12w_ago
@@ -224,7 +224,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         }
                     })
 
-                freshness = check_data_freshness(cur, 'sector_ranking', 'date', warning_days=1)
+                freshness = check_data_freshness(cur, 'sector_ranking', 'date_recorded', warning_days=1)
                 return json_response(200, {
                     'items': sectors,
                     'total': total,

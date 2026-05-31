@@ -31,6 +31,7 @@ enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM E
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
 cognito_enabled               = false                       # COST OPTIMIZED: Disabled. Not used on any routes. Saves ~$1/month.
+cognito_test_user_email       = "argeropolos@gmail.com"      # Primary user — created by Terraform with temp password, set permanent via CLI after deploy
 
 # Database configuration
 rds_instance_class = "db.t4g.micro" # COST OPTIMIZED: Graviton t4g.micro ($8-12/month) vs t3.medium ($60/month). RDS Proxy handles connection pooling.

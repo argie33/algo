@@ -1010,6 +1010,28 @@ data "aws_iam_policy_document" "developer" {
       values   = [var.aws_account_id]
     }
   }
+
+  # Cognito user management (create users, reset passwords, list pool)
+  statement {
+    sid    = "CognitoUserAdmin"
+    effect = "Allow"
+    actions = [
+      "cognito-idp:AdminCreateUser",
+      "cognito-idp:AdminSetUserPassword",
+      "cognito-idp:AdminDeleteUser",
+      "cognito-idp:AdminGetUser",
+      "cognito-idp:AdminUpdateUserAttributes",
+      "cognito-idp:AdminEnableUser",
+      "cognito-idp:AdminDisableUser",
+      "cognito-idp:ListUsers",
+      "cognito-idp:ListUserPools",
+      "cognito-idp:DescribeUserPool",
+      "cognito-idp:DescribeUserPoolClient"
+    ]
+    resources = [
+      "arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/*"
+    ]
+  }
 }
 
 # Mark access key for rotation on a schedule
