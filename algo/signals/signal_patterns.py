@@ -551,12 +551,8 @@ class SignalPatternsMixin:
           'pivot_high': float,
         }
         """
-        try:
-            # Use existing cursor from parent class, don't reconnect
-            if not hasattr(self, 'cur') or self.cur is None:
-                self.connect()
-            # Need ~12 weeks of weekly data
-            self.cur.execute(
+        def _analyze_htf(cur):
+            cur.execute(
                 """
                 SELECT date, high, low, close FROM price_weekly
                 WHERE symbol = %s AND date <= %s
@@ -564,17 +560,15 @@ class SignalPatternsMixin:
                 """,
                 (symbol, eval_date),
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
             if len(rows) < 8:
                 return {'is_htf': False, 'reason': 'insufficient weekly history'}
 
-            rows = list(reversed(rows))  # chronological
+            rows = list(reversed(rows))
             highs = [float(r[1]) for r in rows]
             lows = [float(r[2]) for r in rows]
             closes = [float(r[3]) for r in rows]
 
-            # Look for last 1-3 weeks (consolidation) and prior 4-8 weeks (advance)
-            # Try different consolidation lengths
             best_htf = None
             for cons_weeks in (1, 2, 3):
                 if len(rows) < 4 + cons_weeks:
@@ -586,11 +580,9 @@ class SignalPatternsMixin:
                 cons_low = min(cons_lows)
                 cons_pct = (cons_high - cons_low) / cons_high * 100.0 if cons_high > 0 else 100
 
-                # Tight consolidation: <= 25% range (HTF is allowed wider than other bases)
                 if cons_pct > 25:
                     continue
 
-                # Prior advance: 4-8 weeks before consolidation
                 for adv_weeks in (4, 5, 6, 7, 8):
                     if len(rows) < adv_weeks + cons_weeks:
                         continue
@@ -602,7 +594,6 @@ class SignalPatternsMixin:
                     if start_close <= 0:
                         continue
                     advance_pct = (end_close - start_close) / start_close * 100.0
-                    # 100%+ advance qualifies
                     if advance_pct >= 100:
                         if best_htf is None or advance_pct > best_htf['advance']:
                             best_htf = {
@@ -622,9 +613,4 @@ class SignalPatternsMixin:
                 }
             return {'is_htf': False}
 
-        finally:
-            try:
-                self.disconnect()
-            except Exception as e:
-                logger.debug(f"Exception (expected): {e}")
-                pass
+        return self._with_cursor(_analyze_htf) or {'is_htf': False, 'reason': 'Database error'}

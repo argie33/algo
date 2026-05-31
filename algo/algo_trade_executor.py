@@ -96,34 +96,6 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
-        self.cur = None
-        self._db_context = None
-        self._should_rollback = False
-
-    def connect(self) -> None:
-        """Open a write-capable database connection for this executor."""
-        if self.cur is not None:
-            return
-        self._should_rollback = False
-        self._db_context = DatabaseContext('write')
-        self.cur = self._db_context.__enter__()
-
-    def disconnect(self) -> None:
-        """Commit or rollback the executor transaction and close the connection."""
-        if self._db_context is None:
-            return
-        try:
-            should_rb = getattr(self, '_should_rollback', False)
-            if should_rb:
-                self._db_context.__exit__(Exception, Exception('rollback'), None)
-            else:
-                self._db_context.__exit__(None, None, None)
-        except Exception as e:
-            logger.warning(f'Error during database cleanup: {e}')
-        finally:
-            self.cur = None
-            self._db_context = None
-            self._should_rollback = False
 
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
@@ -207,23 +179,25 @@ class TradeExecutor:
             }
 
         # P2 FIX: IDEMPOTENCY CHECK - Prevent duplicate positions on same symbol
+        def _check_duplicate_position(cur):
+            cur.execute(
+                """
+                SELECT symbol FROM algo_positions
+                WHERE symbol = %s AND status = %s
+                LIMIT 1
+                """,
+                (symbol, PositionStatus.OPEN.value),
+            )
+            return cur.fetchone()
+
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    """
-                    SELECT symbol FROM algo_positions
-                    WHERE symbol = %s AND status = %s
-                    LIMIT 1
-                    """,
-                    (symbol, PositionStatus.OPEN.value),
-                )
-                existing_pos = cur.fetchone()
-                if existing_pos:
-                    return {
-                        'success': False, 'trade_id': '', 'status': 'duplicate_position',
-                        'message': f'Symbol {symbol} already has an open position. Close it before entering another.',
-                        'duplicate': True
-                    }
+            existing_pos = self._with_cursor(_check_duplicate_position)
+            if existing_pos:
+                return {
+                    'success': False, 'trade_id': '', 'status': 'duplicate_position',
+                    'message': f'Symbol {symbol} already has an open position. Close it before entering another.',
+                    'duplicate': True
+                }
         except Exception as e:
             logger.warning(f"Failed to check for duplicate position: {e}")
 
@@ -667,17 +641,15 @@ class TradeExecutor:
 
     # ---------- Exit (full or partial) ----------
 
-    def _update_position_with_retry(self, position_id: int, new_qty: float, new_stop_price: Optional[float] = None, full_exit: bool = False, target_levels_hit: int = 0, exit_stage: Optional[str] = None) -> None:
+    def _update_position_with_retry(self, cur, position_id: int, new_qty: float, new_stop_price: Optional[float] = None, full_exit: bool = False, target_levels_hit: int = 0, exit_stage: Optional[str] = None) -> tuple:
         """Update position with retry logic for race condition safety.
 
         Handles concurrent updates by re-reading position before each retry.
-        M7 FIX: Check if new stop is already at target level (idempotency for stop raises).
         Returns: (success: bool, message: str or None)
         """
         retry_config = RetryConfig(max_attempts=3, base_delay_ms=100)
 
         def do_update():
-            # Re-read current quantity and stop (fresh for each retry)
             cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
                 (position_id,)
@@ -689,13 +661,10 @@ class TradeExecutor:
             current_qty = result[0]
             current_stop = float(result[1]) if result[1] else 0
 
-            # M7 FIX: Idempotency for stop raises - don't re-raise if already at target
             effective_stop = new_stop_price
             if new_stop_price and current_stop >= new_stop_price:
-                # Stop already at or above target - skip update (idempotency)
                 effective_stop = current_stop
 
-            # Attempt update
             if full_exit or new_qty <= 0:
                 cur.execute(
                     """UPDATE algo_positions
@@ -704,11 +673,7 @@ class TradeExecutor:
                     (PositionStatus.CLOSED.value, position_id, current_qty)
                 )
             else:
-                # Only increment target_levels_hit if this exit was due to hitting a target price
-                # (exit_stage like 'target_1', 'target_2', 'target_3'), not for stop/forced/time-based exits
                 increment_targets = 1 if (exit_stage and 'target' in exit_stage.lower()) else 0
-
-                # Build update statement with conditional target_*_hit_time updates
                 update_sql = """UPDATE algo_positions
                                SET quantity = %s,
                                    position_value = %s * current_price,
@@ -716,7 +681,6 @@ class TradeExecutor:
                                    current_stop_price = %s"""
                 params = [new_qty, new_qty, increment_targets, effective_stop]
 
-                # Update the appropriate target_*_hit_time column if this is a target exit
                 if exit_stage == 'target_1':
                     update_sql += ", target_1_hit_time = CURRENT_TIMESTAMP"
                 elif exit_stage == 'target_2':
@@ -729,7 +693,7 @@ class TradeExecutor:
 
                 cur.execute(update_sql, params)
 
-            return cur.rowcount > 0  # True if update succeeded
+            return cur.rowcount > 0
 
         success = OptimisticLockRetry.retry_on_race_condition(
             do_update,
@@ -740,7 +704,6 @@ class TradeExecutor:
         if success:
             return True, None
         else:
-            self._should_rollback = True
             return False, "Position quantity changed before update (race condition, retries exhausted)"
 
     def exit_trade(self, trade_id: int, exit_price: float, exit_reason: str, exit_fraction: float = 1.0,
@@ -757,14 +720,11 @@ class TradeExecutor:
 
         Returns: { success, trade_id, shares_exited, profit_loss_dollars, profit_loss_pct, message }
         """
-        # Stop-raise-only: no exit order, just update current_stop_price on the open position.
-        # The exit engine sends fraction=0 for breakeven moves and chandelier/EMA trail raises.
         if exit_fraction == 0:
             if new_stop_price is None:
                 return {'success': False, 'message': 'stop-raise-only (fraction=0) requires new_stop_price'}
-            self.connect()
-            try:
-                # Only raise (never lower) the stop — idempotent guard
+
+            def _raise_stop(cur):
                 cur.execute(
                     """UPDATE algo_positions p
                        SET current_stop_price = %s
@@ -775,7 +735,7 @@ class TradeExecutor:
                          AND %s > COALESCE(p.current_stop_price, 0)""",
                     (new_stop_price, trade_id, PositionStatus.OPEN.value, new_stop_price),
                 )
-                updated = self.cur.rowcount > 0
+                updated = cur.rowcount > 0
                 return {
                     'success': True,
                     'message': (
@@ -784,10 +744,11 @@ class TradeExecutor:
                         f'Stop already at or above ${new_stop_price:.2f} (no-op)'
                     ),
                 }
+
+            try:
+                return self._with_cursor(_raise_stop) or {'success': False, 'message': 'Stop raise failed'}
             except Exception as e:
                 return {'success': False, 'message': f'Stop raise failed: {e}'}
-            finally:
-                self.disconnect()
 
         if not (0 < exit_fraction <= 1.0):
             return {'success': False, 'message': f'Invalid exit_fraction {exit_fraction}'}
@@ -795,12 +756,9 @@ class TradeExecutor:
         if not exit_price or exit_price <= 0:
             return {'success': False, 'message': f'Invalid exit price: {exit_price} (must be > 0)'}
 
-        self.connect()
-        try:
+        def _execute_exit(cur):
             cur.execute(
-                """
-                SELECT status FROM algo_trades WHERE trade_id = %s
-                """,
+                """SELECT status FROM algo_trades WHERE trade_id = %s""",
                 (trade_id,),
             )
             trade_status_row = cur.fetchone()
@@ -812,14 +770,12 @@ class TradeExecutor:
                 }
 
             cur.execute(
-                """
-                SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
+                """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
                 LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.trade_id = %s
-                """,
+                WHERE t.trade_id = %s""",
                 (trade_id,),
             )
             row = cur.fetchone()
@@ -843,22 +799,19 @@ class TradeExecutor:
             if current_qty <= 0 and not position_id:
                 return {'success': False, 'message': f'No open position for {trade_id}'}
 
-            # B8: Shares to exit (using Decimal for precision with fractional shares)
             current_qty_dec = Decimal(str(current_qty))
             exit_frac_dec = Decimal(str(exit_fraction))
             shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            shares_to_exit_dec = max(Decimal('0.01'), shares_to_exit_dec)  # Min 1 cent of shares
-            shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)  # Cap at current qty
+            shares_to_exit_dec = max(Decimal('0.01'), shares_to_exit_dec)
+            shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
             shares_to_exit = float(shares_to_exit_dec)
             full_exit = shares_to_exit >= current_qty
 
-            # B3: Cancel bracket orders BEFORE sending the market sell
             if full_exit and alpaca_order_id:
                 cancel_result = self._cancel_bracket_orders(alpaca_order_id)
                 if not cancel_result.get('success'):
                     logger.warning(f"Failed to cancel bracket for {trade_id}: {cancel_result['message']}")
 
-            # B3+B5: Send exit order and get actual fill price
             execution_mode = self.config.get('execution_mode', 'paper')
             actual_fill_price = None
             exit_order_result = {'success': False, 'message': 'No order sent'}
@@ -868,7 +821,6 @@ class TradeExecutor:
                 if exit_order_result.get('success'):
                     actual_fill_price = exit_order_result.get('filled_price')
                 else:
-                    # B7: Alert on exit order failure
                     try:
                         notify(
                             'critical',
@@ -877,20 +829,16 @@ class TradeExecutor:
                         )
                     except Exception as e:
                         logger.warning(f"Failed to send exit failure alert: {e}")
-                    # Order failed — don't mark position closed (B4)
                     return {
                         'success': False,
                         'message': f'Exit order failed: {exit_order_result.get("message")}'
                     }
 
-            # Use actual fill price if available, otherwise use the passed price (current market)
             final_exit_price = actual_fill_price if actual_fill_price else exit_price
 
-            # Profit calc against actual entry + actual exit price (B5)
-            # B3: Defensive checks for negative prices
             if final_exit_price <= 0:
                 logger.warning(f"Negative exit price {final_exit_price} for {symbol}")
-                final_exit_price = max(0.01, final_exit_price)  # Floor at $0.01
+                final_exit_price = max(0.01, final_exit_price)
             if entry_price <= 0:
                 logger.warning(f"Invalid entry price {entry_price} for {symbol}")
                 return {'success': False, 'message': f'Invalid entry price for {trade_id}'}
@@ -901,16 +849,14 @@ class TradeExecutor:
             pnl_dollars = pnl_per_share * shares_to_exit
             pnl_pct = (pnl_per_share / entry_price * 100) if entry_price > 0 else 0
 
-            # Clamp invalid values
-            if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:  # NaN check
+            if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
                 pnl_dollars = 0.0
-            if not isinstance(pnl_pct, (int, float)) or pnl_pct != pnl_pct:  # NaN check
+            if not isinstance(pnl_pct, (int, float)) or pnl_pct != pnl_pct:
                 pnl_pct = 0.0
 
             if full_exit:
                 cur.execute(
-                    """
-                    UPDATE algo_trades
+                    """UPDATE algo_trades
                     SET exit_date = CURRENT_DATE,
                         exit_time = CURRENT_TIMESTAMP,
                         exit_price = %s,
@@ -919,30 +865,22 @@ class TradeExecutor:
                         profit_loss_dollars = %s,
                         profit_loss_pct = %s,
                         status = 'closed'
-                    WHERE trade_id = %s
-                    """,
+                    WHERE trade_id = %s""",
                     (final_exit_price, exit_reason, r_multiple, pnl_dollars, pnl_pct, trade_id),
                 )
             else:
-                # Partial exit — append to exit log column, keep status active
                 cur.execute(
-                    """
-                    UPDATE algo_trades
+                    """UPDATE algo_trades
                     SET partial_exits_log = COALESCE(partial_exits_log, '') ||
                             CASE WHEN partial_exits_log IS NULL OR partial_exits_log = '' THEN '' ELSE '; ' END ||
                             %s,
                         partial_exit_count = COALESCE(partial_exit_count, 0) + 1,
                         last_partial_exit_date = CURRENT_DATE,
                         status = 'open'
-                    WHERE trade_id = %s
-                    """,
-                    (
-                        f"{shares_to_exit}sh @ ${final_exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)",
-                        trade_id,
-                    ),
+                    WHERE trade_id = %s""",
+                    (f"{shares_to_exit}sh @ ${final_exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)", trade_id),
                 )
 
-            # B8: Use Decimal for precision with fractional shares
             current_qty_dec = Decimal(str(current_qty))
             shares_exited_dec = Decimal(str(shares_to_exit))
             new_qty_dec = current_qty_dec - shares_exited_dec
@@ -950,6 +888,7 @@ class TradeExecutor:
 
             effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
             update_success, update_error = self._update_position_with_retry(
+                cur=cur,
                 position_id=position_id,
                 new_qty=new_qty,
                 new_stop_price=effective_stop,
@@ -964,14 +903,11 @@ class TradeExecutor:
                     'message': update_error or 'Position update failed'
                 }
 
-            # Audit log
             try:
                 cur.execute(
-                    """
-                    INSERT INTO algo_audit_log (action_type, symbol, action_date,
+                    """INSERT INTO algo_audit_log (action_type, symbol, action_date,
                                                 details, actor, status, created_at)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, CURRENT_TIMESTAMP)
-                    """,
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, CURRENT_TIMESTAMP)""",
                     (
                         f"exit_{exit_stage or 'manual'}", symbol,
                         json.dumps({
@@ -989,9 +925,8 @@ class TradeExecutor:
                     ),
                 )
             except Exception as audit_e:
-                logger.debug(f"Failed to audit log exit: {audit_e}")  # audit best-effort
+                logger.debug(f"Failed to audit log exit: {audit_e}")
 
-            # Send trade exit notification
             try:
                 notif_service = TradeNotificationService()
                 notif_service._send_notification(
@@ -1028,11 +963,11 @@ class TradeExecutor:
                 ),
             }
 
+        try:
+            return self._with_cursor(_execute_exit) or {'success': False, 'trade_id': '', 'status': 'error', 'message': 'Unknown error'}
         except Exception as e:
-            self._should_rollback = True
+            logger.error(f"Trade exit failed: {e}")
             return {'success': False, 'message': f'{type(e).__name__}: {e}'}
-        finally:
-            self.disconnect()
 
     # ---------- Helpers ----------
 
@@ -1051,20 +986,23 @@ class TradeExecutor:
                         data = resp.json()
                     except (ValueError, Exception) as e:
                         logger.debug(f"Invalid JSON response from portfolio API: {e}")
-                        return None
-                    pv = data.get('portfolio_value') or data.get('equity')
-                    if pv is not None:
-                        pv_float = float(pv)
-                        logger.debug(f"[PORTFOLIO] Live Alpaca equity: ${pv_float:.2f}")
-                        return pv_float
+                    else:
+                        pv = data.get('portfolio_value') or data.get('equity')
+                        if pv is not None:
+                            pv_float = float(pv)
+                            logger.info(f"[PORTFOLIO] Live Alpaca equity: ${pv_float:.2f} (url={self.alpaca_base_url})")
+                            return pv_float
+                        logger.warning(f"[PORTFOLIO] Alpaca /v2/account 200 but missing portfolio_value/equity fields")
+                elif resp.status_code == 401:
+                    logger.error(f"[PORTFOLIO] Alpaca 401 Unauthorized — APCA_API_KEY_ID/APCA_API_SECRET_KEY are wrong or expired. URL: {self.alpaca_base_url}")
+                elif resp.status_code == 403:
+                    logger.error(f"[PORTFOLIO] Alpaca 403 Forbidden — key may be live keys used with paper URL or vice versa. URL: {self.alpaca_base_url}")
+                else:
+                    logger.warning(f"[PORTFOLIO] Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:150]}")
             except Exception as e:
-                # Alpaca API failed, will fall back to snapshot
                 logger.warning(f"[PORTFOLIO] Could not fetch Alpaca account value: {e}")
-        try:
-            if not self.cur:
-                # Called before connect(); DB fallback unavailable — don't crash
-                logger.debug("[PORTFOLIO] DB cursor not available for snapshot fallback")
-                return None
+
+        def _get_snapshot(cur):
             cur.execute(
                 "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots "
                 "ORDER BY snapshot_date DESC LIMIT 1"
@@ -1074,8 +1012,6 @@ class TradeExecutor:
                 pv = float(row[0])
                 snapshot_date = row[1]
                 logger.debug(f"[PORTFOLIO] Using snapshot from {snapshot_date}: ${pv:.2f}")
-                # Alert if snapshot is stale (more than 1 day old)
-                from datetime import datetime, timedelta
                 if snapshot_date and (datetime.now(timezone.utc).date() - snapshot_date).days > 1:
                     logger.warning(f"[PORTFOLIO] STALE SNAPSHOT: from {snapshot_date}")
                     try:
@@ -1087,6 +1023,10 @@ class TradeExecutor:
                     except Exception as notif_e:
                         logger.debug(f"Failed to send portfolio staleness notification: {notif_e}")
                 return pv
+            return None
+
+        try:
+            return self._with_cursor(_get_snapshot)
         except Exception as e:
             logger.error(f"[PORTFOLIO] Could not fetch portfolio snapshot: {e}")
         logger.error(f"[PORTFOLIO] CRITICAL: Could not determine portfolio value - trades will be blocked")
