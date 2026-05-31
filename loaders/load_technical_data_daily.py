@@ -190,17 +190,20 @@ class TechnicalDataDailyLoader(OptimalLoader):
         def safe_float(v):
             return float(v) if pd.notna(v) else None
 
-        def safe_int(v):
-            return int(round(float(v))) if pd.notna(v) and not (isinstance(v, float) and abs(v) == float('inf')) else None
-
-        int_cols = {"volume_ma_50"}
         for col in columns[2:]:
-            if col in int_cols:
-                df[col] = df[col].apply(safe_int)
-            else:
-                df[col] = df[col].apply(safe_float)
+            df[col] = df[col].apply(safe_float)
 
-        return df[columns].to_dict("records")
+        records = df[columns].to_dict("records")
+
+        # pandas converts int+None Series to float64 (e.g. 6887014 → 6887014.0).
+        # volume_ma_50 is bigint in the schema — fix after to_dict to ensure Python int.
+        import math
+        for r in records:
+            vma = r.get("volume_ma_50")
+            if isinstance(vma, float):
+                r["volume_ma_50"] = int(round(vma)) if not math.isnan(vma) else None
+
+        return records
 
 def main():
     parser = argparse.ArgumentParser(description="Load technical indicators")
