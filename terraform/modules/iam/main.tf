@@ -1010,8 +1010,16 @@ data "aws_iam_policy_document" "developer" {
       values   = [var.aws_account_id]
     }
   }
+}
 
-  # Cognito user management (create users, reset passwords, list pool)
+# Separate policy for Cognito (inline policies capped at 2048 bytes; split avoids the limit)
+resource "aws_iam_user_policy" "developer_cognito" {
+  name   = "${var.project_name}-developer-cognito-policy"
+  user   = aws_iam_user.developer.name
+  policy = data.aws_iam_policy_document.developer_cognito.json
+}
+
+data "aws_iam_policy_document" "developer_cognito" {
   statement {
     sid    = "CognitoUserAdmin"
     effect = "Allow"
@@ -1028,9 +1036,7 @@ data "aws_iam_policy_document" "developer" {
       "cognito-idp:DescribeUserPool",
       "cognito-idp:DescribeUserPoolClient"
     ]
-    resources = [
-      "arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/*"
-    ]
+    resources = ["arn:aws:cognito-idp:${var.aws_region}:${var.aws_account_id}:userpool/*"]
   }
 }
 
