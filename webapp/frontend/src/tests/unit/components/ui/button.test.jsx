@@ -224,7 +224,7 @@ describe("Button", () => {
 
   describe("Content Types", () => {
     test("renders with icon and text", () => {
-      const Icon = () => <span data-testid="icon">ðŸ”¥</span>;
+      const Icon = () => <span data-testid="icon">ðŸ"¥</span>;
       render(<Button startIcon={<Icon />}>With Icon</Button>);
 
       expect(screen.getByText("With Icon")).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe("Button", () => {
     });
 
     test("renders end icon", () => {
-      const Icon = () => <span data-testid="end-icon">â†’</span>;
+      const Icon = () => <span data-testid="end-icon">â†'</span>;
       render(<Button endIcon={<Icon />}>End Icon</Button>);
 
       expect(screen.getByText("End Icon")).toBeInTheDocument();

@@ -540,7 +540,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
         {/* Phase status */}
         <SectionCard title={`Orchestrator Phases${hasLastRun && runAge != null ? ` — last run ${runAge < 60 ? `${runAge}m ago` : `${Math.round(runAge/60)}h ago`}` : ''}`}>
           {!hasLastRun && (
-            <div className=”t-xs muted” style={{ marginBottom: 'var(--space-3)' }}>
+            <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)' }}>
               No run history yet — statuses shown below are design-time defaults.
             </div>
           )}
@@ -557,13 +557,13 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
                 borderLeft: `4px solid ${color}`,
                 borderRadius: 'var(--r-md)',
               }}>
-                <div className=”flex justify-between items-center”>
+                <div className="flex justify-between items-center">
                   <div style={{ flex: 1 }}>
-                    <div className=”t-2xs strong mono” style={{ color: 'var(--brand)' }}>PHASE {ph.n}</div>
-                    <div className=”strong”>{ph.name}</div>
-                    <div className=”t-2xs muted”>{ph.desc}</div>
+                    <div className="t-2xs strong mono" style={{ color: 'var(--brand)' }}>PHASE {ph.n}</div>
+                    <div className="strong">{ph.name}</div>
+                    <div className="t-2xs muted">{ph.desc}</div>
                   </div>
-                  <div className=”flex gap-2 items-center”>
+                  <div className="flex gap-2 items-center">
                     {hasLastRun && (
                       <span className={`badge ${badgeClass}`} style={{ fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)' }}>
                         {badge}

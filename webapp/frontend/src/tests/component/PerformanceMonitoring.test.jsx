@@ -559,7 +559,7 @@ describe("Performance Monitoring Tests", () => {
             {apiMetrics.map((metric, index) => (
               <div key={index} data-testid={`api-metric-${index}`}>
                 {metric.endpoint}: {metric.responseTime}ms
-                {metric.success ? " âœ“" : " âœ—"}
+                {metric.success ? " âœ"" : " âœ—"}
               </div>
             ))}
           </div>
@@ -576,9 +576,9 @@ describe("Performance Monitoring Tests", () => {
 
       // All API calls should show response times - check that all endpoints are present (order may vary)
       const allText = screen.getByTestId("api-performance-monitor").textContent;
-      expect(allText).toMatch(/\/api\/portfolio: [\d.]+ms âœ“/);
-      expect(allText).toMatch(/\/api\/market-data: [\d.]+ms âœ“/);
-      expect(allText).toMatch(/\/api\/news: [\d.]+ms âœ“/);
+      expect(allText).toMatch(/\/api\/portfolio: [\d.]+ms âœ"/);
+      expect(allText).toMatch(/\/api\/market-data: [\d.]+ms âœ"/);
+      expect(allText).toMatch(/\/api\/news: [\d.]+ms âœ"/);
     });
 
     test("should detect slow API calls", async () => {
