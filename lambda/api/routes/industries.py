@@ -46,25 +46,9 @@ def _industry_list(cur, params):
     page = safe_page(page_str, default=1)
     offset = (page - 1) * limit
 
-    cur.execute("SET statement_timeout TO '25s'")
+    cur.execute("SET statement_timeout TO '20s'")
     cur.execute("""
-        WITH recent_prices AS (
-            SELECT symbol, date, close,
-                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-            FROM price_daily
-            WHERE date >= CURRENT_DATE - INTERVAL '60 days'
-              AND close > 0
-        ),
-        symbol_perf AS (
-            SELECT symbol,
-                MAX(close) FILTER (WHERE rn = 1)  AS close_now,
-                MAX(close) FILTER (WHERE rn = 2)  AS close_1d,
-                MAX(close) FILTER (WHERE rn = 6)  AS close_5d,
-                MAX(close) FILTER (WHERE rn = 21) AS close_20d
-            FROM recent_prices
-            GROUP BY symbol
-        ),
-        industry_scores AS (
+        WITH industry_scores AS (
             SELECT
                 cp.industry,
                 cp.sector,
@@ -75,11 +59,10 @@ def _industry_list(cur, params):
                 AVG(ss.quality_score)               AS quality_score,
                 AVG(ss.growth_score)                AS growth_score,
                 AVG(ss.stability_score)             AS stability_score,
-                AVG(CASE WHEN sp.close_1d  > 0 THEN (sp.close_now - sp.close_1d)  / sp.close_1d  * 100 END) AS perf_1d,
-                AVG(CASE WHEN sp.close_5d  > 0 THEN (sp.close_now - sp.close_5d)  / sp.close_5d  * 100 END) AS perf_5d,
-                AVG(CASE WHEN sp.close_20d > 0 THEN (sp.close_now - sp.close_20d) / sp.close_20d * 100 END) AS perf_20d
+                NULL::numeric AS perf_1d,
+                NULL::numeric AS perf_5d,
+                NULL::numeric AS perf_20d
             FROM company_profile cp
-            LEFT JOIN symbol_perf  sp ON cp.ticker = sp.symbol
             LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
             WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
             GROUP BY cp.industry, cp.sector
