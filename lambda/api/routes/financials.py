@@ -49,7 +49,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 LIMIT %s
             """, (sym, limit))
             rows = cur.fetchall()
-            freshness = check_data_freshness(cur, 'value_metrics', 'updated_at', warning_days=7)
+            freshness = check_data_freshness(cur, 'value_metrics', 'created_at', warning_days=7)
             return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
 
         if endpoint == 'income-statement':

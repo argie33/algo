@@ -135,9 +135,10 @@ class MarketExposure:
 
         logger.info(f"Computing market exposure for {eval_date} (11 sequential queries)")
         with DatabaseContext('read') as cur:
-            # Prevent any single query from hanging on t4g.micro under DB load.
-            # 15s per query × 11 queries = 165s max; with index hits ~2s total is typical.
-            cur.execute("SET statement_timeout = 15000")
+            # Per-query timeout: 30s is enough for the 9 simple queries; breadth queries
+            # now read pre-computed technical_data_daily instead of raw price_daily so they
+            # complete in <1s even on t4g.micro. 30s gives headroom for DB load spikes.
+            cur.execute("SET statement_timeout = 30000")
             factors = {}
             score = 0.0
 
@@ -444,42 +445,39 @@ class MarketExposure:
         }
 
     def _pct_above_ma(self, eval_date, ma_days, cur):
-        """% of all stocks (>$5, with sufficient history) above their N-day MA.
+        """% of all stocks (>$5) above their N-day MA.
 
-        Uses window functions instead of correlated subqueries.
-        Original ran 2 correlated subqueries per symbol (~10,000 for 5000 symbols).
-        Window function approach does a single pass over the date range.
+        Reads pre-computed sma_50 / sma_200 from technical_data_daily rather than
+        recomputing window functions across price_daily (which reads 2M+ rows on a
+        t4g.micro and times out). technical_data_daily has (symbol, date) indexes
+        and only 5 days of lookback are needed to find each symbol's latest row.
         """
-        lookback_days = ma_days * 2  # generous calendar-day window for ma_days trading days
+        sma_col = 'sma_50' if ma_days == 50 else 'sma_200'
         cur.execute(
             f"""
-            WITH windowed AS (
-                SELECT
-                    symbol, date, close,
-                    AVG(close) OVER (
-                        PARTITION BY symbol ORDER BY date
-                        ROWS BETWEEN {ma_days - 1} PRECEDING AND CURRENT ROW
-                    ) AS ma_n,
-                    COUNT(*) OVER (
-                        PARTITION BY symbol ORDER BY date
-                        ROWS BETWEEN {ma_days - 1} PRECEDING AND CURRENT ROW
-                    ) AS ma_count
-                FROM price_daily
-                WHERE date <= %s AND date >= %s::date - INTERVAL '{lookback_days} days'
+            WITH latest_tech AS (
+                SELECT DISTINCT ON (symbol)
+                    symbol, {sma_col} AS ma_n
+                FROM technical_data_daily
+                WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
+                ORDER BY symbol, date DESC
             ),
-            latest AS (
-                SELECT DISTINCT ON (symbol) symbol, close, ma_n, ma_count
-                FROM windowed
-                WHERE date >= %s::date - INTERVAL '5 days'
+            latest_price AS (
+                SELECT DISTINCT ON (symbol)
+                    symbol, close
+                FROM price_daily
+                WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
+                  AND symbol NOT LIKE '^^%%'
                 ORDER BY symbol, date DESC
             )
             SELECT
-                COUNT(*) FILTER (WHERE close > ma_n AND ma_count >= {ma_days}) AS above,
-                COUNT(*) FILTER (WHERE close > 5 AND ma_count >= {ma_days}) AS total
-            FROM latest
-            WHERE close > 5 AND ma_n IS NOT NULL
+                COUNT(*) FILTER (WHERE lp.close > lt.ma_n) AS above,
+                COUNT(*) FILTER (WHERE lt.ma_n IS NOT NULL AND lp.close > 5) AS total
+            FROM latest_tech lt
+            JOIN latest_price lp ON lt.symbol = lp.symbol
+            WHERE lp.close > 5 AND lt.ma_n IS NOT NULL
             """,
-            (eval_date, eval_date, eval_date),
+            (eval_date, eval_date, eval_date, eval_date),
         )
         row = cur.fetchone()
         if not row or not row[1]:

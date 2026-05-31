@@ -1077,41 +1077,48 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch sector rotation')
 def _get_sector_breadth(cur) -> Dict:
-        """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages."""
+        """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
+
+        Uses pre-computed sma_50/sma_200 from technical_data_daily (fast indexed lookup)
+        instead of recomputing window functions over 290 days of price_daily (too slow on
+        t4g.micro — caused 20s timeout). Joins latest tech row per symbol with company_profile.
+        """
         try:
             cur.execute("SET statement_timeout TO '20s'")
             cur.execute("""
-                WITH latest_date AS (
-                    SELECT MAX(date) AS date FROM price_daily
+                WITH latest_tech AS (
+                    SELECT DISTINCT ON (tdd.symbol)
+                        tdd.symbol, tdd.sma_50, tdd.sma_200
+                    FROM technical_data_daily tdd
+                    WHERE tdd.date >= CURRENT_DATE - INTERVAL '7 days'
+                    ORDER BY tdd.symbol, tdd.date DESC
                 ),
-                ma_data AS (
-                    SELECT
-                        pd.symbol,
-                        pd.date,
-                        pd.close,
-                        AVG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW) AS ma_50,
-                        AVG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW) AS ma_200
+                latest_price AS (
+                    SELECT DISTINCT ON (pd.symbol)
+                        pd.symbol, pd.close
                     FROM price_daily pd
-                    WHERE pd.date >= (SELECT date FROM latest_date) - INTERVAL '290 days'
+                    WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
+                      AND pd.symbol NOT LIKE '^^%%'
+                    ORDER BY pd.symbol, pd.date DESC
                 ),
-                sector_ma AS (
+                sector_breadth AS (
                     SELECT
                         cp.sector,
-                        COUNT(ma.symbol) FILTER (WHERE ma.ma_50 IS NOT NULL AND ma.close > ma.ma_50) * 100.0 /
-                            NULLIF(COUNT(ma.symbol) FILTER (WHERE ma.ma_50 IS NOT NULL), 0) AS pct_above_50d,
-                        COUNT(ma.symbol) FILTER (WHERE ma.ma_200 IS NOT NULL AND ma.close > ma.ma_200) * 100.0 /
-                            NULLIF(COUNT(ma.symbol) FILTER (WHERE ma.ma_200 IS NOT NULL), 0) AS pct_above_200d
-                    FROM ma_data ma
-                    JOIN company_profile cp ON ma.symbol = cp.ticker
-                    WHERE ma.date = (SELECT date FROM latest_date)
-                      AND cp.sector IS NOT NULL
+                        COUNT(lt.symbol) FILTER (WHERE lp.close IS NOT NULL AND lt.sma_50 IS NOT NULL AND lp.close > lt.sma_50) * 100.0 /
+                            NULLIF(COUNT(lt.symbol) FILTER (WHERE lt.sma_50 IS NOT NULL AND lp.close IS NOT NULL), 0) AS pct_above_50d,
+                        COUNT(lt.symbol) FILTER (WHERE lp.close IS NOT NULL AND lt.sma_200 IS NOT NULL AND lp.close > lt.sma_200) * 100.0 /
+                            NULLIF(COUNT(lt.symbol) FILTER (WHERE lt.sma_200 IS NOT NULL AND lp.close IS NOT NULL), 0) AS pct_above_200d
+                    FROM latest_tech lt
+                    JOIN latest_price lp ON lt.symbol = lp.symbol
+                    JOIN company_profile cp ON lt.symbol = cp.ticker
+                    WHERE cp.sector IS NOT NULL
                     GROUP BY cp.sector
                 )
                 SELECT
                     sector,
                     ROUND(COALESCE(pct_above_50d, 0)::NUMERIC, 2) AS pct_above_50d,
                     ROUND(COALESCE(pct_above_200d, 0)::NUMERIC, 2) AS pct_above_200d
-                FROM sector_ma
+                FROM sector_breadth
                 ORDER BY pct_above_50d DESC
             """)
             breadth = cur.fetchall()
