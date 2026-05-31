@@ -154,6 +154,7 @@ class PriceLoader(OptimalLoader):
         if not rows:
             return []
 
+        from algo.algo_market_calendar import MarketCalendar
 
         # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
