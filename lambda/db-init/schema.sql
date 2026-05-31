@@ -1516,6 +1516,7 @@ CREATE TABLE IF NOT EXISTS algo_signals_evaluated (
 CREATE TABLE IF NOT EXISTS algo_trades (
     id SERIAL PRIMARY KEY,
     trade_id VARCHAR(100) UNIQUE NOT NULL,
+    idempotency_key VARCHAR(64),
     symbol VARCHAR(20) NOT NULL,
     signal_date DATE NOT NULL,
     trade_date DATE NOT NULL,
