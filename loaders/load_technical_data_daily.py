@@ -190,8 +190,15 @@ class TechnicalDataDailyLoader(OptimalLoader):
         def safe_float(v):
             return float(v) if pd.notna(v) else None
 
+        def safe_int(v):
+            return int(round(float(v))) if pd.notna(v) and not (isinstance(v, float) and abs(v) == float('inf')) else None
+
+        int_cols = {"volume_ma_50"}
         for col in columns[2:]:
-            df[col] = df[col].apply(safe_float)
+            if col in int_cols:
+                df[col] = df[col].apply(safe_int)
+            else:
+                df[col] = df[col].apply(safe_float)
 
         return df[columns].to_dict("records")
 
