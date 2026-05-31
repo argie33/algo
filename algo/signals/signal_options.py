@@ -17,9 +17,8 @@ class SignalOptionsMixin:
     """Options-based signals for bonus alpha scoring."""
 
     def iv_rank_signal(self, symbol: str, eval_date: _date) -> Dict[str, any]:
-        try:
-            # Fetch IV rank from iv_history
-            self.cur.execute(
+        def _fetch_iv(cur):
+            cur.execute(
                 """
                 SELECT current_iv, iv_52w_high, iv_52w_low FROM iv_history
                 WHERE symbol = %s AND date <= %s
@@ -27,7 +26,7 @@ class SignalOptionsMixin:
                 """,
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or not row[0]:
                 return {'iv_rank': None, 'signal': 'neutral', 'bonus_pts': 0.0}
 
@@ -56,6 +55,8 @@ class SignalOptionsMixin:
                 'bonus_pts': bonus_pts,
             }
 
+        try:
+            return self._with_cursor(_fetch_iv) or {'iv_rank': None, 'signal': 'neutral', 'bonus_pts': 0.0}
         except Exception as e:
             logger.debug(f"IV rank signal failed for {symbol}: {e}")
             return {'iv_rank': None, 'signal': 'neutral', 'bonus_pts': 0.0}
@@ -73,9 +74,8 @@ class SignalOptionsMixin:
                 'bonus_pts': float (0-2),
             }
         """
-        try:
-            # Fetch P/C ratio for symbol on eval_date
-            self.cur.execute(
+        def _fetch_pc_ratio(cur):
+            cur.execute(
                 """
                 SELECT
                     SUM(CASE WHEN option_type = 'put' THEN volume ELSE 0 END) AS put_vol,
@@ -85,7 +85,7 @@ class SignalOptionsMixin:
                 """,
                 (symbol, eval_date),
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or not row[0] or not row[1]:
                 return {'put_call_ratio': None, 'signal': 'neutral', 'bonus_pts': 0.0}
 
@@ -112,6 +112,8 @@ class SignalOptionsMixin:
                 'bonus_pts': bonus_pts,
             }
 
+        try:
+            return self._with_cursor(_fetch_pc_ratio) or {'put_call_ratio': None, 'signal': 'neutral', 'bonus_pts': 0.0}
         except Exception as e:
             logger.debug(f"P/C ratio signal failed for {symbol}: {e}")
             return {'put_call_ratio': None, 'signal': 'neutral', 'bonus_pts': 0.0}
@@ -135,9 +137,8 @@ class SignalOptionsMixin:
                 'bonus_pts': float (0-1.5),
             }
         """
-        try:
-            # Get IV and days to expiry from latest options data
-            self.cur.execute(
+        def _fetch_implied_move(cur):
+            cur.execute(
                 """
                 SELECT DISTINCT ON (symbol, quote_date)
                     iv, days_to_expiration
@@ -148,7 +149,7 @@ class SignalOptionsMixin:
                 """,
                 (symbol, eval_date),
             )
-            iv_row = self.cur.fetchone()
+            iv_row = cur.fetchone()
             if not iv_row or not iv_row[0]:
                 return {
                     'implied_move_pct': None,
@@ -177,6 +178,13 @@ class SignalOptionsMixin:
                 'bonus_pts': bonus_pts,
             }
 
+        try:
+            return self._with_cursor(_fetch_implied_move) or {
+                'implied_move_pct': None,
+                'vs_base_depth_pct': None,
+                'underpriced': False,
+                'bonus_pts': 0.0,
+            }
         except Exception as e:
             logger.debug(f"Implied move signal failed for {symbol}: {e}")
             return {

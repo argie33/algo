@@ -19,34 +19,24 @@ logger = logging.getLogger(__name__)
 class SignalBase:
     """Base class for all signal computations -- connection, cache, helpers."""
 
-    def __init__(self, cur=None):
-        self.cur = cur
+    def __init__(self):
         self._price_cache = {}  # Cache for N+1 query optimization
         self._rs_percentile_cache = {}  # {(eval_date, lookback): {symbol: percentile}}
-        self._db_context = None
-        self.conn = None
 
-    def connect(self):
-        """Create a database connection via DatabaseContext."""
-        if self.cur is None:
-            self._db_context = DatabaseContext('read')
-            self.cur = self._db_context.__enter__()
-            # Store connection for commit/rollback
-            self.conn = self._db_context.conn
-
-    def disconnect(self):
-        """Clean up DatabaseContext if we own it."""
-        if self._db_context:
-            self._db_context.__exit__(None, None, None)
-            self._db_context = None
-            self.cur = None
-            self.conn = None
+    def _with_cursor(self, operation):
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext('read') as cur:
+                return operation(cur)
+        except Exception as e:
+            logger.debug(f"Database operation failed: {e}")
+            return None
 
     def clear_cache(self):
         """Clear price cache to prevent stale data."""
         self._price_cache = {}
 
-    def _rs_percentile_vs_spy(self, symbol: str, eval_date, lookback: int = 60) -> Optional[float]:
+    def _rs_percentile_vs_spy(self, cur, symbol: str, eval_date, lookback: int = 60) -> Optional[float]:
         """
         Mansfield-style RS percentile ranking over `lookback` days.
 
@@ -62,7 +52,7 @@ class SignalBase:
 
         # Batch-compute RS percentiles for the full SP500 universe at once.
         # Uses LATERAL JOINs instead of correlated subqueries to avoid N*2 round-trips.
-        self.cur.execute(
+        cur.execute(
             """
             WITH
             universe AS (
@@ -113,14 +103,14 @@ class SignalBase:
             """,
             (eval_date, eval_date, lookback, eval_date, eval_date, lookback),
         )
-        rows = self.cur.fetchall()
+        rows = cur.fetchall()
         cache = {r[0]: float(r[1]) for r in rows if r[1] is not None}
         self._rs_percentile_cache[cache_key] = cache
         return cache.get(symbol)
 
-    def _period_return(self, symbol, end_date, lookback_days):
+    def _period_return(self, cur, symbol, end_date, lookback_days):
         """Compute simple return over a lookback period."""
-        self.cur.execute(
+        cur.execute(
             """
             WITH bracket AS (
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
@@ -134,7 +124,7 @@ class SignalBase:
             """,
             (symbol, end_date, end_date, lookback_days + 5),
         )
-        row = self.cur.fetchone()
+        row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             return None
         recent = float(row[0])

@@ -16,8 +16,8 @@ class SignalTrendMixin:
     """Trend signal methods reading from pre-computed data and real-time calculations."""
 
     def minervini_trend_template(self, symbol: str, eval_date) -> Dict[str, Any]:
-        try:
-            self.cur.execute(
+        def _fetch_trend(cur):
+            cur.execute(
                 """SELECT minervini_trend_score, percent_from_52w_high, percent_from_52w_low,
                           weinstein_stage, trend_direction
                    FROM trend_template_data
@@ -25,7 +25,7 @@ class SignalTrendMixin:
                    ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date)
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row:
                 return {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'No trend data'}
 
@@ -40,6 +40,9 @@ class SignalTrendMixin:
                     'trend_direction': str(row[4]) if row[4] else None,
                 }
             }
+
+        try:
+            return self._with_cursor(_fetch_trend) or {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'Database error'}
         except Exception as e:
             logger.warning(f"minervini_trend_template({symbol}) failed: {e}")
             return {'score': 0, 'pass': False, 'criteria': {}, 'reason': str(e)[:50]}
@@ -57,15 +60,15 @@ class SignalTrendMixin:
             'slope_pct': float,
         }
         """
-        try:
-            self.cur.execute(
+        def _fetch_stage(cur):
+            cur.execute(
                 """SELECT weinstein_stage, consolidation_flag
                    FROM trend_template_data
                    WHERE symbol = %s AND date <= %s
                    ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date)
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
             if not row or not row[0]:
                 return {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
 
@@ -79,6 +82,9 @@ class SignalTrendMixin:
                 'price_vs_ma_pct': None,
                 'slope_pct': None,
             }
+
+        try:
+            return self._with_cursor(_fetch_stage) or {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
         except Exception as e:
             logger.warning(f"weinstein_stage({symbol}) failed: {e}")
             return {'stage': 1, 'confidence': 0, 'price_vs_ma_pct': None, 'slope_pct': None}
@@ -98,9 +104,9 @@ class SignalTrendMixin:
             'spy_return_pct': float,
         }
         """
-        try:
-            stock_ret = self._period_return(symbol, eval_date, lookback)
-            spy_ret = self._period_return('SPY', eval_date, lookback)
+        def _compute_rs(cur):
+            stock_ret = self._period_return(cur, symbol, eval_date, lookback)
+            spy_ret = self._period_return(cur, 'SPY', eval_date, lookback)
 
             if stock_ret is None or spy_ret is None or spy_ret == 0:
                 return {
@@ -117,6 +123,9 @@ class SignalTrendMixin:
                 'stock_return_pct': round(stock_ret * 100, 2),
                 'spy_return_pct': round(spy_ret * 100, 2),
             }
+
+        try:
+            return self._with_cursor(_compute_rs) or {'mansfield_rs': 0, 'positive': False, 'stock_return_pct': None, 'spy_return_pct': None}
         except Exception as e:
             logger.warning(f"mansfield_rs({symbol}) failed: {e}")
             return {'mansfield_rs': 0, 'positive': False, 'stock_return_pct': None, 'spy_return_pct': None}
