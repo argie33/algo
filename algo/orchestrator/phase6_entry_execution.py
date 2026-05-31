@@ -741,9 +741,4 @@ def run(
         log_phase_result_fn(6, 'entry_execution', 'error', str(e))
         return PhaseResult(6, 'entry_execution', 'halted', {}, True, str(e))
     finally:
-        # Clean up TradeExecutor's database context to return connection to pool
-        if executor:
-            try:
-                executor.disconnect()
-            except Exception as cleanup_err:
-                logger.warning(f"Failed to clean up TradeExecutor: {cleanup_err}")
+        pass  # TradeExecutor uses _with_cursor() pattern; no persistent connection to clean up

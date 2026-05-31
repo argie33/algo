@@ -276,7 +276,7 @@ class MarketExposure:
                 halt_reasons.append(f'VIX {vix_value:.1f} rising > 40')
                 cap = min(cap, 30.0)
             # Veto 3: 6+ distribution days
-            dd = self._distribution_days(eval_date)
+            dd = self._distribution_days(eval_date, cur)
             if dd >= 6:
                 halt_reasons.append(f'{dd} distribution days >= 6')
                 cap = min(cap, 35.0)
@@ -325,7 +325,7 @@ class MarketExposure:
 
     def _ibd_state(self, eval_date, cur):
         """Classify market state using DD count + FTD presence per IBD thresholds."""
-        dd_count = self._distribution_days(eval_date)
+        dd_count = self._distribution_days(eval_date, cur)
         ftd = self._has_follow_through_day(eval_date)
         if dd_count <= 3 and ftd:
             state = 'confirmed_uptrend'

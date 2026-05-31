@@ -499,7 +499,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][1] = {'pass': True, 'reason': 'Tier 1 disabled by feature flag'}
             logger.info(f"    T1 disabled by feature flag (pass-through)")
         else:
-            t1 = self._tier1_data_quality(symbol, cur, cur)
+            t1 = self._tier1_data_quality(symbol, cur)
             result['tiers'][1] = t1
             result['completeness_pct'] = t1.get('completeness_pct', 0)
             if not t1['pass']:
@@ -510,7 +510,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][2] = {'pass': True, 'reason': 'Tier 2 disabled by feature flag'}
             logger.info(f"    T2 disabled by feature flag (pass-through)")
         else:
-            t2 = self._tier2_market_health(signal_date, cur, cur)
+            t2 = self._tier2_market_health(signal_date, cur)
             result['tiers'][2] = t2
             if not t2['pass']:
                 return result
@@ -520,7 +520,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][3] = {'pass': True, 'reason': 'Tier 3 disabled by feature flag', 'trend_score': 0}
             logger.info(f"    T3 disabled by feature flag (pass-through)")
         else:
-            t3 = self._tier3_trend_template(symbol, signal_date, cur, cur)
+            t3 = self._tier3_trend_template(symbol, signal_date, cur)
             result['tiers'][3] = t3
             result['trend_score'] = t3.get('trend_score', 0)
             result['stop_loss_price'] = t3.get('stop_loss_price')
@@ -534,7 +534,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             result['tiers'][4] = {'pass': True, 'reason': 'Tier 4 disabled by feature flag', 'sqs': 0}
             logger.info(f"    T4 disabled by feature flag (pass-through)")
         else:
-            t4 = self._tier4_signal_quality(symbol, signal_date, cur, cur)
+            t4 = self._tier4_signal_quality(symbol, signal_date, cur)
             result['tiers'][4] = t4
             result['sqs'] = t4.get('sqs', 0)
             if not t4['pass']:
