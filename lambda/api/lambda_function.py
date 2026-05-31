@@ -700,7 +700,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         try:
             with DatabaseContext('write') as cur:
-                cur.execute("SET statement_timeout TO '10s'")
+                cur.execute("SET statement_timeout TO '15s'")
 
                 params = parse_query_params(event)
                 body = None
@@ -734,13 +734,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
-            logger.error(f'[HANDLER_ERROR] Unhandled exception: {type(e).__name__}: {e}', exc_info=True)
+            error_detail = f'{type(e).__name__}: {str(e)[:300]}'
+            logger.error(f'[HANDLER_ERROR] path={path} {error_detail}', exc_info=True)
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
                     'error': 'service_unavailable',
-                    'message': 'Service temporarily unavailable'
+                    'message': f'Service temporarily unavailable — {error_detail}'
                 })
             }
 

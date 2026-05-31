@@ -270,6 +270,8 @@ locals {
     "analyst_sentiment"           = "load_analyst_sentiment_analysis.py"
     "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
     "industry_ranking"            = "load_industry_ranking.py"
+    "sector_ranking"              = "load_sector_ranking.py"
+    "sector_performance"          = "load_sector_performance.py"
 
     # Market sentiment
     "feargreed"  = "load_fear_greed_index.py"
@@ -424,6 +426,14 @@ locals {
       schedule    = "cron(10 6 ? * MON-FRI *)"
       description = "Industry rankings - Daily 1:10am ET"
     }
+    "sector_ranking" = {
+      schedule    = "cron(12 6 ? * MON-FRI *)"
+      description = "Sector rankings - Daily 1:12am ET"
+    }
+    "sector_performance" = {
+      schedule    = "cron(14 6 ? * MON-FRI *)"
+      description = "Sector performance (YTD returns via SPDR ETFs) - Daily 1:14am ET"
+    }
     "earnings_calendar" = {
       schedule    = "cron(29 4 ? * MON-FRI *)"
       description = "Earnings calendar (next 180 days) - Daily 4:29am ET"
@@ -532,6 +542,8 @@ locals {
     "analyst_sentiment"           = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
     "analyst_upgrades_downgrades" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
     "industry_ranking"            = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "sector_ranking"              = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "sector_performance"          = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
 
     # Market sentiment data
     "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
