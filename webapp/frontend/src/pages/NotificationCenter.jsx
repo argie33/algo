@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Notification Center — Real-time alerts, trade execution notifications, risk breaches
  * Surfaces algo notifications (entries, exits, errors, safeguards) in one dashboard
  */

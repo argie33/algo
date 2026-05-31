@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Amplify Configuration Unit Tests
  * Tests for AWS Amplify configuration helper functions
  */

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Global Playwright Setup
  * Runs once before all tests - sets up test environment, auth, and data
  */

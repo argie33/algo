@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Performance Testing with Core Web Vitals
  * Tests loading performance, bundle sizes, and user experience metrics
  */

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Portfolio Optimization End-to-End Test
  * Tests the complete frontend flow with real data
  */

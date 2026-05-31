@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Component Test Utilities
  * Helpers for React component unit testing
  */

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Shared utilities for contract tests to reduce duplication
  */
 

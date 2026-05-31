@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Simple Test Verification
  * Ensures basic test setup is working
  */

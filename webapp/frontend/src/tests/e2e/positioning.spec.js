@@ -1,4 +1,4 @@
-﻿// E2E Test for Positioning feature on Stock Detail page
+// E2E Test for Positioning feature on Stock Detail page
 // Tests the complete user journey with real API calls
 
 import { test, expect } from '@playwright/test';

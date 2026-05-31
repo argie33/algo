@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { api } from "../services/api";

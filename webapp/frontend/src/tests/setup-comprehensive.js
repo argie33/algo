@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Comprehensive Test Setup
  * Ensures consistent mocking and configuration across all tests
  */

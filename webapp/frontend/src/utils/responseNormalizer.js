@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Standardize API response handling across all pages
  * Single function to extract data regardless of response shape
  */

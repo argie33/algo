@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AppLayout — Bullseye Trading platform shell
  *
  * Pure JSX + theme.css classes. No MUI. No Tailwind.

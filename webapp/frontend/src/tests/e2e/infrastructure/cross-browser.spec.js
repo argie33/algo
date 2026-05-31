@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Safari-Specific Routing Tests
  * Addresses Safari compatibility issues with SPA routing and navigation
  */

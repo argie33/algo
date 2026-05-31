@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useDevelopmentMode Hook Unit Tests
  * Tests development mode detection and API availability checking
  *

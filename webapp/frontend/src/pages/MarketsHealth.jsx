@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Market Health — flagship dashboard.
  *
  * Pure JSX + theme.css classes. No MUI. No Tailwind. Dark theme.

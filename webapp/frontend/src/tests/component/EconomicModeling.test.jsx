@@ -1,4 +1,4 @@
-﻿import { describe, test, expect, beforeEach } from "vitest";
+import { describe, test, expect, beforeEach } from "vitest";
 import { screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { renderWithAuth } from "../test-utils";

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Formatters Utility Unit Tests
  * Tests currency, percentage, and number formatting functions
  */

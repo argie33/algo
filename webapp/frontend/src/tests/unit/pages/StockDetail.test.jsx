@@ -1,4 +1,4 @@
-﻿/**
+/**
  * StockDetail Page Unit Tests
  * Tests the stock detail functionality - stock info, charts, financials, analysis
  */

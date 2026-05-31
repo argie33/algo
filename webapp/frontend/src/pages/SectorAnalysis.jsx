@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Sector Analysis — sector + industry rankings, daily strength, ranking trend.
  * Plus deeper analytics: Mansfield RS rotation, momentum spider, sector breadth,
  * stage-2 leaders, sector-vs-SPY relative line, defensive/cyclical signal.

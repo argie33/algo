@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Centralized error logging utility for consistent error handling across all pages
  * Enhanced with circular reference protection and comprehensive error details
  */

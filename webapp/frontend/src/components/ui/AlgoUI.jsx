@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Shared UI primitives — built on the unified design system.
  * Every page imports from here for consistency.
  */

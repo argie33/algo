@@ -1,4 +1,4 @@
-﻿import { test, expect } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 test.describe("ScoresDashboard Data Verification E2E Tests", () => {
   test.setTimeout(60000);

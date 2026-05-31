@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Shared date formatting utilities for chart components
  */
 

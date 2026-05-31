@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Primitives — Tailwind component library for the rebuild.
  *
  * Per DESIGN_REDESIGN_PLAN.md and the giggly-meandering-shannon plan file.

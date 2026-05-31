@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { api } from '../services/api';
 import { AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { formatNumber } from '../utils/formatters';

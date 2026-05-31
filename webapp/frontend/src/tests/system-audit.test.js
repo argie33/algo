@@ -1,4 +1,4 @@
-﻿/**
+/**
  * System Audit Test Suite
  * Tests all pages, API endpoints, and console for errors
  *

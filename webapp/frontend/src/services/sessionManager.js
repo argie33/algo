@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Session Manager - Handles user session lifecycle
  * Manages timeouts, warnings, and session persistence
  */

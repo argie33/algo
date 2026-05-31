@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DataCache Mock for Tests
  * This mock provides cached data functionality for test environments
  */

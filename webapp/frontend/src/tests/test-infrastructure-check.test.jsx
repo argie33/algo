@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Test Infrastructure Check
  * Basic test to verify test infrastructure is working correctly
  */

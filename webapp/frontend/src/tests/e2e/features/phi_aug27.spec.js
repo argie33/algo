@@ -1,4 +1,4 @@
-﻿import { test } from '@playwright/test';
+import { test } from '@playwright/test';
 
 test('Screenshot PHI Aug 27 on TradingView', async ({ page }) => {
   // Navigate to PHI chart

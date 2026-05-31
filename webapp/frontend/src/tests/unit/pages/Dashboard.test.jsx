@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard Page Unit Tests
  * Tests the main dashboard functionality - portfolio overview, market data, charts
  */

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Settings API Setup Workflow E2E Test
  * Tests complete API configuration workflow: navigate â†’ configure keys â†’ validate â†’ use in other pages
  */

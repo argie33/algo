@@ -1,4 +1,4 @@
-﻿import { createTheme, alpha } from '@mui/material/styles';
+import { createTheme, alpha } from '@mui/material/styles';
 
 /**
  * REFINED PROFESSIONAL FINANCIAL PLATFORM THEME

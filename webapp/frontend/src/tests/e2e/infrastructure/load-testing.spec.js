@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Load Testing for High-Traffic Scenarios
  * Tests system behavior under heavy load and concurrent users
  */

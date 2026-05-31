@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Export Utilities
  * Functions for exporting data to CSV and PDF formats
  */

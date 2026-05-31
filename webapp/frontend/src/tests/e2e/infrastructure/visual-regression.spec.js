@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Visual Regression Testing
  * Takes screenshots and compares visual changes across the financial platform
  */

@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 test('Portfolio Dashboard - Verify data rendering and charts', async ({ page }) => {
   // Navigate to portfolio dashboard

@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Alert as MuiAlert, AlertTitle as MuiAlertTitle } from "@mui/material";
 
 export const Alert = React.forwardRef(

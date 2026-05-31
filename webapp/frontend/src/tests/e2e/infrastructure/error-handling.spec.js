@@ -1,4 +1,4 @@
-﻿/**
+/**
  * API Error Handling and Network Failure Tests
  * Tests system resilience under various error conditions
  */

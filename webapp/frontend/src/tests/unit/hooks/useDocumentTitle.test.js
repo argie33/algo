@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useDocumentTitle Hook Unit Tests
  * Tests document title management hook
  */

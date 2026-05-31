@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Network Security Test Suite
  * Comprehensive validation for network-level security measures
  */

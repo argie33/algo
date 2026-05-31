@@ -1,4 +1,4 @@
-﻿import {
+import {
   render,
   screen,
   fireEvent,

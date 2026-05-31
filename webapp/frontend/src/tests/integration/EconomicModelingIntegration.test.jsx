@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Economic Modeling Integration Tests
  * Tests the complete workflow with real API endpoints
  */

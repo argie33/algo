@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Settings Page Unit Tests
  * Tests API key management, user preferences, and configuration options
  */

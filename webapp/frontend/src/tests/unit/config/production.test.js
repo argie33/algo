@@ -1,4 +1,4 @@
-﻿import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 
 describe("Production Configuration", () => {
   let PRODUCTION_CONFIG, getEnvironmentConfig, validateConfig, CONFIG;

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AuthFixer Utility Unit Tests
  * Tests the development authentication helper
  */

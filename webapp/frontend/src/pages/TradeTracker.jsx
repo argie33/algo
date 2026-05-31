@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Trade Tracker — every action the algo takes.
  *
  * Pure JSX + theme.css classes. Three tabs:

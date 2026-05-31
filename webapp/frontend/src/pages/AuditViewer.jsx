@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../services/api';

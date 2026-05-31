@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Frontend News Analyzer Utility
  * Provides client-side news analysis and sentiment scoring
  */

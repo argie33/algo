@@ -1,4 +1,4 @@
-﻿import { vi } from "vitest";
+import { vi } from "vitest";
 
 // Comprehensive API mock data
 const mockApiData = {

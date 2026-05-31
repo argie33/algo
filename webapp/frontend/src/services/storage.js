@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Centralized storage manager for localStorage/sessionStorage
  * Single place to manage all client-side persistence
  * Enables future encryption, validation, and cleanup

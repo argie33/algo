@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Centralized theme management service
  * Single source of truth for theme state and persistence
  */

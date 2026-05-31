@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Test Helper Functions and Constants
  * Non-component utilities for testing
  */

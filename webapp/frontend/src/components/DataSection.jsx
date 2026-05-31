@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DataSection — Reusable data display wrapper with error handling
  *
  * Provides consistent handling of:

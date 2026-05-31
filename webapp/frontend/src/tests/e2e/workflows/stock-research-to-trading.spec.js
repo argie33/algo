@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Stock Research to Trading Workflow E2E Test
  * Tests complete workflow: search stock â†’ analyze â†’ add to watchlist â†’ place order
  */

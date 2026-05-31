@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Global Playwright Teardown
  * Runs once after all tests - cleanup resources
  */

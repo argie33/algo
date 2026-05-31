@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Domain-specific API hooks
  * Decouples pages from API structure, enables easy endpoint swapping
  * Each hook encapsulates a logical data fetch with error handling + normalization

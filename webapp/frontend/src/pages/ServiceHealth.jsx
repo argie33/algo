@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Service Health — patrol findings, loader status, data freshness, schedules.
  * Pure JSX + theme.css classes.
  */

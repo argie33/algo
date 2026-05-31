@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cognito error message mapping and formatting
  * Extracted from AuthContext for reusability
  */

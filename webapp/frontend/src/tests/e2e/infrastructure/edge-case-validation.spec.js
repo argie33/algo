@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Edge Case Validation Tests
  * Tests system behavior with unusual inputs, boundary conditions, and extreme scenarios
  */

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Swing Candidates — full-universe analytical workbench.
  *
  * Sections:

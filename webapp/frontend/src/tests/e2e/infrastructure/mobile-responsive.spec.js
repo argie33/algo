@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Mobile-Specific E2E Tests
  * Tests focused on mobile device functionality and responsive design
  */

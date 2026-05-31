@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useWebSocket Hook API Contract Tests
  *
  * NOTE: This hook currently uses a mock implementation since WebSocket

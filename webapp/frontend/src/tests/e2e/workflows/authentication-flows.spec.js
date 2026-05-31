@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Authentication Flow Tests
  * Tests login, logout, API key setup, and protected routes
  */

@@ -1,4 +1,4 @@
-﻿// API Configuration
+// API Configuration
 // In development: use empty string to leverage Vite proxy to localhost:3001
 // In production: use VITE_API_URL if set (e.g. CloudFront URL), or empty string
 // for relative-path mode (works when frontend is served from the same CloudFront domain).

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Stock Detail — institutional-grade per-symbol research view (/app/stock/:symbol).
  *
  * Tabs: Chart · Statistics · Algo · Financials · Analysts · Signals

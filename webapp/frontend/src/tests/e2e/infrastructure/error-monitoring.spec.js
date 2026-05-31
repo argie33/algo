@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Enhanced Console Error Detection with Playwright
  * Replaces Puppeteer-based console monitoring with superior multi-browser testing
  *

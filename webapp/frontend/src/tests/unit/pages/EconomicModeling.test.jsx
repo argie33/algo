@@ -1,4 +1,4 @@
-﻿/**
+/**
  * EconomicModeling Page Unit Tests
  * Tests the economic modeling functionality - GDP data, economic indicators, forecasting models
  */

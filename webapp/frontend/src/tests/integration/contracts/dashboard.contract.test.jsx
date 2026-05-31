@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard Contract Tests
  * Tests the most critical user-facing data flows
  */

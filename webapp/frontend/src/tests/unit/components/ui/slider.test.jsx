@@ -1,4 +1,4 @@
-﻿import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils";
 import { Slider } from "../../../../components/ui/slider";

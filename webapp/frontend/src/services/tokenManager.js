@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Centralized token management service - SECURITY HARDENED
  * FIXED: Uses sessionStorage (cleared on browser close) + memory storage for XSS protection
  * Tokens are NOT accessible via localStorage (XSS attack vector)

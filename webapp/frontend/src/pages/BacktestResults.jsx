@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Backtest Results — list runs, drill into trades + equity curve.
  * Pure JSX + theme.css classes.
  */

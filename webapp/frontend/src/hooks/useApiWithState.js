@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useApiWithState — Wrap useApiQuery/useApiPaginatedQuery with error state tracking
  *
  * Instead of extracting isLoading/error/data separately for each call,

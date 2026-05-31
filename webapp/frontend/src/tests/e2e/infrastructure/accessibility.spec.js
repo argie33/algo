@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Accessibility Testing (A11y)
  * Tests WCAG compliance, keyboard navigation, and screen reader compatibility
  */

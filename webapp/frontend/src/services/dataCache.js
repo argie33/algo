@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Data Caching Layer
  * Provides in-memory caching for API responses with TTL and refresh strategies
  */

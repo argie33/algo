@@ -740,6 +740,8 @@ def _get_cap_distribution(cur) -> Dict:
                 WHERE market_cap IS NOT NULL
                   AND market_cap > 0
                   AND sector IS NOT NULL
+                  AND COALESCE(etf, 'N') != 'Y'
+                  AND symbol NOT IN (SELECT symbol FROM etf_symbols)
                 ORDER BY market_cap DESC
             """)
             rows = cur.fetchall()

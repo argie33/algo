@@ -141,57 +141,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
-def _get_last_run(cur) -> Dict:
-    """Return phase-by-phase results from the most recent orchestrator run."""
-    try:
-        # Get the most recent run_id from audit log entries written by the orchestrator
-        cur.execute("""
-            SELECT DISTINCT details->>'run_id' AS run_id, MAX(created_at) AS latest
-            FROM algo_audit_log
-            WHERE actor = 'orchestrator'
-              AND details->>'run_id' IS NOT NULL
-            GROUP BY details->>'run_id'
-            ORDER BY MAX(created_at) DESC
-            LIMIT 1
-        """)
-        row = cur.fetchone()
-        if not row or not row[0]:
-            return json_response(200, {'run_id': None, 'phases': [], 'message': 'No orchestrator runs found'})
-
-        run_id = row[0]
-        run_ts = row[1]
-
-        # Fetch all phase entries for this run
-        cur.execute("""
-            SELECT action_type, status, details->>'summary' AS summary, created_at
-            FROM algo_audit_log
-            WHERE actor = 'orchestrator' AND details->>'run_id' = %s
-            ORDER BY created_at ASC
-        """, (run_id,))
-
-        phases = []
-        for action_type, status, summary, created_at in cur.fetchall():
-            phases.append({
-                'action_type': action_type,
-                'status': status,
-                'summary': summary,
-                'created_at': created_at.isoformat() if created_at else None,
-            })
-
-        any_error = any(p['status'] in ('error', 'fail') for p in phases)
-        any_halt = any(p['status'] == 'halt' for p in phases)
-
-        return json_response(200, {
-            'run_id': run_id,
-            'run_at': run_ts.isoformat() if run_ts else None,
-            'phases': phases,
-            'success': not any_error,
-            'halted': any_halt,
-        })
-    except Exception as e:
-        logger.error(f'_get_last_run error: {e}')
-        return error_response(500, 'internal_error', str(e))
-
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
         try:

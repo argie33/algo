@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Bullseye Trading — Unified Design System
  *
  * Hybrid light/dark theme inspired by Bloomberg Terminal, Koyfin, Stripe.

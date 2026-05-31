@@ -1,4 +1,4 @@
-﻿// Get the base API URL for fetch requests
+// Get the base API URL for fetch requests
 export const getApiUrl = () => {
   // 1. Runtime injection (AWS deployment)
   if (typeof window !== "undefined" && window.__CONFIG__?.API_URL) {

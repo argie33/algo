@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Main Entry Point Tests
  * Tests the critical initialization patterns used in main.jsx
  *

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   Tooltip as RechartTooltip, ReferenceLine

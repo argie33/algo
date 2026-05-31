@@ -1,4 +1,4 @@
-﻿import { test, expect } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 test.describe("Trading Signals - Empty State", () => {
   test("should display 0 signals when database is empty", async ({ page }) => {

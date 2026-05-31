@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DataStateManager — reusable wrapper for loading/error/empty states
  *
  * Usage:

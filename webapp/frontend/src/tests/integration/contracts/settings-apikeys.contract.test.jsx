@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Settings API Keys Contract Test
  *
  * This test would have caught the API key display bug by testing:

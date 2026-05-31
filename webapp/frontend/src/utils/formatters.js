@@ -1,4 +1,4 @@
-﻿import numeral from "numeral";
+import numeral from "numeral";
 
 // Format null/undefined values as "-" (for clean UI display)
 export const formatValue = (value) => {

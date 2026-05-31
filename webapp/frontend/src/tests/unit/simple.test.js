@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 describe('Simple Test Suite', () => {
   it('basic math works', () => {

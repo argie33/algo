@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Signal Table Helper Functions
  * Provides reusable utilities for dynamic signal table rendering across pages
  */

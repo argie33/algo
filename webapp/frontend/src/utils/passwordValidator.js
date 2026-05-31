@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Password Validation Utilities
  * Enforce strong password requirements for security
  */

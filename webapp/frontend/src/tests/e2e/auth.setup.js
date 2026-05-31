@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Authentication Setup for E2E Tests
  * Creates authenticated state for all tests
  */

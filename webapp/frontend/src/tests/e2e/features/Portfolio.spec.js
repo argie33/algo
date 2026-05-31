@@ -1,4 +1,4 @@
-﻿import { test, expect } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 test.describe("Portfolio Page E2E Tests", () => {
   test.setTimeout(30000);

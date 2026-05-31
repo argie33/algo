@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ComingSoon Page Unit Tests
  * Tests the coming soon placeholder page functionality
  */

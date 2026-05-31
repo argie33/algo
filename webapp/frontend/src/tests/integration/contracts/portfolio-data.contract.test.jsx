@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Portfolio Data Contract Test
  *
  * Tests the critical portfolio data flow that powers the main dashboard

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Data Integration Tests
  * Tests real-time data loading, API responses, and data consistency
  */

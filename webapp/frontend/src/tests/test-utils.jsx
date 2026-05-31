@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Test Utilities - Real Site Testing Setup
  * Provides wrapper components and utilities for testing actual site functionality with NO MOCKS
  */
