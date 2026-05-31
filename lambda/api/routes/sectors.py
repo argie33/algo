@@ -25,8 +25,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 for sector in sectors:
                     if not sector:
                         continue
+                    # Double-quote alias to preserve camelCase (PostgreSQL lowercases unquoted aliases)
                     cur.execute("""
-                        SELECT date, AVG(close) AS avgPrice
+                        SELECT date, AVG(close) AS "avgPrice"
                         FROM price_daily pd
                         JOIN company_profile cp ON pd.symbol = cp.ticker
                         WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
@@ -46,11 +47,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 if path.endswith('/trend') or path.endswith('/trend/'):
                     days_str = params.get('days', [None])[0] if params else None
                     days = safe_days(days_str, max_val=365, default=90)
+                    # All camelCase aliases double-quoted so psycopg2 preserves case
                     cur.execute("""
                         WITH sector_daily_avg AS (
                             SELECT
                                 pd.date,
-                                AVG(pd.close) AS avgPrice
+                                AVG(pd.close) AS "avgPrice"
                             FROM price_daily pd
                             JOIN company_profile cp ON pd.symbol = cp.ticker
                             WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
@@ -59,17 +61,17 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         sector_with_ma AS (
                             SELECT
                                 date,
-                                avgPrice,
-                                AVG(avgPrice) OVER (ORDER BY date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma_10,
-                                AVG(avgPrice) OVER (ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS ma_20
+                                "avgPrice",
+                                AVG("avgPrice") OVER (ORDER BY date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma_10,
+                                AVG("avgPrice") OVER (ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS ma_20
                             FROM sector_daily_avg
                         )
                         SELECT
                             date,
-                            avgPrice,
-                            ROUND((avgPrice / NULLIF(ma_10, 0) - 1) * 100, 2) AS dailyStrengthScore,
-                            ROUND((PERCENT_RANK() OVER (ORDER BY avgPrice) * 100)::numeric, 2) AS rank,
-                            ROUND((COALESCE(ma_10, 0) - COALESCE(ma_20, 0)) / NULLIF(ma_20, 0) * 100, 2) AS momentumScore,
+                            "avgPrice",
+                            ROUND(("avgPrice" / NULLIF(ma_10, 0) - 1) * 100, 2) AS "dailyStrengthScore",
+                            ROUND((PERCENT_RANK() OVER (ORDER BY "avgPrice") * 100)::numeric, 2) AS rank,
+                            ROUND((COALESCE(ma_10, 0) - COALESCE(ma_20, 0)) / NULLIF(ma_20, 0) * 100, 2) AS "momentumScore",
                             'momentum' AS momentum,
                             ROUND(COALESCE(ma_10, 0), 2) AS ma_10,
                             ROUND(COALESCE(ma_20, 0), 2) AS ma_20
@@ -77,7 +79,6 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         ORDER BY date DESC
                     """, (sector_name, days))
                     rows = cur.fetchall()
-                    # Filter out any rows with NULL avgPrice (no data)
                     trend_data = [dict(r) for r in rows if r and r.get('avgPrice') is not None] if rows else []
                     return json_response(200, {'trendData': trend_data})
                 else:
