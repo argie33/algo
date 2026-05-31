@@ -76,15 +76,15 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         logger.debug(f"Tier multiplier: {tier} ({multiplier}x) -> ${base_size:.0f} → ${adjusted_size:.0f}")
         return adjusted_size
 
-    def evaluate_signals(self, eval_date=None) -> List[Dict[str, Any]]:
+    def evaluate_signals(self, eval_date=None, max_date: Optional[_date] = None) -> List[Dict[str, Any]]:
         """Evaluate all buy signals through filter pipeline.
 
-        If eval_date is None, uses the most recent date in buy_sell_daily that
-        has both market_health_daily Stage 2 confirmation and trend_template
-        coverage. This avoids evaluating today when no fresh data has been loaded.
+        If eval_date is None, uses the most recent date <= max_date in buy_sell_daily
+        that has both market_health_daily Stage 2 confirmation and trend_template coverage.
+        Pass max_date=run_date to avoid evaluating signals from future dates.
         """
         def _evaluate_with_cursor(cur):
-            return self._evaluate_signals_impl(eval_date, cur)
+            return self._evaluate_signals_impl(eval_date, cur, max_date=max_date)
 
         try:
             return self._with_cursor(_evaluate_with_cursor) or []
@@ -94,10 +94,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             traceback.print_exc()
             return []
 
-    def _evaluate_signals_impl(self, eval_date=None, cur=None) -> List[Dict[str, Any]]:
+    def _evaluate_signals_impl(self, eval_date=None, cur=None, max_date: Optional[_date] = None) -> List[Dict[str, Any]]:
         """Internal implementation of signal evaluation."""
         if not eval_date:
-            eval_date = self._resolve_evaluation_date(cur)
+            eval_date = self._resolve_evaluation_date(cur, max_date=max_date)
 
             # Snapshot eval_date immutably for this run (prevents sector rotation mid-evaluation)
             self._snapshot_eval_date = eval_date
@@ -459,22 +459,30 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
             return final_trades
 
-    def _resolve_evaluation_date(self, cur) -> _date:
-        """Pick the most recent date that has BUY signals + market health + trend data."""
+    def _resolve_evaluation_date(self, cur, max_date: Optional[_date] = None) -> _date:
+        """Pick the most recent date <= max_date with BUY signals + market health + trend data.
+
+        max_date defaults to today. Passing run_date prevents evaluating signals from
+        future dates when the orchestrator is run with a historical date.
+        """
+        if max_date is None:
+            max_date = _date.today()
         cur.execute(
             """
             SELECT bs.date
             FROM buy_sell_daily bs
             WHERE bs.signal_type = 'BUY'
+              AND bs.date <= %s
               AND EXISTS (SELECT 1 FROM market_health_daily mh WHERE mh.date = bs.date)
               AND EXISTS (SELECT 1 FROM trend_template_data tt WHERE tt.date = bs.date)
             GROUP BY bs.date
             ORDER BY bs.date DESC
             LIMIT 1
-            """
+            """,
+            (max_date,)
         )
         row = cur.fetchone()
-        return row[0] if row else _date.today()
+        return row[0] if row else max_date
 
     def evaluate_signal(self, symbol, signal_date, entry_price, cur) -> Dict[str, Any]:
         """Evaluate single signal through all 5 tiers (short-circuits on first failure)."""

@@ -133,6 +133,14 @@ def lambda_handler(event, context):
             verbose=not is_test,
         )
 
+        # Apply event-level config overrides (for testing only — overrides AlgoConfig defaults)
+        # E.g.: {"config_overrides": {"min_close_quality_pct": 0.0, "min_breakout_volume_ratio": 0.5}}
+        config_overrides = event.get('config_overrides', {})
+        if config_overrides and isinstance(config_overrides, dict):
+            for k, v in config_overrides.items():
+                orchestrator.config._config[k] = v
+                logger.info(f"[CONFIG OVERRIDE] {k} = {v}")
+
         # Run the orchestrator
         logger.info(f"Starting orchestrator run")
         try:

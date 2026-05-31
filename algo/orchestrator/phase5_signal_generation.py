@@ -125,7 +125,7 @@ def run(
             exposure_mult = exposure_constraints.get('risk_multiplier', 1.0)
 
         pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
-        qualified = pipeline.evaluate_signals(None)  # Auto-detect latest date with complete data
+        qualified = pipeline.evaluate_signals(None, max_date=run_date)  # Auto-detect latest date <= run_date
         eval_date = pipeline._snapshot_eval_date or run_date
 
         # Signal count waterfall report (for visibility on where signals die)
