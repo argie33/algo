@@ -36,7 +36,7 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         # Count rejections at each tier from filter_rejection_log (if table exists)
         tier_rejections = {}
         try:
-            for tier_num, tier_name in enumerate(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6'], 1):
+            for tier_num, tier_name in enumerate(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'], 1):
                 cur.execute(
                     f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
                     (run_date, tier_num)
@@ -47,7 +47,7 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         except Exception as e:
             logger.warning(f"Exception: {e}")
             # Table may not exist or columns different; skip
-            for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5', 'Tier 6']:
+            for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']:
                 tier_rejections[tier_name] = 0
 
         # Always log waterfall to diagnose 'no trades' situations
@@ -59,7 +59,6 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
         logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
         logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
-        logger.info(f"    Tier 6 rejected:          {tier_rejections.get('Tier 6', 0):4d}")
         logger.info(f"    Final qualified:          {final_count:4d}")
         interpretation = _interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)
         logger.info(f"  Interpretation: {interpretation}")
@@ -164,7 +163,7 @@ def run(
 
         log_phase_result_fn(
             5, 'signal_generation', 'success',
-            f'{len(qualified)} qualified trades after all 6 tiers',
+            f'{len(qualified)} qualified trades after 5-tier filter + advanced scoring',
         )
 
         return PhaseResult(

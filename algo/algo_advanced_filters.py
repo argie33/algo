@@ -127,9 +127,10 @@ class AdvancedFilters:
             components['days_to_earnings'] = days_to_earnings
             block_window = int(self.config.get('block_days_before_earnings', 5))
             if days_to_earnings is None:
-                # Conservative: block if earnings date unknown (treat as risky)
-                hard_fail = f'Earnings date unknown (treating as risky)'
-                logger.warning(f"  {symbol}: No earnings data found, treating as earnings-risky")
+                # No earnings calendar data — warn but don't block.
+                # Pre-tier EarningsBlackout already catches known proximity windows.
+                # Blocking on unknown earnings would eliminate many valid setups.
+                logger.debug(f"  {symbol}: No earnings calendar data, skipping earnings gate")
             elif 0 <= days_to_earnings <= block_window:
                 hard_fail = f'Earnings in ~{days_to_earnings}d (block window {block_window}d)'
 
