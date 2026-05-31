@@ -3036,4 +3036,11 @@ ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS volume_ma_50 BIGINT;
 -- company_profile: add market_cap so routes can use it instead of unpopulated key_metrics
 ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS market_cap BIGINT;
 
+-- economic_calendar: event_id/event_time/updated_at added to schema but missing from live table
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_id VARCHAR(100);
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS event_time TIME;
+ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+-- UNIQUE constraint required for ON CONFLICT (event_id, event_date) in load_economic_calendar.py
+CREATE UNIQUE INDEX IF NOT EXISTS idx_economic_calendar_event ON economic_calendar(event_id, event_date);
+
 -- Note: INSERT/UPDATE requires dedicated service role with audit logging
