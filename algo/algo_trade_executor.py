@@ -625,7 +625,7 @@ class TradeExecutor:
                 notif_service = TradeNotificationService()
                 notif_service._send_notification(
                     subject=f"ENTRY: {symbol}",
-                    message=f"{shares:.2f} sh {symbol} @ ${executed_price:.2f} (stop ${stop_loss_price:.2f})",
+                    message=f"{shares:.2f} sh {symbol} @ ${(executed_price or entry_price):.2f} (stop ${stop_loss_price:.2f})",
                     kind="trade_entry",
                     severity="info",
                     symbol=symbol,
@@ -648,7 +648,7 @@ class TradeExecutor:
                 'trade_id': trade_id,
                 'alpaca_order_id': alpaca_order_id,
                 'status': order_status,
-                'message': f'{shares} sh {symbol} @ ${executed_price:.2f} (stop ${stop_loss_price:.2f})',
+                'message': f'{shares} sh {symbol} @ ${(executed_price or entry_price):.2f} (stop ${stop_loss_price:.2f})',
             }
 
         try:
