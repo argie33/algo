@@ -493,7 +493,7 @@ class CircuitBreaker:
         so 3-day holiday weekends don't cause false halts.
         """
         cur.execute(
-            "SELECT MAX(date) FROM price_daily WHERE symbol = 'SPY'"
+            "SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1"
         )
         row = cur.fetchone()
         if not row or not row[0]:

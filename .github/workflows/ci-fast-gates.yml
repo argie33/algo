@@ -1,1 +1,292 @@
-ï»¿name: CI Ã¢â¬â Fast Gates (Lint + Unit Tests)# Runs on: every commit to main, every PR# Duration: ~90 seconds# Cost: negligible (within free tier)on:  push:    branches: [main]  pull_request:    branches: [main]env:  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: truejobs:  scan-secrets:    name: Security Ã¢â¬â Scan for Exposed Credentials    runs-on: ubuntu-latest    timeout-minutes: 2    steps:      - uses: actions/checkout@v4        with:          fetch-depth: 0  # Full history to catch secrets in commits      - name: TruffleHog Ã¢â¬â Detect secrets in commits        uses: trufflesecurity/trufflehog@v3.88.27        with:          path: ./          base: ${{ github.event.before || github.event.pull_request.base.sha }}          head: ${{ github.event.after || github.event.pull_request.head.sha || 'HEAD' }}          extra_args: --debug --only-verified      - name: Scan for generic API key patterns in new commits        env:          BEFORE_SHA: ${{ github.event.before || github.event.pull_request.base.sha }}          AFTER_SHA: ${{ github.event.after || github.event.pull_request.head.sha || github.sha }}        run: |          # TruffleHog above handles all known-secret pattern detection with --only-verified.          # This step catches generic API key assignments added in new commits only.          if [ -z "${BEFORE_SHA}" ] || [ "${BEFORE_SHA}" = "0000000000000000000000000000000000000000" ]; then            DIFF=$(git show "${AFTER_SHA}" 2>/dev/null || true)          else            DIFF=$(git diff "${BEFORE_SHA}..${AFTER_SHA}" 2>/dev/null || true)          fi          FOUND=0          # Check for hardcoded APCA key assignments (pattern: APCA_API_KEY_ID = PK...)          if echo "$DIFF" | grep -qE '^\+[^+].*APCA_API_KEY_ID\s*=\s*PK[A-Z0-9]{20,}'; then            echo "Ã¢Å¡Â Ã¯Â¸Â  Hardcoded APCA_API_KEY_ID added in new commit"            FOUND=1          fi          # Check for hardcoded AWS access key IDs          if echo "$DIFF" | grep -qE '^\+[^+].*AKIA[0-9A-Z]{16}'; then            echo "Ã¢Å¡Â Ã¯Â¸Â  Hardcoded AWS access key ID added in new commit"            FOUND=1          fi          if [ $FOUND -eq 1 ]; then            echo "Ã¢ÂÅ Hardcoded credentials detected in new commit Ã¢â¬â use AWS Secrets Manager"            exit 1          fi          echo "Ã¢Åâ¦ No hardcoded API key patterns in new commits"  scan-dependencies:    name: Security Ã¢â¬â Scan for Vulnerable Dependencies    runs-on: ubuntu-latest    timeout-minutes: 3    steps:      - uses: actions/checkout@v4      - uses: actions/setup-python@v5        with:          python-version: '3.11'          cache: 'pip'      - name: Install pip-audit        run: pip install -q pip-audit      - name: Audit Python dependencies for vulnerabilities        run: |          echo "Ã°Å¸âÂ Scanning Python dependencies for known vulnerabilities..."          pip-audit --desc || EXIT_CODE=$?          if [ "${EXIT_CODE:-0}" -eq 1 ]; then            echo "Ã¢ÂÅ Vulnerabilities found Ã¢â¬â review recommended"            exit 0          elif [ "${EXIT_CODE:-0}" -gt 1 ]; then            echo "Ã¢ÂÅ pip-audit failed with error"            exit "${EXIT_CODE}"          fi          echo "Ã¢Åâ¦ No vulnerabilities in dependencies"  scan-sast:    name: Security Ã¢â¬â Static Code Analysis (SAST)    runs-on: ubuntu-latest    timeout-minutes: 3    steps:      - uses: actions/checkout@v4      - uses: actions/setup-python@v5        with:          python-version: '3.11'          cache: 'pip'      - name: Install bandit        run: pip install -q bandit[toml]      - name: Scan Python code for security issues        run: |          echo "Ã°Å¸âÂ Running Bandit SAST analysis..."          bandit -r algo loaders config --severity-level medium --confidence-level high || EXIT_CODE=$?          if [ $EXIT_CODE -eq 1 ]; then            echo "Ã¢Å¡Â Ã¯Â¸Â  Potential security issues found (review recommended)"            exit 0          elif [ $EXIT_CODE -gt 1 ]; then            echo "Ã¢ÂÅ Bandit failed with error"            exit $EXIT_CODE          fi          echo "Ã¢Åâ¦ No high-confidence security issues detected"  scan-iac:    name: Security Ã¢â¬â Infrastructure as Code (Terraform)    runs-on: ubuntu-latest    timeout-minutes: 3    steps:      - uses: actions/checkout@v4      - name: Install tfsec        run: |          mkdir -p /tmp/tfsec          wget -O /tmp/tfsec/tfsec https://github.com/aquasecurity/tfsec/releases/download/v1.28.4/tfsec-linux-amd64          chmod +x /tmp/tfsec/tfsec          echo "/tmp/tfsec" >> $GITHUB_PATH      - name: Scan Terraform for security issues        run: |          echo "Ã°Å¸âÂ Scanning Terraform configuration..."          tfsec terraform/ --minimum-severity MEDIUM || EXIT_CODE=$?          if [ $EXIT_CODE -eq 0 ]; then            echo "Ã¢Åâ¦ No Terraform security issues found"          elif [ $EXIT_CODE -eq 1 ] || [ $EXIT_CODE -eq 2 ]; then            echo "Ã¢Å¡Â Ã¯Â¸Â  Terraform issues found (review recommended)"            exit 0          else            echo "Ã¢ÂÅ tfsec failed"            exit $EXIT_CODE          fi  lint-and-type:    runs-on: ubuntu-latest    timeout-minutes: 5    steps:      - uses: actions/checkout@v4      - uses: actions/setup-python@v5        with:          python-version: '3.11'          cache: 'pip'      - name: Install dependencies        run: |          pip install -q black isort flake8 mypy      - name: Black format check        run: black --check algo/ tests/ 2>/dev/null || true      - name: isort import check        run: isort --check-only algo/ tests/ 2>/dev/null || true      - name: Flake8 lint        run: flake8 algo/ tests/ --max-line-length=120 --ignore=E501,W503 || true      - name: MyPy type check        run: mypy algo/ --ignore-missing-imports 2>/dev/null || true  unit-tests:    runs-on: ubuntu-latest    timeout-minutes: 5    strategy:      matrix:        test-module:          - 'tests/unit/test_position_sizer.py'          - 'tests/unit/test_circuit_breaker.py'          - 'tests/unit/test_filter_pipeline.py'    steps:      - uses: actions/checkout@v4      - uses: actions/setup-python@v5        with:          python-version: '3.11'          cache: 'pip'      - name: Install dependencies        run: |          pip install -q pytest pytest-cov pytest-mock          pip install -q psycopg2-binary python-dotenv      - name: Run unit tests Ã¢â¬â ${{ matrix.test-module }}        run: pytest ${{ matrix.test-module }} -v --tb=short        env:          DB_MODE: mock          EXECUTION_MODE: dry_run          DB_PASSWORD: test-password-for-ci          ALPACA_KEY: pk-test-alpaca-key          ALPACA_SECRET: sk-test-alpaca-secret  edge-case-tests:    runs-on: ubuntu-latest    timeout-minutes: 5    steps:      - uses: actions/checkout@v4      - uses: actions/setup-python@v5        with:          python-version: '3.11'          cache: 'pip'      - name: Install dependencies        run: |          pip install -q pytest pytest-cov pytest-mock          pip install -q psycopg2-binary python-dotenv requests boto3      - name: Run edge case tests        run: pytest tests/edge_cases/ -v --tb=short        env:          DB_MODE: mock          EXECUTION_MODE: dry_run          DB_PASSWORD: test-password-for-ci          ALPACA_KEY: pk-test-alpaca-key          ALPACA_SECRET: sk-test-alpaca-secret  integration-tests:    runs-on: ubuntu-latest    timeout-minutes: 10    continue-on-error: true    steps:      - uses: actions/checkout@v4      - uses: actions/setup-python@v5        with:          python-version: '3.11'          cache: 'pip'      - name: Install dependencies        run: |          pip install -q pytest pytest-cov pytest-mock          pip install -q psycopg2-binary python-dotenv requests          pip install -q yfinance pandas      - name: Run integration tests        run: pytest tests/integration/ -m "not db" --tb=short -q        env:          DB_MODE: mock          EXECUTION_MODE: dry_run          ENVIRONMENT: ci          DB_PASSWORD: test-password-for-ci          ALPACA_KEY: pk-test-alpaca-key          ALPACA_SECRET: sk-test-alpaca-secret  summary:    runs-on: ubuntu-latest    needs: [scan-secrets, scan-dependencies, scan-sast, scan-iac, lint-and-type, unit-tests, edge-case-tests, integration-tests]    if: always()    steps:      - name: Check status        run: |          echo "Ã°Å¸ââ¹ CI Pipeline Summary"          echo "Ã¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢Â"          echo ""          # Critical security failures          if [[ "${{ needs.scan-secrets.result }}" != "success" ]]; then            echo "Ã¢ÂÅ Secret scan FAILED Ã¢â¬â credentials detected"            exit 1          fi          echo "Ã¢Åâ¦ Secret scan passed"          # Code quality gates (required)          if [[ "${{ needs.lint-and-type.result }}" != "success" ]]; then            echo "Ã¢ÂÅ Linting and type checks FAILED"            exit 1          fi          echo "Ã¢Åâ¦ Linting and type checks passed"          if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then            echo "Ã¢ÂÅ Unit tests FAILED"            exit 1          fi          echo "Ã¢Åâ¦ Unit tests passed"          if [[ "${{ needs.edge-case-tests.result }}" != "success" ]]; then            echo "Ã¢ÂÅ Edge case tests FAILED"            exit 1          fi          echo "Ã¢Åâ¦ Edge case tests passed"          # Security scans (non-blocking but visible)          if [[ "${{ needs.scan-dependencies.result }}" == "failure" ]]; then            echo "Ã¢Å¡Â Ã¯Â¸Â  Dependency scan had warnings (review recommended)"          else            echo "Ã¢Åâ¦ Dependency scan passed"          fi          if [[ "${{ needs.scan-sast.result }}" == "failure" ]]; then            echo "Ã¢Å¡Â Ã¯Â¸Â  SAST analysis had findings (review recommended)"          else            echo "Ã¢Åâ¦ SAST analysis passed"          fi          if [[ "${{ needs.scan-iac.result }}" == "failure" ]]; then            echo "Ã¢Å¡Â Ã¯Â¸Â  IaC scan had findings (review recommended)"          else            echo "Ã¢Åâ¦ IaC scan passed"          fi          # Integration tests (non-blocking)          if [[ "${{ needs.integration-tests.result }}" != "success" ]] && [[ "${{ needs.integration-tests.result }}" != "skipped" ]]; then            echo "Ã¢Å¡Â Ã¯Â¸Â  Integration tests had failures (allowed for now)"          else            echo "Ã¢Åâ¦ Integration tests passed"          fi          echo ""          echo "Ã¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢ÂÃ¢â¢Â"          echo "Ã¢Åâ¦ All required gates passed Ã¢â¬â ready to merge"
+name: CI — Fast Gates (Lint + Unit Tests)
+
+# Runs on: every commit to main, every PR
+# Duration: ~90 seconds
+# Cost: negligible (within free tier)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  scan-secrets:
+    name: Security — Scan for Exposed Credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history to catch secrets in commits
+
+      - name: TruffleHog — Detect secrets in commits
+        uses: trufflesecurity/trufflehog@v3.88.27
+        with:
+          path: ./
+          base: ${{ github.event.before || github.event.pull_request.base.sha }}
+          head: ${{ github.event.after || github.event.pull_request.head.sha || 'HEAD' }}
+          extra_args: --debug --only-verified
+
+      - name: Scan for generic API key patterns in new commits
+        env:
+          BEFORE_SHA: ${{ github.event.before || github.event.pull_request.base.sha }}
+          AFTER_SHA: ${{ github.event.after || github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # TruffleHog above handles all known-secret pattern detection with --only-verified.
+          # This step catches generic API key assignments added in new commits only.
+          if [ -z "${BEFORE_SHA}" ] || [ "${BEFORE_SHA}" = "0000000000000000000000000000000000000000" ]; then
+            DIFF=$(git show "${AFTER_SHA}" 2>/dev/null || true)
+          else
+            DIFF=$(git diff "${BEFORE_SHA}..${AFTER_SHA}" 2>/dev/null || true)
+          fi
+          FOUND=0
+          if echo "$DIFF" | grep -qE '^\+[^+].*APCA_API_KEY_ID\s*=\s*PK[A-Z0-9]{20,}'; then
+            echo "Warning: Hardcoded APCA_API_KEY_ID added in new commit"
+            FOUND=1
+          fi
+          if echo "$DIFF" | grep -qE '^\+[^+].*AKIA[0-9A-Z]{16}'; then
+            echo "Warning: Hardcoded AWS access key ID added in new commit"
+            FOUND=1
+          fi
+          if [ $FOUND -eq 1 ]; then
+            echo "ERROR: Hardcoded credentials detected — use AWS Secrets Manager"
+            exit 1
+          fi
+          echo "OK: No hardcoded API key patterns in new commits"
+
+  scan-dependencies:
+    name: Security — Scan for Vulnerable Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install pip-audit
+        run: pip install -q pip-audit
+      - name: Audit Python dependencies for vulnerabilities
+        run: |
+          pip-audit --desc || EXIT_CODE=$?
+          if [ "${EXIT_CODE:-0}" -eq 1 ]; then
+            echo "Vulnerabilities found — review recommended"
+            exit 0
+          elif [ "${EXIT_CODE:-0}" -gt 1 ]; then
+            echo "pip-audit failed with error"
+            exit "${EXIT_CODE}"
+          fi
+          echo "OK: No vulnerabilities in dependencies"
+
+  scan-sast:
+    name: Security — Static Code Analysis (SAST)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install bandit
+        run: pip install -q bandit[toml]
+      - name: Scan Python code for security issues
+        run: |
+          bandit -r algo loaders config --severity-level medium --confidence-level high || EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 1 ]; then
+            echo "Potential security issues found (review recommended)"
+            exit 0
+          elif [ $EXIT_CODE -gt 1 ]; then
+            echo "Bandit failed with error"
+            exit $EXIT_CODE
+          fi
+          echo "OK: No high-confidence security issues detected"
+
+  scan-iac:
+    name: Security — Infrastructure as Code (Terraform)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tfsec
+        run: |
+          mkdir -p /tmp/tfsec
+          wget -q -O /tmp/tfsec/tfsec https://github.com/aquasecurity/tfsec/releases/download/v1.28.4/tfsec-linux-amd64
+          chmod +x /tmp/tfsec/tfsec
+          echo "/tmp/tfsec" >> $GITHUB_PATH
+      - name: Scan Terraform for security issues
+        run: |
+          tfsec terraform/ --minimum-severity MEDIUM || EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "OK: No Terraform security issues found"
+          elif [ $EXIT_CODE -eq 1 ] || [ $EXIT_CODE -eq 2 ]; then
+            echo "Terraform issues found (review recommended)"
+            exit 0
+          else
+            echo "tfsec failed"
+            exit $EXIT_CODE
+          fi
+
+  lint-and-type:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: pip install -q black isort flake8 mypy
+      - name: Black format check
+        run: black --check algo/ tests/ 2>/dev/null || true
+      - name: isort import check
+        run: isort --check-only algo/ tests/ 2>/dev/null || true
+      - name: Flake8 lint
+        run: flake8 algo/ tests/ --max-line-length=120 --ignore=E501,W503 || true
+      - name: MyPy type check
+        run: mypy algo/ --ignore-missing-imports 2>/dev/null || true
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        test-module:
+          - 'tests/unit/test_position_sizer.py'
+          - 'tests/unit/test_circuit_breaker.py'
+          - 'tests/unit/test_filter_pipeline.py'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install -q pytest pytest-cov pytest-mock
+          pip install -q psycopg2-binary python-dotenv
+      - name: Run unit tests — ${{ matrix.test-module }}
+        run: pytest ${{ matrix.test-module }} -v --tb=short
+        env:
+          DB_MODE: mock
+          EXECUTION_MODE: dry_run
+          DB_PASSWORD: test-password-for-ci
+          ALPACA_KEY: pk-test-alpaca-key
+          ALPACA_SECRET: sk-test-alpaca-secret
+
+  edge-case-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install -q pytest pytest-cov pytest-mock
+          pip install -q psycopg2-binary python-dotenv requests boto3
+      - name: Run edge case tests
+        run: pytest tests/edge_cases/ -v --tb=short
+        env:
+          DB_MODE: mock
+          EXECUTION_MODE: dry_run
+          DB_PASSWORD: test-password-for-ci
+          ALPACA_KEY: pk-test-alpaca-key
+          ALPACA_SECRET: sk-test-alpaca-secret
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install -q pytest pytest-cov pytest-mock
+          pip install -q psycopg2-binary python-dotenv requests
+          pip install -q yfinance pandas
+      - name: Run integration tests
+        run: pytest tests/integration/ -m "not db" --tb=short -q
+        env:
+          DB_MODE: mock
+          EXECUTION_MODE: dry_run
+          ENVIRONMENT: ci
+          DB_PASSWORD: test-password-for-ci
+          ALPACA_KEY: pk-test-alpaca-key
+          ALPACA_SECRET: sk-test-alpaca-secret
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [scan-secrets, scan-dependencies, scan-sast, scan-iac, lint-and-type, unit-tests, edge-case-tests, integration-tests]
+    if: always()
+    steps:
+      - name: Check status
+        run: |
+          echo "CI Pipeline Summary"
+          echo "==================="
+
+          # Critical security failures
+          if [[ "${{ needs.scan-secrets.result }}" != "success" ]]; then
+            echo "FAIL: Secret scan FAILED — credentials detected"
+            exit 1
+          fi
+          echo "OK: Secret scan passed"
+
+          # Code quality gates (required)
+          if [[ "${{ needs.lint-and-type.result }}" != "success" ]]; then
+            echo "FAIL: Linting and type checks FAILED"
+            exit 1
+          fi
+          echo "OK: Linting and type checks passed"
+
+          if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then
+            echo "FAIL: Unit tests FAILED"
+            exit 1
+          fi
+          echo "OK: Unit tests passed"
+
+          if [[ "${{ needs.edge-case-tests.result }}" != "success" ]]; then
+            echo "FAIL: Edge case tests FAILED"
+            exit 1
+          fi
+          echo "OK: Edge case tests passed"
+
+          # Security scans (non-blocking but visible)
+          if [[ "${{ needs.scan-dependencies.result }}" == "failure" ]]; then
+            echo "WARNING: Dependency scan had warnings (review recommended)"
+          else
+            echo "OK: Dependency scan passed"
+          fi
+
+          if [[ "${{ needs.scan-sast.result }}" == "failure" ]]; then
+            echo "WARNING: SAST analysis had findings (review recommended)"
+          else
+            echo "OK: SAST analysis passed"
+          fi
+
+          if [[ "${{ needs.scan-iac.result }}" == "failure" ]]; then
+            echo "WARNING: IaC scan had findings (review recommended)"
+          else
+            echo "OK: IaC scan passed"
+          fi
+
+          # Integration tests (non-blocking)
+          if [[ "${{ needs.integration-tests.result }}" != "success" ]] && [[ "${{ needs.integration-tests.result }}" != "skipped" ]]; then
+            echo "WARNING: Integration tests had failures (allowed for now)"
+          else
+            echo "OK: Integration tests passed"
+          fi
+
+          echo ""
+          echo "All required gates passed — ready to merge"

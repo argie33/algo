@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       test_date:
-        description: 'Test date (YYYY-MM-DD)'
+        description: 'Test date (YYYY-MM-DD, or "today" for most recent trading day)'
         required: false
-        default: '2026-05-26'
+        default: 'today'
       coverage:
-        description: 'Price data coverage percent (1-100)'
+        description: 'Price data coverage percent (1-100, unused placeholder)'
         required: false
         default: '100'
 
@@ -19,7 +19,6 @@ permissions:
 env:
   AWS_REGION: us-east-1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 
 jobs:
   populate_and_test:
@@ -35,22 +34,52 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get RDS Credentials from Secrets Manager
+      - name: Resolve test date
+        id: date
+        run: |
+          INPUT="${{ github.event.inputs.test_date || 'today' }}"
+          if [ "$INPUT" = "today" ] || [ -z "$INPUT" ]; then
+            TEST_DATE=$(python3 -c "
+          from datetime import date, timedelta
+          d = date.today()
+          while d.weekday() >= 5:
+              d -= timedelta(days=1)
+          print(d.isoformat())
+          ")
+          else
+            TEST_DATE="$INPUT"
+          fi
+          echo "test_date=$TEST_DATE" >> $GITHUB_OUTPUT
+          echo "Using test date: $TEST_DATE"
+
+      - name: Get DB credentials from Secrets Manager
         id: rds_creds
         run: |
-          SECRET=$(aws secretsmanager get-secret-value --secret-id algo-dev-rds-password --query SecretString --output text)
-          echo "::add-mask::$SECRET"
-          echo "db_password=$SECRET" >> $GITHUB_OUTPUT
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id algo-db-credentials-dev \
+            --query SecretString --output text 2>/dev/null || echo "")
 
-      - name: Get RDS Endpoint from Terraform State
-        id: rds_endpoint
-        run: |
-          cd terraform
-          ENDPOINT=$(terraform output -raw rds_address)
-          PORT=$(terraform output -raw rds_port)
-          echo "db_host=$ENDPOINT" >> $GITHUB_OUTPUT
-          echo "db_port=$PORT" >> $GITHUB_OUTPUT
-          echo "Using RDS: $ENDPOINT:$PORT"
+          if [ -n "$SECRET_JSON" ]; then
+            DB_HOST=$(echo "$SECRET_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('host',''))")
+            DB_PASS=$(echo "$SECRET_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('password',''))")
+            DB_PORT=$(echo "$SECRET_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('port',5432))")
+            DB_USER=$(echo "$SECRET_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('username','stocks'))")
+          else
+            DB_HOST=$(aws lambda get-function-configuration \
+              --function-name algo-algo-dev \
+              --query 'Environment.Variables.DB_HOST' \
+              --output text 2>/dev/null || echo "")
+            DB_PASS="${{ secrets.DB_PASSWORD }}"
+            DB_PORT="5432"
+            DB_USER="stocks"
+          fi
+
+          echo "::add-mask::$DB_PASS"
+          echo "db_host=$DB_HOST" >> $GITHUB_OUTPUT
+          echo "db_pass=$DB_PASS" >> $GITHUB_OUTPUT
+          echo "db_port=$DB_PORT" >> $GITHUB_OUTPUT
+          echo "db_user=$DB_USER" >> $GITHUB_OUTPUT
+          echo "Using DB: $DB_HOST:$DB_PORT"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -58,138 +87,117 @@ jobs:
           python-version: '3.12'
 
       - name: Install Dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install psycopg2-binary
+        run: pip install -q psycopg2-binary
 
       - name: Populate Test Data
         run: |
           python3 scripts/populate_test_data.py \
-            --date "${{ github.event.inputs.test_date }}" \
-            --coverage "${{ github.event.inputs.coverage }}" \
-            --host "${{ steps.rds_endpoint.outputs.db_host }}" \
-            --port "${{ steps.rds_endpoint.outputs.db_port }}" \
+            --date "${{ steps.date.outputs.test_date }}" \
+            --host "${{ steps.rds_creds.outputs.db_host }}" \
+            --port "${{ steps.rds_creds.outputs.db_port }}" \
             --dbname "algo" \
-            --user "stocks" \
-            --password "${{ steps.rds_creds.outputs.db_password }}"
+            --user "${{ steps.rds_creds.outputs.db_user }}" \
+            --password "${{ steps.rds_creds.outputs.db_pass }}"
 
       - name: Resolve Orchestrator Lambda
         id: resolve
         run: |
-          FUNC=$(aws lambda list-functions --region $AWS_REGION --query "Functions[?FunctionName=='algo-algo-dev'].FunctionName" --output text)
-          if [ -z "$FUNC" ]; then
-            FUNC="algo-algo-dev"
-          fi
+          FUNC=$(aws lambda list-functions --region $AWS_REGION \
+            --query "Functions[?FunctionName=='algo-algo-dev'].FunctionName" \
+            --output text 2>/dev/null || echo "")
+          [ -z "$FUNC" ] && FUNC="algo-algo-dev"
           echo "algo_function_name=${FUNC}" >> $GITHUB_OUTPUT
           echo "Using Lambda: ${FUNC}"
-
-      - name: Wait for RDS to Settle
-        run: sleep 5
 
       - name: Run Orchestrator Test
         id: orchestrator
         run: |
           FUNC="${{ steps.resolve.outputs.algo_function_name }}"
-          TEST_DATE="${{ github.event.inputs.test_date }}"
+          TEST_DATE="${{ steps.date.outputs.test_date }}"
 
-          echo "Invoking $FUNC with date=$TEST_DATE..."
+          echo "Invoking $FUNC with date=$TEST_DATE (dry_run=true)..."
 
-          PAYLOAD="{\"source\":\"test-populate-and-run\",\"test\":\"true\",\"date\":\"$TEST_DATE\"}"
+          PAYLOAD="{\"source\":\"test-populate-and-run\",\"test\":false,\"date\":\"$TEST_DATE\",\"dry_run\":true}"
           ENCODED=$(echo -n "$PAYLOAD" | base64 -w0)
 
-          timeout 180 aws lambda invoke \
+          timeout 600 aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type RequestResponse \
             --payload "$ENCODED" \
             --region $AWS_REGION \
-            /tmp/response.json || {
-              EXIT_CODE=$?
-              if [ $EXIT_CODE -eq 124 ]; then
-                echo "⏱ Lambda invocation timed out after 3 minutes"
-              else
-                echo "✗ Lambda invocation failed with exit code: $EXIT_CODE"
-              fi
-              exit 1
-            }
+            --cli-read-timeout 580 \
+            --cli-connect-timeout 30 \
+            /tmp/response.json 2>&1 || echo "Lambda invocation returned non-zero"
 
-          echo "Orchestrator response:"
-          cat /tmp/response.json | python3 -m json.tool || cat /tmp/response.json
+          echo "=== LAMBDA RESPONSE ==="
+          cat /tmp/response.json | python3 -c "
+          import sys, json
+          try:
+              raw = sys.stdin.read()
+              data = json.loads(raw)
+              body_raw = data.get('body','{}')
+              body = json.loads(body_raw) if isinstance(body_raw,str) else body_raw
+              print(f'Status: {data.get(\"statusCode\")} | {body.get(\"status\",\"?\")}')
+              phases = body.get('phases',{})
+              if phases:
+                  for ph, info in sorted(phases.items(), key=lambda x: str(x[0])):
+                      status = info.get('status','?')
+                      icon = 'OK' if status in ('success','ok') else ('HALT' if status in ('halt','halted') else 'FAIL')
+                      print(f'  {icon} Phase {ph} [{status}]: {info.get(\"summary\",\"\")[:100]}')
+              if body.get('skipped'):
+                  print(f'Skipped: {body.get(\"reason\",\"\")}')
+          except Exception as e:
+              print(f'Parse error: {e}')
+          "
 
-          echo "response_file=/tmp/response.json" >> $GITHUB_OUTPUT
-
-      - name: Extract and Report Results
-        if: always()
+      - name: Verify Orchestrator Result
         run: |
-          if [ -f /tmp/response.json ]; then
-            echo "=== ORCHESTRATOR TEST RESULT ==="
-            python3 << 'EOF'
-import json
-import sys
-
-with open('/tmp/response.json', 'r') as f:
-    response = json.load(f)
-
-if isinstance(response, dict):
-    status_code = response.get('statusCode', 'unknown')
-    body = response.get('body')
-
-    print(f"Status Code: {status_code}")
-
-    if isinstance(body, str):
-        try:
-            body_json = json.loads(body)
-            print(f"Response Status: {body_json.get('status', 'unknown')}")
-
-            if 'phases' in body_json:
-                print(f"\nPhases Executed: {len(body_json['phases'])}")
-                for i, phase in enumerate(body_json['phases'], 1):
-                    status = phase.get('status', 'unknown')
-                    print(f"  Phase {i}: {status}")
-                    if phase.get('halt_reason'):
-                        print(f"    Halt: {phase['halt_reason']}")
-        except json.JSONDecodeError:
-            print(f"Body (raw): {body}")
-    else:
-        print(f"Body: {body}")
-EOF
-          else
-            echo "No response file found"
+          if [ ! -f /tmp/response.json ]; then
+            echo "ERROR: No response file"
+            exit 1
           fi
 
-      - name: Retrieve CloudWatch Logs
-        if: always()
-        run: |
-          FUNC="${{ steps.resolve.outputs.algo_function_name }}"
-          LOG_GROUP="/aws/lambda/$FUNC"
+          python3 - <<'EOF'
+          import sys, json
+          with open('/tmp/response.json') as f:
+              raw = f.read()
+          try:
+              data = json.loads(raw)
+              body_raw = data.get('body', '{}')
+              body = json.loads(body_raw) if isinstance(body_raw, str) else body_raw
+          except Exception as e:
+              print(f"Failed to parse: {e}")
+              sys.exit(1)
 
-          echo "Retrieving logs from: $LOG_GROUP"
+          if body.get('skipped'):
+              print(f"Skipped: {body.get('reason', 'market closed')}")
+              sys.exit(0)
 
-          LATEST=$(aws logs describe-log-streams \
-            --log-group-name "$LOG_GROUP" \
-            --order-by LastEventTime \
-            --descending \
-            --limit 1 \
-            --region $AWS_REGION \
-            --query 'logStreams[0].logStreamName' \
-            --output text 2>/dev/null || echo "")
+          phases = body.get('phases', {})
+          if not phases:
+              print("FAIL: phases={} — exited before any phases ran")
+              sys.exit(1)
 
-          if [ -n "$LATEST" ] && [ "$LATEST" != "None" ]; then
-            echo "=== ORCHESTRATOR EXECUTION LOG ==="
-            aws logs get-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --log-stream-name "$LATEST" \
-              --region $AWS_REGION \
-              --query 'events[*].message' \
-              --output text | tail -150
-          else
-            echo "No logs found"
-          fi
+          failed = [ph for ph, i in phases.items() if i.get('status') in ('fail', 'error')]
+          halted = [ph for ph, i in phases.items() if i.get('status') in ('halt', 'halted')]
+
+          if failed:
+              print(f"FAIL: Phase errors {failed}")
+              for ph in failed:
+                  print(f"  Phase {ph}: {phases[ph].get('summary','')}")
+              sys.exit(1)
+
+          if halted:
+              print(f"HALT (expected): phases {halted}")
+              sys.exit(0)
+
+          print(f"OK: Completed {len(phases)} phases")
+          sys.exit(0)
+          EOF
 
       - name: Summary
         if: always()
         run: |
-          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Test Date**: ${{ github.event.inputs.test_date }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Data Coverage**: ${{ github.event.inputs.coverage }}%" >> $GITHUB_STEP_SUMMARY
+          echo "## Populate & Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Date**: ${{ steps.date.outputs.test_date }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: $([ -f /tmp/response.json ] && echo 'Response received' || echo 'No response')" >> $GITHUB_STEP_SUMMARY
