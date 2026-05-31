@@ -113,27 +113,41 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None) -> Dict
                     LIMIT 12
                 """, (symbol,))
                 rows = cur.fetchall()
-                items = []
-                for r in rows:
-                    d = dict(r)
-                    total = int(d.get('analyst_count') or 0)
-                    bull = int(d.get('bullish_count') or 0)
-                    bear = int(d.get('bearish_count') or 0)
-                    neut = int(d.get('neutral_count') or 0)
-                    d['totalAnalysts'] = total
-                    d['bullishPercent'] = round(bull / total * 100, 1) if total > 0 else None
-                    d['bearishPercent'] = round(bear / total * 100, 1) if total > 0 else None
-                    d['neutralPercent'] = round(neut / total * 100, 1) if total > 0 else None
-                    d['avgPriceTarget'] = float(d['target_price']) if d.get('target_price') else None
-                    d['priceTargetVsCurrent'] = float(d['upside_downside_percent']) if d.get('upside_downside_percent') else None
-                    d['consensus'] = (
-                        'Strong Buy' if d['bullishPercent'] and d['bullishPercent'] > 70 else
-                        'Buy' if d['bullishPercent'] and d['bullishPercent'] > 55 else
-                        'Sell' if d['bearishPercent'] and d['bearishPercent'] > 55 else
+                if not rows:
+                    return json_response(200, {'metrics': None, 'priceTargets': [], 'momentum': None, 'coverage': None, 'recentUpgrades': []})
+                # Use latest row for metrics summary
+                latest = dict(rows[0])
+                total = int(latest.get('analyst_count') or 0)
+                bull = int(latest.get('bullish_count') or 0)
+                bear = int(latest.get('bearish_count') or 0)
+                neut = int(latest.get('neutral_count') or 0)
+                bp = round(bull / total * 100, 1) if total > 0 else None
+                bep = round(bear / total * 100, 1) if total > 0 else None
+                np_ = round(neut / total * 100, 1) if total > 0 else None
+                metrics = {
+                    'totalAnalysts': total,
+                    'bullish': bull, 'bearish': bear, 'neutral': neut,
+                    'bullishPercent': bp, 'bearishPercent': bep, 'neutralPercent': np_,
+                    'avgPriceTarget': float(latest['target_price']) if latest.get('target_price') else None,
+                    'priceTargetVsCurrent': float(latest['upside_downside_percent']) if latest.get('upside_downside_percent') else None,
+                    'consensus': (
+                        'Strong Buy' if bp and bp > 70 else
+                        'Buy' if bp and bp > 55 else
+                        'Sell' if bep and bep > 55 else
                         'Hold'
-                    ) if total > 0 else None
-                    items.append(d)
-                return list_response(items)
+                    ) if total > 0 else None,
+                }
+                price_targets = [
+                    {'date': str(dict(r)['date']), 'target': float(dict(r)['target_price']) if dict(r).get('target_price') else None}
+                    for r in rows if dict(r).get('target_price')
+                ]
+                return json_response(200, {
+                    'metrics': metrics,
+                    'priceTargets': price_targets,
+                    'momentum': None,
+                    'coverage': None,
+                    'recentUpgrades': [],
+                })
             elif path.startswith('/api/sentiment/social/insights/'):
                 # Social sentiment not yet implemented; return 200 with empty data and informative message
                 return json_response(200, {
