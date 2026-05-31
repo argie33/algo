@@ -104,7 +104,7 @@ export const TestAuthProvider = ({ children, initialUser = null }) => {
       return { success: true };
     },
     clearError: () => {
-      console.log("ðŸ" Real error clear");
+      console.log("error cleared");
     },
     updateTokens: (tokens) => {
     },

@@ -708,7 +708,7 @@ describe("Performance Monitoring Tests", () => {
                 data-testid={`warning-${index}`}
                 className="warning"
               >
-                ⚠ï¸ {warning}
+                {warning}
               </div>
             ))}
           </div>
@@ -721,7 +721,7 @@ describe("Performance Monitoring Tests", () => {
         expect(screen.getByTestId("warning-0")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("⚠ï¸ vendor.js is 600KB")).toBeInTheDocument();
+      expect(screen.getByText("vendor.js is 600KB")).toBeInTheDocument();
     });
   });
 

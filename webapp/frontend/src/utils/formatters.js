@@ -128,8 +128,8 @@ export const getChangeIcon = (value) => {
   const num = parseFloat(value);
   if (isNaN(num)) return "";
 
-  if (num > 0) return "â†—";
-  if (num < 0) return "â†˜";
+  if (num > 0) return "↗";
+  if (num < 0) return "↘";
   return "→";
 };
 
