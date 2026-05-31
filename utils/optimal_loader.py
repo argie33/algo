@@ -406,72 +406,104 @@ class OptimalLoader(ABC):
             parallelism: Number of concurrent workers
             backfill_days: If set, refetch last N days instead of using watermark (for extended history)
         """
-        if backfill_days is not None:
-            self._backfill_days = backfill_days
-
-        start = time.time()
-        symbols = list(symbols)
-        mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
-        logger.info(
-            "[%s] Starting load: %d symbols (parallelism=%d)%s",
-            self.table_name, len(symbols), parallelism, mode,
-        )
-
-        if parallelism == 1:
-            self._run_serial(symbols)
-        else:
-            self._run_parallel(symbols, parallelism)
-
-        self._stats["duration_sec"] = round(time.time() - start, 2)
-        logger.info(
-            "[%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
-            "(processed=%d skipped_wm=%d failed=%d) %.1fs sources=%s",
-            self.table_name,
-            self._stats["rows_fetched"],
-            self._stats["rows_dedup_skipped"],
-            self._stats["rows_quality_dropped"],
-            self._stats["rows_inserted"],
-            self._stats["symbols_processed"],
-            self._stats["symbols_skipped_by_watermark"],
-            self._stats["symbols_failed"],
-            self._stats["duration_sec"],
-            self._stats["source_distribution"],
-        )
+        # Session-level advisory lock: prevents concurrent instances of the same loader from
+        # stacking on t4g.micro. pg_try_advisory_lock is non-blocking — returns false immediately
+        # if another session holds the lock. Auto-released when connection closes (even on crash).
+        _lock_conn = None
+        try:
+            from utils.db_connection import get_db_connection
+            _lock_conn = get_db_connection(timeout=30)
+            _lock_conn.autocommit = True
+            with _lock_conn.cursor() as _cur:
+                _cur.execute("SELECT pg_try_advisory_lock(hashtext(%s)::bigint)", (self.table_name,))
+                acquired = _cur.fetchone()[0]
+            if not acquired:
+                logger.warning(
+                    "[%s] Skipping: another instance already running (advisory lock held)",
+                    self.table_name,
+                )
+                try:
+                    _lock_conn.close()
+                except Exception:
+                    pass
+                return self._stats
+        except Exception as _lock_err:
+            logger.warning("[%s] Advisory lock check failed (%s) — proceeding without lock", self.table_name, _lock_err)
+            _lock_conn = None
 
         try:
-            from algo.algo_metrics import MetricsPublisher
-            with MetricsPublisher() as m:
-                m.put_loader_result(self.table_name, self._stats)
-        except Exception as e:
-            logger.debug("metrics unavailable: %s", e)
+            if backfill_days is not None:
+                self._backfill_days = backfill_days
 
-        try:
-            with DatabaseContext('read') as cur:
-                if self.watermark_field:
-                    cur.execute(
-                        f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
-                    )
-                else:
-                    cur.execute(f"SELECT COUNT(*), NULL FROM {self.table_name}")
-                result = cur.fetchone()
-                total_rows = result[0] if result else 0
-                latest_date = result[1] if result else None
-                if hasattr(latest_date, 'date'):
-                    latest_date = latest_date.date()
+            start = time.time()
+            symbols = list(symbols)
+            mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
+            logger.info(
+                "[%s] Starting load: %d symbols (parallelism=%d)%s",
+                self.table_name, len(symbols), parallelism, mode,
+            )
 
-            with DatabaseContext('write') as cur:
-                cur.execute("""
-                    INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                    VALUES (%s, %s, %s, NOW())
-                    ON CONFLICT (table_name) DO UPDATE SET
-                      row_count = EXCLUDED.row_count,
-                      latest_date = EXCLUDED.latest_date,
-                      last_updated = NOW()
-                """, (self.table_name, total_rows, latest_date))
-        except Exception as e:
-            logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+            if parallelism == 1:
+                self._run_serial(symbols)
+            else:
+                self._run_parallel(symbols, parallelism)
 
-        return self._stats
+            self._stats["duration_sec"] = round(time.time() - start, 2)
+            logger.info(
+                "[%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
+                "(processed=%d skipped_wm=%d failed=%d) %.1fs sources=%s",
+                self.table_name,
+                self._stats["rows_fetched"],
+                self._stats["rows_dedup_skipped"],
+                self._stats["rows_quality_dropped"],
+                self._stats["rows_inserted"],
+                self._stats["symbols_processed"],
+                self._stats["symbols_skipped_by_watermark"],
+                self._stats["symbols_failed"],
+                self._stats["duration_sec"],
+                self._stats["source_distribution"],
+            )
+
+            try:
+                from algo.algo_metrics import MetricsPublisher
+                with MetricsPublisher() as m:
+                    m.put_loader_result(self.table_name, self._stats)
+            except Exception as e:
+                logger.debug("metrics unavailable: %s", e)
+
+            try:
+                with DatabaseContext('read') as cur:
+                    if self.watermark_field:
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+                        )
+                    else:
+                        cur.execute(f"SELECT COUNT(*), NULL FROM {self.table_name}")
+                    result = cur.fetchone()
+                    total_rows = result[0] if result else 0
+                    latest_date = result[1] if result else None
+                    if hasattr(latest_date, 'date'):
+                        latest_date = latest_date.date()
+
+                with DatabaseContext('write') as cur:
+                    cur.execute("""
+                        INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
+                        VALUES (%s, %s, %s, NOW())
+                        ON CONFLICT (table_name) DO UPDATE SET
+                          row_count = EXCLUDED.row_count,
+                          latest_date = EXCLUDED.latest_date,
+                          last_updated = NOW()
+                    """, (self.table_name, total_rows, latest_date))
+            except Exception as e:
+                logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+
+            return self._stats
+        finally:
+            if _lock_conn:
+                try:
+                    _lock_conn.close()
+                except Exception:
+                    pass
 
     def close(self) -> None:
         """No-op. DatabaseContext handles connection cleanup automatically."""

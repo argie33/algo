@@ -334,7 +334,10 @@ def run(
                     row = cur.fetchone()
                     if row:
                         for col in missing:
-                            dates[col] = row[col] if col in (row.keys() if hasattr(row, 'keys') else []) else row[0]
+                            if col in (row.keys() if hasattr(row, 'keys') else []):
+                                dates[col] = row[col]
+                            elif isinstance(row, (list, tuple)) and missing.index(col) < len(row):
+                                dates[col] = row[missing.index(col)]
             except Exception as e:
                 logger.warning(f"Phase 1: direct table scan failed ({e})")
 
@@ -371,6 +374,7 @@ def run(
         # Using trading-day comparison prevents false halts after 3-day weekends where
         # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
         try:
+            from algo.algo_market_calendar import MarketCalendar
             expected_date = run_date - timedelta(days=1)
             for _ in range(10):
                 if MarketCalendar.is_trading_day(expected_date):
