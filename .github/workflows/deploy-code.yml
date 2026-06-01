@@ -234,6 +234,7 @@ jobs:
   # Algo Lambda
   # ------------------------------------------------------------
   deploy-algo-lambda:
+    if: false  # DISABLED: Lambda deployment handled by deploy-all-infrastructure.yml to prevent race conditions
     name: Deploy Algo Lambda
     needs: [resolve-infra, run-migrations]
     runs-on: ubuntu-latest
@@ -757,6 +758,7 @@ jobs:
   # API Lambda
   # ------------------------------------------------------------
   deploy-api-lambda:
+    if: false  # DISABLED: Lambda deployment handled by deploy-all-infrastructure.yml to prevent race conditions
     name: Deploy API Lambda
     needs: [resolve-infra, run-migrations]
     runs-on: ubuntu-latest

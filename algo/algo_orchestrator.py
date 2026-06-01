@@ -48,8 +48,7 @@ class Orchestrator:
         from utils.dynamodb_lock_manager import DynamoDBLockManager
         self.lock_manager = DynamoDBLockManager()
         self._lock_acquired = False
-        self.db_failure_counter_file = Path(tempfile.gettempdir()) / 'algo_db_failures.txt'
-        self.degraded_mode = False  # B4: Circuit breaker for DB failures
+        self.degraded_mode = False
         self.alerts = AlertManager()
 
         # RDS Proxy handles connection pooling - no local pool needed
@@ -63,6 +62,9 @@ class Orchestrator:
         logger.info("[ORCHESTRATOR] About to initialize feature flags")
         self._initialize_feature_flags()
         logger.info("[ORCHESTRATOR] Feature flags initialized")
+
+        # DB failure counter removed: /tmp is ephemeral in Lambda (doesn't persist across invocations).
+        # CloudWatch alarms on DB connection errors are more reliable for detecting outages.
 
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
@@ -80,19 +82,6 @@ class Orchestrator:
             logger.error(f"  [ERROR] Database connectivity check failed: {e}")
             return False
 
-    def _increment_db_failure_counter(self) -> int:
-        """Increment failure counter. If >= 3 consecutive failures, enter degraded mode."""
-        try:
-            current = 0
-            if self.db_failure_counter_file.exists():
-                current = int(self.db_failure_counter_file.read_text().strip() or 0)
-            current += 1
-            self.db_failure_counter_file.write_text(str(current))
-            return current
-        except Exception as e:
-            logger.error(f"Failed to increment DB failure counter: {e}")
-            return 1
-
     def _check_halt_flag(self) -> bool:
         """Check for halt flag file. Returns True if halt was requested."""
         if os.path.exists(self.HALT_FLAG_PATH):
@@ -100,14 +89,6 @@ class Orchestrator:
             self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
             return True
         return False
-
-    def _reset_db_failure_counter(self) -> None:
-        """Reset counter on successful DB connection."""
-        try:
-            if self.db_failure_counter_file.exists():
-                self.db_failure_counter_file.unlink()
-        except Exception as e:
-            logger.error(f"Failed to reset DB failure counter: {e}", exc_info=True)
 
     def _initialize_feature_flags(self) -> None:
         """Initialize feature flags with safe defaults on startup."""
@@ -504,38 +485,13 @@ class Orchestrator:
 
             logger.info("\n[CHECK] Database connectivity...")
             if not self._check_db_connectivity():
-                failures = self._increment_db_failure_counter()
-                logger.error(f"[DB_ERROR] Database connectivity check FAILED ({failures}/3 failures)")
-                if failures >= 3:
-                    self.degraded_mode = True
-                    logger.error(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
-                    logger.info("Skipping all trading phases. Continuing with monitoring only.")
-                    try:
-                        from algo.algo_notifications import notify
-                        notify(
-                            'critical',
-                            title='Database Circuit Breaker Activated',
-                            message=f'DB unreachable for {failures} runs. System in degraded mode. No trading.'
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to send alert notification: {e}", exc_info=True)
-                    # Still try to reconcile and alert
-                    if not self.dry_run:
-                        self.phase_7_reconcile()
-                    return self._final_report()
-                else:
-                    logger.error(f"\n[ERROR] Database connectivity failed ({failures}/3). Will halt if persists.")
-                    if self.dry_run:
-                        logger.info("[DRY-RUN] Skipping all phases due to missing database.")
-                    # Return skipped=True so the test workflow treats this as an expected condition
-                    # (DB temporarily unavailable due to maintenance or connection exhaustion)
-                    # rather than failing with phases={} which looks like a bug.
-                    report = self._final_report()
-                    report['skipped'] = True
-                    report['reason'] = 'database_unavailable'
-                    return report
+                logger.error("[DB_ERROR] Database connectivity check FAILED")
+                logger.error("Check CloudWatch alarms for database availability. Returning skipped status.")
+                report = self._final_report()
+                report['skipped'] = True
+                report['reason'] = 'database_unavailable'
+                return report
             else:
-                self._reset_db_failure_counter()
                 logger.info("[OK] Database connectivity check passed")
 
             if self.degraded_mode and self.dry_run:

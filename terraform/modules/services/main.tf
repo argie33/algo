@@ -25,16 +25,20 @@ data "aws_lambda_layer_version" "api_deps" {
   compatible_runtime = "python3.12"
 }
 
-# FIXED Issue #11: Orchestrator Layer (always uses latest compatible)
-data "aws_lambda_layer_version" "shared_deps" {
-  layer_name         = var.lambda_layer_name
-  compatible_runtime = "python3.12"
+# Shared dependencies Lambda layer (numpy, pandas, scipy for Phase 7 optimization + IC computation)
+resource "aws_lambda_layer_version" "shared_deps" {
+  count                    = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? 1 : 0
+  filename                 = "${path.root}/lambda/shared-deps-layer.zip"
+  layer_name               = "${var.project_name}-shared-deps-${var.environment}"
+  compatible_runtimes      = ["python3.12"]
+  source_code_hash         = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? filebase64sha256("${path.root}/lambda/shared-deps-layer.zip") : null
+  compatible_architectures = ["x86_64"]
 }
 
-# For compatibility with existing code
+# Reference layer ARNs (use layer resources if created, else data sources)
 locals {
   api_layer_arn         = data.aws_lambda_layer_version.api_deps.arn
-  shared_deps_layer_arn = data.aws_lambda_layer_version.shared_deps.arn
+  shared_deps_layer_arn = try(aws_lambda_layer_version.shared_deps[0].arn, "")
 }
 
 # ============================================================
@@ -553,7 +557,10 @@ resource "aws_lambda_function" "algo" {
   # Keep orchestrator Lambda warm to minimize cold starts during critical trading hours
   reserved_concurrent_executions = 1
 
-  layers = [local.shared_deps_layer_arn, var.psycopg2_layer_arn] # Orchestrator dependencies + psycopg2 for database access
+  layers = concat(
+    local.shared_deps_layer_arn != "" ? [local.shared_deps_layer_arn] : [],
+    [var.psycopg2_layer_arn]
+  ) # Orchestrator: shared deps (numpy/pandas for Phase 7) + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null

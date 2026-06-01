@@ -101,18 +101,15 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception:
             pass
 
-        # Schema migration: ensure swing_trader_scores.grade column exists.
-        # Uses a SEPARATE DatabaseContext so a timeout on the ALTER TABLE lock-wait
-        # doesn't abort the outer Phase 5 cursor (which would silently skip all 1472 signals).
-        try:
-            with DatabaseContext('write') as _mig_cur:
-                _mig_cur.execute("SET statement_timeout = 3000")  # 3s max for schema check
-                _mig_cur.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS grade VARCHAR(4)")
-        except Exception:
-            pass  # Column already exists or table doesn't exist yet
-
         if not eval_date:
-            eval_date = self._resolve_evaluation_date(cur, max_date=max_date)
+            # Run in a SEPARATE connection: if the EXISTS subqueries time out, only
+            # this lookup fails (not the outer Phase 5 cursor holding all 1472 signals).
+            try:
+                with DatabaseContext('read') as _res_cur:
+                    _res_cur.execute("SET statement_timeout = 10000")  # 10s max
+                    eval_date = self._resolve_evaluation_date(_res_cur, max_date=max_date)
+            except Exception:
+                eval_date = max_date or _date.today()
 
             # Snapshot eval_date immutably for this run (prevents sector rotation mid-evaluation)
             self._snapshot_eval_date = eval_date
@@ -124,20 +121,24 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"FILTER PIPELINE EVALUATION - {eval_date}")
             logger.info(f"{'='*70}\n")
 
-            # Simple scan of buy_sell_daily — no JOIN on swing_trader_scores here.
-            # The swing score JOIN was timing out (45s) on t4g.micro under morning load
-            # (stock_prices_daily loader does heavy writes during 4-9 AM ET window).
-            # Swing scores are fetched per-symbol in the SAVEPOINT swing_score block below.
+            # Pre-fetch all swing scores for today's BUY signals in one bulk query.
+            # Sorts by score descending so the 120s time budget prioritizes the best candidates.
+            # Symbols without precomputed scores default to score=0 (sort last).
             cur.execute(
                 """
-                SELECT b.symbol, b.date, b.signal_type
+                SELECT b.symbol, b.date, b.signal_type,
+                       COALESCE(s.score, 0) as swing_score
                 FROM buy_sell_daily b
+                LEFT JOIN swing_trader_scores s ON b.symbol = s.symbol AND b.date = s.date
                 WHERE b.date = %s AND b.signal_type = 'BUY'
-                ORDER BY b.symbol
+                ORDER BY COALESCE(s.score, 0) DESC, b.symbol
                 """,
                 (eval_date,),
             )
-            signals = cur.fetchall()
+            rows = cur.fetchall()
+            # Convert to list of (symbol, date, signal_type) tuples for loop compatibility
+            signals = [(r[0], r[1], r[2]) for r in rows]
+            signal_swing_scores = {r[0]: r[3] for r in rows}  # Cache for later lookups
             logger.info(f"Found {len(signals)} BUY signals to evaluate from {eval_date}")
             if not signals:
                 logger.warning(f"[CRITICAL] No BUY signals found in buy_sell_daily for {eval_date} — signal generation will return 0 trades")
@@ -351,39 +352,40 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     if adv['pass']:
                         advanced_passed += 1
 
-                        # OPTIMIZED: Look up pre-computed swing trader scores (no inline computation)
-                        # Scores are pre-computed overnight by load_swing_trader_scores.py
-                        # Use SAVEPOINT to prevent SQL errors from aborting the outer transaction
+                        # Use pre-fetched swing scores from the bulk query above (no per-symbol lookup)
                         try:
                             cur.execute("SAVEPOINT swing_score")
                             cur.execute(
-                                "SELECT score, grade, components FROM swing_trader_scores WHERE symbol = %s AND date = %s LIMIT 1",
+                                "SELECT grade, components FROM swing_trader_scores WHERE symbol = %s AND date = %s LIMIT 1",
                                 (symbol, signal_date)
                             )
                             swing_row = cur.fetchone()
                             cur.execute("RELEASE SAVEPOINT swing_score")
                             if swing_row:
-                                swing_score, swing_grade, swing_comp_json = swing_row
+                                swing_grade, swing_comp_json = swing_row
                                 import json as _json
-                                # psycopg2 auto-parses JSONB to dict; handle both str and dict
                                 if isinstance(swing_comp_json, dict):
                                     swing_components = swing_comp_json
                                 elif swing_comp_json:
                                     swing_components = _json.loads(swing_comp_json)
                                 else:
                                     swing_components = {}
-                                swing = {'pass': True, 'reason': 'precomputed', 'swing_score': float(swing_score or 0), 'grade': swing_grade or 'C', 'components': swing_components}
+                                # Use score from pre-fetch cache
+                                swing_score_val = signal_swing_scores.get(symbol, 0.0)
+                                swing = {'pass': True, 'reason': 'precomputed', 'swing_score': float(swing_score_val), 'grade': swing_grade or 'C', 'components': swing_components}
                             else:
-                                logger.debug(f"No precomputed swing score for {symbol} on {signal_date}")
-                                swing = {'pass': True, 'reason': 'score_unavailable', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
+                                swing_score_val = signal_swing_scores.get(symbol, 0.0)
+                                logger.debug(f"No grade/components for {symbol} on {signal_date}, using cached score {swing_score_val}")
+                                swing = {'pass': True, 'reason': 'score_unavailable', 'swing_score': float(swing_score_val), 'grade': 'F', 'components': {}}
                         except Exception as e:
                             try:
                                 cur.execute("ROLLBACK TO SAVEPOINT swing_score")
                                 cur.execute("RELEASE SAVEPOINT swing_score")
                             except Exception:
                                 pass
-                            logger.warning(f"Error fetching swing trader score for {symbol}: {e}")
-                            swing = {'pass': True, 'reason': 'lookup_error', 'swing_score': 0.0, 'grade': 'F', 'components': {}}
+                            swing_score_val = signal_swing_scores.get(symbol, 0.0)
+                            logger.warning(f"Error fetching swing trader metadata for {symbol}: {e}")
+                            swing = {'pass': True, 'reason': 'lookup_error', 'swing_score': float(swing_score_val), 'grade': 'F', 'components': {}}
 
                         # Hard gate: swing score gate relaxed for production (use component scoring for filtering)
                         # min_swing check disabled to allow all candidates through for ranking
@@ -760,7 +762,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             if dist_days > max_dd:
                 return {'pass': False, 'reason': f'Distribution days {dist_days} > {max_dd}'}
 
-            require_stage_2 = bool(self.config.get('require_stage_2_market', True))
+            require_stage_2 = bool(self.config.get('require_stage_2_market', False))
             if require_stage_2 and stage != 2:
                 return {'pass': False, 'reason': f'Market Stage {stage} != 2 (trend={trend})'}
 

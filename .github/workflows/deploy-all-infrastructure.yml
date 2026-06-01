@@ -159,6 +159,7 @@ jobs:
       TF_VAR_notification_email: ${{ secrets.ALERT_EMAIL_ADDRESS }}
       TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
       TF_VAR_fred_api_key: ${{ secrets.FRED_API_KEY }}
+      TF_VAR_alert_smtp_password: ${{ secrets.ALERT_SMTP_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -245,6 +246,22 @@ jobs:
           cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip . -q
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
+
+      - name: Build Shared Dependencies Lambda layer
+        run: |
+          # Build shared dependencies layer (numpy, pandas, requests, etc.)
+          # Used by orchestrator Lambda for Phase 7 optimization, IC computation, VaR
+          LAYER_DIR=/tmp/shared-deps-layer
+          mkdir -p $LAYER_DIR/python
+          python3.12 -m pip install \
+            numpy==1.26.2 \
+            pandas==2.1.3 \
+            scipy==1.11.4 \
+            -t $LAYER_DIR/python \
+            --platform manylinux2014_x86_64 --only-binary=:all: \
+            --no-cache-dir --quiet
+          cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip . -q
+          echo "[OK] Shared deps layer: $(du -sh $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip | cut -f1)"
 
       - name: Build db-init Lambda
         run: |
@@ -790,7 +807,7 @@ jobs:
       - name: Deploy
         run: |
           FUNC="${{ needs.terraform.outputs.api_lambda_name }}"
-          [ -z "$FUNC" ] && FUNC="stocks-api-dev"
+          [ -z "$FUNC" ] && FUNC="algo-api-dev"
           aws lambda update-function-code \
             --function-name "$FUNC" \
             --zip-file fileb://api_lambda.zip \
