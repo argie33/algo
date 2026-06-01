@@ -93,6 +93,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
     def _evaluate_signals_impl(self, eval_date=None, cur=None, max_date: Optional[_date] = None) -> List[Dict[str, Any]]:
         """Internal implementation of signal evaluation."""
+        # Statement timeout: prevents Phase 5 from hanging indefinitely when RDS is under load
+        # (e.g., concurrent EOD pipeline ECS loaders exhausting the RDS Proxy connection pool).
+        # 45s per statement gives enough time for complex EXISTS queries while fail-opening fast.
+        try:
+            cur.execute("SET statement_timeout = 45000")
+        except Exception:
+            pass
+
         # Schema migration: ensure swing_trader_scores.grade column exists
         try:
             cur.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS grade VARCHAR(4)")
