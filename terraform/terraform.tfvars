@@ -113,7 +113,7 @@ alert_smtp_from     = "argeropolos@gmail.com" # From email address for alerts
 # COST OPTIMIZATION: Storage & Database
 # ============================================================
 enable_s3_versioning = false # COST OPTIMIZED: S3 versioning disabled. Saves ~$5-10/month on storage. Not needed for dev.
-rds_multi_az = true   # REQUIRED: Production failover protection. DB failover = 60-120s outage; 9:30 AM orchestrator is critical.
+rds_multi_az = false  # COST OPTIMIZED: Single-AZ. Saves ~$15/month.
 
 # ============================================================
 # COST OPTIMIZATION: Logging & Observability
