@@ -1,551 +1,106 @@
-# Stock Analytics Platform — Algo
+# Stock Analytics Platform: Algo
 
-Live trading system: buys/sells stocks based on Minervini trend-following + fundamental filters + market breadth. Up to 12 concurrent positions (config: max_positions). Reconciles with Alpaca daily.
+Live trading system: buys/sells stocks based on Minervini trend-following + fundamental filters + market breadth. Up to 12 concurrent positions. Reconciles with Alpaca daily.
 
-## SYSTEM MAP
+## System Map
 
 | Component | Code | Deployment | Trigger |
 |-----------|------|------------|---------|
-| Orchestrator (main loop) | `algo/algo_orchestrator.py` | Lambda (algo-algo-dev) | EventBridge schedule: 9:30 AM ET, 5:30 PM ET Mon-Fri |
-| Loaders (data fetchers) | `loaders/load_*.py` (33 loaders) | ECS Fargate tasks | EventBridge schedules + Step Functions EOD pipeline |
-| API (REST endpoints) | `lambda/api/lambda_function.py` | Lambda (algo-api-dev) | API Gateway HTTP requests |
-| Frontend (dashboard) | `webapp/frontend/src/` | S3 + CloudFront | npm run build (React app) |
-| Signals (Phase 5) | `algo/algo_signals.py` | Lambda Phase 5 | Called by orchestrator |
-| Database (data storage) | PostgreSQL | RDS (algo-db) | Schema: `lambda/db-init/schema.sql` (via Lambda on first deployment) |
-
-## CREDENTIALS & SECRETS
-
-**Local Development (PowerShell profile):**
-```
-DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSL
-APCA_API_KEY_ID, APCA_API_SECRET_KEY (Alpaca paper keys)
-ALPACA_API_KEY, ALPACA_API_SECRET (Alpaca account)
-ALPACA_PAPER_TRADING = true or false (paper vs live)
-FRED_API_KEY (economic data)
-```
-
-**GitHub CI (GitHub Secrets):**
-- `APCA_API_KEY_ID`, `APCA_API_SECRET_KEY` — Alpaca API keys
-- `ALPACA_API_KEY`, `ALPACA_API_SECRET` — Alpaca trading keys
-- `FRED_API_KEY` — Federal Reserve economic data
-- `RDS_PASSWORD` — Database password
-- `AWS_ACCOUNT_ID` — AWS account number
-
-**Production (AWS Secrets Manager):**
-- `algo/database` — RDS password (synced from Terraform)
-- `algo/alpaca` — Alpaca API/trading keys
-- `algo/fred` — FRED API key
-
-**Rules:**
-- Rotate credentials quarterly
-- If leaked to git history, rotate immediately
-- Never commit `.env` files
-- CI uses OIDC (OpenID Connect) for AWS authentication, not static keys
-
-## Deployment Flow
-
-**The right way - Production deployments use GitHub Actions OIDC:**
-1. `git push main`
-2. GitHub Actions triggers deploy-code.yml or deploy-all-infrastructure.yml
-3. GitHub token automatically exchanged for temporary AWS credentials (OIDC)
-4. Terraform/Lambda/S3 deployments execute with transient credentials
-5. Zero static keys, credentials auto-expire after 1 hour
-
-**NEVER** use local terraform apply or credential refresh scripts for production work. Those are only for local development/debugging.
-
-## LOCAL AWS CREDENTIALS (Auto-Refreshing)
-
-**For local development only (not production deployment):**
-
-Set up once:
-```bash
-scripts/setup-credential-process.sh
-```
-
-This configures your `~/.aws/config` to automatically fetch fresh credentials on-demand:
-- No static credentials file
-- No manual refresh needed
-- Credentials always fresh and valid
-- Works for all AWS CLI commands and Python boto3 calls
-
-**How it works:**
-1. When you run `aws s3 ls --profile algo-developer`, AWS SDK calls the credential_process script
-2. Script fetches fresh credentials from AWS STS
-3. Credentials cached locally for 50 minutes
-4. No human intervention required
-
-**For debugging locally:**
-```bash
-aws sts get-caller-identity --profile algo-developer
-```
-
-**When credentials expire (error: "The security token included in the request is invalid"):**
-```powershell
-# Run this to refresh:
-scripts/refresh-aws-credentials.ps1
-```
-
-**Credential Rotation:** Automatic quarterly rotation (first Monday of each quarter at 02:00 UTC)
-- Workflow: `.github/workflows/rotate-dev-credentials.yml`
-- Rotates the IAM key in Secrets Manager
-- Your next AWS command automatically fetches the new key
-- No action required from you
-
-
-## N / N+1 MULTI-VERSION WORKFLOW
-
-Run the current version live while developing the next version in parallel.
-
-**Environments:**
-
-| | N (current) | N+1 (in development) |
-|---|---|---|
-| **Branch** | `main` | `staging` |
-| **Lambda** | `algo-algo-dev` | `algo-algo-staging` |
-| **Schedules** | Enabled (9:30 AM, 1 PM, 3 PM ET) | Disabled |
-| **Dry run** | `false` (real paper trades) | `true` (never trades) |
-| **RDS** | `algo-db` | Shared with dev (same data) |
-| **Deploy trigger** | `git push main` | `git push staging` |
-
-**How to use:**
-
-```bash
-# Start developing N+1 on the staging branch
-git checkout -b staging
-# (or switch to existing staging branch)
-git checkout staging
-
-# Make changes to algo logic
-# Push to trigger deploy-staging.yml
-git push origin staging
-
-# Test staging Lambda manually (never auto-executes)
-aws lambda invoke \
-  --function-name algo-algo-staging \
-  --payload '{"source":"manual-test","dry_run":true}' \
-  --region us-east-1 /tmp/staging-response.json
-
-# Inspect response
-cat /tmp/staging-response.json | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-body = json.loads(d.get('body','{}')) if isinstance(d.get('body','{}'),str) else d.get('body',{})
-for ph, info in sorted(body.get('phases',{}).items(), key=lambda x: str(x[0])):
-    print(f'  Phase {ph} [{info.get(\"status\",\"?\")}]: {info.get(\"summary\",\"\")[:80]}')
-"
-
-# When N+1 is ready to go live: merge staging to main
-git checkout main
-git merge staging
-git push origin main
-# deploy-code.yml automatically updates algo-algo-dev (N becomes N+1)
-```
-
-**What staging shares with dev:**
-- Same RDS instance (reads live market data — no stale test data)
-- Same VPC, subnets, security groups (staging Lambda copied from dev config on first deploy)
-- Same Secrets Manager secrets (`algo-db-credentials-dev`, `algo/alpaca`)
-
-**What staging does NOT share:**
-- No EventBridge rules (no automatic invocations ever)
-- No provisioned concurrency (cold starts are fine for manual testing)
-- Separate Lambda layer (`algo-orchestrator-layer-staging`) — independent from dev layer
-
-## AWS RESOURCES (us-east-1)
-
-| Resource Type | Name | Purpose |
-|---------------|------|---------|
-| ECS Cluster | `algo-cluster` | Container orchestration for loader tasks |
-| Lambda Function | `algo-algo-dev` | Orchestrator (7-phase workflow) |
-| Lambda Function | `algo-api-dev` | HTTP REST API endpoints |
-| RDS Database | `algo-db` | PostgreSQL database (endpoint: `algo-db.<random>.us-east-1.rds.amazonaws.com`) |
-| Secrets Manager | `algo-db-credentials-dev` | Database password (auto-synced from Terraform) |
-| ECS Task Defs | `algo-<loader>-loader` | 49 individual loaders (9 essential in Step Functions pipeline, 40 supporting on EventBridge) |
-| RDS Proxy | `algo-proxy` | Connection pooling for RDS (enabled via `enable_rds_proxy = true` in terraform.tfvars) |
-
-## DATABASE CONNECTIONS (Dynamic RDS Proxy)
-
-**All database connections route through RDS Proxy (when enabled):**
-- Loaders: `DB_HOST` environment variable to RDS Proxy endpoint (set by Terraform)
-- Orchestrator: `DB_HOST` environment variable to RDS Proxy endpoint (set by Terraform)
-- Lambda functions: `DB_HOST` environment variable to RDS Proxy endpoint (set by Terraform)
-- Secrets Manager secret: `host` field to RDS Proxy endpoint (dynamically set by Terraform)
-
-**Configuration:**
-- `terraform.tfvars`: `enable_rds_proxy = true` (line 35)
-- RDS Proxy is created by `terraform/modules/database/main.tf` (lines 240-262)
-- Database module outputs `rds_proxy_endpoint` which is passed to all modules
-- Root `main.tf` uses `coalesce(rds_proxy_endpoint, rds_address)` to prefer proxy when available
-- All endpoint references are **dynamic via Terraform variables** — no hardcoded endpoints
-
-**Why RDS Proxy?** Connection pooling + query multiplexing reduces I/O contention. Eliminates orchestrator timeouts in Phase 3b (market exposure).
-
-## SCHEDULE (EventBridge & Step Functions, Mon-Fri Only)
-
-All times are UTC in code; ET equivalents listed for operations reference.
-The orchestrator exits early on market holidays via `MarketCalendar.is_trading_day()`.
-
-### Morning Data Loading (03:25-09:30 AM ET)
-| UTC Time | ET Equivalent | Event | Reason |
-|----------|---------------|-------|--------|
-| 08:25 | 3:25 AM EST/5:25 AM EDT | stock_symbols loader (EventBridge) | Foundation: ensure new symbols are available |
-| 08:30 | 3:30 AM EST/5:30 AM EDT | sp500_constituents loader (EventBridge) | Mark S&P 500 membership (after symbols loaded) |
-| 08:35 | 3:35 AM EST/5:35 AM EDT | russell2000_constituents loader (EventBridge) | Mark Russell 2000 membership |
-| 09:00 | 4:00 AM EST/5:00 AM EDT | stock_prices_daily loader (EventBridge) | Unified price loader (daily, weekly, monthly intervals + stocks, ETFs) |
-| 09:30 | 4:30 AM EST/5:30 AM EDT | **EOD Step Functions Pipeline Starts** | Orchestrates multi-stage data loading with dependencies |
-|  |  | ├─ stock_symbols (first step — guarantees fresh symbols before prices) | Reference data |
-|  |  | ├─ stock_prices_daily (already loaded via EventBridge, but included for pipeline completeness) | OHLCV for 5000+ symbols |
-|  |  | ├─ technical_data_daily + market_health_daily (parallel) | Technical indicators + market breadth |
-|  |  | ├─ trend_template_data | Minervini + Weinstein scoring |
-|  |  | ├─ buy_sell_daily + signal_quality_scores | Trading signals + quality filters |
-|  |  | ├─ algo_metrics_daily + swing_trader_scores | Portfolio metrics + final ranking |
-|  |  | └─ **Morning Orchestrator Lambda Invoked** | Phase 1: Data freshness, Phase 2-7: trading logic |
-
-### Orchestrator Execution Schedule
-The orchestrator runs **4 times daily** on trading days:
-
-| Time ET | UTC | Purpose | Description |
-|---------|-----|---------|-------------|
-| 09:30 AM | 14:30 | **Primary Entry** | Main trading window after market opens (30min after bell) |
-| 01:00 PM | 18:00 | **Rebalance** | Afternoon position refresh + profit-taking opportunities |
-| 03:00 PM | 20:00 | **Pre-Close** | Final trades before 4 PM market close (intraday edge) |
-| 05:30 PM | 22:30 | **Signal Prep** | Compute next day's signals (no trades, prep only) |
-
-### Supporting Data Loaders (EventBridge Scheduled)
-26 additional loaders run on fixed schedules throughout the day to refresh market data:
-- **04:00 AM ET (09:00 UTC):** Stock symbols, constituent indices, financials, metrics
-- **06:00 PM ET (23:00 UTC):** Earnings, analyst data, sentiment updates
-- **04:30 PM ET (20:30 UTC):** FRED economic indicators (before EOD pipeline reads them)
-
-**Important:** All dependent data must load before orchestrator runs. market_health_daily reads from price_daily, so it must always run after prices are loaded. If it runs before prices, market health will reflect yesterday's data, causing Phase 1 to halt after any multi-day weekend because the calendar gap exceeds the staleness threshold.
-
-## LOADERS
-
-33 loader scripts in `loaders/load_*.py`:
-
-### Core Pipeline (9 loaders — Step Functions EOD pipeline)
-1. **stock_symbols** — Reference data for all tradable symbols (foundation for all trading)
-2. **stock_prices_daily** — Unified loader for OHLCV (daily, weekly, monthly intervals for stocks + ETFs)
-3. **technical_data_daily** — Technical indicators (RSI, SMA, EMA, ATR, ADX, Bollinger Bands, etc.)
-4. **market_health_daily** — Market breadth, advance/decline, distribution days, VIX, market stage. Also writes VIX-family (^VIX, ^VIX9D, ^VIX3M, ^VIX6M) and market-index (^GSPC, ^IXIC, ^NYA, ^DJI, ^RUT) OHLCV into `price_daily` — powers VolTermStructureCard and Distribution Days timeline in MarketsHealth.
-5. **trend_template_data** — Minervini 8-point, Weinstein stage scoring
-6. **buy_sell_daily** — BUY/SELL trade signals from technical indicators
-7. **signal_quality_scores** — Signal win rate, profit factor, expectancy (quality filters)
-8. **algo_metrics_daily** — Daily portfolio stats and performance metrics
-9. **swing_trader_scores** — Final swing trading scores (combines all signals + filters)
-
-### Reference Data (3 loaders — EventBridge scheduled)
-- **stock_symbols** — All tradable symbols (runs at 3:25 AM ET via EventBridge)
-- **sp500_constituents** — Mark S&P 500 membership (runs at 3:30 AM ET)
-- **russell2000_constituents** — Mark Russell 2000 membership (runs at 3:35 AM ET)
-
-### Price Data (1 unified loader — EventBridge scheduled + pipeline included)
-- **stock_prices_daily** — Daily OHLCV for 5000+ symbols, handles all timeframes (1d, 1wk, 1mo) and asset classes (stocks, ETFs). Runs 4:00 AM ET via EventBridge; also in EOD pipeline.
-  - **stock class** to `price_daily`: all ~5000 stock symbols from `stock_symbols` table, PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, GLD, TLT (SPY required by load_technical_data_daily Mansfield RS, load_seasonality, and algo_market_exposure)
-  - **etf class** to `etf_price_daily`: all stock symbols (redundant but harmless) PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, XLK, XLF, XLV, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB, GLD, TLT, IVV, VXX (sector ETFs required by load_sector_performance and SectorHeatMap frontend)
-  - **Why not in stock_symbols table:** `load_stock_symbols.py` intentionally excludes ETFs from NASDAQ/NYSE files. Essential ETFs are hardcoded in `load_prices.py` `ESSENTIAL_STOCK_PRICE_DAILY` and `ESSENTIAL_ETF_SYMBOLS` lists.
-  - **Prices route fallback:** `/api/prices/history/{sym}` checks `price_daily` first, then `etf_price_daily` — so any frontend ETF price call works as long as data is in either table.
-
-### Financial Data (8 loaders — EventBridge scheduled)
-- **financials_annual_income** — Annual income statements
-- **financials_annual_balance** — Annual balance sheets
-- **financials_annual_cashflow** — Annual cash flow statements
-- **financials_quarterly_income** — Quarterly income statements
-- **financials_quarterly_balance** — Quarterly balance sheets
-- **financials_quarterly_cashflow** — Quarterly cash flow statements
-- **financials_ttm_income** — Trailing twelve months income
-- **financials_ttm_cashflow** — Trailing twelve months cash flow
-
-### Computed Metrics (6 loaders — EventBridge scheduled)
-- **growth_metrics** — Growth scores (EPS, revenue growth, etc.)
-- **quality_metrics** — Quality scores (profit margins, ROE, etc.)
-- **value_metrics** — Value scores (P/E, P/B, etc.)
-- **positioning_metrics** — Positioning scores (institutional ownership, etc.)
-- **stability_metrics** — Stability scores (volatility, beta, etc.)
-- **stock_scores** — Aggregate stock scores (combines all metrics)
-
-### Earnings Data (2 loaders — EventBridge scheduled)
-- **earnings_history** — Historical earnings data
-- **earnings_calendar** — Upcoming earnings dates
-
-### Company & Analyst Data (6 loaders — EventBridge scheduled)
-- **company_profile** — Company fundamentals and sector/industry classification
-- **analyst_sentiment** — Analyst sentiment scores
-- **analyst_upgrades_downgrades** — Recent analyst rating changes
-- **industry_ranking** — Industry relative rankings computed from company_profile + stock_scores (runs 1:10 AM ET). Writes `industry_ranking` table (`date_recorded` column). The `/api/industries` endpoint computes 1D/5D/20D performance dynamically from `price_daily` averages (no separate industry_performance loader needed).
-- **sector_ranking** — Sector relative rankings computed from company_profile + stock_scores (runs 1:12 AM ET). Writes `sector_ranking` table (`date_recorded` column). Required by Sector Analysis page.
-- **sector_performance** — YTD cumulative returns per sector via SPDR ETFs (XLK, XLF, XLV, etc.) (runs 1:14 AM ET). Writes `sector_performance` table. Required by Sector Analysis relative-performance chart and Sector Rotation chart. **Sector name mapping uses yfinance conventions:** Technology, Financial Services, Healthcare, Consumer Cyclical, Consumer Defensive, Basic Materials, Communication Services, Industrials, Energy, Utilities, Real Estate.
-
-### Market Sentiment (4 loaders — EventBridge scheduled)
-- **feargreed** — CNN Fear & Greed Index
-- **aaiidata** — AAII investor sentiment survey
-- **naaim_data** — NAAIM exposure index
-- **sentiment** — Aggregate sentiment index (combines multiple sources)
-
-### Signal Processing (2 loaders — EventBridge scheduled)
-- **signal_themes** — Signal themes (momentum, reversal, breakout classification)
-- (Note: buy_sell_daily handled in pipeline; signal_quality_scores also in pipeline)
-
-### Economic Data (2 loaders — EventBridge scheduled)
-- **fred_economic_data** — FRED economic time-series, 29 series, 3-year lookback. Runs 4:30 PM ET Mon-Fri via EventBridge AND 9:00 AM UTC Mon-Fri via `run-fred-loader.yml` GitHub Actions cron. Populates `economic_data` table. Series loaded:
-  - **Treasury yield curve**: DGS3MO, DGS6MO, DGS1, DGS2, DGS3, DGS5, DGS7, DGS10, DGS20, DGS30 — powers YieldCurveCard in MarketsHealth
-  - **Yield/credit spreads**: T10Y2Y, T10Y3M, BAMLH0A0HYM2 (HY OAS), BAMLC0A0CM (IG OAS) — powers orchestrator market exposure + yield curve card
-  - **Volatility**: VIXCLS — powers EconomicDashboard
-  - **Labor**: UNRATE, PAYEMS, ICSA, CIVPART — powers EconomicDashboard Labor tab + orchestrator jobless-claims factor
-  - **Activity**: INDPRO, RSXFS — powers EconomicDashboard Growth/Business-Cycle tabs
-  - **Inflation**: CPIAUCSL — powers EconomicDashboard Inflation tab
-  - **Monetary**: FEDFUNDS, M2SL — powers EconomicDashboard Rates tab
-  - **GDP**: GDPC1 — powers EconomicDashboard Business-Cycle tab (quarterly, YoY%)
-  - **Consumer/Housing**: UMCSENT, HOUST, MORTGAGE30US — powers EconomicDashboard Housing tab
-  - **Credit**: BUSLOANS — powers EconomicDashboard
-- **economic_calendar** — Upcoming macro release dates (FOMC, CPI, NFP, GDP, etc.) fetched via FRED releases API + static FOMC schedule. Runs 1:16 AM ET. Populates `economic_calendar` table (90-day forward window).
-
-### Market Statistics (1 loader — Weekly)
-- **seasonality** — Monthly and day-of-week return statistics computed from SPY `price_daily` history. Populates `seasonality_monthly_stats` and `seasonality_day_of_week`. Runs Sunday 10:00 AM UTC (weekly is enough — data accumulates slowly).
-
-**SEC/EDGAR Request Header:** `User-Agent: algo-trading argeropolos@gmail.com` (required for SEC rate limits, hardcoded in `loaders/loader_loop.py`)
-
-## KEY FILES & ENTRYPOINTS
-
-| File | Purpose |
-|------|---------|
-| `algo/algo_orchestrator.py` | Main 7-phase orchestrator (data freshness to circuit breakers to position monitor to exits to signals to entries to reconciliation) |
-| `algo/algo_signals.py` | Signal generation logic (Minervini trend + technical filters + fundamental screening) |
-| `lambda/api/lambda_function.py` | REST API: `/api/stocks`, `/api/signals`, `/api/positions`, `/api/health`, etc. |
-| `config/credential_manager.py` | Fetches secrets from AWS Secrets Manager (production) or env vars (local) |
-| `terraform/main.tf` | Infrastructure as code (Lambdas, RDS, ECS, IAM, secrets) |
-
-## DATA FRESHNESS POLICY
-
-Phase 1 compares each table's latest date against the **previous trading day** (not a fixed calendar threshold). This handles multi-day holiday weekends correctly — e.g., after Memorial Day, the gap from Friday to Tuesday is 4 calendar days but the data is still from the most recent trading day.
-
-| Table | Halt policy | Reason |
-|-------|-------------|--------|
-| `price_daily` (SPY) | Phase 1 halts | Core price data — missing = can't trade |
-| `market_health_daily` | Phase 1 halts | Required for Tier 2 market gate |
-| `trend_template_data` | Phase 1 halts | Required for Minervini trend filter |
-| `signal_quality_scores` | Observe-only (logged, no halt) | Loaded by morning pipeline AFTER Lambda fires; halt would cause circular dependency |
-| `buy_sell_daily` | Observe-only (logged, no halt) | Same — loaded post-Lambda by pipeline |
-| `economic_data` | No halt | Stores 29 FRED series (full yield curve DGS*, T10Y2Y, T10Y3M, BAMLH0A0HYM2, BAMLC0A0CM, ICSA, FEDFUNDS, UNRATE, PAYEMS, CIVPART, INDPRO, RSXFS, CPIAUCSL, M2SL, GDPC1, UMCSENT, HOUST, MORTGAGE30US, BUSLOANS, VIXCLS). Refreshed daily at 4:30 PM ET via EventBridge AND 9:00 AM UTC via `run-fred-loader.yml`. If missing, `algo_market_exposure.py` falls back to 0.7 default. Missing data = EconomicDashboard and YieldCurveCard empty. |
-| `company_profile`, `key_metrics` | Warning logged only | Background enrichment, 30-day SLA |
-
-**Important:** `PipelineHealth.is_critical` only halts on `stock_symbols`, `price_daily`, and `market_health_daily`. All other tables generate warnings, not halts.
-
-**Why:** Prevents trading on stale market data. The previous-trading-day comparison is implemented in `algo/orchestrator/phase1_data_freshness.py` using `MarketCalendar` to skip weekends and holidays when computing the expected data date.
-
-## DATABASE CONNECTION PATTERN (DatabaseContext)
-
-All database access must use `DatabaseContext` for automatic resource management:
-
-```python
-from utils.database_context import DatabaseContext
-
-# Read operations
-with DatabaseContext('read') as cur:
-    cur.execute("SELECT * FROM table WHERE id = %s", (id,))
-    result = cur.fetchone()
-# Connection automatically closed and rolled back on exception
-# No manual cur.close() needed
-
-# Write operations (auto-commits on success, auto-rollbacks on exception)
-with DatabaseContext('write') as cur:
-    cur.execute("INSERT INTO table VALUES (%s, %s)", (val1, val2))
-# Auto-committed on successful exit
-# Auto-rolled back if exception occurs
-```
-
-**DO NOT:**
-- DO NOT: Call `cur.close()` — DatabaseContext handles it
-- DO NOT: Call `conn.commit()` or `conn.rollback()` — DatabaseContext handles it
-- DO NOT: Store `self.conn = context.conn` and use it after the with block exits
-- DO NOT: Mix manual connections with DatabaseContext
-
-**Why:** The context manager pattern ensures transactions are atomic, connections are properly closed, and errors don't leave dangling connections. Manual commit/close calls defeat this guarantees.
-
-**Exceptions:** Standalone utilities and ECS loaders that create their own connections (not using DatabaseContext) may call commit/rollback directly. This is fine for isolated tools.
-
-## API GATEWAY ROUTING ARCHITECTURE
-
-**Stage name: `$default` (critical for correct routing)**
-
-The API Gateway HTTP API uses stage `$default`. This is intentional:
-- With `$default` stage: CloudFront forwards `/api/signals` to rawPath in Lambda = `/api/signals` to `api_router` matches `/api/signals` handler- With named stage (e.g., "api"): CloudFront forwards `/api/signals` to API GW strips "api" prefix to rawPath = `/signals` to `api_router` has no handler for `/signals` to 404 for ALL endpoints
-
-**Health check fast path:**
-The `/health` and `/api/health` endpoints return 200 immediately, before DB connection test or env validation. This ensures uptime monitors always succeed even if DB is temporarily unavailable.
-
-**Route configuration:**
-- Routes use `/api/` prefix in route_key (e.g., `GET /api/signals`)
-- CloudFront behavior `path_pattern = "/api/*"` routes to API Gateway origin
-- API GW `$default` stage preserves the full `/api/...` path in rawPath
-- `lambda/api/api_router.py` matches against `/api/` prefixed paths
-
-## DATABASE SCHEMA (Single Source of Truth)
-
-**Schema versioning:** `lambda/db-init/schema.sql` is the single source of truth for database structure (3031 lines, all CREATE TABLE IF NOT EXISTS statements).
-
-**On first deployment:**
-- Terraform creates RDS instance (empty)
-- Terraform invokes `db-init` Lambda function
-- Lambda reads `lambda/db-init/schema.sql` and creates all tables/indexes
-- Schema is now live and ready for application code
-
-**Making schema changes post-deployment:**
-When you need to modify the schema after the initial deployment:
-
-1. Edit `lambda/db-init/schema.sql` directly (update table definitions)
-2. In your Python code, apply ALTER statements to add new columns (idempotent with `IF NOT EXISTS`)
-3. No migration system needed — schema.sql defines the target state; code applies changes as needed
-
-**Example: Adding a new column**
-```sql
--- In lambda/db-init/schema.sql (update table definition)
-CREATE TABLE IF NOT EXISTS my_table (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(20) NOT NULL,
-    new_column VARCHAR(100)  -- newly added
-);
-```
-
-```python
-# In your Python code (on startup)
-from utils.database_context import DatabaseContext
-
-with DatabaseContext('write') as cur:
-    cur.execute("ALTER TABLE my_table ADD COLUMN IF NOT EXISTS new_column VARCHAR(100)")
-```
-
-**Why no migration framework?** This is a greenfield project with a single deployment environment (production). Schema.sql defines the target state; code applies ALTER statements as needed. This avoids the complexity of versioned migrations (valuable for multi-environment deployments with downtime constraints, but unnecessary here).
-
-## DEBUGGING & TROUBLESHOOTING
-
-**Schema validation:** Verify these tables exist in RDS:
-- `data_patrol_log` — data quality checks
-- `data_loader_status` — loader execution history
-- `algo_audit_log` — orchestrator decisions
-
-If missing, rebuild schema by invoking the `db-init` Lambda manually (reads `lambda/db-init/schema.sql`). Or redeploy infrastructure via `deploy-all-infrastructure.yml` (Terraform re-invokes Lambda).
-
-**Lambda environment variables:** All Lambdas require:
-- `DB_SECRET_ARN` — Points to RDS password in Secrets Manager (must match actual Secrets Manager path)
-- Check: Lambda config (not in code), CloudWatch Logs for `algo-api-dev` and `algo-algo-dev`
-
-**Database connectivity from Lambda:**
-- Lambdas run in VPC (security group controls). Requirements:
-  - RDS endpoint in env var matches actual RDS instance
-  - Secrets Manager password synced with RDS actual password
-  - VPC Security Group allows outbound port 5432 to RDS subnet
-  - RDS is in same VPC/subnet as Lambda
-
-**Loader execution:**
-- ECS tasks need: IAM task role with ECS permissions, internet access (NAT gateway), RDS access (VPC)
-- Timeouts usually indicate: API rate limits (yfinance, SEC, Alpaca), no internet access, or RDS unreachable
-- Check CloudWatch Logs for specific errors
-
-**Signal generation:**
-- Requires recent data in `technical_data_daily`
-- If `buy_sell_daily` is empty: verify loaders ran successfully, price data exists, technicals were calculated
-- Check `data_loader_status` table for which loaders succeeded/failed
-
-**Alpaca authentication errors (401):**
-- Live trading: `ALPACA_PAPER_TRADING=false`, `APCA_API_BASE_URL=https://api.alpaca.markets` in PowerShell profile
-- Paper trading: `ALPACA_PAPER_TRADING=true`, `APCA_API_BASE_URL=https://paper-api.alpaca.markets`
-- Verify in PowerShell: `$env:ALPACA_PAPER_TRADING`, `$env:APCA_API_BASE_URL`
-
-**Orchestrator Lambda timeout (600+ second hangs):**
-- NOT a cold-start issue. Root cause: RDS disk I/O contention during Phase 3b market exposure computation.
-- Phase 3b previously ran 2 expensive breadth queries (window functions across 2M+ price_daily rows), timing out in 15s on t4g.micro.
-- **Fix deployed:** `_pct_above_ma()` now reads pre-computed `sma_50`/`sma_200` from `technical_data_daily` (fast indexed lookup, <1s). Statement timeout raised to 30s.
-- Phase 1 data freshness query timeout raised to 45s (was 20s).
-- **DO NOT run company_profile + analyst_sentiment + analyst_upgrades_downgrades simultaneously with the orchestrator** — these 3 loaders combined hammer the t4g.micro so hard that even new DB connections time out. Run them sequentially or separately from the orchestrator.
-- **NEVER use `loader_type=analytics` via manual-invoke-loaders while the orchestrator is running.** It will cause total DB saturation on t4g.micro without RDS Proxy.
-- **Advisory lock is in place:** `OptimalLoader.run()` and `load_global()` use `pg_try_advisory_lock(hashtext(table_name))` — only one instance per loader runs at a time. Lock auto-releases on container exit/crash. This only prevents new stacking; if old tasks were launched before the lock code was deployed, they must be stopped manually (see below).
-- **To stop runaway ECS tasks:** `aws ecs list-tasks --cluster algo-cluster --desired-status RUNNING --profile algo-developer` to list, then `aws ecs stop-task --cluster algo-cluster --task <ARN> --reason "remediation" --profile algo-developer` per task. Kill analytics loaders (analyst_sentiment, analyst_upgrades_downgrades, company_profile) but keep stock_prices_daily and technical_data_daily.
-- **Analytics loaders can get stuck for 6+ hours:** company_profile, analyst_sentiment, stability_metrics, and value_metrics iterate 5000+ symbols with yfinance rate limits. If any is still running when the orchestrator fires, OOM will crash RDS. Diagnosis: if an ECS loader has been RUNNING for > 2 hours, it is stuck. Kill it. This happened 2026-06-01: 4 analytics loaders stuck since 07:28 UTC caused 4 OOM crashes. Fix: kill all analytics loaders that have been running > 2 hours before any orchestrator run.
-- **RDS Proxy not deployed (as of 2026-06-01):** `aws rds describe-db-proxies` returns empty — proxy was not created despite `enable_rds_proxy = true` in terraform.tfvars. Without the proxy, each Lambda cold-start creates a new DB connection. Re-enable by running `deploy-all-infrastructure.yml` after confirming terraform.tfvars has `enable_rds_proxy = true`.
-- `market_exposure_daily` was also not persisting due to undefined `cur` in `_persist()` method (Python scope bug). Fixed: `_persist()` now opens its own `DatabaseContext('write')`.
-- Symptoms: Lambda logs show "canceling statement due to statement timeout" in Phase 1 or Phase 3b. Check disk queue: `aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DiskQueueDepth --dimensions Name=DBInstanceIdentifier,Value=algo-db --start-time <ISO> --end-time <ISO> --period 60 --statistics Maximum --profile algo-developer`
-
-**API Lambda cold-start timeout (500 errors on first request):**
-- Lambda in VPC takes 15-40s to initialize (ENI provisioning + imports) on cold-start
-- API Gateway timeout: 29 seconds (hard limit)
-- Solution: Reserved concurrency = 1 in Terraform (costs ~$0.015/hour, keeps instance warm)
-- Workaround: Retry requests; second request works (instance warm)
-
-**"Phase 7 reconciliation timeout":**
-- Alpaca API calls have 30-second thread-based timeout wrapper (since May 26 fix)
-- If orchestrator still hangs: check if Alpaca API endpoint is reachable, network issues
-
-**Terraform plan fails with "Invalid index" error (orphaned loaders in state):**
-- Error: "Error: Invalid index — the given key does not identify an element in this collection value"
-- Root cause: Terraform state contains deleted loaders (e.g., "market_data_batch") but current `all_loaders` config doesn't include them
-- Fix: Before approving terraform apply in GitHub Actions, remove stale state entries:
-```bash
-# From repo root, run this BEFORE terraform apply:
-terraform state rm "module.loaders.aws_ecs_task_definition.loader[\"market_data_batch\"]" 2>/dev/null || echo "Already removed"
-terraform plan -var-file=terraform.tfvars  # Should succeed now
-```
-- Or use the provided helper: see CLAUDE.md for refresh-aws-credentials.ps1 usage pattern
-- This is a one-time cleanup for state drift; once applied, future plans will not have this issue
-
-## ORCHESTRATOR PHASES
-
-1. **Phase 1 — Data Freshness:** Verify SPY price, market_health_daily, trend_template_data are from last trading day. `buy_sell_daily` and `signal_quality_scores` are observe-only (logged, never halt). Halt if critical data stale.
-2. **Phase 2 — Circuit Breakers:** Check drawdown, daily loss, consecutive losses, win-rate floor, VIX, market stage, weekly loss, intraday health, data freshness. Halt if any triggered — still runs Phase 3/3b/4/7 but skips 4b/5/6.
-3. **Phase 3 — Position Monitor:** Evaluate each open position (price, P&L, trailing stop, health score). Propose: HOLD, RAISE_STOP, or EARLY_EXIT.
-4. **Phase 3b — Exposure Policy:** Compute 11-factor market exposure score. Apply tier-based constraints (risk multiplier, max new positions, min grade). Actions: tighten stop, partial exit, force exit.
-5. **Phase 4 — Exit Execution:** Execute exits from Phase 3 + exposure policy actions + exit_engine rules (trailing stops, tiered targets, time decay).
-6. **Phase 4b — Pyramid Adds:** Add to winning positions at defined extension points (fail-open).
-7. **Phase 5 — Signal Generation:** Evaluate today's BUY signals through 6 tiers. Rank by swing_score. Fail-open on exception.
-8. **Phase 6 — Entry Execution:** Execute trades (final price check, position sizing, sector limit, Alpaca order). Per-trade sector concentration enforced here.
-9. **Phase 7 — Reconciliation:** Pull live Alpaca account, sync positions, compute IC/attribution, run weight optimizer, generate daily report.
-
-All phases write to `algo_audit_log`. Fail-closed on critical (Phase 1, 2), fail-open on operational (Phases 3-7).
-
-**`_final_report()` returns:** `success=True` if no error/fail statuses; `halted=True` if any phase halted (expected behavior). Lambda returns 200 regardless — use `halted` field to distinguish intended halt from error.
-
-**KNOWN LIMITATION - Intraday Pricing:**
-The 1 PM and 3 PM orchestrator runs use **yesterday's close price** for entry and position sizing. `price_daily` is loaded once per day at 4 AM ET and contains only daily closes. Intraday runs (1 PM, 3 PM) do not have access to today's real-time prices. This means:
-- Position sizes may be oversized if a stock gapped up 10%+ at open
-- Entry prices may be stale (yesterday's close vs today's market)
-- To fix this: integrate real-time price feed (WebSocket or polling) into Phase 5/6. Currently acceptable for paper/sim trading; flag for review before live deployment.
-
-**KNOWN LIMITATION - No Real-Time Circuit Breaker:**
-Phase 2 circuit breakers check daily P&L and portfolio health but do not respond to intraday crashes. If the market drops 15% in the first 30 minutes of trading, the system won't know until after-hours reconciliation. Consider adding a CloudWatch alarm on portfolio variance if deploying live capital.
-
-## CONFIGURATION SYSTEM
-
-All trading parameters (risk %, thresholds, filter settings, etc.) are stored in the unified `algo_config` database table and loaded fresh at each Lambda invocation. Configuration changes take effect on the next scheduled orchestrator run (max 3 hours), without requiring a code deploy. Removed the unused RuntimeConfig hot-reload layer (migration 003, applied 2026-06-01).
-
-**How config flows:**
-1. **Local dev:** `AlgoConfig.__init__` loads defaults + queries `algo_config` table, falls back gracefully on DB errors
-2. **Lambda cold start:** `lambda_handler` calls `reset_config()` to clear the singleton, then `Orchestrator.__init__` calls `get_config()` which queries `algo_config` table fresh
-3. **Lambda warm invocation:** `lambda_handler` calls `reset_config()` so the next `get_config()` call reloads from DB (picks up config changes made between invocations)
-4. **Fallback:** If `algo_config` table is unreachable, uses Python `DEFAULTS` dict — trading never halts on config unavailability
-
-**Infrastructure parameters** (execution_mode, dry_run, paper_trading, db credentials) are set via Terraform environment variables and cannot be hot-reloaded — they require a deployment to change.
-
-**Methods:**
-- `config.get(key, default)` — read a config value (from DB or DEFAULTS if DB unavailable)
-- `config.set(key, value, type, description, changed_by)` — persist to DB + audit log (for persistent changes like weight optimizer outputs)
-- `config.override(key, value)` — in-memory-only override, no DB write (for env vars, CLI args, test overrides). Wins over DB values for the current invocation only.
-
-**Config changes take effect:**
-- Trading parameters (via `algo_config` table): next Lambda invocation
-- Infrastructure parameters (via Terraform env vars): next deployment
-- Weight optimizer outputs (via `self.config.set()`): same invocation + all future invocations
-- Test/CLI overrides (via `config.override()`): current invocation only, not persisted
-
-## SIGNAL FILTER ARCHITECTURE (Tier 2 market gate)
-
-**`require_stage_2_market` is `false` by default (changed 2026-05-31).**
-
-- **Old behavior (broken):** Tier 2 required `market_health_daily.market_stage == 2`. On any day the market isn't in a confirmed uptrend, ALL signals were rejected, regardless of individual stock quality.
-- **New behavior:** Tier 2 only checks VIX and distribution days. Market regime is handled by:
-  1. **Circuit Breaker (CB6):** Halts all new entries when `market_stage == 4` (confirmed downtrend).
-  2. **Per-stock Stage 2 check:** `trend_template_data.weinstein_stage` must be 2 for each individual stock (pre-tier filter, always active).
-  3. **Exposure Policy (Phase 3b):** Computes market exposure score (11 factors); maps to tier (correction/caution/pressure/uptrend) with corresponding risk multiplier and entry caps.
-
-**Why disabled:** The triple gate (market Stage 2 + per-stock Stage 2 + exposure policy) was over-constrained. The market Stage 2 gate in Tier 2 was blocking 100% of trades any time the market was in Stage 1 or 3 — including during healthy bull market consolidations. This is a policy choice, not a system limitation.
-
-**To re-enable:** Change `require_stage_2_market` from `'false'` to `'true'` in `algo_config.DEFAULTS` (line 65). The config system will load this on the next orchestrator run.
+| Orchestrator | `algo/algo_orchestrator.py` | Lambda algo-algo-dev | EventBridge: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET Mon-Fri |
+| Loaders (37) | `loaders/load_*.py` | ECS Fargate | EventBridge + Step Functions EOD pipeline |
+| API | `lambda/api/lambda_function.py` | Lambda algo-api-dev | HTTP requests |
+| Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
+| Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
+
+## Credentials
+
+**Local dev (PowerShell profile):** DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY
+
+**Production (AWS Secrets Manager):** algo/database, algo/alpaca, algo/fred
+
+**CI (GitHub Secrets):** APCA_API_KEY_ID, APCA_API_SECRET_KEY, ALPACA_API_KEY, ALPACA_API_SECRET, FRED_API_KEY, RDS_PASSWORD, AWS_ACCOUNT_ID
+
+**Rules:** Rotate quarterly (first Monday of each quarter). If leaked, rotate immediately. Never commit .env files. OIDC for GitHub Actions (no static keys).
+
+## Deployment
+
+**Production:** `git push main` triggers deploy-code.yml and deploy-all-infrastructure.yml automatically. Uses GitHub OIDC for AWS auth (temp credentials, auto-expire).
+
+**Local:** Never run `terraform apply` locally. Use `scripts/refresh-aws-credentials.ps1` only for debugging.
+
+**Staging (N+1):** Push to `staging` branch triggers deploy-staging.yml (dry-run, no schedules). Shares RDS with main, separate Lambda.
+
+## Schedule
+
+**Daily runs (Mon-Fri):**
+- 3:25 AM ET: stock_symbols
+- 3:30 AM ET: sp500/russell constituents
+- 4:00 AM ET: stock_prices_daily
+- 4:30 AM ET: step functions EOD pipeline (9 core loaders)
+- 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
+
+**Loaders:** 37 total (9 core, 28 supporting). See code for details.
+
+## Known Limitations
+
+1. **Intraday pricing stale:** 1 PM and 3 PM runs use yesterday's close (price_daily loaded once daily at 4 AM). Position sizing may be wrong if stock gaps 10%+ at open.
+2. **No intraday circuit breaker:** Phase 2 checks daily P&L only. 15% market drop in first 30min won't halt trading.
+
+## Critical Issues
+
+**RDS Proxy disabled (as of 2026-06-01):** `aws rds describe-db-proxies` returns empty despite terraform.tfvars setting. Lambda cold-start creates new connection (15-40s init). Fix: Run deploy-all-infrastructure.yml.
+
+**Analytics loaders OOM crash RDS:** company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 5000+ symbols with yfinance rate limits. If running 6+ hours when orchestrator fires, RDS t4g.micro OOMs. Fix: Kill any ECS loader running > 2 hours before orchestrator runs.
+
+**Advisory lock in place:** OptimalLoader uses `pg_try_advisory_lock` to prevent duplicate loader runs. Lock auto-releases on exit/crash.
+
+## Orchestrator Phases
+
+1. **Phase 1:** Data freshness (halt if stale)
+2. **Phase 2:** Circuit breakers (halt if triggered)
+3. **Phase 3:** Position monitor
+4. **Phase 3b:** Market exposure policy
+5. **Phase 4:** Execute exits
+6. **Phase 4b:** Pyramid adds
+7. **Phase 5:** Signal generation
+8. **Phase 6:** Trade entries
+9. **Phase 7:** Reconciliation + reporting
+
+Phases 1-2 fail-closed (halt trading). Phases 3-7 fail-open (continue trading).
+
+## Configuration
+
+All trading parameters in `algo_config` database table. Changes take effect on next Lambda invocation (max 3 hours). No code deploy needed. Infrastructure parameters (execution_mode, dry_run, paper_trading) require deployment via Terraform.
+
+## Database
+
+Schema: `lambda/db-init/schema.sql` (single source of truth). All code must use `DatabaseContext` context manager. No manual commit/close calls.
+
+## API Gateway
+
+Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health check endpoints return 200 even if DB unavailable.
+
+## Key Files
+
+- `algo/algo_orchestrator.py`: main 7-phase loop
+- `algo/algo_signals.py`: signal generation
+- `lambda/api/lambda_function.py`: REST API
+- `terraform/main.tf`: infrastructure as code
+- `lambda/db-init/schema.sql`: database schema (3031 lines)
+
+## Live Trading Readiness
+
+- Authentication: DISABLED (cognito_enabled = false). Enable before live trading.
+- RDS Proxy: DISABLED. Enable before handling concurrent API load.
+- Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
+- Circuit breaker: NO intraday protection. Add CloudWatch alarm on portfolio variance before live capital.
+
+## Troubleshooting
+
+**DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. Solution: RDS Proxy (currently disabled).
+
+**API Lambda 500 errors on first request:** VPC cold-start (15-40s). API Gateway timeout is 29s. Workaround: retry (second request works). Solution: reserved concurrency = 1 in Terraform.
+
+**Alpaca 401 errors:** Verify PowerShell profile has correct ALPACA_PAPER_TRADING and APCA_API_BASE_URL settings.
+
+**Loaders stuck:** If ECS loader running > 2 hours, it's stuck. Run: `aws ecs stop-task --cluster algo-cluster --task <ARN>`. Kill analytics loaders (company_profile, analyst_sentiment, etc.) but keep stock_prices_daily and technical_data_daily.
