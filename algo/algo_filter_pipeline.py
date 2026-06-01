@@ -182,7 +182,21 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 while _expected_recent.weekday() >= 5:
                     _expected_recent -= timedelta(days=1)
 
+            # Hard time budget: stop evaluating after 120s to fit in Lambda's 600s budget.
+            # Phase 5 evaluates all BUY signals alphabetically. With 5000+ stocks × per-symbol
+            # DB queries, unconstrained evaluation can take 5-10 minutes. Once we have enough
+            # candidates (top-scored signals come first because the initial SELECT is ordered
+            # by COALESCE(ss.score, 0) DESC), stop early.
+            import time as _time
+            _phase5_start = _time.time()
+            _phase5_budget_secs = 120
+
             for symbol, signal_date, _signal in signals:
+                if _time.time() - _phase5_start > _phase5_budget_secs:
+                    logger.warning(f"Phase 5 evaluation stopped after {_phase5_budget_secs}s "
+                                   f"({len(passed_all_tiers)} candidates found so far)")
+                    break
+
                 blackout_check = earnings_blackout.run(symbol, signal_date)
                 if not blackout_check['pass']:
                     logger.info(f"  SKIP {symbol}: {blackout_check['reason']}")
