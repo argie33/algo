@@ -449,6 +449,27 @@ def main():
             logger.error(f"Invalid asset class: {a}. Must be one of: {valid_classes}")
             return 1
 
+    # Advisory lock: only one price loader instance at a time.
+    _lock_conn = None
+    try:
+        from utils.db_connection import get_db_connection
+        _lock_conn = get_db_connection(timeout=30)
+        _lock_conn.autocommit = True
+        with _lock_conn.cursor() as _cur:
+            _cur.execute("SELECT pg_try_advisory_lock(hashtext(%s)::bigint)", ("stock_prices_daily",))
+            acquired = _cur.fetchone()[0]
+        if not acquired:
+            logger.warning("[MAIN] Skipping: another stock_prices_daily instance already running (advisory lock held)")
+            try:
+                _lock_conn.close()
+            except Exception:
+                pass
+            _lock_conn = None
+            return 0
+    except Exception as _lock_err:
+        logger.warning("[MAIN] Advisory lock check failed (%s) — proceeding without lock", _lock_err)
+        _lock_conn = None
+
     try:
         if symbols_str:
             symbols = [s.strip().upper() for s in symbols_str.split(",")]
