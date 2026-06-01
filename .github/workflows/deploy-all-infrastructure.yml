@@ -577,6 +577,14 @@ jobs:
           terraform state rm "module.pipeline.aws_iam_role_policy.loader_failure_handler_cloudwatch" 2>/dev/null || true
           echo "[OK] Orphaned pipeline loader_failure_handler state entries removed"
 
+          # aws_lambda_alias.api_live and aws_lambda_function_event_invoke_config were added for
+          # provisioned concurrency then removed after causing a Terraform cycle with psycopg2 layer.
+          # Remove from state so plan doesn't try to destroy them (which would recreate the cycle).
+          terraform state rm "module.services.aws_lambda_alias.api_live[0]" 2>/dev/null || true
+          terraform state rm "module.services.aws_lambda_alias.api_live" 2>/dev/null || true
+          terraform state rm "module.services.aws_lambda_function_event_invoke_config.api_async" 2>/dev/null || true
+          echo "[OK] Orphaned Lambda alias and event invoke config state entries removed"
+
       - name: Terraform Plan
         id: tf_plan
         run: |
