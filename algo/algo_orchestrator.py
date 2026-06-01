@@ -36,8 +36,7 @@ class Orchestrator:
         # Override execution_mode from environment variable if set
         env_execution_mode = os.getenv('ORCHESTRATOR_EXECUTION_MODE', '').strip().lower()
         if env_execution_mode:
-            self.config._config['execution_mode'] = env_execution_mode
-            logger.info(f"[ENV] Execution mode overridden via ORCHESTRATOR_EXECUTION_MODE: {env_execution_mode}")
+            self.config.override('execution_mode', env_execution_mode)
 
         self.run_date = run_date or _date.today()
         self.dry_run = dry_run
@@ -584,7 +583,11 @@ class Orchestrator:
                 with TimeBlock("phase_5_signal_generation"):
                     result = self.phase_5_signal_generation()
                     if not result:
-                        logger.critical("HALT: Phase 5 (Signal Generation) returned False — stopping pipeline")
+                        logger.critical("HALT: Phase 5 (Signal Generation) returned False — skipping Phase 6.")
+                        # Phase 7 must still run: it creates the portfolio snapshot that Phase 5
+                        # needs on its next invocation. Skipping Phase 7 here causes a deadlock
+                        # where Phase 5 always halts (no snapshot) and Phase 7 never creates one.
+                        self.phase_7_reconcile()
                         return self._final_report()
                 phase_5_elapsed = time.time() - phase_5_start
                 logger.info(f"[PHASE 5] Completed in {phase_5_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")

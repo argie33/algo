@@ -54,7 +54,7 @@ class PyramidEngine:
         """
         if not current_date:
             current_date = _date.today()
-        if not self.config.get('enable_pyramiding', True):
+        if not self.config.get('pyramid_enabled', True):
             return []
 
         try:

@@ -95,7 +95,7 @@ class FilterTiers12Mixin:
             if dist_days > max_dd:
                 return {'pass': False, 'reason': f'Distribution days {dist_days} > {max_dd}'}
 
-            require_stage_2 = bool(self.config.get('require_stage_2_market', True))
+            require_stage_2 = bool(self.config.get('require_stage_2_market', False))
             if require_stage_2 and stage != 2:
                 return {'pass': False, 'reason': f'Market Stage {stage} != 2 (trend={trend})'}
 

@@ -584,7 +584,7 @@ class CircuitBreaker:
         in all other sectors just because one sector is full.
         """
         try:
-            max_sector_positions = int(self.config.get('max_sector_positions', 3))
+            max_sector_positions = int(self.config.get('max_positions_per_sector', 5))
 
             cur.execute(
                 """

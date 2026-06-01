@@ -1049,8 +1049,15 @@ class TradeExecutor:
             return self._with_cursor(_get_snapshot)
         except Exception as e:
             logger.error(f"[PORTFOLIO] Could not fetch portfolio snapshot: {e}")
-        logger.error(f"[PORTFOLIO] CRITICAL: Could not determine portfolio value - trades will be blocked")
-        return None
+
+        # Bootstrap fallback: use configurable default so Phase 6 can proceed on first run.
+        # PositionSizer uses the same default — position sizes will be consistent.
+        default_pv = float(self.config.get('default_portfolio_value', 100000.0)) if self.config else 100000.0
+        logger.warning(
+            f"[PORTFOLIO] Using default ${default_pv:,.0f} (Alpaca unreachable, no snapshot). "
+            "Phase 7 will create a real snapshot after this run."
+        )
+        return default_pv
 
     def _send_alpaca_order(self, symbol: str, shares: float, entry_price: float, stop_loss_price: Optional[float] = None,
                            take_profit_price: Optional[float] = None, order_class: str = 'bracket') -> Optional[Dict[str, Any]]:

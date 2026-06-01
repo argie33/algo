@@ -165,6 +165,7 @@ class AlgoConfig:
         'execution_mode': ('auto', 'string', 'paper|dry|review|auto'),
         'alpaca_paper_trading': ('false', 'bool', 'Use Alpaca paper account'),
         'max_trades_per_day': ('5', 'int', 'Max new trades per day'),
+        'default_portfolio_value': ('100000.0', 'float', 'Bootstrap portfolio value when Alpaca unreachable and no snapshot (Alpaca paper starts at $100k)'),
 
         # Feature Flags
         'enable_algo': ('true', 'bool', 'Enable algo trading'),
@@ -195,13 +196,6 @@ class AlgoConfig:
 
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
-
-        # In AWS Lambda, skip database load - use defaults only for speed
-        # Lambda config is immutable anyway (set via Terraform env vars)
-        if os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
-            logger.info(f"[AlgoConfig] Skipping database load in Lambda (using defaults only)")
-            return
-
         t0 = time.time()
         logger.info(f"[AlgoConfig] _load_from_database() starting")
         try:
@@ -307,27 +301,63 @@ class AlgoConfig:
         """Get configuration value."""
         return self._config.get(key, default)
 
-    def set(self, key, value, value_type, description=""):
-        """Set configuration value in database and memory.
+    def override(self, key: str, value: Any) -> None:
+        """Apply an in-memory-only override (env var wins over DB). No DB write, no audit.
 
-        Returns: (success: bool, message: str)
+        Used for command-line args and event-level test overrides that should not persist.
+        """
+        if key not in self.DEFAULTS:
+            logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r} — ignored")
+            return
+        _, dtype, _ = self.DEFAULTS[key]
+        try:
+            self._validate_value(key, str(value), dtype)
+            self._config[key] = self._parse_value(str(value), dtype)
+            logger.info(f"[CONFIG OVERRIDE] {key} = {value} ({dtype})")
+        except ValueError as e:
+            logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e} — ignored")
+
+    def set(self, key, value, value_type, description="", changed_by="system"):
+        """Set configuration value in database, memory, and audit log.
+
+        Args:
+            key: Configuration key
+            value: New value
+            value_type: Type ('int', 'float', 'bool', 'string')
+            description: Description (only used for new keys)
+            changed_by: Actor making the change (for audit trail)
+
+        Returns: bool (success)
         """
         try:
             self._validate_value(key, str(value), value_type)
 
             with DatabaseContext('write') as cur:
+                # Capture old value for audit trail
+                cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+                row = cur.fetchone()
+                old_value = row[0] if row else None
+
+                # Upsert config value
                 cur.execute("""
                     INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
-                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, 'system')
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
                     ON CONFLICT (key) DO UPDATE SET
                         value = EXCLUDED.value,
                         value_type = EXCLUDED.value_type,
                         description = EXCLUDED.description,
-                        updated_at = CURRENT_TIMESTAMP
-                """, (key, str(value), value_type, description))
+                        updated_at = CURRENT_TIMESTAMP,
+                        updated_by = EXCLUDED.updated_by
+                """, (key, str(value), value_type, description, changed_by))
+
+                # Write audit trail
+                cur.execute("""
+                    INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """, (key, old_value, str(value), changed_by))
 
             self._config[key] = self._parse_value(str(value), value_type)
-
+            logger.info(f"[CONFIG SET] {key} = {value} (was {old_value}), actor={changed_by}")
             return True
         except ValueError as e:
             logger.error(f"Error: Invalid config value for {key}: {e}")
@@ -375,6 +405,16 @@ def get_config():
         _instance = AlgoConfig()
     return _instance
 
+def reset_config() -> None:
+    """Reset singleton — call at Lambda invocation start so config is fresh each run.
+
+    This ensures warm Lambda invocations reload config from the DB, picking up
+    any changes made between invocations (e.g., lowering a risk threshold).
+    """
+    global _instance
+    _instance = None
+    logger.info("[AlgoConfig] Singleton reset — will reload from DB on next get_config() call")
+
 def get_api_timeout() -> int:
     """Get API request timeout in seconds.
 
@@ -418,121 +458,6 @@ def get_alpaca_base_url() -> str:
     """
     from config.alpaca_config import get_alpaca_base_url as get_unified_url
     return get_unified_url()
-
-class RuntimeConfig:
-    """Thread-safe runtime configuration with 5-minute cache."""
-
-    _cache: Dict[str, str] = {}
-    _cache_timestamp: Optional[float] = None
-    CACHE_TTL = 300
-
-    ALLOWED_KEYS = {
-        'alpaca_trading_mode': ('paper', 'live', 'disabled'),
-        'max_position_size_usd': (int, 1000, 100000),
-        'circuit_breaker_vix_threshold': (int, 30, 100),
-        'data_freshness_sla_hours': (int, 1, 168),
-        'orchestrator_enabled': ('true', 'false'),
-        'execution_monitor_enabled': ('true', 'false'),
-    }
-
-    @classmethod
-    def get(cls, key: str, default: Optional[str] = None) -> Optional[str]:
-        """Load config from RDS with 5-minute cache."""
-        now = time.time()
-
-        if cls._cache_timestamp and (now - cls._cache_timestamp) < cls.CACHE_TTL:
-            cached = cls._cache.get(key)
-            if cached is not None:
-                logger.debug(f"[RUNTIME_CONFIG_CACHED] {key} = {cached[:50]}")
-                return cached
-            return default
-
-        if cls._refresh_cache():
-            return cls._cache.get(key, default)
-
-        logger.warning(f"[RUNTIME_CONFIG_LOAD_FAILED] Could not load {key}, using default")
-        return default
-
-    @classmethod
-    def get_bool(cls, key: str, default: bool = False) -> bool:
-        """Get boolean configuration value."""
-        value = cls.get(key, 'true' if default else 'false')
-        return value.lower() in ('true', '1', 'yes')
-
-    @classmethod
-    def get_int(cls, key: str, default: int = 0) -> int:
-        """Get integer configuration value."""
-        try:
-            value = cls.get(key)
-            if value is not None:
-                return int(value)
-        except (ValueError, TypeError):
-            logger.warning(f"[RUNTIME_CONFIG_TYPE_ERROR] {key} not an integer: {value}")
-        return default
-
-    @classmethod
-    def _refresh_cache(cls) -> bool:
-        """Refresh configuration cache from RDS."""
-        try:
-            with DatabaseContext('read') as cur:
-                cur.execute(
-                    """SELECT config_key, config_value FROM algo_runtime_config
-                       ORDER BY config_key"""
-                )
-                rows = cur.fetchall()
-
-                cls._cache = {}
-                for row in rows:
-                    if isinstance(row, dict):
-                        cls._cache[row['config_key']] = row['config_value']
-                    else:
-                        cls._cache[row[0]] = row[1]
-
-                cls._cache_timestamp = time.time()
-                logger.info(
-                    f"[RUNTIME_CONFIG_LOADED] {len(cls._cache)} keys cached, "
-                    f"expires in {cls.CACHE_TTL}s"
-                )
-                return True
-
-        except Exception as e:
-            logger.error(f"[RUNTIME_CONFIG_LOAD_ERROR] Failed to refresh cache: {e}")
-            return False
-
-    @classmethod
-    def clear_cache(cls) -> None:
-        """Force cache refresh on next access."""
-        cls._cache = {}
-        cls._cache_timestamp = None
-        logger.info("[RUNTIME_CONFIG_CACHE_CLEARED]")
-
-    @classmethod
-    def validate_value(cls, key: str, value: Any) -> tuple[bool, Optional[str]]:
-        """Validate configuration value before saving."""
-        if key not in cls.ALLOWED_KEYS:
-            return False, f"Unknown configuration key: {key}"
-
-        allowed = cls.ALLOWED_KEYS[key]
-
-        if isinstance(allowed, tuple) and isinstance(allowed[0], str):
-            if str(value) not in allowed:
-                return False, f"Must be one of: {', '.join(allowed)}"
-            return True, None
-
-        if isinstance(allowed, tuple) and isinstance(allowed[0], type):
-            if allowed[0] == int:
-                try:
-                    int_val = int(value)
-                    if len(allowed) >= 3 and not (allowed[1] <= int_val <= allowed[2]):
-                        return (
-                            False,
-                            f"Must be between {allowed[1]} and {allowed[2]}"
-                        )
-                    return True, None
-                except (ValueError, TypeError):
-                    return False, f"Must be an integer"
-
-        return True, None
 
 if __name__ == "__main__":
     config = get_config()

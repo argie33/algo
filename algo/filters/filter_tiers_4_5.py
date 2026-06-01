@@ -21,7 +21,13 @@ class FilterTiers45Mixin:
                 (symbol, signal_date),
             )
             row = cur.fetchone()
-            sqs = float(row[0]) if row and row[0] is not None else 0
+            if not row or row[0] is None:
+                # No SQS data for this symbol (table empty or loader hasn't run yet).
+                # Pass-through rather than reject — signal_quality_scores is observe-only
+                # per Phase 1 policy and may not be populated on fresh deployments.
+                logger.debug(f"  [T4] {symbol}: No SQS data — passing through (observe-only)")
+                return {'pass': True, 'reason': 'SQS N/A (no data)', 'sqs': 0}
+            sqs = float(row[0])
             min_sqs = float(self.config.get('min_signal_quality_score', 60))
             if sqs < min_sqs:
                 return {'pass': False, 'reason': f'SQS {sqs:.0f} < {min_sqs:.0f}', 'sqs': sqs}
@@ -157,8 +163,13 @@ class FilterTiers45Mixin:
                 'position_size_pct': result['position_size_pct'],
             }
         except RuntimeError as e:
-            logger.critical(f"[T5] HALT — portfolio value unavailable: {e}")
-            raise
+            # PositionSizer.get_portfolio_value() now returns a default instead of raising.
+            # This branch is a safety net in case a RuntimeError surfaces from elsewhere.
+            logger.warning(f"[T5] {symbol}: Portfolio sizing failed ({e}) — skipping stock")
+            return {
+                'pass': False, 'reason': f'Portfolio sizing error: {str(e)[:100]}',
+                'shares': 0, 'risk_dollars': 0.0, 'position_size_pct': 0.0,
+            }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'shares': 0}
 

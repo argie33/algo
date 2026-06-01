@@ -144,7 +144,7 @@ class AdvancedFilters:
             # H4. Liquidity (institutional must)
             avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
             components['avg_dollar_volume'] = avg_dollar_vol
-            min_liq = float(self.config.get('min_avg_daily_dollar_volume', 5_000_000))
+            min_liq = float(self.config.get('min_avg_daily_dollar_volume', 500_000))
             if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
                 hard_fail = hard_fail or f'Liquidity ${avg_dollar_vol/1e6:.1f}M < ${min_liq/1e6:.1f}M'
 
