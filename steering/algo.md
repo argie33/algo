@@ -42,24 +42,16 @@ FRED_API_KEY (economic data)
 - Never commit `.env` files
 - CI uses OIDC (OpenID Connect) for AWS authentication, not static keys
 
-## DEPLOYMENT FLOW (2026-05-29: OIDC Verified & Working)
+## Deployment Flow
 
-**THE RIGHT WAY - Production deployments use GitHub Actions OIDC:**
-```
-git push main
-    ↓
-GitHub Actions triggers deploy-code.yml or deploy-all-infrastructure.yml
-    ↓
-GitHub token automatically exchanged for temporary AWS credentials (OIDC)
-    ↓
-Terraform/Lambda/S3 deployments execute with transient credentials
-    ↓
-Zero static keys, credentials auto-expire after 1 hour
-```
+**The right way - Production deployments use GitHub Actions OIDC:**
+1. `git push main`
+2. GitHub Actions triggers deploy-code.yml or deploy-all-infrastructure.yml
+3. GitHub token automatically exchanged for temporary AWS credentials (OIDC)
+4. Terraform/Lambda/S3 deployments execute with transient credentials
+5. Zero static keys, credentials auto-expire after 1 hour
 
-**NEVER use local terraform apply or credential refresh scripts for production work.** Those are only for local development/debugging.
-
----
+**NEVER** use local terraform apply or credential refresh scripts for production work. Those are only for local development/debugging.
 
 ## LOCAL AWS CREDENTIALS (Auto-Refreshing)
 
@@ -99,130 +91,6 @@ scripts/refresh-aws-credentials.ps1
 - Your next AWS command automatically fetches the new key
 - No action required from you
 
-## CREDENTIAL FLOW (Single Source of Truth)
-
-All credentials flow from AWS Secrets Manager — never hardcode, never duplicate:
-
-```
-AWS Secrets Manager (single source of truth)
-    ↓
-GitHub Actions (OIDC) → reads for deployments
-Local Development (credential_process) → auto-fetches for debugging
-Lambda/ECS (IAM roles) → reads from environment
-Step Functions (IAM roles) → reads from environment
-```
-
-**Secrets in Manager:**
-- `algo/database` — RDS credentials
-- `algo/alpaca` — Alpaca API keys (paper and live)
-- `algo/fred` — FRED API key
-- `algo/developer-credentials` — AWS IAM access key for local development
-
-**Rotation procedure:**
-1. Terraform automatically rotates all secrets quarterly (first Monday of each quarter, 2:00 AM UTC)
-2. You don't need to do anything
-3. For manual rotation: `gh workflow run rotate-dev-credentials.yml`
-
-## LIVE TRADING CONFIG
-
-**Current state: PAPER trading** (`alpaca_paper_trading = true` in terraform.tfvars).
-Trades go to `paper-api.alpaca.markets` with paper Alpaca keys from `algo/alpaca` Secrets Manager.
-
-**To switch to live trading when ready:**
-1. Get live keys from alpaca.markets → API Keys → Live Trading
-2. `gh secret set ALPACA_API_KEY --body "live_key"`; `gh secret set ALPACA_SECRET_KEY --body "live_secret"`
-3. `gh workflow run update-credentials.yml -f trading_mode=live`
-4. Edit `terraform/terraform.tfvars`: set `alpaca_paper_trading = false`, `alpaca_api_base_url = "https://api.alpaca.markets"`
-5. `git push` to redeploy
-
-## CREDENTIAL ROTATION SCHEDULE
-
-All credentials rotate on fixed schedules. Update locally when rotated:
-
-| Credential | Interval | Procedure | Local Refresh |
-|-----------|----------|-----------|---------------|
-| `algo-developer` AWS key | Quarterly (Feb, May, Aug, Nov) | Automatic: `rotate-dev-credentials.yml` | `scripts/refresh-aws-credentials.ps1` |
-| Alpaca API (paper) | Quarterly | Manual: regenerate in Alpaca dashboard → `gh secret set` → `update-credentials.yml` | Update PowerShell profile env vars |
-| Alpaca API (live) | Quarterly | Manual: regenerate in Alpaca dashboard → `gh secret set` → `update-credentials.yml` | Update PowerShell profile env vars |
-| FRED API key | Quarterly | Manual: regenerate in FRED dashboard → `gh secret set` → `update-credentials.yml` | Update PowerShell profile env vars |
-| RDS database password | Quarterly | Manual: `terraform apply` with new password → redeploy Lambdas | Lambda env auto-updated |
-
-**Rotation reminder:** Q1=February, Q2=May, Q3=August, Q4=November
-- Automatic reminder runs first Monday of each quarter at 02:30 UTC (`.github/workflows/credential-rotation-reminder.yml`)
-- Creates actionable checklist in GitHub Actions workflow summary
-- All team members should receive summary in their notification settings
-
-**If a credential is leaked:** Rotate immediately (don't wait for quarterly schedule). For AWS keys, delete old key in IAM console and trigger `rotate-dev-credentials.yml`. For API keys, regenerate in dashboard immediately and update GitHub Secrets.
-
-## LIVE TRADING READINESS CHECKLIST
-
-**Security & Authentication:**
-- ❌ Dashboard has NO authentication (`cognito_enabled = false`). Acceptable for paper trading only.
-  - To enable: Set `cognito_enabled = true`, configure Cognito user pool, update API Gateway auth settings.
-- ✅ AWS credentials rotated quarterly, OIDC-based (no static keys in GitHub).
-- ✅ Database password in Secrets Manager, no hardcoded values.
-
-**Monitoring & Alerts:**
-- ✅ SNS infrastructure alerts (CloudWatch → SNS → email).
-- ✅ Application-level alerts via SMTP (populate alert_smtp_password secret).
-- ✅ CloudWatch metrics for orchestrator performance, phase timing.
-
-**Operational:**
-- ❓ RDS Proxy disabled (cost optimization). Re-enable (`enable_rds_proxy = true`) if scaling beyond t4g.micro or adding more concurrent API users.
-- ❓ Intraday runs use yesterday's close price (architectural limitation, see KNOWN LIMITATION above).
-- ❓ No real-time circuit breaker for intraday market crashes (see KNOWN LIMITATION above).
-- ✅ Phase 7 reconciliation syncs with Alpaca account daily.
-- ✅ IC computation and weight optimization run post-trading (fail-open, don't block trades).
-
-**Before flipping to live trading:**
-1. Enable Cognito authentication for dashboard
-2. Re-enable RDS Proxy if expecting high concurrent load
-3. Review intraday pricing limitation and consider real-time feed integration
-4. Add CloudWatch alarm on portfolio variance for intraday protection
-5. Rotate all credentials (AWS, Alpaca live keys, FRED, SMTP)
-6. Verify alarm email delivery (send test via SNS)
-7. Run in paper mode for 1-2 weeks, monitor CloudWatch logs daily
-8. Test error scenarios: DB unavailability, API rate limits, market gaps
-9. Document your risk tolerance and position limits in README
-10. Notify your stakeholders of automation and manual circuit breakers available
-
-## DEPLOYMENT ARCHITECTURE (THE RIGHT WAY - OIDC ONLY)
-
-**How to Deploy:**
-```bash
-git push main
-# That's it. GitHub Actions does everything automatically via OIDC.
-```
-
-**Authentication: GitHub Actions → AWS via OIDC (Automatic)**
-- GitHub OIDC provider exchanges GitHub token for temporary AWS credentials
-- Zero static keys stored anywhere
-- Credentials auto-expire after workflow completes
-- Implementation: `aws-actions/configure-aws-credentials@v4` with `role-to-assume`
-- IAM Role: `arn:aws:iam::<ACCOUNT_ID>:role/algo-svc-github-actions-dev` (terraform-created)
-- Required Secrets: `AWS_ACCOUNT_ID`, `AWS_GITHUB_ACTIONS_ROLE_ARN`
-
-**DO NOT:**
-- ❌ Use `scripts/refresh-aws-credentials.ps1` — it adds complexity, use only for rare local debugging
-- ❌ Store AWS static keys in GitHub Secrets — defeats entire purpose of OIDC
-- ❌ Run `terraform apply` locally — always deploy via GitHub Actions
-
-**Lambda Layer (psycopg2):**
-- Name: `algo-psycopg2-layer-dev` (created by Terraform)
-- Why: Python wheels built on Linux; Windows dev wheels incompatible. Layer built once, reused.
-- Runtime: Python 3.12
-- Used by: `algo-api-dev`, `algo-db-init-dev` Lambdas
-- Deploy: Via `deploy-all-infrastructure.yml`
-
-**Workflows & Deployment:**
-
-| Workflow | Trigger | What It Does |
-|----------|---------|-------------|
-| `deploy-all-infrastructure.yml` | `git push main` (automatic) | Terraform apply + Lambda layer rebuild + ECS tasks + code deploy |
-| `deploy-code.yml` | `git push main` (automatic) | Tests, lint, security scan |
-| `deploy-staging.yml` | `git push staging` (automatic) | Deploy N+1 Lambda (algo-algo-staging) — dry_run, no schedules |
-| `test-orchestrator.yml` | Manual dispatch | Invoke orchestrator Lambda directly |
-| `manual-invoke-loaders.yml` | Manual dispatch | Manually run individual ECS loader tasks |
 
 ## N / N+1 MULTI-VERSION WORKFLOW
 
@@ -266,7 +134,7 @@ for ph, info in sorted(body.get('phases',{}).items(), key=lambda x: str(x[0])):
     print(f'  Phase {ph} [{info.get(\"status\",\"?\")}]: {info.get(\"summary\",\"\")[:80]}')
 "
 
-# When N+1 is ready to go live: merge staging → main
+# When N+1 is ready to go live: merge staging to main
 git checkout main
 git merge staging
 git push origin main
@@ -298,10 +166,10 @@ git push origin main
 ## DATABASE CONNECTIONS (Dynamic RDS Proxy)
 
 **All database connections route through RDS Proxy (when enabled):**
-- Loaders: `DB_HOST` environment variable → RDS Proxy endpoint (set by Terraform)
-- Orchestrator: `DB_HOST` environment variable → RDS Proxy endpoint (set by Terraform)
-- Lambda functions: `DB_HOST` environment variable → RDS Proxy endpoint (set by Terraform)
-- Secrets Manager secret: `host` field → RDS Proxy endpoint (dynamically set by Terraform)
+- Loaders: `DB_HOST` environment variable to RDS Proxy endpoint (set by Terraform)
+- Orchestrator: `DB_HOST` environment variable to RDS Proxy endpoint (set by Terraform)
+- Lambda functions: `DB_HOST` environment variable to RDS Proxy endpoint (set by Terraform)
+- Secrets Manager secret: `host` field to RDS Proxy endpoint (dynamically set by Terraform)
 
 **Configuration:**
 - `terraform.tfvars`: `enable_rds_proxy = true` (line 35)
@@ -373,8 +241,8 @@ The orchestrator runs **4 times daily** on trading days:
 
 ### Price Data (1 unified loader — EventBridge scheduled + pipeline included)
 - **stock_prices_daily** — Daily OHLCV for 5000+ symbols, handles all timeframes (1d, 1wk, 1mo) and asset classes (stocks, ETFs). Runs 4:00 AM ET via EventBridge; also in EOD pipeline.
-  - **stock class** → `price_daily`: all ~5000 stock symbols from `stock_symbols` table, PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, GLD, TLT (SPY required by load_technical_data_daily Mansfield RS, load_seasonality, and algo_market_exposure)
-  - **etf class** → `etf_price_daily`: all stock symbols (redundant but harmless) PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, XLK, XLF, XLV, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB, GLD, TLT, IVV, VXX (sector ETFs required by load_sector_performance and SectorHeatMap frontend)
+  - **stock class** to `price_daily`: all ~5000 stock symbols from `stock_symbols` table, PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, GLD, TLT (SPY required by load_technical_data_daily Mansfield RS, load_seasonality, and algo_market_exposure)
+  - **etf class** to `etf_price_daily`: all stock symbols (redundant but harmless) PLUS hardcoded essential ETFs: SPY, QQQ, IWM, DIA, XLK, XLF, XLV, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB, GLD, TLT, IVV, VXX (sector ETFs required by load_sector_performance and SectorHeatMap frontend)
   - **Why not in stock_symbols table:** `load_stock_symbols.py` intentionally excludes ETFs from NASDAQ/NYSE files. Essential ETFs are hardcoded in `load_prices.py` `ESSENTIAL_STOCK_PRICE_DAILY` and `ESSENTIAL_ETF_SYMBOLS` lists.
   - **Prices route fallback:** `/api/prices/history/{sym}` checks `price_daily` first, then `etf_price_daily` — so any frontend ETF price call works as long as data is in either table.
 
@@ -441,7 +309,7 @@ The orchestrator runs **4 times daily** on trading days:
 
 | File | Purpose |
 |------|---------|
-| `algo/algo_orchestrator.py` | Main 7-phase orchestrator (data freshness → circuit breakers → position monitor → exits → signals → entries → reconciliation) |
+| `algo/algo_orchestrator.py` | Main 7-phase orchestrator (data freshness to circuit breakers to position monitor to exits to signals to entries to reconciliation) |
 | `algo/algo_signals.py` | Signal generation logic (Minervini trend + technical filters + fundamental screening) |
 | `lambda/api/lambda_function.py` | REST API: `/api/stocks`, `/api/signals`, `/api/positions`, `/api/health`, etc. |
 | `config/credential_manager.py` | Fetches secrets from AWS Secrets Manager (production) or env vars (local) |
@@ -487,10 +355,10 @@ with DatabaseContext('write') as cur:
 ```
 
 **DO NOT:**
-- ❌ Call `cur.close()` — DatabaseContext handles it
-- ❌ Call `conn.commit()` or `conn.rollback()` — DatabaseContext handles it
-- ❌ Store `self.conn = context.conn` and use it after the with block exits
-- ❌ Mix manual connections with DatabaseContext
+- DO NOT: Call `cur.close()` — DatabaseContext handles it
+- DO NOT: Call `conn.commit()` or `conn.rollback()` — DatabaseContext handles it
+- DO NOT: Store `self.conn = context.conn` and use it after the with block exits
+- DO NOT: Mix manual connections with DatabaseContext
 
 **Why:** The context manager pattern ensures transactions are atomic, connections are properly closed, and errors don't leave dangling connections. Manual commit/close calls defeat this guarantees.
 
@@ -501,8 +369,7 @@ with DatabaseContext('write') as cur:
 **Stage name: `$default` (critical for correct routing)**
 
 The API Gateway HTTP API uses stage `$default`. This is intentional:
-- With `$default` stage: CloudFront forwards `/api/signals` → rawPath in Lambda = `/api/signals` → `api_router` matches `/api/signals` handler ✓
-- With named stage (e.g., "api"): CloudFront forwards `/api/signals` → API GW strips "api" prefix → rawPath = `/signals` → `api_router` has no handler for `/signals` → 404 for ALL endpoints
+- With `$default` stage: CloudFront forwards `/api/signals` to rawPath in Lambda = `/api/signals` to `api_router` matches `/api/signals` handler- With named stage (e.g., "api"): CloudFront forwards `/api/signals` to API GW strips "api" prefix to rawPath = `/signals` to `api_router` has no handler for `/signals` to 404 for ALL endpoints
 
 **Health check fast path:**
 The `/health` and `/api/health` endpoints return 200 immediately, before DB connection test or env validation. This ensures uptime monitors always succeed even if DB is temporarily unavailable.
@@ -594,6 +461,8 @@ If missing, rebuild schema by invoking the `db-init` Lambda manually (reads `lam
 - **NEVER use `loader_type=analytics` via manual-invoke-loaders while the orchestrator is running.** It will cause total DB saturation on t4g.micro without RDS Proxy.
 - **Advisory lock is in place:** `OptimalLoader.run()` and `load_global()` use `pg_try_advisory_lock(hashtext(table_name))` — only one instance per loader runs at a time. Lock auto-releases on container exit/crash. This only prevents new stacking; if old tasks were launched before the lock code was deployed, they must be stopped manually (see below).
 - **To stop runaway ECS tasks:** `aws ecs list-tasks --cluster algo-cluster --desired-status RUNNING --profile algo-developer` to list, then `aws ecs stop-task --cluster algo-cluster --task <ARN> --reason "remediation" --profile algo-developer` per task. Kill analytics loaders (analyst_sentiment, analyst_upgrades_downgrades, company_profile) but keep stock_prices_daily and technical_data_daily.
+- **Analytics loaders can get stuck for 6+ hours:** company_profile, analyst_sentiment, stability_metrics, and value_metrics iterate 5000+ symbols with yfinance rate limits. If any is still running when the orchestrator fires, OOM will crash RDS. Diagnosis: if an ECS loader has been RUNNING for > 2 hours, it is stuck. Kill it. This happened 2026-06-01: 4 analytics loaders stuck since 07:28 UTC caused 4 OOM crashes. Fix: kill all analytics loaders that have been running > 2 hours before any orchestrator run.
+- **RDS Proxy not deployed (as of 2026-06-01):** `aws rds describe-db-proxies` returns empty — proxy was not created despite `enable_rds_proxy = true` in terraform.tfvars. Without the proxy, each Lambda cold-start creates a new DB connection. Re-enable by running `deploy-all-infrastructure.yml` after confirming terraform.tfvars has `enable_rds_proxy = true`.
 - `market_exposure_daily` was also not persisting due to undefined `cur` in `_persist()` method (Python scope bug). Fixed: `_persist()` now opens its own `DatabaseContext('write')`.
 - Symptoms: Lambda logs show "canceling statement due to statement timeout" in Phase 1 or Phase 3b. Check disk queue: `aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DiskQueueDepth --dimensions Name=DBInstanceIdentifier,Value=algo-db --start-time <ISO> --end-time <ISO> --period 60 --statistics Maximum --profile algo-developer`
 

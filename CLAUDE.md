@@ -1,12 +1,6 @@
 # Multi-Project Workspace Router
 
-This workspace supports multiple projects. When working in this repo, **read the appropriate steering doc** for your project before proceeding.
-
-## Projects
-
-| Project | Location | Steering |
-|---------|----------|----------|
-| **algo** | `.` | `steering/algo.md` |
+This workspace supports multiple projects: **algo** in `.` (see `steering/algo.md` for system details).
 
 ## QUICK START
 
