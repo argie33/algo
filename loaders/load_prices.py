@@ -546,6 +546,11 @@ def main():
         records_loaded=total_stats.get('rows_inserted', 0),
         duration_seconds=duration_seconds
     )
+    if _lock_conn:
+        try:
+            _lock_conn.close()
+        except Exception:
+            pass
     return 0
 
 if __name__ == "__main__":
