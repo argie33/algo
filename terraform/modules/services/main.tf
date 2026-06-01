@@ -1113,7 +1113,7 @@ resource "aws_dynamodb_table" "contact_rate_limit" {
 # IAM Policy: Allow API Lambda to access contact rate limit table
 resource "aws_iam_role_policy" "api_contact_rate_limit" {
   name = "${var.project_name}-api-contact-rate-limit-${var.environment}"
-  role = var.api_lambda_role_arn
+  role = split("/", var.api_lambda_role_arn)[1]
 
   policy = jsonencode({
     Version = "2012-10-17"

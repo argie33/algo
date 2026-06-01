@@ -225,8 +225,8 @@ resource "aws_lambda_function" "cognito_email_trigger" {
 data "archive_file" "cognito_email_lambda" {
   count       = var.cognito_custom_email_enabled ? 1 : 0
   type        = "zip"
-  source_file = "${path.module}/../../lambda/cognito-email-trigger/lambda_function.py"
-  output_path = "${path.module}/../../lambda/cognito-email-trigger/lambda_function.zip"
+  source_file = "${path.root}/../lambda/cognito-email-trigger/lambda_function.py"
+  output_path = "/tmp/algo-cognito-email-lambda.zip"
 }
 
 # Permission for Cognito to invoke Lambda
