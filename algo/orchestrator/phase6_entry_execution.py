@@ -480,6 +480,13 @@ def run(
             min_score = exposure_constraints.get('min_swing_score', 60.0)
             grade_order = ['F', 'D', 'C', 'B', 'A', 'A+']
             min_grade = exposure_constraints.get('min_swing_grade', 'B')
+            # Allow config to lower the grade/score threshold (for testing or emergency bypass)
+            config_min_grade = config.get('min_swing_grade')
+            config_min_score = float(config.get('min_swing_score', min_score))
+            if config_min_grade and config_min_grade in grade_order:
+                if grade_order.index(config_min_grade) < grade_order.index(min_grade):
+                    min_grade = config_min_grade
+            min_score = min(min_score, config_min_score)
             min_grade_idx = grade_order.index(min_grade) if min_grade in grade_order else 3
             before = len(trades_to_enter)
 
