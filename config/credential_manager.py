@@ -22,7 +22,8 @@ Does NOT support:
 import json as _json
 import logging
 import os
-from typing import Dict, Optional, Any
+import time
+from typing import Dict, Optional, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,14 @@ DEFAULT_DB_PORT = "5432"
 DEFAULT_DB_USER = "stocks"
 DEFAULT_DB_NAME = "stocks"
 
+# Cache TTL for credential secrets (5 minutes to balance freshness with API costs)
+CREDENTIAL_CACHE_TTL_SECONDS = 300
+
 class CredentialManager:
-    """Centralized credential fetcher with caching and failover."""
+    """Centralized credential fetcher with caching and TTL-based expiration."""
 
     def __init__(self):
-        self._cache: Dict[str, str] = {}
+        self._cache: Dict[str, Tuple[str, float]] = {}  # key -> (value, timestamp)
         self._is_aws = self._detect_aws()
         self._secrets_client = None
 
@@ -77,23 +81,30 @@ class CredentialManager:
 
     def _get_secret(self, secret_name: str, default: Optional[str] = None, is_password: bool = False) -> str:
         """
-        Internal secret retrieval with caching.
+        Internal secret retrieval with caching and TTL-based expiration.
 
         Priority:
-        1. Cache (if present)
+        1. Cache (if present and not expired)
         2. AWS Secrets Manager (if in AWS and available)
         3. Environment variable (env var name is secret_name with '/' → '_' and uppercase)
         4. Default value (if provided)
         5. Raise ValueError (if required and not found)
         """
+        # Check cache with TTL
         if secret_name in self._cache:
-            return self._cache[secret_name]
+            cached_value, timestamp = self._cache[secret_name]
+            age = time.time() - timestamp
+            if age < CREDENTIAL_CACHE_TTL_SECONDS:
+                return cached_value
+            else:
+                # Cache expired, remove it and fetch fresh
+                del self._cache[secret_name]
 
         # Try Secrets Manager if in AWS
         if self._is_aws:
             secret = self._fetch_from_secrets_manager(secret_name)
             if secret:
-                self._cache[secret_name] = secret
+                self._cache[secret_name] = (secret, time.time())
                 return secret
 
         # Fall back to environment variable
@@ -101,7 +112,7 @@ class CredentialManager:
         secret = os.getenv(env_var)
 
         if secret:
-            self._cache[secret_name] = secret
+            self._cache[secret_name] = (secret, time.time())
             return secret
 
         # Use default if provided
@@ -140,12 +151,16 @@ class CredentialManager:
 
         Result is cached in self._cache to avoid a Secrets Manager API call on every
         DatabaseContext creation (which is called 10+ times per orchestrator run).
+        Cache uses TTL to ensure fresh credentials are fetched periodically.
         """
         import json as _json
 
         _DB_CREDS_CACHE_KEY = '__db_credentials__'
         if _DB_CREDS_CACHE_KEY in self._cache:
-            return self._cache[_DB_CREDS_CACHE_KEY]
+            cached_value, timestamp = self._cache[_DB_CREDS_CACHE_KEY]
+            age = time.time() - timestamp
+            if age < CREDENTIAL_CACHE_TTL_SECONDS:
+                return cached_value
 
         secret_arn = os.getenv('DB_SECRET_ARN')
         if secret_arn and self._is_aws:
@@ -169,7 +184,7 @@ class CredentialManager:
                         'password': password,
                         'database': creds.get('dbname') or os.getenv('DB_NAME', 'stocks'),
                     }
-                    self._cache[_DB_CREDS_CACHE_KEY] = result
+                    self._cache[_DB_CREDS_CACHE_KEY] = (result, time.time())
                     return result
             except Exception as e:
                 logger.warning("Failed to load DB credentials from secret ARN %s: %s — falling back to env vars", secret_arn, e)
@@ -186,7 +201,7 @@ class CredentialManager:
             'password': self.get_password('db/password'),  # REQUIRED - no default
             'database': os.getenv('DB_NAME', 'stocks'),
         }
-        self._cache[_DB_CREDS_CACHE_KEY] = result
+        self._cache[_DB_CREDS_CACHE_KEY] = (result, time.time())
         return result
 
     def get_alpaca_credentials(self) -> Dict[str, str]:
@@ -275,8 +290,18 @@ class CredentialManager:
         }
 
     def clear_cache(self):
-        """Clear credential cache (useful for testing)."""
+        """Clear credential cache (useful for testing or forcing a refresh)."""
         self._cache.clear()
+
+    def clear_expired_credentials(self):
+        """Remove expired credentials from cache without clearing everything."""
+        now = time.time()
+        expired_keys = [
+            key for key, (_, timestamp) in self._cache.items()
+            if now - timestamp >= CREDENTIAL_CACHE_TTL_SECONDS
+        ]
+        for key in expired_keys:
+            del self._cache[key]
 
 # Singleton instance
 _manager = None
@@ -333,6 +358,19 @@ def clear_credential_cache():
     """
     mgr = get_credential_manager()
     mgr.clear_cache()
+    return True
+
+def clear_expired_credentials():
+    """Remove only expired credentials from cache, keeping fresh ones.
+
+    This is called at Lambda invocation start instead of clearing the entire cache.
+    It respects the 5-minute TTL: credentials fresher than TTL are kept, stale ones
+    are removed so they'll be refetched on next access. This balances credential
+    rotation (stale creds are refreshed) with cost (we don't hit Secrets Manager
+    on every invocation).
+    """
+    mgr = get_credential_manager()
+    mgr.clear_expired_credentials()
     return True
 
 if __name__ == "__main__":

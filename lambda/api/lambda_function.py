@@ -440,10 +440,11 @@ def get_client_ip(event: Dict) -> str:
         return headers['CF-Connecting-IP']
 
     # Fallback to X-Forwarded-For (standard proxy header)
+    # SECURITY FIX: Use first IP (original client), not last (closest proxy)
     if 'x-forwarded-for' in headers:
-        return headers['x-forwarded-for'].split(',')[-1].strip()
+        return headers['x-forwarded-for'].split(',')[0].strip()
     if 'X-Forwarded-For' in headers:
-        return headers['X-Forwarded-For'].split(',')[-1].strip()
+        return headers['X-Forwarded-For'].split(',')[0].strip()
 
     # Last resort: API Gateway sourceIp
     return event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
@@ -534,11 +535,12 @@ def require_auth(event: Dict, path: str) -> tuple:
     if not path.startswith('/api/'):
         return (False, True, None, None)  # Non-API paths don't need auth
 
-    # This is an /api path that requires auth
-    # If Cognito is not enabled, allow auth to be optional for development
+    # This is an /api path that requires authentication
+    # SECURITY FIX: Authentication must be enforced for protected endpoints
+    # In production, Cognito MUST be configured (COGNITO_USER_POOL_ID set)
     if not _COGNITO_ENABLED:
-        logger.warning(f"[AUTH] Cognito not configured - allowing unauthenticated access to {path}")
-        return (True, True, None, {})  # Require auth but automatically pass if no Cognito
+        logger.error(f"[AUTH_FAILURE] Protected endpoint {path} accessed but Cognito not configured")
+        return (True, False, "Authentication system not configured. Contact administrator.", None)
 
     token = get_bearer_token(event)
 
@@ -574,12 +576,13 @@ if not IMPORT_ERROR:
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
-    # Clear credential cache on invocation to ensure fresh creds for rotated secrets
+    # Credential cache uses 5-minute TTL to balance freshness with API costs
+    # No need to clear on every invocation — expired entries are automatically skipped
     try:
-        from config.credential_manager import clear_credential_cache
-        clear_credential_cache()
+        from config.credential_manager import clear_expired_credentials
+        clear_expired_credentials()
     except Exception:
-        pass  # If we can't clear cache, continue anyway (non-fatal)
+        pass  # If we can't clear expired creds, continue anyway (non-fatal)
 
     # Extract path and method before ANY checks so health/CORS always work
     path = event.get('rawPath', event.get('path', '/'))
