@@ -1050,6 +1050,63 @@ resource "aws_cloudwatch_metric_alarm" "loader_failures_accumulating" {
   tags                = var.common_tags
 }
 
+# ============================================================
+# CRITICAL: algo_orchestrator_state DynamoDB Table (F-02 Support)
+# ============================================================
+# Stores emergency halt flag for circuit breaker (fail-closed trading protection).
+# Both orchestrator and circuit breaker Lambda reference this table.
+
+resource "aws_dynamodb_table" "orchestrator_state" {
+  name           = "algo_orchestrator_state"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "key"
+
+  attribute {
+    name = "key"
+    type = "S"
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "algo-orchestrator-state"
+  })
+}
+
+# Grant Lambda + Orchestrator access to halt flag table
+resource "aws_iam_role_policy" "orchestrator_halt_access" {
+  name = "${var.project_name}-orchestrator-halt-access"
+  role = split("/", var.algo_lambda_role_arn)[1]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
+      ]
+      Resource = aws_dynamodb_table.orchestrator_state.arn
+    }]
+  })
+}
+
+# Circuit breaker Lambda needs same access
+resource "aws_iam_role_policy" "circuit_breaker_halt_write" {
+  name = "${var.project_name}-circuit-breaker-halt-write"
+  role = split("/", var.circuit_breaker_role_arn)[1]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
+      ]
+      Resource = aws_dynamodb_table.orchestrator_state.arn
+    }]
+  })
+}
+
 # CRITICAL: DynamoDB Halt Check Failure Alarm
 # If the emergency halt mechanism cannot reach DynamoDB, trading continues unprotected
 resource "aws_cloudwatch_metric_alarm" "dynamodb_halt_check_failure" {

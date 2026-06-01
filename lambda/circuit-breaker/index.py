@@ -3,22 +3,23 @@
 Intraday Circuit Breaker Lambda - Halts trading if portfolio variance exceeds threshold.
 
 Triggers:
-- CloudWatch Events at 10 AM and 12 PM ET (market hours)
+- CloudWatch Events at 10 AM, 12 PM, and 3 PM ET (market hours)
 
 Action:
 - Check current portfolio P&L via database
 - Calculate daily variance as (current_P&L - open_P&L) / portfolio_value
-- If variance > threshold (e.g., 15%), set orchestrator_dry_run = true in Secrets Manager
+- If variance > threshold (e.g., 15%), set halt_flag = true in DynamoDB
 - Orchestrator Phase 1 checks this flag and fails-closed
 
 Resets:
-- Manually reset via AWS Console or CLI after market close
+- Automatically clears halt flag when variance returns to safe range
 """
 
 import json
 import os
 import boto3
 import logging
+import psycopg2
 from datetime import datetime, timezone
 
 logger = logging.getLogger()
@@ -27,78 +28,81 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 dynamodb = boto3.resource('dynamodb')
 secretsmanager = boto3.client("secretsmanager")
 
-def get_portfolio_pnl(db_connection):
-    """Query current portfolio P&L from positions table."""
-    import psycopg2
+def get_db_credentials():
+    """Fetch database credentials from Secrets Manager."""
     try:
-        with db_connection.cursor() as cur:
-            # Get current portfolio snapshot: total equity and P&L
-            cur.execute("""
-                SELECT total_equity, unrealized_pnl
-                FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date DESC, snapshot_time DESC
-                LIMIT 1
-            """)
-            snapshot = cur.fetchone()
-            if not snapshot:
-                logger.warning("No portfolio snapshot found")
-                return None, None, None
+        secret_id = "algo/database"
+        response = secretsmanager.get_secret_value(SecretId=secret_id)
+        creds = json.loads(response["SecretString"])
+        return {
+            'host': creds.get('host'),
+            'port': int(creds.get('port', 5432)),
+            'database': creds.get('dbname'),
+            'user': creds.get('username'),
+            'password': creds.get('password')
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch DB credentials from Secrets Manager: {e}")
+        raise
 
-            total_equity = float(snapshot[0]) if snapshot[0] else 0
-            current_pnl = float(snapshot[1]) if snapshot[1] else 0
+def get_portfolio_pnl():
+    """Query current portfolio P&L from database."""
+    try:
+        creds = get_db_credentials()
+        conn = psycopg2.connect(
+            host=creds['host'],
+            port=creds['port'],
+            database=creds['database'],
+            user=creds['user'],
+            password=creds['password'],
+            sslmode='require'
+        )
+        cur = conn.cursor()
 
-            # Get open P&L from session start (market open)
-            cur.execute("""
-                SELECT SUM(unrealized_pnl) as session_pnl
-                FROM algo_positions
-                WHERE status = 'open'
-            """)
-            session_row = cur.fetchone()
-            open_pnl = float(session_row[0]) if session_row and session_row[0] else 0
+        # Get current portfolio snapshot: total equity and P&L
+        cur.execute("""
+            SELECT COALESCE(SUM(current_value), 0) as total_equity,
+                   COALESCE(SUM(unrealized_pnl), 0) as current_pnl
+            FROM algo_positions
+            WHERE status = 'open'
+        """)
+        row = cur.fetchone()
+        total_equity = float(row[0]) if row and row[0] else 0
+        current_pnl = float(row[1]) if row and row[1] else 0
 
-            if total_equity > 0:
-                variance = (current_pnl - open_pnl) / total_equity
-            else:
-                variance = 0
+        # Get open P&L from session start (market open)
+        cur.execute("""
+            SELECT COALESCE(SUM(unrealized_pnl), 0) as session_pnl
+            FROM algo_positions
+            WHERE status = 'open'
+        """)
+        session_row = cur.fetchone()
+        open_pnl = float(session_row[0]) if session_row and session_row[0] else 0
 
-            logger.info(f"Portfolio P&L: current={current_pnl:.2f}, open={open_pnl:.2f}, equity={total_equity:.2f}, variance={variance:.1%}")
-            return current_pnl, open_pnl, variance
+        cur.close()
+        conn.close()
+
+        if total_equity > 0:
+            variance = (current_pnl - open_pnl) / total_equity
+        else:
+            variance = 0
+
+        logger.info(f"Portfolio P&L: current={current_pnl:.2f}, open={open_pnl:.2f}, equity={total_equity:.2f}, variance={variance:.1%}")
+        return current_pnl, open_pnl, variance
 
     except Exception as e:
         logger.error(f"Failed to query portfolio P&L: {e}", exc_info=True)
         return None, None, None
 
-
 def lambda_handler(event, context):
     """Circuit breaker trigger - halt trading if variance too high."""
 
     try:
-        import psycopg2
-        from config.credential_manager import get_credential_manager
-
-        # Get current orchestrator state from Secrets Manager
-        secret = secretsmanager.get_secret_value(SecretId="algo/orchestrator")
-        state = json.loads(secret["SecretString"])
-
-        # Query database for portfolio P&L
-        cred_mgr = get_credential_manager()
-        db_creds = cred_mgr.get_db_credentials()
-
-        db_connection = psycopg2.connect(
-            host=db_creds['host'],
-            port=db_creds['port'],
-            database=db_creds['database'],
-            user=db_creds['username'],
-            password=db_creds['password']
-        )
-
-        current_pnl, open_pnl, variance = get_portfolio_pnl(db_connection)
-        db_connection.close()
+        current_pnl, open_pnl, variance = get_portfolio_pnl()
 
         if variance is None:
             logger.error("Unable to calculate variance — halting trading to be safe (fail-closed)")
-            # Fail-closed: update DynamoDB halt flag
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table_name = 'algo_orchestrator_state'
             table = dynamodb.Table(table_name)
             table.put_item(Item={
                 'key': 'orchestrator_halt',
@@ -116,12 +120,10 @@ def lambda_handler(event, context):
                 })
             }
 
-        threshold = 0.15  # 15% threshold
+        threshold = 0.15
         if variance > threshold:
-            logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds threshold {threshold:.1%}")
-
-            # Update DynamoDB halt flag (Orchestrator checks this, not Secrets Manager)
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}")
+            table_name = 'algo_orchestrator_state'
             table = dynamodb.Table(table_name)
             table.put_item(Item={
                 'key': 'orchestrator_halt',
@@ -141,8 +143,7 @@ def lambda_handler(event, context):
             }
         else:
             logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
-            # Clear halt flag when variance is within safe range
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table_name = 'algo_orchestrator_state'
             table = dynamodb.Table(table_name)
             table.put_item(Item={
                 'key': 'orchestrator_halt',
@@ -163,9 +164,8 @@ def lambda_handler(event, context):
 
     except Exception as e:
         logger.error(f"Circuit breaker check failed: {e}", exc_info=True)
-        # Fail-closed: on any error, halt trading and update DynamoDB
         try:
-            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table_name = 'algo_orchestrator_state'
             table = dynamodb.Table(table_name)
             table.put_item(Item={
                 'key': 'orchestrator_halt',

@@ -86,6 +86,13 @@ resource "aws_iam_role_policy" "circuit_breaker_policy" {
       {
         Effect = "Allow"
         Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:algo/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "ec2:CreateNetworkInterface",
           "ec2:DescribeNetworkInterfaces",
           "ec2:DeleteNetworkInterface",
@@ -208,6 +215,31 @@ resource "aws_scheduler_schedule" "circuit_breaker_12pm" {
     input = jsonencode({
       source     = "eventbridge-scheduler"
       check_time = "12pm"
+    })
+  }
+
+  depends_on = [aws_lambda_permission.circuit_breaker_scheduler]
+}
+
+resource "aws_scheduler_schedule" "circuit_breaker_3pm" {
+  count                        = var.eventbridge_scheduler_role_arn != "" ? 1 : 0
+  name                         = "${var.project_name}-circuit-breaker-3pm-${var.environment}"
+  description                  = "Pre-close portfolio variance check: halt trading if drawdown > 15% before 4 PM ET close"
+  schedule_expression          = "cron(0 15 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.circuit_breaker.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source     = "eventbridge-scheduler"
+      check_time = "3pm"
     })
   }
 
