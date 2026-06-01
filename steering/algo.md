@@ -170,30 +170,55 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
 - Circuit breaker: NO intraday protection. Add CloudWatch alarm on portfolio variance before live capital.
 
-## GitHub Actions Workflows
+## GitHub Actions Workflows (Consolidated Architecture)
 
-26 workflows exist in `.github/workflows/`. Consolidation plan:
+17 workflows (down from 25). Strategic consolidation maintains all functionality while reducing UI clutter and complexity.
 
-**Core Workflows (keep as-is):**
-- `deploy-all-infrastructure.yml` — Main deployment pipeline (Terraform + Lambda + frontend + migrations)
-- `deploy-code.yml` — Manual selective deployment
-- `deploy-staging.yml` — Staging dry-run deployment
-- `ci-fast-gates.yml` — Fast pre-commit validation (syntax, dependencies)
-- `build-lambda-layer.yml` — Build shared Python dependencies layer
-- `build-push-ecr.yml` — Build and push Docker image to ECR
-- `credential-rotation-reminder.yml` — Quarterly rotation reminder
-- `update-credentials.yml` — GitHub Secrets/Secrets Manager sync
+**Production Auto-Triggered (4 workflows):**
+- `deploy-all-infrastructure.yml` — Main deployment (push main): Terraform + code + migrations + frontend
+- `deploy-staging.yml` — Staging deployment (push staging): dry-run, separate Lambda
+- `ci-fast-gates.yml` — Pre-commit gating (push main): lint, unit tests, secret scanning
+- `build-push-ecr.yml` — Build container image (push main, on code changes): detects loaders/*, Dockerfile, requirements.txt
 
-**Diagnostic Workflows (consolidate or delete):**
-- `diagnose-api-lambda.yml` — Merge into manual test workflow
-- `check-lambda-logs.yml` — Merge into manual test workflow
-- `verify-both-envs.yml` — Merge into manual test workflow
-- `test-api-endpoint.yml`, `test-api-lambda.yml`, `test-eod-pipeline.yml`, `test-orchestrator.yml` — Consolidate into single parametrized `test-workflow.yml`
-- `refresh-dev-credentials.yml`, `reset-cognito-test-user.yml`, `rotate-credentials-simple.yml`, `rotate-developer-credentials.yml` — Consolidate into single `credential-management.yml`
-- `manual-invoke-loaders.yml`, `manual-invoke-orchestrator.yml`, `run-fred-loader.yml` — Consolidate into single `manual-run.yml`
-- `populate-and-test.yml`, `check-system-health.yml`, `verify-and-init-db.yml` — Consolidate into single `system-setup.yml`
+**Production Scheduled (3 workflows):**
+- `run-fred-loader.yml` — 5 AM ET Mon-Fri: Load FRED economic data (production requirement)
+- `rotate-developer-credentials.yml` — Quarterly (Feb/May/Aug/Nov): Auto-rotate AWS IAM keys via Terraform
+- `verify-both-envs.yml` — Every 6 hours: Health check across prod/staging
 
-**Action:** Delete diagnostic workflows; consolidate into 4 helper workflows. Reduces 26 → 12 workflows.
+**Infrastructure Builds (2 workflows):**
+- `build-lambda-layer.yml` — Manual dispatch: Build shared-deps Lambda layer
+- `verify-and-init-db.yml` — Manual dispatch + workflow_call: Initialize/verify database
+
+**Manual Credential Management (4 workflows - keep separate, different credential types):**
+- `rotate-developer-credentials.yml` — Scheduled + manual: Auto-rotate OUR AWS IAM key (Terraform-based)
+- `rotate-credentials-simple.yml` — Manual only: Fallback AWS IAM rotation when Terraform broken (AWS CLI-based)
+- `update-credentials.yml` — Manual dispatch: Sync third-party API keys (Alpaca, FRED) to Secrets Manager
+- `refresh-dev-credentials.yml` — Manual dispatch: Export dev credentials for local ~/.aws/credentials (supports PowerShell script)
+
+**Manual Invocation (2 workflows):**
+- `manual-invoke-loaders.yml` — Manual dispatch with loader_type selector: Invoke specific ECS loader task
+- `manual-invoke-orchestrator.yml` — Manual dispatch: Simple orchestrator Lambda invocation
+
+**Testing & Diagnostics (1 unified workflow):**
+- `test-and-debug.yml` — Manual dispatch with scenario selector: 8-option menu consolidating all testing/debugging
+  - Test Orchestrator (with date/dry-run/filters parameters)
+  - Populate Test Data & Run Orchestrator
+  - Test API Lambda (unit test suite)
+  - Test API Endpoint (HTTP integration test)
+  - Test EOD Pipeline (Step Functions E2E)
+  - Check Lambda Logs (diagnostic)
+  - Diagnose API Lambda (detailed troubleshooting)
+  - System Health Check (quick diagnostic)
+
+**Test-Specific (1 workflow):**
+- `reset-cognito-test-user.yml` — Manual dispatch: Reset Cognito test user password (small, focused)
+
+**Consolidation Rationale:**
+- Deleted `credential-rotation-reminder.yml` (informational only, now in steering docs)
+- Consolidated 8 testing workflows (test-orchestrator, populate-and-test, test-api-lambda, test-api-endpoint, test-eod-pipeline, check-lambda-logs, diagnose-api-lambda, check-system-health) into single menu-driven `test-and-debug.yml` with conditional job execution
+- Kept credential workflows separate (manage different credential types/methods; rotate-simple is critical fallback)
+- Kept scheduled jobs separate (consolidating breaks schedules)
+- Kept production paths untouched (deploy-all-infrastructure, ci-gates are sacred)
 
 ## Troubleshooting
 
