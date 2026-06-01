@@ -527,7 +527,8 @@ locals {
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Unified Price Loader — critical path; 4x parallelism reduces 46 min → ~12 min at similar cost
-    "stock_prices_daily" = { cpu = 2048, memory = 2048, timeout = 10800, parallelism = 4 }
+    # cpu=1024 (1 vCPU) + memory=2048 is the minimum valid Fargate combo at this memory tier
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 4 }
 
     # Financial statements
     "financials_annual_income"      = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
@@ -572,10 +573,10 @@ locals {
     # Signal processing
     "signal_themes"         = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
     # Critical path: 4x parallelism reduces ~90 min → ~25 min at similar cost
-    "signal_quality_scores" = { cpu = 2048, memory = 2048, timeout = 3600, parallelism = 4 }
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
 
     # BUY/SELL signals — critical path; 4x parallelism reduces ~28 min → ~8 min at similar cost
-    "buy_sell_daily" = { cpu = 2048, memory = 2048, timeout = 10800, parallelism = 4 }
+    "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 4 }
 
     # Technical indicators — critical path; 4x parallelism (already high CPU)
     "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 18000, parallelism = 4 }
@@ -584,10 +585,10 @@ locals {
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
 
     # Algo metrics — critical path; 4x parallelism reduces ~45 min → ~12 min at similar cost
-    "algo_metrics_daily" = { cpu = 2048, memory = 2048, timeout = 5400, parallelism = 4 }
+    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
 
     # Swing trader scores — critical path; 4x parallelism
-    "swing_trader_scores" = { cpu = 2048, memory = 2048, timeout = 3600, parallelism = 4 }
+    "swing_trader_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
 
     # FRED macro data — 27 series × ~2s each; 900s gives safe margin
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
