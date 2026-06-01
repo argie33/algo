@@ -833,15 +833,9 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
             where_clauses = []
             where_params = []
 
-            # SECURITY FIX C-NEW-01: Scope notifications to the requesting user unless admin.
-            # Without this, any authenticated user could read all users' notifications.
-            is_admin = _check_admin_access(jwt_claims)
-            if not is_admin:
-                user_id = (jwt_claims or {}).get('sub', '')
-                if not user_id:
-                    return error_response(401, 'unauthorized', 'Authentication required')
-                where_clauses.append("user_id = %s")
-                where_params.append(user_id)
+            # algo_notifications contains system-level events (circuit breaker, trades, market alerts).
+            # No user_id column exists — all authenticated users see all notifications.
+            # This is correct: notifications are system broadcasts, not per-user personal data.
 
             if kind:
                 where_clauses.append("kind = %s")

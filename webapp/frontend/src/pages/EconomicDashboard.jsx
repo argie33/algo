@@ -1162,7 +1162,6 @@ function NaaimPanel({ naaim }) {
 
 function EconomicRegimeClock({ indicators, _yieldData, phillyfed }) {
   const gdp = indicators?.find(i => (i.name || '').toLowerCase().includes('gdp'));
-  const indpro = indicators?.find(i => (i.name || '').toLowerCase().includes('industrial production'));
   const cpi = indicators?.find(i => (i.name || '').toLowerCase().includes('cpi'));
   const cfnai = indicators?.find(i => (i.name || '').toLowerCase().includes('chicago fed'));
 
@@ -1177,8 +1176,6 @@ function EconomicRegimeClock({ indicators, _yieldData, phillyfed }) {
   const growthScore = cfnaiVal != null
     ? Math.max(-1, Math.min(1, cfnaiVal))
     : (gdpTrend + phillyTrend) / 2;
-  // For display purposes: convert Philly Fed to ISM-like scale (centered at 50)
-  const ismVal = phillyRaw != null ? 50 + phillyRaw / 2 : (indpro?.trend === 'up' ? 55 : indpro?.trend === 'down' ? 45 : 50);
 
   // Inflation axis: CPI relative to 2% Fed target (positive = above target = inflationary)
   const cpiVal = cpi?.rawValue ? +cpi.rawValue : 2;
