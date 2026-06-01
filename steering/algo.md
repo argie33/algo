@@ -646,7 +646,7 @@ Phase 2 circuit breakers check daily P&L and portfolio health but do not respond
 
 ## CONFIGURATION SYSTEM
 
-All trading parameters (risk %, thresholds, filter settings, etc.) are stored in the `algo_config` database table and loaded fresh at each Lambda invocation. Configuration changes take effect on the next scheduled orchestrator run (max 3 hours), without requiring a code deploy.
+All trading parameters (risk %, thresholds, filter settings, etc.) are stored in the unified `algo_config` database table and loaded fresh at each Lambda invocation. Configuration changes take effect on the next scheduled orchestrator run (max 3 hours), without requiring a code deploy. Removed the unused RuntimeConfig hot-reload layer (migration 003, applied 2026-06-01).
 
 **How config flows:**
 1. **Local dev:** `AlgoConfig.__init__` loads defaults + queries `algo_config` table, falls back gracefully on DB errors
@@ -656,10 +656,16 @@ All trading parameters (risk %, thresholds, filter settings, etc.) are stored in
 
 **Infrastructure parameters** (execution_mode, dry_run, paper_trading, db credentials) are set via Terraform environment variables and cannot be hot-reloaded — they require a deployment to change.
 
+**Methods:**
+- `config.get(key, default)` — read a config value (from DB or DEFAULTS if DB unavailable)
+- `config.set(key, value, type, description, changed_by)` — persist to DB + audit log (for persistent changes like weight optimizer outputs)
+- `config.override(key, value)` — in-memory-only override, no DB write (for env vars, CLI args, test overrides). Wins over DB values for the current invocation only.
+
 **Config changes take effect:**
 - Trading parameters (via `algo_config` table): next Lambda invocation
 - Infrastructure parameters (via Terraform env vars): next deployment
 - Weight optimizer outputs (via `self.config.set()`): same invocation + all future invocations
+- Test/CLI overrides (via `config.override()`): current invocation only, not persisted
 
 ## SIGNAL FILTER ARCHITECTURE (Tier 2 market gate)
 
