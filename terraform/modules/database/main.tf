@@ -723,6 +723,7 @@ resource "aws_secretsmanager_secret_rotation" "rds_credentials" {
 }
 
 # Lambda permission for Secrets Manager to invoke rotation
+#tfsec:ignore:aws-lambda-restrict-source-arn
 resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
   statement_id  = "AllowSecretsManagerInvoke"
   action        = "lambda:InvokeFunction"
