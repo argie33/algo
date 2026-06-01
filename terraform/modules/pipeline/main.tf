@@ -811,7 +811,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
 }
 
 resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
-  statement_id  = "AllowStepFunctionsInvoke"
+  statement_id  = "AllowEODPipelineInvoke"
   action        = "lambda:InvokeFunction"
   function_name = var.loader_failure_handler_arn
   principal     = "states.amazonaws.com"
