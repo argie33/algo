@@ -400,6 +400,12 @@ module "monitoring" {
   sns_alerts_enabled             = var.sns_alerts_enabled
   sns_alerts_topic_arn           = coalesce(module.services.sns_alerts_topic_arn, "")
   eventbridge_scheduler_role_arn = module.iam.eventbridge_scheduler_role_arn
+
+  # Loader monitoring (F-04: CloudWatch alarms for 28+ supporting loaders)
+  ecs_log_group_name = module.pipeline.ecs_log_group_name
+  ecs_cluster_arn    = module.pipeline.ecs_cluster_arn
+  alert_email_to     = var.alert_email_to
+  alert_email_address = var.alert_email_address
 }
 
 module "lifecycle" {
