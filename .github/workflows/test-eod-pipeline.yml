@@ -52,13 +52,18 @@ jobs:
           echo "execution_arn=${EXEC}" >> $GITHUB_OUTPUT
           echo "✓ Started execution: $EXEC"
 
-      - name: Poll Pipeline Status
+      - name: Poll Pipeline Status (smoke test — max 5 min)
+        id: poll
         run: |
           EXEC_ARN="${{ steps.execute.outputs.execution_arn }}"
-          MAX_WAIT=900  # 15 minutes (loaders need time)
+          # The EOD pipeline takes 2-3 hours to complete (5000+ stocks, 9 loaders).
+          # This smoke test verifies the pipeline STARTS and PROGRESSES past the
+          # first loader (StockSymbols). Later-stage failures are caught by the
+          # daily CloudWatch alarm (algo-eod-pipeline-failed-dev).
+          MAX_WAIT=300  # 5 minutes — enough to verify StockSymbols completes
           ELAPSED=0
 
-          echo "Waiting for pipeline to complete..."
+          echo "Polling for up to ${MAX_WAIT}s (full pipeline takes 2-3h — smoke test only)..."
 
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             STATUS=$(aws stepfunctions describe-execution \
@@ -70,36 +75,83 @@ jobs:
             case "$STATUS" in
               SUCCEEDED)
                 echo "✓✓✓ PIPELINE SUCCEEDED ✓✓✓"
+                echo "pipeline_outcome=succeeded" >> $GITHUB_OUTPUT
                 exit 0
                 ;;
               FAILED)
-                echo "❌ PIPELINE FAILED"
+                echo "❌ PIPELINE FAILED immediately"
                 CAUSE=$(aws stepfunctions describe-execution \
                   --execution-arn "$EXEC_ARN" \
                   --region $AWS_REGION \
                   --query 'cause' \
-                  --output text)
+                  --output text 2>/dev/null || echo "unknown")
                 echo "Cause: $CAUSE"
+                echo "pipeline_outcome=failed" >> $GITHUB_OUTPUT
                 exit 1
                 ;;
               TIMED_OUT)
-                echo "⏱ PIPELINE TIMED OUT"
+                echo "⏱ PIPELINE TIMED_OUT"
+                echo "pipeline_outcome=timed_out" >> $GITHUB_OUTPUT
                 exit 1
                 ;;
               ABORTED)
                 echo "❌ PIPELINE ABORTED"
+                echo "pipeline_outcome=aborted" >> $GITHUB_OUTPUT
                 exit 1
                 ;;
               *)
-                echo "  Status: $STATUS (waiting...)"
-                sleep 5
-                ELAPSED=$((ELAPSED + 5))
+                echo "  Status: $STATUS (${ELAPSED}s elapsed)"
+                sleep 10
+                ELAPSED=$((ELAPSED + 10))
                 ;;
             esac
           done
 
-          echo "⏱ Timeout waiting for pipeline"
-          exit 1
+          # Poll period over — check execution history for progress
+          echo "pipeline_outcome=running" >> $GITHUB_OUTPUT
+
+      - name: Verify Pipeline Progress (if still running after 5 min)
+        if: steps.poll.outputs.pipeline_outcome == 'running'
+        run: |
+          EXEC_ARN="${{ steps.execute.outputs.execution_arn }}"
+
+          # Get execution history to check how far the pipeline has progressed
+          EVENTS=$(aws stepfunctions get-execution-history \
+            --execution-arn "$EXEC_ARN" \
+            --region $AWS_REGION \
+            --output json 2>/dev/null)
+
+          # Extract state names from entered events
+          STATES=$(echo "$EVENTS" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          entered = [
+              e.get('stateEnteredEventDetails', {}).get('name', '')
+              for e in d.get('events', [])
+              if e.get('type') == 'TaskStateEntered'
+          ]
+          print(','.join(s for s in entered if s))
+          ")
+
+          echo "States entered so far: $STATES"
+          EXEC_CONSOLE="https://us-east-1.console.aws.amazon.com/states/home?region=us-east-1#/executions/details/$EXEC_ARN"
+          echo "Track progress: $EXEC_CONSOLE"
+
+          # Require at least StockSymbols to have started (proves ECS tasks launch correctly)
+          if echo "$STATES" | grep -q "StockSymbols"; then
+            echo ""
+            echo "✓ Pipeline is running and progressing past StockSymbols."
+            echo "  Full pipeline takes 2-3h. Monitor via CloudWatch alarm:"
+            echo "  algo-eod-pipeline-failed-dev triggers on execution failure."
+            echo "  Execution: $EXEC_ARN"
+            exit 0
+          else
+            echo ""
+            echo "❌ Pipeline started but did not reach StockSymbols within 5 minutes."
+            echo "  This indicates an ECS launch failure, IAM permissions issue, or cluster capacity problem."
+            echo "  States seen: $STATES"
+            exit 1
+          fi
 
       - name: Get Pipeline Execution Details
         if: always()

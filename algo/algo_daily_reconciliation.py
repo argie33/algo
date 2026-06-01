@@ -8,7 +8,7 @@ from utils.database_context import DatabaseContext
 import logging
 from datetime import datetime, timezone
 from utils.trade_status import TradeStatus, PositionStatus
-from algo.algo_config import get_config
+from algo.algo_config import get_config, get_api_timeout
 from algo.algo_notifications import notify
 
 logger = logging.getLogger(__name__)

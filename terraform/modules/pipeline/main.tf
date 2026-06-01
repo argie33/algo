@@ -207,14 +207,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
-      # FIXED Issue #3: Timeout was 3600s but unified price loader needs 21600s (6 hours)
-      # FIXED Issue #9: ECS task timeout is 21600s, Step Functions timeout is also 21600s
-      # Timeout hierarchy: ECS container timeout < Step Functions state timeout
-      # Current: Both set to 21600s (6h) - ECS task fails first, SF receives error
+      # parallelism=4 + cpu=2048: ~12 min expected, 3h timeout (3x buffer for retries).
+      # Timeout hierarchy: ECS container timeout (10800) < Step Functions state timeout (14400)
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 21600
+        TimeoutSeconds = 14400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -405,13 +403,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 5: Generate daily signals ──────────────────────────
-      # NOTE: signals_weekly, signals_monthly, signals_etf_* loaders are planned but not yet implemented
-      # Current scope: daily signals only. Upgrade path: add weekly/monthly variants if needed.
+      # parallelism=4: ~8 min expected, 3h timeout for safety.
       # FIXED Issue #4: Graceful degradation — if signals fail, continue with available data
       SignalGeneration = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 21600
+        TimeoutSeconds = 10800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -456,12 +453,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
-      # FIXED Issue #1: Task definition timeout increased from 3600s to 5400s to match
+      # parallelism=4: ~25 min expected, 2h timeout for safety.
       # FIXED Issue #4: Graceful degradation — if quality scoring fails, continue with available data
       SignalQualityScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 5400
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -506,11 +503,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 7: Summarize signal quality metrics ──────────────────────────
+      # parallelism=4: ~12 min expected, 2h timeout for safety.
       # FIXED Issue #4: Graceful degradation — if metrics fail, continue with available data
       AlgoMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 10800
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
