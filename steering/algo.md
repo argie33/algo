@@ -41,16 +41,25 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 **Loaders:** 37 total (9 core, 28 supporting). See code for details.
 
-## Known Limitations
+## Known Limitations (Blocking Live Capital)
 
-1. **Intraday pricing stale:** 1 PM and 3 PM runs use yesterday's close (price_daily loaded once daily at 4 AM). Position sizing may be wrong if stock gaps 10%+ at open.
-2. **No intraday circuit breaker:** Phase 2 checks daily P&L only. 15% market drop in first 30min won't halt trading.
+1. **Intraday pricing stale:** Prices loaded once daily at 4 AM (price_daily table). 1 PM and 3 PM orchestrator runs use 4 AM close prices, not current intraday prices. Position sizing is wrong if a stock gaps 10%+ at open. FIX: Integrate real-time feed (IEX Cloud, Alpaca) before live capital.
+
+2. **No intraday circuit breaker:** Phase 2 circuit breaker checks daily P&L only. If SPY drops 15% in the first 30 minutes of trading, the orchestrator doesn't run until 1 PM. No automated protection to halt trading mid-day. FIX: Add CloudWatch alarm on portfolio variance + auto-halt step in Phase 2 before live capital.
 
 ## Analytics Loader OOM Risk
 
-company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 5000+ symbols with yfinance rate limits and can run 6+ hours. If any is still running when the orchestrator fires, the t4g.micro RDS OOMs. Fix: kill any ECS loader running > 2 hours before orchestrator runs.
+company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 5000+ symbols with yfinance rate limits and can run 6+ hours. If any is still running when the orchestrator fires, the t4g.micro RDS OOMs. **FIX IMPLEMENTED**: Orchestrator now automatically kills any analytics loader running > 2 hours during pre-flight checks.
 
-Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate runs. Lock auto-releases on exit/crash. To stop runaway tasks: `aws ecs stop-task --cluster algo-cluster --task <ARN>`.
+Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate runs. Lock auto-releases on exit/crash. Manual stop if needed: `aws ecs stop-task --cluster algo-cluster --task <ARN>`.
+
+## Supporting Loader Failure Monitoring Gap
+
+**Problem:** 9 core loaders run in Step Functions EOD pipeline (4:30 AM) with centralized failure monitoring. 28 supporting loaders run via independent EventBridge schedules with NO centralized failure alerting. If a supporting loader fails silently, Phase 1 won't catch the stale data until 9:30 AM — too late to prevent trading on bad data.
+
+**Current workaround:** Check loader-result-logger CloudWatch logs for failures. Check loader-execution Lambda logs.
+
+**Recommended fix:** Add CloudWatch alarms for each EventBridge schedule that trigger on ECS task failure + log to SNS topic for pre-market alerting.
 
 ## Orchestrator Phases
 

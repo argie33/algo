@@ -103,6 +103,61 @@ class Orchestrator:
 
         return False
 
+    def _kill_long_running_loaders(self) -> None:
+        """CRITICAL: Kill analytics loaders running > 2 hours to prevent OOM crashes.
+
+        Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
+        iterate 5000+ symbols with yfinance rate limits and can run 6+ hours. If any is still
+        running when orchestrator fires, t4g.micro RDS OOMs. This check prevents that.
+        """
+        try:
+            import boto3
+            ecs = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+            cluster = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+
+            analytics_loaders = {'company_profile', 'analyst_sentiment', 'stability_metrics', 'value_metrics'}
+
+            # List running tasks
+            response = ecs.list_tasks(cluster=cluster, desiredStatus='RUNNING')
+            if not response.get('taskArns'):
+                return
+
+            # Get task details (includes startedAt timestamp)
+            task_details = ecs.describe_tasks(cluster=cluster, tasks=response['taskArns'])
+            now = datetime.now(timezone.utc)
+            two_hours = timedelta(hours=2)
+
+            for task in task_details.get('tasks', []):
+                # Extract loader name from task definition (format: algo-LOADER_NAME-loader:1)
+                task_def = task.get('taskDefinitionArn', '')
+                loader_name = None
+                for analytics_loader in analytics_loaders:
+                    if analytics_loader in task_def:
+                        loader_name = analytics_loader
+                        break
+
+                if not loader_name:
+                    continue  # Skip non-analytics loaders
+
+                started_at = task.get('startedAt')
+                if not started_at:
+                    continue
+
+                # Convert startedAt to UTC-aware datetime if needed
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=timezone.utc)
+
+                age = now - started_at
+                if age > two_hours:
+                    task_arn = task.get('taskArn')
+                    logger.warning(f"[OOM_PREVENTION] Killing {loader_name} task (running {age.total_seconds() / 3600:.1f}h): {task_arn}")
+                    ecs.stop_task(cluster=cluster, task=task_arn, reason='Long-running loader OOM prevention')
+                    self.log_phase_result(0, 'oom_prevention', 'success', f'Killed {loader_name} task running {age.total_seconds() / 3600:.1f}h')
+
+        except Exception as e:
+            logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
+            # Don't halt trading for this check - it's advisory
+
     def _initialize_feature_flags(self) -> None:
         """Initialize feature flags with safe defaults on startup."""
         # In AWS Lambda, skip feature flag initialization (uses defaults only)
@@ -506,6 +561,9 @@ class Orchestrator:
                 return report
             else:
                 logger.info("[OK] Database connectivity check passed")
+
+            logger.info("\n[CHECK] Killing long-running analytics loaders...")
+            self._kill_long_running_loaders()
 
             if self.degraded_mode and self.dry_run:
                 logger.info("[DRY-RUN] Running in planning mode — skipping all trading phases.")
