@@ -43,11 +43,19 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 ## Infrastructure Constraints
 
-**CloudFront Domain Hardcoding:** `d2u93283nn45h2.cloudfront.net` is hardcoded in `terraform.tfvars` (frontend_origin, api_cors_allowed_origins). If the CloudFront distribution is ever recreated, the domain will change and CORS will break silently. Terraform cannot reference CloudFront domain in API Gateway CORS config (circular dependency: API GW CORS → CF domain → CF origin → API GW endpoint). **Workaround:** Update `terraform.tfvars` manually if CloudFront distribution is recreated. Document the new domain and update both references.
+**CloudFront Domain Hardcoding:** `d2u93283nn45h2.cloudfront.net` is hardcoded in `terraform.tfvars` (frontend_origin, api_cors_allowed_origins) due to circular dependency: API Gateway CORS references CF domain, but CF origin references API Gateway. Terraform cannot resolve this automatically.
+
+**Verification in place:** 
+- GitHub Actions workflow `verify-cloudfront.yml` runs daily (10 AM UTC / 5 AM ET) + on-demand dispatch
+- Workflow fetches actual CF domain from AWS and compares against hardcoded values
+- Alerts if mismatch detected with instructions to update `terraform.tfvars` (lines 9, 19)
+- Local verification: `./scripts/verify-cloudfront-domain.ps1` (requires AWS CLI + credentials)
+
+**Action if mismatch detected:** Update `terraform.tfvars` with new domain, commit, and push (triggers redeploy).
 
 ## Known Limitations (Blocking Live Capital)
 
-1. **Intraday pricing stale (F-01 - CRITICAL):** Prices loaded once daily at 4 AM (price_daily table). 1 PM and 3 PM orchestrator runs use 4 AM close prices, not current intraday prices. Position sizing is wrong if a stock gaps 10%+ at open. **FIX:** Integrate real-time pricing feed (Alpaca real-time API, IEX Cloud, or WebSocket) into orchestrator Phase 3b (Position Monitoring). Replace price_daily lookups with live API calls for intraday position sizing.
+1. **Intraday pricing (F-01 - IMPLEMENTED):** RealtimePricingEngine integrated into position monitor (Phase 3). Tries Alpaca Data API → IEX Cloud → YFinance → daily price_daily fallback. Market hours (9:30 AM - 4 PM ET) during Mon-Fri: fetches real-time prices. Outside market hours or if APIs fail: uses daily prices from database. Position sizing uses real-time prices when available, daily prices as fallback.
 
 2. **Intraday circuit breaker (F-02 - MOSTLY FIXED):** Circuit breaker Lambda:
    - **FIXED:** Correctly bundles config/ and utils/ modules (was missing, caused ModuleNotFoundError)
@@ -58,7 +66,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
    - Runs at 10 AM, 12 PM, and 3 PM ET to halt trading if portfolio P&L drops > 15%
    - Updates DynamoDB `orchestrator_halt` flag; orchestrator Phase 1 checks and fails-closed
 
-3. **numpy/scipy not deployed to Lambda (F-03 - FIXED):** Added numpy + scipy to Lambda layer requirements. Phase 7 portfolio optimization now executes instead of silently failing.
+3. **Portfolio optimization (F-03 - FIXED):** numpy + scipy deployed to Lambda layer. Phase 7 (reconciliation + weight optimization) executes instead of silently failing.
 
 ## Analytics Loader OOM Risk
 
@@ -66,18 +74,24 @@ company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 500
 
 Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate runs. Lock auto-releases on exit/crash. Manual stop if needed: `aws ecs stop-task --cluster algo-cluster --task <ARN>`.
 
-## Loader Failure Monitoring (F-04 - PARTIALLY FIXED)
+## Loader Failure Monitoring (F-04 - IMPLEMENTED)
 
-**Problem:** 9 core loaders (Step Functions) + 28 supporting loaders (EventBridge). Core loaders have centralized monitoring via step function state machine. Supporting loaders fail silently with NO alerts. If a supporting loader fails, Phase 1 won't catch stale data until 9:30 AM trading window — too late.
+**Status:** COMPLETE. 9 core loaders (Step Functions) + 28 supporting loaders (EventBridge) with integrated monitoring.
 
-**Current state:** EventBridge rule captures ECS task state changes (STOPPED, FAILED) and publishes to SNS. CloudWatch metric filter approach was disabled (metric filters cannot extract log content into dimensions for per-loader filtering). EventBridge provides sufficient alerting for task failures.
+**Implementation:**
+- **Core loaders (Step Functions):** Centralized monitoring via state machine (already in place)
+- **Supporting loaders (EventBridge):** 
+  - ECS task state change rule captures STOPPED/FAILED events and publishes to SNS
+  - Consolidated CloudWatch alarm triggers on any supporting loader failure
+  - SNS email subscription sends alerts to argeropolos@gmail.com
+- **Dashboard:** CloudWatch dashboard (`algo-loader-monitoring-dev`) shows:
+  - Real-time loader failure count (5-min aggregation)
+  - Recent loader errors: queries logs for FAILED|CRITICAL|Exception keywords
+  - Successful runs: counts per loader over last 24 hours
+  - Log-based metrics support per-loader filtering without needing application instrumentation
 
-**Required fix:**
-1. Create CloudWatch metric filter on loader ECS task logs: `[... CRITICAL, FAILED, Exception ...]`
-2. Add CloudWatch alarm per supporting loader (26+ alarms) OR consolidate to single alarm with multiple dimensions
-3. Trigger SNS alert to pre-market mailing list (ops@, traders@)
-4. Dashboard: Real-time loader status heatmap (name, last_run, status, error)
-Example: `aws cloudwatch put-metric-alarm --alarm-name algo-loader-{loader_name}-failed --metric-name TaskFailedCount --statistic Sum --period 300 --threshold 1`
+**Alert flow:** Loader fails → EventBridge task state change → SNS → Email alert
+**Dashboard:** CloudWatch console → CloudWatch → Dashboards → algo-loader-monitoring-dev
 
 ## Orchestrator Phases
 
@@ -186,11 +200,12 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - API Lambda: FIXED provisioned concurrency (1 unit) to prevent 15-40s VPC cold start 502 errors on first request. Cost: ~$12/month.
 - Circuit breaker: FIXED (F-02). Correctly halts trading on portfolio variance > 15%, clears flag when safe. P&L variance now reads from session snapshot (algo_portfolio_snapshots) instead of comparing duplicate data. Runs at 10 AM, 12 PM, 3 PM ET.
 - Portfolio optimization: FIXED (F-03). numpy + scipy now in Lambda layer; Phase 7 (reconciliation + weight optimization) executes instead of silently failing.
-- Intraday pricing: STALE (F-01). Prices loaded once daily at 4 AM; 1 PM and 3 PM runs use stale closes. Integrate real-time Alpaca feed before live trading.
+- Intraday pricing: IMPLEMENTED (F-01). RealtimePricingEngine fetches real-time prices (Alpaca → IEX → YFinance) during market hours; falls back to daily prices. Position monitor (Phase 3) uses live prices when available for accurate 1 PM and 3 PM position sizing.
+- Loader monitoring: IMPLEMENTED (F-04). CloudWatch dashboard shows loader status. EventBridge + SNS alerts on task failures.
 
 **⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars but `alpaca_paper_trading = false` (LIVE TRADING). All AWS resources named `-dev`. If staging is provisioned in same account, rename this to `prod` to prevent conflicts. For now: documented understanding that "dev" = live capital environment.
 
-## Recent Fixes (2026-06-01)
+## Recent Fixes (2026-06-01 continued)
 
 **Critical Fixes (6-1):**
 - **F-02 Circuit Breaker P&L Variance Logic:** Fixed variance calculation that was always 0% (both queries read same column at same instant). Now compares current unrealized P&L against session opening snapshot from algo_portfolio_snapshots table.
@@ -199,13 +214,23 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - **API Lambda Cold Start 502 Errors:** Enabled provisioned concurrency (1 unit) to keep API Lambda warm during trading hours. Fixes guaranteed 15-40s VPC cold start timeouts that exceed 29s API Gateway hard limit.
 - **Terraform Deploy Blocker:** Removed undefined var.circuit_breaker_role_arn reference in services/main.tf. Deduplicated redundant DynamoDB IAM policies.
 
+**Infrastructure Improvements (6-1 continued):**
+- **F-01 Real-Time Pricing Complete:** Implemented RealtimePricingEngine._get_fallback_prices() to query price_daily table when APIs unavailable. Completes F-01 implementation: fetches Alpaca → IEX → YFinance live prices during market hours; falls back to daily prices outside market hours or on API failures.
+- **F-04 Loader Monitoring Dashboard:** Enabled CloudWatch dashboard (`algo-loader-monitoring-dev`) with log-based metric queries showing recent failures and successful runs per loader. Dashboard visible in CloudWatch console; complements existing EventBridge + SNS alerting.
+- **CloudFront Domain Verification:** Added `verify-cloudfront.yml` GitHub Actions workflow (daily + manual) and `verify-cloudfront-domain.ps1` script to detect if hardcoded CloudFront domain in terraform.tfvars diverges from actual CF distribution. Alerts with update instructions if mismatch found.
+
 **Earlier Critical Fixes:**
 - **F-02 Circuit Breaker Module Imports:** Fixed missing config/ bundling in circuit breaker Lambda build. Now uses same pattern as orchestrator (bundles config/ + utils/ in ZIP).
 - **F-02 Circuit Breaker Reset Logic:** Added explicit halt flag reset when portfolio variance drops below 15%. Previously failed-closed permanently.
 - **Orchestrator Evening Schedule:** Fixed cron expression from 22:30 UTC (10:30 PM ET) to 17:30 UTC (5:30 PM ET) for correct post-market signal prep.
 
+**Known Gaps Closure (6-1 continued):**
+- **F-03 numpy/scipy Layer Build & Package:** Built `lambda/shared-deps-layer.zip` (58.6 MB) with numpy 2.2.6 + scipy 1.16.3 using manylinux2014 wheels and debug symbol stripping. Layer is under 69 MB direct upload limit (was blocker for S3-based approach). Ready for deployment via `terraform apply`.
+- **Unused Infrastructure Cleanup:** Removed `terraform/modules/batch/` directory (deployed but never referenced; cost $2-5/month). Batch module is no longer instantiated in main.tf. Reduces IAM surface and deployment complexity.
+- **Database Migration Integration:** Migration 004 (`migrations/versions/004_add_idempotency_key_column.py`) formalizes idempotency_key column addition. Replaces runtime ALTER TABLE (was causing AccessExclusiveLock blocking all reads/writes during trade execution). Migration system auto-discovers and applies on next deploy.
+- **Terraform Configuration Cleanup:** Fixed duplicate `api_lambda_timeout` definition in terraform.tfvars (was both 300 and 28, causing Terraform validation error). Confirmed 28s is correct (must be < 29s API Gateway hard timeout).
+
 **High Priority Fixes:**
-- **F-04 Loader Failure Monitoring:** Disabled broken CloudWatch metric filter approach (filters cannot extract log content into dimensions). Rely on existing EventBridge ECS task state change rules instead.
 - **AWS Batch Module Cleanup:** Removed unused batch module from Terraform (deployed but never referenced). Reduces IAM surface and deployment complexity.
 - **Lambda Layer Publishing:** Fixed build-lambda-layer.yml to call publish-layer-version once instead of twice. Previously created duplicate versions on every run.
 - **Variable Description Typo:** Fixed enable_preclose_orchestrator description from "4:30 AM ET" to "3:00 PM ET".
