@@ -483,12 +483,6 @@ jobs:
             fi
           }
 
-          # Import Batch IAM Roles dynamically (derived from project_name)
-          import_if_missing module.batch.aws_iam_role.batch_service_role "${PROJECT_NAME}-batch-service-role"
-          import_if_missing module.batch.aws_iam_role.batch_ecs_instance_role "${PROJECT_NAME}-batch-ecs-instance-role"
-          import_if_missing module.batch.aws_iam_role.batch_job_role "${PROJECT_NAME}-batch-job-role"
-          import_if_missing module.batch.aws_iam_role.batch_spot_fleet_role "${PROJECT_NAME}-batch-spot-fleet-role"
-
           # Import S3 backend bucket dynamically
           import_if_missing module.bootstrap.aws_s3_bucket.terraform_state "$STATE_BUCKET"
 

@@ -569,7 +569,7 @@ variable "enable_premarket_orchestrator" {
 }
 
 variable "enable_preclose_orchestrator" {
-  description = "Enable pre-close (4:30 AM ET) orchestrator execution for early entry prep"
+  description = "Enable pre-close (3:00 PM ET) orchestrator execution for final trades before market close"
   type        = bool
   default     = false
 }

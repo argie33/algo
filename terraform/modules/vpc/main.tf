@@ -525,3 +525,22 @@ resource "aws_vpc_endpoint" "route53_resolver" {
     Name = "${var.project_name}-route53resolver-endpoint"
   })
 }
+
+# Cognito IDP Interface Endpoint - Required for Lambda JWT validation in private subnets.
+# Without this endpoint, Lambdas in private VPC subnets cannot reach cognito-idp.us-east-1.amazonaws.com
+# causing 30-second timeouts on every protected API request -> 503 errors at API Gateway.
+# The Lambda SG already allows HTTPS to VPC CIDR (10.0.0.0/16); VPC endpoint ENIs use private IPs
+# within the VPC, so no security group changes are needed.
+resource "aws_vpc_endpoint" "cognito_idp" {
+  count               = var.enable_vpc_endpoints ? 1 : 0
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.cognito-idp"
+  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  subnet_ids          = aws_subnet.private[*].id
+  private_dns_enabled = true
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-cognito-idp-endpoint"
+  })
+}

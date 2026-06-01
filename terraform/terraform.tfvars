@@ -9,16 +9,13 @@ project_name = "algo"
 frontend_origin = "https://d2u93283nn45h2.cloudfront.net"
 # Frontend deployment
 cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
-# API Gateway CORS configuration
-# Includes localhost for local dev and the CloudFront domain for production.
+# API Gateway CORS configuration - Production ONLY
 # CRITICAL HARDCODING: The CloudFront domain (d2u93283nn45h2.cloudfront.net) cannot be a Terraform
 # resource reference here due to circular dependency: API GW CORS → CF domain → CF origin → API GW.
 # If CloudFront distribution is recreated, UPDATE THIS LIST IMMEDIATELY or CORS will break silently.
 # Last updated: 2026-05-29. Check CloudFront distributions in AWS console to verify current domain.
+# NOTE: localhost origins for local development should be in terraform.local.tfvars (git-ignored).
 api_cors_allowed_origins = [
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "http://localhost:5174",
   "https://d2u93283nn45h2.cloudfront.net"
 ]
 # ORCHESTRATOR SCHEDULE: 3 runs during market hours
@@ -30,7 +27,7 @@ api_cors_allowed_origins = [
 # Pre-close (3:00 PM ET): FINAL execution before 4 PM ET market close, SLA finish by 3:15 PM ET [enabled]
 # Evening (5:30 PM ET): AFTER CLOSE - signal prep for next day only, no trading [managed separately]
 algo_schedule_enabled         = true
-algo_schedule_expression      = "cron(30 22 ? * MON-FRI *)" # 10:30 PM UTC = 5:30 PM ET (signal prep, not trading)
+algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (signal prep, not trading)
 enable_premarket_orchestrator = false                       # Disabled: not during market hours
 enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance

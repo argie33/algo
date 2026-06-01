@@ -59,24 +59,13 @@ locals {
   ]
 }
 
-# CloudWatch Metric Filter: Generic loader failure pattern
-# Applies to all loaders, creates per-loader metrics
-resource "aws_cloudwatch_log_metric_filter" "loader_failure_pattern" {
-  count          = var.ecs_log_group_name != "" ? 1 : 0
-  name           = "LoaderFailurePattern"
-  log_group_name = var.ecs_log_group_name
-  pattern = "[... ERROR, FAILED, EXCEPTION, CRITICAL ...]"
-
-  metric_transformation {
-    name      = "LoaderFailureCount"
-    namespace = "${var.project_name}/Loaders"
-    value     = "1"
-
-    # Extract loader name from log (pattern: [loader_name] ERROR ...)
-    # This allows per-loader filtering in CloudWatch
-    default_value = 0
-  }
-}
+# CloudWatch Metric Filter for loader failures (DISABLED)
+# NOTE: Metric filters cannot extract log content into dimensions after emission.
+# Per-loader filtering requires either EMF (Embedded Metric Format) from application code,
+# or EventBridge on ECS task state changes (implemented below). We use EventBridge instead.
+#
+# Keeping metric filter definition for potential future use, but it's not functional
+# for per-loader alarms without application-level metric instrumentation.
 
 # ============================================================
 # 3. CloudWatch Alarms Per Loader
@@ -84,33 +73,10 @@ resource "aws_cloudwatch_log_metric_filter" "loader_failure_pattern" {
 # Create individual alarms for high-impact loaders
 # Consolidated alarm for all other loaders
 
-# Critical loaders (core data): stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily
-resource "aws_cloudwatch_metric_alarm" "per_loader_failures" {
-  for_each = toset([
-    "stock_symbols",
-    "technical_data_daily",
-    "market_health_daily",
-  ])
-
-  alarm_name          = "${var.project_name}-loader-${each.value}-failed-${var.environment}"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "LoaderFailureCount"
-  namespace           = "${var.project_name}/Loaders"
-  period              = "300"  # 5 minutes
-  statistic           = "Sum"
-  threshold           = "1"
-  alarm_description   = "CRITICAL: Loader ${each.value} failed — may cause stale data"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    LoaderName = each.value
-  }
-
-  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
-
-  tags = var.common_tags
-}
+# Per-loader CloudWatch alarms (DISABLED)
+# These were attempting to filter by LoaderName dimension, but CloudWatch metric filters
+# cannot extract log content into dimensions after metric emission. We rely on EventBridge
+# task state change rules instead (defined below), which provide per-loader granularity.
 
 # Supporting loaders: Consolidated alarm (any failure in the group triggers alert)
 resource "aws_cloudwatch_metric_alarm" "supporting_loader_failures" {

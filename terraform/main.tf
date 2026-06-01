@@ -162,30 +162,6 @@ module "compute" {
   common_tags                            = local.common_tags
 }
 
-module "batch" {
-  source = "./modules/batch"
-
-  project_name                  = var.project_name
-  environment                   = var.environment
-  aws_region                    = var.aws_region
-  aws_account_id                = local.aws_account_id
-  vpc_id                        = module.vpc.vpc_id
-  private_subnet_ids            = module.vpc.private_subnet_ids
-  ecs_tasks_security_group_id   = module.vpc.ecs_tasks_security_group_id
-  data_bucket_name              = module.storage.data_loading_bucket_name
-  ecr_repository_uri            = module.compute.ecr_repository_url
-  db_host                       = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
-  db_port                       = local.db_port
-  db_name                       = var.rds_db_name
-  db_user                       = var.rds_username
-  rds_secret_arn                = module.database.rds_credentials_secret_arn
-  cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
-  batch_max_vcpus               = var.batch_max_vcpus
-  batch_instance_types          = var.batch_instance_types
-  batch_spot_bid_percentage     = var.batch_spot_bid_percentage
-  common_tags                   = local.common_tags
-}
-
 module "loaders" {
   source = "./modules/loaders"
 

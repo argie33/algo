@@ -550,15 +550,13 @@ def require_auth(event: Dict, path: str) -> tuple:
     # /api/settings - user-specific settings
 
     # Check if path matches any public prefix
-    # Match: exact, /path/subpath, ?query, -hyphenated (e.g., /api/market-health), or no separator
+    # Match: exact route or /path/subpath (strict matching to prevent auth bypass)
     def matches_prefix(p, prefix):
         if p == prefix:
             return True
         if p.startswith(prefix + '/'):
             return True
         if p.startswith(prefix + '?'):
-            return True
-        if p.startswith(prefix + '-'):  # Handle hyphenated endpoints like /api/market-health
             return True
         return False
 

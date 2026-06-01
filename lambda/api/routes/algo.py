@@ -91,6 +91,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return error_response(403, 'forbidden', 'Admin access required')
             return _analyze_pre_trade_impact(cur, body)
         if path == '/api/algo/status':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo status access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_algo_status(cur)
         elif path == '/api/algo/trades':
             if not _check_admin_access(jwt_claims):
@@ -110,12 +113,21 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return error_response(403, 'forbidden', 'Admin access required')
             return _get_algo_performance(cur)
         elif path == '/api/algo/circuit-breakers':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo circuit-breakers access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_circuit_breakers(cur)
         elif path == '/api/algo/equity-curve':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo equity-curve access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             days_str = params.get('limit', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=180)
             return _get_equity_curve(cur, days)
         elif path == '/api/algo/data-status':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo data-status access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_data_status(cur)
         elif path == '/api/algo/notifications':
             return _get_notifications(cur, params)

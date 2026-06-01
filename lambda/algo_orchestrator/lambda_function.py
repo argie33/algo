@@ -3,7 +3,7 @@
 Lambda handler for the Algo Orchestrator.
 
 Wraps the 7-phase orchestrator in a Lambda-compatible handler.
-Supports both scheduled execution (EventBridge) and manual invocation (test-orchestrator.yml).
+Supports both scheduled execution (EventBridge) and manual invocation (test-and-debug.yml).
 """
 
 import json

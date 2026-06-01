@@ -231,7 +231,7 @@ resource "aws_lambda_permission" "cognito_invoke_email_lambda" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.cognito_email_trigger[0].function_name
   principal     = "cognito-idp.amazonaws.com"
-  source_arn    = aws_cognito_user_pool.stocks_trading.arn
+  source_arn    = "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/*"
 }
 
 # Data source for current AWS account
