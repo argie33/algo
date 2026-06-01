@@ -207,12 +207,20 @@ class SwingTraderScoresLoader(OptimalLoader):
                     'composite_sqs': round(composite, 1),
                     'pass_gates': pass_gates,
                     'fail_reason': fail_reason,
-                    # Component names match algo_filter_pipeline.py expectations (pts + max keys)
-                    'setup_quality': {'pts': round((setup / 100.0) * 25, 1), 'max': 25},
-                    'trend_quality': {'pts': round((trend / 100.0) * 20, 1), 'max': 20},
-                    'momentum_rs':   {'pts': round((momentum / 100.0) * 20, 1), 'max': 20},
-                    'volume':        {'pts': round((volume / 100.0) * 12, 1), 'max': 12},
-                    'fundamentals':  {'pts': round((fundamentals / 100.0) * 10, 1), 'max': 10},
+                    # Raw 0-100 scores — used by SwingCandidates.jsx component bars
+                    'setup':       round(setup, 1),
+                    'trend':       round(trend, 1),
+                    'momentum':    round(momentum, 1),
+                    'volume':      round(volume, 1),
+                    'fundamentals': round(fundamentals, 1),
+                    'sector':      round(sector, 1),
+                    'multi_tf':    round(multi_tf, 1),
+                    # Weighted pts breakdown — used by algo_filter_pipeline.py
+                    'setup_quality':   {'pts': round((setup / 100.0) * 25, 1), 'max': 25},
+                    'trend_quality':   {'pts': round((trend / 100.0) * 20, 1), 'max': 20},
+                    'momentum_rs':     {'pts': round((momentum / 100.0) * 20, 1), 'max': 20},
+                    'volume_quality':  {'pts': round((volume / 100.0) * 12, 1), 'max': 12},
+                    'fundamentals_quality': {'pts': round((fundamentals / 100.0) * 10, 1), 'max': 10},
                     'sector_industry': {'pts': round((sector / 100.0) * 8, 1), 'max': 8},
                     'multi_timeframe': {'pts': round((multi_tf / 100.0) * 5, 1), 'max': 5},
                 })

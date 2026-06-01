@@ -115,7 +115,11 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     sm.volatility_252d AS volatility_12m_val,
                     pm.institutional_ownership AS inst_own_val,
                     pm.insider_ownership AS insider_own_val,
-                    pm.short_interest_percent AS short_pct_val
+                    pm.short_interest_percent AS short_pct_val,
+                    tdd.rsi_14 AS tdd_rsi,
+                    tdd.macd AS tdd_macd,
+                    ROUND(CASE WHEN tdd.sma_50 > 0 THEN ((lp.current_close - tdd.sma_50) / tdd.sma_50 * 100) END, 2) AS price_vs_sma_50,
+                    ROUND(CASE WHEN tdd.sma_200 > 0 THEN ((lp.current_close - tdd.sma_200) / tdd.sma_200 * 100) END, 2) AS price_vs_sma_200
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 LEFT JOIN etf_symbols etfs ON etfs.symbol = sc.symbol
@@ -127,6 +131,12 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 LEFT JOIN positioning_metrics pm ON pm.symbol = sc.symbol
                 LEFT JOIN latest_prices lp ON lp.symbol = sc.symbol
                 LEFT JOIN prev_prices pp ON pp.symbol = sc.symbol
+                LEFT JOIN LATERAL (
+                    SELECT rsi_14, macd, sma_50, sma_200
+                    FROM technical_data_daily
+                    WHERE symbol = sc.symbol
+                    ORDER BY date DESC LIMIT 1
+                ) tdd ON true
                 {where_clause}
                 AND etfs.symbol IS NULL
                 ORDER BY {sort_col} {sort_direction}
@@ -174,7 +184,11 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     'short_percent_of_float': _f(d.get('short_pct_val')),
                 }
                 d['momentum_inputs'] = {
-                    'current_price': _f(d.get('current_price')),
+                    'current_price':    _f(d.get('current_price')),
+                    'price_vs_sma_50':  _f(d.get('price_vs_sma_50')),
+                    'price_vs_sma_200': _f(d.get('price_vs_sma_200')),
+                    'rsi':              _f(d.get('tdd_rsi')),
+                    'macd':             _f(d.get('tdd_macd')),
                 }
                 items.append(d)
 
