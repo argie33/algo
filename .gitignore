@@ -107,6 +107,13 @@ paper_mode_reports/
 .claude/*.lock
 .claude/scheduled_tasks.lock
 
+# Windows path-expansion artifacts (scripts that use ~ literally instead of $HOME on Windows)
+~
+~/
+~*/
+.aws-tmp/
+**/.aws-tmp/
+
 # SAM build outputs
 .aws-sam/
 **/lambda-build/
