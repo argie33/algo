@@ -180,8 +180,10 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Authentication: ENABLED (cognito_enabled = true). Primary user: argeropolos@gmail.com.
 - Email: DISABLED (cognito_custom_email_enabled = false). See "Authentication & Email" section to enable.
 - RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
-- Circuit breaker: FIXED. Now correctly halts trading on portfolio variance > 15%, clears flag when safe (F-02).
+- Circuit breaker: FIXED. Now correctly halts trading on portfolio variance > 15%, clears flag when safe (F-02). Runs at 10 AM, 12 PM, 3 PM ET.
 - Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
+
+**⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars but `alpaca_paper_trading = false` (LIVE TRADING). All AWS resources named `-dev`. If staging is provisioned in same account, rename this to `prod` to prevent conflicts. For now: documented understanding that "dev" = live capital environment.
 
 ## Recent Fixes (2026-06-01)
 

@@ -121,8 +121,8 @@ resource "aws_lambda_function" "data_freshness_monitor" {
 resource "aws_cloudwatch_event_rule" "data_freshness_schedule" {
   count               = var.enable_data_freshness_monitoring ? 1 : 0
   name                = "${var.project_name}-data-freshness-monitor-${var.environment}"
-  description         = "Trigger data freshness check every 6 hours"
-  schedule_expression = "rate(6 hours)"
+  description         = "Trigger data freshness check hourly during pre-market (2 AM - 10 AM ET Mon-Fri)"
+  schedule_expression = "cron(0 2-10 ? * MON-FRI *)"
   state               = "ENABLED"
 
   tags = var.common_tags

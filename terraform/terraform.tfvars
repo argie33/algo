@@ -53,6 +53,7 @@ data_patrol_timeout_ms          = 30000
 alpaca_paper_trading            = false  # LIVE trading mode
 api_lambda_timeout              = 300
 api_lambda_reserved_concurrency = 30   # MarketsHealth fires 26 concurrent calls on load (4 indices + 11 sector tiles + 4 VIX + 5 main + 2 extras). 30 covers peak burst with headroom.
+api_lambda_timeout              = 28   # Must be < 29s (API Gateway HTTP API hard timeout). VPC cold start risk: 15-40s, so retry on client side.
 algo_lambda_timeout = 600
 # COST OPTIMIZED: Removed reserved concurrency for both Lambdas. Saves $170+/month. On-demand pricing is cheaper unless you have sustained high traffic.
 # Worst case: cold start delays (15-40s) on first request of the day. Acceptable for trading system with predictable schedules.
