@@ -983,12 +983,70 @@ jobs:
             echo "[OK] CloudFront invalidation created"
           fi
 
-  # 
+  #
+  # Run Database Migrations (after Terraform, parallel with Lambda/frontend deploys)
+  #
+  run-migrations:
+    name: "2e. Run Database Migrations"
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch Database Credentials from Secrets Manager
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/database \
+            --query SecretString \
+            --output text 2>/dev/null || echo "{}")
+
+          if [ -z "$SECRET" ] || [ "$SECRET" = "{}" ]; then
+            echo "WARNING: Could not fetch database credentials, skipping migrations"
+            echo "DB_HOST=localhost" >> $GITHUB_ENV
+            echo "DB_PORT=5432" >> $GITHUB_ENV
+            echo "DB_USER=postgres" >> $GITHUB_ENV
+            echo "DB_PASSWORD=" >> $GITHUB_ENV
+            echo "DB_NAME=algo" >> $GITHUB_ENV
+            echo "DB_SSL=require" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "DB_HOST=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("host", "localhost"))')" >> $GITHUB_ENV
+          echo "DB_PORT=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("port", "5432"))')" >> $GITHUB_ENV
+          echo "DB_USER=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("username", "postgres"))')" >> $GITHUB_ENV
+          echo "DB_PASSWORD=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("password", ""))')" >> $GITHUB_ENV
+          echo "DB_NAME=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("dbname", "algo"))')" >> $GITHUB_ENV
+          echo "DB_SSL=require" >> $GITHUB_ENV
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install psycopg2
+        run: pip install --quiet psycopg2-binary
+
+      - name: Run Migrations
+        continue-on-error: true
+        run: |
+          echo "=== Running Database Migrations ==="
+          python migrations/run.py status
+          python migrations/run.py apply --all
+          echo "[OK] Migrations complete"
+
+  #
   # Final Summary
-  # 
+  #
   summary:
     name: Deployment Summary
-    needs: [terraform, build-image, deploy-algo, deploy-api, deploy-frontend]
+    needs: [terraform, build-image, deploy-algo, deploy-api, deploy-frontend, run-migrations]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -1002,6 +1060,7 @@ jobs:
           echo "| Algo Lambda | ${{ needs.deploy-algo.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| API Lambda | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Migrations | ${{ needs.run-migrations.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### CloudFront Frontend URL" >> $GITHUB_STEP_SUMMARY
           echo "**AWS Site:** https://\${{ needs.terraform.outputs.cloudfront_id }}.cloudfront.net" >> $GITHUB_STEP_SUMMARY

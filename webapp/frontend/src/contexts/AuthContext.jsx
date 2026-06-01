@@ -271,7 +271,16 @@ export function AuthProvider({ children }) {
             return;
           }
         } catch (error) {
-          console.error("❌ Cognito authentication failed:", error?.message);
+          // UserUnAuthenticatedException = no session, expected when no user is logged in
+          const isExpectedLogout = error?.name === 'UserUnAuthenticatedException' ||
+            error?.message?.includes('User needs to be authenticated') ||
+            error?.message?.includes('not authenticated') ||
+            error?.message?.includes('No current user');
+          if (isExpectedLogout) {
+            console.info('[AUTH] No active session — user not logged in');
+          } else {
+            console.error("❌ Cognito authentication failed:", error?.message);
+          }
           // In production with Cognito configured, we DO NOT fall back - this is an auth failure
         }
       }

@@ -300,7 +300,7 @@ def run(
         # making all downstream queries 30-100× slower. ANALYZE samples ~30k rows per
         # column (fast, non-blocking) and takes <5s even on large tables.
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("SET statement_timeout = 5000")  # 5s — fail fast, not worth 60s wait
                 cur.execute(
                     "ANALYZE price_daily, market_health_daily, trend_template_data, "

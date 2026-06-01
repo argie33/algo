@@ -95,10 +95,10 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 ## Troubleshooting
 
-**DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. Solution: RDS Proxy (currently disabled).
+**DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
 
 **API Lambda 500 errors on first request:** VPC cold-start (15-40s). API Gateway timeout is 29s. Workaround: retry (second request works). Solution: reserved concurrency = 1 in Terraform.
 
 **Alpaca 401 errors:** Verify PowerShell profile has correct ALPACA_PAPER_TRADING and APCA_API_BASE_URL settings.
 
-**Loaders stuck:** If ECS loader running > 2 hours, it's stuck. Run: `aws ecs stop-task --cluster algo-cluster --task <ARN>`. Kill analytics loaders (company_profile, analyst_sentiment, etc.) but keep stock_prices_daily and technical_data_daily.
+**Loaders stuck:** If ECS loader running > 2 hours, it's stuck. Kill analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics) but keep stock_prices_daily and technical_data_daily running.

@@ -37,7 +37,7 @@ cognito_test_user_email       = "argeropolos@gmail.com"      # Primary user — 
 
 # Database configuration
 rds_instance_class = "db.t4g.micro" # COST OPTIMIZED: Graviton t4g.micro ($8-12/month) vs t3.medium ($60/month). RDS Proxy handles connection pooling.
-enable_rds_proxy = false # DISABLED: To save $11/month. t4g.micro + sequential loaders don't need connection pooling. Will downgrade parallelism to 1.
+enable_rds_proxy = true # ENABLED: Required to prevent connection saturation OOM crashes on t4g.micro (4 loaders stuck → 4 OOM crashes 2026-06-01). $11/month is worth the stability.
 dev_mode = "false" # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
 # Orchestrator configuration (moved from GitHub Secrets)
