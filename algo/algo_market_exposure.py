@@ -540,56 +540,33 @@ class MarketExposure:
     def _mcclellan(self, eval_date, cur):
         """McClellan Oscillator: 19-EMA(adv-dec) - 39-EMA(adv-dec).
 
-        Approximate using SPY component proxy: count daily advancers/decliners
-        in the broad universe.
+        Uses pre-computed advance_decline_ratio from market_health_daily (fast, <1s)
+        instead of reading 95 days × 5000 stocks from price_daily (slow, 40-60s on t4g.micro).
 
-        Uses LAG() window function instead of correlated subquery self-join.
-        Original required a subquery per row to find the previous trading date
-        (~300,000 lookups for 5000 symbols × 60 days).
+        advance_decline_ratio ≈ advances/declines. We derive net A/D percentage as:
+          net_pct = (ratio - 1) / (ratio + 1)  [ranges from -1 to +1]
+        and scale to 1000 to match original McClellan scale.
         """
         cur.execute(
             """
-            WITH universe AS (
-                SELECT DISTINCT symbol FROM price_daily
-                WHERE date >= %s::date - INTERVAL '7 days' AND date <= %s AND close > 5
-            ),
-            with_lag AS (
-                SELECT pd.date, pd.close,
-                       LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev_close
-                FROM price_daily pd
-                JOIN universe u ON pd.symbol = u.symbol
-                WHERE pd.date >= %s::date - INTERVAL '95 days' AND pd.date <= %s
-            ),
-            ad_by_day AS (
-                SELECT date,
-                       COUNT(*) FILTER (WHERE close > prev_close) AS adv,
-                       COUNT(*) FILTER (WHERE close < prev_close) AS dec
-                FROM with_lag
-                WHERE prev_close IS NOT NULL
-                GROUP BY date
-            ),
-            recent_60 AS (
-                SELECT date, adv, dec FROM ad_by_day
-                WHERE date >= %s::date - INTERVAL '90 days'
-                ORDER BY date DESC LIMIT 60
-            )
-            SELECT date, adv, dec FROM recent_60 ORDER BY date ASC
+            SELECT date, advance_decline_ratio AS adv_dec_ratio
+            FROM market_health_daily
+            WHERE date <= %s AND advance_decline_ratio IS NOT NULL
+            ORDER BY date DESC LIMIT 60
             """,
-            (eval_date, eval_date, eval_date, eval_date, eval_date),
+            (eval_date,),
         )
         rows = cur.fetchall()
         if len(rows) < 39:
             return {'score_factor': 0.5, 'value': None}
-        # Compute ratio (adv-dec)/(adv+dec) per day
+        # Convert A/D ratio to net advance percentage × 1000 for McClellan scale
+        # advance_decline_ratio = advances/declines, so net% = (ratio-1)/(ratio+1)
         ratios = []
-        for date, adv, dec in rows:
-            adv = int(adv or 0)
-            dec = int(dec or 0)
-            tot = adv + dec
-            if tot > 0:
-                ratios.append((adv - dec) / tot * 1000)  # Scale for McClellan
-            else:
-                ratios.append(0)
+        for row in sorted(rows, key=lambda r: r['date']):  # ascending for EMA
+            ratio = float(row.get('adv_dec_ratio') or 1.0)
+            # net_pct: +1 = all advancing, -1 = all declining
+            net_pct = (ratio - 1) / (ratio + 1) if ratio > 0 else 0
+            ratios.append(net_pct * 1000)  # scale to match original McClellan
 
         # Simple EMAs
         def ema(values, span):
@@ -616,49 +593,24 @@ class MarketExposure:
     def _new_highs_lows(self, eval_date, cur):
         """52-week new highs vs new lows ratio.
 
-        Uses window functions (MAX/MIN OVER) instead of correlated subqueries.
-        Original ran 2 subqueries per symbol (~10,000 for 5000 symbols).
-        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING = the 252 prior trading days
-        excluding today, so we compare today's close against the prior year's range.
+        Reads pre-computed new_highs_count / new_lows_count from market_health_daily
+        (fast, <1s indexed lookup) instead of computing 400-day window functions across
+        price_daily (reads 2M+ rows with 3 window functions per symbol — too slow on t4g.micro).
         """
         cur.execute(
             """
-            WITH recent AS (
-                SELECT symbol, date, close, high, low
-                FROM price_daily
-                WHERE date >= %s::date - INTERVAL '400 days' AND date <= %s
-                  AND close > 5
-            ),
-            windowed AS (
-                SELECT
-                    symbol, date, close,
-                    MAX(high) OVER (
-                        PARTITION BY symbol ORDER BY date
-                        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING
-                    ) AS hi_52w,
-                    MIN(low) OVER (
-                        PARTITION BY symbol ORDER BY date
-                        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING
-                    ) AS lo_52w,
-                    COUNT(*) OVER (
-                        PARTITION BY symbol ORDER BY date
-                        ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING
-                    ) AS hist_count
-                FROM recent
-            )
-            SELECT
-                COUNT(*) FILTER (WHERE close > hi_52w) AS new_hi,
-                COUNT(*) FILTER (WHERE close < lo_52w) AS new_lo
-            FROM windowed
-            WHERE date = %s AND hist_count >= 50
-              AND hi_52w IS NOT NULL AND lo_52w IS NOT NULL
+            SELECT new_highs_count, new_lows_count
+            FROM market_health_daily
+            WHERE date <= %s AND new_highs_count IS NOT NULL
+            ORDER BY date DESC LIMIT 1
             """,
-            (eval_date, eval_date, eval_date),
+            (eval_date,),
         )
         row = cur.fetchone()
         if not row:
             return {'score_factor': 0.5, 'value': None}
-        new_hi, new_lo = int(row[0] or 0), int(row[1] or 0)
+        new_hi = int(row['new_highs_count'] or 0)
+        new_lo = int(row['new_lows_count'] or 0)
         net = new_hi - new_lo
         # Net +50 -> 1.0, 0 -> 0.5, -50 -> 0
         sf = max(0.0, min(1.0, 0.5 + net / 100.0))
@@ -670,54 +622,42 @@ class MarketExposure:
         }
 
     def _ad_line(self, eval_date, cur):
-        """A/D line: cumulative advancers - decliners. Confirms or diverges from index.
+        """A/D line: cumulative advancers - decliners vs SPY direction.
 
-        Uses LAG() instead of correlated self-join for previous day's price.
+        Uses pre-computed advance_decline_ratio from market_health_daily and
+        SPY close from price_daily (fast, <1s indexed lookups) instead of
+        computing LAG() window functions across 5000 stocks × 35 days (~175,000 rows).
         """
         cur.execute(
             """
-            WITH universe AS (
-                SELECT DISTINCT symbol FROM price_daily
-                WHERE date >= %s::date - INTERVAL '7 days' AND date <= %s AND close > 5
+            WITH mh AS (
+                SELECT date, advance_decline_ratio
+                FROM market_health_daily
+                WHERE date <= %s AND advance_decline_ratio IS NOT NULL
+                ORDER BY date DESC LIMIT 22
             ),
-            with_lag AS (
-                SELECT pd.date, pd.close,
-                       LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev_close
-                FROM price_daily pd
-                JOIN universe u ON pd.symbol = u.symbol
-                WHERE pd.date >= %s::date - INTERVAL '35 days' AND pd.date <= %s AND pd.close > 5
-            ),
-            ad_by_day AS (
-                SELECT date,
-                       COUNT(*) FILTER (WHERE close > prev_close) AS adv,
-                       COUNT(*) FILTER (WHERE close < prev_close) AS dec
-                FROM with_lag
-                WHERE prev_close IS NOT NULL
-                  AND date >= %s::date - INTERVAL '30 days'
-                GROUP BY date
-            ),
-            spy_prices AS (
+            spy AS (
                 SELECT date, close FROM price_daily
-                WHERE symbol = 'SPY' AND date <= %s AND date >= %s::date - INTERVAL '30 days'
+                WHERE symbol = 'SPY' AND date <= %s
+                ORDER BY date DESC LIMIT 22
             )
-            SELECT
-                ad.date,
-                SUM(adv - dec) OVER (ORDER BY ad.date) AS ad_cum,
-                spy.close
-            FROM ad_by_day ad
-            JOIN spy_prices spy ON ad.date = spy.date
-            ORDER BY ad.date
+            SELECT mh.date, mh.advance_decline_ratio AS ratio, spy.close AS spy_close
+            FROM mh
+            JOIN spy ON mh.date = spy.date
+            ORDER BY mh.date ASC
             """,
-            (eval_date, eval_date, eval_date, eval_date, eval_date, eval_date, eval_date),
+            (eval_date, eval_date),
         )
         rows = cur.fetchall()
-        if len(rows) < 10:
+        if len(rows) < 5:
             return {'score_factor': 0.5, 'value': None}
-        first_ad = float(rows[0][1])
-        last_ad = float(rows[-1][1])
-        first_spy = float(rows[0][2])
-        last_spy = float(rows[-1][2])
-        ad_change = last_ad - first_ad
+        # Compute A/D cumulative change using ratio → net = (ratio-1)/(ratio+1)
+        nets = [(float(r.get('ratio') or 1) - 1) / (float(r.get('ratio') or 1) + 1) for r in rows]
+        first_net = nets[0]
+        last_net = nets[-1]
+        ad_change = last_net - first_net
+        first_spy = float(rows[0].get('spy_close') or 0)
+        last_spy = float(rows[-1].get('spy_close') or 0)
         spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
         # Confirmation: both same direction. Divergence: opposite.
         if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
@@ -731,7 +671,7 @@ class MarketExposure:
             relation = 'bearish_divergence'
         return {
             'score_factor': sf,
-            'ad_change_20d': int(ad_change),
+            'ad_change_20d': round(ad_change, 4),
             'spy_change_pct_20d': round(spy_change_pct, 2),
             'relation': relation,
         }
