@@ -227,16 +227,29 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     tracker.log_pre_tier_rejection(eval_date, symbol, f"signal_age: {signal_age}d old vs last trading day (max {max_signal_age_days}d)")
                     continue
 
-                # Fetch stage, trend score, and price data for signal date
-                cur.execute(
-                    """SELECT t.weinstein_stage, p.volume, p.high, p.low, p.close,
-                              (SELECT AVG(volume) FROM price_daily WHERE symbol = %s
-                               AND date >= %s - INTERVAL '50 days' AND date <= %s) AS avg_vol_50d
-                       FROM trend_template_data t
-                       LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-                       WHERE t.symbol = %s AND t.date = %s LIMIT 1""",
-                    (symbol, signal_date, signal_date, symbol, signal_date),
-                )
+                # Fetch stage, trend score, and price data for signal date.
+                # volume_ma_50 from technical_data_daily replaces the correlated subquery
+                # AVG(volume) FROM price_daily (50-day window scan per symbol = too slow).
+                try:
+                    cur.execute("SAVEPOINT stage_query")
+                    cur.execute(
+                        """SELECT t.weinstein_stage, p.volume, p.high, p.low, p.close,
+                                  td.volume_ma_50 AS avg_vol_50d
+                           FROM trend_template_data t
+                           LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+                           LEFT JOIN technical_data_daily td ON t.symbol = td.symbol AND t.date = td.date
+                           WHERE t.symbol = %s AND t.date = %s LIMIT 1""",
+                        (symbol, signal_date),
+                    )
+                    cur.execute("RELEASE SAVEPOINT stage_query")
+                except Exception as _sq_err:
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT stage_query")
+                        cur.execute("RELEASE SAVEPOINT stage_query")
+                    except Exception:
+                        pass
+                    logger.warning(f"  SKIP {symbol}: stage query failed ({_sq_err})")
+                    continue
                 row = cur.fetchone()
                 if row:
                     stage_number, volume, day_high, day_low, close, avg_vol_50d = row

@@ -446,39 +446,27 @@ class MarketExposure:
         }
 
     def _pct_above_ma(self, eval_date, ma_days, cur):
-        """% of all stocks (>$5) above their N-day MA.
+        """% of all stocks above their N-day MA.
 
-        Reads pre-computed sma_50 / sma_200 from technical_data_daily rather than
-        recomputing window functions across price_daily (which reads 2M+ rows on a
-        t4g.micro and times out). technical_data_daily has (symbol, date) indexes
-        and only 5 days of lookback are needed to find each symbol's latest row.
+        Reads pre-computed price_above_sma50 / price_above_sma200 boolean flags
+        from trend_template_data (single-table indexed scan, <1s) instead of
+        joining technical_data_daily × price_daily (DISTINCT ON across 35k rows
+        each, too slow on t4g.micro).
         """
-        sma_col = 'sma_50' if ma_days == 50 else 'sma_200'
+        bool_col = 'price_above_sma50' if ma_days == 50 else 'price_above_sma200'
         cur.execute(
             f"""
-            WITH latest_tech AS (
-                SELECT DISTINCT ON (symbol)
-                    symbol, {sma_col} AS ma_n
-                FROM technical_data_daily
-                WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
-                ORDER BY symbol, date DESC
-            ),
-            latest_price AS (
-                SELECT DISTINCT ON (symbol)
-                    symbol, close
-                FROM price_daily
-                WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
-                  AND symbol NOT LIKE '^^%%'
-                ORDER BY symbol, date DESC
-            )
             SELECT
-                COUNT(*) FILTER (WHERE lp.close > lt.ma_n) AS above,
-                COUNT(*) FILTER (WHERE lt.ma_n IS NOT NULL AND lp.close > 5) AS total
-            FROM latest_tech lt
-            JOIN latest_price lp ON lt.symbol = lp.symbol
-            WHERE lp.close > 5 AND lt.ma_n IS NOT NULL
+                COUNT(*) FILTER (WHERE {bool_col} = TRUE)  AS above,
+                COUNT(*) FILTER (WHERE {bool_col} IS NOT NULL) AS total
+            FROM (
+                SELECT DISTINCT ON (symbol) {bool_col}
+                FROM trend_template_data
+                WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
+                ORDER BY symbol, date DESC
+            ) latest
             """,
-            (eval_date, eval_date, eval_date, eval_date),
+            (eval_date, eval_date),
         )
         row = cur.fetchone()
         if not row or not row[1]:
