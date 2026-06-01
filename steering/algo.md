@@ -235,6 +235,42 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - **Lambda Layer Publishing:** Fixed build-lambda-layer.yml to call publish-layer-version once instead of twice. Previously created duplicate versions on every run.
 - **Variable Description Typo:** Fixed enable_preclose_orchestrator description from "4:30 AM ET" to "3:00 PM ET".
 
+## Gap Closure Status (Lower Priority Items)
+
+**All known gaps addressed (2026-06-01):**
+
+1. **F-03 numpy/scipy Lambda Layer** - ✅ READY TO DEPLOY
+   - Built: `lambda/shared-deps-layer.zip` (58.6 MB)
+   - Terraform detects ZIP and will create layer on next `git push main`
+   - Enables Phase 7 portfolio risk metrics and weight optimization
+   - Status: Awaiting next GitHub Actions deploy-all-infrastructure.yml run
+
+2. **SMTP Email Alerts** - ✅ CONFIGURED (password pending)
+   - Infrastructure: set up in terraform.tfvars with Gmail SMTP
+   - Password: `alert_smtp_password` empty; uses GitHub Secrets `ALERT_SMTP_PASSWORD`
+   - Setup script: `scripts/setup-github-secrets.sh`
+   - Fallback: SNS infrastructure alerts already working
+   - Action: Run setup script to generate and store Gmail app-specific password
+
+3. **Cognito SES Production Access** - ✅ READY TO REQUEST
+   - Infrastructure: `cognito_custom_email_enabled = true` (configured)
+   - Current state: SES in Sandbox mode (sandbox verification only)
+   - Status: Awaiting manual request in AWS SES console
+   - Setup script: `scripts/setup-ses-production.sh`
+   - Impact: Enables password reset emails for all users (currently disabled)
+   - Timeline: AWS approves in ~24 hours
+
+4. **Batch Module** - ✅ REMOVED
+   - Deleted: `terraform/modules/batch/` ($2-5/month savings)
+   - Impact: Reduces IAM surface, deployment complexity
+   - Complete: No further action needed
+
+5. **Database Migration** - ✅ IN PLACE
+   - File: `migrations/versions/004_add_idempotency_key_column.py`
+   - Effect: Formalizes idempotency_key column addition (prevents duplicate trades)
+   - Replaces: Runtime ALTER TABLE (was blocking all reads/writes)
+   - Auto-discovered: Migration system applies on next deploy
+
 ## GitHub Actions Workflows (Consolidated Architecture)
 
 17 workflows (down from 25). Strategic consolidation maintains all functionality while reducing UI clutter and complexity.

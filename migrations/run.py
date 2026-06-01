@@ -284,9 +284,12 @@ def main():
                 sys.exit(0 if success else 1)
             elif len(sys.argv) > 2:
                 version = sys.argv[2]
+                # Look for both .sql and .py migrations
                 migration_files = list(MIGRATIONS_DIR.glob(f'{version}.sql'))
                 if not migration_files:
-                    logger.error(f"Migration {version} not found")
+                    migration_files = list(MIGRATIONS_DIR.glob(f'{version}.py'))
+                if not migration_files:
+                    logger.error(f"Migration {version} not found (.sql or .py)")
                     sys.exit(1)
                 success = runner.apply_migration(version, migration_files[0])
                 sys.exit(0 if success else 1)

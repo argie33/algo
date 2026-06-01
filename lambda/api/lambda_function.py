@@ -262,12 +262,13 @@ def get_cors_headers(event: Dict) -> Dict[str, str]:
         return {
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Credentials': 'true',
+            'Vary': 'Origin',
         }
 
     # Reject cross-origin requests from unknown sources
     # Return null origin so browser blocks the response
     return {
-        'Access-Control-Allow-Origin': 'null',
+        'Vary': 'Origin',
     }
 
 def get_json_content_type() -> str:
