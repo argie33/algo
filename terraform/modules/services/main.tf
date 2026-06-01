@@ -174,35 +174,11 @@ resource "aws_lambda_function" "api" {
 # Pre-warms N concurrent instances so they're ready for immediate use
 # Cost: ~$12/month per unit in us-east-1, disabled by default (api_lambda_provisioned_concurrency = 0)
 
-# Publish a version for provisioned concurrency
-resource "aws_lambda_function_version" "api" {
-  function_name = aws_lambda_function.api.function_name
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_lambda_alias" "api_live" {
-  count             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
-  name              = "live"
-  description       = "Live alias for provisioned concurrency"
-  function_name     = aws_lambda_function.api.function_name
-  function_version  = aws_lambda_function_version.api.version
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_lambda_provisioned_concurrency_config" "api" {
-  count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
-  function_name                     = aws_lambda_function.api.function_name
-  provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
-  qualifier                         = aws_lambda_alias.api_live[0].name
-
-  depends_on = [aws_lambda_alias.api_live]
-}
+# API Lambda Provisioned Concurrency (F-01 cold-start mitigation)
+# DISABLED: Terraform aws_lambda_function_version resource not available in current provider version
+# Provisioned concurrency can be enabled manually via AWS CLI:
+#   aws lambda put-provisioned-concurrency-config \
+#     --function-name <arn> --provisioned-concurrent-executions 1 --qualifier live
 
 # ============================================================
 # API Gateway HTTP API

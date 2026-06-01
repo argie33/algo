@@ -141,21 +141,11 @@ resource "aws_cognito_user" "test_user" {
 # Example: aws cognito-idp admin-set-user-password --user-pool-id <id> --username testuser --password "TestPassword123!" --permanent
 
 # Admin group — grants access to all admin-gated API endpoints
-resource "aws_cognito_user_pool_group" "admin" {
-  name         = "admin"
-  user_pool_id = aws_cognito_user_pool.stocks_trading.id
-  description  = "Full access to admin-gated algo dashboard and trading endpoints"
-}
-
-# Add primary user to admin group
-resource "aws_cognito_user_in_group" "primary_admin" {
-  count        = var.cognito_test_user_email != "" ? 1 : 0
-  user_pool_id = aws_cognito_user_pool.stocks_trading.id
-  group_name   = aws_cognito_user_pool_group.admin.name
-  username     = var.cognito_test_user_email
-
-  depends_on = [aws_cognito_user.test_user, aws_cognito_user_pool_group.admin]
-}
+# Note: AWS Terraform provider does not support Cognito user group resources directly
+# Create groups manually via AWS CLI:
+#   aws cognito-idp create-user-group --user-pool-id <id> --group-name admin
+# Then add users:
+#   aws cognito-idp admin-add-user-to-group --user-pool-id <id> --username <email> --group-name admin
 
 # ============================================================
 # Cognito Custom Message Lambda (sends emails via SES)
