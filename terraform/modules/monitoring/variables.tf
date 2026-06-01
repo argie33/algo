@@ -81,6 +81,12 @@ variable "sns_alerts_topic_arn" {
   default     = ""
 }
 
+variable "alert_email_address" {
+  description = "Email address for circuit breaker and monitoring alerts"
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Data Freshness Monitoring Configuration
 # ============================================================

@@ -4,6 +4,30 @@
 # ============================================================
 
 # ============================================================
+# 0. SNS Topic for Circuit Breaker Alerts
+# ============================================================
+
+resource "aws_sns_topic" "circuit_breaker_alerts" {
+  name              = "${var.project_name}-circuit-breaker-alerts-${var.environment}"
+  kms_master_key_id = "alias/aws/sns"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-circuit-breaker-alerts"
+  })
+}
+
+resource "aws_sns_topic_subscription" "circuit_breaker_email" {
+  count     = var.alert_email_address != "" ? 1 : 0
+  topic_arn = aws_sns_topic.circuit_breaker_alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email_address
+
+  lifecycle {
+    ignore_changes = [endpoint_auto_confirms]
+  }
+}
+
+# ============================================================
 # 1. IAM Role for Circuit Breaker Lambda
 # ============================================================
 
@@ -210,7 +234,7 @@ resource "aws_cloudwatch_metric_alarm" "circuit_breaker_errors" {
     FunctionName = aws_lambda_function.circuit_breaker.function_name
   }
 
-  alarm_actions = var.sns_alerts_topic_arn != "" ? [var.sns_alerts_topic_arn] : []
+  alarm_actions = [aws_sns_topic.circuit_breaker_alerts.arn]
 
   tags = var.common_tags
 }
@@ -231,7 +255,7 @@ resource "aws_cloudwatch_metric_alarm" "circuit_breaker_duration" {
     FunctionName = aws_lambda_function.circuit_breaker.function_name
   }
 
-  alarm_actions = var.sns_alerts_topic_arn != "" ? [var.sns_alerts_topic_arn] : []
+  alarm_actions = [aws_sns_topic.circuit_breaker_alerts.arn]
 
   tags = var.common_tags
 }
