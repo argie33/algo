@@ -45,9 +45,8 @@ resource "aws_security_group" "circuit_breaker" {
     description = "Allow PostgreSQL to RDS (database queries for portfolio P&L)"
   }
 
-  # Egress: allow HTTPS to Secrets Manager (for fetching DB credentials)
-  #tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: Lambda in VPC requires internet egress
-  # via NAT Gateway to reach Secrets Manager. VPC endpoints not available in all AZs.
+  # Egress: HTTPS to Secrets Manager via NAT Gateway (VPC endpoints not available in all AZs)
+  #tfsec:ignore:aws-ec2-no-public-egress-sgr
   egress {
     from_port   = 443
     to_port     = 443
