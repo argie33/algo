@@ -71,6 +71,11 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
 
     SECURITY FIX: Use authenticated user's ID from JWT, not from body/params.
     Users can only modify their own settings, preventing IDOR.
+
+    NOTE: Preferences column should be encrypted at rest using:
+    - AWS KMS encryption (managed via Lambda environment)
+    - Or PostgreSQL pgp_sym_encrypt() function
+    For MVP, using plaintext with note for future hardening.
     """
     # SECURITY: Get user_id from authenticated JWT claims, not from request
     user_id = jwt_claims.get('sub')
@@ -82,6 +87,9 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
             notifications = body.get('notifications', True)
             # Store other settings in preferences JSONB
             other_prefs = {k: v for k, v in body.items() if k not in ['user_id', 'theme', 'notifications']}
+
+            # SECURITY HARDENING: Consider encryption for preferences at this point
+            # For now, parameterized queries prevent injection
             cur.execute("""
                 INSERT INTO user_dashboard_settings (user_id, theme, notifications, preferences, updated_at)
                 VALUES (%s, %s, %s, %s, NOW())

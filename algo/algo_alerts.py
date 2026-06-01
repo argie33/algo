@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
+import re
+from urllib.parse import urlparse
 from algo.algo_config import get_webhook_timeout
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,78 @@ try:
     TWILIO_AVAILABLE = True
 except ImportError:
     TWILIO_AVAILABLE = False
+
+def _validate_webhook_url(url: str) -> bool:
+    """Validate webhook URL is safe (not SSRF attack).
+
+    Rules:
+    - Must be HTTPS only
+    - Only allow whitelisted domains (Slack, Teams, Discord, custom)
+    - Block private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1, 169.254.0.0/16)
+    """
+    if not url:
+        return False
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    # Must be HTTPS
+    if parsed.scheme != 'https':
+        logger.warning(f"Webhook URL validation failed: not HTTPS - {url}")
+        return False
+
+    hostname = parsed.hostname
+    if not hostname:
+        logger.warning(f"Webhook URL validation failed: no hostname - {url}")
+        return False
+
+    # Block localhost and 127.0.0.1
+    if hostname in ('localhost', '127.0.0.1'):
+        logger.warning(f"Webhook URL validation failed: localhost - {url}")
+        return False
+
+    # Block private/internal IP ranges
+    private_ip_patterns = [
+        r'^10\.',
+        r'^172\.(1[6-9]|2[0-9]|3[01])\.',
+        r'^192\.168\.',
+        r'^169\.254\.',  # AWS metadata service
+        r'^127\.',
+        r'^::1$',  # IPv6 localhost
+        r'^fc00:',  # IPv6 private
+        r'^fe80:',  # IPv6 link-local
+    ]
+
+    for pattern in private_ip_patterns:
+        if re.match(pattern, hostname):
+            logger.warning(f"Webhook URL validation failed: private IP - {url}")
+            return False
+
+    # Whitelist allowed webhook providers
+    allowed_domains = [
+        'hooks.slack.com',
+        'outlook.webhook.office.com',
+        'discordapp.com',
+        'cdn.discordapp.com',
+        'discord.com',
+    ]
+
+    # Allow custom domains if they're in whitelist env var
+    custom_domains = os.getenv('WEBHOOK_ALLOWED_DOMAINS', '').split(',')
+    custom_domains = [d.strip() for d in custom_domains if d.strip()]
+
+    allowed_domains.extend(custom_domains)
+
+    # Check if hostname or any parent domain is whitelisted
+    for allowed in allowed_domains:
+        if hostname == allowed or hostname.endswith('.' + allowed):
+            logger.info(f"Webhook URL validation passed for {allowed}")
+            return True
+
+    logger.warning(f"Webhook URL validation failed: domain not whitelisted - {hostname}")
+    return False
 
 class AlertManager:
     """Send alerts via email and webhook."""
@@ -38,7 +112,14 @@ class AlertManager:
         self.smtp_port = int(os.getenv('ALERT_SMTP_PORT', '587'))
         self.smtp_user = os.getenv('ALERT_SMTP_USER', '')
         self.smtp_password = self._load_smtp_password()
-        self.webhook_url = os.getenv('ALERT_WEBHOOK_URL', '')
+
+        # SECURITY FIX: Validate webhook URL before using (prevent SSRF)
+        webhook_url_raw = os.getenv('ALERT_WEBHOOK_URL', '')
+        if webhook_url_raw and not _validate_webhook_url(webhook_url_raw):
+            logger.error(f"[SECURITY] Invalid webhook URL rejected: {webhook_url_raw}")
+            self.webhook_url = ''
+        else:
+            self.webhook_url = webhook_url_raw
 
         # SMS via Twilio
         self.phone_numbers = [p.strip() for p in os.getenv('ALERT_PHONE_NUMBERS', '').split(',') if p.strip()]
@@ -246,6 +327,11 @@ class AlertManager:
 
     def _send_webhook(self, subject, critical, error, warn, findings):
         """Send Slack-compatible webhook."""
+        # SECURITY FIX: Validate webhook URL before sending
+        if not self.webhook_url or not _validate_webhook_url(self.webhook_url):
+            logger.warning("Webhook URL invalid or not set; skipping webhook send")
+            return
+
         try:
             color = 'danger' if critical > 0 else 'warning'
             text = f"{critical} CRITICAL, {error} ERROR, {warn} WARN"
@@ -273,6 +359,11 @@ class AlertManager:
 
     def _send_webhook_simple(self, title, message, alert_type):
         """Send simple Slack webhook for position alerts."""
+        # SECURITY FIX: Validate webhook URL before sending
+        if not self.webhook_url or not _validate_webhook_url(self.webhook_url):
+            logger.warning("Webhook URL invalid or not set; skipping webhook send")
+            return
+
         try:
             payload = {
                 'attachments': [{

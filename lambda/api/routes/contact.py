@@ -65,6 +65,7 @@ def _submit_contact(cur, body: Dict) -> Dict:
     email = str(body.get('email', '')).strip()[:200]
     subject = str(body.get('subject', '')).strip()[:200]
     message = str(body.get('message', '')).strip()[:5000]
+    phone = str(body.get('phone', '')).strip()[:20] if body.get('phone') else ''
 
     if not name:
         return error_response(400, 'bad_request', 'Name is required')
@@ -72,6 +73,25 @@ def _submit_contact(cur, body: Dict) -> Dict:
         return error_response(400, 'bad_request', 'Valid email is required')
     if not message:
         return error_response(400, 'bad_request', 'Message is required')
+
+    # SECURITY FIX: Validate phone number format (if provided)
+    if phone and not re.match(r'^\+?[\d\s\-\(\)]{10,15}$', phone):
+        return error_response(400, 'bad_request', 'Phone number format invalid')
+
+    # SECURITY FIX: Reject messages with suspicious patterns (script tags, SQL keywords, etc.)
+    # This is defense-in-depth; message is parameterized so no injection risk, but reject anyway
+    dangerous_patterns = [
+        r'<script',
+        r'javascript:',
+        r'on\w+\s*=',  # onclick=, onload=, etc.
+        r'union\s+select',  # SQL injection pattern
+        r'drop\s+table',  # SQL attack pattern
+        r'update\s+\w+\s+set',  # SQL attack pattern
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, message, re.IGNORECASE):
+            return error_response(400, 'bad_request', 'Message contains invalid content')
 
     # Rate limit contact form submissions per email
     if _is_contact_spam(email):

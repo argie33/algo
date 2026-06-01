@@ -159,21 +159,27 @@ def handle_db_error(error, logger, operation):
 
     Returns:
         Appropriate error_response tuple based on error type
+        Note: Always returns generic error message to client (never exposes DB details)
     """
     import psycopg2
 
+    # SECURITY FIX: Log full details server-side but never expose to client
+    error_type = type(error).__name__
+    error_str = str(error)
+
     if isinstance(error, psycopg2.errors.UndefinedTable):
-        logger.error(f'Required table not found: {error}', extra={'operation': operation})
-        return error_response(503, 'service_unavailable', 'Data pipeline loading')
+        logger.error(f'[DB_SCHEMA_ERROR] Table not found in {operation}: {error_str}')
+        # Generic message to client - don't expose table names
+        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
     elif isinstance(error, psycopg2.errors.UndefinedColumn):
-        logger.error(f'Column not found: {error}', extra={'operation': operation})
-        return error_response(503, 'service_unavailable', 'Data schema mismatch')
+        logger.error(f'[DB_SCHEMA_ERROR] Column not found in {operation}: {error_str}')
+        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
     elif isinstance(error, psycopg2.OperationalError):
-        logger.error(f'Database connection error: {error}', extra={'operation': operation})
-        return error_response(503, 'service_unavailable', 'Database unavailable')
+        logger.error(f'[DB_CONNECTION_ERROR] Connection failed in {operation}: {error_str}')
+        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
     elif isinstance(error, psycopg2.DatabaseError):
-        logger.error(f'Database error: {error}', extra={'operation': operation, 'error_type': type(error).__name__})
-        return error_response(500, 'internal_error', 'Database query failed')
+        logger.error(f'[DB_ERROR] Query failed in {operation}: {error_str}')
+        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
     else:
-        logger.error(f'Unexpected error: {error}', extra={'operation': operation, 'error_type': type(error).__name__})
-        return error_response(500, 'internal_error', 'Internal server error')
+        logger.error(f'[UNEXPECTED_ERROR] {error_type} in {operation}: {error_str}')
+        return error_response(500, 'internal_error', 'Service temporarily unavailable')

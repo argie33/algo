@@ -21,21 +21,45 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
             logger.info(f"Access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}")
         return is_admin
 
+def _audit_log_admin_action(cur, user_id: str, endpoint: str, status: str = 'success', details: str = '') -> None:
+    """SECURITY FIX: Log all admin actions for accountability."""
+    try:
+        cur.execute("""
+            INSERT INTO algo_audit_log (action_type, actor, status, details, created_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, ('admin_access', user_id, status, f'{endpoint}: {details}'))
+    except Exception as e:
+        logger.warning(f"Failed to audit admin access: {e}")
+
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/admin/* endpoints for operational visibility."""
         try:
             # Require admin role for all admin endpoints
             if not _check_admin_access(jwt_claims):
+                user_id = (jwt_claims or {}).get('sub', 'unknown')
+                _audit_log_admin_action(cur, user_id, path, 'denied', 'insufficient permissions')
                 return error_response(403, 'forbidden', 'Admin access required')
 
+            user_id = (jwt_claims or {}).get('sub', 'unknown')
+
             if path == '/api/admin/loader-status':
-                return _get_loader_status(cur)
+                result = _get_loader_status(cur)
+                _audit_log_admin_action(cur, user_id, path, 'success')
+                return result
             elif path == '/api/admin/system-health':
-                return _get_system_health(cur)
+                result = _get_system_health(cur)
+                _audit_log_admin_action(cur, user_id, path, 'success')
+                return result
             elif path == '/api/admin/database-stats':
-                return _get_database_stats(cur)
+                result = _get_database_stats(cur)
+                _audit_log_admin_action(cur, user_id, path, 'success')
+                return result
             elif path == '/api/admin/data-quality':
-                return _get_data_quality(cur)
+                result = _get_data_quality(cur)
+                _audit_log_admin_action(cur, user_id, path, 'success')
+                return result
+
+            _audit_log_admin_action(cur, user_id, path, 'failed', 'endpoint not found')
             return error_response(404, 'not_found', f'No admin handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:

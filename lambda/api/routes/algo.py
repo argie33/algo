@@ -30,12 +30,23 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     notif_id_int = int(notif_id)
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
+
+                # SECURITY FIX: Check permission BEFORE modifying (prevents IDOR enumeration)
+                # First verify user owns this notification
+                cur.execute(
+                    "SELECT id FROM algo_notifications WHERE id=%s AND user_id=%s LIMIT 1",
+                    (notif_id_int, user_id)
+                )
+                if not cur.fetchone():
+                    # Notification doesn't exist OR user doesn't own it
+                    # Always return 404 to prevent enumeration (don't distinguish)
+                    return error_response(404, 'not_found', 'Notification not found')
+
+                # Now we know user owns it - safe to update
                 cur.execute(
                     "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s AND user_id=%s",
                     (notif_id_int, user_id)
                 )
-                if cur.rowcount == 0:
-                    return error_response(403, 'forbidden', 'Notification not found or access denied')
                 return json_response(200, {'status': 'updated'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -45,9 +56,22 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             if not user_id:
                 return error_response(401, 'unauthorized', 'Authentication required')
             try:
-                cur.execute("DELETE FROM algo_notifications WHERE id=%s AND user_id=%s", (int(notif_id), user_id))
-                if cur.rowcount == 0:
-                    return error_response(403, 'forbidden', 'Notification not found or access denied')
+                try:
+                    notif_id_int = int(notif_id)
+                except ValueError:
+                    return error_response(400, 'bad_request', 'ID must be numeric')
+
+                # SECURITY FIX: Check permission BEFORE deleting (prevents IDOR enumeration)
+                cur.execute(
+                    "SELECT id FROM algo_notifications WHERE id=%s AND user_id=%s LIMIT 1",
+                    (notif_id_int, user_id)
+                )
+                if not cur.fetchone():
+                    # Notification doesn't exist OR user doesn't own it
+                    return error_response(404, 'not_found', 'Notification not found')
+
+                # Now we know user owns it - safe to delete
+                cur.execute("DELETE FROM algo_notifications WHERE id=%s AND user_id=%s", (notif_id_int, user_id))
                 return json_response(200, {'status': 'deleted'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:

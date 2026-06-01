@@ -27,8 +27,6 @@ try:
     import psycopg2
     import psycopg2.sql
     from psycopg2.extras import RealDictCursor
-    from collections import defaultdict
-    from time import time
     import base64
     from datetime import datetime
     from functools import lru_cache
@@ -54,6 +52,14 @@ def validate_environment():
         'DB_NAME': 'Database name',
         'DB_USER': 'Database username',
     }
+
+    # SECURITY FIX: In production, FRONTEND_URL must be explicitly set for CORS
+    is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
+    if is_lambda:
+        frontend_url = os.getenv('FRONTEND_URL', '').strip()
+        allow_localhost = os.getenv('ALLOW_LOCALHOST_CORS', '') == 'true'
+        if not frontend_url and not allow_localhost:
+            errors.append('FRONTEND_URL: Must be set for production CORS (or set ALLOW_LOCALHOST_CORS=true for dev)')
 
     missing_secret_arn = not os.getenv('DB_SECRET_ARN')
     missing_password = not os.getenv('DB_PASSWORD')
@@ -109,19 +115,16 @@ def test_db_connection():
         logger.error(f"[DB_TEST_FAILED] {error_msg}")
         return False, error_msg
 
-# FIXED Issue #16: API Rate Limiting via API Gateway
-# Global rate limiting is enforced at the API Gateway level (100 req/sec burst, 50 req/sec sustained)
-# This supersedes the in-memory per-Lambda tracking below, which is kept as a secondary safeguard
-# API Gateway throttling is GLOBAL across all Lambda instances (not per-instance like in-memory tracking)
-if not IMPORT_ERROR:
-    _request_history = defaultdict(list)
-else:
-    _request_history = {}
-RATE_LIMIT_REQUESTS = 100
-RATE_LIMIT_WINDOW = 1
+# SECURITY FIX: API Rate Limiting is enforced ONLY at API Gateway level
+# In-memory per-Lambda tracking is ineffective because:
+# - Each Lambda cold start resets tracking dict
+# - Each Lambda instance has independent tracking
+# - Concurrent instances multiply effective rate limit
+# Instead, rely on API Gateway throttling (100 req/sec burst, 50 req/sec sustained)
+# which is GLOBAL across all instances
 MAX_REQUEST_BODY_SIZE = 1024 * 100
 
-# Health check endpoints exempt from rate limiting (required for uptime monitoring)
+# Health check endpoints exempt from any rate limiting (required for uptime monitoring)
 RATE_LIMIT_EXEMPT_PATHS = {
     '/health',
     '/api/health',
@@ -189,43 +192,53 @@ def parse_query_params(event: Dict) -> Dict:
     return params
 
 def _build_allowed_origins() -> set:
-    """Build allowed origins from ALLOWED_ORIGINS env var (comma-separated) plus localhost defaults."""
-    origins = {'http://localhost:5173', 'http://localhost:3000'}
+    """Build allowed origins from environment variables.
+
+    SECURITY FIX: Explicitly configure all allowed origins; no wildcard matching.
+    Dev mode origins (localhost) only allowed if ALLOW_LOCALHOST_CORS=true
+    """
+    origins = set()
+
+    # FRONTEND_URL is required in production (must be set explicitly)
+    frontend_url = os.getenv('FRONTEND_URL', '').strip()
+    if frontend_url:
+        origins.add(frontend_url)
+
+    # Additional origins from ALLOWED_ORIGINS env var (comma-separated)
     env_origins = os.getenv('ALLOWED_ORIGINS', '')
     if env_origins:
         for o in env_origins.split(','):
             o = o.strip()
             if o:
                 origins.add(o)
+
+    # In development ONLY, allow localhost origins (if explicitly enabled)
+    # This is gated behind ALLOW_LOCALHOST_CORS=true to prevent accidental exposure
+    if os.getenv('ALLOW_LOCALHOST_CORS') == 'true':
+        origins.add('http://localhost:5173')  # Vite default
+        origins.add('http://localhost:3000')  # React dev default
+
     return origins
 
 def get_cors_headers(event: Dict) -> Dict[str, str]:
-    """Get CORS headers based on request origin (whitelist only)."""
+    """Get CORS headers based on request origin (strict whitelist only).
+
+    SECURITY FIX: Rejects any origin not explicitly whitelisted.
+    No wildcard localhost matching - all origins must be configured.
+    """
     origin = event.get('headers', {}).get('origin', '') or event.get('headers', {}).get('Origin', '')
 
-    # Production CloudFront domain (configurable via FRONTEND_URL env var)
-    PROD_CLOUDFRONT = os.getenv('FRONTEND_URL', '')
-
-    # Check if origin is in whitelist or matches production CloudFront
     allowed_origins = _build_allowed_origins()
-    if PROD_CLOUDFRONT:  # Only add if actually set (no hardcoded fallback)
-        allowed_origins.add(PROD_CLOUDFRONT)
 
+    # Only allow origin if explicitly whitelisted
     if origin in allowed_origins:
         return {
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Credentials': 'true',
         }
 
-    # In dev mode, accept any localhost/127.0.0.1 origin (Vite uses dynamic ports)
-    if origin:
-        if origin.startswith('http://localhost:') or origin.startswith('http://127.0.0.1:'):
-            return {
-                'Access-Control-Allow-Origin': origin,
-                'Access-Control-Allow-Credentials': 'true',
-            }
-
     # Reject cross-origin requests from unknown sources
+    # Return null origin so browser blocks the response
     return {
         'Access-Control-Allow-Origin': 'null',
     }
@@ -392,30 +405,6 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
         logger.error(f"Token validation error: {e}", exc_info=True)
         return (False, None, "Token validation failed")
 
-def is_rate_limited(client_ip: str, rate_limit_requests: int = RATE_LIMIT_REQUESTS, window_seconds: int = RATE_LIMIT_WINDOW) -> bool:
-    """
-    Check if client IP has exceeded rate limit.
-    Returns True if rate limit exceeded (should block request).
-    """
-    now = time()
-
-    # Initialize empty list if client IP not seen before
-    if client_ip not in _request_history:
-        _request_history[client_ip] = []
-
-    # Clean old entries outside the window
-    _request_history[client_ip] = [
-        req_time for req_time in _request_history[client_ip]
-        if now - req_time < window_seconds
-    ]
-
-    # Check if limit exceeded
-    if len(_request_history[client_ip]) >= rate_limit_requests:
-        return True
-
-    # Record this request
-    _request_history[client_ip].append(now)
-    return False
 
 def get_client_ip(event: Dict) -> str:
     """Extract real client IP, accounting for CloudFront reverse proxy.
@@ -472,25 +461,33 @@ def require_auth(event: Dict, path: str) -> tuple:
     Check if path requires authentication.
     Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
     """
-    # Public endpoints (no auth required) - market data and informational endpoints only
+    # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
+    # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {
         '/health',
         '/api/health',
-        '/api/signals',  # Market signal data (public)
-        '/api/scores',  # Market scores (public)
-        '/api/market',  # Market health, breadth, distribution (public)
-        '/api/economic',  # Economic indicators (public)
-        '/api/algo',  # Algo strategy data (public, no user-specific data)
-        '/api/sectors',  # Sector analysis (public)
-        '/api/sentiment',  # Market sentiment (public)
-        '/api/industries',  # Industry analysis (public)
-        '/api/prices',  # Historical prices (public)
-        '/api/stocks',  # Stock data (public)
-        '/api/financials',  # Company financials (public)
-        '/api/earnings',  # Earnings data (public)
-        '/api/research',  # Research endpoints (public)
-        '/api/data-coverage',  # Data freshness status (public)
+        '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
+        '/api/economic',  # Economic indicators (public data)
+        '/api/sectors',  # Sector analysis (aggregate market data only)
+        '/api/sentiment',  # Market sentiment (aggregate only)
+        '/api/industries',  # Industry analysis (aggregate market data)
+        '/api/prices',  # Historical prices (public market data)
+        '/api/stocks',  # Stock metadata/list (public data)
+        '/api/financials',  # Company financials (public data)
+        '/api/earnings',  # Earnings data (public data)
+        '/api/research',  # Research endpoints (public analysis)
+        '/api/data-coverage',  # Data freshness status (public metadata)
     }
+
+    # Protected endpoints requiring authentication (strategy/trading data)
+    # These endpoints are NOT in PUBLIC_PREFIXES:
+    # - /api/algo/* - algo performance, signals, positions, trades, notifications
+    # - /api/signals/* - trading signals (strategy intelligence)
+    # - /api/scores/* - trading scores (strategy intelligence)
+    # - /api/audit/* - audit logs (sensitive)
+    # - /api/trades/* - trade history (user-specific)
+    # - /api/admin/* - admin functions (sensitive)
+    # - /api/settings/* - user settings (user-specific)
 
     # Protected endpoints (requires authentication)
     # /api/trades - user-specific trade history
@@ -688,19 +685,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'status': 'error', 'error': 'internal_error'})
                 }
 
-        # Check rate limiting (per client IP) — health endpoints are exempt
-        if not is_health_check:
-            client_ip = get_client_ip(event)
-            if is_rate_limited(client_ip):
-                cors_headers = get_cors_headers(event)
-                logger.warning(f'Rate limit exceeded for IP {client_ip}')
-                log_api_request(event, 429, error_msg='rate_limit_exceeded')
-                return {
-                    'statusCode': 429,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers(),
-                               'Retry-After': '60'},
-                    'body': json.dumps({'error': 'rate_limit_exceeded', 'message': 'Too many requests. Please try again later.'})
-                }
+        # Rate limiting enforced at API Gateway level (not per-Lambda)
+        # All rate limiting is handled by API Gateway throttling, which is global across instances
 
         try:
             # Use read-only mode for GET/HEAD, write mode for POST/PUT/PATCH/DELETE
@@ -741,10 +727,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
-            # Don't leak error details to client; log full details server-side only
 
+            # SECURITY FIX: Don't leak error details to client; log full details server-side only
             error_detail = f'{type(e).__name__}: {str(e)[:300]}'
             logger.error(f'[HANDLER_ERROR] path={path} {error_detail}', exc_info=True)
+            # Never expose error details to client (prevents info disclosure)
             return {
                 'statusCode': 503,
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
