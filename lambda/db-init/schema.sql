@@ -2706,7 +2706,17 @@ CREATE TABLE IF NOT EXISTS loader_watermarks (
 ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS long_exposure_pct DECIMAL(8, 4);
 ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS short_exposure_pct DECIMAL(8, 4);
 ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS is_entry_allowed BOOLEAN;
-ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS exposure_tier VARCHAR(20);
+ALTER TABLE market_exposure_daily ADD COLUMN IF NOT EXISTS exposure_tier VARCHAR(50);
+-- Widen column if it was previously created as VARCHAR(20) (too short for 'tier_1_strong_uptrend')
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'market_exposure_daily' AND column_name = 'exposure_tier'
+        AND character_maximum_length < 50
+    ) THEN
+        ALTER TABLE market_exposure_daily ALTER COLUMN exposure_tier TYPE VARCHAR(50);
+    END IF;
+END $$;
 
 -- sector_ranking: add missing historical rank columns used by sector rotation
 ALTER TABLE sector_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER;
