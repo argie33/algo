@@ -408,6 +408,17 @@ module "lifecycle" {
 data "aws_caller_identity" "current" {}
 
 # ============================================================
+# Import orphaned resources (created in partial applies)
+# ============================================================
+# The loader_failure_handler Step Functions permission was created in a
+# partial apply before ECS task definition registration failed. Import it
+# so subsequent applies don't try to create it again (409 conflict).
+import {
+  to = module.services.aws_lambda_permission.loader_failure_handler_step_functions[0]
+  id = "algo-loader-failure-handler-dev/AllowStepFunctionsInvoke"
+}
+
+# ============================================================
 # Governance Module - Enforce IaC-only resource creation
 # ============================================================
 module "governance" {
