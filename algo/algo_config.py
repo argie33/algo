@@ -58,6 +58,7 @@ class AlgoConfig:
         'max_positions_per_sector': ('5', 'int', 'Max concurrent positions in one sector'),
         'max_positions_per_industry': ('3', 'int', 'Max concurrent positions in one industry'),
         'min_swing_score': ('55.0', 'float', 'Min swing trader score to enter (regime manager may raise this)'),
+        'min_swing_grade': ('', 'string', 'Min swing grade override (empty=use exposure tier default; set to F for testing to bypass grade gate)'),
         'max_total_invested_pct': ('95.0', 'float', 'Max % of portfolio in open positions'),
 
         # Market Conditions
