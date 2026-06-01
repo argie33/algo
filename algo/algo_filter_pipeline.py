@@ -237,6 +237,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 # Fetch stage, trend score, and price data for signal date.
                 # volume_ma_50 from technical_data_daily replaces the correlated subquery
                 # AVG(volume) FROM price_daily (50-day window scan per symbol = too slow).
+                row = None
                 try:
                     cur.execute("SAVEPOINT stage_query")
                     cur.execute(
@@ -248,6 +249,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                            WHERE t.symbol = %s AND t.date = %s LIMIT 1""",
                         (symbol, signal_date),
                     )
+                    row = cur.fetchone()  # fetch BEFORE RELEASE (DDL clears result buffer)
                     cur.execute("RELEASE SAVEPOINT stage_query")
                 except Exception as _sq_err:
                     try:
@@ -257,7 +259,6 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         pass
                     logger.warning(f"  SKIP {symbol}: stage query failed ({_sq_err})")
                     continue
-                row = cur.fetchone()
                 if row:
                     stage_number, volume, day_high, day_low, close, avg_vol_50d = row
 
