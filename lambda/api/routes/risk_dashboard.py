@@ -17,8 +17,17 @@ from .utils import error_response, success_response, json_response, safe_limit, 
 
 logger = logging.getLogger(__name__)
 
+def _check_admin_access(jwt_claims: Dict) -> bool:
+    """Check if user has admin access from verified JWT claims only."""
+    if not jwt_claims:
+        return False
+    groups = jwt_claims.get('cognito:groups', [])
+    return 'admin' in groups
+
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Route risk dashboard endpoints."""
+    if not _check_admin_access(jwt_claims):
+        return error_response(403, 'forbidden', 'Admin access required')
     if path == '/api/algo/risk-dashboard':
         return _get_comprehensive_risk_dashboard(cur)
     elif path == '/api/algo/risk-dashboard/drawdown':

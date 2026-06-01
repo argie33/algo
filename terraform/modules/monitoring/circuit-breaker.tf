@@ -33,7 +33,7 @@ resource "aws_sns_topic_subscription" "circuit_breaker_email" {
 
 resource "aws_security_group" "circuit_breaker" {
   name        = "${var.project_name}-circuit-breaker-sg"
-  description = "Security group for circuit breaker Lambda (RDS access only)"
+  description = "Security group for circuit breaker Lambda (RDS + Secrets Manager access)"
   vpc_id      = var.vpc_id
 
   # Egress: allow PostgreSQL to RDS
@@ -43,6 +43,15 @@ resource "aws_security_group" "circuit_breaker" {
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
     description = "Allow PostgreSQL to RDS (database queries for portfolio P&L)"
+  }
+
+  # Egress: allow HTTPS to Secrets Manager (for fetching DB credentials)
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS to Secrets Manager API (fetch DB credentials)"
   }
 
   tags = merge(var.common_tags, {
@@ -158,7 +167,7 @@ resource "aws_lambda_function" "circuit_breaker" {
   filename      = "${path.root}/lambda/circuit_breaker.zip"
   function_name = "${var.project_name}-circuit-breaker-${var.environment}"
   role          = aws_iam_role.circuit_breaker.arn
-  handler       = "index.lambda_handler"
+  handler       = "lambda_function.lambda_handler"
   timeout       = 60
   memory_size   = 512
   runtime       = "python3.11"

@@ -134,7 +134,7 @@ def _submit_contact(cur, body: Dict) -> Dict:
         return error_response(400, 'bad_request', 'Phone number format invalid')
 
     # SECURITY FIX: Reject messages with suspicious patterns (script tags, SQL keywords, etc.)
-    # This is defense-in-depth; message is parameterized so no injection risk, but reject anyway
+    # This is defense-in-depth; fields are parameterized so no injection risk, but reject anyway
     dangerous_patterns = [
         r'<script',
         r'javascript:',
@@ -147,6 +147,10 @@ def _submit_contact(cur, body: Dict) -> Dict:
     for pattern in dangerous_patterns:
         if re.search(pattern, message, re.IGNORECASE):
             return error_response(400, 'bad_request', 'Message contains invalid content')
+        if re.search(pattern, name, re.IGNORECASE):
+            return error_response(400, 'bad_request', 'Name contains invalid content')
+        if re.search(pattern, subject, re.IGNORECASE):
+            return error_response(400, 'bad_request', 'Subject contains invalid content')
 
     # Rate limit contact form submissions per email
     if _is_contact_spam(email):
