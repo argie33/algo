@@ -100,6 +100,21 @@ def lambda_handler(event, context):
             logger.warning(f"Invalid execution_mode: {execution_mode}. Defaulting to 'auto'.")
             execution_mode = 'auto'
 
+        # F-02: Check Secrets Manager for intraday circuit breaker halt flag.
+        # Set by algo-circuit-breaker Lambda when portfolio drawdown exceeds threshold.
+        # Fail-open: if Secrets Manager is unavailable, continue with current dry_run value.
+        if not dry_run:
+            try:
+                import boto3, json as _json
+                sm = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                secret = sm.get_secret_value(SecretId='algo/orchestrator')
+                orch_state = _json.loads(secret.get('SecretString', '{}'))
+                if orch_state.get('orchestrator_dry_run', False) in (True, 'true', '1'):
+                    logger.warning("[F-02] Circuit breaker halted trading — orchestrator_dry_run=true in Secrets Manager")
+                    dry_run = True
+            except Exception as _cb_err:
+                logger.warning(f"[F-02] Could not check circuit breaker state: {_cb_err} — continuing with dry_run={dry_run}")
+
         logger.info(f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}")
         # Startup diagnostic: surface critical config state in every CloudWatch log
         logger.info(
