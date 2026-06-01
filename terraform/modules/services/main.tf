@@ -35,21 +35,15 @@ resource "aws_lambda_layer_version" "shared_deps" {
   compatible_architectures = ["x86_64"]
 }
 
-# F-03: numpy/scipy Lambda layer (built in deploy workflow)
-resource "aws_lambda_layer_version" "numpy_scipy" {
-  count                    = fileexists("${path.root}/lambda/numpy-scipy-layer.zip") ? 1 : 0
-  filename                 = "${path.root}/lambda/numpy-scipy-layer.zip"
-  layer_name               = "${var.project_name}-numpy-scipy-${var.environment}"
-  compatible_runtimes      = ["python3.12"]
-  source_code_hash         = fileexists("${path.root}/lambda/numpy-scipy-layer.zip") ? filebase64sha256("${path.root}/lambda/numpy-scipy-layer.zip") : null
-  compatible_architectures = ["x86_64"]
-}
+# F-03: numpy/scipy Lambda layer is NOT deployed via Terraform.
+# numpy+scipy exceed Lambda's 69MB direct-upload limit.
+# Phase 7 (VaR/IC/weight optimization) fails-open without this layer.
+# To fix F-03: use S3-based layer upload or move Phase 7 to ECS.
 
 # Reference layer ARNs (use layer resources if created, else data sources)
 locals {
-  api_layer_arn             = data.aws_lambda_layer_version.api_deps.arn
-  shared_deps_layer_arn     = try(aws_lambda_layer_version.shared_deps[0].arn, "")
-  numpy_scipy_layer_arn     = try(aws_lambda_layer_version.numpy_scipy[0].arn, "")
+  api_layer_arn         = data.aws_lambda_layer_version.api_deps.arn
+  shared_deps_layer_arn = try(aws_lambda_layer_version.shared_deps[0].arn, "")
 }
 
 # ============================================================
@@ -599,10 +593,9 @@ resource "aws_lambda_function" "algo" {
   reserved_concurrent_executions = 1
 
   layers = concat(
-    local.numpy_scipy_layer_arn != "" ? [local.numpy_scipy_layer_arn] : [],
     local.shared_deps_layer_arn != "" ? [local.shared_deps_layer_arn] : [],
     [var.psycopg2_layer_arn]
-  ) # Orchestrator: numpy/scipy for Phase 7 + shared deps + psycopg2 for database access
+  ) # Orchestrator: shared deps + psycopg2 (numpy/scipy F-03 pending S3-based upload)
 
   # Use S3 package if available, otherwise pre-built local zip file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
@@ -1113,7 +1106,7 @@ resource "aws_dynamodb_table" "contact_rate_limit" {
 # IAM Policy: Allow API Lambda to access contact rate limit table
 resource "aws_iam_role_policy" "api_contact_rate_limit" {
   name = "${var.project_name}-api-contact-rate-limit-${var.environment}"
-  role = split("/", var.api_lambda_role_arn)[1]
+  role = local.api_lambda_role_name
 
   policy = jsonencode({
     Version = "2012-10-17"

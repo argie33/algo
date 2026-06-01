@@ -1082,11 +1082,16 @@ resource "aws_iam_user" "developer" {
   })
 }
 
-# Add specific invoke + execution + read-only permissions
-resource "aws_iam_user_policy" "developer" {
+# Add specific invoke + execution + read-only permissions via managed policy
+# (IAM inline user policies are limited to 2048 bytes; managed policies support 6144 bytes)
+resource "aws_iam_policy" "developer" {
   name   = "${var.project_name}-developer-policy"
-  user   = aws_iam_user.developer.name
   policy = data.aws_iam_policy_document.developer.json
+}
+
+resource "aws_iam_user_policy_attachment" "developer" {
+  user       = aws_iam_user.developer.name
+  policy_arn = aws_iam_policy.developer.arn
 }
 
 data "aws_iam_policy_document" "developer" {

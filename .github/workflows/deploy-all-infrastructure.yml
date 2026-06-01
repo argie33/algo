@@ -247,40 +247,13 @@ jobs:
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
 
-      - name: Build numpy/scipy Lambda layer (F-03)
+      - name: Skip numpy/scipy Lambda layer (exceeds 69MB direct-upload limit)
         run: |
-          set -e
-          echo "[*] Building numpy/scipy Lambda layer for Phase 7..."
-
-          LAYER_DIR="/tmp/numpy-scipy-layer"
-          mkdir -p "$LAYER_DIR/python"
-
-          # Install numpy and scipy with binary wheels
-          pip install --target "$LAYER_DIR/python" \
-            --platform manylinux2014_x86_64 \
-            --implementation cp \
-            --python-version 3.12 \
-            --only-binary=:all: \
-            --no-cache-dir \
-            numpy scipy 2>&1 | grep -E "Successfully|ERROR" || true
-
-          echo "[*] Cleaning up unnecessary files..."
-          # Remove unnecessary files to reduce size
-          rm -rf "$LAYER_DIR/python"/{*.dist-info,*.egg-info,__pycache__,*.pyc,*.pyo}
-          rm -rf "$LAYER_DIR/python"/numpy/{f2py,tests,core/tests}
-          rm -rf "$LAYER_DIR/python"/scipy/{stats/tests,optimize/tests,special/tests}
-          find "$LAYER_DIR/python" -type f \( -name "*.c" -o -name "*.h" -o -name "*.so.debug" \) -delete
-
-          # Strip debug symbols from .so files
-          find "$LAYER_DIR/python" -type f -name "*.so" -exec strip {} \;
-
-          # Create ZIP
+          # numpy+scipy binaries exceed Lambda's 69MB direct-upload limit.
+          # Phase 7 IC/VaR/weight-optimization features fail-open without it.
+          # Core trading (Phases 1-6) and Phase 7 snapshot creation work fine.
           mkdir -p $GITHUB_WORKSPACE/terraform/lambda
-          cd "$LAYER_DIR"
-          zip -r -q "$GITHUB_WORKSPACE/terraform/lambda/numpy-scipy-layer.zip" .
-
-          SIZE=$(du -sh "$GITHUB_WORKSPACE/terraform/lambda/numpy-scipy-layer.zip" | cut -f1)
-          echo "[✓] numpy/scipy layer created: $SIZE"
+          echo "[SKIP] numpy/scipy layer not built — exceeds 69MB Lambda layer limit"
 
       - name: Build db-init Lambda
         run: |

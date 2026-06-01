@@ -212,6 +212,16 @@ resource "aws_security_group" "api_lambda" {
     description = "Allow HTTPS to VPC endpoints (Secrets Manager, CloudWatch Logs, SNS)"
   }
 
+  # Egress: allow HTTPS to internet for Cognito JWT validation via NAT Gateway.
+  # The cognito-idp VPC endpoint service is not available in all AZs; NAT Gateway is the fallback.
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS to internet for Cognito JWT validation via NAT Gateway"
+  }
+
   # Egress: allow PostgreSQL to RDS
   egress {
     from_port   = 5432
@@ -532,7 +542,10 @@ resource "aws_vpc_endpoint" "route53_resolver" {
 # The Lambda SG already allows HTTPS to VPC CIDR (10.0.0.0/16); VPC endpoint ENIs use private IPs
 # within the VPC, so no security group changes are needed.
 resource "aws_vpc_endpoint" "cognito_idp" {
-  count               = var.enable_vpc_endpoints ? 1 : 0
+  # Disabled: cognito-idp endpoint service not available in all AZs of this region.
+  # Lambda JWT validation works via NAT Gateway as fallback. Re-enable after verifying
+  # supported AZs with: aws ec2 describe-vpc-endpoint-services --service-names com.amazonaws.us-east-1.cognito-idp
+  count               = 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.cognito-idp"
   vpc_endpoint_type   = "Interface"
