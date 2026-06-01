@@ -146,6 +146,12 @@ variable "python_dependencies_layer_arn" {
   default     = ""
 }
 
+variable "eventbridge_scheduler_role_arn" {
+  description = "IAM role ARN for EventBridge Scheduler to invoke Lambda"
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # ECS Loader Monitoring Configuration
 # ============================================================

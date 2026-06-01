@@ -1,5 +1,5 @@
 # ============================================================
-# Circuit Breaker Lambda + CloudWatch Alarms
+# Circuit Breaker Lambda + EventBridge Schedules
 # F-02: Intraday portfolio variance protection
 # ============================================================
 
@@ -23,13 +23,11 @@ resource "aws_iam_role" "circuit_breaker" {
   tags = var.common_tags
 }
 
-# Basic execution policy (logs)
 resource "aws_iam_role_policy_attachment" "circuit_breaker_logs" {
   role       = aws_iam_role.circuit_breaker.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Policy for Secrets Manager and RDS access
 resource "aws_iam_role_policy" "circuit_breaker_policy" {
   name = "${var.project_name}-circuit-breaker-policy-${var.environment}"
   role = aws_iam_role.circuit_breaker.id
@@ -49,9 +47,7 @@ resource "aws_iam_role_policy" "circuit_breaker_policy" {
       },
       {
         Effect = "Allow"
-        Action = [
-          "rds-db:connect",
-        ]
+        Action = ["rds-db:connect"]
         Resource = "*"
       },
       {
@@ -73,7 +69,7 @@ resource "aws_iam_role_policy" "circuit_breaker_policy" {
 
 resource "aws_cloudwatch_log_group" "circuit_breaker" {
   name              = "/aws/lambda/${var.project_name}-circuit-breaker-${var.environment}"
-  retention_in_days = var.cloudwatch_log_retention_days
+  retention_in_days = 30
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-circuit-breaker-logs"
@@ -92,6 +88,7 @@ resource "aws_lambda_function" "circuit_breaker" {
   timeout       = 60
   memory_size   = 512
   runtime       = "python3.12"
+  source_code_hash = filebase64sha256("${path.module}/../../lambda/circuit-breaker/index.zip")
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
@@ -105,7 +102,10 @@ resource "aws_lambda_function" "circuit_breaker" {
     }
   }
 
-  depends_on = [aws_iam_role_policy.circuit_breaker_policy]
+  depends_on = [
+    aws_iam_role_policy.circuit_breaker_policy,
+    aws_cloudwatch_log_group.circuit_breaker,
+  ]
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-circuit-breaker"
@@ -113,85 +113,114 @@ resource "aws_lambda_function" "circuit_breaker" {
 }
 
 # ============================================================
-# 4. CloudWatch Alarms - Trigger Circuit Breaker
+# 4. EventBridge Scheduler permission for Lambda
 # ============================================================
 
-# EventBridge rule to trigger circuit breaker at 10 AM ET and 12 PM ET
-resource "aws_cloudwatch_event_rule" "circuit_breaker_schedule" {
-  name                = "${var.project_name}-circuit-breaker-schedule-${var.environment}"
-  description         = "Trigger circuit breaker check at 10 AM and 12 PM ET on trading days"
-  schedule_expression = "cron(0 14,16 ? * MON-FRI *)"  # 10 AM and 12 PM ET in UTC (14:00, 16:00)
-
-  tags = var.common_tags
-}
-
-resource "aws_cloudwatch_event_target" "circuit_breaker_lambda" {
-  rule      = aws_cloudwatch_event_rule.circuit_breaker_schedule.name
-  target_id = "CircuitBreakerLambda"
-  arn       = aws_lambda_function.circuit_breaker.arn
-}
-
-# Grant EventBridge permission to invoke Lambda
-resource "aws_lambda_permission" "allow_eventbridge_circuit_breaker" {
-  statement_id  = "AllowExecutionFromEventBridge"
+resource "aws_lambda_permission" "circuit_breaker_scheduler" {
+  statement_id  = "AllowEventBridgeSchedulerInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.circuit_breaker.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.circuit_breaker_schedule.arn
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
 }
 
 # ============================================================
-# 5. SNS Topic for Circuit Breaker Alerts
+# 5. EventBridge Scheduler: 10 AM ET (mid-morning check)
+# Uses America/New_York timezone — auto-handles EDT/EST.
 # ============================================================
 
-resource "aws_sns_topic" "circuit_breaker_alerts" {
-  name              = "${var.project_name}-circuit-breaker-alerts-${var.environment}"
-  display_name      = "Circuit Breaker Alerts"
-  kms_master_key_id = "alias/aws/sns"
+resource "aws_scheduler_schedule" "circuit_breaker_10am" {
+  count                        = var.eventbridge_scheduler_role_arn != "" ? 1 : 0
+  name                         = "${var.project_name}-circuit-breaker-10am-${var.environment}"
+  description                  = "Mid-morning portfolio variance check: halt trading if drawdown > 15%"
+  schedule_expression          = "cron(0 10 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
 
-  tags = var.common_tags
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.circuit_breaker.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source     = "eventbridge-scheduler"
+      check_time = "10am"
+    })
+  }
+
+  depends_on = [aws_lambda_permission.circuit_breaker_scheduler]
 }
 
-# CloudWatch Alarm: Monitor Lambda errors
+resource "aws_scheduler_schedule" "circuit_breaker_12pm" {
+  count                        = var.eventbridge_scheduler_role_arn != "" ? 1 : 0
+  name                         = "${var.project_name}-circuit-breaker-12pm-${var.environment}"
+  description                  = "Midday portfolio variance check: halt trading if drawdown > 15%"
+  schedule_expression          = "cron(0 12 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.circuit_breaker.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source     = "eventbridge-scheduler"
+      check_time = "12pm"
+    })
+  }
+
+  depends_on = [aws_lambda_permission.circuit_breaker_scheduler]
+}
+
+# ============================================================
+# 6. CloudWatch Alarms for Circuit Breaker Lambda health
+# ============================================================
+
 resource "aws_cloudwatch_metric_alarm" "circuit_breaker_errors" {
   alarm_name          = "${var.project_name}-circuit-breaker-errors-${var.environment}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = "1"
+  evaluation_periods  = 1
   metric_name         = "Errors"
   namespace           = "AWS/Lambda"
-  period              = "300"
+  period              = 300
   statistic           = "Sum"
-  threshold           = "1"
-  alarm_description   = "Alert when circuit breaker Lambda encounters errors"
+  threshold           = 1
+  alarm_description   = "CRITICAL: Circuit breaker Lambda failed — intraday halt protection is degraded"
   treat_missing_data  = "notBreaching"
 
   dimensions = {
     FunctionName = aws_lambda_function.circuit_breaker.function_name
   }
 
-  alarm_actions = [aws_sns_topic.circuit_breaker_alerts.arn]
+  alarm_actions = var.sns_alerts_topic_arn != "" ? [var.sns_alerts_topic_arn] : []
 
   tags = var.common_tags
 }
 
-# CloudWatch Alarm: Monitor Lambda duration (should be < 30s)
 resource "aws_cloudwatch_metric_alarm" "circuit_breaker_duration" {
   alarm_name          = "${var.project_name}-circuit-breaker-duration-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "1"
+  evaluation_periods  = 1
   metric_name         = "Duration"
   namespace           = "AWS/Lambda"
-  period              = "300"
+  period              = 300
   statistic           = "Maximum"
-  threshold           = "30000"  # 30 seconds in milliseconds
-  alarm_description   = "Alert if circuit breaker check takes > 30 seconds"
+  threshold           = 30000
+  alarm_description   = "Circuit breaker check took > 30 seconds — possible DB connection issue"
   treat_missing_data  = "notBreaching"
 
   dimensions = {
     FunctionName = aws_lambda_function.circuit_breaker.function_name
   }
 
-  alarm_actions = [aws_sns_topic.circuit_breaker_alerts.arn]
+  alarm_actions = var.sns_alerts_topic_arn != "" ? [var.sns_alerts_topic_arn] : []
 
   tags = var.common_tags
 }
