@@ -360,8 +360,11 @@ def _get_cognito_jwks():
         return _JWKS_CACHE
 
     try:
+        from requests.adapters import HTTPAdapter
         url = f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}/.well-known/jwks.json"
-        response = requests.get(url, timeout=5)
+        session = requests.Session()
+        session.mount('https://', HTTPAdapter(max_retries=0))
+        response = session.get(url, timeout=3)
         response.raise_for_status()
         _JWKS_CACHE = response.json()
         _JWKS_CACHE_TIME = now

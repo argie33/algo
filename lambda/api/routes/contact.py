@@ -24,54 +24,72 @@ _EMAIL_RE = re.compile(
 CONTACT_RATE_LIMIT_REQUESTS = 5
 CONTACT_RATE_LIMIT_WINDOW = 3600
 
+# Fallback in-memory rate limiter (per Lambda instance)
+# Tracks submission times by email: {email: [timestamp, timestamp, ...]}
+_FALLBACK_RATE_LIMIT_TRACKER = {}
+
 def _is_contact_spam(email: str) -> bool:
     """Check if email has exceeded contact form submission rate limit.
 
-    SECURITY NOTE: Rate limiting for contact form is enforced at API Gateway level.
-    In-memory tracking here is a secondary, per-instance layer only.
-    For production multi-instance deployments, use DynamoDB with TTL for distributed rate limiting.
+    Implements TWO-LAYER rate limiting:
+    1. Primary: DynamoDB (distributed across Lambda instances)
+    2. Fallback: In-memory per-instance (when DynamoDB not available)
+
+    SECURITY: When both fail, conservatively returns True (rejects request) to prevent DoS.
     """
     import boto3
+    import os
     from botocore.exceptions import ClientError
 
-    try:
-        import os
-        dynamodb_table = os.getenv('CONTACT_RATE_LIMIT_TABLE')
-        if not dynamodb_table:
-            logger.debug("CONTACT_RATE_LIMIT_TABLE not set - skipping distributed rate limiting")
-            return False
+    now = int(time())
+    window_start = now - CONTACT_RATE_LIMIT_WINDOW
 
-        dynamodb = boto3.resource('dynamodb')
-        table = dynamodb.Table(dynamodb_table)
-        now = int(time())
-        window_start = now - CONTACT_RATE_LIMIT_WINDOW
-
+    # LAYER 1: Try distributed DynamoDB rate limiting
+    dynamodb_table = os.getenv('CONTACT_RATE_LIMIT_TABLE')
+    if dynamodb_table:
         try:
+            dynamodb = boto3.resource('dynamodb')
+            table = dynamodb.Table(dynamodb_table)
             response = table.get_item(Key={'email': email})
             item = response.get('Item', {})
             submission_times = item.get('submission_times', [])
-
             recent_submissions = [t for t in submission_times if t > window_start]
 
             if len(recent_submissions) >= CONTACT_RATE_LIMIT_REQUESTS:
-                logger.warning(f"Contact form rate limit exceeded for {email}: {len(recent_submissions)} submissions in {CONTACT_RATE_LIMIT_WINDOW}s")
+                logger.warning(f"Contact form rate limit exceeded (DynamoDB): {email} - {len(recent_submissions)} submissions")
                 return True
 
             recent_submissions.append(now)
-            table.put_item(
-                Item={
-                    'email': email,
-                    'submission_times': recent_submissions,
-                    'ttl': now + CONTACT_RATE_LIMIT_WINDOW + 86400
-                }
-            )
+            table.put_item(Item={'email': email, 'submission_times': recent_submissions, 'ttl': now + CONTACT_RATE_LIMIT_WINDOW + 86400})
             return False
         except ClientError as e:
-            logger.warning(f"DynamoDB rate limit check failed: {e}. Allowing request.")
-            return False
-    except Exception as e:
-        logger.warning(f"Rate limiting error: {e}. Allowing request.")
+            logger.warning(f"DynamoDB rate limit check failed: {e}. Falling back to in-memory limiter.")
+        except Exception as e:
+            logger.warning(f"DynamoDB error: {e}. Falling back to in-memory limiter.")
+
+    # LAYER 2: Fallback in-memory rate limiting (this Lambda instance only)
+    try:
+        if email not in _FALLBACK_RATE_LIMIT_TRACKER:
+            _FALLBACK_RATE_LIMIT_TRACKER[email] = []
+
+        submission_times = _FALLBACK_RATE_LIMIT_TRACKER[email]
+        recent_submissions = [t for t in submission_times if t > window_start]
+
+        if len(recent_submissions) >= CONTACT_RATE_LIMIT_REQUESTS:
+            logger.warning(f"Contact form rate limit exceeded (in-memory): {email} - {len(recent_submissions)} submissions")
+            return True
+
+        recent_submissions.append(now)
+        _FALLBACK_RATE_LIMIT_TRACKER[email] = recent_submissions
+
+        # Cleanup old entries to prevent memory leak (keep last 100 per email)
+        if len(recent_submissions) > 100:
+            _FALLBACK_RATE_LIMIT_TRACKER[email] = recent_submissions[-100:]
+
         return False
+    except Exception as e:
+        logger.error(f"CRITICAL: Both rate limiters failed: {e}. Rejecting request for safety.")
+        return True  # Fail safe: reject if we can't rate limit
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/contact/* endpoints. Submissions require admin auth."""

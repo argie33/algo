@@ -144,3 +144,9 @@ variable "alpaca_paper_trading" {
   type        = bool
   default     = true
 }
+
+variable "ecs_log_group_name" {
+  description = "CloudWatch log group name for ECS loader tasks (for monitoring)"
+  type        = string
+  default     = ""
+}

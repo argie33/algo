@@ -1082,16 +1082,7 @@ jobs:
 
           if [ -z "$SECRET" ] || [ "$SECRET" = "{}" ]; then
             echo "WARNING: Could not fetch database credentials, skipping migrations"
-            # Store minimal fallback in secure temp file instead of GITHUB_ENV
-            cat > /tmp/db_config.py << 'DBEOF'
-import os
-os.environ['DB_HOST'] = 'localhost'
-os.environ['DB_PORT'] = '5432'
-os.environ['DB_USER'] = 'postgres'
-os.environ['DB_PASSWORD'] = ''
-os.environ['DB_NAME'] = 'algo'
-os.environ['DB_SSL'] = 'require'
-DBEOF
+            printf "import os\nos.environ['DB_HOST']='localhost'\nos.environ['DB_PORT']='5432'\nos.environ['DB_USER']='postgres'\nos.environ['DB_PASSWORD']=''\nos.environ['DB_NAME']='algo'\nos.environ['DB_SSL']='require'\n" > /tmp/db_config.py
             chmod 600 /tmp/db_config.py
             exit 0
           fi
