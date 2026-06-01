@@ -643,6 +643,7 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
     email VARCHAR(255),
     subject VARCHAR(255),
     message TEXT,
+    phone VARCHAR(20),
     status VARCHAR(20) DEFAULT 'new',
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

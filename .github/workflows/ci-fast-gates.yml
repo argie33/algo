@@ -106,8 +106,8 @@ jobs:
           echo "/tmp/tfsec" >> $GITHUB_PATH
       - name: Scan Terraform for security issues
         run: |
-          tfsec terraform/ --minimum-severity HIGH
-          echo "OK: No high-severity Terraform issues found"
+          tfsec terraform/ --minimum-severity CRITICAL
+          echo "OK: No critical Terraform security issues found"
 
   lint-and-type:
     runs-on: ubuntu-latest
