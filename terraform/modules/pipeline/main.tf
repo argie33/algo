@@ -185,7 +185,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogSymbolLoadFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "stock_symbols"
           "error.$"         = "$.loaderError.Error"
@@ -235,7 +235,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogPriceLoadFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "stock_prices_daily"
           "error.$"         = "$.loaderError.Error"
@@ -319,7 +319,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # FIXED Issue #4: Log loader failures and continue with available data (graceful degradation)
       LogLoaderFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "parallel_technicals"
           "error.$"         = "$.loaderError.Error"
@@ -381,7 +381,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogEnrichmentFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "parallel_enrichment"
           "error.$"         = "$.loaderError.Error"
@@ -431,7 +431,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogSignalGenerationFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "buy_sell_daily"
           "error.$"         = "$.loaderError.Error"
@@ -481,7 +481,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogQualityScoresFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "signal_quality_scores"
           "error.$"         = "$.loaderError.Error"
@@ -531,7 +531,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogMetricsFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "algo_metrics_daily"
           "error.$"         = "$.loaderError.Error"
@@ -580,7 +580,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogSwingScoresFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "swing_trader_scores"
           "error.$"         = "$.loaderError.Error"
@@ -685,7 +685,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       LogOrchestratorFailure = {
         Type     = "Task"
-        Resource = aws_lambda_function.loader_failure_handler.arn
+        Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "algo_orchestrator_validation"
           "error.$"         = "$.loaderError.Error"
@@ -810,79 +810,10 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
   tags = var.common_tags
 }
 
-# ============================================================
-# IAM Role for Loader Failure Handler Lambda
-# ============================================================
-
-resource "aws_iam_role" "loader_failure_handler" {
-  name = "${var.project_name}-loader-failure-handler-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Action    = "sts:AssumeRole"
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
-
-  tags = var.common_tags
-}
-
-resource "aws_iam_role_policy_attachment" "loader_failure_handler_logs" {
-  role       = aws_iam_role.loader_failure_handler.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy" "loader_failure_handler_cloudwatch" {
-  name   = "${var.project_name}-loader-failure-handler-cloudwatch"
-  role   = aws_iam_role.loader_failure_handler.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Sid    = "PublishMetricsAndAlerts"
-      Effect = "Allow"
-      Action = [
-        "cloudwatch:PutMetricData",
-        "sns:Publish"
-      ]
-      Resource = "*"
-    }]
-  })
-}
-
-# ============================================================
-# Loader Failure Handler Lambda Function
-# ============================================================
-
-data "archive_file" "loader_failure_handler" {
-  type        = "zip"
-  source_file = "${path.root}/../lambda/loader_failure_handler.py"
-  output_path = "${path.module}/.terraform/loader_failure_handler.zip"
-}
-
-resource "aws_lambda_function" "loader_failure_handler" {
-  filename         = data.archive_file.loader_failure_handler.output_path
-  function_name    = "${var.project_name}-loader-failure-handler-${var.environment}"
-  role             = aws_iam_role.loader_failure_handler.arn
-  handler          = "loader_failure_handler.lambda_handler"
-  runtime          = "python3.12"
-  timeout          = 60
-  source_code_hash = data.archive_file.loader_failure_handler.output_base64sha256
-
-  environment {
-    variables = {
-      SNS_ALERT_TOPIC_ARN = var.sns_alert_topic_arn
-    }
-  }
-
-  tags = var.common_tags
-}
-
 resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
   statement_id  = "AllowStepFunctionsInvoke"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.loader_failure_handler.function_name
+  function_name = var.loader_failure_handler_arn
   principal     = "states.amazonaws.com"
   source_arn    = aws_sfn_state_machine.eod_pipeline.arn
 }

@@ -534,6 +534,18 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Remove Orphaned Pipeline Lambda From State
+        if: steps.tf_plan.outputs.has_changes == 'true'
+        run: |
+          # loader_failure_handler was defined in both module.pipeline and module.services.
+          # module.pipeline now delegates to var.loader_failure_handler_arn (module.services owns it).
+          # Remove pipeline's orphaned state entries so Terraform doesn't try to destroy the live Lambda.
+          terraform state rm "module.pipeline.aws_lambda_function.loader_failure_handler" 2>/dev/null || true
+          terraform state rm "module.pipeline.aws_iam_role.loader_failure_handler" 2>/dev/null || true
+          terraform state rm "module.pipeline.aws_iam_role_policy_attachment.loader_failure_handler_logs" 2>/dev/null || true
+          terraform state rm "module.pipeline.aws_iam_role_policy.loader_failure_handler_cloudwatch" 2>/dev/null || true
+          echo "[OK] Orphaned pipeline loader_failure_handler state entries removed"
+
       - name: Terraform Apply
         if: steps.tf_plan.outputs.has_changes == 'true'
         run: terraform apply -auto-approve tfplan
