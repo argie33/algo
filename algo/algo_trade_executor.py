@@ -272,8 +272,8 @@ class TradeExecutor:
             # closure as local for the entire function scope).
             nonlocal target_1_price, target_2_price, target_3_price
 
-            # Schema migration: add idempotency_key if missing (older DB deployments)
-                        cur.execute(
+            # Schema migration: idempotency_key now added by migration 004, not runtime
+            cur.execute(
                 "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
                 (idempotency_key,)
             )

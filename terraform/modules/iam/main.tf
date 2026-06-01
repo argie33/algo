@@ -947,7 +947,7 @@ data "aws_iam_policy_document" "lambda_algo" {
     }
   }
 
-  # DynamoDB - Orchestrator locks and loader status
+  # DynamoDB - Orchestrator locks, halt flag, and loader status
   statement {
     sid    = "DynamoDatabaseOrchestration"
     effect = "Allow"
@@ -962,23 +962,40 @@ data "aws_iam_policy_document" "lambda_algo" {
 
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-${var.environment}",
-      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-status-${var.environment}"
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-status-${var.environment}",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_orchestrator_state"
     ]
   }
 
   # ECS - OOM prevention: list and stop long-running analytics loaders (>2h)
+  # ListTasks is a service-level action requiring "*" resource, other actions scoped to cluster
   statement {
-    sid    = "ECSLoaderOOMPrevention"
+    sid    = "ECSListTasks"
     effect = "Allow"
 
     actions = [
-      "ecs:ListTasks",
+      "ecs:ListTasks"
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ecs:cluster"
+      values   = ["arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-cluster"]
+    }
+  }
+
+  statement {
+    sid    = "ECSTaskManagement"
+    effect = "Allow"
+
+    actions = [
       "ecs:DescribeTasks",
       "ecs:StopTask"
     ]
 
     resources = [
-      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-cluster",
       "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task/${var.project_name}-cluster/*"
     ]
   }

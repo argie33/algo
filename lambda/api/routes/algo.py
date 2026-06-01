@@ -84,13 +84,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 return handle_db_error(e, logger, 'handle algo')
         if method == 'POST' and path == '/api/algo/patrol':
-
             if not _check_admin_access(jwt_claims):
-
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
-
                 return error_response(403, 'forbidden', 'Admin access required')
-
             return _trigger_data_patrol()
         if method == 'POST' and path == '/api/algo/pre-trade-impact':
             if not _check_admin_access(jwt_claims):
