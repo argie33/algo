@@ -54,24 +54,32 @@ def lambda_handler(event, context):
         task_def = f"{project_name}-{loader_name}-loader"
         logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
 
-        response = ecs.run_task(
-            cluster=cluster_arn,
-            taskDefinition=task_def,
-            launchType='FARGATE' if use_fargate else None,
-            networkConfiguration={
+        # Build run_task params carefully - only include launchType if FARGATE, don't pass None
+        run_task_params = {
+            'cluster': cluster_arn,
+            'taskDefinition': task_def,
+            'networkConfiguration': {
                 'awsvpcConfiguration': {
                     'subnets': os.getenv('SUBNET_IDS', '').split(','),
                     'securityGroups': [os.getenv('SECURITY_GROUP_ID', '')],
                     'assignPublicIp': 'DISABLED'
                 }
             },
-            count=task_count,
-            capacityProviderStrategy=[{
+            'count': task_count,
+        }
+
+        if use_fargate:
+            # Critical loaders: use on-demand FARGATE
+            run_task_params['launchType'] = 'FARGATE'
+        else:
+            # Non-critical loaders: use FARGATE_SPOT via capacity provider strategy
+            run_task_params['capacityProviderStrategy'] = [{
                 'capacityProvider': 'FARGATE_SPOT',
                 'weight': 100,
                 'base': 0
-            }] if not use_fargate else None,
-        )
+            }]
+
+        response = ecs.run_task(**run_task_params)
 
         tasks = response.get('tasks', [])
         if not tasks:

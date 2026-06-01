@@ -86,6 +86,7 @@ class Orchestrator:
         """Check for halt flag in DynamoDB. Returns True if halt was requested.
 
         Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
+        SECURITY: If DynamoDB is unreachable, emits CloudWatch alarm metric.
         """
         try:
             import boto3
@@ -99,7 +100,14 @@ class Orchestrator:
                 self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
                 return True
         except Exception as e:
-            logger.warning(f"Could not check halt flag in DynamoDB: {e}. Continuing with trading.")
+            # CRITICAL: DynamoDB unavailable defeats emergency halt mechanism
+            logger.error(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}. Emergency halt is DISABLED.")
+            # Emit metric for CloudWatch alarm
+            try:
+                from algo.algo_metrics import MetricsCollector
+                MetricsCollector().add_metric('DynamoDBHaltCheckFailure', 1, unit='Count')
+            except Exception as metric_err:
+                logger.warning(f"Could not emit halt check failure metric: {metric_err}")
 
         return False
 

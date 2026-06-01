@@ -1014,6 +1014,24 @@ resource "aws_cloudwatch_metric_alarm" "loader_failures_accumulating" {
   tags                = var.common_tags
 }
 
+# CRITICAL: DynamoDB Halt Check Failure Alarm
+# If the emergency halt mechanism cannot reach DynamoDB, trading continues unprotected
+resource "aws_cloudwatch_metric_alarm" "dynamodb_halt_check_failure" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-dynamodb-halt-check-failure-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "DynamoDBHaltCheckFailure"
+  namespace           = "AlgoTrading"
+  period              = 300 # 5 minutes
+  statistic           = "Sum"
+  threshold           = 1
+  alarm_description   = "CRITICAL: DynamoDB halt check failed. Emergency halt mechanism is DISABLED — trading continued despite potential halt request. Check DynamoDB availability immediately."
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.algo_alerts[0].arn]
+  tags                = var.common_tags
+}
+
 resource "aws_lambda_permission" "eventbridge_scheduler" {
   statement_id  = "AllowEventBridgeSchedulerInvoke"
   action        = "lambda:InvokeFunction"
