@@ -1131,17 +1131,18 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
         """Get swing trade candidates with scoring."""
         try:
             cur.execute("SET statement_timeout TO '25s'")
-            filters = ["s.date >= CURRENT_DATE - INTERVAL '7 days'"]
+            # SECURITY FIX VULN-13: Use psycopg2.sql for safe SQL composition
+            filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '7 days'")]
             query_params = []
             if min_score is not None:
-                filters.append("s.score >= %s")
+                filters.append(psycopg2.sql.SQL("s.score >= %s"))
                 query_params.append(min_score)
             if symbol:
-                filters.append("s.symbol = %s")
+                filters.append(psycopg2.sql.SQL("s.symbol = %s"))
                 query_params.append(symbol.upper())
-            where_clause = " AND ".join(filters)
+            where_clause = psycopg2.sql.SQL(" AND ").join(filters)
             query_params.append(limit)
-            cur.execute(f"""
+            query = psycopg2.sql.SQL("""
                 SELECT
                     s.symbol, s.date, s.score AS swing_score,
                     s.components->>'grade' AS grade,
@@ -1157,7 +1158,8 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
                 WHERE {where_clause}
                 ORDER BY s.date DESC, s.score DESC
                 LIMIT %s
-            """, query_params)
+            """).format(where_clause=where_clause)
+            cur.execute(query, query_params)
             scores = cur.fetchall()
             return list_response([dict(s) for s in scores])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:

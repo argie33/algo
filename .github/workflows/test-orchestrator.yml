@@ -97,17 +97,17 @@ jobs:
           INVOKE_START=$(date -u +%s)
 
           # Synchronous invocation - writes response to file, metadata to stdout
-          # cli-read-timeout 700 prevents botocore's default 60s HTTP socket timeout
-          # from dropping the connection mid-Lambda and retrying (which causes
-          # TooManyRequestsException when reserved_concurrency=1).
-          # timeout 750: Lambda cold start takes ~4.5 min + execution ~5 min = ~9.5 min
-          # total; 750s gives a 2.5-minute buffer beyond cold start + execution.
-          timeout 750 aws lambda invoke \
+          # cli-read-timeout 1450 prevents botocore's HTTP socket timeout from
+          # dropping the connection mid-Lambda and retrying (TooManyRequestsException
+          # with reserved_concurrency=1).
+          # timeout 1500 (25 min): cold start 8-9 min (VPC+Python imports) +
+          # execution 5-8 min (Phase 3b slow under RDS load) = up to 17 min total.
+          timeout 1500 aws lambda invoke \
             --function-name "$FUNC" \
             --invocation-type RequestResponse \
             --payload "$ENCODED" \
             --region $AWS_REGION \
-            --cli-read-timeout 700 \
+            --cli-read-timeout 1450 \
             --cli-connect-timeout 30 \
             /tmp/response.json 2>&1 || echo "Lambda invocation returned non-zero exit"
 
