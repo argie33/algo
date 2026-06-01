@@ -368,6 +368,12 @@ variable "api_lambda_reserved_concurrency" {
   default     = 50
 }
 
+variable "api_lambda_provisioned_concurrency" {
+  description = "Provisioned concurrency for API Lambda (pre-warmed instances to avoid VPC cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
+  type        = number
+  default     = 0
+}
+
 variable "algo_lambda_memory" {
   description = "Memory for algo Lambda"
   type        = number
@@ -596,6 +602,12 @@ variable "sns_alert_email" {
 
 variable "alert_email_to" {
   description = "Email recipients for direct SMTP alerts (comma-separated, set via TF_VAR_alert_email_to)"
+  type        = string
+  default     = ""
+}
+
+variable "alert_email_address" {
+  description = "Email address for circuit breaker and infrastructure alerts (SNS subscription)"
   type        = string
   default     = ""
 }

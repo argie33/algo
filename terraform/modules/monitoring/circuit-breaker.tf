@@ -117,11 +117,11 @@ resource "aws_lambda_function" "circuit_breaker" {
   filename      = "${path.root}/lambda/circuit_breaker.zip"
   function_name = "${var.project_name}-circuit-breaker-${var.environment}"
   role          = aws_iam_role.circuit_breaker.arn
-  handler       = "lambda_function.lambda_handler"
+  handler       = "index.lambda_handler"
   timeout       = 60
   memory_size   = 512
   runtime       = "python3.12"
-  source_code_hash = filebase64sha256("${path.root}/lambda/circuit_breaker.zip")
+  source_code_hash = fileexists("${path.root}/lambda/circuit_breaker.zip") ? filebase64sha256("${path.root}/lambda/circuit_breaker.zip") : ""
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids

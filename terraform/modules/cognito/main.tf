@@ -175,7 +175,7 @@ resource "aws_iam_role_policy" "cognito_email_lambda_logs" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:*:*:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.project_name}-cognito-email-trigger-${var.environment}:*"
       }
     ]
   })
@@ -197,6 +197,11 @@ resource "aws_iam_role_policy" "cognito_email_lambda_ses" {
           "ses:SendRawEmail"
         ]
         Resource = "*"
+        Condition = {
+          StringEquals = {
+            "ses:FromAddress" = var.cognito_sender_email
+          }
+        }
       }
     ]
   })

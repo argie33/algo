@@ -49,6 +49,12 @@ variable "cognito_custom_email_enabled" {
   default     = false
 }
 
+variable "cognito_sender_email" {
+  description = "Sender email address for Cognito custom message Lambda (used for SES permission scoping)"
+  type        = string
+  default     = "noreply@bullseyetrading.com"
+}
+
 variable "common_tags" {
   description = "Common tags for all resources"
   type        = map(string)

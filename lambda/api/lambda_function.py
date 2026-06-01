@@ -778,7 +778,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             http_method = method.upper() if method else 'GET'
             db_mode = 'write' if http_method in ('POST', 'PUT', 'PATCH', 'DELETE') else 'read'
             with DatabaseContext(db_mode) as cur:
-                cur.execute("SET statement_timeout TO '15s'")
+                cur.execute("SET statement_timeout TO '30s'")  # Increased from 15s to avoid timeouts on t4g.micro RDS for complex queries (market technicals, sector breadth)
 
                 params = parse_query_params(event)
                 body = None

@@ -225,6 +225,8 @@ module "services" {
   api_lambda_memory                      = var.api_lambda_memory
   api_lambda_timeout                     = var.api_lambda_timeout
   api_lambda_ephemeral_storage           = var.api_lambda_ephemeral_storage
+  api_lambda_reserved_concurrency        = var.api_lambda_reserved_concurrency
+  api_lambda_provisioned_concurrency     = var.api_lambda_provisioned_concurrency
   api_lambda_role_arn                    = module.iam.lambda_api_role_arn
   algo_lambda_memory                     = var.algo_lambda_memory
   algo_lambda_timeout                    = var.algo_lambda_timeout
@@ -380,7 +382,7 @@ module "monitoring" {
 
   # Loader monitoring (F-04: CloudWatch alarms for 28+ supporting loaders)
   ecs_log_group_name = module.pipeline.ecs_log_group_name
-  ecs_cluster_arn    = module.pipeline.ecs_cluster_arn
+  ecs_cluster_arn    = module.compute.ecs_cluster_arn
   alert_email_to     = var.alert_email_to
   alert_email_address = var.alert_email_address
 }

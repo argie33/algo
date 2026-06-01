@@ -610,9 +610,9 @@ data "aws_iam_policy_document" "ecs_task" {
     ]
   }
 
-  # KMS (decrypt secrets)
+  # KMS (decrypt secrets) - scoped to project-specific keys only
   statement {
-    sid    = "KMSDecrypt"
+    sid    = "KMSDecryptProjectKeys"
     effect = "Allow"
 
     actions = [
@@ -620,7 +620,6 @@ data "aws_iam_policy_document" "ecs_task" {
     ]
 
     resources = [
-      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*",
       "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
     ]
   }
@@ -652,13 +651,31 @@ data "aws_iam_policy_document" "ecs_task" {
     effect = "Allow"
 
     actions = [
-      "cloudwatch:PutMetricData",
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
       "logs:PutLogEvents"
     ]
 
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/ecs/${var.project_name}-*"
+    ]
+  }
+
+  statement {
+    sid    = "CloudWatchMetrics"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["${var.project_name}/loaders"]
+    }
   }
 }
 
@@ -728,9 +745,9 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
   }
 
-  # KMS (decrypt secrets)
+  # KMS (decrypt secrets) - scoped to project-specific keys only
   statement {
-    sid    = "KMSDecrypt"
+    sid    = "KMSDecryptProjectKeys"
     effect = "Allow"
 
     actions = [
@@ -738,7 +755,6 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
 
     resources = [
-      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*",
       "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
     ]
   }
@@ -772,8 +788,9 @@ data "aws_iam_policy_document" "lambda_api" {
 
     condition {
       test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
+      variable = "cloudwatch:namespace"
+      values   = ["${var.project_name}/api", "${var.project_name}/orchestrator"]
+    }
     }
   }
 
@@ -859,22 +876,18 @@ data "aws_iam_policy_document" "lambda_algo" {
     ]
   }
 
-  # KMS
+  # KMS - scoped to project-specific keys only
   statement {
-    sid    = "KMSDecrypt"
+    sid    = "KMSDecryptProjectKeys"
     effect = "Allow"
 
     actions = [
       "kms:Decrypt"
     ]
 
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
+    resources = [
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
+    ]
   }
 
   # CloudWatch Logs
@@ -929,8 +942,8 @@ data "aws_iam_policy_document" "lambda_algo" {
 
     condition {
       test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
+      variable = "cloudwatch:namespace"
+      values   = ["${var.project_name}/orchestrator"]
     }
   }
 
@@ -1070,13 +1083,7 @@ resource "aws_iam_user" "developer" {
   })
 }
 
-# Attach read-only policy
-resource "aws_iam_user_policy_attachment" "developer_readonly" {
-  user       = aws_iam_user.developer.name
-  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
-}
-
-# Add specific invoke + execution permissions
+# Add specific invoke + execution + read-only permissions
 resource "aws_iam_user_policy" "developer" {
   name   = "${var.project_name}-developer-policy"
   user   = aws_iam_user.developer.name
@@ -1209,25 +1216,127 @@ data "aws_iam_policy_document" "developer" {
     ]
   }
 
-  # KMS (decrypt secrets for verification)
+  # KMS (decrypt secrets for verification) - scoped to project keys only
   statement {
-    sid    = "KMSDecrypt"
+    sid    = "KMSDecryptProjectKeys"
     effect = "Allow"
 
     actions = [
-      "kms:Decrypt",
-      "kms:DescribeKey"
+      "kms:Decrypt"
     ]
 
     resources = [
-      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:key/*"
+      "arn:aws:kms:${var.aws_region}:${var.aws_account_id}:alias/${var.project_name}-*"
+    ]
+  }
+
+  # KMS (describe all keys for verification, but not decrypt all)
+  statement {
+    sid    = "KMSDescribe"
+    effect = "Allow"
+
+    actions = [
+      "kms:DescribeKey",
+      "kms:ListAliases"
     ]
 
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [var.aws_account_id]
-    }
+    resources = ["*"]
+  }
+
+  # CloudWatch (read-only for monitoring)
+  statement {
+    sid    = "CloudWatchReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:DescribeAlarmHistory",
+      "cloudwatch:GetMetricStatistics",
+      "cloudwatch:ListMetrics",
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+      "logs:GetLogEvents"
+    ]
+
+    resources = ["*"]
+  }
+
+  # Lambda (read-only for inspection)
+  statement {
+    sid    = "LambdaReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "lambda:GetFunction",
+      "lambda:ListFunctions",
+      "lambda:GetFunctionConfiguration",
+      "lambda:GetAlias",
+      "lambda:ListAliases"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+    ]
+  }
+
+  # RDS (read-only for database inspection)
+  statement {
+    sid    = "RDSReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBClusters",
+      "rds:DescribeDBProxies",
+      "rds-db:connect"
+    ]
+
+    resources = ["*"]
+  }
+
+  # EC2 (read-only for infrastructure inspection)
+  statement {
+    sid    = "EC2ReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "ec2:DescribeInstances",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeVpcs"
+    ]
+
+    resources = ["*"]
+  }
+
+  # CloudFormation (read-only for stack inspection)
+  statement {
+    sid    = "CloudFormationReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "cloudformation:DescribeStacks",
+      "cloudformation:ListStacks",
+      "cloudformation:GetTemplate"
+    ]
+
+    resources = ["*"]
+  }
+
+  # S3 (read-only for frontend and data buckets)
+  statement {
+    sid    = "S3ReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+      "s3:ListAllMyBuckets"
+    ]
+
+    resources = ["*"]
   }
 }
 
