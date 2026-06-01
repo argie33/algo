@@ -644,8 +644,22 @@ The 1 PM and 3 PM orchestrator runs use **yesterday's close price** for entry an
 **KNOWN LIMITATION - No Real-Time Circuit Breaker:**
 Phase 2 circuit breakers check daily P&L and portfolio health but do not respond to intraday crashes. If the market drops 15% in the first 30 minutes of trading, the system won't know until after-hours reconciliation. Consider adding a CloudWatch alarm on portfolio variance if deploying live capital.
 
-**KNOWN LIMITATION - Config System Unused in Lambda:**
-Both `algo_config` and `algo_runtime_config` database tables exist but Lambda skips database loads (line 200 in algo_config.py) and uses Python defaults only. Configuration changes require code deploys. Simplify to one system or enable config DB loads when not in Lambda (local dev).
+## CONFIGURATION SYSTEM
+
+All trading parameters (risk %, thresholds, filter settings, etc.) are stored in the `algo_config` database table and loaded fresh at each Lambda invocation. Configuration changes take effect on the next scheduled orchestrator run (max 3 hours), without requiring a code deploy.
+
+**How config flows:**
+1. **Local dev:** `AlgoConfig.__init__` loads defaults + queries `algo_config` table, falls back gracefully on DB errors
+2. **Lambda cold start:** `lambda_handler` calls `reset_config()` to clear the singleton, then `Orchestrator.__init__` calls `get_config()` which queries `algo_config` table fresh
+3. **Lambda warm invocation:** `lambda_handler` calls `reset_config()` so the next `get_config()` call reloads from DB (picks up config changes made between invocations)
+4. **Fallback:** If `algo_config` table is unreachable, uses Python `DEFAULTS` dict — trading never halts on config unavailability
+
+**Infrastructure parameters** (execution_mode, dry_run, paper_trading, db credentials) are set via Terraform environment variables and cannot be hot-reloaded — they require a deployment to change.
+
+**Config changes take effect:**
+- Trading parameters (via `algo_config` table): next Lambda invocation
+- Infrastructure parameters (via Terraform env vars): next deployment
+- Weight optimizer outputs (via `self.config.set()`): same invocation + all future invocations
 
 ## SIGNAL FILTER ARCHITECTURE (Tier 2 market gate)
 
@@ -657,6 +671,6 @@ Both `algo_config` and `algo_runtime_config` database tables exist but Lambda sk
   2. **Per-stock Stage 2 check:** `trend_template_data.weinstein_stage` must be 2 for each individual stock (pre-tier filter, always active).
   3. **Exposure Policy (Phase 3b):** Computes market exposure score (11 factors); maps to tier (correction/caution/pressure/uptrend) with corresponding risk multiplier and entry caps.
 
-**Why removed:** The triple gate (market Stage 2 + per-stock Stage 2 + exposure policy) was over-constrained. In Lambda, `algo_config` DB table is skipped (`AWS_LAMBDA_FUNCTION_NAME` check), so only Python defaults apply. The market Stage 2 gate in Tier 2 was blocking 100% of trades any time the market was in Stage 1 or 3 — including during healthy bull market consolidations.
+**Why disabled:** The triple gate (market Stage 2 + per-stock Stage 2 + exposure policy) was over-constrained. The market Stage 2 gate in Tier 2 was blocking 100% of trades any time the market was in Stage 1 or 3 — including during healthy bull market consolidations. This is a policy choice, not a system limitation.
 
-**To re-enable:** Set `require_stage_2_market = true` in `algo_config.py` defaults (requires code deploy). Do not use DB table — Lambda ignores it.
+**To re-enable:** Change `require_stage_2_market` from `'false'` to `'true'` in `algo_config.DEFAULTS` (line 65). The config system will load this on the next orchestrator run.

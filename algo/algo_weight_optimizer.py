@@ -23,7 +23,6 @@ except ImportError:
     minimize = None  # type: ignore[assignment]
 
 from utils.database_context import DatabaseContext
-from algo.algo_config import AlgoConfig
 from algo.algo_signal_attribution import SignalAttributionEngine
 
 logger = logging.getLogger(__name__)
@@ -273,10 +272,9 @@ class WeightOptimizer:
 
             if not dry_run and changes:
                 # Persist to algo_config
-                config = AlgoConfig()
                 for comp, new_w in blended.items():
                     key = self.COMPONENT_KEYS[comp]
-                    config.set(key, str(new_w), 'int')
+                    self.config.set(key, str(new_w), 'int', changed_by='weight_optimizer')
 
                 # Log to algo_weight_history
                 self._log_changes(report_date, current, blended, regime, blend_alpha)

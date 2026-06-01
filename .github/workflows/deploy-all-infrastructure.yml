@@ -260,6 +260,7 @@ jobs:
             -t $LAYER_DIR/python \
             --platform manylinux2014_x86_64 --only-binary=:all: \
             --no-cache-dir --quiet
+          mkdir -p $GITHUB_WORKSPACE/terraform/lambda
           cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip . -q
           echo "[OK] Shared deps layer: $(du -sh $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip | cut -f1)"
 

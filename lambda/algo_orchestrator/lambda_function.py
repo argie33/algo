@@ -56,6 +56,10 @@ def lambda_handler(event, context):
     from config.credential_manager import clear_credential_cache
     clear_credential_cache()
 
+    # Reset config singleton on invocation to load fresh DB config
+    from algo.algo_config import reset_config
+    reset_config()
+
     source = "unknown"
     try:
         # Load environment variables
@@ -138,8 +142,7 @@ def lambda_handler(event, context):
         config_overrides = event.get('config_overrides', {})
         if config_overrides and isinstance(config_overrides, dict):
             for k, v in config_overrides.items():
-                orchestrator.config._config[k] = v
-                logger.info(f"[CONFIG OVERRIDE] {k} = {v}")
+                orchestrator.config.override(k, v)
 
         # Run the orchestrator
         logger.info(f"Starting orchestrator run")
