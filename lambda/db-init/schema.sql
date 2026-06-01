@@ -2932,47 +2932,13 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- Add foreign key: buy_sell_daily.symbol → stock_symbols.symbol
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints 
-        WHERE constraint_name = 'fk_buy_sell_daily_symbol' 
-        AND table_name = 'buy_sell_daily'
-    ) THEN
-        ALTER TABLE buy_sell_daily
-        ADD CONSTRAINT fk_buy_sell_daily_symbol
-        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
-        ON DELETE RESTRICT ON UPDATE CASCADE;
-    END IF;
-END $$;
-
--- Add foreign key: technical_data_daily.symbol → stock_symbols.symbol
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints 
-        WHERE constraint_name = 'fk_technical_data_daily_symbol' 
-        AND table_name = 'technical_data_daily'
-    ) THEN
-        ALTER TABLE technical_data_daily
-        ADD CONSTRAINT fk_technical_data_daily_symbol
-        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
-        ON DELETE RESTRICT ON UPDATE CASCADE;
-    END IF;
-END $$;
-
--- Add foreign key: price_daily.symbol → stock_symbols.symbol
-DO $$ BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints 
-        WHERE constraint_name = 'fk_price_daily_symbol' 
-        AND table_name = 'price_daily'
-    ) THEN
-        ALTER TABLE price_daily
-        ADD CONSTRAINT fk_price_daily_symbol
-        FOREIGN KEY (symbol) REFERENCES stock_symbols(symbol)
-        ON DELETE RESTRICT ON UPDATE CASCADE;
-    END IF;
-END $$;
+-- price_daily, technical_data_daily, buy_sell_daily intentionally contain
+-- ETF and index symbols (^GSPC, SPY, etc.) that are NOT in stock_symbols.
+-- FK constraints on these tables would break market-health and ETF price loaders.
+-- Drop any previously-added FKs on these tables (idempotent - no-op if missing).
+ALTER TABLE buy_sell_daily DROP CONSTRAINT IF EXISTS fk_buy_sell_daily_symbol;
+ALTER TABLE technical_data_daily DROP CONSTRAINT IF EXISTS fk_technical_data_daily_symbol;
+ALTER TABLE price_daily DROP CONSTRAINT IF EXISTS fk_price_daily_symbol;
 
 -- Add foreign key: earnings_estimates.symbol → stock_symbols.symbol
 DO $$ BEGIN
