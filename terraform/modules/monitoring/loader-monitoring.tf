@@ -85,7 +85,7 @@ resource "aws_cloudwatch_log_metric_filter" "loader_failure_pattern" {
 # Consolidated alarm for all other loaders
 
 # Critical loaders (core data): stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily
-resource "aws_cloudwatch_metric_alarm" "critical_loader_failures" {
+resource "aws_cloudwatch_metric_alarm" "per_loader_failures" {
   for_each = toset([
     "stock_symbols",
     "technical_data_daily",
