@@ -182,7 +182,7 @@ resource "aws_lambda_alias" "api_live" {
   count             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
   name              = "live"
   description       = "Live alias for provisioned concurrency"
-  lambda_function_name = aws_lambda_function.api.function_name
+  function_name = aws_lambda_function.api.function_name
   function_version  = aws_lambda_function.api.version
 
   lifecycle {
