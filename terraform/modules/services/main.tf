@@ -88,6 +88,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.12"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
+  publish       = true  # Required: provisioned concurrency needs a published version (not $LATEST)
 
   # FIXED Issue #22: Keep Lambda warm to avoid cold-start timeouts AND allow concurrent requests
   # VPC cold-start risk: 15-40s start + DNS + DB connection can exceed 29s API Gateway timeout
