@@ -147,7 +147,10 @@ class PipelineHealth:
                 health.error_message = "Table is empty"
                 return health
 
-            cur.execute(f"SELECT MAX({safe_date_col})::DATE FROM {safe_table}")
+            # Use ORDER BY + LIMIT 1 instead of MAX() — forces an index scan and
+            # avoids sequential scans when PostgreSQL statistics are stale (reltuples=0
+            # on t4g.micro after bulk inserts). MAX() with stale stats can take 30s+.
+            cur.execute(f"SELECT {safe_date_col}::DATE FROM {safe_table} ORDER BY {safe_date_col} DESC LIMIT 1")
             result = cur.fetchone()
             latest_date = result[0] if result else None
 
