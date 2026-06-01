@@ -21,10 +21,11 @@ out/
 function.zip
 lambda-package.zip
 lambda-deployment.tar.gz
-# EXCEPT: Lambda layer ZIPs (infrastructure)
-!lambda/shared-deps-layer.zip
+# EXCEPT: Lambda layer ZIPs tracked in git (api-deps only; shared-deps built by workflow)
 !lambda/api-deps-layer.zip
-!lambda/*-layer.zip
+# shared-deps-layer.zip (61MB numpy/scipy) is built by build-lambda-layer.yml workflow,
+# not tracked in git to avoid push timeouts. Deploy via: gh workflow run build-lambda-layer.yml
+lambda/shared-deps-layer.zip
 
 # Database
 *.db
