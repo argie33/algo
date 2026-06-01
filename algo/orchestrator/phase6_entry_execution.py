@@ -172,7 +172,7 @@ def _validate_pre_trade_data_quality(
             # For testing with historical dates: use most recent data if run_date is in past
             is_historical_test = today < date.today()
             if is_historical_test:
-                cur.execute("SELECT MAX(date) FROM price_daily")
+                cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
                 result = cur.fetchone()
                 latest_date = result[0] if result else None
                 if latest_date and latest_date > today:
@@ -202,7 +202,7 @@ def _validate_pre_trade_data_quality(
                 if count == 0:
                     # Allow fallback to yesterday's data if today's not available (for market hours lag)
                     cur.execute(
-                        f"SELECT MAX(date) FROM {table} WHERE date <= %s",
+                        f"SELECT date FROM {table} WHERE date <= %s ORDER BY date DESC LIMIT 1",
                         (today,)
                     )
                     result = cur.fetchone()
@@ -243,7 +243,7 @@ def _validate_pre_trade_data_quality(
             count = result[0] if result else 0
             if count == 0:
                 cur.execute(
-                    "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                    "SELECT date FROM price_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
                     (price_check_date,)
                 )
                 result = cur.fetchone()
