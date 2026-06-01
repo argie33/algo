@@ -46,7 +46,7 @@ resource "aws_security_group" "circuit_breaker" {
   }
 
   # Egress: allow HTTPS to Secrets Manager (for fetching DB credentials)
-  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: Lambda in VPC requires internet egress
+  #tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: Lambda in VPC requires internet egress
   # via NAT Gateway to reach Secrets Manager. VPC endpoints not available in all AZs.
   egress {
     from_port   = 443
