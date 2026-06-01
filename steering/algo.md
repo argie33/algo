@@ -49,7 +49,11 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 1. **Intraday pricing stale (F-01 - CRITICAL):** Prices loaded once daily at 4 AM (price_daily table). 1 PM and 3 PM orchestrator runs use 4 AM close prices, not current intraday prices. Position sizing is wrong if a stock gaps 10%+ at open. **FIX:** Integrate real-time pricing feed (Alpaca real-time API, IEX Cloud, or WebSocket) into orchestrator Phase 3b (Position Monitoring). Replace price_daily lookups with live API calls for intraday position sizing.
 
-2. **No intraday circuit breaker (F-02 - CRITICAL):** Phase 2 circuit breaker checks daily P&L only. If SPY drops 15% in first 30 min of trading, orchestrator doesn't run until 1 PM. No automated protection to halt trading mid-day. **FIX:** Deploy CloudWatch alarm on portfolio variance (compute at 10 AM, 12 PM ET). On breach: publish SNS alert + invoke Lambda to set orchestrator_dry_run = true in Secrets Manager. Orchestrator Phase 1 checks this flag and fails-closed.
+2. **Intraday circuit breaker (F-02 - FIXED):** Circuit breaker Lambda now:
+   - **FIXED:** Correctly bundles config/ and utils/ modules (was missing, caused ModuleNotFoundError)
+   - **FIXED:** Clears halt flag when portfolio variance returns to safe range (was stuck permanently)
+   - Runs at 10 AM and 12 PM ET to halt trading if portfolio P&L drops > 15%
+   - Updates DynamoDB `orchestrator_halt` flag; orchestrator Phase 1 checks and fails-closed
 
 3. **numpy/scipy not deployed to Lambda (F-03 - CRITICAL):** Shared-deps Lambda layer skipped because numpy + scipy exceed 69 MB direct upload limit. Phase 7 code (algo_var.py, algo_weight_optimizer.py) wrapped in try/except fail-open. Silently fails every run. **FIX:** (a) Split scipy/numpy into separate layer compressed with zip --unzip-pattern, OR (b) Use Lambda@Edge CloudFront layer, OR (c) Move Phase 7 to ECS task (like orchestrator) instead of Lambda.
 
@@ -59,11 +63,11 @@ company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 500
 
 Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate runs. Lock auto-releases on exit/crash. Manual stop if needed: `aws ecs stop-task --cluster algo-cluster --task <ARN>`.
 
-## Loader Failure Monitoring (F-04 - HIGH)
+## Loader Failure Monitoring (F-04 - PARTIALLY FIXED)
 
 **Problem:** 9 core loaders (Step Functions) + 28 supporting loaders (EventBridge). Core loaders have centralized monitoring via step function state machine. Supporting loaders fail silently with NO alerts. If a supporting loader fails, Phase 1 won't catch stale data until 9:30 AM trading window — too late.
 
-**Current state:** SQS DLQ exists but no CloudWatch alarms. Requires manual log inspection to discover failures.
+**Current state:** EventBridge rule captures ECS task state changes (STOPPED, FAILED) and publishes to SNS. CloudWatch metric filter approach was disabled (metric filters cannot extract log content into dimensions for per-loader filtering). EventBridge provides sufficient alerting for task failures.
 
 **Required fix:**
 1. Create CloudWatch metric filter on loader ECS task logs: `[... CRITICAL, FAILED, Exception ...]`
@@ -176,8 +180,21 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Authentication: ENABLED (cognito_enabled = true). Primary user: argeropolos@gmail.com.
 - Email: DISABLED (cognito_custom_email_enabled = false). See "Authentication & Email" section to enable.
 - RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
+- Circuit breaker: FIXED. Now correctly halts trading on portfolio variance > 15%, clears flag when safe (F-02).
 - Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
-- Circuit breaker: NO intraday protection. Add CloudWatch alarm on portfolio variance before live capital.
+
+## Recent Fixes (2026-06-01)
+
+**Critical Fixes:**
+- **F-02 Circuit Breaker Module Imports:** Fixed missing config/ bundling in circuit breaker Lambda build. Now uses same pattern as orchestrator (bundles config/ + utils/ in ZIP).
+- **F-02 Circuit Breaker Reset Logic:** Added explicit halt flag reset when portfolio variance drops below 15%. Previously failed-closed permanently.
+- **Orchestrator Evening Schedule:** Fixed cron expression from 22:30 UTC (10:30 PM ET) to 17:30 UTC (5:30 PM ET) for correct post-market signal prep.
+
+**High Priority Fixes:**
+- **F-04 Loader Failure Monitoring:** Disabled broken CloudWatch metric filter approach (filters cannot extract log content into dimensions). Rely on existing EventBridge ECS task state change rules instead.
+- **AWS Batch Module Cleanup:** Removed unused batch module from Terraform (deployed but never referenced). Reduces IAM surface and deployment complexity.
+- **Lambda Layer Publishing:** Fixed build-lambda-layer.yml to call publish-layer-version once instead of twice. Previously created duplicate versions on every run.
+- **Variable Description Typo:** Fixed enable_preclose_orchestrator description from "4:30 AM ET" to "3:00 PM ET".
 
 ## GitHub Actions Workflows (Consolidated Architecture)
 
