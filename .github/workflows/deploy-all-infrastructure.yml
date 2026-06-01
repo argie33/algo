@@ -56,10 +56,10 @@ jobs:
     outputs:
       github_actions_role_arn: ${{ steps.bootstrap.outputs.role_arn }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
           aws-region: ${{ env.AWS_REGION }}
@@ -162,10 +162,10 @@ jobs:
       TF_VAR_alert_smtp_password: ${{ secrets.ALERT_SMTP_PASSWORD }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
@@ -203,7 +203,7 @@ jobs:
             --region us-east-1 || echo "Parameter group deletion failed or already deleted"
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@a1502cd9aee432aca08f3f953629b4cbec0493e6  # v3.1.0
         with:
           terraform_version: 1.7.0
           terraform_wrapper: false
@@ -229,7 +229,7 @@ jobs:
           echo "[OK] Terraform backend initialized: bucket=$TF_BACKEND_BUCKET key=$TF_BACKEND_KEY"
 
       - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
         with:
           python-version: '3.12'
 
@@ -247,16 +247,40 @@ jobs:
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
 
-      - name: Skip shared-deps layer (numpy/scipy exceed 69MB direct-upload limit)
+      - name: Build numpy/scipy Lambda layer (F-03)
         run: |
-          # numpy+scipy exceed Lambda's 69MB direct-upload limit for PublishLayerVersion.
-          # S3-based layer publishing is the correct long-term fix; skipped for now.
-          # Phase 7 numpy/scipy features (IC, VaR, weight optimization) are all wrapped
-          # in try/except (fail-open) so core Phase 7 (portfolio snapshot, position sync) works.
-          # The zip intentionally does NOT exist so Terraform skips layer creation (count=0).
+          set -e
+          echo "[*] Building numpy/scipy Lambda layer for Phase 7..."
+
+          LAYER_DIR="/tmp/numpy-scipy-layer"
+          mkdir -p "$LAYER_DIR/python"
+
+          # Install numpy and scipy with binary wheels
+          pip install --target "$LAYER_DIR/python" \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: \
+            --no-cache-dir \
+            numpy scipy 2>&1 | grep -E "Successfully|ERROR" || true
+
+          echo "[*] Cleaning up unnecessary files..."
+          # Remove unnecessary files to reduce size
+          rm -rf "$LAYER_DIR/python"/{*.dist-info,*.egg-info,__pycache__,*.pyc,*.pyo}
+          rm -rf "$LAYER_DIR/python"/numpy/{f2py,tests,core/tests}
+          rm -rf "$LAYER_DIR/python"/scipy/{stats/tests,optimize/tests,special/tests}
+          find "$LAYER_DIR/python" -type f \( -name "*.c" -o -name "*.h" -o -name "*.so.debug" \) -delete
+
+          # Strip debug symbols from .so files
+          find "$LAYER_DIR/python" -type f -name "*.so" -exec strip {} \;
+
+          # Create ZIP
           mkdir -p $GITHUB_WORKSPACE/terraform/lambda
-          echo "[SKIP] Shared deps layer not built — numpy+scipy too large for direct upload"
-          echo "[INFO] Phase 7 IC/VaR analytics will ImportError but are fail-open"
+          cd "$LAYER_DIR"
+          zip -r -q "$GITHUB_WORKSPACE/terraform/lambda/numpy-scipy-layer.zip" .
+
+          SIZE=$(du -sh "$GITHUB_WORKSPACE/terraform/lambda/numpy-scipy-layer.zip" | cut -f1)
+          echo "[✓] numpy/scipy layer created: $SIZE"
 
       - name: Build db-init Lambda
         run: |
@@ -651,10 +675,10 @@ jobs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
@@ -716,15 +740,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
         with:
           python-version: '3.12'
 
@@ -796,15 +820,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
         with:
           python-version: '3.12'
 
@@ -846,15 +870,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@0a44ba7841725637474d55d59489290ecb39bfcd  # v4.0.3
         with:
           node-version: '24'
           cache: npm
@@ -1013,10 +1037,10 @@ jobs:
     needs: terraform
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1047,7 +1071,7 @@ jobs:
           echo "DB_SSL=require" >> $GITHUB_ENV
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
         with:
           python-version: '3.12'
           cache: 'pip'

@@ -123,13 +123,24 @@ def safe_select_count(cur, table: str, date_column: Optional[str] = None, where_
         cur: Database cursor
         table: Validated table name
         date_column: Optional date column name to get MAX(date_column)
-        where_clause: Optional WHERE clause condition (passed as literal SQL, use with caution)
+        where_clause: Optional WHERE clause condition (must be hardcoded/static SQL, NEVER user-controlled)
 
     Returns:
         (row_count, max_date_as_string)
+
+    SECURITY: where_clause must be static/hardcoded SQL only. Never accept user input here.
     """
     table_safe = assert_safe_table(table)
-    where_sql = f" WHERE {where_clause}" if where_clause else ""
+
+    # Validate where_clause against SQL injection patterns
+    if where_clause:
+        # Reject obvious injection attempts
+        dangerous_patterns = [';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION']
+        if any(pattern in where_clause.upper() for pattern in dangerous_patterns):
+            raise ValueError(f"Suspicious SQL pattern detected in where_clause: {where_clause}")
+        where_sql = f" WHERE {where_clause}"
+    else:
+        where_sql = ""
 
     if date_column:
         col_safe = assert_safe_column(date_column)

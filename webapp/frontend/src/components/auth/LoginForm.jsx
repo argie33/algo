@@ -34,7 +34,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword, onMFARequired
     setLocalError("");
 
     if (!formData.username || !formData.password) {
-      setLocalError("Please enter both username and password");
+      setLocalError("Please enter your email and password");
       return;
     }
 
@@ -65,18 +65,18 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword, onMFARequired
       )}
 
       <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
-        <label className="field-label" htmlFor="username">Username or Email</label>
+        <label className="field-label" htmlFor="username">Email Address</label>
         <input
           className="input"
           id="username"
           name="username"
-          type="text"
+          type="email"
           value={formData.username}
           onChange={handleChange}
-          autoComplete="username"
+          autoComplete="email"
           autoFocus
           disabled={isLoading}
-          placeholder="Enter username or email"
+          placeholder="you@example.com"
         />
       </div>
 

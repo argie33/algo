@@ -145,3 +145,25 @@ variable "python_dependencies_layer_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# ECS Loader Monitoring Configuration
+# ============================================================
+
+variable "ecs_log_group_name" {
+  description = "CloudWatch log group name for ECS loader tasks (optional, enables loader monitoring if set)"
+  type        = string
+  default     = ""
+}
+
+variable "ecs_cluster_arn" {
+  description = "ARN of ECS cluster running loaders"
+  type        = string
+  default     = ""
+}
+
+variable "alert_email_to" {
+  description = "Email address for SNS alert subscriptions"
+  type        = string
+  default     = ""
+}

@@ -42,6 +42,9 @@ const getAmplifyConfig = () => {
         userPoolClientId: clientId,
         region: region,
         signUpVerificationMethod: 'code',
+        loginWith: {
+          email: true,
+        },
       },
     },
   };

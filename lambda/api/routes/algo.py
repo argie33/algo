@@ -9,6 +9,13 @@ from .utils import error_response, success_response, list_response, json_respons
 
 logger = logging.getLogger(__name__)
 
+def _check_admin_access(jwt_claims: Dict) -> bool:
+    """Check if user has admin access from verified JWT claims only."""
+    if not jwt_claims:
+        return False
+    groups = jwt_claims.get('cognito:groups', [])
+    return 'admin' in groups
+
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/algo/* endpoints."""
         try:
@@ -140,8 +147,14 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/sector-stage2':
             return _get_sector_stage2(cur)
         elif path == '/api/algo/config':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_algo_config(cur)
         elif path.startswith('/api/algo/config/'):
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             key = path[len('/api/algo/config/'):]
             return _get_algo_config_key(cur, key)
         elif path == '/api/algo/last-run':

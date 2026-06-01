@@ -35,10 +35,21 @@ resource "aws_lambda_layer_version" "shared_deps" {
   compatible_architectures = ["x86_64"]
 }
 
+# F-03: numpy/scipy Lambda layer (built in deploy workflow)
+resource "aws_lambda_layer_version" "numpy_scipy" {
+  count                    = fileexists("${path.root}/lambda/numpy-scipy-layer.zip") ? 1 : 0
+  filename                 = "${path.root}/lambda/numpy-scipy-layer.zip"
+  layer_name               = "${var.project_name}-numpy-scipy-${var.environment}"
+  compatible_runtimes      = ["python3.12"]
+  source_code_hash         = fileexists("${path.root}/lambda/numpy-scipy-layer.zip") ? filebase64sha256("${path.root}/lambda/numpy-scipy-layer.zip") : null
+  compatible_architectures = ["x86_64"]
+}
+
 # Reference layer ARNs (use layer resources if created, else data sources)
 locals {
-  api_layer_arn         = data.aws_lambda_layer_version.api_deps.arn
-  shared_deps_layer_arn = try(aws_lambda_layer_version.shared_deps[0].arn, "")
+  api_layer_arn             = data.aws_lambda_layer_version.api_deps.arn
+  shared_deps_layer_arn     = try(aws_lambda_layer_version.shared_deps[0].arn, "")
+  numpy_scipy_layer_arn     = try(aws_lambda_layer_version.numpy_scipy[0].arn, "")
 }
 
 # ============================================================
@@ -138,6 +149,8 @@ resource "aws_lambda_function" "api" {
       PATROL_CONTAINER_NAME      = var.patrol_task_container_name
       PATROL_SUBNET_IDS          = join(",", var.private_subnet_ids_for_patrol)
       PATROL_SECURITY_GROUP_ID   = var.ecs_tasks_sg_id
+      # F-06: Contact form rate limiting (DynamoDB table for distributed rate limiting)
+      CONTACT_RATE_LIMIT_TABLE = aws_dynamodb_table.contact_rate_limit.name
     }
   }
 
@@ -558,9 +571,10 @@ resource "aws_lambda_function" "algo" {
   reserved_concurrent_executions = 1
 
   layers = concat(
+    local.numpy_scipy_layer_arn != "" ? [local.numpy_scipy_layer_arn] : [],
     local.shared_deps_layer_arn != "" ? [local.shared_deps_layer_arn] : [],
     [var.psycopg2_layer_arn]
-  ) # Orchestrator: shared deps (numpy/pandas for Phase 7) + psycopg2 for database access
+  ) # Orchestrator: numpy/scipy for Phase 7 + shared deps + psycopg2 for database access
 
   # Use S3 package if available, otherwise pre-built local zip file
   s3_bucket         = local.algo_lambda_use_s3 ? var.algo_lambda_s3_bucket : null
@@ -1040,3 +1054,51 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
   source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
 }
 
+# ============================================================
+# F-06: Contact Form Rate Limiting DynamoDB Table
+# ============================================================
+
+resource "aws_dynamodb_table" "contact_rate_limit" {
+  name           = "${var.project_name}-contact-rate-limit-${var.environment}"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "email"
+
+  attribute {
+    name = "email"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-contact-rate-limit"
+  })
+}
+
+# IAM Policy: Allow API Lambda to access contact rate limit table
+resource "aws_iam_role_policy" "api_contact_rate_limit" {
+  name = "${var.project_name}-api-contact-rate-limit-${var.environment}"
+  role = var.api_lambda_role_arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+        ]
+        Resource = aws_dynamodb_table.contact_rate_limit.arn
+      }
+    ]
+  })
+}

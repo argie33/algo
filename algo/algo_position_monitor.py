@@ -334,6 +334,21 @@ class PositionMonitor:
     # ---------- Helpers ----------
 
     def _fetch_current_market(self, symbol, current_date, cur):
+        # F-01: Try real-time pricing during market hours, fallback to daily price
+        from algo.algo_realtime_prices import RealtimePricingEngine
+        engine = RealtimePricingEngine(self.config)
+
+        rt_price = None
+        if engine.is_market_hours():
+            try:
+                rt_prices = engine.get_latest_prices([symbol])
+                rt_price = rt_prices.get(symbol)
+                if rt_price:
+                    logger.info(f"Using real-time price for {symbol}: ${rt_price:.2f}")
+            except Exception as e:
+                logger.warning(f"Real-time pricing failed for {symbol}: {e} — falling back to daily")
+
+        # Fetch daily price and technical indicators from database
         cur.execute(
             """
             SELECT pd.close, td.atr, td.sma_50, td.ema_12
@@ -347,8 +362,12 @@ class PositionMonitor:
         row = cur.fetchone()
         if not row:
             return None, None, None, None
+
+        # Use real-time price if available, otherwise use daily close
+        current_price = rt_price if rt_price else float(row[0]) if row[0] is not None else None
+
         return (
-            float(row[0]) if row[0] is not None else None,
+            current_price,
             float(row[1]) if row[1] is not None else None,
             float(row[2]) if row[2] is not None else None,
             float(row[3]) if row[3] is not None else None,

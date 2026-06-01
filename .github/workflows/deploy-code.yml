@@ -46,16 +46,16 @@ jobs:
       terraform_backend_key: ${{ steps.tf_outputs.outputs.terraform_backend_key }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@a1502cd9aee432aca08f3f953629b4cbec0493e6  # v3.1.0
         with:
           terraform_version: 1.7.0
           terraform_wrapper: false
@@ -163,10 +163,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -180,14 +180,9 @@ jobs:
             --output text 2>/dev/null || echo "{}")
 
           if [ -z "$SECRET" ] || [ "$SECRET" = "{}" ]; then
-            echo "WARNING: Could not fetch database credentials, skipping migrations"
-            echo "DB_HOST=localhost" >> $GITHUB_ENV
-            echo "DB_PORT=5432" >> $GITHUB_ENV
-            echo "DB_USER=postgres" >> $GITHUB_ENV
-            echo "DB_PASSWORD=" >> $GITHUB_ENV
-            echo "DB_NAME=algo" >> $GITHUB_ENV
-            echo "DB_SSL=require" >> $GITHUB_ENV
-            exit 0
+            echo "ERROR: Could not fetch database credentials from Secrets Manager"
+            echo "Database migrations cannot proceed without valid credentials"
+            exit 1
           fi
 
           # Extract credentials from JSON secret
@@ -199,7 +194,7 @@ jobs:
           echo "DB_SSL=require" >> $GITHUB_ENV
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -209,12 +204,19 @@ jobs:
           pip install --quiet psycopg2-binary
 
       - name: Run Migrations
-        continue-on-error: true
         run: |
           echo "=== Running Database Migrations ==="
           python migrations/run.py status
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Migration status check failed"
+            exit 1
+          fi
           echo ""
           python migrations/run.py apply --all
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Migration apply failed"
+            exit 1
+          fi
           echo ""
           echo "[OK] Migrations completed successfully"
 
@@ -228,21 +230,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
         with:
           python-version: '3.12'
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@a1502cd9aee432aca08f3f953629b4cbec0493e6  # v3.1.0
         with:
           terraform_version: 1.7.0
           terraform_wrapper: false
@@ -671,7 +673,8 @@ jobs:
           # Alpaca keys are NOT set as plaintext env vars. Lambda reads them at runtime
           # from ALGO_SECRETS_ARN (Secrets Manager) via config/credential_manager.py.
           # This prevents keys from being visible via lambda:GetFunctionConfiguration.
-          algo_secrets_arn = f"arn:aws:secretsmanager:{region}:{account_id}:secret:algo-algo-secrets-dev"
+          # Use environment from Terraform tfvars instead of hardcoding secret name
+          algo_secrets_arn = f"arn:aws:secretsmanager:{region}:{account_id}:secret:algo-algo-secrets-{environment}"
 
           # Build layers list: orchestrator layer + optional psycopg2 layer
           layers_list = [orchestrator_layer_arn]
@@ -752,16 +755,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
         with:
           python-version: '3.12'
 
@@ -936,11 +939,17 @@ jobs:
           db_name = db_creds.get('dbname', 'stocks')
           db_user = db_creds.get('username', 'stocks')
 
-          # Build ALLOWED_ORIGINS
+          # Build ALLOWED_ORIGINS: only add localhost for non-production environments
+          # Production deployments should never allow localhost
           cloudfront_domain = "${{ needs.resolve-infra.outputs.cloudfront_domain }}"
-          allowed_origins = "http://localhost:3000,http://localhost:5173"
+          allowed_origins = ""
+          if environment != "prod":
+            allowed_origins = "http://localhost:3000,http://localhost:5173"
           if cloudfront_domain and cloudfront_domain not in ['None', 'null', '']:
-            allowed_origins = f"{allowed_origins},https://{cloudfront_domain}"
+            if allowed_origins:
+              allowed_origins = f"{allowed_origins},https://{cloudfront_domain}"
+            else:
+              allowed_origins = f"https://{cloudfront_domain}"
 
           # Retrieve Cognito IDs from Terraform outputs
           cognito_pool_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
@@ -962,6 +971,7 @@ jobs:
                 "DB_USER": str(db_user),
                 "DB_SSL": "prefer",
                 "ALLOWED_ORIGINS": allowed_origins,
+                "ALLOW_LOCALHOST_CORS": "false",
                 "COGNITO_USER_POOL_ID": cognito_pool_id or "",
                 "COGNITO_USER_POOL_CLIENT_ID": cognito_client_id or "",
               }
@@ -1078,27 +1088,64 @@ jobs:
 
           echo "Adding provisioned concurrency to API Lambda: $FUNC"
 
-          # Check if provisioned concurrency already exists (for $LATEST)
+          # Get the latest published version
+          LATEST_VERSION=$(aws lambda list-versions-by-function \
+            --function-name "$FUNC" \
+            --region $AWS_REGION \
+            --query 'Versions[-2].Version' \
+            --output text)
+
+          if [ -z "$LATEST_VERSION" ] || [ "$LATEST_VERSION" = "None" ]; then
+            echo "[ALERT] Could not determine latest version for $FUNC"
+            exit 0
+          fi
+
+          echo "Latest version: $LATEST_VERSION"
+
+          # Create or update alias "live" to point to latest version
+          ALIAS_EXISTS=$(aws lambda get-alias \
+            --function-name "$FUNC" \
+            --name "live" \
+            --region $AWS_REGION \
+            --query 'Name' \
+            --output text 2>/dev/null || echo "None")
+
+          if [ "$ALIAS_EXISTS" = "live" ]; then
+            echo "Updating alias 'live' to point to version $LATEST_VERSION..."
+            aws lambda update-alias \
+              --function-name "$FUNC" \
+              --name "live" \
+              --function-version "$LATEST_VERSION" \
+              --region $AWS_REGION
+          else
+            echo "Creating alias 'live' pointing to version $LATEST_VERSION..."
+            aws lambda create-alias \
+              --function-name "$FUNC" \
+              --name "live" \
+              --function-version "$LATEST_VERSION" \
+              --region $AWS_REGION
+          fi
+
+          # Check if provisioned concurrency already exists on "live" alias
           EXISTING=$(aws lambda get-provisioned-concurrency-config \
             --function-name "$FUNC" \
-            --qualifier "\$LATEST" \
+            --qualifier "live" \
             --region $AWS_REGION \
             --query 'ProvisionedConcurrentExecutions' \
             --output text 2>/dev/null || echo "None")
 
           if [ "$EXISTING" != "None" ] && [ -n "$EXISTING" ]; then
-            echo "[ALERT] Provisioned concurrency already configured: $EXISTING"
+            echo "[ALERT] Provisioned concurrency already configured on 'live' alias: $EXISTING"
           else
-            echo "Setting provisioned concurrency to 1 instance (keeps Lambda warm, eliminates cold starts)..."
+            echo "Setting provisioned concurrency to 1 instance on 'live' alias (keeps Lambda warm, eliminates cold starts)..."
             aws lambda put-provisioned-concurrency-config \
               --function-name "$FUNC" \
-              --qualifier "\$LATEST" \
+              --qualifier "live" \
               --provisioned-concurrent-executions 1 \
               --region $AWS_REGION || {
-                echo "[ALERT] Could not set provisioned concurrency on API Lambda"
-                echo "This may occur if the function is not yet deployed or has no alias"
+                echo "[ALERT] Could not set provisioned concurrency on API Lambda 'live' alias"
               }
-            echo "[OK] Provisioned concurrency configured (cost: ~$0.015/hour)"
+            echo "[OK] Provisioned concurrency configured on 'live' alias (cost: ~$0.015/hour)"
           fi
 
   # ------------------------------------------------------------
@@ -1113,16 +1160,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@0a44ba7841725637474d55d59489290ecb39bfcd  # v4.0.3
         with:
           node-version: '24'
           cache: npm
@@ -1457,10 +1504,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1514,7 +1561,7 @@ jobs:
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: us-east-1
@@ -1558,10 +1605,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}

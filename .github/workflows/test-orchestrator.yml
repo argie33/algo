@@ -37,10 +37,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@010d33100f185c1eae0439eac5e5e92e127b84ee  # v4.0.2
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
@@ -87,7 +87,7 @@ jobs:
           # verbose=true (test:false) so we get detailed phase logs in CloudWatch
           LOOSEN="${{ github.event.inputs.loosen_filters || 'false' }}"
           if [ "$LOOSEN" = "true" ]; then
-            CONFIG_OVERRIDES='"config_overrides":{"min_close_quality_pct":0.0,"min_breakout_volume_ratio":0.5,"min_trend_template_score":4,"require_weekly_stage_2":false,"bypass_stage_2_filter":true,"min_swing_score":0.0,"min_swing_grade":"F","min_signal_quality_score":0,"disable_regime_swing_floor":true,"max_distribution_days":999},'
+            CONFIG_OVERRIDES='"config_overrides":{"min_close_quality_pct":0.0,"min_breakout_volume_ratio":0.5,"min_trend_template_score":4,"require_weekly_stage_2":false,"bypass_stage_2_filter":true,"min_swing_score":0.0,"min_swing_grade":"F","min_signal_quality_score":0,"disable_regime_swing_floor":true,"max_distribution_days":365},'
           else
             CONFIG_OVERRIDES=''
           fi

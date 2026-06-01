@@ -23,14 +23,14 @@ data "aws_iam_policy_document" "github_actions_assume" {
       identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
 
-    # CRITICAL: Scope to THIS repository only
+    # CRITICAL: Scope to THIS repository and MAIN branch only
+    # Staging branch removed: weaker branch protection + same full permissions = too risky
     # Format: repo:OWNER/REPO:ref:refs/heads/BRANCH
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values   = [
         "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main",
-        "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/staging",
       ]
     }
 
@@ -77,10 +77,19 @@ resource "aws_iam_role_policy" "github_actions_observability" {
 
 data "aws_iam_policy_document" "github_actions_compute" {
   statement {
-    sid    = "Compute"
+    sid    = "EC2Describe"
     effect = "Allow"
     actions = [
-      "ec2:Describe*", "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:CreateSubnet",
+      "ec2:Describe*", "ec2:Get*", "ec2:List*"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "VPC"
+    effect = "Allow"
+    actions = [
+      "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:CreateSubnet",
       "ec2:DeleteSubnet", "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
       "ec2:AuthorizeSecurityGroupIngress", "ec2:AuthorizeSecurityGroupEgress",
       "ec2:RevokeSecurityGroupIngress", "ec2:RevokeSecurityGroupEgress",
@@ -92,49 +101,239 @@ data "aws_iam_policy_document" "github_actions_compute" {
       "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
       "ec2:CreateNatGateway", "ec2:DeleteNatGateway",
       "ec2:AllocateAddress", "ec2:ReleaseAddress",
-      "ec2:CreateTags", "ec2:DeleteTags",
+      "ec2:CreateTags", "ec2:DeleteTags"
+    ]
+    resources = [
+      "arn:aws:ec2:*:${var.aws_account_id}:vpc/${var.project_name}*",
+      "arn:aws:ec2:*:${var.aws_account_id}:subnet/*",
+      "arn:aws:ec2:*:${var.aws_account_id}:security-group/*",
+      "arn:aws:ec2:*:${var.aws_account_id}:network-interface/*",
+      "arn:aws:ec2:*:${var.aws_account_id}:route-table/*",
+      "arn:aws:ec2:*:${var.aws_account_id}:internet-gateway/*",
+      "arn:aws:ec2:*:${var.aws_account_id}:natgateway/*",
+      "arn:aws:ec2:*:${var.aws_account_id}:elastic-ip/*"
+    ]
+  }
+
+  statement {
+    sid    = "Lambda"
+    effect = "Allow"
+    actions = [
       "lambda:CreateFunction", "lambda:DeleteFunction", "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration", "lambda:GetFunction",
       "lambda:GetFunctionConfiguration", "lambda:ListFunctions",
       "lambda:AddPermission", "lambda:RemovePermission",
-      "lambda:TagResource", "lambda:UntagResource",
-      "apigateway:GET", "apigatewayv2:*", "ecs:*", "autoscaling:*"
+      "lambda:TagResource", "lambda:UntagResource", "lambda:InvokeFunction",
+      "lambda:PublishVersion", "lambda:CreateAlias", "lambda:UpdateAlias"
     ]
-    resources = ["*"]
+    resources = ["arn:aws:lambda:*:${var.aws_account_id}:function:${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "APIGateway"
+    effect = "Allow"
+    actions = [
+      "apigateway:GET", "apigateway:PUT", "apigateway:PATCH", "apigateway:POST",
+      "apigateway:DELETE", "apigateway:UpdateRestApi",
+      "apigatewayv2:Describe*", "apigatewayv2:Create*", "apigatewayv2:Delete*",
+      "apigatewayv2:Update*", "apigatewayv2:Get*"
+    ]
+    resources = ["arn:aws:apigateway:*::/*"]
+  }
+
+  statement {
+    sid    = "ECS"
+    effect = "Allow"
+    actions = [
+      "ecs:Describe*", "ecs:List*", "ecs:CreateService", "ecs:DeleteService",
+      "ecs:UpdateService", "ecs:CreateTaskDefinition", "ecs:RegisterTaskDefinition",
+      "ecs:DeregisterTaskDefinition"
+    ]
+    resources = ["arn:aws:ecs:*:${var.aws_account_id}:*/${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "Autoscaling"
+    effect = "Allow"
+    actions = [
+      "autoscaling:Describe*", "autoscaling:CreateAutoScalingGroup",
+      "autoscaling:DeleteAutoScalingGroup", "autoscaling:UpdateAutoScalingGroup",
+      "autoscaling:CreateLaunchConfiguration", "autoscaling:DeleteLaunchConfiguration"
+    ]
+    resources = ["arn:aws:autoscaling:*:${var.aws_account_id}:autoScalingGroup:*:autoScalingGroupName/${var.project_name}*"]
   }
 }
 
 data "aws_iam_policy_document" "github_actions_data" {
   statement {
-    sid    = "Data"
+    sid    = "RDS"
     effect = "Allow"
     actions = [
-      "rds:*", "s3:*", "dynamodb:*"
+      "rds:DescribeDBInstances", "rds:DescribeDBClusters",
+      "rds:ModifyDBInstance", "rds:ModifyDBCluster",
+      "rds:DescribeDBClusterSnapshots", "rds:CreateDBClusterSnapshot"
     ]
-    resources = ["*"]
+    resources = ["arn:aws:rds:*:${var.aws_account_id}:db/${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "S3"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+      "s3:ListBucket", "s3:GetBucketVersioning", "s3:ListBucketVersions",
+      "s3:GetBucketPolicy", "s3:PutBucketPolicy"
+    ]
+    resources = [
+      "arn:aws:s3:::${var.project_name}*",
+      "arn:aws:s3:::${var.project_name}*/*"
+    ]
+  }
+
+  statement {
+    sid    = "DynamoDB"
+    effect = "Allow"
+    actions = [
+      "dynamodb:Describe*", "dynamodb:List*",
+      "dynamodb:CreateTable", "dynamodb:DeleteTable",
+      "dynamodb:UpdateTable", "dynamodb:UpdateTimeToLive",
+      "dynamodb:TagResource", "dynamodb:UntagResource"
+    ]
+    resources = ["arn:aws:dynamodb:*:${var.aws_account_id}:table/${var.project_name}*"]
   }
 }
 
 data "aws_iam_policy_document" "github_actions_identity" {
   statement {
-    sid    = "Identity"
+    sid    = "IAM"
     effect = "Allow"
     actions = [
-      "iam:*", "cognito-idp:*", "cognito-identity:*", "kms:*",
-      "secretsmanager:*", "ecr:*"
+      "iam:GetRole", "iam:GetRolePolicy", "iam:ListRolePolicies",
+      "iam:UpdateAssumeRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+      "iam:TagRole", "iam:UntagRole", "iam:PassRole"
+    ]
+    resources = ["arn:aws:iam::${var.aws_account_id}:role/${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "CognitoIDP"
+    effect = "Allow"
+    actions = [
+      "cognito-idp:Describe*", "cognito-idp:List*",
+      "cognito-idp:UpdateUserPool", "cognito-idp:UpdateUserPoolClient",
+      "cognito-idp:AdminGetUser", "cognito-idp:AdminUpdateUserAttributes"
+    ]
+    resources = ["arn:aws:cognito-idp:*:${var.aws_account_id}:userpool/*"]
+  }
+
+  statement {
+    sid    = "CognitoIdentity"
+    effect = "Allow"
+    actions = [
+      "cognito-identity:Describe*", "cognito-identity:List*"
     ]
     resources = ["*"]
+  }
+
+  statement {
+    sid    = "KMS"
+    effect = "Allow"
+    actions = [
+      "kms:Describe*", "kms:List*", "kms:GetKeyPolicy",
+      "kms:PutKeyPolicy", "kms:CreateGrant", "kms:RetireGrant",
+      "kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey"
+    ]
+    resources = ["arn:aws:kms:*:${var.aws_account_id}:key/${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "SecretsManager"
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret",
+      "secretsmanager:ListSecrets", "secretsmanager:UpdateSecret",
+      "secretsmanager:RotateSecret", "secretsmanager:TagResource"
+    ]
+    resources = ["arn:aws:secretsmanager:*:${var.aws_account_id}:secret:${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "ECR"
+    effect = "Allow"
+    actions = [
+      "ecr:DescribeRepositories", "ecr:ListImages",
+      "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage",
+      "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload"
+    ]
+    resources = ["arn:aws:ecr:*:${var.aws_account_id}:repository/${var.project_name}*"]
   }
 }
 
 data "aws_iam_policy_document" "github_actions_observability" {
   statement {
-    sid    = "Observability"
+    sid    = "CloudWatch"
     effect = "Allow"
     actions = [
-      "scheduler:*", "events:*", "cloudfront:*", "acm:*",
-      "logs:*", "cloudwatch:*", "cloudtrail:*", "config:*",
-      "guardduty:*"
+      "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents",
+      "logs:DescribeLogGroups", "logs:DescribeLogStreams",
+      "cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms",
+      "cloudwatch:DescribeAlarms"
+    ]
+    resources = [
+      "arn:aws:logs:*:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}*",
+      "arn:aws:cloudwatch:*:${var.aws_account_id}:alarm:${var.project_name}*"
+    ]
+  }
+
+  statement {
+    sid    = "EventBridge"
+    effect = "Allow"
+    actions = [
+      "events:Describe*", "events:List*", "events:PutRule",
+      "events:DeleteRule", "events:PutTargets", "events:RemoveTargets"
+    ]
+    resources = ["arn:aws:events:*:${var.aws_account_id}:rule/${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "Scheduler"
+    effect = "Allow"
+    actions = [
+      "scheduler:CreateSchedule", "scheduler:DeleteSchedule",
+      "scheduler:GetSchedule", "scheduler:UpdateSchedule"
+    ]
+    resources = ["arn:aws:scheduler:*:${var.aws_account_id}:schedule/${var.project_name}*"]
+  }
+
+  statement {
+    sid    = "CloudFront"
+    effect = "Allow"
+    actions = [
+      "cloudfront:GetDistribution", "cloudfront:ListDistributions",
+      "cloudfront:GetDistributionConfig", "cloudfront:UpdateDistribution",
+      "cloudfront:CreateInvalidation"
+    ]
+    resources = ["arn:aws:cloudfront::${var.aws_account_id}:distribution/*"]
+  }
+
+  statement {
+    sid    = "ACM"
+    effect = "Allow"
+    actions = [
+      "acm:DescribeCertificate", "acm:ListCertificates",
+      "acm:RequestCertificate", "acm:DeleteCertificate"
+    ]
+    resources = ["arn:aws:acm:*:${var.aws_account_id}:certificate/*"]
+  }
+
+  statement {
+    sid    = "ReadOnlyObservability"
+    effect = "Allow"
+    actions = [
+      "cloudtrail:Describe*", "cloudtrail:List*", "cloudtrail:LookupEvents",
+      "config:Describe*", "config:Get*", "config:List*",
+      "guardduty:Get*", "guardduty:List*"
     ]
     resources = ["*"]
   }
@@ -751,6 +950,23 @@ data "aws_iam_policy_document" "lambda_algo" {
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-${var.environment}",
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-status-${var.environment}"
+    ]
+  }
+
+  # ECS - OOM prevention: list and stop long-running analytics loaders (>2h)
+  statement {
+    sid    = "ECSLoaderOOMPrevention"
+    effect = "Allow"
+
+    actions = [
+      "ecs:ListTasks",
+      "ecs:DescribeTasks",
+      "ecs:StopTask"
+    ]
+
+    resources = [
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-cluster",
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task/${var.project_name}-cluster/*"
     ]
   }
 }

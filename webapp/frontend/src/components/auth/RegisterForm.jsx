@@ -14,9 +14,43 @@ const EyeOffIcon = () => (
   </svg>
 );
 
+function PasswordField({ id, name, label, value, show, onToggle, onChange, disabled, placeholder, hint }) {
+  return (
+    <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <label className="field-label" htmlFor={id}>{label}</label>
+        {hint && <span style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}>{hint}</span>}
+      </div>
+      <div style={{ position: "relative" }}>
+        <input
+          className="input"
+          id={id}
+          name={name}
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={onChange}
+          autoComplete="new-password"
+          disabled={disabled}
+          placeholder={placeholder}
+          style={{ paddingRight: "40px" }}
+        />
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon"
+          onClick={onToggle}
+          disabled={disabled}
+          aria-label="Toggle password visibility"
+          style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", width: "28px", height: "28px" }}
+        >
+          {show ? <EyeOffIcon /> : <EyeIcon />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   const [formData, setFormData] = useState({
-    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -37,7 +71,7 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
   };
 
   const validateForm = () => {
-    if (!formData.username || !formData.email || !formData.password) {
+    if (!formData.email || !formData.password) {
       setLocalError("Please fill in all required fields");
       return false;
     }
@@ -45,8 +79,8 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
       setLocalError("Passwords do not match");
       return false;
     }
-    if ((formData.password?.length || 0) < 8) {
-      setLocalError("Password must be at least 8 characters");
+    if ((formData.password?.length || 0) < 12) {
+      setLocalError("Password must be at least 12 characters");
       return false;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -62,8 +96,9 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
 
     if (!validateForm()) return;
 
+    // Cognito user pool uses email as username (username_attributes = ["email"])
     const result = await register(
-      formData.username,
+      formData.email,
       formData.password,
       formData.email,
       formData.firstName,
@@ -71,46 +106,13 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
     );
 
     if (result.success) {
-      onRegistrationSuccess?.(formData.username, result.nextStep);
+      onRegistrationSuccess?.(formData.email, result.nextStep);
     } else if (result.error) {
       setLocalError(result.error);
     }
   };
 
   const displayError = error || localError;
-
-  const PasswordField = ({ id, name, label, value, show, onToggle, placeholder, hint }) => (
-    <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <label className="field-label" htmlFor={id}>{label}</label>
-        {hint && <span style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}>{hint}</span>}
-      </div>
-      <div style={{ position: "relative" }}>
-        <input
-          className="input"
-          id={id}
-          name={name}
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={handleChange}
-          autoComplete="new-password"
-          disabled={isLoading}
-          placeholder={placeholder}
-          style={{ paddingRight: "40px" }}
-        />
-        <button
-          type="button"
-          className="btn btn-ghost btn-icon"
-          onClick={onToggle}
-          disabled={isLoading}
-          aria-label="Toggle password visibility"
-          style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", width: "28px", height: "28px" }}
-        >
-          {show ? <EyeOffIcon /> : <EyeIcon />}
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -135,14 +137,6 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
       </div>
 
       <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <label className="field-label" htmlFor="username">Username <span style={{ color: "var(--danger)" }}>*</span></label>
-          <span style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}>used to sign in</span>
-        </div>
-        <input className="input" id="username" name="username" type="text" value={formData.username} onChange={handleChange} autoComplete="username" disabled={isLoading} placeholder="Choose a username" required />
-      </div>
-
-      <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
         <label className="field-label" htmlFor="email">Email Address <span style={{ color: "var(--danger)" }}>*</span></label>
         <input className="input" id="email" name="email" type="email" value={formData.email} onChange={handleChange} autoComplete="email" disabled={isLoading} placeholder="you@example.com" required />
       </div>
@@ -150,12 +144,14 @@ function RegisterForm({ onSwitchToLogin, onRegistrationSuccess }) {
       <PasswordField
         id="password" name="password" label="Password" value={formData.password}
         show={showPassword} onToggle={() => setShowPassword(!showPassword)}
-        placeholder="Min 8 characters" hint="8+ chars"
+        onChange={handleChange} disabled={isLoading}
+        placeholder="Min 12 characters" hint="12+ chars"
       />
 
       <PasswordField
         id="confirmPassword" name="confirmPassword" label="Confirm Password" value={formData.confirmPassword}
         show={showConfirmPassword} onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
+        onChange={handleChange} disabled={isLoading}
         placeholder="Re-enter password"
       />
 

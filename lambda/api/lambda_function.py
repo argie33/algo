@@ -325,7 +325,10 @@ def get_bearer_token(event: Dict) -> Optional[str]:
     return auth_header[7:]  # Remove 'Bearer ' prefix
 
 def _get_cognito_jwks():
-    """Fetch and cache Cognito JWKS (JSON Web Key Set) - cached for 1 hour with TTL."""
+    """Fetch and cache Cognito JWKS (JSON Web Key Set) - cached for 10 minutes.
+
+    Short TTL allows rapid key rotation in emergencies (max 10min delay).
+    """
     global _JWKS_CACHE, _JWKS_CACHE_TIME
 
     cognito_region = os.getenv('COGNITO_REGION', 'us-east-1')
@@ -336,7 +339,7 @@ def _get_cognito_jwks():
         return None
 
     now = datetime.now(timezone.utc)
-    cache_ttl = timedelta(hours=1)
+    cache_ttl = timedelta(minutes=10)
 
     if _JWKS_CACHE and _JWKS_CACHE_TIME and (now - _JWKS_CACHE_TIME) < cache_ttl:
         return _JWKS_CACHE
@@ -661,8 +664,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Skip rate limiting for health check endpoints (required for uptime monitoring)
         is_health_check = path in RATE_LIMIT_EXEMPT_PATHS
 
-        # Detailed health check
+        # Detailed health check (authenticated only - exposes schema information)
         if path in ['/health/detailed', '/api/health/detailed']:
+            if not is_authorized:
+                cors_headers = get_cors_headers(event)
+                return {
+                    'statusCode': 401,
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                    'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
+                }
             try:
                 with DatabaseContext('read') as cur:
                     ALLOWED_TABLES = {'price_daily', 'signals', 'stock_scores', 'technical_data_daily'}
@@ -693,8 +703,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'status': 'unhealthy', 'error': 'internal_error'})
                 }
 
-        # Pipeline health — queries data_loader_status for all table freshness
+        # Pipeline health (authenticated only - exposes schema information)
         if path in ['/health/pipeline', '/api/health/pipeline']:
+            if not is_authorized:
+                cors_headers = get_cors_headers(event)
+                return {
+                    'statusCode': 401,
+                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                    'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
+                }
             try:
                 with DatabaseContext('read') as cur:
                     try:
