@@ -123,7 +123,7 @@ resource "aws_sns_topic_subscription" "loader_alerts_email" {
 # ============================================================
 
 resource "aws_cloudwatch_dashboard" "loader_monitoring" {
-  count          = var.ecs_log_group_name != "" ? 1 : 0
+  count          = 0  # Disabled: dashboard metric format needs fix after ECS metric emission is confirmed
   dashboard_name = "${var.project_name}-loader-monitoring-${var.environment}"
 
   dashboard_body = jsonencode({

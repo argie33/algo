@@ -8,9 +8,10 @@ locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
 
-  # Role names with 'svc-' prefix to avoid conflicts with legacy resources
-  api_lambda_role_name  = "${var.project_name}-svc-api-${var.environment}"
-  algo_lambda_role_name = "${var.project_name}-svc-algo-${var.environment}"
+  # Extract role names from ARNs (format: arn:aws:iam::ACCOUNT:role/[path/]ROLE-NAME)
+  # element(..., length-1) gets the last segment which is always the role name, even with a path prefix
+  api_lambda_role_name  = element(split("/", var.api_lambda_role_arn), length(split("/", var.api_lambda_role_arn)) - 1)
+  algo_lambda_role_name = element(split("/", var.algo_lambda_role_arn), length(split("/", var.algo_lambda_role_arn)) - 1)
 }
 
 # ============================================================
