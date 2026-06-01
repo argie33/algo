@@ -71,8 +71,6 @@ def retry(
                     delay *= backoff
         return wrapper
     return decorator
-        return wrapper
-    return decorator
 
 class RateLimiter:
     """
