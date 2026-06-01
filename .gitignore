@@ -219,6 +219,8 @@ webapp/lambda/jest.*.config.js
 !scripts/**/*.bat
 !scripts/**/*.ps1
 setup*.sh
+# EXCEPT: Infrastructure setup scripts that teams regularly use
+!scripts/setup-staging-infrastructure.sh
 verify*.sh
 check*.sh
 debug*.sh
