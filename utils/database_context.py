@@ -38,7 +38,7 @@ class DatabaseContext:
         # Connection automatically closed
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=RealDictCursor):
+    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=DictCursor):
         """Initialize context.
 
         Args:
@@ -97,7 +97,7 @@ def database_transaction(role: str = 'write', timeout: int = 10):
     cur = None
     try:
         conn = get_db_connection(timeout=timeout)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur = conn.cursor(cursor_factory=DictCursor)
         yield cur
         # Caller must explicitly commit - we don't auto-commit
     except Exception as e:
