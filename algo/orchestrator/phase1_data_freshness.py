@@ -452,41 +452,49 @@ def run(
         if not patrol_ok:
             return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
 
-        # Observability: log signal_quality_scores row count — not a halt condition.
-        try:
-            with DatabaseContext('read') as _sqs_cur:
-                _sqs_cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
-                sqs_row = _sqs_cur.fetchone()
-                total_sqs, latest_sqs_date = (sqs_row[0], sqs_row[1]) if sqs_row else (0, None)
-                if total_sqs == 0:
-                    logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
-                    log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, first run expected')
-                elif verbose:
-                    logger.info(f"  [OK] signal_quality_scores: {total_sqs} rows, latest {latest_sqs_date}")
-        except Exception as e:
-            logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
+        # Skip slow secondary checks in Lambda to preserve budget for trading phases.
+        # Under EOD pipeline load, COUNT(*) and health queries on large tables take
+        # 1-3 minutes each — Phase 1 would consume the entire 600s Lambda budget
+        # before reaching Phases 2-7. These are observability-only, not halt conditions.
+        in_lambda = bool(os.getenv('AWS_LAMBDA_FUNCTION_NAME'))
+        if not in_lambda:
+            # Observability: log signal_quality_scores row count — not a halt condition.
+            try:
+                with DatabaseContext('read') as _sqs_cur:
+                    _sqs_cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
+                    sqs_row = _sqs_cur.fetchone()
+                    total_sqs, latest_sqs_date = (sqs_row[0], sqs_row[1]) if sqs_row else (0, None)
+                    if total_sqs == 0:
+                        logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
+                        log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, first run expected')
+                    elif verbose:
+                        logger.info(f"  [OK] signal_quality_scores: {total_sqs} rows, latest {latest_sqs_date}")
+            except Exception as e:
+                logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
 
-        # Margin health check
-        try:
-            from algo.algo_position_monitor import PositionMonitor
-            pm = PositionMonitor(config)
-            margin_info = pm.get_margin_usage()
-            if margin_info and margin_info['margin_usage_pct'] > 70:
-                alerts.send_position_alert(
-                    'ACCOUNT', 'MARGIN_ALERT',
-                    f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
-                    margin_info
-                )
-                if verbose:
-                    logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
-            elif verbose and margin_info:
-                logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
-        except Exception as e:
-            logger.warning(f'Margin check failed: {e}')
+            # Margin health check
+            try:
+                from algo.algo_position_monitor import PositionMonitor
+                pm = PositionMonitor(config)
+                margin_info = pm.get_margin_usage()
+                if margin_info and margin_info['margin_usage_pct'] > 70:
+                    alerts.send_position_alert(
+                        'ACCOUNT', 'MARGIN_ALERT',
+                        f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
+                        margin_info
+                    )
+                    if verbose:
+                        logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
+                elif verbose and margin_info:
+                    logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
+            except Exception as e:
+                logger.warning(f'Margin check failed: {e}')
 
-        # Pipeline health check
-        with DatabaseContext('read') as _health_cur:
-            _check_pipeline_health(_health_cur, run_date, verbose)
+            # Pipeline health check
+            with DatabaseContext('read') as _health_cur:
+                _check_pipeline_health(_health_cur, run_date, verbose)
+        else:
+            logger.info("  [LAMBDA] Skipping secondary checks (SQS count, margin, pipeline health) to preserve 600s budget")
 
         log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
