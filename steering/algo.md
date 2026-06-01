@@ -181,7 +181,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 ## GitHub Actions Workflows (Consolidated Architecture)
 
-17 workflows (down from 25). Strategic consolidation maintains all functionality while reducing UI clutter and complexity.
+16 workflows (down from 25). Strategic consolidation maintains all functionality while reducing UI clutter and complexity.
 
 **Production Auto-Triggered (4 workflows):**
 - `deploy-all-infrastructure.yml` — Main deployment (push main): Terraform + code + migrations + frontend
@@ -198,11 +198,11 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - `build-lambda-layer.yml` — Manual dispatch: Build shared-deps Lambda layer
 - `verify-and-init-db.yml` — Manual dispatch + workflow_call: Initialize/verify database
 
-**Manual Credential Management (4 workflows - keep separate, different credential types):**
+**Manual Credential Management (3 workflows - keep separate, different credential types):**
 - `rotate-developer-credentials.yml` — Scheduled + manual: Auto-rotate OUR AWS IAM key (Terraform-based)
 - `rotate-credentials-simple.yml` — Manual only: Fallback AWS IAM rotation when Terraform broken (AWS CLI-based)
 - `update-credentials.yml` — Manual dispatch: Sync third-party API keys (Alpaca, FRED) to Secrets Manager
-- `refresh-dev-credentials.yml` — Manual dispatch: Export dev credentials for local ~/.aws/credentials (supports PowerShell script)
+- (Deleted: `refresh-dev-credentials.yml` — use `scripts/refresh-aws-credentials.ps1` instead)
 
 **Manual Invocation (2 workflows):**
 - `manual-invoke-loaders.yml` — Manual dispatch with loader_type selector: Invoke specific ECS loader task
