@@ -436,6 +436,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return _get_cap_distribution(cur)
             elif path == '/api/market/correlation':
                 return _get_correlation_matrix(cur)
+            elif path == '/api/market/sectors':
+                return _get_sector_overview(cur)
             return error_response(404, 'not_found', f'No market handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -920,3 +922,30 @@ def _get_markets(cur) -> Dict:
             return json_response(200, result)
         except (psycopg2.errors.UndefinedTable, Exception) as e:
             return handle_db_error(e, logger, 'get market indices')
+
+def _get_sector_overview(cur) -> Dict:
+    """Get latest sector performance overview from sectors table."""
+    try:
+        cur.execute("""
+            SELECT sector_name, performance_ytd, performance_1y, pe_ratio,
+                   dividend_yield, market_cap, stock_count, metric_date
+            FROM sectors
+            WHERE metric_date = (SELECT MAX(metric_date) FROM sectors)
+            ORDER BY market_cap DESC NULLS LAST
+        """)
+        rows = cur.fetchall()
+        if not rows:
+            cur.execute("""
+                SELECT DISTINCT sector, COUNT(*) as stock_count
+                FROM company_profile WHERE sector IS NOT NULL AND sector != ''
+                GROUP BY sector ORDER BY count DESC
+            """)
+            rows = cur.fetchall()
+            return list_response(
+                [{'sector_name': r['sector'], 'stock_count': r['stock_count']} for r in rows]
+            )
+        return list_response([dict(r) for r in rows])
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+        return list_response([])
+    except Exception as e:
+        return handle_db_error(e, logger, 'get sector overview')
