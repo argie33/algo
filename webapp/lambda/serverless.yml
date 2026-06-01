@@ -84,7 +84,10 @@ resources:
         ProtocolType: HTTP
         CorsConfiguration:
           AllowOrigins:
-            - 'https://d1copuy2oqlazx.cloudfront.net'  # Production CloudFront
+            # Set CLOUDFRONT_URL=https://<distribution>.cloudfront.net at deploy time.
+            # Never hardcode the distribution URL here — it leaks the CloudFront ID
+            # and breaks silently if the distribution is replaced.
+            - ${env:CLOUDFRONT_URL, ''}
             - 'http://localhost:5173'  # Local frontend port
             - 'http://localhost:5174'  # Admin site port
             - 'http://127.0.0.1:5173'

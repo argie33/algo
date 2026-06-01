@@ -1082,34 +1082,6 @@ function CreditSpreadsPanel({ yieldData }) {
   );
 }
 
-function RateVsInflationChart({ cpiHist, fedHist }) {
-  const map = new Map();
-  [...cpiHist].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
-    const k = String(p.date).slice(0, 7);
-    map.set(k, { date: k, cpi: +p.value });
-  });
-  [...fedHist].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
-    const k = String(p.date).slice(0, 7);
-    const cur = map.get(k) || { date: k };
-    cur.fed = +p.value;
-    map.set(k, cur);
-  });
-  const data = [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-48);
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-        <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
-        <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} interval="preserveStartEnd" />
-        <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => `${(+v).toFixed(1)}%`} />
-        <Tooltip contentStyle={TT} formatter={(v, n) => [`${(+v).toFixed(2)}%`, n === 'cpi' ? 'CPI' : 'Fed Funds']} />
-        <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => n === 'cpi' ? 'CPI (YoY)' : 'Fed Funds Rate'} />
-        <Line type="monotone" dataKey="cpi" name="cpi" stroke="var(--danger)" strokeWidth={2} dot={false} />
-        <Line type="monotone" dataKey="fed" name="fed" stroke="var(--cyan)" strokeWidth={2} dot={false} />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-
 function NaaimPanel({ naaim }) {
   const current = naaim?.current?.value ?? naaim?.current ?? naaim?.naaim_number_mean;
   if (current == null) return null;
@@ -1207,8 +1179,6 @@ function EconomicRegimeClock({ indicators, _yieldData, phillyfed }) {
     : (gdpTrend + phillyTrend) / 2;
   // For display purposes: convert Philly Fed to ISM-like scale (centered at 50)
   const ismVal = phillyRaw != null ? 50 + phillyRaw / 2 : (indpro?.trend === 'up' ? 55 : indpro?.trend === 'down' ? 45 : 50);
-  const ismTrend = ismVal > 50 ? 1 : ismVal < 50 ? -1 : 0;
-  void ismTrend;
 
   // Inflation axis: CPI relative to 2% Fed target (positive = above target = inflationary)
   const cpiVal = cpi?.rawValue ? +cpi.rawValue : 2;
@@ -1391,7 +1361,7 @@ function GrowthLaborBarometer({ indicators, phillyfed }) {
       <div className="card-head">
         <div>
           <div className="card-title">Growth-Labor Barometer</div>
-          <div className="card-sub">ISM Manufacturing (growth proxy) vs Jobless Claims (labor stress) — expansion vs contraction signal</div>
+          <div className="card-sub">Philly Fed Manufacturing (growth proxy) vs Jobless Claims (labor stress) — expansion vs contraction composite signal</div>
         </div>
         <span className="badge" style={{ background: `${interpretation.color}20`, color: interpretation.color, border: `1px solid ${interpretation.color}50` }}>
           {barometer.toFixed(0)}
@@ -1575,6 +1545,183 @@ function LEIPanel({ indicators }) {
 
         <div style={{ padding: 'var(--space-3) var(--space-4)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
           <div className="t-sm muted">{leiInterpretation.desc}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TipsBreakevenPanel({ t5y, t10y, yieldData }) {
+  const t5hist = t5y?.history || yieldData?.breakevens?.history?.T5YIE || [];
+  const t10hist = t10y?.history || yieldData?.breakevens?.history?.T10YIE || [];
+  const t5cur = t5y?.rawValue ?? yieldData?.breakevens?.current?.T5YIE;
+  const t10cur = t10y?.rawValue ?? yieldData?.breakevens?.current?.T10YIE;
+
+  const combined = (() => {
+    const map = new Map();
+    [...t5hist].filter((_, i) => i % 5 === 0).forEach(p => {
+      const k = String(p.date).slice(0, 10);
+      const cur = map.get(k) || { date: k };
+      cur.t5y = +p.value;
+      map.set(k, cur);
+    });
+    [...t10hist].filter((_, i) => i % 5 === 0).forEach(p => {
+      const k = String(p.date).slice(0, 10);
+      const cur = map.get(k) || { date: k };
+      cur.t10y = +p.value;
+      map.set(k, cur);
+    });
+    return [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
+  })();
+
+  if (combined.length < 5) return null;
+
+  return (
+    <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">TIPS Breakeven Inflation Expectations</div>
+          <div className="card-sub">Market-implied inflation expectations from TIPS vs nominal Treasuries — the Fed monitors these closely</div>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
+          {t5cur != null && (
+            <div className="stile" style={{ textAlign: 'right' }}>
+              <div className="stile-label">5Y Breakeven</div>
+              <div className="stile-value" style={{ color: +t5cur > 3 ? 'var(--danger)' : +t5cur > 2.5 ? 'var(--amber)' : 'var(--success)' }}>{(+t5cur).toFixed(2)}%</div>
+            </div>
+          )}
+          {t10cur != null && (
+            <div className="stile" style={{ textAlign: 'right' }}>
+              <div className="stile-label">10Y Breakeven</div>
+              <div className="stile-value" style={{ color: +t10cur > 3 ? 'var(--danger)' : +t10cur > 2.5 ? 'var(--amber)' : 'var(--success)' }}>{(+t10cur).toFixed(2)}%</div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="card-body" style={{ height: 260 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={combined} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+            <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
+            <YAxis stroke="var(--text-3)" fontSize={10} domain={[1, 4]} tickFormatter={v => `${(+v).toFixed(1)}%`} />
+            <Tooltip contentStyle={TT} labelFormatter={fmtD}
+              formatter={(v, n) => [`${(+v).toFixed(2)}%`, n === 't5y' ? '5Y Breakeven' : '10Y Breakeven']} />
+            <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => n === 't5y' ? '5Y Breakeven' : '10Y Breakeven'} />
+            <ReferenceLine y={2} stroke="var(--success)" strokeDasharray="4 4" label={{ value: 'Fed Target 2%', fontSize: 9, fill: 'var(--success)' }} />
+            <ReferenceLine y={2.5} stroke="var(--amber)" strokeDasharray="4 4" label={{ value: '2.5% Caution', fontSize: 9, fill: 'var(--amber)' }} />
+            <Line type="monotone" dataKey="t5y" name="t5y" stroke="var(--brand)" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="t10y" name="t10y" stroke="var(--danger)" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="card-body" style={{ paddingTop: 0 }}>
+        <div className="t-xs muted">
+          Breakeven = nominal Treasury yield − TIPS real yield · above 2.5% = markets expect above-target inflation · above 3% = inflation expectations unanchoring
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InflationVsFedChart({ cpiHist, corePceHist, fedHist }) {
+  const map = new Map();
+  [...(cpiHist || [])].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+    const k = String(p.date).slice(0, 7);
+    map.set(k, { date: k, cpi: +p.value });
+  });
+  [...(corePceHist || [])].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+    const k = String(p.date).slice(0, 7);
+    const cur = map.get(k) || { date: k };
+    cur.corePce = +p.value;
+    map.set(k, cur);
+  });
+  [...(fedHist || [])].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+    const k = String(p.date).slice(0, 7);
+    const cur = map.get(k) || { date: k };
+    cur.fed = +p.value;
+    map.set(k, cur);
+  });
+  const data = [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-48);
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+        <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} interval="preserveStartEnd" />
+        <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => `${(+v).toFixed(1)}%`} />
+        <Tooltip contentStyle={TT} formatter={(v, n) => [`${(+v).toFixed(2)}%`, n === 'cpi' ? 'CPI YoY' : n === 'corePce' ? 'Core PCE YoY' : 'Fed Funds']} />
+        <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => n === 'cpi' ? 'CPI (YoY)' : n === 'corePce' ? 'Core PCE (YoY)' : 'Fed Funds Rate'} />
+        <ReferenceLine y={2} stroke="var(--success)" strokeDasharray="4 4" />
+        <Line type="monotone" dataKey="cpi" name="cpi" stroke="var(--danger)" strokeWidth={2} dot={false} />
+        {corePceHist?.length > 0 && <Line type="monotone" dataKey="corePce" name="corePce" stroke="var(--amber)" strokeWidth={2} dot={false} strokeDasharray="6 3" />}
+        <Line type="monotone" dataKey="fed" name="fed" stroke="var(--cyan)" strokeWidth={2} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+function FinancialStressPanel({ stlfsiInd, anfciInd, yieldData }) {
+  const stlfsiHist = stlfsiInd?.history || yieldData?.stress?.history?.STLFSI4 || [];
+  const anfciHist = anfciInd?.history || yieldData?.stress?.history?.ANFCI || [];
+
+  const combined = (() => {
+    const map = new Map();
+    [...stlfsiHist].filter((_, i) => i % 2 === 0).forEach(p => {
+      const k = String(p.date).slice(0, 10);
+      const cur = map.get(k) || { date: k };
+      cur.stlfsi = +p.value;
+      map.set(k, cur);
+    });
+    [...anfciHist].filter((_, i) => i % 2 === 0).forEach(p => {
+      const k = String(p.date).slice(0, 10);
+      const cur = map.get(k) || { date: k };
+      cur.anfci = +p.value;
+      map.set(k, cur);
+    });
+    return [...map.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
+  })();
+
+  const latest = combined.at(-1);
+  const stlfsiLatest = latest?.stlfsi ?? stlfsiInd?.rawValue;
+  const stressLevel = stlfsiLatest != null
+    ? (+stlfsiLatest > 1.5 ? { label: 'Severe Stress', color: 'var(--danger)' }
+      : +stlfsiLatest > 0.5 ? { label: 'Elevated Stress', color: 'var(--amber)' }
+      : { label: 'Normal Conditions', color: 'var(--success)' })
+    : { label: '—', color: 'var(--text-muted)' };
+
+  if (combined.length < 5) return null;
+
+  return (
+    <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Financial Stress Index</div>
+          <div className="card-sub">St. Louis Fed STLFSI4 (18 variables) + Chicago Fed ANFCI — broader than credit spreads alone</div>
+        </div>
+        <span className="badge" style={{ background: `${stressLevel.color}20`, color: stressLevel.color, border: `1px solid ${stressLevel.color}50` }}>
+          {stressLevel.label}
+        </span>
+      </div>
+      <div className="card-body" style={{ height: 280 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={combined} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+            <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
+            <YAxis stroke="var(--text-3)" fontSize={10} />
+            <Tooltip contentStyle={TT} labelFormatter={fmtD}
+              formatter={(v, n) => [`${(+v).toFixed(3)}σ`, n === 'stlfsi' ? 'STLFSI4 (STL)' : 'ANFCI (Chicago Fed)']} />
+            <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => n === 'stlfsi' ? 'STLFSI4 (STL Fed)' : 'ANFCI (Chicago Fed)'} />
+            <ReferenceLine y={0} stroke="var(--border-2)" strokeDasharray="4 4" />
+            <ReferenceLine y={1} stroke="var(--amber)" strokeDasharray="3 5" label={{ value: 'Stress Zone', fontSize: 9, fill: 'var(--amber)' }} />
+            <ReferenceLine y={-1} stroke="var(--success)" strokeDasharray="3 5" label={{ value: 'Easy', fontSize: 9, fill: 'var(--success)' }} />
+            {stlfsiHist.length > 0 && <Line type="monotone" dataKey="stlfsi" name="stlfsi" stroke="var(--danger)" strokeWidth={2} dot={false} />}
+            {anfciHist.length > 0 && <Line type="monotone" dataKey="anfci" name="anfci" stroke="var(--brand)" strokeWidth={2} dot={false} strokeDasharray="6 3" />}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="card-body" style={{ paddingTop: 0 }}>
+        <div className="t-xs muted">
+          STLFSI4: 18 financial market variables (interest rates, spreads, other indicators) · 0 = average conditions · positive = stress ·
+          ANFCI adjusts for current macro conditions — negative = loose, positive = tight
         </div>
       </div>
     </div>
