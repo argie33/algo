@@ -145,12 +145,12 @@ def test_db_connection():
 # which is GLOBAL across all instances
 MAX_REQUEST_BODY_SIZE = 1024 * 100
 
-# Health check endpoints exempt from any rate limiting (required for uptime monitoring)
+# Public health endpoints exempt from in-Lambda rate limiting (uptime monitors hit these).
+# /health/detailed and /api/health/detailed require authentication — they are NOT exempt,
+# so authenticated clients share the same per-instance throttle as other endpoints.
 RATE_LIMIT_EXEMPT_PATHS = {
     '/health',
     '/api/health',
-    '/health/detailed',
-    '/api/health/detailed',
     '/health/pipeline',
     '/api/health/pipeline',
 }

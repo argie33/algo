@@ -619,7 +619,7 @@ export default function EconomicDashboard() {
                             interval={Math.max(0, Math.floor((joltsInd.history.length) / 6))} />
                           <YAxis stroke="var(--text-3)" fontSize={10} />
                           <Tooltip contentStyle={TT} labelFormatter={fmtD}
-                            formatter={v => [v != null ? `${(+v).toLocaleString()}K` : '—', 'Job Openings']} />
+                            formatter={v => [v != null ? `${((+v)/1000).toFixed(1)}M` : '—', 'Job Openings']} />
                           <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#joltsGrad)" />
                         </AreaChart>
                       </ResponsiveContainer>
