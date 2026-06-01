@@ -266,13 +266,24 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     enable_advanced = bool(self.config.get('enable_advanced_filters', True))
                     if enable_advanced:
                         try:
+                            # SAVEPOINT guards against statement-timeout-induced transaction aborts.
+                            # Without this, a timeout inside evaluate_candidate() puts the whole
+                            # transaction in aborted state, causing all subsequent symbols to fail
+                            # with "current transaction is aborted, commands ignored".
+                            cur.execute("SAVEPOINT adv_filter")
                             adv = self.advanced.evaluate_candidate(
                                 symbol, signal_date, float(entry_price),
                                 sector_info['sector'], sector_info['industry'],
                             )
+                            cur.execute("RELEASE SAVEPOINT adv_filter")
                             result['advanced'] = adv
                         except Exception as e:
-                            # Advanced filters failed (missing tables), use default pass
+                            try:
+                                cur.execute("ROLLBACK TO SAVEPOINT adv_filter")
+                                cur.execute("RELEASE SAVEPOINT adv_filter")
+                            except Exception:
+                                pass
+                            # Advanced filters failed (missing tables, timeout), use default pass
                             logger.warning(f"Advanced filters failed for {symbol}: {e} (using default)")
                             adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
                             result['advanced'] = adv

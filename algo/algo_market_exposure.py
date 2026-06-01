@@ -135,10 +135,11 @@ class MarketExposure:
 
         logger.info(f"Computing market exposure for {eval_date} (11 sequential queries)")
         with DatabaseContext('read') as cur:
-            # Per-query timeout: 30s is enough for the 9 simple queries; breadth queries
-            # now read pre-computed technical_data_daily instead of raw price_daily so they
-            # complete in <1s even on t4g.micro. 30s gives headroom for DB load spikes.
-            cur.execute("SET statement_timeout = 30000")
+            # Per-query timeout: 90s to handle breadth queries (DISTINCT ON CTE across
+            # technical_data_daily + price_daily) when PostgreSQL statistics are stale
+            # on t4g.micro. With stale reltuples the planner may choose a sequential scan
+            # that takes 45-60s; 90s gives headroom without indefinitely blocking Phase 3b.
+            cur.execute("SET statement_timeout = 90000")
             factors = {}
             score = 0.0
 
