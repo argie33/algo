@@ -17,9 +17,9 @@ This module defines all IAM roles and policies for the `stocks-analytics` platfo
 **Purpose**: Deploy infrastructure from GitHub Actions CI/CD
 
 **Trust Policy**:
-- ✅ Trusts GitHub OIDC provider
-- ✅ Scoped to THIS repository only (`repo:argeropolos/algo:ref:refs/heads/main`)
-- ❌ Not open to other GitHub orgs or repos
+- YES Trusts GitHub OIDC provider
+- YES Scoped to THIS repository only (`repo:argeropolos/algo:ref:refs/heads/main`)
+- NO Not open to other GitHub orgs or repos
 
 **Permissions**:
 - CloudFormation: Create/Update/Delete/Describe stacks (scoped to `stocks-*`)
@@ -35,11 +35,11 @@ This module defines all IAM roles and policies for the `stocks-analytics` platfo
 - CloudWatch Logs: Create log groups/streams
 
 **NOT Allowed**:
-- ❌ AdministratorAccess
-- ❌ Wildcard `*` actions
-- ❌ Create/modify IAM policies
-- ❌ Modify security groups (only through CloudFormation)
-- ❌ Manual RDS operations (only through CloudFormation)
+- NO AdministratorAccess
+- NO Wildcard `*` actions
+- NO Create/modify IAM policies
+- NO Modify security groups (only through CloudFormation)
+- NO Manual RDS operations (only through CloudFormation)
 
 ---
 
@@ -58,9 +58,9 @@ This module defines all IAM roles and policies for the `stocks-analytics` platfo
 - KMS: Decrypt encrypted secrets
 
 **NOT Allowed**:
-- ❌ EC2: TerminateInstances (prevents self-termination)
-- ❌ Secrets Manager: Create/Update/Delete secrets
-- ❌ RDS: Direct database modifications
+- NO EC2: TerminateInstances (prevents self-termination)
+- NO Secrets Manager: Create/Update/Delete secrets
+- NO RDS: Direct database modifications
 
 ---
 
@@ -97,9 +97,9 @@ This module defines all IAM roles and policies for the `stocks-analytics` platfo
 - S3: Read/write data loading bucket (staging results)
 
 **NOT Allowed**:
-- ❌ No direct RDS access (use Secrets Manager for credentials)
-- ❌ No IAM, EC2, ECS management
-- ❌ No cross-account access
+- NO No direct RDS access (use Secrets Manager for credentials)
+- NO No IAM, EC2, ECS management
+- NO No cross-account access
 
 ---
 
@@ -138,9 +138,9 @@ This module defines all IAM roles and policies for the `stocks-analytics` platfo
 - CloudWatch Metrics: Put custom metrics (for `AlgoRunCompleted` metric)
 
 **Key Difference from Lambda API**:
-- ✅ Can publish to SNS for alerts
-- ✅ Can put custom metrics to CloudWatch
-- ✅ Cannot modify other Lambda functions
+- YES Can publish to SNS for alerts
+- YES Can put custom metrics to CloudWatch
+- YES Cannot modify other Lambda functions
 
 ---
 
@@ -157,8 +157,8 @@ This module defines all IAM roles and policies for the `stocks-analytics` platfo
 - Lambda: InvokeFunction (trigger algo Lambda)
 
 **NOT Allowed**:
-- ❌ Cannot modify schedules (that's done via CloudFormation/Terraform)
-- ❌ Cannot manage stacks or infrastructure
+- NO Cannot modify schedules (that's done via CloudFormation/Terraform)
+- NO Cannot manage stacks or infrastructure
 
 ---
 

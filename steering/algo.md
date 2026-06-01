@@ -24,7 +24,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 ## Deployment
 
-**Production:** `git push main` triggers deploy-code.yml and deploy-all-infrastructure.yml automatically. Uses GitHub OIDC for AWS auth (temp credentials, auto-expire).
+**Production:** `git push main` triggers deploy-all-infrastructure.yml (Terraform + Lambda + frontend + migrations). Uses GitHub OIDC for AWS auth (temp credentials, auto-expire). deploy-code.yml is for manual/selective runs only.
 
 **Local:** Never run `terraform apply` locally. Use `scripts/refresh-aws-credentials.ps1` only for debugging.
 
@@ -46,13 +46,11 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 1. **Intraday pricing stale:** 1 PM and 3 PM runs use yesterday's close (price_daily loaded once daily at 4 AM). Position sizing may be wrong if stock gaps 10%+ at open.
 2. **No intraday circuit breaker:** Phase 2 checks daily P&L only. 15% market drop in first 30min won't halt trading.
 
-## Critical Issues
+## Analytics Loader OOM Risk
 
-**RDS Proxy disabled (as of 2026-06-01):** `aws rds describe-db-proxies` returns empty despite terraform.tfvars setting. Lambda cold-start creates new connection (15-40s init). Fix: Run deploy-all-infrastructure.yml.
+company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 5000+ symbols with yfinance rate limits and can run 6+ hours. If any is still running when the orchestrator fires, the t4g.micro RDS OOMs. Fix: kill any ECS loader running > 2 hours before orchestrator runs.
 
-**Analytics loaders OOM crash RDS:** company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 5000+ symbols with yfinance rate limits. If running 6+ hours when orchestrator fires, RDS t4g.micro OOMs. Fix: Kill any ECS loader running > 2 hours before orchestrator runs.
-
-**Advisory lock in place:** OptimalLoader uses `pg_try_advisory_lock` to prevent duplicate loader runs. Lock auto-releases on exit/crash.
+Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate runs. Lock auto-releases on exit/crash. To stop runaway tasks: `aws ecs stop-task --cluster algo-cluster --task <ARN>`.
 
 ## Orchestrator Phases
 
@@ -91,7 +89,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 ## Live Trading Readiness
 
 - Authentication: DISABLED (cognito_enabled = false). Enable before live trading.
-- RDS Proxy: DISABLED. Enable before handling concurrent API load.
+- RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
 - Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
 - Circuit breaker: NO intraday protection. Add CloudWatch alarm on portfolio variance before live capital.
 
