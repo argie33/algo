@@ -67,7 +67,8 @@ resource "aws_db_subnet_group" "main" {
 # ============================================================
 
 resource "aws_db_instance" "main" {
-  identifier            = "${var.project_name}-db"
+  # FIXED F-07: Staging gets separate RDS instance (algo-db-staging vs algo-db)
+  identifier            = var.environment == "staging" ? "${var.project_name}-db-staging" : "${var.project_name}-db"
   db_name               = var.rds_db_name
   engine                = "postgres"
   engine_version        = var.postgres_major_version

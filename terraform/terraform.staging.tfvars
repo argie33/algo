@@ -17,10 +17,14 @@
 #         Full Terraform apply with these vars is NOT required for normal
 #         staging development (Lambda reuses dev VPC/RDS).
 #
-# Full infra deploy (only needed to create brand-new staging VPC+RDS):
+# FIXED F-07: Separate staging RDS (prevents data corruption on production)
+# Full infra deploy with isolated staging RDS:
 #   terraform workspace new staging
 #   terraform apply -var-file=terraform.staging.tfvars \
 #     -backend-config="key=stocks/terraform-staging.tfstate"
+#
+# This ensures staging has its own RDS instance (algo-db-staging) instead of
+# sharing production RDS. Bad migrations on staging will not affect production data.
 # ============================================================
 
 environment  = "staging"

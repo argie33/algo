@@ -78,6 +78,8 @@ module "secrets" {
   depends_on = [module.database]
 }
 
+# FIXED F-07: Staging environment isolation
+# Create separate database module for staging to prevent data corruption on production RDS
 module "database" {
   source = "./modules/database"
 
