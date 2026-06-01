@@ -791,7 +791,6 @@ data "aws_iam_policy_document" "lambda_api" {
       variable = "cloudwatch:namespace"
       values   = ["${var.project_name}/api", "${var.project_name}/orchestrator"]
     }
-    }
   }
 
   # ECS (invoke data patrol task from /api/algo/patrol endpoint)
