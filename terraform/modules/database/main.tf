@@ -2,6 +2,8 @@
 # Database Module - RDS PostgreSQL + Secrets Manager
 # ============================================================
 
+data "aws_caller_identity" "current" {}
+
 # ============================================================
 # 0. RDS Master Password (Use Variable or Generate)
 # ============================================================
@@ -726,6 +728,7 @@ resource "aws_lambda_permission" "rds_rotation_secrets_manager" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.rds_rotation.function_name
   principal     = "secretsmanager.amazonaws.com"
+  source_arn    = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:algo/*"
 }
 
 # ============================================================

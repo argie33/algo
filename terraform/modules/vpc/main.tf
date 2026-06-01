@@ -146,6 +146,7 @@ resource "aws_security_group" "bastion" {
   vpc_id      = aws_vpc.main.id
 
   # Egress: allow all outbound (for package updates, RDS access, etc.)
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: bastion host requires full internet access
   egress {
     from_port   = 0
     to_port     = 0
@@ -193,6 +194,7 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   # Egress: HTTPS to external APIs (yfinance, IEX Cloud, Alpaca, FRED, etc.) via NAT Gateway
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: ECS loaders must reach external financial data APIs
   egress {
     from_port   = 443
     to_port     = 443
@@ -241,6 +243,7 @@ resource "aws_security_group" "api_lambda" {
 
   # Egress: allow HTTPS to internet for Cognito JWT validation via NAT Gateway.
   # The cognito-idp VPC endpoint service is not available in all AZs; NAT Gateway is the fallback.
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: Cognito JWT validation requires internet egress
   egress {
     from_port   = 443
     to_port     = 443
@@ -306,6 +309,7 @@ resource "aws_security_group" "algo_lambda" {
   }
 
   # Egress: allow HTTPS to external internet for Alpaca API calls
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: orchestrator Lambda must reach Alpaca live trading API
   egress {
     from_port   = 443
     to_port     = 443
@@ -427,6 +431,7 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 
   # Egress: allow all outbound
+  # tfsec:ignore:aws-ec2-no-public-egress-sgr -- Intentional: VPC endpoint SG requires outbound access
   egress {
     from_port   = 0
     to_port     = 0
