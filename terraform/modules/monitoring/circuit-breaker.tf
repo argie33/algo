@@ -116,7 +116,7 @@ resource "aws_cloudwatch_log_group" "circuit_breaker" {
 data "archive_file" "circuit_breaker" {
   type        = "zip"
   source_file = "${path.module}/../../lambda/circuit-breaker/index.py"
-  output_path = "${path.module}/.terraform/circuit-breaker.zip"
+  output_path = "/tmp/algo-circuit-breaker.zip"
 }
 
 resource "aws_lambda_function" "circuit_breaker" {

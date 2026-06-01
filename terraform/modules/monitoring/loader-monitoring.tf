@@ -107,7 +107,7 @@ resource "aws_cloudwatch_metric_alarm" "per_loader_failures" {
     LoaderName = each.value
   }
 
-  alarm_actions = [aws_sns_topic.loader_alerts[0].arn]
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
 
   tags = var.common_tags
 }
@@ -126,7 +126,7 @@ resource "aws_cloudwatch_metric_alarm" "supporting_loader_failures" {
   alarm_description   = "One or more supporting loaders failed — investigate in CloudWatch Logs"
   treat_missing_data  = "notBreaching"
 
-  alarm_actions = [aws_sns_topic.loader_alerts[0].arn]
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
 
   tags = var.common_tags
 }
