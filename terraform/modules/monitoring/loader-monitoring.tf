@@ -129,50 +129,21 @@ resource "aws_cloudwatch_dashboard" "loader_monitoring" {
   dashboard_body = jsonencode({
     widgets = [
       {
-        type = "metric"
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 24
+        height = 6
         properties = {
           metrics = [
-            [
-              { expression = "STATS(m1)", label = "All Loader Failures" },
-              { id = "m1", expression = "SUM(INSIGHTS([\"LoaderFailureCount\"], LogGroupName=/aws/ecs/algo-loader/))" }
-            ]
+            ["${var.project_name}/Loaders", "LoaderFailureCount"]
           ]
           period = 300
           stat   = "Sum"
           region = var.aws_region
-          title  = "Loader Failures - Last Hour"
-          yAxis = {
-            left = {
-              min = 0
-            }
-          }
-        }
-      },
-      {
-        type = "log"
-        properties = {
-          query = <<-EOQ
-            fields @timestamp, @message, loader_name
-            | filter @message like /FAILED|CRITICAL|Exception/
-            | stats count() as failure_count by loader_name
-            | sort failure_count desc
-          EOQ
-          region = var.aws_region
-          title  = "Loader Failure Summary (Last 1 hour)"
-        }
-      },
-      {
-        type = "metric"
-        properties = {
-          metrics = concat(
-            [
-              ["${var.project_name}/Loaders", "LoaderFailureCount", { stat = "Sum" }]
-            ]
-          )
-          period = 300
-          stat   = "Sum"
-          region = var.aws_region
-          title  = "Per-Loader Failure Count"
+          title  = "Loader Failure Count (5-min Sum)"
+          view   = "timeSeries"
+          yAxis  = { left = { min = 0 } }
         }
       }
     ]
