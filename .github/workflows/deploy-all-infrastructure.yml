@@ -674,6 +674,40 @@ jobs:
           echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
           echo "cognito_domain_url=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
 
+      - name: Setup Cognito Admin Group
+        run: |
+          POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
+          PRIMARY_USER=$(grep 'cognito_test_user_email' terraform/terraform.tfvars | cut -d'"' -f2)
+
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
+            echo "[SKIP] No Cognito user pool ID found — skipping admin group setup"
+            exit 0
+          fi
+          if [ -z "$PRIMARY_USER" ]; then
+            echo "[SKIP] No primary user email found — skipping admin group setup"
+            exit 0
+          fi
+
+          echo "Setting up admin group in pool: $POOL_ID for user: $PRIMARY_USER"
+
+          # Create admin group (idempotent — fails silently if exists)
+          aws cognito-idp create-group \
+            --user-pool-id "$POOL_ID" \
+            --group-name admin \
+            --description "Full access to admin-gated algo dashboard and trading endpoints" \
+            --region $AWS_REGION 2>/dev/null \
+            && echo "[OK] Admin group created" \
+            || echo "[OK] Admin group already exists"
+
+          # Add primary user to admin group (idempotent — no-op if already member)
+          aws cognito-idp admin-add-user-to-group \
+            --user-pool-id "$POOL_ID" \
+            --username "$PRIMARY_USER" \
+            --group-name admin \
+            --region $AWS_REGION 2>/dev/null \
+            && echo "[OK] User $PRIMARY_USER added to admin group" \
+            || echo "[WARN] Could not add user to admin group (user may not exist yet)"
+
       - name: Summary
         run: |
           echo "### Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
