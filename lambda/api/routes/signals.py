@@ -36,7 +36,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             params = [limit]
 
             if symbol_filter:
-                # SECURITY FIX VULN-3: Validate symbol format before use
+                # Validate symbol format before use
                 # Only alphanumeric and common separators allowed
                 import re
                 if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol_filter.upper()):

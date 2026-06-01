@@ -14,7 +14,7 @@ _EMAIL_RE = re.compile(
     r'^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
 )
 
-# SECURITY FIX VULN-6: Rate limiting for contact form submissions
+# Rate limiting for contact form submissions
 # Prevent spam abuse by limiting submissions per email per time window
 _CONTACT_SUBMISSION_HISTORY = defaultdict(list)
 CONTACT_RATE_LIMIT_REQUESTS = 5  # Max 5 submissions per email
@@ -73,7 +73,7 @@ def _submit_contact(cur, body: Dict) -> Dict:
     if not message:
         return error_response(400, 'bad_request', 'Message is required')
 
-    # SECURITY FIX VULN-6: Rate limit contact form submissions per email
+    # Rate limit contact form submissions per email
     if _is_contact_spam(email):
         return error_response(429, 'rate_limit_exceeded', 'Too many contact submissions. Please try again later.')
 

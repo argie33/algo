@@ -1131,7 +1131,7 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
         """Get swing trade candidates with scoring."""
         try:
             cur.execute("SET statement_timeout TO '25s'")
-            # SECURITY FIX VULN-13: Use psycopg2.sql for safe SQL composition
+            # Use psycopg2.sql for safe SQL composition
             filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '7 days'")]
             query_params = []
             if min_score is not None:

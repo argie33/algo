@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims.
 
-    SECURITY FIX VULN-2: Only admin users can view audit logs.
+    Only admin users can view audit logs.
     Audit logs contain sensitive trading decisions and system internals.
     """
     if not jwt_claims:
@@ -23,7 +23,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/audit/* endpoints."""
-        # SECURITY FIX VULN-2: Require admin authorization for all audit endpoints
+        # Require admin authorization for all audit endpoints
         if not _check_admin_access(jwt_claims):
             return error_response(403, 'forbidden', 'Admin access required to view audit logs')
 

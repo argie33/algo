@@ -250,7 +250,7 @@ def get_security_headers() -> Dict[str, str]:
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
         'Content-Security-Policy': f"default-src 'self'; img-src 'self' data: https:; connect-src 'self' {allowed_origins_list}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
-        # SECURITY FIX VULN-5: Add SameSite cookie attribute for CSRF protection
+        # Add SameSite cookie for CSRF protection
         'Set-Cookie': 'SameSite=Strict; Secure; HttpOnly',
     }
 
@@ -741,8 +741,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
-            # SECURITY FIX VULN-4: Don't leak error details to client
-            # Log full details for debugging, but return generic message to user
+            # Don't leak error details to client; log full details server-side only
+
             error_detail = f'{type(e).__name__}: {str(e)[:300]}'
             logger.error(f'[HANDLER_ERROR] path={path} {error_detail}', exc_info=True)
             return {
