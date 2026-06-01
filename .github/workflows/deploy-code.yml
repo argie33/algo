@@ -1589,14 +1589,8 @@ jobs:
             --output text 2>/dev/null || echo "")
 
           if [ -n "$SECRET" ]; then
-            KEY=$(echo "$SECRET" | jq -r '.access_key_id')
-            echo "  Access Key ID: ${KEY:0:4}****${KEY: -4}"
-            echo "  [OK] Credentials available for CLI use"
-            echo ""
-            echo "Next: Configure credentials and invoke orchestrator"
-            echo "  export AWS_ACCESS_KEY_ID=<key>"
-            echo "  export AWS_SECRET_ACCESS_KEY=<secret>"
-            echo "  aws lambda invoke --function-name ${{ needs.resolve-infra.outputs.algo_lambda_function_name }} --payload '{\"source\":\"manual\"}' response.json --region ${{ env.AWS_REGION }}"
+            echo "  [OK] Credentials available in Secrets Manager: algo/developer-credentials"
+            echo "  Retrieve locally: aws secretsmanager get-secret-value --secret-id algo/developer-credentials --region us-east-1 --query SecretString --output text"
           else
             echo "  Could not retrieve credentials - check AWS Secrets Manager: algo/developer-credentials"
           fi
