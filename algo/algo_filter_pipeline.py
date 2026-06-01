@@ -338,9 +338,11 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                             try:
                                 cur.execute("ROLLBACK TO SAVEPOINT adv_filter")
                                 cur.execute("RELEASE SAVEPOINT adv_filter")
-                            except Exception:
+                            except Exception as rollback_err:
+                                if "current transaction is aborted" in str(rollback_err).lower():
+                                    logger.critical(f"Transaction aborted for {symbol}, cannot recover. Stopping Phase 5 early.")
+                                    break
                                 pass
-                            # Advanced filters failed (missing tables, timeout), use default pass
                             logger.warning(f"Advanced filters failed for {symbol}: {e} (using default)")
                             adv = {'pass': True, 'reason': 'Advanced filters unavailable', 'composite_score': 50.0, 'components': {}, 'grade': 'C'}
                             result['advanced'] = adv
@@ -381,7 +383,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                             try:
                                 cur.execute("ROLLBACK TO SAVEPOINT swing_score")
                                 cur.execute("RELEASE SAVEPOINT swing_score")
-                            except Exception:
+                            except Exception as rollback_err:
+                                if "current transaction is aborted" in str(rollback_err).lower():
+                                    logger.critical(f"Transaction aborted for {symbol} during swing score lookup. Stopping Phase 5 early.")
+                                    break
                                 pass
                             swing_score_val = signal_swing_scores.get(symbol, 0.0)
                             logger.warning(f"Error fetching swing trader metadata for {symbol}: {e}")
@@ -596,7 +601,21 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             (max_date,)
         )
         row = cur.fetchone()
-        return row[0] if row else max_date
+        resolved = row[0] if row else max_date
+
+        if resolved < max_date:
+            gap_days = (max_date - resolved).days
+            # Warn when falling back >1 calendar day — 3 days is the max allowed by signal_age gate
+            level = logger.warning if gap_days <= 3 else logger.critical
+            level(
+                f"[EVAL DATE] Resolved to {resolved} (max_date={max_date}, gap={gap_days}d). "
+                f"Check that buy_sell_daily, market_health_daily, and trend_template_data all "
+                f"have data for {max_date} — the most recent missing table causes the fallback."
+            )
+            if gap_days > 3:
+                logger.critical(f"[EVAL DATE] Gap exceeds signal_age limit — signals are {gap_days}d stale and will be rejected by T1 data-age gate")
+
+        return resolved
 
     def evaluate_signal(self, symbol, signal_date, entry_price, cur) -> Dict[str, Any]:
         """Evaluate single signal through all 5 tiers (short-circuits on first failure)."""

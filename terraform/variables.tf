@@ -522,6 +522,16 @@ variable "cognito_mfa_configuration" {
   }
 }
 
+variable "cognito_advanced_security_mode" {
+  description = "Cognito Advanced Security mode: OFF, AUDIT, or ENFORCED. AUDIT/ENFORCED require Cognito+ plan (extra cost per MAU)."
+  type        = string
+  default     = "OFF"
+  validation {
+    condition     = contains(["OFF", "AUDIT", "ENFORCED"], var.cognito_advanced_security_mode)
+    error_message = "Must be OFF, AUDIT, or ENFORCED"
+  }
+}
+
 variable "cognito_session_duration_hours" {
   description = "Cognito session duration"
   type        = number

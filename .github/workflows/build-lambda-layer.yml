@@ -110,11 +110,12 @@ jobs:
 
           echo "Verifying that Lambda functions can access the layer..."
 
-          # List all Lambda functions
+          # List all Lambda functions, filter for "algo" in shell to avoid JMESPath
+          # contains() NoneType error when FunctionName is null for some entries
           FUNCTIONS=$(aws lambda list-functions \
             --region $AWS_REGION \
-            --query 'Functions[?contains(FunctionName, "algo")].FunctionName' \
-            --output text)
+            --query 'Functions[].FunctionName' \
+            --output text | tr '\t' '\n' | grep 'algo' || true)
 
           echo "Found Lambda functions: $FUNCTIONS"
           echo ""

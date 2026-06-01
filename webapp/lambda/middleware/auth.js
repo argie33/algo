@@ -122,26 +122,14 @@ const authenticateTokenAsync = async (req, res, next) => {
     try {
       result = await validateJwtToken(token);
     } catch (error) {
-      console.error('[Auth] Caught error from validateJwtToken:', error.message);
-      // DEVELOPMENT: If Cognito is not configured, allow test tokens
-      // This enables local development without AWS Cognito setup
+      // SECURITY FIX H-NEW-02: Never allow test tokens in non-test environments.
+      // Previously, missing Cognito env vars would allow 'test-token'/'admin-token' through
+      // with full admin privileges. This is now hard-rejected regardless of why validation fails.
       if (error.message && error.message.includes('Cognito environment variables not configured')) {
-        console.log('[Auth] Cognito not configured, checking for test tokens');
-        if (token === 'test-token' || token === 'admin-token' || token === 'mock-access-token') {
-          console.log('[Auth] Allowing test token:', token);
-          const isAdmin = token === 'admin-token';
-          req.user = {
-            sub: isAdmin ? 'admin-test-user' : 'test-user-123',
-            username: isAdmin ? 'admin-test' : 'test-user',
-            email: isAdmin ? 'admin@test.local' : 'test@example.com',
-            role: isAdmin ? 'admin' : 'user',
-            groups: isAdmin ? ['admin'] : ['user'],
-            sessionId: isAdmin ? 'admin-test-session' : 'test-session',
-          };
-          req.token = token;
-          return next();
-        }
-        // Not a test token and Cognito not configured — fail auth
+        logger.security('auth_service_misconfigured', {
+          error: 'COGNITO_USER_POOL_ID or COGNITO_CLIENT_ID not set in Lambda environment',
+          path: req.path,
+        });
         return sendError(res, 'Authentication service not configured', 500, { code: 'AUTH_SERVICE_ERROR' });
       }
       // Other validation errors
@@ -292,7 +280,11 @@ const validateSession = async (req, res, next) => {
   }
 };
 
-// Rate limiting based on user ID
+// NOT A SECURITY CONTROL — in-memory rate limiting is ineffective in Lambda:
+// - Each instance has independent state; concurrent instances multiply the effective limit.
+// - Cold starts reset the counter; an attacker can wait 15 min for a fresh instance.
+// - API Gateway throttling (100 req/s burst, 50 req/s sustained) is the real rate limit.
+// These functions remain for UX soft-limiting only. Do NOT rely on them for brute-force defense.
 const rateLimitByUser = (requestsPerMinute = 100) => {
   const userRequests = new Map();
 
@@ -325,8 +317,8 @@ const rateLimitByUser = (requestsPerMinute = 100) => {
   };
 };
 
-// FIXED: Authentication-specific rate limiting to prevent brute force
-// Stricter limits on auth attempts than general API limits
+// NOT A SECURITY CONTROL — same in-memory caveats as rateLimitByUser above.
+// For brute-force protection, use Cognito's built-in lockout or WAF rules, not this.
 const rateLimitAuth = (attemptsPerWindow = 5, windowMinutes = 15) => {
   const authAttempts = new Map();
 

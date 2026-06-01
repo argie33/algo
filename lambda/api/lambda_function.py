@@ -452,39 +452,27 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
 
 
 def get_client_ip(event: Dict) -> str:
-    """Extract real client IP, accounting for CloudFront reverse proxy.
+    """Extract client IP for audit logging.
 
-    SECURITY H-02: CF-Connecting-IP is ONLY trusted if request came through CloudFront.
-    Verify CloudFront-specific headers (CloudFront-Viewer-Country, CloudFront-Is-Desktop-Viewer)
-    are present before trusting CF-Connecting-IP.
-    Direct API Gateway requests (bypassing CloudFront) must not spoof this header.
+    Uses API Gateway's requestContext.identity.sourceIp as the authoritative source —
+    this is filled by API Gateway itself and cannot be forged by a client.
+
+    NOTE: When behind CloudFront, sourceIp is the CloudFront edge IP, not the user's IP.
+    To log real user IPs, configure CloudFront to add a shared-secret custom header
+    (e.g. x-origin-verify) and verify it here before trusting CF-Connecting-IP.
     """
+    # API GW fills sourceIp from the TCP connection — not client-spoofable
+    source_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', '')
+    if source_ip:
+        return source_ip
+
+    # Fallback for local/test invocations without requestContext
     headers = event.get('headers', {})
+    xff = headers.get('x-forwarded-for') or headers.get('X-Forwarded-For', '')
+    if xff:
+        return xff.split(',')[0].strip()
 
-    # Verify request actually came through CloudFront by checking for CloudFront-specific headers
-    is_from_cloudfront = (
-        'cloudfront-viewer-country' in headers or
-        'CloudFront-Viewer-Country' in headers or
-        'cloudfront-is-desktop-viewer' in headers or
-        'CloudFront-Is-Desktop-Viewer' in headers
-    )
-
-    # Only trust CF-Connecting-IP if request came through CloudFront
-    if is_from_cloudfront:
-        if 'cf-connecting-ip' in headers:
-            return headers['cf-connecting-ip']
-        if 'CF-Connecting-IP' in headers:
-            return headers['CF-Connecting-IP']
-
-    # Fallback to X-Forwarded-For (standard proxy header)
-    # SECURITY FIX: Use first IP (original client), not last (closest proxy)
-    if 'x-forwarded-for' in headers:
-        return headers['x-forwarded-for'].split(',')[0].strip()
-    if 'X-Forwarded-For' in headers:
-        return headers['X-Forwarded-For'].split(',')[0].strip()
-
-    # Last resort: API Gateway sourceIp
-    return event.get('requestContext', {}).get('identity', {}).get('sourceIp', 'unknown')
+    return 'unknown'
 
 def log_api_request(event: Dict, status_code: int, user_id: Optional[str] = None, error_msg: Optional[str] = None):
     """Log API request for audit trail (security incident investigation).
@@ -524,6 +512,8 @@ def require_auth(event: Dict, path: str) -> tuple:
         '/health',
         '/api/health',
         '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
+        '/api/algo/markets',  # Market regime data (public market conditions - not sensitive)
+        '/api/algo/sector-rotation',  # Sector rotation analysis (public market analysis)
         '/api/economic',  # Economic indicators (public data)
         '/api/sectors',  # Sector analysis (aggregate market data only)
         '/api/sentiment',  # Market sentiment (aggregate only)

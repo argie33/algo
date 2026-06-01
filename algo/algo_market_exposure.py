@@ -881,6 +881,44 @@ class MarketExposure:
                 stress += 15.0
                 signals.append(f'Jobless claims +{chg_pct:.1f}% in 26w (elevated)')
 
+        # Signal 4: St. Louis Financial Stress Index — 18-variable financial market composite
+        cur.execute(
+            """
+            SELECT value::float FROM economic_data
+            WHERE series_id = 'STLFSI4' AND date <= %s
+            ORDER BY date DESC LIMIT 5
+            """,
+            (eval_date,),
+        )
+        stlfsi_rows = cur.fetchall()
+        if stlfsi_rows:
+            stlfsi = float(stlfsi_rows[0][0])
+            if stlfsi > 1.5:
+                stress += 25.0
+                signals.append(f'Financial stress index {stlfsi:.2f}σ (severe stress)')
+            elif stlfsi > 0.8:
+                stress += 12.0
+                signals.append(f'Financial stress index {stlfsi:.2f}σ (elevated)')
+
+        # Signal 5: Chicago Fed National Activity Index — 85-indicator broad economic composite
+        cur.execute(
+            """
+            SELECT value::float FROM economic_data
+            WHERE series_id = 'CFNAI' AND date <= %s
+            ORDER BY date DESC LIMIT 4
+            """,
+            (eval_date,),
+        )
+        cfnai_rows = cur.fetchall()
+        if cfnai_rows:
+            cfnai_avg = sum(float(r[0]) for r in cfnai_rows[:3]) / min(3, len(cfnai_rows))
+            if cfnai_avg < -0.7:
+                stress += 20.0
+                signals.append(f'CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)')
+            elif cfnai_avg < -0.35:
+                stress += 10.0
+                signals.append(f'CFNAI 3-mo avg {cfnai_avg:.2f} (below trend growth)')
+
         stress = min(100.0, stress)
 
         # Apply penalty and cap based on macro stress level

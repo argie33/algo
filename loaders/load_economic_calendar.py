@@ -19,19 +19,25 @@ FRED_BASE = "https://api.stlouisfed.org/fred"
 
 # FRED series IDs → display names and importance
 TRACKED_SERIES = {
-    "CPIAUCSL": ("CPI - Inflation",            "HIGH"),
-    "PCEPI":    ("PCE Price Index",             "HIGH"),
-    "PAYEMS":   ("Non-Farm Payrolls (NFP)",     "HIGH"),
-    "UNRATE":   ("Unemployment Rate",           "HIGH"),
-    "GDPC1":    ("GDP (Real)",                  "HIGH"),
-    "FEDFUNDS": ("Federal Funds Rate",          "HIGH"),
-    "ICSA":     ("Initial Jobless Claims",      "MEDIUM"),
-    "INDPRO":   ("Industrial Production",       "MEDIUM"),
-    "RSXFS":    ("Retail Sales",                "MEDIUM"),
-    "HOUST":    ("Housing Starts",              "MEDIUM"),
-    "UMCSENT":  ("Consumer Sentiment (UMich)",  "MEDIUM"),
-    "T10Y2Y":   ("Yield Curve (10Y-2Y)",        "LOW"),
-    "BAMLH0A0HYM2": ("HY Credit Spread",        "LOW"),
+    "CPIAUCSL":     ("CPI - Inflation",                "HIGH"),
+    "PCEPILFE":     ("Core PCE Inflation",             "HIGH"),
+    "PAYEMS":       ("Non-Farm Payrolls (NFP)",        "HIGH"),
+    "UNRATE":       ("Unemployment Rate",              "HIGH"),
+    "GDPC1":        ("GDP (Real)",                     "HIGH"),
+    "FEDFUNDS":     ("Federal Funds Rate",             "HIGH"),
+    "AHETPI":       ("Average Hourly Earnings",        "HIGH"),
+    "JTSJOL":       ("JOLTS Job Openings",             "HIGH"),
+    "ICSA":         ("Initial Jobless Claims",         "MEDIUM"),
+    "INDPRO":       ("Industrial Production",          "MEDIUM"),
+    "RSXFS":        ("Retail Sales",                   "MEDIUM"),
+    "HOUST":        ("Housing Starts",                 "MEDIUM"),
+    "PERMIT":       ("Building Permits",               "MEDIUM"),
+    "TCU":          ("Capacity Utilization",           "MEDIUM"),
+    "UMCSENT":      ("Consumer Sentiment (UMich)",     "MEDIUM"),
+    "MFGBDPHI":     ("Philly Fed Manufacturing Index", "MEDIUM"),
+    "T10Y2Y":       ("Yield Curve (10Y-2Y)",           "LOW"),
+    "BAMLH0A0HYM2": ("HY Credit Spread",               "LOW"),
+    "CFNAI":        ("Chicago Fed Activity Index",     "LOW"),
 }
 
 # FOMC meeting schedule (manually maintained — FRED doesn't publish these via API)

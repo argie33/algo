@@ -17,6 +17,7 @@ Resets:
 
 import json
 import os
+import time
 import boto3
 import logging
 import psycopg2
@@ -45,83 +46,93 @@ def get_db_credentials():
         logger.error(f"Failed to fetch DB credentials from Secrets Manager: {e}")
         raise
 
-def get_portfolio_pnl():
+def get_portfolio_pnl(max_attempts: int = 3):
     """Query current portfolio P&L and calculate intraday variance.
 
     Variance = (current unrealized P&L - opening session P&L) / portfolio equity
 
-    This compares current total P&L to an earlier session snapshot. If no snapshot
-    exists for today, defaults to comparing against yesterday's closing snapshot
-    (safe assumption: all positions start the day at break-even in expectations).
+    Retries up to max_attempts times on transient DB errors before returning None.
+    A single RDS hiccup should not halt trading for the rest of the day.
     """
-    try:
-        creds = get_db_credentials()
-        conn = psycopg2.connect(
-            host=creds['host'],
-            port=creds['port'],
-            database=creds['database'],
-            user=creds['user'],
-            password=creds['password'],
-            sslmode='require'
-        )
-        cur = conn.cursor()
+    last_err = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            creds = get_db_credentials()
+            conn = psycopg2.connect(
+                host=creds['host'],
+                port=creds['port'],
+                database=creds['database'],
+                user=creds['user'],
+                password=creds['password'],
+                sslmode='require',
+                connect_timeout=10,
+            )
+            cur = conn.cursor()
 
-        # Get current portfolio: total position value and current unrealized P&L
-        cur.execute("""
-            SELECT COALESCE(SUM(position_value), 0) as total_equity,
-                   COALESCE(SUM(unrealized_pnl), 0) as current_pnl
-            FROM algo_positions
-            WHERE status = 'open'
-        """)
-        row = cur.fetchone()
-        total_equity = float(row[0]) if row and row[0] else 0
-        current_pnl = float(row[1]) if row and row[1] else 0
+            # Get current portfolio: total position value and current unrealized P&L
+            cur.execute("""
+                SELECT COALESCE(SUM(position_value), 0) as total_equity,
+                       COALESCE(SUM(unrealized_pnl), 0) as current_pnl
+                FROM algo_positions
+                WHERE status = 'open'
+            """)
+            row = cur.fetchone()
+            total_equity = float(row[0]) if row and row[0] else 0
+            current_pnl = float(row[1]) if row and row[1] else 0
 
-        # Get session opening P&L snapshot (captured at market open).
-        # This tracks what the portfolio P&L was when the trading session started.
-        cur.execute("""
-            SELECT COALESCE(unrealized_pnl_total, 0) as session_open_pnl
-            FROM algo_portfolio_snapshots
-            WHERE snapshot_date = CURRENT_DATE
-            LIMIT 1
-        """)
-        session_row = cur.fetchone()
-        open_pnl = float(session_row[0]) if session_row and session_row[0] else current_pnl
+            # Get session opening P&L snapshot (captured at market open).
+            cur.execute("""
+                SELECT COALESCE(unrealized_pnl_total, 0) as session_open_pnl
+                FROM algo_portfolio_snapshots
+                WHERE snapshot_date = CURRENT_DATE
+                LIMIT 1
+            """)
+            session_row = cur.fetchone()
+            open_pnl = float(session_row[0]) if session_row and session_row[0] else current_pnl
 
-        cur.close()
-        conn.close()
+            cur.close()
+            conn.close()
 
-        # Intraday variance: how much the portfolio P&L has changed today
-        intraday_change = current_pnl - open_pnl
-        if total_equity > 0:
-            variance = intraday_change / total_equity
-        else:
-            variance = 0.0
+            intraday_change = current_pnl - open_pnl
+            variance = intraday_change / total_equity if total_equity > 0 else 0.0
 
-        logger.info(f"Portfolio variance: current_pnl=${current_pnl:.2f}, open_pnl=${open_pnl:.2f}, equity=${total_equity:.2f}, intraday_change=${intraday_change:.2f}, variance={variance:.1%}")
-        return current_pnl, open_pnl, variance
+            logger.info(
+                f"Portfolio variance: current_pnl=${current_pnl:.2f}, open_pnl=${open_pnl:.2f}, "
+                f"equity=${total_equity:.2f}, intraday_change=${intraday_change:.2f}, variance={variance:.1%}"
+            )
+            return current_pnl, open_pnl, variance
 
-    except Exception as e:
-        logger.error(f"Failed to query portfolio P&L: {e}", exc_info=True)
-        return None, None, None
+        except Exception as e:
+            last_err = e
+            logger.warning(f"DB attempt {attempt}/{max_attempts} failed: {e}")
+            if attempt < max_attempts:
+                time.sleep(3 * attempt)
+
+    logger.error(f"Failed to query portfolio P&L after {max_attempts} attempts: {last_err}")
+    return None, None, None
+
+def _set_halt(table, halt: bool, reason: str, check_time: str) -> None:
+    item = {
+        'key': 'orchestrator_halt',
+        'halt_flag': halt,
+        'reason': reason,
+        'check_time': check_time,
+    }
+    ts_key = 'triggered_at' if halt else 'reset_at'
+    item[ts_key] = datetime.now(timezone.utc).isoformat()
+    table.put_item(Item=item)
 
 def lambda_handler(event, context):
     """Circuit breaker trigger - halt trading if variance too high."""
+    check_time = event.get('check_time', 'unscheduled')
+    table = dynamodb.Table('algo_orchestrator_state')
 
     try:
         current_pnl, open_pnl, variance = get_portfolio_pnl()
 
         if variance is None:
-            logger.error("Unable to calculate variance — halting trading to be safe (fail-closed)")
-            table_name = 'algo_orchestrator_state'
-            table = dynamodb.Table(table_name)
-            table.put_item(Item={
-                'key': 'orchestrator_halt',
-                'halt_flag': True,
-                'reason': 'Unable to calculate portfolio variance (fail-closed)',
-                'triggered_at': datetime.now(timezone.utc).isoformat(),
-                'check_time': event.get('check_time', 'unscheduled')
-            })
+            logger.error("Unable to calculate variance after retries — halting trading (fail-closed)")
+            _set_halt(table, True, 'Unable to calculate portfolio variance after retries (fail-closed)', check_time)
             return {
                 "statusCode": 500,
                 "body": json.dumps({
@@ -134,16 +145,7 @@ def lambda_handler(event, context):
         threshold = 0.15
         if variance > threshold:
             logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}")
-            table_name = 'algo_orchestrator_state'
-            table = dynamodb.Table(table_name)
-            table.put_item(Item={
-                'key': 'orchestrator_halt',
-                'halt_flag': True,
-                'reason': f'Portfolio variance {variance:.1%} exceeds {threshold:.1%}',
-                'triggered_at': datetime.now(timezone.utc).isoformat(),
-                'check_time': event.get('check_time', 'unscheduled')
-            })
-
+            _set_halt(table, True, f'Portfolio variance {variance:.1%} exceeds {threshold:.1%}', check_time)
             return {
                 "statusCode": 200,
                 "body": json.dumps({
@@ -154,15 +156,7 @@ def lambda_handler(event, context):
             }
         else:
             logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
-            table_name = 'algo_orchestrator_state'
-            table = dynamodb.Table(table_name)
-            table.put_item(Item={
-                'key': 'orchestrator_halt',
-                'halt_flag': False,
-                'reason': f'Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}',
-                'reset_at': datetime.now(timezone.utc).isoformat(),
-                'check_time': event.get('check_time', 'unscheduled')
-            })
+            _set_halt(table, False, f'Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}', check_time)
             return {
                 "statusCode": 200,
                 "body": json.dumps({
@@ -176,15 +170,7 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Circuit breaker check failed: {e}", exc_info=True)
         try:
-            table_name = 'algo_orchestrator_state'
-            table = dynamodb.Table(table_name)
-            table.put_item(Item={
-                'key': 'orchestrator_halt',
-                'halt_flag': True,
-                'reason': f'Circuit breaker check failed: {str(e)[:100]}',
-                'triggered_at': datetime.now(timezone.utc).isoformat(),
-                'check_time': event.get('check_time', 'unscheduled')
-            })
+            _set_halt(table, True, f'Circuit breaker check failed: {str(e)[:100]}', check_time)
         except Exception as ddb_err:
             logger.error(f"Failed to update DynamoDB halt flag: {ddb_err}", exc_info=True)
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   RefreshCw, TrendingUp, Activity,
-  AlertCircle, Inbox, CalendarDays, BarChart2, Zap, DollarSign, Home,
+  AlertCircle, Inbox, CalendarDays, BarChart2, Zap, DollarSign, Home, Globe,
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area,
@@ -26,14 +26,15 @@ const fmtM  = (s)         => s ? new Date(s).toLocaleDateString('en-US', { month
 const up    = (v)         => v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
 
 const TABS = [
-  { id: 'overview',  label: 'Overview',       icon: <BarChart2 size={13} /> },
-  { id: 'cycle',     label: 'Business Cycle', icon: <Activity size={13} /> },
-  { id: 'rates',     label: 'Rates & Fed',    icon: <DollarSign size={13} /> },
-  { id: 'labor',     label: 'Labor Market',   icon: <Activity size={13} /> },
-  { id: 'inflation', label: 'Inflation',      icon: <TrendingUp size={13} /> },
-  { id: 'growth',    label: 'Growth',         icon: <Zap size={13} /> },
+  { id: 'overview',  label: 'Overview',        icon: <BarChart2 size={13} /> },
+  { id: 'cycle',     label: 'Business Cycle',  icon: <Activity size={13} /> },
+  { id: 'rates',     label: 'Rates & Fed',     icon: <DollarSign size={13} /> },
+  { id: 'labor',     label: 'Labor Market',    icon: <Activity size={13} /> },
+  { id: 'inflation', label: 'Inflation',       icon: <TrendingUp size={13} /> },
+  { id: 'growth',    label: 'Growth',          icon: <Zap size={13} /> },
   { id: 'housing',   label: 'Housing & Consumer', icon: <Home size={13} /> },
-  { id: 'calendar',  label: 'Calendar',       icon: <CalendarDays size={13} /> },
+  { id: 'global',    label: 'Global & Stress', icon: <Globe size={13} /> },
+  { id: 'calendar',  label: 'Calendar',        icon: <CalendarDays size={13} /> },
 ];
 
 // ── Regime computation ───────────────────────────────────────────────────────
@@ -160,6 +161,32 @@ export default function EconomicDashboard() {
         weight: +igVal > 2.5 ? 100 : +igVal > 1.5 ? 50 : Math.max(0, +igVal * 20),
       });
     }
+
+    // Financial Stress Index (St. Louis Fed) — 18-variable composite
+    const stlfsiHist = yieldData?.stress?.history?.['STLFSI4'] || [];
+    const stlfsiVal  = stlfsiHist.at?.(-1)?.value ?? indicators.find(i => (i.name || '').includes('Financial Stress'))?.rawValue;
+    if (stlfsiVal != null) {
+      const sv = +stlfsiVal;
+      tiles.push({
+        label: 'Financial Stress (STL)', value: sv >= 0 ? `+${sv.toFixed(2)}σ` : `${sv.toFixed(2)}σ`,
+        threshold: '> 1.0 = stressed', desc: 'St. Louis Fed Financial Stress Index — 18 financial market variables',
+        status: sv > 1.5 ? 'red' : sv > 0.5 ? 'amber' : 'green',
+        weight: sv > 1.5 ? 100 : sv > 0.5 ? 50 : Math.max(0, sv * 20),
+      });
+    }
+
+    // Chicago Fed National Activity Index — 85-indicator composite (< -0.70 = recession)
+    const cfnaiInd2 = indicators.find(i => (i.name || '').includes('Chicago Fed'));
+    if (cfnaiInd2?.rawValue != null) {
+      const cv = +cfnaiInd2.rawValue;
+      tiles.push({
+        label: 'CFNAI Composite', value: cv >= 0 ? `+${cv.toFixed(2)}` : cv.toFixed(2),
+        threshold: '< -0.70 = recession', desc: 'Chicago Fed National Activity Index — 85-indicator composite of US economic activity',
+        status: cv < -0.7 ? 'red' : cv < -0.3 ? 'amber' : 'green',
+        weight: cv < -0.7 ? 100 : cv < -0.3 ? 50 : Math.max(0, -cv * 50),
+      });
+    }
+
     if (!tiles.length) return null;
     const composite = Math.round(tiles.reduce((s, t) => s + t.weight, 0) / tiles.length);
     return { tiles, composite };
@@ -232,16 +259,33 @@ export default function EconomicDashboard() {
     })).sort((a, b) => new Date(a.date) - new Date(b.date));
   }, [calRaw]);
 
-  const fedRate    = ind('Fed Funds');
-  const cpiInd     = ind('CPI') || ind('Inflation');
-  const gdpInd     = ind('GDP');
-  const unrateInd  = ind('Unemployment');
-  const claimsInd  = ind('Jobless') || ind('Initial Claims');
-  const payrollInd = ind('Payroll') || ind('Employment');
-  const indproInd  = ind('Industrial Production');
-  const housingInd = ind('Housing Starts') || ind('Housing');
-  const michInd    = ind('Consumer Sentiment') || ind('Michigan');
+  const fedRate     = ind('Fed Funds');
+  const cpiInd      = ind('CPI') || ind('Inflation');
+  const corePceInd  = ind('Core PCE');
+  const gdpInd      = ind('GDP');
+  const unrateInd   = ind('Unemployment');
+  const claimsInd   = ind('Jobless') || ind('Initial Claims');
+  const payrollInd  = ind('Payroll') || ind('Employment');
+  const indproInd   = ind('Industrial Production');
+  const housingInd  = ind('Housing Starts') || ind('Housing');
+  const michInd     = ind('Consumer Sentiment') || ind('Michigan');
   const mortgageInd = ind('Mortgage Rate') || ind('MORTGAGE30US');
+  // New indicators
+  const t5yieInd    = ind('5Y Breakeven');
+  const t10yieInd   = ind('10Y Breakeven');
+  const dollarInd   = ind('USD Dollar');
+  const oilInd      = ind('WTI Crude');
+  const stlfsiInd   = ind('Financial Stress');
+  const anfciInd    = ind('Financial Conditions');
+  const joltsInd    = ind('JOLTS Job');
+  const quitRateInd = ind('JOLTS Quit');
+  const aheInd      = ind('Hourly Earnings');
+  const tcuInd      = ind('Capacity Util');
+  const phillyfedInd = ind('Philly Fed');
+  const cfnaiInd    = ind('Chicago Fed');
+  const permitInd   = ind('Building Permits');
+  const savingsInd  = ind('Personal Savings') || ind('Savings Rate');
+  const rdpiInd     = ind('Real Disposable');
 
   return (
     <div className="main-content">
@@ -529,105 +573,274 @@ export default function EconomicDashboard() {
 
             {unrateInd && <IndHistory ind={unrateInd} title="Unemployment Rate" sub="Bureau of Labor Statistics — monthly" color="var(--amber)" />}
             <div style={{ marginTop: 'var(--space-4)' }}>
-              {claimsInd && <IndHistory ind={claimsInd} title="Initial Jobless Claims" sub="Weekly new unemployment insurance filings" color="var(--cyan)" />}
+              {claimsInd && <IndHistory ind={claimsInd} title="Initial Jobless Claims" sub="Weekly new unemployment insurance filings — earliest labor market signal" color="var(--cyan)" />}
             </div>
             {payrollInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={payrollInd} title="Non-Farm Payrolls" sub="Monthly job additions (thousands)" color="var(--success)" /></div>}
+
+            {/* JOLTS Data — leading labor market indicators */}
+            {(joltsInd || quitRateInd) && (
+              <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+                <div className="card-head">
+                  <div>
+                    <div className="card-title">JOLTS Labor Market Survey</div>
+                    <div className="card-sub">Job openings and quit rate — forward-looking demand and worker confidence signals</div>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
+                    {joltsInd && (
+                      <div className="stile">
+                        <div className="stile-label">Job Openings</div>
+                        <div className="stile-value">{joltsInd.value ? `${joltsInd.value}K` : '—'}</div>
+                        <div className="stile-sub muted t-xs">High openings = labor demand strong — Beveridge Curve tightness</div>
+                      </div>
+                    )}
+                    {quitRateInd && (
+                      <div className="stile">
+                        <div className="stile-label">Quit Rate</div>
+                        <div className="stile-value">{quitRateInd.value ? `${quitRateInd.value}%` : '—'}</div>
+                        <div className="stile-sub muted t-xs">Workers quitting = confidence in finding new jobs — "Great Resignation" proxy</div>
+                      </div>
+                    )}
+                  </div>
+                  {joltsInd?.history?.length > 0 && (
+                    <div style={{ height: 220 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={[...joltsInd.history].sort((a,b) => new Date(a.date)-new Date(b.date))}
+                          margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="joltsGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.35} />
+                              <stop offset="100%" stopColor="var(--brand)" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                          <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM}
+                            interval={Math.max(0, Math.floor((joltsInd.history.length) / 6))} />
+                          <YAxis stroke="var(--text-3)" fontSize={10} />
+                          <Tooltip contentStyle={TT} labelFormatter={fmtD}
+                            formatter={v => [v != null ? `${(+v).toLocaleString()}K` : '—', 'Job Openings']} />
+                          <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#joltsGrad)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {aheInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={aheInd} title="Average Hourly Earnings (YoY)" sub="Wage growth — sustained >4% historically inflationary; below 3.5% = labor cost normalization" color="var(--purple)" /></div>}
           </>
         )}
 
         {/* ── INFLATION ─────────────────────────────────────────────────── */}
         {tab === 'inflation' && (
           <>
-            {/* Calculate CPI YoY from history */}
-            {cpiInd?.history && cpiInd.history.length >= 13 && (() => {
-              const sorted = [...cpiInd.history].sort((a, b) => new Date(b.date) - new Date(a.date));
-              const current = sorted[0]?.value ? +sorted[0].value : null;
-              const yearAgo = sorted[12]?.value ? +sorted[12].value : null;
-              const cpiYoY = yearAgo > 0 && current != null ? ((current - yearAgo) / yearAgo) * 100 : null;
+            {/* Key KPIs — CPI, Core PCE, Fed Funds, Real Rate */}
+            {(() => {
               const rate10Y = yieldData?.currentCurve?.['10Y'];
-              const realRate = cpiYoY != null && rate10Y != null ? rate10Y - cpiYoY : null;
-
+              const corePce = corePceInd?.rawValue;
+              const realRate = corePce != null && rate10Y != null ? rate10Y - corePce : null;
               return (
-                <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
+                <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
                   <MacroKpi label="CPI (YoY)" ind={cpiInd} unit="%" invertGood />
+                  <MacroKpi label="Core PCE (YoY)" ind={corePceInd} unit="%" invertGood />
                   <MacroKpi label="Fed Funds Rate" ind={fedRate} unit="%" />
                   <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
-                    <div className="eyebrow">Real Rate (10Y − CPI YoY)</div>
+                    <div className="eyebrow">Real Rate (10Y − Core PCE)</div>
                     <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
                       {realRate != null ? pct(realRate) : '—'}
                     </div>
-                    <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Positive = restrictive policy</div>
+                    <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Positive = restrictive policy · Fed target 2.0%</div>
                   </div>
                 </div>
               );
             })()}
 
-            {/* Inflation vs Fed funds overlay */}
+            {/* TIPS Breakeven Inflation — market-implied expectations */}
+            {(t5yieInd?.history?.length > 0 || t10yieInd?.history?.length > 0 ||
+              yieldData?.breakevens?.history?.T5YIE?.length > 0) && (
+              <TipsBreakevenPanel t5y={t5yieInd} t10y={t10yieInd} yieldData={yieldData} />
+            )}
+
+            {/* CPI vs Core PCE vs Fed Funds overlay */}
             {cpiInd?.history?.length > 0 && fedRate?.history?.length > 0 && (
               <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
                 <div className="card-head">
                   <div>
-                    <div className="card-title">CPI vs Federal Funds Rate</div>
-                    <div className="card-sub">Fed policy relative to inflation — gap signals real rate environment</div>
+                    <div className="card-title">Inflation vs Federal Funds Rate</div>
+                    <div className="card-sub">Fed policy stance relative to inflation — gap = real rate environment · Core PCE is Fed's actual 2% target</div>
                   </div>
                 </div>
                 <div className="card-body" style={{ height: 300 }}>
-                  <RateVsInflationChart cpiHist={cpiInd.history} fedHist={fedRate.history} />
+                  <InflationVsFedChart cpiHist={cpiInd.history} corePceHist={corePceInd?.history} fedHist={fedRate.history} />
                 </div>
               </div>
             )}
 
-            {cpiInd && <IndHistory ind={cpiInd} title="CPI Inflation (YoY)" sub="Consumer Price Index — all items" color="var(--danger)" />}
+            {cpiInd && <IndHistory ind={cpiInd} title="CPI Inflation (YoY)" sub="Consumer Price Index — all items, all urban consumers" color="var(--danger)" />}
+            {corePceInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={corePceInd} title="Core PCE Inflation (YoY)" sub="Personal Consumption Expenditures ex-Food & Energy — Federal Reserve's primary inflation target" color="var(--amber)" /></div>}
+            {aheInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={aheInd} title="Average Hourly Earnings (YoY)" sub="Total private sector wages — wage inflation drives services inflation persistence" color="var(--purple)" /></div>}
           </>
         )}
 
         {/* ── BUSINESS CYCLE ────────────────────────────────────────────── */}
         {tab === 'cycle' && (
           <>
-            <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
-              <MacroKpi label="ISM Manufacturing" ind={ind('ISM Manufacturing')} unit="Index" />
-              <MacroKpi label="ISM Services" ind={ind('ISM Services')} unit="Index" />
+            <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
+              <MacroKpi label="Philly Fed Mfg Index" ind={phillyfedInd} unit="" />
+              <MacroKpi label="Chicago Fed Activity (CFNAI)" ind={cfnaiInd} unit="" />
+              <MacroKpi label="Capacity Utilization" ind={tcuInd} unit="%" />
             </div>
 
             {/* Economic Regime Clock */}
-            <EconomicRegimeClock indicators={indicators} yieldData={yieldData} />
+            <EconomicRegimeClock indicators={indicators} yieldData={yieldData} phillyfed={phillyfedInd} />
 
             {/* Growth-Labor Barometer */}
-            <GrowthLaborBarometer indicators={indicators} />
+            <GrowthLaborBarometer indicators={indicators} phillyfed={phillyfedInd} />
 
-            {ind('ISM Manufacturing') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Manufacturing')} title="ISM Manufacturing PMI" sub="Institute for Supply Management — >50 = expansion, <50 = contraction" color="var(--brand)" /></div>}
-            {ind('ISM Services') && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={ind('ISM Services')} title="ISM Services PMI" sub="Non-manufacturing activity index — employment, new orders, prices" color="var(--cyan)" /></div>}
+            {phillyfedInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={phillyfedInd} title="Philadelphia Fed Manufacturing Index" sub="Federal Reserve Bank of Philadelphia monthly survey — diffusion index, >0 = expansion, <0 = contraction" color="var(--brand)" /></div>}
+            {cfnaiInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={cfnaiInd} title="Chicago Fed National Activity Index (CFNAI)" sub="85-indicator composite measuring US economic activity — above 0 = above historical trend" color="var(--cyan)" /></div>}
+            {tcuInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={tcuInd} title="Capacity Utilization" sub="Manufacturing, mining, and utilities capacity in use — above 80% signals inflationary pressure" color="var(--purple)" /></div>}
           </>
         )}
 
         {/* ── GROWTH ─────────────────────────────────────────────────────── */}
         {tab === 'growth' && (
           <>
-            <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
+            <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
               <MacroKpi label="GDP Growth" ind={gdpInd} unit="%" />
               <MacroKpi label="Industrial Prod." ind={indproInd} unit="" />
+              <MacroKpi label="Capacity Utilization" ind={tcuInd} unit="%" />
               <MacroKpi label="Business Loans" ind={ind('Business Loans')} unit="B" />
             </div>
 
             {/* Leading Economic Index - 6-month forward signal */}
             <LEIPanel indicators={indicators} />
 
-            {gdpInd && <IndHistory ind={gdpInd} title="Real GDP Growth" sub="Quarterly annualized real GDP — BEA" color="var(--success)" />}
-            {indproInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={indproInd} title="Industrial Production" sub="Federal Reserve industrial output index" color="var(--brand)" /></div>}
+            {gdpInd && <IndHistory ind={gdpInd} title="Real GDP Growth" sub="Quarterly annualized real GDP — Bureau of Economic Analysis" color="var(--success)" />}
+            {indproInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={indproInd} title="Industrial Production (YoY)" sub="Federal Reserve industrial output index — manufacturing, mining, utilities" color="var(--brand)" /></div>}
+            {tcuInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={tcuInd} title="Capacity Utilization" sub="Share of productive capacity in use — above 80% = inflationary pressure, below 75% = slack" color="var(--cyan)" /></div>}
+            {cfnaiInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={cfnaiInd} title="Chicago Fed National Activity Index" sub="85-indicator composite — above 0 = above-trend growth, below -0.70 = recession risk" color="var(--purple)" /></div>}
+            {rdpiInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={rdpiInd} title="Real Disposable Personal Income (YoY)" sub="Income after taxes adjusted for inflation — consumer spending fuel" color="var(--amber)" /></div>}
           </>
         )}
 
         {/* ── HOUSING & CONSUMER ───────────────────────────────────────── */}
         {tab === 'housing' && (
           <>
-            <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
+            <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
               <MacroKpi label="Housing Starts" ind={housingInd} unit="K" />
+              <MacroKpi label="Building Permits" ind={permitInd} unit="K" />
               <MacroKpi label="Consumer Sentiment" ind={michInd} unit="" />
-              <MacroKpi label="30Y Mortgage Rate" ind={mortgageInd} unit="%" />
+              <MacroKpi label="30Y Mortgage Rate" ind={mortgageInd} unit="%" invertGood />
             </div>
 
-            {housingInd && <IndHistory ind={housingInd} title="Housing Starts" sub="New residential construction — Census Bureau (thousands)" color="var(--cyan)" />}
-            {michInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={michInd} title="U. Michigan Consumer Sentiment" sub="Monthly consumer survey — leading indicator for spending" color="var(--amber)" /></div>}
+            {permitInd && <IndHistory ind={permitInd} title="Building Permits (YoY)" sub="Leading indicator for housing construction — issued 1-2 months before starts" color="var(--brand)" />}
+            {housingInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={housingInd} title="Housing Starts (YoY)" sub="New residential construction — Census Bureau (thousands, SAAR)" color="var(--cyan)" /></div>}
+            {mortgageInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={mortgageInd} title="30-Year Fixed Mortgage Rate" sub="Freddie Mac PMMS — key affordability constraint for housing demand" color="var(--danger)" /></div>}
+            {michInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={michInd} title="U. Michigan Consumer Sentiment" sub="Monthly consumer survey — leading indicator for spending, ranges 50-110" color="var(--amber)" /></div>}
+            {savingsInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={savingsInd} title="Personal Savings Rate" sub="% of disposable income saved — high savings = future spending fuel, low = stretched consumer" color="var(--success)" /></div>}
+          </>
+        )}
+
+        {/* ── GLOBAL & STRESS ──────────────────────────────────────────── */}
+        {tab === 'global' && (
+          <>
+            <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
+              <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+                <div className="eyebrow">Financial Stress (STL)</div>
+                <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)',
+                  color: stlfsiInd?.rawValue > 1.5 ? 'var(--danger)' : stlfsiInd?.rawValue > 0.5 ? 'var(--amber)' : 'var(--success)' }}>
+                  {stlfsiInd?.rawValue != null ? (stlfsiInd.rawValue >= 0 ? `+${(+stlfsiInd.rawValue).toFixed(2)}σ` : `${(+stlfsiInd.rawValue).toFixed(2)}σ`) : '—'}
+                </div>
+                <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>0 = normal · positive = stress</div>
+              </div>
+              <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+                <div className="eyebrow">Adj. Financial Conditions</div>
+                <div className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)',
+                  color: anfciInd?.rawValue > 0.5 ? 'var(--danger)' : anfciInd?.rawValue < -0.5 ? 'var(--success)' : 'var(--text)' }}>
+                  {anfciInd?.rawValue != null ? (anfciInd.rawValue >= 0 ? `+${(+anfciInd.rawValue).toFixed(3)}` : `${(+anfciInd.rawValue).toFixed(3)}`) : '—'}
+                </div>
+                <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Chicago Fed ANFCI · positive = tight</div>
+              </div>
+              <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+                <div className="eyebrow">USD Broad Dollar Index</div>
+                <div className={`mono ${dollarInd?.trend || 'flat'}`} style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
+                  {dollarInd?.rawValue != null ? (+dollarInd.rawValue).toFixed(1) : '—'}
+                </div>
+                <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Trade-weighted broad index</div>
+              </div>
+              <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+                <div className="eyebrow">WTI Crude Oil</div>
+                <div className={`mono ${oilInd?.trend || 'flat'}`} style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
+                  {oilInd?.rawValue != null ? `$${(+oilInd.rawValue).toFixed(1)}` : '—'}
+                </div>
+                <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>Cushing, Oklahoma $/barrel</div>
+              </div>
+            </div>
+
+            {/* Financial Stress Panel */}
+            <FinancialStressPanel stlfsiInd={stlfsiInd} anfciInd={anfciInd} yieldData={yieldData} />
+
+            {/* Dollar & Oil charts */}
+            <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+              {dollarInd?.history?.length > 0 && (
+                <div className="card">
+                  <div className="card-head">
+                    <div>
+                      <div className="card-title">USD Broad Dollar Index</div>
+                      <div className="card-sub">Trade-weighted nominal index vs major currencies — strong dollar = tighter global financial conditions</div>
+                    </div>
+                  </div>
+                  <div className="card-body" style={{ height: 240 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={[...dollarInd.history].filter((_, i) => i % 5 === 0).sort((a,b) => new Date(a.date)-new Date(b.date))}
+                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="dollarGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="var(--brand)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                        <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
+                        <YAxis stroke="var(--text-3)" fontSize={10} domain={['auto', 'auto']} />
+                        <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`${(+v).toFixed(1)}`, 'USD Index']} />
+                        <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#dollarGrad)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+              {oilInd?.history?.length > 0 && (
+                <div className="card">
+                  <div className="card-head">
+                    <div>
+                      <div className="card-title">WTI Crude Oil Price</div>
+                      <div className="card-sub">Cushing, Oklahoma spot price — leading indicator for energy inflation, global demand, and margin pressure</div>
+                    </div>
+                  </div>
+                  <div className="card-body" style={{ height: 240 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={[...oilInd.history].filter((_, i) => i % 5 === 0).sort((a,b) => new Date(a.date)-new Date(b.date))}
+                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="oilGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--amber)" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="var(--amber)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                        <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
+                        <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => `$${(+v).toFixed(0)}`} domain={['auto', 'auto']} />
+                        <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`$${(+v).toFixed(2)}`, 'WTI Crude']} />
+                        <Area type="monotone" dataKey="value" stroke="var(--amber)" strokeWidth={2} fill="url(#oilGrad)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -975,17 +1188,27 @@ function NaaimPanel({ naaim }) {
   );
 }
 
-function EconomicRegimeClock({ indicators, _yieldData }) {
+function EconomicRegimeClock({ indicators, _yieldData, phillyfed }) {
   const gdp = indicators?.find(i => (i.name || '').toLowerCase().includes('gdp'));
-  const _indpro = indicators?.find(i => (i.name || '').toLowerCase().includes('industrial'));
+  const indpro = indicators?.find(i => (i.name || '').toLowerCase().includes('industrial production'));
   const cpi = indicators?.find(i => (i.name || '').toLowerCase().includes('cpi'));
-  const ism = indicators?.find(i => (i.name || '').toLowerCase().includes('ism manufacturing'));
+  const cfnai = indicators?.find(i => (i.name || '').toLowerCase().includes('chicago fed'));
 
-  // Growth axis: GDP trend (positive = expansion) + ISM manufacturing (>50 = expansion)
+  // Growth axis: use CFNAI (best composite), fallback to Philly Fed, then GDP trend
+  // CFNAI: >0 = above-trend growth, <0 = below trend
+  const cfnaiVal = cfnai?.rawValue != null ? +cfnai.rawValue : null;
   const gdpTrend = gdp?.trend === 'up' ? 1 : gdp?.trend === 'down' ? -1 : 0;
-  const ismVal = ism?.rawValue ? +ism.rawValue : 50;
+  // Philly Fed: >0 = expansion, <0 = contraction (diffusion index, not 0-100 scale)
+  const phillyRaw = phillyfed?.rawValue != null ? +phillyfed.rawValue : null;
+  const phillyTrend = phillyRaw != null ? (phillyRaw > 0 ? 1 : phillyRaw < 0 ? -1 : 0) : 0;
+  // Composite growth score: CFNAI is most reliable, else GDP + Philly
+  const growthScore = cfnaiVal != null
+    ? Math.max(-1, Math.min(1, cfnaiVal))
+    : (gdpTrend + phillyTrend) / 2;
+  // For display purposes: convert Philly Fed to ISM-like scale (centered at 50)
+  const ismVal = phillyRaw != null ? 50 + phillyRaw / 2 : (indpro?.trend === 'up' ? 55 : indpro?.trend === 'down' ? 45 : 50);
   const ismTrend = ismVal > 50 ? 1 : ismVal < 50 ? -1 : 0;
-  const growthScore = (gdpTrend + ismTrend) / 2;
+  void ismTrend;
 
   // Inflation axis: CPI relative to 2% Fed target (positive = above target = inflationary)
   const cpiVal = cpi?.rawValue ? +cpi.rawValue : 2;
@@ -1088,8 +1311,11 @@ function EconomicRegimeClock({ indicators, _yieldData }) {
             <div className="stile">
               <div className="stile-label">Growth Axis</div>
               <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
-                <div>GDP trend: <strong style={{ color: gdpTrend > 0 ? 'var(--success)' : gdpTrend < 0 ? 'var(--danger)' : 'var(--text)' }}>{gdpTrend > 0 ? '↗ Expanding' : gdpTrend < 0 ? '↘ Contracting' : '→ Flat'}</strong></div>
-                <div style={{ marginTop: 4 }}>ISM Manufacturing: <strong className={ismVal > 50 ? 'up' : ismVal < 50 ? 'down' : ''}>{ismVal.toFixed(1)}</strong></div>
+                {cfnaiVal != null
+                  ? <div>CFNAI: <strong style={{ color: cfnaiVal > 0 ? 'var(--success)' : cfnaiVal < -0.35 ? 'var(--danger)' : 'var(--amber)' }}>{cfnaiVal >= 0 ? `+${cfnaiVal.toFixed(2)}` : cfnaiVal.toFixed(2)}</strong></div>
+                  : <div>GDP trend: <strong style={{ color: gdpTrend > 0 ? 'var(--success)' : gdpTrend < 0 ? 'var(--danger)' : 'var(--text)' }}>{gdpTrend > 0 ? '↗ Expanding' : gdpTrend < 0 ? '↘ Contracting' : '→ Flat'}</strong></div>
+                }
+                <div style={{ marginTop: 4 }}>Philly Fed Mfg: <strong className={phillyRaw != null ? (phillyRaw > 0 ? 'up' : 'down') : ''}>{phillyRaw != null ? `${phillyRaw >= 0 ? '+' : ''}${phillyRaw.toFixed(1)}` : '—'}</strong></div>
               </div>
             </div>
           </div>
@@ -1113,17 +1339,17 @@ function EconomicRegimeClock({ indicators, _yieldData }) {
   );
 }
 
-function GrowthLaborBarometer({ indicators }) {
+function GrowthLaborBarometer({ indicators, phillyfed }) {
   const claims = indicators?.find(i => {
     const nm = (i.name || '').toLowerCase();
     return nm.includes('jobless') || nm.includes('initial claims');
   });
 
-  // Growth-Labor Barometer: ISM Manufacturing / Jobless Claims ratio
-  // Combines industrial activity (ISM Mfg) with labor market stress to signal expansion vs contraction
-
-  const ism = indicators?.find(i => (i.name || '').toLowerCase().includes('ism manufacturing'));
-  const ismVal = ism?.rawValue ? +ism.rawValue : 50;
+  // Growth-Labor Barometer: Philly Fed Manufacturing / Jobless Claims composite
+  // Combines industrial activity with labor market stress to signal expansion vs contraction
+  const phillyRaw = phillyfed?.rawValue != null ? +phillyfed.rawValue : null;
+  // Convert Philly Fed diffusion index (centered at 0) to ISM-like scale (centered at 50)
+  const ismVal = phillyRaw != null ? 50 + phillyRaw / 2 : 50;
   const claimsVal = claims?.rawValue ? +claims.rawValue : 250000;
   const claimsHist = claims?.history || [];
 
@@ -1181,7 +1407,7 @@ function GrowthLaborBarometer({ indicators }) {
           <div className="stile">
             <div className="stile-label">Components</div>
             <div className="t-sm" style={{ marginTop: 4, color: 'var(--text-2)' }}>
-              <div>ISM Mfg: <strong className={ismVal > 50 ? 'up' : ismVal < 50 ? 'down' : ''}>{ismVal.toFixed(1)}</strong></div>
+              <div>Philly Fed ({phillyRaw != null ? `${phillyRaw >= 0 ? '+' : ''}${phillyRaw.toFixed(1)}` : '—'}): <strong className={ismVal > 50 ? 'up' : ismVal < 50 ? 'down' : ''}>{ismVal.toFixed(1)} (ISM equiv)</strong></div>
               <div style={{ marginTop: 4 }}>Jobless Claims: <strong className={claimsTrend === 'down' ? 'up' : claimsTrend === 'up' ? 'down' : ''}>{(+claimsVal).toLocaleString()}</strong></div>
             </div>
           </div>

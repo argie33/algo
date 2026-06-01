@@ -24,72 +24,54 @@ _EMAIL_RE = re.compile(
 CONTACT_RATE_LIMIT_REQUESTS = 5
 CONTACT_RATE_LIMIT_WINDOW = 3600
 
-# Fallback in-memory rate limiter (per Lambda instance)
-# Tracks submission times by email: {email: [timestamp, timestamp, ...]}
-_FALLBACK_RATE_LIMIT_TRACKER = {}
-
 def _is_contact_spam(email: str) -> bool:
     """Check if email has exceeded contact form submission rate limit.
 
-    Implements TWO-LAYER rate limiting:
-    1. Primary: DynamoDB (distributed across Lambda instances)
-    2. Fallback: In-memory per-instance (when DynamoDB not available)
+    Uses REQUIRED DynamoDB-based distributed rate limiting across Lambda instances.
+    No fallback to in-memory (which could be bypassed via concurrent requests to different instances).
 
-    SECURITY: When both fail, conservatively returns True (rejects request) to prevent DoS.
+    SECURITY: Email addresses are hashed (SHA256) before storage to avoid PII exposure in DynamoDB.
+    Requires CONTACT_RATE_LIMIT_TABLE env var. If not set, configuration error is logged
+    and request is rejected to prevent unprotected spam risk.
     """
     import boto3
     import os
+    import hashlib
     from botocore.exceptions import ClientError
 
     now = int(time())
     window_start = now - CONTACT_RATE_LIMIT_WINDOW
 
-    # LAYER 1: Try distributed DynamoDB rate limiting
+    # Hash email to avoid storing PII in plaintext
+    email_hash = hashlib.sha256(email.encode()).hexdigest()
+
+    # REQUIRED: DynamoDB rate limiting (no fallback to prevent bypass via scaling)
     dynamodb_table = os.getenv('CONTACT_RATE_LIMIT_TABLE')
-    if dynamodb_table:
-        try:
-            dynamodb = boto3.resource('dynamodb')
-            table = dynamodb.Table(dynamodb_table)
-            response = table.get_item(Key={'email': email})
-            item = response.get('Item', {})
-            submission_times = item.get('submission_times', [])
-            recent_submissions = [t for t in submission_times if t > window_start]
+    if not dynamodb_table:
+        logger.error(f"CRITICAL: CONTACT_RATE_LIMIT_TABLE not configured. Rejecting contact submission for safety.")
+        return True  # Fail safe: reject if rate limiter not configured
 
-            if len(recent_submissions) >= CONTACT_RATE_LIMIT_REQUESTS:
-                logger.warning(f"Contact form rate limit exceeded (DynamoDB): {email} - {len(recent_submissions)} submissions")
-                return True
-
-            recent_submissions.append(now)
-            table.put_item(Item={'email': email, 'submission_times': recent_submissions, 'ttl': now + CONTACT_RATE_LIMIT_WINDOW + 86400})
-            return False
-        except ClientError as e:
-            logger.warning(f"DynamoDB rate limit check failed: {e}. Falling back to in-memory limiter.")
-        except Exception as e:
-            logger.warning(f"DynamoDB error: {e}. Falling back to in-memory limiter.")
-
-    # LAYER 2: Fallback in-memory rate limiting (this Lambda instance only)
     try:
-        if email not in _FALLBACK_RATE_LIMIT_TRACKER:
-            _FALLBACK_RATE_LIMIT_TRACKER[email] = []
-
-        submission_times = _FALLBACK_RATE_LIMIT_TRACKER[email]
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table(dynamodb_table)
+        response = table.get_item(Key={'email_hash': email_hash})
+        item = response.get('Item', {})
+        submission_times = item.get('submission_times', [])
         recent_submissions = [t for t in submission_times if t > window_start]
 
         if len(recent_submissions) >= CONTACT_RATE_LIMIT_REQUESTS:
-            logger.warning(f"Contact form rate limit exceeded (in-memory): {email} - {len(recent_submissions)} submissions")
+            logger.warning(f"Contact form rate limit exceeded (DynamoDB): ...@{email.split('@')[-1]} - {len(recent_submissions)} submissions")
             return True
 
         recent_submissions.append(now)
-        _FALLBACK_RATE_LIMIT_TRACKER[email] = recent_submissions
-
-        # Cleanup old entries to prevent memory leak (keep last 100 per email)
-        if len(recent_submissions) > 100:
-            _FALLBACK_RATE_LIMIT_TRACKER[email] = recent_submissions[-100:]
-
+        table.put_item(Item={'email_hash': email_hash, 'submission_times': recent_submissions, 'ttl': now + CONTACT_RATE_LIMIT_WINDOW})
         return False
+    except ClientError as e:
+        logger.error(f"DynamoDB rate limit check failed: {e}. Rejecting request for safety.")
+        return True  # Fail safe: reject if we can't verify rate limit
     except Exception as e:
-        logger.error(f"CRITICAL: Both rate limiters failed: {e}. Rejecting request for safety.")
-        return True  # Fail safe: reject if we can't rate limit
+        logger.error(f"DynamoDB rate limit error: {e}. Rejecting request for safety.")
+        return True  # Fail safe: reject if we can't verify rate limit
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/contact/* endpoints. Submissions require admin auth."""
@@ -161,11 +143,11 @@ def _submit_contact(cur, body: Dict) -> Dict:
             INSERT INTO contact_submissions (name, email, subject, message, phone, submitted_at)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (name, email, subject, message, phone if phone else None, datetime.now(timezone.utc)))
-        logger.info(f"Contact form submission from {email}")
+        logger.info(f"Contact form submission from ...@{email.split('@')[-1]}")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        logger.warning(f"contact_submissions table missing; submission from {email} logged only")
-        return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
+        logger.error(f"contact_submissions table missing; unable to process submission")
+        return error_response(503, 'service_unavailable', 'Contact service unavailable. Please try again later.')
     except Exception as e:
         return handle_db_error(e, logger, 'submit_contact')
 
@@ -180,7 +162,7 @@ def _get_submissions(cur, params: Dict) -> Dict:
         rows = cur.fetchall()
         return list_response(rows, total=len(rows))
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        logger.warning("contact_submissions table missing")
-        return list_response([])
+        logger.error("contact_submissions table missing; unable to list submissions")
+        return error_response(503, 'service_unavailable', 'Contact service unavailable.')
     except Exception as e:
         return handle_db_error(e, logger, 'get_submissions')

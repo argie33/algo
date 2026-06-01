@@ -72,6 +72,25 @@ resource "aws_secretsmanager_secret_version" "jwt" {
   })
 }
 
+# Orchestrator State (Circuit Breaker Halt Flag)
+# Used by circuit breaker Lambda to signal orchestrator to halt trading
+resource "aws_secretsmanager_secret" "orchestrator" {
+  name                    = "algo/orchestrator"
+  description             = "Orchestrator state: circuit breaker halt flag and control state"
+  recovery_window_in_days = 7
+
+  tags = var.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "orchestrator" {
+  secret_id      = aws_secretsmanager_secret.orchestrator.id
+  secret_string = jsonencode({
+    orchestrator_dry_run = false,
+    halt_reason         = "",
+    last_updated        = "bootstrap"
+  })
+}
+
 # Output secret ARNs for Lambda IAM policies
 output "alpaca_secret_arn" {
   value = aws_secretsmanager_secret.alpaca.arn

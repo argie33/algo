@@ -165,13 +165,40 @@ resource "aws_security_group" "ecs_tasks" {
   description = "Security group for ECS tasks (private)"
   vpc_id      = aws_vpc.main.id
 
-  # Egress: allow all outbound (for S3, Secrets Manager, ECR, etc. via VPC endpoints)
+  # Egress: DNS for hostname resolution to VPC resolver
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow DNS queries (UDP) to VPC DNS resolver"
+  }
+
+  # Egress: HTTPS to VPC endpoints for ECR, Secrets Manager, S3, CloudWatch Logs
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow HTTPS to VPC endpoints (ECR, Secrets Manager, S3, CloudWatch)"
+  }
+
+  # Egress: PostgreSQL to RDS
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow PostgreSQL to RDS"
+  }
+
+  # Egress: HTTPS to external APIs (yfinance, IEX Cloud, Alpaca, FRED, etc.) via NAT Gateway
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic (S3, ECR, Secrets via endpoints)"
+    description = "Allow HTTPS to external APIs (yfinance, Alpaca, FRED, etc.)"
   }
 
   tags = merge(var.common_tags, {
@@ -298,14 +325,8 @@ resource "aws_security_group" "rds" {
   description = "Security group for RDS PostgreSQL"
   vpc_id      = aws_vpc.main.id
 
-  # Egress: allow all outbound (minimal, but safe)
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
-  }
+  # NOTE: RDS never initiates outbound connections, only receives inbound.
+  # No egress rules needed. All egress is implicitly denied.
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-rds-sg"

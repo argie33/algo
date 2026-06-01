@@ -58,6 +58,31 @@ SERIES = [
     "MORTGAGE30US",  # 30-Year Fixed Rate Mortgage Average
     # Lending / credit
     "BUSLOANS",      # Commercial & Industrial Loans (Business Loans)
+    # Core PCE (Fed's actual 2% inflation target — preferred over CPI)
+    "PCEPILFE",   # Core PCE: Personal Consumption Expenditures ex-Food & Energy (monthly)
+    # Inflation expectations — market-implied TIPS breakevens
+    "T5YIE",      # 5-Year Breakeven Inflation Rate (daily)
+    "T10YIE",     # 10-Year Breakeven Inflation Rate (daily)
+    # Dollar strength
+    "DTWEXBGS",   # USD Broad Nominal Index, trade-weighted (daily)
+    # Commodities
+    "DCOILWTICO", # WTI Crude Oil, Cushing OK ($/barrel, daily)
+    # Financial stress (broader than credit spreads alone)
+    "STLFSI4",    # St. Louis Fed Financial Stress Index (weekly; 0=normal, positive=stress)
+    "ANFCI",      # Chicago Fed Adjusted National Financial Conditions Index (weekly)
+    # Labor market — advanced indicators
+    "JTSJOL",     # JOLTS Job Openings (thousands, monthly)
+    "JTSQUR",     # JOLTS Quit Rate (% monthly — signals worker confidence)
+    "AHETPI",     # Average Hourly Earnings, Total Private (level; displayed as YoY %)
+    # Industrial capacity
+    "TCU",        # Capacity Utilization: Manufacturing, Mining, Utilities (%)
+    "MFGBDPHI",  # Philadelphia Fed Manufacturing Index (diffusion; >0=expansion)
+    "CFNAI",      # Chicago Fed National Activity Index (85-indicator composite)
+    # Housing — leading indicator
+    "PERMIT",     # Building Permits, Total (thousands, SAAR, monthly)
+    # Consumer health
+    "PSAVERT",    # Personal Savings Rate (%)
+    "DSPIC96",    # Real Disposable Personal Income (level; displayed as YoY %)
 ]
 
 

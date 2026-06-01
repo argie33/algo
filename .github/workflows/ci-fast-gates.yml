@@ -72,14 +72,7 @@ jobs:
         run: pip install -q pip-audit
       - name: Audit Python dependencies for vulnerabilities
         run: |
-          pip-audit --desc || EXIT_CODE=$?
-          if [ "${EXIT_CODE:-0}" -eq 1 ]; then
-            echo "Vulnerabilities found — review recommended"
-            exit 0
-          elif [ "${EXIT_CODE:-0}" -gt 1 ]; then
-            echo "pip-audit failed with error"
-            exit "${EXIT_CODE}"
-          fi
+          pip-audit --desc
           echo "OK: No vulnerabilities in dependencies"
 
   scan-sast:
@@ -96,14 +89,7 @@ jobs:
         run: pip install -q bandit[toml]
       - name: Scan Python code for security issues
         run: |
-          bandit -r algo loaders config --severity-level medium --confidence-level high || EXIT_CODE=$?
-          if [ $EXIT_CODE -eq 1 ]; then
-            echo "Potential security issues found (review recommended)"
-            exit 0
-          elif [ $EXIT_CODE -gt 1 ]; then
-            echo "Bandit failed with error"
-            exit $EXIT_CODE
-          fi
+          bandit -r algo loaders config lambda --severity-level medium --confidence-level high
           echo "OK: No high-confidence security issues detected"
 
   scan-iac:
@@ -120,16 +106,8 @@ jobs:
           echo "/tmp/tfsec" >> $GITHUB_PATH
       - name: Scan Terraform for security issues
         run: |
-          tfsec terraform/ --minimum-severity MEDIUM || EXIT_CODE=$?
-          if [ $EXIT_CODE -eq 0 ]; then
-            echo "OK: No Terraform security issues found"
-          elif [ $EXIT_CODE -eq 1 ] || [ $EXIT_CODE -eq 2 ]; then
-            echo "Terraform issues found (review recommended)"
-            exit 0
-          else
-            echo "tfsec failed"
-            exit $EXIT_CODE
-          fi
+          tfsec terraform/ --minimum-severity HIGH
+          echo "OK: No high-severity Terraform issues found"
 
   lint-and-type:
     runs-on: ubuntu-latest
@@ -262,24 +240,24 @@ jobs:
           fi
           echo "OK: Edge case tests passed"
 
-          # Security scans (non-blocking but visible)
-          if [[ "${{ needs.scan-dependencies.result }}" == "failure" ]]; then
-            echo "WARNING: Dependency scan had warnings (review recommended)"
-          else
-            echo "OK: Dependency scan passed"
+          # Security scans (now blocking — findings fail the pipeline)
+          if [[ "${{ needs.scan-dependencies.result }}" != "success" ]]; then
+            echo "FAIL: Dependency scan FAILED — CVEs detected"
+            exit 1
           fi
+          echo "OK: Dependency scan passed"
 
-          if [[ "${{ needs.scan-sast.result }}" == "failure" ]]; then
-            echo "WARNING: SAST analysis had findings (review recommended)"
-          else
-            echo "OK: SAST analysis passed"
+          if [[ "${{ needs.scan-sast.result }}" != "success" ]]; then
+            echo "FAIL: SAST analysis FAILED — security issues detected"
+            exit 1
           fi
+          echo "OK: SAST analysis passed"
 
-          if [[ "${{ needs.scan-iac.result }}" == "failure" ]]; then
-            echo "WARNING: IaC scan had findings (review recommended)"
-          else
-            echo "OK: IaC scan passed"
+          if [[ "${{ needs.scan-iac.result }}" != "success" ]]; then
+            echo "FAIL: IaC scan FAILED — high-severity Terraform issues detected"
+            exit 1
           fi
+          echo "OK: IaC scan passed"
 
           # Integration tests (non-blocking)
           if [[ "${{ needs.integration-tests.result }}" != "success" ]] && [[ "${{ needs.integration-tests.result }}" != "skipped" ]]; then

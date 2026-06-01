@@ -87,6 +87,10 @@ class Orchestrator:
 
         Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
         SECURITY: If DynamoDB is unreachable, emits CloudWatch alarm metric.
+
+        Auto-expires halt flags set on prior trading days. The circuit breaker Lambda
+        runs at 10 AM, 12 PM, 3 PM ET and will re-trigger if conditions warrant.
+        A flag from yesterday must not block today's 9:30 AM market-open run.
         """
         try:
             import boto3
@@ -96,16 +100,35 @@ class Orchestrator:
 
             response = table.get_item(Key={'key': self.HALT_FLAG_DYNAMODB_KEY})
             if 'Item' in response and response['Item'].get('halt_flag') is True:
+                triggered_at_str = response['Item'].get('triggered_at', '')
+                if triggered_at_str:
+                    try:
+                        trigger_dt = datetime.fromisoformat(triggered_at_str.replace('Z', '+00:00'))
+                        today_utc = datetime.now(timezone.utc).date()
+                        if trigger_dt.date() < today_utc:
+                            logger.info(
+                                f"[HALT_FLAG] Stale flag (set {triggered_at_str}) — auto-clearing. "
+                                f"Circuit breaker will re-evaluate at 10 AM ET if needed."
+                            )
+                            table.put_item(Item={
+                                'key': self.HALT_FLAG_DYNAMODB_KEY,
+                                'halt_flag': False,
+                                'reason': 'Auto-expired: halt flag from prior trading day',
+                                'reset_at': datetime.now(timezone.utc).isoformat(),
+                            })
+                            return False
+                    except Exception as parse_err:
+                        logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
+
                 logger.critical("HALT FLAG DETECTED — stopping all trading phases immediately")
                 self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
                 return True
         except Exception as e:
             # CRITICAL: DynamoDB unavailable defeats emergency halt mechanism
             logger.error(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}. Emergency halt is DISABLED.")
-            # Emit metric for CloudWatch alarm
             try:
-                from algo.algo_metrics import MetricsCollector
-                MetricsCollector().add_metric('DynamoDBHaltCheckFailure', 1, unit='Count')
+                from algo.algo_metrics import MetricsPublisher
+                MetricsPublisher().add_metric('DynamoDBHaltCheckFailure', 1, unit='Count')
             except Exception as metric_err:
                 logger.warning(f"Could not emit halt check failure metric: {metric_err}")
 
@@ -442,8 +465,7 @@ class Orchestrator:
     def phase_4_exit_execution(self) -> List[Dict[str, Any]]:
         """Thin delegation to phase4_exit_execution module."""
         self.log_phase_start(4, 'EXIT EXECUTION')
-        if self._check_halt_flag():
-            return False
+        # No halt flag check: exits must always run to reduce risk even when entries are halted.
         from algo.orchestrator.phase4_exit_execution import run as run_phase4
         result = run_phase4(
             self.config,
@@ -502,8 +524,8 @@ class Orchestrator:
     def phase_7_reconcile(self) -> Dict[str, Any]:
         """Thin delegation to phase7_reconciliation module."""
         self.log_phase_start(7, 'RECONCILIATION & SNAPSHOT')
-        if self._check_halt_flag():
-            return False
+        # No halt flag check: snapshot must always be written so circuit breakers
+        # have accurate portfolio state on the next invocation.
         from algo.orchestrator.phase7_reconciliation import run as run_phase7
         result = run_phase7(
             self.config,

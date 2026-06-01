@@ -1148,11 +1148,12 @@ class DataPatrol:
 
         for tbl, required_cols in tables:
             try:
-                cur.execute(f"""
+                tbl_safe = assert_safe_table(tbl)
+                cur.execute("""
                     SELECT column_name FROM information_schema.columns
-                    WHERE table_name = '{tbl}'
+                    WHERE table_name = %s
                     ORDER BY column_name
-                """)
+                """, (tbl,))
                 columns = [row[0] for row in cur.fetchall()]
                 present_cols = set(columns)
 
@@ -1162,7 +1163,7 @@ class DataPatrol:
                              {'columns': columns})
 
                     # Check data freshness for trades
-                    cur.execute(f"SELECT COUNT(*), MAX(created_at) FROM {tbl}")
+                    cur.execute(f"SELECT COUNT(*), MAX(created_at) FROM {tbl_safe}")
                     count, max_updated = cur.fetchone()
 
                     if count > 0 and max_updated:

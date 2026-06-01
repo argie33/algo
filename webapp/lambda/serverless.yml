@@ -38,7 +38,9 @@ provider:
         - Effect: Allow
           Action:
             - secretsmanager:GetSecretValue
-          Resource: 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:*'
+          Resource:
+            - 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:algo/*'
+            - 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:algo-*'
         - Effect: Allow
           Action:
             - ses:SendEmail

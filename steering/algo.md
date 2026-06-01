@@ -43,15 +43,21 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 ## Infrastructure Constraints
 
-**CloudFront Domain Hardcoding:** `d2u93283nn45h2.cloudfront.net` is hardcoded in `terraform.tfvars` (frontend_origin, api_cors_allowed_origins) due to circular dependency: API Gateway CORS references CF domain, but CF origin references API Gateway. Terraform cannot resolve this automatically.
+**CloudFront Domain Hardcoding (Mitigated, Permanent Fix TBD):** `d2u93283nn45h2.cloudfront.net` is hardcoded in `terraform.tfvars` (frontend_origin line 9, api_cors_allowed_origins line 19) due to circular dependency: API Gateway CORS references CF domain, but CF origin references API Gateway. Terraform cannot resolve this automatically.
 
-**Verification in place:** 
+**Current Mitigation (Verified Workaround):** 
 - GitHub Actions workflow `verify-cloudfront.yml` runs daily (10 AM UTC / 5 AM ET) + on-demand dispatch
 - Workflow fetches actual CF domain from AWS and compares against hardcoded values
-- Alerts if mismatch detected with instructions to update `terraform.tfvars` (lines 9, 19)
+- **If mismatch detected:** Alerts with instructions to update `terraform.tfvars` (lines 9, 19), commit, and push (triggers automatic redeploy)
 - Local verification: `./scripts/verify-cloudfront-domain.ps1` (requires AWS CLI + credentials)
 
-**Action if mismatch detected:** Update `terraform.tfvars` with new domain, commit, and push (triggers redeploy).
+**Recommended Permanent Fix (Not Yet Implemented):** Option 1: Secrets Manager (3-4 hour effort)
+1. Store CloudFront domain in Secrets Manager: `aws secretsmanager create-secret --name algo/cloudfront-domain --secret-string 'd2u93283nn45h2.cloudfront.net'`
+2. Modify `lambda/api/lambda_function.py`: Fetch domain at Lambda startup or on each request (with caching) instead of checking hardcoded terraform.tfvars
+3. Remove hardcoded values from terraform.tfvars lines 9, 19 and API Gateway CORS config
+4. Result: If CloudFront recreated, domain in Secrets Manager auto-propagates to API without manual terraform.tfvars changes
+
+**Current Action if Mismatch Detected (Until Option 1 Implemented):** Update `terraform.tfvars` with new domain, commit, and push (triggers redeploy).
 
 ## Known Limitations (Blocking Live Capital)
 
@@ -204,6 +210,22 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Loader monitoring: IMPLEMENTED (F-04). CloudWatch dashboard shows loader status. EventBridge + SNS alerts on task failures.
 
 **⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars but `alpaca_paper_trading = false` (LIVE TRADING). All AWS resources named `-dev`. If staging is provisioned in same account, rename this to `prod` to prevent conflicts. For now: documented understanding that "dev" = live capital environment.
+
+## Security Hardening (2026-06-01)
+
+**Critical Vulnerabilities Fixed:**
+- **C-01:** Added admin authorization check to all `/api/algo/risk-dashboard/*` endpoints. Previously exposed portfolio drawdown, position sizing, stop-loss rationale to any authenticated user.
+- **H-01:** Sanitized XSS vectors in contact form (name, subject fields). Applied dangerous-pattern rejection (script tags, javascript:, event handlers) to all fields before storage. Message field was protected; now all fields are sanitized.
+- **H-02:** Scoped `rds-db:connect` IAM action to specific RDS database (not wildcard). Circuit breaker Lambda can now only authenticate to trading database, not other RDS instances in account.
+- **H-03:** Removed redundant over-broad `GetSecretValue` statement from circuit-breaker Lambda IAM policy. First statement already covers needed secrets (`algo/orchestrator-*`, `algo/database-*`). Removed wildcard `algo/*` that allowed reading Alpaca live trading keys.
+- **M-01:** Contact form rate limiter now requires DynamoDB (no fallback to in-memory per-instance). Prevents spam bypass via concurrent requests to different Lambda instances.
+- **M-02:** Email addresses in contact form rate limiter now hashed (SHA256) before storage, not stored as plaintext PII.
+- **M-03, M-04:** Restricted RDS and ECS security groups:
+  - RDS: Removed all egress rules (never initiates connections)
+  - ECS: Restricted to DNS (port 53), HTTPS to VPC endpoints (443), PostgreSQL to RDS (5432), HTTPS to external APIs (443 to 0.0.0.0/0)
+- **M-05:** Restricted EventBridge scheduler Lambda permissions to specific schedule ARNs (10am, 12pm, 3pm circuit breaker checks), not wildcard `schedule/*/*`. Prevents arbitrary EventBridge rules from invoking circuit breaker.
+
+**Status:** All critical/high-priority red team vulnerabilities remediated (2026-06-01 20:18 UTC).
 
 ## Recent Fixes (2026-06-01 continued)
 

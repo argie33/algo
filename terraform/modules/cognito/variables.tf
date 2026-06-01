@@ -55,6 +55,26 @@ variable "cognito_sender_email" {
   default     = "noreply@bullseyetrading.com"
 }
 
+variable "mfa_configuration" {
+  description = "MFA configuration for the user pool: OFF, OPTIONAL, or REQUIRED"
+  type        = string
+  default     = "OPTIONAL"
+  validation {
+    condition     = contains(["OFF", "OPTIONAL", "REQUIRED"], var.mfa_configuration)
+    error_message = "mfa_configuration must be OFF, OPTIONAL, or REQUIRED."
+  }
+}
+
+variable "advanced_security_mode" {
+  description = "Cognito Advanced Security mode: OFF, AUDIT, or ENFORCED. AUDIT and ENFORCED require Cognito+ plan (extra cost)."
+  type        = string
+  default     = "OFF"
+  validation {
+    condition     = contains(["OFF", "AUDIT", "ENFORCED"], var.advanced_security_mode)
+    error_message = "advanced_security_mode must be OFF, AUDIT, or ENFORCED."
+  }
+}
+
 variable "common_tags" {
   description = "Common tags for all resources"
   type        = map(string)

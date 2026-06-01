@@ -21,6 +21,10 @@ out/
 function.zip
 lambda-package.zip
 lambda-deployment.tar.gz
+# EXCEPT: Lambda layer ZIPs (infrastructure)
+!lambda/shared-deps-layer.zip
+!lambda/api-deps-layer.zip
+!lambda/*-layer.zip
 
 # Database
 *.db
@@ -221,6 +225,8 @@ webapp/lambda/jest.*.config.js
 setup*.sh
 # EXCEPT: Infrastructure setup scripts that teams regularly use
 !scripts/setup-staging-infrastructure.sh
+!scripts/setup-github-secrets.sh
+!scripts/setup-ses-production.sh
 verify*.sh
 check*.sh
 debug*.sh

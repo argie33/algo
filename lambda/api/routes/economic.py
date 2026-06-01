@@ -67,24 +67,50 @@ def _get_leading_indicators(cur) -> Dict:
         """Get leading economic indicators formatted for EconomicDashboard."""
         # Maps FRED series IDs to indicator names
         indicator_map = {
-            'UNRATE': 'Unemployment Rate',
-            'PAYEMS': 'Total Nonfarm Payroll',
-            'ICSA': 'Initial Claims',
-            'CIVPART': 'Labor Force Participation',
-            'INDPRO': 'Industrial Production',
-            'RSXFS': 'Retail Sales',
-            'CPIAUCSL': 'CPI - All Urban Consumers',
-            'FEDFUNDS': 'Federal Funds Rate',
-            'M2SL': 'M2 Money Supply',
-            'T10Y2Y': 'Yield Curve (10Y-2Y)',
-            'GDPC1': 'GDP Growth',
-            'UMCSENT': 'Consumer Sentiment',
-            'HOUST': 'Housing Starts',
+            # Labor market
+            'UNRATE':       'Unemployment Rate',
+            'PAYEMS':       'Total Nonfarm Payroll',
+            'ICSA':         'Initial Claims',
+            'CIVPART':      'Labor Force Participation',
+            'JTSJOL':       'JOLTS Job Openings',
+            'JTSQUR':       'JOLTS Quit Rate',
+            'AHETPI':       'Average Hourly Earnings',
+            # Activity / production
+            'INDPRO':       'Industrial Production',
+            'RSXFS':        'Retail Sales',
+            'TCU':          'Capacity Utilization',
+            'MFGBDPHI':     'Philly Fed Manufacturing',
+            'CFNAI':        'Chicago Fed Activity Index',
+            # Inflation
+            'CPIAUCSL':     'CPI - All Urban Consumers',
+            'PCEPILFE':     'Core PCE Inflation',
+            'T5YIE':        '5Y Breakeven Inflation',
+            'T10YIE':       '10Y Breakeven Inflation',
+            # Monetary / rates
+            'FEDFUNDS':     'Federal Funds Rate',
+            'M2SL':         'M2 Money Supply',
+            'T10Y2Y':       'Yield Curve (10Y-2Y)',
+            # Growth
+            'GDPC1':        'GDP Growth',
+            # Financial conditions & stress
+            'STLFSI4':      'Financial Stress Index',
+            'ANFCI':        'Adjusted Financial Conditions',
+            # Consumer
+            'UMCSENT':      'Consumer Sentiment',
+            'PSAVERT':      'Personal Savings Rate',
+            'DSPIC96':      'Real Disposable Income',
+            # Housing
+            'HOUST':        'Housing Starts',
+            'PERMIT':       'Building Permits',
             'MORTGAGE30US': '30Y Mortgage Rate',
-            'BUSLOANS': 'Business Loans',
+            # Lending / credit
+            'BUSLOANS':     'Business Loans',
+            # Global / commodities
+            'DTWEXBGS':     'USD Dollar Index',
+            'DCOILWTICO':   'WTI Crude Oil',
         }
         # Series that report absolute levels but should be shown as YoY % change
-        yoy_pct_series = {'GDPC1', 'INDPRO', 'RSXFS', 'PAYEMS', 'HOUST'}
+        yoy_pct_series = {'GDPC1', 'INDPRO', 'RSXFS', 'PAYEMS', 'HOUST', 'PCEPILFE', 'DSPIC96', 'AHETPI', 'PERMIT'}
 
         try:
             cur.execute("""
@@ -197,7 +223,7 @@ def _get_yield_curve_full(cur) -> Dict:
                            ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
                     FROM economic_data
                     WHERE series_id IN ('DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7', 'DGS10', 'DGS20', 'DGS30', 'T10Y3M', 'T10Y2Y',
-                                       'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS')
+                                       'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS', 'T5YIE', 'T10YIE', 'STLFSI4', 'ANFCI')
                 )
                 SELECT series_id, date, value
                 FROM latest
@@ -208,8 +234,8 @@ def _get_yield_curve_full(cur) -> Dict:
             cur.execute("""
                 SELECT series_id, date, value
                 FROM economic_data
-                WHERE date >= CURRENT_DATE - INTERVAL '12 months'
-                AND series_id IN ('T10Y2Y', 'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS')
+                WHERE date >= CURRENT_DATE - INTERVAL '24 months'
+                AND series_id IN ('T10Y2Y', 'BAMLH0A0HYM2', 'BAMLC0A0CM', 'VIXCLS', 'T5YIE', 'T10YIE', 'STLFSI4', 'ANFCI')
                 ORDER BY series_id, date
             """)
             history_rows = cur.fetchall()
@@ -276,6 +302,26 @@ def _get_yield_curve_full(cur) -> Dict:
                 for k, v in credit_history.items()
             }
 
+            # TIPS breakeven inflation expectations
+            breakevens_history = {
+                'T5YIE':  history.get('T5YIE', []),
+                'T10YIE': history.get('T10YIE', []),
+            }
+            breakevens_latest = {
+                k: v[-1].get('value') if v else None
+                for k, v in breakevens_history.items()
+            }
+
+            # Financial stress indices
+            stress_history = {
+                'STLFSI4': history.get('STLFSI4', []),
+                'ANFCI':   history.get('ANFCI', []),
+            }
+            stress_latest = {
+                k: v[-1].get('value') if v else None
+                for k, v in stress_history.items()
+            }
+
             return json_response(200, {
                 'currentCurve': current_curve,
                 'spreads': spreads,
@@ -284,6 +330,14 @@ def _get_yield_curve_full(cur) -> Dict:
                 'credit': {
                     'history': credit_history,
                     'currentSpreads': credit_latest,
+                },
+                'breakevens': {
+                    'history': breakevens_history,
+                    'current': breakevens_latest,
+                },
+                'stress': {
+                    'history': stress_history,
+                    'current': stress_latest,
                 },
             })
 

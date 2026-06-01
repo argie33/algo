@@ -23,15 +23,14 @@ data "aws_iam_policy_document" "github_actions_assume" {
       identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
 
-    # CRITICAL: Scope to THIS repository and MAIN branch only
-    # Staging branch removed: weaker branch protection + same full permissions = too risky
-    # Format: repo:OWNER/REPO:ref:refs/heads/BRANCH
+    # CRITICAL: Scope to THIS repository and MAIN branch only.
+    # Staging branch is intentionally excluded: it has weaker branch protection
+    # (no required reviews) but the same full deploy permissions — too risky.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values   = [
         "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main",
-        "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/staging",
       ]
     }
 
@@ -1303,17 +1302,27 @@ data "aws_iam_policy_document" "developer" {
 
   # RDS (read-only for database inspection)
   statement {
-    sid    = "RDSReadOnly"
+    sid    = "RDSDescribeReadOnly"
     effect = "Allow"
 
     actions = [
       "rds:DescribeDBInstances",
       "rds:DescribeDBClusters",
-      "rds:DescribeDBProxies",
-      "rds-db:connect"
+      "rds:DescribeDBProxies"
     ]
 
     resources = ["*"]
+  }
+
+  # RDS IAM authentication — scoped to project DB users only
+  statement {
+    sid    = "RDSIAMConnect"
+    effect = "Allow"
+
+    actions = ["rds-db:connect"]
+
+    # db-resource-id is a runtime value (not known at plan time); restrict by username prefix instead
+    resources = ["arn:aws:rds-db:${var.aws_region}:${var.aws_account_id}:dbuser:*/${var.project_name}*"]
   }
 
   # EC2 (read-only for infrastructure inspection)
@@ -1384,6 +1393,7 @@ data "aws_iam_policy_document" "developer_cognito" {
       "cognito-idp:AdminDeleteUser",
       "cognito-idp:AdminGetUser",
       "cognito-idp:AdminUpdateUserAttributes",
+      "cognito-idp:AdminSetUserMFAPreference",
       "cognito-idp:AdminEnableUser",
       "cognito-idp:AdminDisableUser",
       "cognito-idp:ListUsers",

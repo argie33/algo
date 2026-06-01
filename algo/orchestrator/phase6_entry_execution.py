@@ -491,16 +491,21 @@ def run(
             before = len(trades_to_enter)
 
             # Safe grade lookup: unknown grades default to 'F' (worst grade)
+            # Special handling: 'F' grades from lookup failures should not hard-reject trades.
+            # If grade='F' but score meets min_score, allow through (treat 'F' as "no data" not "bad").
             def get_grade_idx(grade):
                 try:
                     return grade_order.index(grade) if grade in grade_order else grade_order.index('F')
                 except ValueError:
                     return grade_order.index('F')
 
+            before = len(trades_to_enter)
+
             trades_to_enter = [
                 t for t in trades_to_enter
                 if (t.get('swing_score', 0) >= min_score and
-                    get_grade_idx(t.get('swing_grade', 'F')) >= min_grade_idx)
+                    (get_grade_idx(t.get('swing_grade', 'F')) >= min_grade_idx or
+                     t.get('swing_grade', 'F') == 'F'))
             ]
             if len(trades_to_enter) < before:
                 logger.info(f"  Tier filter: {before} -> {len(trades_to_enter)} "

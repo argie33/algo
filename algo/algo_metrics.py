@@ -111,6 +111,11 @@ class MetricsPublisher:
         self._emit("LoaderSymbolsFailed", stats.get("symbols_failed", 0), unit="Count", dimensions=dims)
         self._emit("LoaderDurationSeconds", stats.get("duration_sec", 0.0), unit="Seconds", dimensions=dims)
 
+    def add_metric(self, metric_name: str, value: float, unit: str = "Count") -> None:
+        """Emit a single metric immediately (no batching)."""
+        self._emit(metric_name, value, unit)
+        self._flush()
+
     def put_circuit_breaker(self, breaker_name: str, fired: bool) -> None:
         """Whether a circuit breaker fired (1=fired, 0=ok)."""
         self._emit("CircuitBreakerFired", 1 if fired else 0,

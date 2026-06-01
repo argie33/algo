@@ -133,8 +133,11 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return error_response(403, 'forbidden', 'Admin access required')
             return _get_data_status(cur)
         elif path == '/api/algo/notifications':
-            return _get_notifications(cur, params)
+            return _get_notifications(cur, params, jwt_claims)
         elif path == '/api/algo/patrol-log':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             offset_str = params.get('offset', [None])[0] if params else None
@@ -147,6 +150,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
         elif path == '/api/algo/swing-scores':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo swing-scores access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             min_score_str = params.get('min_score', [None])[0] if params else None
@@ -161,20 +167,39 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     return error_response(400, 'bad_request', 'Invalid symbol format')
             return _get_swing_scores(cur, limit, min_score, symbol_filter)
         elif path == '/api/algo/swing-scores-history':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo swing-scores-history access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=30)
             return _get_swing_scores_history(cur, days)
         elif path == '/api/algo/rejection-funnel':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo rejection-funnel access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_rejection_funnel(cur)
         elif path == '/api/algo/markets':
+            # Market regime data is public - no auth required (market conditions are not sensitive)
             return _get_markets(cur)
         elif path == '/api/algo/evaluate':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo evaluate access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_algo_evaluate(cur)
         elif path == '/api/algo/data-quality':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo data-quality access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_data_quality(cur)
         elif path == '/api/algo/exposure-policy':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo exposure-policy access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_exposure_policy(cur)
         elif path == '/api/algo/sector-stage2':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo sector-stage2 access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_sector_stage2(cur)
         elif path == '/api/algo/config':
             if not _check_admin_access(jwt_claims):
@@ -188,6 +213,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             key = path[len('/api/algo/config/'):]
             return _get_algo_config_key(cur, key)
         elif path == '/api/algo/last-run':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo last-run access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_last_run(cur)
         elif path == '/api/algo/audit-log':
             if not _check_admin_access(jwt_claims):
@@ -780,8 +808,11 @@ def _get_data_status(cur) -> Dict:
             logger.error(f'Unexpected error (data status): {e}', extra={'operation': 'fetch data status', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch data status')
 
-def _get_notifications(cur, params: Dict = None) -> Dict:
-        """Get recent notifications with optional filtering."""
+def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dict:
+        """Get recent notifications with optional filtering.
+
+        Admin users see all notifications. Non-admin users see only their own.
+        """
         try:
             params = params or {}
             kind = params.get('kind', [None])[0] if params.get('kind') else None
@@ -801,6 +832,16 @@ def _get_notifications(cur, params: Dict = None) -> Dict:
 
             where_clauses = []
             where_params = []
+
+            # SECURITY FIX C-NEW-01: Scope notifications to the requesting user unless admin.
+            # Without this, any authenticated user could read all users' notifications.
+            is_admin = _check_admin_access(jwt_claims)
+            if not is_admin:
+                user_id = (jwt_claims or {}).get('sub', '')
+                if not user_id:
+                    return error_response(401, 'unauthorized', 'Authentication required')
+                where_clauses.append("user_id = %s")
+                where_params.append(user_id)
 
             if kind:
                 where_clauses.append("kind = %s")

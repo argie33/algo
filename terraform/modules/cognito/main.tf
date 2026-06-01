@@ -13,11 +13,17 @@ resource "aws_cognito_user_pool" "stocks_trading" {
     require_symbols   = true
   }
 
-  # MFA is optional for development. Set to "ON" for production.
-  mfa_configuration = "OPTIONAL"
+  mfa_configuration = var.mfa_configuration
 
   software_token_mfa_configuration {
     enabled = true
+  }
+
+  dynamic "user_pool_add_ons" {
+    for_each = var.advanced_security_mode != "OFF" ? [1] : []
+    content {
+      advanced_security_mode = var.advanced_security_mode
+    }
   }
 
   # Email verification
@@ -133,6 +139,23 @@ resource "aws_cognito_user" "test_user" {
 
 # Note: Test user password should be set manually via AWS console or AWS CLI
 # Example: aws cognito-idp admin-set-user-password --user-pool-id <id> --username testuser --password "TestPassword123!" --permanent
+
+# Admin group — grants access to all admin-gated API endpoints
+resource "aws_cognito_user_pool_group" "admin" {
+  name         = "admin"
+  user_pool_id = aws_cognito_user_pool.stocks_trading.id
+  description  = "Full access to admin-gated algo dashboard and trading endpoints"
+}
+
+# Add primary user to admin group
+resource "aws_cognito_user_in_group" "primary_admin" {
+  count        = var.cognito_test_user_email != "" ? 1 : 0
+  user_pool_id = aws_cognito_user_pool.stocks_trading.id
+  group_name   = aws_cognito_user_pool_group.admin.name
+  username     = var.cognito_test_user_email
+
+  depends_on = [aws_cognito_user.test_user, aws_cognito_user_pool_group.admin]
+}
 
 # ============================================================
 # Cognito Custom Message Lambda (sends emails via SES)
