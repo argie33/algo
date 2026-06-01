@@ -64,7 +64,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
-      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -88,7 +88,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
-      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -136,7 +136,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
-      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -162,7 +162,7 @@ jobs:
           - 'tests/unit/test_filter_pipeline.py'
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
-      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -184,7 +184,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
-      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -207,7 +207,7 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
-      - uses: actions/setup-python@0b93645e9adb9ea7654cd5b3b5e474d3837c4398  # v5.3.0
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
