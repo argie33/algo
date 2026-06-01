@@ -23,14 +23,22 @@ __all__ = ['DatabaseContext', 'database_transaction']
 class DatabaseContext:
     """Thread-safe database context with automatic resource cleanup.
 
+    For role='write': automatically commits on success, rolls back on exception.
+    For role='read': no commit (read-only).
+
     Usage:
         with DatabaseContext('read') as cur:
             cur.execute("SELECT * FROM table")
             rows = cur.fetchall()
         # Connection automatically closed
+
+        with DatabaseContext('write') as cur:
+            cur.execute("INSERT INTO table VALUES ...")
+            # Auto-commits on exit if no exception
+        # Connection automatically closed
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=DictCursor):
+    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=RealDictCursor):
         """Initialize context.
 
         Args:
@@ -75,10 +83,14 @@ class DatabaseContext:
 def database_transaction(role: str = 'write', timeout: int = 10):
     """Context manager for transactional database operations.
 
+    WARNING: Unlike DatabaseContext, this does NOT auto-commit on exit.
+    The caller MUST explicitly call cur.connection.commit() to persist changes.
+    On exception, changes are automatically rolled back.
+
     Usage:
         with database_transaction() as cur:
             cur.execute("INSERT INTO table VALUES ...")
-            cur.connection.commit()  # Explicit commit for clarity
+            cur.connection.commit()  # Explicit commit REQUIRED
         # On exit: closes connection, rolls back if exception occurred
     """
     conn = None

@@ -36,6 +36,12 @@ class TrackedConnection:
     def __getattr__(self, name):
         return getattr(self._conn, name)
 
+    def __enter__(self):
+        return self._conn.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._conn.__exit__(exc_type, exc_val, exc_tb)
+
     def close(self):
         on_disconnect()
         return self._conn.close()
