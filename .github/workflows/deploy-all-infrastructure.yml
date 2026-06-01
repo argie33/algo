@@ -519,6 +519,7 @@ jobs:
           fi
 
       - name: Terraform Plan
+        id: tf_plan
         run: |
           terraform plan \
             -var-file=terraform.tfvars \
@@ -527,9 +528,19 @@ jobs:
             -detailed-exitcode || EXIT=$?
           # exit 0 = no changes, 2 = changes, other = error
           if [ "${EXIT:-0}" -eq 1 ]; then exit 1; fi
+          if [ "${EXIT:-0}" -eq 0 ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Terraform Apply
+        if: steps.tf_plan.outputs.has_changes == 'true'
         run: terraform apply -auto-approve tfplan
+
+      - name: Skip Terraform Apply (No Changes)
+        if: steps.tf_plan.outputs.has_changes == 'false'
+        run: echo "[OK] No infrastructure changes detected — skipping terraform apply"
 
       # NOTE: RDS credentials are fully managed by IaC (Terraform).
       # random_password.rds_master generates once, stored in state, then synced to Secrets Manager.

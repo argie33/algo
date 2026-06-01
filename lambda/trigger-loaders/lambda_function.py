@@ -64,7 +64,7 @@ def lambda_handler(event, context):
                     'securityGroups': [os.getenv('SECURITY_GROUP_ID', '')],
                     'assignPublicIp': 'DISABLED'
                 }
-            } if use_fargate else None,
+            },
             count=task_count,
             capacityProviderStrategy=[{
                 'capacityProvider': 'FARGATE_SPOT',

@@ -22,13 +22,19 @@ if not __file__.startswith('/var/task'):
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 IMPORT_ERROR = None
+ENV_VALIDATION_ERROR = None
+DB_CONNECTION_ERROR = None
+_JWKS_CACHE = {}
+_JWKS_CACHE_TIME = None
+_ALLOWED_ORIGINS_CACHE = None
+_COGNITO_ENABLED = None  # Determined at module load
 
 try:
     import psycopg2
     import psycopg2.sql
     from psycopg2.extras import RealDictCursor
     import base64
-    from datetime import datetime
+    from datetime import datetime, timedelta, timezone
     from functools import lru_cache
     import jwt
     import requests
@@ -192,11 +198,16 @@ def parse_query_params(event: Dict) -> Dict:
     return params
 
 def _build_allowed_origins() -> set:
-    """Build allowed origins from environment variables.
+    """Build allowed origins from environment variables (cached at module load).
 
     SECURITY FIX: Explicitly configure all allowed origins; no wildcard matching.
     Dev mode origins (localhost) only allowed if ALLOW_LOCALHOST_CORS=true
     """
+    global _ALLOWED_ORIGINS_CACHE
+
+    if _ALLOWED_ORIGINS_CACHE is not None:
+        return _ALLOWED_ORIGINS_CACHE
+
     origins = set()
 
     # FRONTEND_URL is required in production (must be set explicitly)
@@ -218,6 +229,7 @@ def _build_allowed_origins() -> set:
         origins.add('http://localhost:5173')  # Vite default
         origins.add('http://localhost:3000')  # React dev default
 
+    _ALLOWED_ORIGINS_CACHE = origins
     return origins
 
 def get_cors_headers(event: Dict) -> Dict[str, str]:
@@ -263,8 +275,6 @@ def get_security_headers() -> Dict[str, str]:
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
         'Content-Security-Policy': f"default-src 'self'; img-src 'self' data: https:; connect-src 'self' {allowed_origins_list}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
-        # Add SameSite cookie for CSRF protection
-        'Set-Cookie': 'SameSite=Strict; Secure; HttpOnly',
     }
 
 def get_cache_headers(cache_type: str = 'no-cache') -> Dict[str, str]:
@@ -314,9 +324,10 @@ def get_bearer_token(event: Dict) -> Optional[str]:
 
     return auth_header[7:]  # Remove 'Bearer ' prefix
 
-@lru_cache(maxsize=1)
 def _get_cognito_jwks():
-    """Fetch and cache Cognito JWKS (JSON Web Key Set) - cached for 1 hour."""
+    """Fetch and cache Cognito JWKS (JSON Web Key Set) - cached for 1 hour with TTL."""
+    global _JWKS_CACHE, _JWKS_CACHE_TIME
+
     cognito_region = os.getenv('COGNITO_REGION', 'us-east-1')
     cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
 
@@ -324,11 +335,19 @@ def _get_cognito_jwks():
         logger.warning("COGNITO_USER_POOL_ID not set - JWT signature verification disabled")
         return None
 
+    now = datetime.now(timezone.utc)
+    cache_ttl = timedelta(hours=1)
+
+    if _JWKS_CACHE and _JWKS_CACHE_TIME and (now - _JWKS_CACHE_TIME) < cache_ttl:
+        return _JWKS_CACHE
+
     try:
         url = f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}/.well-known/jwks.json"
         response = requests.get(url, timeout=5)
         response.raise_for_status()
-        return response.json()
+        _JWKS_CACHE = response.json()
+        _JWKS_CACHE_TIME = now
+        return _JWKS_CACHE
     except Exception as e:
         logger.error(f"Failed to fetch Cognito JWKS: {e}")
         return None
@@ -516,6 +535,11 @@ def require_auth(event: Dict, path: str) -> tuple:
         return (False, True, None, None)  # Non-API paths don't need auth
 
     # This is an /api path that requires auth
+    # If Cognito is not enabled, allow auth to be optional for development
+    if not _COGNITO_ENABLED:
+        logger.warning(f"[AUTH] Cognito not configured - allowing unauthenticated access to {path}")
+        return (True, True, None, {})  # Require auth but automatically pass if no Cognito
+
     token = get_bearer_token(event)
 
     if not token:
@@ -527,6 +551,26 @@ def require_auth(event: Dict, path: str) -> tuple:
 
     # Token is valid - return claims for routing
     return (True, True, None, claims)
+
+# Module-level initialization: Run validation, DB test, and pre-cache values once at cold start
+if not IMPORT_ERROR:
+    env_valid, env_errors = validate_environment()
+    if not env_valid:
+        ENV_VALIDATION_ERROR = '; '.join(env_errors)
+        logger.error(f'[MODULE_INIT_ENV_VALIDATION_FAILED] {ENV_VALIDATION_ERROR}')
+
+    db_test_ok, db_test_error = test_db_connection()
+    if not db_test_ok:
+        DB_CONNECTION_ERROR = db_test_error
+        logger.error(f'[MODULE_INIT_DB_TEST_FAILED] {DB_CONNECTION_ERROR}')
+
+    # Determine if Cognito authentication is enabled
+    _COGNITO_ENABLED = bool(os.getenv('COGNITO_USER_POOL_ID'))
+    if not _COGNITO_ENABLED:
+        logger.warning("[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled")
+
+    # Pre-cache allowed origins at module load to avoid building on every request
+    _build_allowed_origins()
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
@@ -574,24 +618,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'service_unavailable', 'message': 'Service temporarily unavailable'})
         }
 
-    # Validate critical environment variables (non-health requests only)
-    env_valid, env_errors = validate_environment()
-    if not env_valid:
-        error_msg = '; '.join(env_errors)
-        logger.error(f'[ENV_VALIDATION_FAILED] {error_msg}')
+    # Environment validation and DB test are now run once at module load (not on every request)
+    # This check ensures that if there were initialization errors, we return them
+    if ENV_VALIDATION_ERROR:
         cors_headers = get_cors_headers(event)
-        # SECURITY FIX: Don't expose which env vars are missing (info disclosure)
+        logger.error(f'[ENV_VALIDATION_FAILED] {ENV_VALIDATION_ERROR}')
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'configuration_error', 'message': 'Service configuration incomplete'})
         }
 
-    # Test database connection (non-health requests only)
-    db_test_ok, db_test_error = test_db_connection()
-    if not db_test_ok:
-        logger.error(f'[DB_VALIDATION_FAILED] {db_test_error}')
+    if DB_CONNECTION_ERROR:
         cors_headers = get_cors_headers(event)
+        logger.error(f'[DB_VALIDATION_FAILED] {DB_CONNECTION_ERROR}')
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},

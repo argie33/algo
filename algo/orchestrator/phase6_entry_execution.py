@@ -200,15 +200,30 @@ def _validate_pre_trade_data_quality(
                 result = cur.fetchone()
                 count = result[0] if result else 0
                 if count == 0:
-                    # Allow fallback to yesterday's data if today's not available (for market hours lag)
+                    # Fall back to most recent available date (handles weekend/holiday gaps)
                     cur.execute(
                         f"SELECT date FROM {table} WHERE date <= %s ORDER BY date DESC LIMIT 1",
                         (today,)
                     )
                     result = cur.fetchone()
                     latest = result[0] if result else None
-                    if latest and latest >= today - timedelta(days=1):
-                        logger.info(f"  [OK] {table}: Using data from {latest} (latest available)")
+                    if latest:
+                        # Use previous trading day as the staleness threshold (not calendar days)
+                        # Friday data on Monday is valid — markets were closed Sat/Sun.
+                        prev_trading_day = today - timedelta(days=1)
+                        try:
+                            from algo.algo_market_calendar import MarketCalendar
+                            for _ in range(7):
+                                if MarketCalendar.is_trading_day(prev_trading_day):
+                                    break
+                                prev_trading_day -= timedelta(days=1)
+                        except Exception:
+                            while prev_trading_day.weekday() >= 5:
+                                prev_trading_day -= timedelta(days=1)
+                        if latest >= prev_trading_day:
+                            logger.info(f"  [OK] {table}: Using data from {latest} (prev trading day: {prev_trading_day})")
+                        else:
+                            issues.append(f"{description} missing for {today} (latest: {latest}, expected >= {prev_trading_day})")
                     else:
                         issues.append(f"{description} missing for {today}")
                 else:
@@ -277,10 +292,10 @@ def _validate_pre_trade_data_quality(
                     else:
                         db_ts = raw
                         age_hours = (datetime.utcnow() - db_ts).total_seconds() / 3600
-                    if age_hours > 24:
-                        issues.append(f"Price data too stale: {age_hours:.1f} hours old")
-                    elif age_hours > 1:
-                        warnings.append(f"Price data is {age_hours:.1f} hours old")
+                    if age_hours > 72:
+                        issues.append(f"Price data too stale: {age_hours:.1f} hours old (>72h)")
+                    elif age_hours > 24:
+                        warnings.append(f"Price data is {age_hours:.1f} hours old (weekend OK)")
                 else:
                     # Data exists but created_at is missing (not critical)
                     logger.debug(f"  [WARN] Price data exists but created_at is not set for {price_check_date}")

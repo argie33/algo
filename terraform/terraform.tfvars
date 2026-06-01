@@ -32,7 +32,7 @@ enable_premarket_orchestrator = false                       # Disabled: not duri
 enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
-cognito_enabled               = false                       # COST OPTIMIZED: Disabled. Not used on any routes. Saves ~$1/month.
+cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
 cognito_test_user_email       = "argeropolos@gmail.com"      # Primary user — created by Terraform with temp password, set permanent via CLI after deploy
 
 # Database configuration
@@ -105,7 +105,7 @@ alert_smtp_from     = "argeropolos@gmail.com" # From email address for alerts
 # COST OPTIMIZATION: Storage & Database
 # ============================================================
 enable_s3_versioning = false # COST OPTIMIZED: S3 versioning disabled. Saves ~$5-10/month on storage. Not needed for dev.
-rds_multi_az = false  # COST OPTIMIZED: Single-AZ for dev. Saves ~$15/month. No standby replica needed.
+rds_multi_az = true   # REQUIRED: Production failover protection. DB failover = 60-120s outage; 9:30 AM orchestrator is critical.
 
 # ============================================================
 # COST OPTIMIZATION: Logging & Observability

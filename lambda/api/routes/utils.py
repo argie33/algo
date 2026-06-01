@@ -1,6 +1,6 @@
 """Shared route utilities."""
 
-def safe_limit(limit_str, max_val=50000, default=500):
+def safe_limit(limit_str, max_val=5000, default=500):
     """Parse and validate limit parameter."""
     if not limit_str:
         return default

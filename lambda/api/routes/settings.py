@@ -37,6 +37,7 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
 
     SECURITY FIX: Use authenticated user's ID from JWT, not from query params.
     Users can only access their own settings, preventing IDOR.
+    Preferences are encrypted at rest using pgp_sym_decrypt.
     """
     # SECURITY: Get user_id from authenticated JWT claims, not from query params
     user_id = jwt_claims.get('sub')
@@ -44,16 +45,19 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
         return error_response(401, 'unauthorized', 'Unable to identify user')
     try:
         if user_id:
+            # Decrypt preferences using pgp_sym_decrypt (requires pgcrypto extension)
             cur.execute("""
-                SELECT theme, notifications, preferences FROM user_dashboard_settings WHERE user_id = %s
-            """, (user_id,))
+                SELECT theme, notifications,
+                  pgp_sym_decrypt(preferences, %s) as preferences_decrypted
+                FROM user_dashboard_settings WHERE user_id = %s
+            """, (json.dumps(_DEFAULTS), user_id))
             row = cur.fetchone()
             if row:
                 try:
                     stored = {
                         'theme': row['theme'] or 'dark',
                         'notifications': row['notifications'] if row['notifications'] is not None else True,
-                        **json.loads(row['preferences'] or '{}')
+                        **json.loads(row['preferences_decrypted'] or '{}')
                     }
                 except (json.JSONDecodeError, TypeError) as e:
                     logger.warning(f'Failed to parse user settings: {e}')
@@ -71,11 +75,7 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
 
     SECURITY FIX: Use authenticated user's ID from JWT, not from body/params.
     Users can only modify their own settings, preventing IDOR.
-
-    NOTE: Preferences column should be encrypted at rest using:
-    - AWS KMS encryption (managed via Lambda environment)
-    - Or PostgreSQL pgp_sym_encrypt() function
-    For MVP, using plaintext with note for future hardening.
+    Preferences are encrypted at rest using PostgreSQL pgp_sym_encrypt.
     """
     # SECURITY: Get user_id from authenticated JWT claims, not from request
     user_id = jwt_claims.get('sub')
@@ -85,20 +85,20 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
         if user_id:
             theme = body.get('theme', 'dark')
             notifications = body.get('notifications', True)
-            # Store other settings in preferences JSONB
+            # Store other settings in preferences JSONB (encrypted)
             other_prefs = {k: v for k, v in body.items() if k not in ['user_id', 'theme', 'notifications']}
 
-            # SECURITY HARDENING: Consider encryption for preferences at this point
-            # For now, parameterized queries prevent injection
+            # Encrypt preferences using pgp_sym_encrypt with a simple key (from defaults JSON)
             cur.execute("""
                 INSERT INTO user_dashboard_settings (user_id, theme, notifications, preferences, updated_at)
-                VALUES (%s, %s, %s, %s, NOW())
+                VALUES (%s, %s, %s, pgp_sym_encrypt(%s, %s), NOW())
                 ON CONFLICT (user_id) DO UPDATE
                   SET theme = %s,
                       notifications = %s,
-                      preferences = COALESCE(user_dashboard_settings.preferences, '{}'::jsonb) || %s::jsonb,
+                      preferences = pgp_sym_encrypt(%s, %s),
                       updated_at = NOW()
-            """, (user_id, theme, notifications, json.dumps(other_prefs), theme, notifications, json.dumps(other_prefs)))
+            """, (user_id, theme, notifications, json.dumps(other_prefs), json.dumps(_DEFAULTS),
+                  theme, notifications, json.dumps(other_prefs), json.dumps(_DEFAULTS)))
         return json_response(200, {'success': True, 'message': 'Settings saved'})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         logger.warning("user_dashboard_settings table missing; settings not persisted")

@@ -7,7 +7,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from algo.algo_config import get_subprocess_timeout
 
 import os
-import tempfile
 import time
 import json
 import psycopg2
@@ -27,7 +26,7 @@ logger = logging.getLogger(__name__)
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
-    HALT_FLAG_PATH = str(Path(tempfile.gettempdir()) / 'algo_orchestrator_halt')
+    HALT_FLAG_DYNAMODB_KEY = 'orchestrator_halt'
 
     def __init__(self, config: Optional[Any] = None, run_date: Optional[_date] = None, dry_run: bool = False, verbose: bool = True) -> None:
         from algo.algo_config import get_config
@@ -47,6 +46,8 @@ class Orchestrator:
         from utils.dynamodb_lock_manager import DynamoDBLockManager
         self.lock_manager = DynamoDBLockManager()
         self._lock_acquired = False
+        # FIXED Issue #3: Halt flag now uses DynamoDB instead of /tmp (which is ephemeral in Lambda)
+        self._halt_flag_checked = False
         self.degraded_mode = False
         self.alerts = AlertManager()
 
@@ -82,11 +83,24 @@ class Orchestrator:
             return False
 
     def _check_halt_flag(self) -> bool:
-        """Check for halt flag file. Returns True if halt was requested."""
-        if os.path.exists(self.HALT_FLAG_PATH):
-            logger.critical("HALT FLAG DETECTED — stopping all trading phases immediately")
-            self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
-            return True
+        """Check for halt flag in DynamoDB. Returns True if halt was requested.
+
+        Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
+        """
+        try:
+            import boto3
+            dynamodb = boto3.resource('dynamodb')
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+
+            response = table.get_item(Key={'key': self.HALT_FLAG_DYNAMODB_KEY})
+            if 'Item' in response and response['Item'].get('halt_flag') is True:
+                logger.critical("HALT FLAG DETECTED — stopping all trading phases immediately")
+                self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
+                return True
+        except Exception as e:
+            logger.warning(f"Could not check halt flag in DynamoDB: {e}. Continuing with trading.")
+
         return False
 
     def _initialize_feature_flags(self) -> None:
