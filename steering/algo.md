@@ -7,7 +7,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | Component | Code | Deployment | Trigger |
 |-----------|------|------------|---------|
 | Orchestrator | `algo/algo_orchestrator.py` | Lambda algo-algo-dev | EventBridge: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET Mon-Fri |
-| Loaders (37) | `loaders/load_*.py` | ECS Fargate | EventBridge + Step Functions EOD pipeline |
+| Loaders (37 total: 9 core + 28 supporting) | `loaders/load_*.py` | ECS Fargate | 9 core via Step Functions EOD pipeline (4:30 AM ET), 28 supporting via EventBridge schedules |
 | API | `lambda/api/lambda_function.py` | Lambda algo-api-dev | HTTP requests |
 | Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
 | Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
@@ -39,7 +39,11 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 - 4:30 AM ET: step functions EOD pipeline (9 core loaders)
 - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
 
-**Loaders:** 37 total (9 core, 28 supporting). See code for details.
+**Loaders:** 37 total (9 core via Step Functions, 28 supporting via EventBridge). Core loaders: stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily, trend_template_data, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores.
+
+## Infrastructure Constraints
+
+**CloudFront Domain Hardcoding:** `d2u93283nn45h2.cloudfront.net` is hardcoded in `terraform.tfvars` (frontend_origin, api_cors_allowed_origins). If the CloudFront distribution is ever recreated, the domain will change and CORS will break silently. Terraform cannot reference CloudFront domain in API Gateway CORS config (circular dependency: API GW CORS → CF domain → CF origin → API GW endpoint). **Workaround:** Update `terraform.tfvars` manually if CloudFront distribution is recreated. Document the new domain and update both references.
 
 ## Known Limitations (Blocking Live Capital)
 
