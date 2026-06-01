@@ -341,13 +341,21 @@ function RegimeBanner({ markets }) {
 // 2. INDICES STRIP
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+const INDEX_SEEDS = [
+  { symbol: 'SPY', name: 'S&P 500' },
+  { symbol: 'QQQ', name: 'Nasdaq 100' },
+  { symbol: 'IWM', name: 'Russell 2000' },
+  { symbol: 'DIA', name: 'Dow Jones' },
+];
+
 function IndicesStrip() {
-  const seeds = [
-    { symbol: 'SPY', name: 'S&P 500' },
-    { symbol: 'QQQ', name: 'Nasdaq 100' },
-    { symbol: 'IWM', name: 'Russell 2000' },
-    { symbol: 'DIA', name: 'Dow Jones' },
-  ];
+  const symbols = INDEX_SEEDS.map(s => s.symbol).join(',');
+  const { data: batchData } = useApiQuery(
+    ['index-batch-history'],
+    () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=30`),
+    { staleTime: 60000 }
+  );
+  const symbolMap = batchData?.symbols || {};
   return (
     <div className="card card-pad" style={{ marginTop: 'var(--space-4)' }}>
       <div className="sect-head">
@@ -355,21 +363,16 @@ function IndicesStrip() {
         <div className="sect-sub">Last close · Daily change · 30-day trend</div>
       </div>
       <div className="grid grid-4">
-        {seeds.map(idx => <IndexCell key={idx.symbol} idx={idx} />)}
+        {INDEX_SEEDS.map(idx => <IndexCell key={idx.symbol} idx={idx} prices={symbolMap[idx.symbol] || []} />)}
       </div>
     </div>
   );
 }
 
-function IndexCell({ idx }) {
-  const { data } = useApiQuery(
-    ['index-history', idx.symbol],
-    () => api.get(`/api/prices/history/${idx.symbol}?timeframe=daily&limit=30`),
-    { staleTime: 60000 }
-  );
-  let prices = Array.isArray(data) ? data : (data?.items || []);
+function IndexCell({ idx, prices = [] }) {
+  const priceRows = Array.isArray(prices) ? prices : [];
   // prices are DESC (newest first); take latest 30 and reverse for chart display
-  const seriesDesc = prices.slice(0, 30).map(p => ({
+  const seriesDesc = priceRows.slice(0, 30).map(p => ({
     date: p.date, close: parseFloat(p.close || p.adj_close),
   }));
   const series = [...seriesDesc].reverse(); // ascending for the sparkline chart
@@ -1030,14 +1033,8 @@ const SECTOR_ETFS = [
   { etf: 'XLB', name: 'Materials',            weight: 2  },
 ];
 
-function SectorTile({ etf, name, weight, onSelect }) {
-  const { data } = useApiQuery(
-    ['sector-tile', etf],
-    () => api.get(`/api/prices/history/${etf}?timeframe=daily&limit=2`),
-    { staleTime: 30000, refetchInterval: 60000 }
-  );
-  const prices = Array.isArray(data) ? data : (data?.items || []);
-  const series = prices;
+function SectorTile({ etf, name, weight, onSelect, prices = [] }) {
+  const series = Array.isArray(prices) ? prices : [];
   const last = series[0]?.close ?? series[series.length - 1]?.close;
   const prev = series[1]?.close ?? series[series.length - 2]?.close;
   const lastN = last != null ? parseFloat(last) : null;
@@ -1091,6 +1088,13 @@ function SectorTile({ etf, name, weight, onSelect }) {
 }
 
 function SectorHeatMap({ onSelect }) {
+  const etfSymbols = SECTOR_ETFS.map(s => s.etf).join(',');
+  const { data: batchData } = useApiQuery(
+    ['sector-batch-history'],
+    () => api.get(`/api/prices/batch-history?symbols=${etfSymbols}&timeframe=daily&limit=2`),
+    { staleTime: 30000, refetchInterval: 60000 }
+  );
+  const symbolMap = batchData?.symbols || {};
   return (
     <div className="card">
       <div className="card-head">
@@ -1106,7 +1110,7 @@ function SectorHeatMap({ onSelect }) {
           gap: 'var(--space-2)',
         }}>
           {SECTOR_ETFS.map(s => (
-            <SectorTile key={s.etf} etf={s.etf} name={s.name} weight={s.weight} onSelect={onSelect} />
+            <SectorTile key={s.etf} etf={s.etf} name={s.name} weight={s.weight} onSelect={onSelect} prices={symbolMap[s.etf] || []} />
           ))}
         </div>
       </div>
@@ -1418,36 +1422,32 @@ function YieldCurveCard() {
 // 16. VOLATILITY TERM STRUCTURE
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function useTermPoint(sym) {
-  const { data } = useApiQuery(
-    ['vix-term', sym],
-    async () => {
-      try {
-        return await api.get(`/api/prices/history/${encodeURIComponent(sym)}?timeframe=daily&limit=2`);
-      } catch {
-        return { data: { items: [] } };
-      }
-    },
-    { staleTime: 60000, refetchInterval: 60000 }
-  );
-  const prices = Array.isArray(data) ? data : (data?.items || []);
-  const series = prices;
-  const last = series[0]?.close ?? series[series.length - 1]?.close;
-  return last != null ? parseFloat(last) : null;
-}
+const VIX_TERM_SYMBOLS = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M'];
+const VIX_TERM_META = [
+  { sym: '^VIX9D', label: 'VIX9D', days: 9 },
+  { sym: '^VIX',   label: 'VIX',   days: 30 },
+  { sym: '^VIX3M', label: 'VIX3M', days: 90 },
+  { sym: '^VIX6M', label: 'VIX6M', days: 180 },
+];
 
 function VolTermStructureCard() {
-  const v9d = useTermPoint('^VIX9D');
-  const vix = useTermPoint('^VIX');
-  const v3m = useTermPoint('^VIX3M');
-  const v6m = useTermPoint('^VIX6M');
+  const symbols = VIX_TERM_SYMBOLS.join(',');
+  const { data: batchData } = useApiQuery(
+    ['vix-batch-history'],
+    () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=2`),
+    { staleTime: 60000, refetchInterval: 60000 }
+  );
+  const symbolMap = batchData?.symbols || {};
 
-  const points = [
-    { label: 'VIX9D', days: 9,   value: v9d },
-    { label: 'VIX',   days: 30,  value: vix },
-    { label: 'VIX3M', days: 90,  value: v3m },
-    { label: 'VIX6M', days: 180, value: v6m },
-  ].filter(p => p.value != null);
+  const getLastClose = (sym) => {
+    const series = symbolMap[sym] || [];
+    const last = series[0]?.close ?? series[series.length - 1]?.close;
+    return last != null ? parseFloat(last) : null;
+  };
+
+  const points = VIX_TERM_META
+    .map(m => ({ ...m, value: getLastClose(m.sym) }))
+    .filter(p => p.value != null);
 
   if (points.length < 2) return <Empty title="Vol Term Structure" desc="VIX term structure data not loaded (^VIX9D / ^VIX3M / ^VIX6M)" wrap />;
 

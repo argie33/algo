@@ -522,6 +522,12 @@ variable "cognito_session_duration_hours" {
   default     = 24
 }
 
+variable "cognito_custom_email_enabled" {
+  description = "Enable custom message Lambda for Cognito emails (requires SES production access). See steering/algo.md for setup."
+  type        = bool
+  default     = false
+}
+
 # ============================================================
 # Algo Orchestrator Configuration
 # ============================================================

@@ -36,7 +36,14 @@ resource "aws_cognito_user_pool" "stocks_trading" {
     }
   }
 
+  # Custom message Lambda trigger for professional emails
+  lambda_config {
+    custom_message = var.cognito_custom_email_enabled ? try(aws_lambda_function.cognito_email_trigger[0].arn, null) : null
+  }
+
   tags = var.common_tags
+
+  depends_on = var.cognito_custom_email_enabled ? [aws_lambda_permission.cognito_invoke_email_lambda] : []
 }
 
 # User Pool Client for Web App (React/Vite frontend)
@@ -133,6 +140,106 @@ resource "aws_cognito_user" "test_user" {
 
 # Note: Test user password should be set manually via AWS console or AWS CLI
 # Example: aws cognito-idp admin-set-user-password --user-pool-id <id> --username testuser --password "TestPassword123!" --permanent
+
+# ============================================================
+# Cognito Custom Message Lambda (sends emails via SES)
+# ============================================================
+
+# IAM role for Lambda to call SES
+resource "aws_iam_role" "cognito_email_lambda_role" {
+  count = var.cognito_custom_email_enabled ? 1 : 0
+  name  = "${var.project_name}-cognito-email-lambda-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = var.common_tags
+}
+
+# Policy for Lambda to write CloudWatch logs
+resource "aws_iam_role_policy" "cognito_email_lambda_logs" {
+  count = var.cognito_custom_email_enabled ? 1 : 0
+  name  = "${var.project_name}-cognito-email-lambda-logs-${var.environment}"
+  role  = aws_iam_role.cognito_email_lambda_role[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
+# Policy for Lambda to send email via SES
+resource "aws_iam_role_policy" "cognito_email_lambda_ses" {
+  count = var.cognito_custom_email_enabled ? 1 : 0
+  name  = "${var.project_name}-cognito-email-lambda-ses-${var.environment}"
+  role  = aws_iam_role.cognito_email_lambda_role[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ses:SendEmail",
+          "ses:SendRawEmail"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Lambda function for Cognito custom messages
+resource "aws_lambda_function" "cognito_email_trigger" {
+  count            = var.cognito_custom_email_enabled ? 1 : 0
+  filename         = data.archive_file.cognito_email_lambda[0].output_path
+  function_name    = "${var.project_name}-cognito-email-trigger-${var.environment}"
+  role             = aws_iam_role.cognito_email_lambda_role[0].arn
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  source_code_hash = data.archive_file.cognito_email_lambda[0].output_base64sha256
+  timeout          = 30
+
+  tags = var.common_tags
+}
+
+# Package Lambda code
+data "archive_file" "cognito_email_lambda" {
+  count       = var.cognito_custom_email_enabled ? 1 : 0
+  type        = "zip"
+  source_file = "${path.module}/../../lambda/cognito-email-trigger/lambda_function.py"
+  output_path = "${path.module}/../../lambda/cognito-email-trigger/lambda_function.zip"
+}
+
+# Permission for Cognito to invoke Lambda
+resource "aws_lambda_permission" "cognito_invoke_email_lambda" {
+  count         = var.cognito_custom_email_enabled ? 1 : 0
+  statement_id  = "AllowCognitoInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.cognito_email_trigger[0].function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.stocks_trading.arn
+}
 
 # Data source for current AWS account
 data "aws_caller_identity" "current" {}

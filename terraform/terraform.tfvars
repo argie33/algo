@@ -35,13 +35,17 @@ enable_premarket_orchestrator = false                       # Disabled: not duri
 enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
-cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
-cognito_test_user_email       = "argeropolos@gmail.com"      # Primary user — created by Terraform with temp password, set permanent via CLI after deploy
+cognito_enabled                  = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
+cognito_test_user_email          = "argeropolos@gmail.com"      # Primary user — created by Terraform with temp password, set permanent via CLI after deploy
+cognito_custom_email_enabled     = true                        # Cognito custom message Lambda for professional emails via SES
 
 # Database configuration
 rds_instance_class = "db.t4g.micro" # COST OPTIMIZED: Graviton t4g.micro ($8-12/month) vs t3.medium ($60/month). RDS Proxy handles connection pooling.
 enable_rds_proxy = true # ENABLED: Required to prevent connection saturation OOM crashes on t4g.micro (4 loaders stuck → 4 OOM crashes 2026-06-01). $11/month is worth the stability.
 dev_mode = false # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
+
+# Data Freshness Monitoring (F-02 CRITICAL: Must be enabled for live trading)
+enable_data_freshness_monitoring = true # Monitor loader data freshness and alert if stale before 9:30 AM trading window
 
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode                  = "auto"
@@ -51,7 +55,7 @@ data_patrol_enabled             = true
 data_patrol_timeout_ms          = 30000
 alpaca_paper_trading            = false  # LIVE trading mode
 api_lambda_timeout              = 300
-api_lambda_reserved_concurrency = 10   # Supports concurrent dashboard requests (MarketsHealth makes 5+ simultaneous calls). Prevents 503 throttle errors.
+api_lambda_reserved_concurrency = 30   # MarketsHealth fires 26 concurrent calls on load (4 indices + 11 sector tiles + 4 VIX + 5 main + 2 extras). 30 covers peak burst with headroom.
 algo_lambda_timeout = 600
 # COST OPTIMIZED: Removed reserved concurrency for both Lambdas. Saves $170+/month. On-demand pricing is cheaper unless you have sustained high traffic.
 # Worst case: cold start delays (15-40s) on first request of the day. Acceptable for trading system with predictable schedules.
@@ -95,6 +99,7 @@ developer_key_rotation_date = "2026-05-29"
 #
 sns_alerts_enabled = true                    # Enable SNS topic for infrastructure alerts (Step Functions, RDS, CloudWatch)
 sns_alert_email    = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
+alert_email_address = "argeropolos@gmail.com" # Email for circuit breaker alerts (SNS topic subscription)
 alert_email_to     = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
 alert_webhook_url  = ""  # Leave blank (using email alerts)
 # SMTP configuration for email alerts (set all)

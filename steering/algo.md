@@ -126,9 +126,46 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - `terraform/main.tf`: infrastructure as code
 - `lambda/db-init/schema.sql`: database schema (3031 lines)
 
+## Authentication & Email
+
+**Cognito User Pool:** `algo-pool-dev` (us-east-1). Primary user: argeropolos@gmail.com (confirmed).
+
+**Password Reset & Sign-Up Flow:**
+- Currently disabled: AWS SES in sandbox mode. Can only send to pre-verified emails. Password reset codes do NOT arrive for new users.
+- **Enable production email:** 3-step setup required.
+
+**Setup: Professional Email for Password Resets (Production)**
+
+1. **Request SES production access** (one-time, ~24 hours):
+   ```bash
+   # AWS console: SES → Account Dashboard → Request Production Access
+   # Reason: "Trading platform authentication"
+   # After approval, SES can send to any email address
+   ```
+
+2. **Store SMTP credentials in Secrets Manager** (if using SMTP relay):
+   ```bash
+   aws secretsmanager create-secret --name algo/cognito-smtp \
+     --secret-string '{"host":"smtp.gmail.com","port":587,"user":"YOUR_EMAIL","password":"YOUR_APP_PASSWORD"}'
+   ```
+
+3. **Enable custom email Lambda**:
+   ```bash
+   # terraform/terraform.tfvars
+   cognito_custom_email_enabled = true
+   
+   # Deploy: triggers Lambda creation, wires into Cognito
+   terraform apply
+   ```
+
+**Architecture:** Cognito detects password reset → Lambda intercepts → SES sends via AWS infrastructure (99.9% deliverability, audit logs, no rate limits).
+
+**Test:** Reset password for argeropolos@gmail.com → code arrives in seconds.
+
 ## Live Trading Readiness
 
 - Authentication: ENABLED (cognito_enabled = true). Primary user: argeropolos@gmail.com.
+- Email: DISABLED (cognito_custom_email_enabled = false). See "Authentication & Email" section to enable.
 - RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
 - Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
 - Circuit breaker: NO intraday protection. Add CloudWatch alarm on portfolio variance before live capital.

@@ -43,6 +43,12 @@ variable "test_user_password" {
   sensitive   = true
 }
 
+variable "cognito_custom_email_enabled" {
+  description = "Enable custom message Lambda for Cognito emails (requires SES production access)"
+  type        = bool
+  default     = false
+}
+
 variable "common_tags" {
   description = "Common tags for all resources"
   type        = map(string)

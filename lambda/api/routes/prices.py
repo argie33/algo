@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict
 import logging
-from .utils import error_response, list_response, handle_db_error, safe_limit, check_data_freshness
+from .utils import error_response, list_response, json_response, handle_db_error, safe_limit, check_data_freshness
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,67 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 used_table = etf_table_name
             freshness = check_data_freshness(cur, used_table, 'date', warning_days=1)
             return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+
+        # /api/prices/batch-history?symbols=SPY,QQQ,IWM&limit=30&timeframe=daily
+        # Returns {symbols: {SYM: [{date, open, high, low, close, volume}, ...]}}
+        # Replaces N concurrent per-symbol calls with one batch query.
+        elif len(parts) >= 4 and parts[3] == 'batch-history':
+            symbols_raw = (params.get('symbols', [None])[0] if params else None) or ''
+            symbols = [s.strip().upper() for s in symbols_raw.split(',') if s.strip()]
+            if not symbols:
+                return error_response(400, 'bad_request', 'symbols parameter required')
+            if len(symbols) > 20:
+                return error_response(400, 'bad_request', 'maximum 20 symbols per batch')
+            for sym in symbols:
+                if not all(c.isalnum() or c in ('-', '.', '^') for c in sym):
+                    return error_response(400, 'bad_request', f'Invalid symbol: {sym}')
+
+            limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=252, default=30)
+            timeframe = (params.get('timeframe', [None])[0] if params else None) or 'daily'
+            table_name = _TABLE_MAP.get(timeframe, 'price_daily')
+            etf_table_name = _ETF_TABLE_MAP.get(timeframe, 'etf_price_daily')
+
+            result = {sym: [] for sym in symbols}
+
+            batch_query = psycopg2.sql.SQL("""
+                WITH ranked AS (
+                    SELECT symbol, date, open, high, low, close, volume,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                    FROM {}
+                    WHERE symbol = ANY(%s)
+                )
+                SELECT symbol, date, open, high, low, close, volume
+                FROM ranked
+                WHERE rn <= %s
+                ORDER BY symbol, date DESC
+            """).format(psycopg2.sql.Identifier(table_name))
+            cur.execute(batch_query, [symbols, limit])
+            found_symbols = set()
+            for row in cur.fetchall():
+                sym = row['symbol']
+                result[sym].append(dict(row))
+                found_symbols.add(sym)
+
+            missing = [s for s in symbols if s not in found_symbols]
+            if missing:
+                etf_query = psycopg2.sql.SQL("""
+                    WITH ranked AS (
+                        SELECT symbol, date, open, high, low, close, volume,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM {}
+                        WHERE symbol = ANY(%s)
+                    )
+                    SELECT symbol, date, open, high, low, close, volume
+                    FROM ranked
+                    WHERE rn <= %s
+                    ORDER BY symbol, date DESC
+                """).format(psycopg2.sql.Identifier(etf_table_name))
+                cur.execute(etf_query, [missing, limit])
+                for row in cur.fetchall():
+                    sym = row['symbol']
+                    result[sym].append(dict(row))
+
+            return json_response(200, {'symbols': result, 'limit': limit})
 
         return error_response(404, 'not_found', f'No prices handler for {path}')
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

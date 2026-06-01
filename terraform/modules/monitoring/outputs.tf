@@ -21,3 +21,8 @@ output "database_unhealthy_alarm_name" {
   description = "Composite alarm name for database health status"
   value       = length(aws_cloudwatch_composite_alarm.database_unhealthy) > 0 ? aws_cloudwatch_composite_alarm.database_unhealthy[0].alarm_name : null
 }
+
+output "circuit_breaker_sns_topic_arn" {
+  description = "ARN of SNS topic for circuit breaker alerts"
+  value       = aws_sns_topic.circuit_breaker_alerts.arn
+}

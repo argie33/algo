@@ -597,8 +597,10 @@ if not IMPORT_ERROR:
 
     db_test_ok, db_test_error = test_db_connection()
     if not db_test_ok:
-        DB_CONNECTION_ERROR = db_test_error
-        logger.error(f'[MODULE_INIT_DB_TEST_FAILED] {DB_CONNECTION_ERROR}')
+        # Log the error but do NOT set DB_CONNECTION_ERROR as a permanent flag.
+        # A transient DB blip during cold-start should not brick this instance for its lifetime.
+        # Each request will attempt its own connection via DatabaseContext and fail gracefully if needed.
+        logger.error(f'[MODULE_INIT_DB_TEST_FAILED] {db_test_error}')
 
     # Determine if Cognito authentication is enabled
     _COGNITO_ENABLED = bool(os.getenv('COGNITO_USER_POOL_ID'))
@@ -664,15 +666,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
             'body': json.dumps({'error': 'configuration_error', 'message': 'Service configuration incomplete'})
-        }
-
-    if DB_CONNECTION_ERROR:
-        cors_headers = get_cors_headers(event)
-        logger.error(f'[DB_VALIDATION_FAILED] {DB_CONNECTION_ERROR}')
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'error': 'database_error', 'message': 'Database connection unavailable'})
         }
 
     logger.info(f'[HANDLER_INVOKED] Event received: {path} {method}')
