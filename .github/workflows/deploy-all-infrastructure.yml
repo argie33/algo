@@ -249,20 +249,24 @@ jobs:
 
       - name: Build Shared Dependencies Lambda layer
         run: |
-          # Build shared dependencies layer (numpy, pandas, requests, etc.)
-          # Used by orchestrator Lambda for Phase 7 optimization, IC computation, VaR
+          # numpy + scipy only — pandas excluded to stay under Lambda's 69MB direct-upload limit.
+          # Correlation check in Tier 5 uses pandas but is wrapped in try/except (fail-open).
+          # Phase 7 IC/VaR/weight-optimization uses numpy+scipy — those are the critical deps.
           LAYER_DIR=/tmp/shared-deps-layer
           mkdir -p $LAYER_DIR/python
           python3.12 -m pip install \
             numpy==1.26.2 \
-            pandas==2.1.3 \
             scipy==1.11.4 \
             -t $LAYER_DIR/python \
             --platform manylinux2014_x86_64 --only-binary=:all: \
             --no-cache-dir --quiet
           mkdir -p $GITHUB_WORKSPACE/terraform/lambda
           cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip . -q
-          echo "[OK] Shared deps layer: $(du -sh $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip | cut -f1)"
+          SIZE=$(du -sh $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip | cut -f1)
+          echo "[OK] Shared deps layer (numpy+scipy): ${SIZE}"
+          # Verify under 69MB direct-upload limit
+          SIZE_BYTES=$(stat -c%s $GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip)
+          if [ $SIZE_BYTES -gt 69000000 ]; then echo "WARNING: layer ${SIZE} may exceed Lambda 69MB limit"; fi
 
       - name: Build db-init Lambda
         run: |
