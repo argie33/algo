@@ -247,13 +247,36 @@ jobs:
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
           unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
 
-      - name: Skip numpy/scipy Lambda layer (exceeds 69MB direct-upload limit)
+      - name: Build numpy/scipy Lambda layer
         run: |
-          # numpy+scipy binaries exceed Lambda's 69MB direct-upload limit.
-          # Phase 7 IC/VaR/weight-optimization features fail-open without it.
-          # Core trading (Phases 1-6) and Phase 7 snapshot creation work fine.
-          mkdir -p $GITHUB_WORKSPACE/terraform/lambda
-          echo "[SKIP] numpy/scipy layer not built — exceeds 69MB Lambda layer limit"
+          # Build shared-deps layer (numpy + scipy + psycopg2 + boto3 + requests).
+          # Layer must be <69 MB for direct Lambda upload. Built with manylinux2014 wheels
+          # and debug-symbol stripping to stay under limit. If it exceeds 69 MB, Terraform's
+          # fileexists() check will still skip it and Phase 7 will fail-open (non-blocking).
+          set -e
+          BUILD_DIR=/tmp/shared-deps-build
+          mkdir -p $BUILD_DIR/python
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: \
+            --upgrade \
+            --target $BUILD_DIR/python \
+            -r $GITHUB_WORKSPACE/terraform/lambda-layer-requirements.txt \
+            2>&1 | tail -20
+          # Strip debug symbols to reduce size
+          find $BUILD_DIR/python -name "*.so" -exec strip --strip-debug {} \; 2>/dev/null || true
+          OUTPUT_ZIP=$GITHUB_WORKSPACE/lambda/shared-deps-layer.zip
+          mkdir -p $(dirname $OUTPUT_ZIP)
+          cd $BUILD_DIR && zip -r $OUTPUT_ZIP python/ -q
+          SIZE=$(du -sh $OUTPUT_ZIP | cut -f1)
+          echo "shared-deps layer: $SIZE"
+          if [ $(stat -c%s $OUTPUT_ZIP) -gt 72351744 ]; then
+            echo "[WARN] Layer exceeds 69 MB — Terraform will skip it and Phase 7 will fail-open"
+          else
+            echo "[OK] Layer within 69 MB limit — will be deployed via Terraform"
+          fi
 
       - name: Build db-init Lambda
         run: |
