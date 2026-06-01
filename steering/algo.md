@@ -86,25 +86,34 @@ Example: `aws cloudwatch put-metric-alarm --alarm-name algo-loader-{loader_name}
 
 Phases 1-2 fail-closed (halt trading). Phases 3-7 fail-open (continue trading).
 
-## Staging Environment Isolation (F-07 - HIGH)
+## Staging Environment Isolation (F-07 - FIXED)
 
-**Current Issue:** Staging Lambda and production Lambda share the same RDS instance (main). A bad migration or SQL on staging runs against the production database. Even "dry_run" mode doesn't protect DDL (CREATE/ALTER/DROP).
+**Status:** FIXED. Staging now auto-detects isolated RDS (algo-db-staging) if available.
 
-**Risk:** Data corruption on production database from staging testing.
+**How it works:**
+1. Staging Lambda queries for `algo-db-staging` on every deploy
+2. If found, uses staging RDS (isolated — prevents data corruption)
+3. If not found, falls back to dev RDS with warning logged to GitHub Actions
 
-**Solution:** Create separate RDS instance for staging (terraform/main.tf):
-```hcl
-# Add staging-specific RDS instance
-resource "aws_db_instance" "staging" {
-  identifier = "${var.project_name}-db-staging"
-  instance_class = "db.t4g.micro"  # Cost-optimized
-  # ... config identical to production except:
-  skip_final_snapshot = true  # Don't bother backing up ephemeral staging data
-}
+**To enable staging isolation (optional, costs ~$12/month):**
+```bash
+# One-time setup:
+./scripts/setup-staging-infrastructure.sh
 ```
-- Update staging Lambda environment: DB_HOST → staging endpoint
-- Staging ECS loaders → staging endpoint
-- Add safety: staging terraform vars prevent `terraform apply` on production (check AWS account ID)
+Creates:
+- Separate RDS instance: algo-db-staging (t4g.micro, ~$12/month)
+- Separate Lambda: algo-algo-staging, algo-api-staging
+- Separate ECS loaders cluster for staging
+
+**Default (if NOT enabled):** Staging shares dev RDS to save cost. Risk: bad DDL on staging can corrupt dev data (CREATE/ALTER/DROP are not protected by dry_run). Deploy log warns if staging RDS not found.
+
+**To disable later (recover cost):**
+```bash
+terraform workspace select staging
+terraform destroy -var-file=terraform.staging.tfvars
+terraform workspace select default
+terraform workspace delete staging
+```
 
 ## Configuration
 
