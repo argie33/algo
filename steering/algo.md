@@ -250,7 +250,9 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
 
-**API Lambda 500 errors on first request:** VPC cold-start (15-40s). API Gateway timeout is 29s. Workaround: retry (second request works). Reserved concurrency = 10 configured to handle concurrent dashboard requests (MarketsHealth makes 5+ simultaneous calls).
+**API Lambda 503 errors / protected endpoints returning 401 "Unable to fetch Cognito keys":** The API Lambda is in a private VPC subnet. Cognito IDP (`cognito-idp.us-east-1.amazonaws.com`) is a public endpoint. The Lambda security group must allow HTTPS (port 443) egress to `0.0.0.0/0` so Cognito JWKS requests can route via NAT Gateway. If the SG only allows HTTPS to the VPC CIDR (10.0.0.0/16), Cognito will timeout after 30s and every protected endpoint returns 401. Fix: add `egress { from_port=443, cidr_blocks=["0.0.0.0/0"] }` to the api-lambda SG in `terraform/modules/vpc/main.tf` and apply. Reserved concurrency = 30 (MarketsHealth fires 26 concurrent calls on load via batch endpoints).
+
+**API Lambda 500 errors on first request (cold start):** VPC cold-start (15-40s) + API Gateway timeout (29s). Workaround: retry (second request works).
 
 **Alpaca 401 errors:** Verify PowerShell profile has correct ALPACA_PAPER_TRADING and APCA_API_BASE_URL settings.
 
