@@ -43,7 +43,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
-                max_date AS (SELECT MAX(date) AS d FROM price_daily),
+                max_date AS (SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1),
                 latest_prices AS (
                     SELECT pd.symbol, pd.close AS current_price
                     FROM price_daily pd
@@ -196,7 +196,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         search = params.get('search', [None])[0] if params else None
         sector = params.get('sector', [None])[0] if params else None
 
-        where_clauses = ["ss.symbol NOT LIKE '^%%'"]
+        where_clauses = ["ss.symbol NOT LIKE '^%%'", "COALESCE(ss.etf, 'N') != 'Y'"]
         query_params = []
 
         if search:

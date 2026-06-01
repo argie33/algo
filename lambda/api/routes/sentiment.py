@@ -55,7 +55,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                                SUM(bearish_count) AS bearish_count,
                                MAX(date) AS date
                         FROM analyst_sentiment_analysis
-                        WHERE date = (SELECT MAX(date) FROM analyst_sentiment_analysis)
+                        WHERE date = (SELECT date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1)
                     """)
                     analyst_row = cur.fetchone()
                 except Exception as e:
@@ -104,6 +104,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return list_response([dict(r) for r in rows] if rows else [])
             elif path.startswith('/api/sentiment/analyst/insights/'):
                 symbol = path.split('/api/sentiment/analyst/insights/')[-1].upper()
+                # Validate symbol format: max 5 chars, alphanumeric + dash only
+                if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == '-' for c in symbol):
+                    return error_response(400, 'bad_request', 'Invalid symbol format')
                 cur.execute("""
                     SELECT date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent

@@ -139,7 +139,23 @@ def load_seasonality() -> int:
         """, dow_records)
         logger.info(f"Inserted {len(dow_records)} day-of-week seasonality rows")
 
-        return len(monthly_rows) + len(dow_rows)
+        total = len(monthly_records) + len(dow_records)
+
+        # Update data_loader_status so ServiceHealth can track freshness
+        try:
+            cur.execute(
+                "DELETE FROM data_loader_status WHERE table_name = %s",
+                ('seasonality_monthly_stats',)
+            )
+            cur.execute(
+                "INSERT INTO data_loader_status (table_name, row_count, last_updated) "
+                "VALUES (%s, %s, NOW())",
+                ('seasonality_monthly_stats', len(monthly_records))
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update data_loader_status for seasonality_monthly_stats: {e}")
+
+        return total
 
 
 def main():

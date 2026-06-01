@@ -1053,7 +1053,7 @@ if __name__ == "__main__":
     else:
         # Use latest trading date in price_daily
         def get_latest_date(cur):
-            cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol='SPY'")
+            cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
             return cur.fetchone()
 
         with DatabaseContext('read') as cur:

@@ -25,8 +25,9 @@ class IndustryRankingLoader(OptimalLoader):
         """Compute industry rankings from stock scores and company profile data."""
         try:
             with DatabaseContext('read') as cur:
-                cur.execute("SELECT MAX(date) FROM price_daily")
-                latest_date = cur.fetchone()[0]
+                cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
+                row = cur.fetchone()
+                latest_date = row['date'] if row else None
 
                 if not latest_date:
                     logger.warning("No price data found — skipping industry ranking")
@@ -49,24 +50,27 @@ class IndustryRankingLoader(OptimalLoader):
                         SELECT industry, current_rank AS rank_1w
                         FROM industry_ranking
                         WHERE date_recorded = (
-                            SELECT MAX(date_recorded) FROM industry_ranking
+                            SELECT date_recorded FROM industry_ranking
                             WHERE date_recorded <= CURRENT_DATE - INTERVAL '7 days'
+                            ORDER BY date_recorded DESC LIMIT 1
                         )
                     ),
                     rank_4w AS (
                         SELECT industry, current_rank AS rank_4w
                         FROM industry_ranking
                         WHERE date_recorded = (
-                            SELECT MAX(date_recorded) FROM industry_ranking
+                            SELECT date_recorded FROM industry_ranking
                             WHERE date_recorded <= CURRENT_DATE - INTERVAL '28 days'
+                            ORDER BY date_recorded DESC LIMIT 1
                         )
                     ),
                     rank_12w AS (
                         SELECT industry, current_rank AS rank_12w
                         FROM industry_ranking
                         WHERE date_recorded = (
-                            SELECT MAX(date_recorded) FROM industry_ranking
+                            SELECT date_recorded FROM industry_ranking
                             WHERE date_recorded <= CURRENT_DATE - INTERVAL '84 days'
+                            ORDER BY date_recorded DESC LIMIT 1
                         )
                     )
                     SELECT
@@ -90,13 +94,13 @@ class IndustryRankingLoader(OptimalLoader):
 
                 return [
                     {
-                        'industry':       r[0],
+                        'industry':       r['industry'],
                         'date_recorded':  latest_date,
-                        'current_rank':   r[1],
-                        'momentum_score': float(r[2]) if r[2] is not None else None,
-                        'rank_1w_ago':    r[3],
-                        'rank_4w_ago':    r[4],
-                        'rank_12w_ago':   r[5],
+                        'current_rank':   r['current_rank'],
+                        'momentum_score': float(r['momentum_score']) if r['momentum_score'] is not None else None,
+                        'rank_1w_ago':    r['rank_1w_ago'],
+                        'rank_4w_ago':    r['rank_4w_ago'],
+                        'rank_12w_ago':   r['rank_12w_ago'],
                     }
                     for r in rows
                 ]

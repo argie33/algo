@@ -53,6 +53,7 @@ def set_secret_version(secret_id: str, secret_value: Dict[str, Any]) -> str:
 def update_rds_password(host: str, port: int, username: str, current_password: str, new_password: str) -> bool:
     """Connect to RDS and update the master user password."""
     import psycopg2
+    import psycopg2.sql
     try:
         conn = psycopg2.connect(
             host=host,
@@ -63,7 +64,12 @@ def update_rds_password(host: str, port: int, username: str, current_password: s
         )
         cur = conn.cursor()
 
-        cur.execute(f"ALTER USER {username} WITH PASSWORD %s", (new_password,))
+        cur.execute(
+            psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
+                psycopg2.sql.Identifier(username)
+            ),
+            (new_password,)
+        )
 
         conn.commit()
         cur.close()

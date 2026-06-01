@@ -65,19 +65,20 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 params_list.append(symbol.upper())
 
             query = f"""
-                WITH price_dates AS (
-                    SELECT MAX(date) AS cur_date FROM price_daily
+                WITH latest_d AS (
+                    SELECT date AS cur_date FROM price_daily ORDER BY date DESC LIMIT 1
                 ),
                 latest_prices AS (
                     SELECT pd.symbol, pd.close AS current_close
-                    FROM price_daily pd, price_dates
-                    WHERE pd.date = price_dates.cur_date
+                    FROM price_daily pd, latest_d
+                    WHERE pd.date = latest_d.cur_date
                 ),
                 prev_prices AS (
                     SELECT pd.symbol, pd.close AS prev_close
-                    FROM price_daily pd, price_dates
+                    FROM price_daily pd, latest_d
                     WHERE pd.date = (
-                        SELECT MAX(date) FROM price_daily WHERE date < price_dates.cur_date
+                        SELECT date FROM price_daily WHERE date < latest_d.cur_date
+                        ORDER BY date DESC LIMIT 1
                     )
                 )
                 SELECT

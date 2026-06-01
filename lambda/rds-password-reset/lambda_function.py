@@ -1,28 +1,30 @@
 """
-One-shot Lambda to reset RDS master password to a known value.
-Connects to RDS and executes ALTER USER to set new password.
+One-shot Lambda to reset RDS master password.
+SECURITY: Requires NEW_PASSWORD env var. Does NOT accept hardcoded password guesses.
 """
 import json
 import psycopg2
+import psycopg2.sql
 import os
 import sys
 import logging
-from psycopg2 import sql
+import boto3
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
-    """Reset RDS master password by connecting and running SQL."""
+    """Reset RDS master password by retrieving credentials from Secrets Manager."""
 
-    # Credentials must be explicitly provided - no defaults for safety
+    # All credentials must come from Secrets Manager or env vars, never hardcoded defaults
     db_host = os.environ.get('DB_HOST')
     db_port_str = os.environ.get('DB_PORT', '5432')
     db_user = os.environ.get('DB_USER', 'stocks')
     db_name = os.environ.get('DB_SYSTEM_DB', 'postgres')
     new_password = os.environ.get('NEW_PASSWORD')
+    secret_arn = os.environ.get('DB_SECRET_ARN')
 
-    # Validate required credentials
     if not db_host:
         return {
             'statusCode': 400,
@@ -41,56 +43,71 @@ def lambda_handler(event, context):
 
     db_port = int(db_port_str)
 
-    # Try passwords from environment, fall back to known common defaults if not specified
-    env_passwords = os.environ.get('KNOWN_PASSWORDS', '').split(',')
-    known_passwords = [p.strip() for p in env_passwords if p.strip()] or [
-        'password',  # Terraform default
-        'stocks',    # Common choice
-        'postgres',  # PostgreSQL default
-        '',          # Empty password
-    ]
+    # SECURITY FIX: Only retrieve current password from Secrets Manager, never guess
+    if not secret_arn:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({
+                'error': 'DB_SECRET_ARN required to fetch current credentials'
+            })
+        }
 
-    logger.info(f"Attempting to reset RDS password for {db_user}@{db_host}")
-    logger.info(f"Trying known passwords...")
+    try:
+        secrets_client = boto3.client('secretsmanager')
+        response = secrets_client.get_secret_value(SecretId=secret_arn)
+        secret = json.loads(response['SecretString'])
+        current_password = secret.get('password')
 
-    connection = None
-    connected = False
-
-    # Try to connect with known passwords
-    for pwd in known_passwords:
-        try:
-            logger.info(f"  Trying password: {'[set]' if pwd else '[empty]'}")
-            connection = psycopg2.connect(
-                host=db_host,
-                port=db_port,
-                user=db_user,
-                password=pwd,
-                database=db_name,
-                connect_timeout=5
-            )
-            connected = True
-            logger.info(f"  ✓ Connected successfully!")
-            break
-        except psycopg2.Error as e:
-            logger.info(f"  ✗ Failed: {str(e)[:100]}")
-            continue
-
-    if not connected:
+        if not current_password:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({
+                    'error': 'Could not retrieve current password from Secrets Manager'
+                })
+            }
+    except ClientError as e:
+        logger.error(f"Failed to retrieve secret: {e}")
         return {
             'statusCode': 500,
             'body': json.dumps({
-                'error': 'Could not connect to RDS with any known password',
-                'tried': len(known_passwords)
+                'error': 'Failed to retrieve credentials from Secrets Manager'
+            })
+        }
+
+    logger.info(f"Attempting to reset RDS password for {db_user}@{db_host}")
+
+    connection = None
+    try:
+        logger.info(f"Connecting to RDS with current credentials...")
+        connection = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=current_password,
+            database=db_name,
+            connect_timeout=5
+        )
+        logger.info(f"✓ Connected successfully!")
+    except psycopg2.Error as e:
+        logger.error(f"Failed to connect: {str(e)[:100]}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': 'Could not connect to RDS with provided credentials'
             })
         }
 
     try:
         cursor = connection.cursor()
 
-        # Reset the master user password
-        alter_sql = f"ALTER USER {db_user} WITH PASSWORD %s;"
-        logger.info(f"Executing: ALTER USER {db_user} WITH PASSWORD [***]")
-        cursor.execute(alter_sql, (new_password,))
+        # Reset the master user password using parameterized query
+        logger.info(f"Resetting password for user '{db_user}'")
+        cursor.execute(
+            psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
+                psycopg2.sql.Identifier(db_user)
+            ),
+            (new_password,)
+        )
         connection.commit()
 
         logger.info(f"✓ Password reset successfully for user '{db_user}'")

@@ -48,30 +48,33 @@ def _industry_list(cur, params):
 
     cur.execute("SET statement_timeout TO '25s'")
     cur.execute("""
-        WITH industry_price_perf AS (
+        WITH latest_d AS (
+            SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
+        ),
+        industry_price_perf AS (
             SELECT
                 cp.industry,
                 ROUND(
-                    (AVG(CASE WHEN pd.date = (SELECT MAX(date) FROM price_daily) THEN pd.close END) /
-                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT MAX(date) FROM price_daily) - INTERVAL '3 days'
-                                                      AND (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
+                    (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
+                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '3 days'
+                                                      AND (SELECT d FROM latest_d) - INTERVAL '1 day'
                                     THEN pd.close END), 0) - 1) * 100, 2
                 ) AS perf_1d,
                 ROUND(
-                    (AVG(CASE WHEN pd.date = (SELECT MAX(date) FROM price_daily) THEN pd.close END) /
-                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT MAX(date) FROM price_daily) - INTERVAL '8 days'
-                                                      AND (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
+                    (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
+                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '8 days'
+                                                      AND (SELECT d FROM latest_d) - INTERVAL '5 days'
                                     THEN pd.close END), 0) - 1) * 100, 2
                 ) AS perf_5d,
                 ROUND(
-                    (AVG(CASE WHEN pd.date = (SELECT MAX(date) FROM price_daily) THEN pd.close END) /
-                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT MAX(date) FROM price_daily) - INTERVAL '25 days'
-                                                      AND (SELECT MAX(date) FROM price_daily) - INTERVAL '18 days'
+                    (AVG(CASE WHEN pd.date = (SELECT d FROM latest_d) THEN pd.close END) /
+                     NULLIF(AVG(CASE WHEN pd.date BETWEEN (SELECT d FROM latest_d) - INTERVAL '25 days'
+                                                      AND (SELECT d FROM latest_d) - INTERVAL '18 days'
                                     THEN pd.close END), 0) - 1) * 100, 2
                 ) AS perf_20d
             FROM price_daily pd
             JOIN company_profile cp ON pd.symbol = cp.ticker
-            WHERE pd.date >= (SELECT MAX(date) FROM price_daily) - INTERVAL '30 days'
+            WHERE pd.date >= (SELECT d FROM latest_d) - INTERVAL '30 days'
               AND cp.industry IS NOT NULL
               AND pd.symbol NOT LIKE '^%%'
             GROUP BY cp.industry
@@ -115,7 +118,7 @@ def _industry_list(cur, params):
         latest_ranking AS (
             SELECT industry, rank_1w_ago, rank_4w_ago, rank_12w_ago
             FROM industry_ranking
-            WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
+            WHERE date_recorded = (SELECT date_recorded FROM industry_ranking ORDER BY date_recorded DESC LIMIT 1)
         )
         SELECT
             r.industry, r.sector, r.stock_count, r.composite_score,

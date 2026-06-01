@@ -26,8 +26,9 @@ class SignalThemesLoader(OptimalLoader):
         try:
             with DatabaseContext('read') as cur:
                 # Get the latest price data date
-                cur.execute("SELECT MAX(date) FROM price_daily")
-                latest_date = cur.fetchone()[0]
+                cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
+                row = cur.fetchone()
+                latest_date = row['date'] if row else None
 
                 if not latest_date:
                     logger.warning("No price data found")

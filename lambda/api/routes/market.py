@@ -57,10 +57,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # not close to open (intraday direction, which is a different measure).
                 try:
                     cur.execute("""
-                        WITH latest AS (SELECT MAX(date) AS d FROM price_daily),
+                        WITH latest AS (
+                                 SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
+                             ),
                              prev_day AS (
-                                 SELECT MAX(date) AS d FROM price_daily
+                                 SELECT date AS d FROM price_daily
                                  WHERE date < (SELECT d FROM latest)
+                                 ORDER BY date DESC LIMIT 1
                              ),
                              today AS (
                                  SELECT symbol, close FROM price_daily
@@ -110,25 +113,30 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return json_response(200, base)
             elif path == '/api/market/top-movers':
                 cur.execute("""
-                    WITH today AS (
+                    WITH latest_d AS (
+                        SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
+                    ),
+                    today AS (
                         SELECT symbol, close
                         FROM price_daily
-                        WHERE date = (SELECT MAX(date) FROM price_daily)
+                        WHERE date = (SELECT d FROM latest_d)
                     ),
                     yesterday AS (
                         SELECT symbol, close
                         FROM price_daily
                         WHERE date = (
-                            SELECT MAX(date) FROM price_daily
-                            WHERE date < (SELECT MAX(date) FROM price_daily)
+                            SELECT date FROM price_daily WHERE date < (SELECT d FROM latest_d)
+                            ORDER BY date DESC LIMIT 1
                         )
                     )
                     SELECT t.symbol, ss.security_name,
                            ROUND(((t.close - y.close) / NULLIF(y.close, 0) * 100)::numeric, 2) as pct_change
                     FROM today t
                     JOIN yesterday y ON t.symbol = y.symbol
-                    LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+                    JOIN stock_symbols ss ON t.symbol = ss.symbol
                     WHERE y.close > 0
+                      AND t.symbol NOT LIKE '^%%'
+                      AND COALESCE(ss.etf, 'N') != 'Y'
                     ORDER BY ABS(t.close - y.close) / y.close DESC
                     LIMIT 40
                 """)
@@ -535,7 +543,7 @@ def _get_market_latest(cur) -> Dict:
             cur.execute("""
                 SELECT symbol, close
                 FROM price_daily
-                WHERE date = (SELECT MAX(date) FROM price_daily)
+                WHERE date = (SELECT date FROM price_daily ORDER BY date DESC LIMIT 1)
                 ORDER BY symbol
                 LIMIT 10
             """)
@@ -844,12 +852,13 @@ def _get_markets(cur) -> Dict:
         try:
             cur.execute("""
                 WITH latest_date AS (
-                    SELECT MAX(date) AS d FROM price_daily WHERE symbol = ANY(%s)
+                    SELECT date AS d FROM price_daily WHERE symbol = ANY(%s) ORDER BY date DESC LIMIT 1
                 ),
                 prev_date AS (
-                    SELECT MAX(date) AS d FROM price_daily
+                    SELECT date AS d FROM price_daily
                     WHERE symbol = ANY(%s)
                       AND date < (SELECT d FROM latest_date)
+                    ORDER BY date DESC LIMIT 1
                 ),
                 today AS (
                     SELECT symbol, date, close

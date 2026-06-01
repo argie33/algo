@@ -106,7 +106,13 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
         Dict with data_age_days, is_stale, max_date, warning
     """
     try:
-        cur.execute(f"SELECT MAX({date_column}) FROM {table_name}")
+        import psycopg2.sql
+        cur.execute(
+            psycopg2.sql.SQL("SELECT MAX({}) FROM {}").format(
+                psycopg2.sql.Identifier(date_column),
+                psycopg2.sql.Identifier(table_name)
+            )
+        )
         result = cur.fetchone()
 
         if not result or not result[0]:

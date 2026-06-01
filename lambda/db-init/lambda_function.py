@@ -11,6 +11,7 @@ import os
 import re
 import boto3
 import psycopg2
+import psycopg2.sql
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -126,18 +127,45 @@ def lambda_handler(event, context):
 
                 # Create or update stocks user with password from Secrets Manager
                 try:
-                    master_cursor.execute(f'ALTER USER "{creds["user"]}" WITH PASSWORD %s', (creds['password'],))
+                    master_cursor.execute(
+                        psycopg2.sql.SQL('ALTER USER {} WITH PASSWORD %s').format(
+                            psycopg2.sql.Identifier(creds['user'])
+                        ),
+                        (creds['password'],)
+                    )
                     logger.info(f"Updated existing {creds['user']} user password")
                 except Exception as e:
                     logger.info(f"User update failed, creating new user: {e}")
                     try:
-                        master_cursor.execute(f'CREATE USER "{creds["user"]}" WITH PASSWORD %s', (creds['password'],))
+                        master_cursor.execute(
+                            psycopg2.sql.SQL('CREATE USER {} WITH PASSWORD %s').format(
+                                psycopg2.sql.Identifier(creds['user'])
+                            ),
+                            (creds['password'],)
+                        )
                         logger.info(f"Created new {creds['user']} user")
                         # Grant permissions
-                        master_cursor.execute(f'GRANT CONNECT ON DATABASE "{creds["database"]}" TO "{creds["user"]}"')
-                        master_cursor.execute(f'GRANT USAGE ON SCHEMA public TO "{creds["user"]}"')
-                        master_cursor.execute(f'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "{creds["user"]}"')
-                        master_cursor.execute(f'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "{creds["user"]}"')
+                        master_cursor.execute(
+                            psycopg2.sql.SQL('GRANT CONNECT ON DATABASE {} TO {}').format(
+                                psycopg2.sql.Identifier(creds['database']),
+                                psycopg2.sql.Identifier(creds['user'])
+                            )
+                        )
+                        master_cursor.execute(
+                            psycopg2.sql.SQL('GRANT USAGE ON SCHEMA public TO {}').format(
+                                psycopg2.sql.Identifier(creds['user'])
+                            )
+                        )
+                        master_cursor.execute(
+                            psycopg2.sql.SQL('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {}').format(
+                                psycopg2.sql.Identifier(creds['user'])
+                            )
+                        )
+                        master_cursor.execute(
+                            psycopg2.sql.SQL('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO {}').format(
+                                psycopg2.sql.Identifier(creds['user'])
+                            )
+                        )
                         logger.info(f"Granted permissions to {creds['user']}")
                     except Exception as e2:
                         logger.error(f"Failed to create/update user: {e2}")
@@ -166,8 +194,16 @@ def lambda_handler(event, context):
         cursor = conn.cursor()
         for table in ['buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly']:
             try:
-                cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS macd DECIMAL(10, 2)")
-                cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS macd_signal DECIMAL(10, 2)")
+                cursor.execute(
+                    psycopg2.sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS macd DECIMAL(10, 2)").format(
+                        psycopg2.sql.Identifier(table)
+                    )
+                )
+                cursor.execute(
+                    psycopg2.sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS macd_signal DECIMAL(10, 2)").format(
+                        psycopg2.sql.Identifier(table)
+                    )
+                )
                 logger.info(f"Added MACD columns to {table}")
             except Exception as e:
                 logger.info(f"MACD columns may already exist on {table}: {e}")

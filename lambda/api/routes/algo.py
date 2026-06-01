@@ -1361,7 +1361,7 @@ def _get_markets(cur) -> Dict:
 
             try:
                 cur.execute("""
-                    SELECT MAX(date_recorded) as max_date FROM sector_ranking LIMIT 1
+                    SELECT date_recorded as max_date FROM sector_ranking ORDER BY date_recorded DESC LIMIT 1
                 """)
                 max_date_row = cur.fetchone()
                 max_date = max_date_row['max_date'] if max_date_row else None
@@ -1695,7 +1695,7 @@ def _get_sector_stage2(cur) -> Dict:
         try:
             cur.execute("""
                 WITH latest_date AS (
-                    SELECT MAX(date) AS date FROM trend_template_data
+                    SELECT date FROM trend_template_data ORDER BY date DESC LIMIT 1
                 ),
                 stage2_counts AS (
                     SELECT

@@ -10,17 +10,19 @@ logger = logging.getLogger(__name__)
 _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
-    """Handle /api/contact/* endpoints."""
+    """Handle /api/contact/* endpoints. Submissions require auth."""
     try:
+        if path == '/api/contact/submissions':
+            if not jwt_claims or not jwt_claims.get('sub'):
+                return error_response(401, 'unauthorized', 'Authentication required')
+            if method == 'GET':
+                return _get_submissions(cur, params)
+            return error_response(405, 'method_not_allowed', 'GET required')
+
         if path == '/api/contact':
             if method == 'POST':
                 return _submit_contact(cur, body or {})
             return error_response(405, 'method_not_allowed', 'POST required')
-
-        if path == '/api/contact/submissions':
-            if method == 'GET':
-                return _get_submissions(cur, params)
-            return error_response(405, 'method_not_allowed', 'GET required')
 
         return error_response(404, 'not_found', f'No contact handler for {path}')
     except Exception as e:

@@ -93,7 +93,10 @@ def _get_loader_status(cur) -> Dict:
                     'error': row['error_message'],
                 })
 
-            freshness = check_data_freshness(cur, 'data_loader_status', 'last_updated', warning_days=1)
+            try:
+                freshness = check_data_freshness(cur, 'data_loader_status', 'last_updated', warning_days=1)
+            except Exception:
+                freshness = None
             return json_response(200, {
                 'status': 'ok',
                 'loaders': loaders,
@@ -120,7 +123,7 @@ def _get_system_health(cur) -> Dict:
                 health_data['components']['database'] = 'error'
                 health_data['status'] = 'degraded'
 
-            cur.execute("SELECT MAX(date) FROM price_daily")
+            cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
             last_price_date = next(iter(dict(cur.fetchone() or {}).values()), 0)
             if last_price_date:
                 today = datetime.now(timezone.utc).date()

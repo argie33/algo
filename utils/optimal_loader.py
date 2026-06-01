@@ -1,10 +1,13 @@
 
 
+import csv
+import io
 import logging
 import os
 import threading
 import time
 import psycopg2
+import psycopg2.sql
 import uuid
 from abc import ABC
 from datetime import date, datetime, timedelta
@@ -252,20 +255,26 @@ class OptimalLoader(ABC):
 
             try:
                 cur.execute(
-                    f"CREATE UNLOGGED TABLE {staging} (LIKE {self.table_name} INCLUDING DEFAULTS)"
+                    psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
+                        psycopg2.sql.Identifier(staging),
+                        psycopg2.sql.Identifier(self.table_name)
+                    )
                 )
             except psycopg2.Error as e:
                 if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
-                    # Unlikely to happen with UUID, but handle it just in case
-                    # Clean up and retry with a new UUID
                     try:
-                        cur.execute(f"DROP TABLE IF EXISTS {staging} CASCADE")
+                        cur.execute(psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
+                            psycopg2.sql.Identifier(staging)
+                        ))
                     except psycopg2.Error as drop_err:
                         logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
                     unique_id = str(uuid.uuid4()).replace('-', '')[:12]
                     staging = f"_stage_{self.table_name}_{unique_id}"
                     cur.execute(
-                        f"CREATE UNLOGGED TABLE {staging} (LIKE {self.table_name} INCLUDING DEFAULTS)"
+                        psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
+                            psycopg2.sql.Identifier(staging),
+                            psycopg2.sql.Identifier(self.table_name)
+                        )
                     )
                 else:
                     raise
@@ -275,26 +284,44 @@ class OptimalLoader(ABC):
             for row in rows:
                 writer.writerow({k: ("" if v is None else v) for k, v in row.items()})
             buf.seek(0)
+            col_ids = [psycopg2.sql.Identifier(c) for c in columns]
             cur.copy_expert(
-                f"COPY {staging} ({','.join(columns)}) FROM STDIN WITH (FORMAT CSV, NULL '')",
+                psycopg2.sql.SQL("COPY {} ({}) FROM STDIN WITH (FORMAT CSV, NULL '')").format(
+                    psycopg2.sql.Identifier(staging),
+                    psycopg2.sql.SQL(",").join(col_ids)
+                ),
                 buf,
             )
 
-            updates = ", ".join(
-                f"{c} = EXCLUDED.{c}" for c in columns if c not in self.primary_key
-            )
-            on_conflict = (
-                f"ON CONFLICT ({','.join(self.primary_key)}) DO UPDATE SET {updates}"
-                if self.primary_key and updates
-                else "ON CONFLICT DO NOTHING"
-            )
+            update_parts = [
+                psycopg2.sql.SQL("{} = EXCLUDED.{}").format(
+                    psycopg2.sql.Identifier(c),
+                    psycopg2.sql.Identifier(c)
+                ) for c in columns if c not in self.primary_key
+            ]
+            if update_parts:
+                pk_ids = [psycopg2.sql.Identifier(pk) for pk in self.primary_key]
+                on_conflict = psycopg2.sql.SQL("ON CONFLICT ({}) DO UPDATE SET {}").format(
+                    psycopg2.sql.SQL(",").join(pk_ids),
+                    psycopg2.sql.SQL(",").join(update_parts)
+                )
+            else:
+                on_conflict = psycopg2.sql.SQL("ON CONFLICT DO NOTHING")
+
             cur.execute(
-                f"INSERT INTO {self.table_name} ({','.join(columns)}) "
-                f"SELECT {','.join(columns)} FROM {staging} {on_conflict}"
+                psycopg2.sql.SQL("INSERT INTO {} ({}) SELECT {} FROM {} {}").format(
+                    psycopg2.sql.Identifier(self.table_name),
+                    psycopg2.sql.SQL(",").join(col_ids),
+                    psycopg2.sql.SQL(",").join(col_ids),
+                    psycopg2.sql.Identifier(staging),
+                    on_conflict
+                )
             )
             inserted = cur.rowcount
 
-            cur.execute(f"DROP TABLE {staging}")
+            cur.execute(psycopg2.sql.SQL("DROP TABLE {}").format(
+                psycopg2.sql.Identifier(staging)
+            ))
 
             if symbol and new_watermark:
                 if watermark_mgr:
@@ -486,14 +513,17 @@ class OptimalLoader(ABC):
                         latest_date = latest_date.date()
 
                 with DatabaseContext('write') as cur:
-                    cur.execute("""
-                        INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                        VALUES (%s, %s, %s, NOW())
-                        ON CONFLICT (table_name) DO UPDATE SET
-                          row_count = EXCLUDED.row_count,
-                          latest_date = EXCLUDED.latest_date,
-                          last_updated = NOW()
-                    """, (self.table_name, total_rows, latest_date))
+                    # Use DELETE + INSERT for robustness — avoids ON CONFLICT constraint
+                    # dependency (works even if PRIMARY KEY was added after initial creation)
+                    cur.execute(
+                        "DELETE FROM data_loader_status WHERE table_name = %s",
+                        (self.table_name,)
+                    )
+                    cur.execute(
+                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
+                        "VALUES (%s, %s, %s, NOW())",
+                        (self.table_name, total_rows, latest_date)
+                    )
             except Exception as e:
                 logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
@@ -581,14 +611,15 @@ class OptimalLoader(ABC):
                     if hasattr(latest_date, 'date'):
                         latest_date = latest_date.date()
                 with DatabaseContext('write') as cur:
-                    cur.execute("""
-                        INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                        VALUES (%s, %s, %s, NOW())
-                        ON CONFLICT (table_name) DO UPDATE SET
-                          row_count = EXCLUDED.row_count,
-                          latest_date = EXCLUDED.latest_date,
-                          last_updated = NOW()
-                    """, (self.table_name, total_rows, latest_date))
+                    cur.execute(
+                        "DELETE FROM data_loader_status WHERE table_name = %s",
+                        (self.table_name,)
+                    )
+                    cur.execute(
+                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
+                        "VALUES (%s, %s, %s, NOW())",
+                        (self.table_name, total_rows, latest_date)
+                    )
             except Exception as e:
                 logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 

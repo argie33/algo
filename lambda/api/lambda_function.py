@@ -474,7 +474,6 @@ def require_auth(event: Dict, path: str) -> tuple:
     PUBLIC_PREFIXES = {
         '/health',
         '/api/health',
-        '/api/contact',
         '/api/signals',  # Market signal data (public)
         '/api/scores',  # Market scores (public)
         '/api/market',  # Market health, breadth, distribution (public)
@@ -594,7 +593,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'error': 'database_error', 'message': db_test_error})
+            'body': json.dumps({'error': 'database_error', 'message': 'Database connection unavailable'})
         }
 
     logger.info(f'[HANDLER_INVOKED] Event received: {path} {method}')
@@ -699,7 +698,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
 
         try:
-            with DatabaseContext('write') as cur:
+            # Use read-only mode for GET/HEAD, write mode for POST/PUT/PATCH/DELETE
+            http_method = method.upper() if method else 'GET'
+            db_mode = 'write' if http_method in ('POST', 'PUT', 'PATCH', 'DELETE') else 'read'
+            with DatabaseContext(db_mode) as cur:
                 cur.execute("SET statement_timeout TO '15s'")
 
                 params = parse_query_params(event)
