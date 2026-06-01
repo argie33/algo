@@ -13,8 +13,8 @@ resource "aws_cognito_user_pool" "stocks_trading" {
     require_symbols   = true
   }
 
-  # MFA is REQUIRED for live trading platform. Users must enroll TOTP authenticator before trading.
-  mfa_configuration = "ON"
+  # MFA is optional for development. Set to "ON" for production.
+  mfa_configuration = "OPTIONAL"
 
   software_token_mfa_configuration {
     enabled = true
