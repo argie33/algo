@@ -250,6 +250,8 @@ def get_security_headers() -> Dict[str, str]:
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
         'Content-Security-Policy': f"default-src 'self'; img-src 'self' data: https:; connect-src 'self' {allowed_origins_list}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        # SECURITY FIX VULN-5: Add SameSite cookie attribute for CSRF protection
+        'Set-Cookie': 'SameSite=Strict; Secure; HttpOnly',
     }
 
 def get_cache_headers(cache_type: str = 'no-cache') -> Dict[str, str]:
