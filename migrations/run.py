@@ -178,20 +178,40 @@ class MigrationRunner:
             self.conn.rollback()
             raise
 
-    def apply_migration(self, version: str, sql_path: Path):
-        """Execute a migration SQL file."""
+    def apply_migration(self, version: str, mig_path: Path):
+        """Execute a migration (either SQL file or Python module with up() function)."""
         try:
-            with open(sql_path, 'r') as f:
-                sql = f.read()
+            if mig_path.suffix == '.sql':
+                # Handle SQL migrations
+                with open(mig_path, 'r') as f:
+                    sql = f.read()
 
-            # Split by ';' to handle multiple statements
-            statements = [s.strip() for s in sql.split(';') if s.strip()]
+                # Split by ';' to handle multiple statements
+                statements = [s.strip() for s in sql.split(';') if s.strip()]
 
-            for statement in statements:
-                logger.debug(f"Executing: {statement[:80]}...")
-                self.cursor.execute(statement)
+                for statement in statements:
+                    logger.debug(f"Executing SQL: {statement[:80]}...")
+                    self.cursor.execute(statement)
 
-            self.conn.commit()
+                self.conn.commit()
+
+            elif mig_path.suffix == '.py':
+                # Handle Python migrations: import module and call up()
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(version, mig_path)
+                migration_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(migration_module)
+
+                if not hasattr(migration_module, 'up'):
+                    raise AttributeError(f"Migration {version} has no up() function")
+
+                logger.info(f"Running Python migration: {version}")
+                migration_module.up()
+                logger.debug(f"Completed Python migration: {version}")
+
+            else:
+                raise ValueError(f"Unknown migration file type: {mig_path.suffix}")
+
             self.record_migration(version)
             logger.info(f"✓ Applied migration: {version}")
             return True
