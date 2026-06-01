@@ -59,6 +59,21 @@ def validate_environment():
         'DB_USER': 'Database username',
     }
 
+    # SECURITY FIX H-01: If Cognito authentication is enabled, ALL Cognito vars must be set
+    cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
+    if cognito_user_pool_id:
+        # Authentication enabled - require all Cognito vars
+        cognito_client_id = os.getenv('COGNITO_CLIENT_ID', '').strip()
+        cognito_region = os.getenv('COGNITO_REGION', '').strip()
+
+        if not cognito_client_id:
+            errors.append('COGNITO_CLIENT_ID: Required for JWT audience validation when authentication is enabled')
+        if not cognito_region:
+            # Default to us-east-1, but still validate it's explicitly set in production
+            is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
+            if is_lambda:
+                errors.append('COGNITO_REGION: Required in Lambda environment')
+
     # SECURITY FIX: In production, FRONTEND_URL must be explicitly set for CORS
     is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
     if is_lambda:
@@ -402,7 +417,11 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
             return (False, None, "Key not found")
 
         # Verify signature and claims
-        cognito_client_id = os.getenv('COGNITO_CLIENT_ID')
+        cognito_client_id = os.getenv('COGNITO_CLIENT_ID', '').strip()
+        if not cognito_client_id:
+            logger.error("FATAL: COGNITO_CLIENT_ID not configured - JWT audience validation will be skipped (SECURITY H-01)")
+            return (False, None, "Authentication system misconfigured - COGNITO_CLIENT_ID missing")
+
         payload = jwt.decode(
             token,
             jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data)),
@@ -431,16 +450,27 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
 def get_client_ip(event: Dict) -> str:
     """Extract real client IP, accounting for CloudFront reverse proxy.
 
-    When behind CloudFront, all requests appear to come from CloudFront's IP.
-    Use CF-Connecting-IP header (CloudFront's real client IP) instead of sourceIp.
+    SECURITY H-02: CF-Connecting-IP is ONLY trusted if request came through CloudFront.
+    Verify CloudFront-specific headers (CloudFront-Viewer-Country, CloudFront-Is-Desktop-Viewer)
+    are present before trusting CF-Connecting-IP.
+    Direct API Gateway requests (bypassing CloudFront) must not spoof this header.
     """
     headers = event.get('headers', {})
 
-    # Check CloudFront's real client IP header first
-    if 'cf-connecting-ip' in headers:
-        return headers['cf-connecting-ip']
-    if 'CF-Connecting-IP' in headers:
-        return headers['CF-Connecting-IP']
+    # Verify request actually came through CloudFront by checking for CloudFront-specific headers
+    is_from_cloudfront = (
+        'cloudfront-viewer-country' in headers or
+        'CloudFront-Viewer-Country' in headers or
+        'cloudfront-is-desktop-viewer' in headers or
+        'CloudFront-Is-Desktop-Viewer' in headers
+    )
+
+    # Only trust CF-Connecting-IP if request came through CloudFront
+    if is_from_cloudfront:
+        if 'cf-connecting-ip' in headers:
+            return headers['cf-connecting-ip']
+        if 'CF-Connecting-IP' in headers:
+            return headers['CF-Connecting-IP']
 
     # Fallback to X-Forwarded-For (standard proxy header)
     # SECURITY FIX: Use first IP (original client), not last (closest proxy)
@@ -500,6 +530,7 @@ def require_auth(event: Dict, path: str) -> tuple:
         '/api/earnings',  # Earnings data (public data)
         '/api/research',  # Research endpoints (public analysis)
         '/api/data-coverage',  # Data freshness status (public metadata)
+        '/api/contact',  # Public contact form (no auth required)
     }
 
     # Protected endpoints requiring authentication (strategy/trading data)

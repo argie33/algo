@@ -31,6 +31,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_filter: Optional[str] = None) -> Dict:
         """Get stock trading signals with all available technical and analytical data."""
         try:
+            # SECURITY L-05: Validate timeframe parameter (currently only 'daily' supported)
+            VALID_TIMEFRAMES = {'daily'}
+            if timeframe.lower() not in VALID_TIMEFRAMES:
+                return error_response(400, 'bad_request', f'Unsupported timeframe: {timeframe}. Only "daily" is currently supported.')
+
             cur.execute("SET statement_timeout TO '25s'")
             where_clause = "WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days' AND LOWER(bsd.signal) IN ('buy', 'sell')"
             params = [limit]

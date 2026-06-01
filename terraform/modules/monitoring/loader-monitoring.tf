@@ -65,7 +65,7 @@ resource "aws_cloudwatch_log_metric_filter" "loader_failure_pattern" {
   count          = var.ecs_log_group_name != "" ? 1 : 0
   name           = "LoaderFailurePattern"
   log_group_name = var.ecs_log_group_name
-  filter_pattern = "[... ERROR, FAILED, EXCEPTION, CRITICAL ...]"
+  pattern = "[... ERROR, FAILED, EXCEPTION, CRITICAL ...]"
 
   metric_transformation {
     name      = "LoaderFailureCount"

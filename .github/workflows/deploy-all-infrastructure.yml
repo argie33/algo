@@ -423,6 +423,22 @@ jobs:
           echo "[OK] loader_failure_handler Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/loader_failure_handler.zip | cut -f1)"
           unzip -l $TERRAFORM_LAMBDA/loader_failure_handler.zip | head -10
 
+      - name: Build Circuit Breaker Lambda
+        run: |
+          # Build circuit breaker Lambda ZIP for intraday halt protection (F-02)
+          # Must run before Terraform so filebase64sha256() can find the file
+          SOURCE=$GITHUB_WORKSPACE/lambda/circuit-breaker
+          OUTPUT=$GITHUB_WORKSPACE/lambda/circuit-breaker/index.zip
+
+          if [ -f "$SOURCE/index.py" ]; then
+            cd $SOURCE
+            rm -f index.zip
+            zip -j index.zip index.py -x "*.pyc"
+            echo "[OK] circuit-breaker Lambda ZIP: $(du -sh index.zip | cut -f1)"
+          else
+            echo "[WARN] lambda/circuit-breaker/index.py not found — skipping"
+          fi
+
       - name: Terraform Validate
         run: terraform validate
 

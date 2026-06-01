@@ -102,6 +102,8 @@ resource "aws_lambda_function" "circuit_breaker" {
     }
   }
 
+  layers = compact([var.python_dependencies_layer_arn])
+
   depends_on = [
     aws_iam_role_policy.circuit_breaker_policy,
     aws_cloudwatch_log_group.circuit_breaker,

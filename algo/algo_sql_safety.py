@@ -128,16 +128,30 @@ def safe_select_count(cur, table: str, date_column: Optional[str] = None, where_
     Returns:
         (row_count, max_date_as_string)
 
-    SECURITY: where_clause must be static/hardcoded SQL only. Never accept user input here.
+    SECURITY M-05: where_clause must be static/hardcoded SQL only. Never accept user input here.
+    The whitelist approach below is deprecated. For new code: use parameterized queries with %s placeholders.
+    Example: cur.execute(f"SELECT COUNT(*) FROM {table_safe} WHERE status = %s", (status,))
     """
     table_safe = assert_safe_table(table)
 
-    # Validate where_clause against SQL injection patterns
+    # SECURITY FIX M-05: Comprehensive validation of where_clause
+    # Reject ANY suspicious SQL pattern - more comprehensive than simple blacklist
     if where_clause:
-        # Reject obvious injection attempts
-        dangerous_patterns = [';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION']
-        if any(pattern in where_clause.upper() for pattern in dangerous_patterns):
-            raise ValueError(f"Suspicious SQL pattern detected in where_clause: {where_clause}")
+        # Reject obvious injection attempts with expanded pattern set
+        dangerous_patterns = [
+            ';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION',
+            'TRUNCATE', 'EXECUTE', 'COPY', 'ALTER', 'CREATE', 'pg_', 'CAST',
+            'SELECT INTO', '$$',  # PostgreSQL dollar-quoting
+        ]
+        where_upper = where_clause.upper()
+        if any(pattern in where_upper for pattern in dangerous_patterns):
+            raise ValueError(f"Dangerous SQL pattern detected in where_clause (M-05): {where_clause}")
+
+        # Additional check: where_clause should only contain basic comparison operators
+        # Allowed: column = value, column > value, AND, OR, NOT
+        if not re.match(r'^[a-zA-Z0-9_\s=<>!().,\-\+]*$', where_clause):
+            raise ValueError(f"where_clause contains unexpected characters (M-05): {where_clause}")
+
         where_sql = f" WHERE {where_clause}"
     else:
         where_sql = ""

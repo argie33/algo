@@ -84,19 +84,30 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 return handle_db_error(e, logger, 'handle algo')
         if method == 'POST' and path == '/api/algo/patrol':
-            logger.info("Manual patrol triggered via API")
-            return json_response(200, {'status': 'triggered', 'message': 'Patrol triggered'})
+            return _trigger_data_patrol()
         if method == 'POST' and path == '/api/algo/pre-trade-impact':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo pre-trade-impact access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _analyze_pre_trade_impact(cur, body)
         if path == '/api/algo/status':
             return _get_algo_status(cur)
         elif path == '/api/algo/trades':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo trades access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=50000, default=100)
             return _get_algo_trades(cur, limit)
         elif path == '/api/algo/positions':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo positions access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_algo_positions(cur)
         elif path == '/api/algo/performance':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo performance access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_algo_performance(cur)
         elif path == '/api/algo/circuit-breakers':
             return _get_circuit_breakers(cur)
@@ -129,6 +140,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             except (ValueError, TypeError):
                 return error_response(400, 'bad_request', 'min_score must be numeric')
             symbol_filter = params.get('symbol', [None])[0] if params else None
+            # SECURITY M-03: Validate symbol parameter format
+            if symbol_filter:
+                if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol_filter.upper()):
+                    return error_response(400, 'bad_request', 'Invalid symbol format')
             return _get_swing_scores(cur, limit, min_score, symbol_filter)
         elif path == '/api/algo/swing-scores-history':
             days_str = params.get('days', [None])[0] if params else None
@@ -160,6 +175,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/last-run':
             return _get_last_run(cur)
         elif path == '/api/algo/audit-log':
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized algo audit-log access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=50000, default=100)
             offset_str = params.get('offset', [None])[0] if params else None
@@ -756,6 +774,15 @@ def _get_notifications(cur, params: Dict = None) -> Dict:
             unread = params.get('unread', [None])[0] if params.get('unread') else None
             limit_str = params.get('limit', [None])[0] if params.get('limit') else None
             limit = safe_limit(limit_str, max_val=50000, default=100)
+
+            # SECURITY M-04: Validate kind and severity against whitelists
+            VALID_KINDS = {'signal', 'halt', 'alert', 'error', 'trade', 'position', 'market', 'system'}
+            VALID_SEVERITIES = {'info', 'warning', 'error', 'critical'}
+
+            if kind and kind not in VALID_KINDS:
+                return error_response(400, 'bad_request', f'Invalid kind: {kind}')
+            if severity and severity not in VALID_SEVERITIES:
+                return error_response(400, 'bad_request', f'Invalid severity: {severity}')
 
             where_clauses = []
             where_params = []
