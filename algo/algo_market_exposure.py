@@ -397,24 +397,24 @@ class MarketExposure:
         return cur.fetchone() is not None
 
     def _trend_30wk(self, eval_date, cur):
-        """SPY vs 30-week (150d) MA + slope over 30 trading days."""
+        """SPY vs 30-week (150d) MA + slope over 30 trading days.
+
+        Reads pre-computed sma_150 from technical_data_daily (indexed lookup, <1s)
+        instead of computing AVG() OVER a window across all SPY rows in price_daily
+        (7000+ rows × window function = slow under load on t4g.micro).
+        """
         cur.execute(
             """
-            WITH d AS (
-                SELECT date, close,
-                       AVG(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS sma_150,
-                       COUNT(*) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS pts
-                FROM price_daily
-                WHERE symbol = 'SPY' AND date <= %s
-                ORDER BY date DESC LIMIT 35
-            )
-            SELECT date, close, sma_150, pts FROM d ORDER BY date DESC
+            SELECT date, close, sma_150
+            FROM technical_data_daily
+            WHERE symbol = 'SPY' AND date <= %s
+            ORDER BY date DESC
+            LIMIT 35
             """,
             (eval_date,),
         )
         rows = cur.fetchall()
-        if not rows or rows[0][2] is None or int(rows[0][3]) < 150:
-            # M2 FIX: Fail-closed on missing data (0.1 instead of 0.5 = more conservative)
+        if not rows or rows[0][2] is None:
             return {'score_factor': 0.1, 'value': None, 'reason': 'Insufficient history'}
 
         cur_close = float(rows[0][1])
