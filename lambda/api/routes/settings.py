@@ -42,7 +42,6 @@ _DEFAULTS = {
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/settings endpoints."""
     # SECURITY FIX: Require authentication for all settings endpoints
-    # Note: When Cognito is disabled, jwt_claims={} (empty dict) is passed, which is treated as authorized
     if jwt_claims is None:
         return error_response(401, 'unauthorized', 'Authentication required')
 

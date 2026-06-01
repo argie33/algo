@@ -14,7 +14,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         if path in ['/api/signals', '/api/signals/stocks'] or path.startswith('/api/signals?') or path.startswith('/api/signals/stocks?'):
             limit_list = params.get('limit', [])
             limit_str = limit_list[0] if limit_list else None
-            limit = safe_limit(limit_str, max_val=50000, default=500)
+            limit = safe_limit(limit_str, max_val=10000, default=500)
             timeframe_list = params.get('timeframe', [])
             timeframe = timeframe_list[0] if timeframe_list else 'daily'
             symbol_list = params.get('symbol', [])
@@ -23,7 +23,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         elif path == '/api/signals/etf':
             limit_list = params.get('limit', [])
             limit_str = limit_list[0] if limit_list else None
-            limit = safe_limit(limit_str, max_val=50000, default=500)
+            limit = safe_limit(limit_str, max_val=10000, default=500)
             return _get_signals_etf(cur, limit)
         else:
             return error_response(404, 'not_found', f'No signals handler for {path}')

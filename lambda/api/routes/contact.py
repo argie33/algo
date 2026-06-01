@@ -136,9 +136,9 @@ def _submit_contact(cur, body: Dict) -> Dict:
 
     try:
         cur.execute("""
-            INSERT INTO contact_submissions (name, email, subject, message, submitted_at)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (name, email, subject, message, datetime.now(timezone.utc)))
+            INSERT INTO contact_submissions (name, email, subject, message, phone, submitted_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (name, email, subject, message, phone if phone else None, datetime.now(timezone.utc)))
         logger.info(f"Contact form submission from {email}")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):

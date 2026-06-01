@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
+dynamodb = boto3.resource('dynamodb')
 secretsmanager = boto3.client("secretsmanager")
 
 def get_portfolio_pnl(db_connection):
@@ -95,7 +96,17 @@ def lambda_handler(event, context):
         db_connection.close()
 
         if variance is None:
-            logger.error("Unable to calculate variance — halting trading to be safe")
+            logger.error("Unable to calculate variance — halting trading to be safe (fail-closed)")
+            # Fail-closed: update DynamoDB halt flag
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+            table.put_item(Item={
+                'key': 'orchestrator_halt',
+                'halt_flag': True,
+                'reason': 'Unable to calculate portfolio variance (fail-closed)',
+                'triggered_at': datetime.now(timezone.utc).isoformat(),
+                'check_time': event.get('check_time', 'unscheduled')
+            })
             return {
                 "statusCode": 500,
                 "body": json.dumps({
@@ -108,13 +119,17 @@ def lambda_handler(event, context):
         threshold = 0.15  # 15% threshold
         if variance > threshold:
             logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds threshold {threshold:.1%}")
-            state["orchestrator_dry_run"] = True
 
-            # Update Secrets Manager
-            secretsmanager.update_secret(
-                SecretId="algo/orchestrator",
-                SecretString=json.dumps(state)
-            )
+            # Update DynamoDB halt flag (Orchestrator checks this, not Secrets Manager)
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+            table.put_item(Item={
+                'key': 'orchestrator_halt',
+                'halt_flag': True,
+                'reason': f'Portfolio variance {variance:.1%} exceeds {threshold:.1%}',
+                'triggered_at': datetime.now(timezone.utc).isoformat(),
+                'check_time': event.get('check_time', 'unscheduled')
+            })
 
             return {
                 "statusCode": 200,
@@ -138,7 +153,20 @@ def lambda_handler(event, context):
 
     except Exception as e:
         logger.error(f"Circuit breaker check failed: {e}", exc_info=True)
-        # Fail-closed: on any error, halt trading
+        # Fail-closed: on any error, halt trading and update DynamoDB
+        try:
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+            table.put_item(Item={
+                'key': 'orchestrator_halt',
+                'halt_flag': True,
+                'reason': f'Circuit breaker check failed: {str(e)[:100]}',
+                'triggered_at': datetime.now(timezone.utc).isoformat(),
+                'check_time': event.get('check_time', 'unscheduled')
+            })
+        except Exception as ddb_err:
+            logger.error(f"Failed to update DynamoDB halt flag: {ddb_err}", exc_info=True)
+
         return {
             "statusCode": 500,
             "body": json.dumps({
