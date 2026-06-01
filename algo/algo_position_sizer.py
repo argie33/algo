@@ -334,9 +334,14 @@ class PositionSizer:
             logger.debug(f"Failed to calculate short exposure: {calc_e}")
             return 0
 
-    def calculate_position_size(self, symbol, entry_price, stop_loss_price, signal_date=None):
+    def calculate_position_size(self, symbol, entry_price, stop_loss_price, signal_date=None,
+                               portfolio_value=None):
         """
         Calculate position size for a new trade.
+
+        Args:
+            portfolio_value: Pre-fetched portfolio value to skip Alpaca API call.
+                             Pass this when calling in a loop to avoid N Alpaca calls.
 
         Returns:
         {
@@ -347,7 +352,8 @@ class PositionSizer:
         }
         """
         try:
-            return self._calculate_with_external_cursor(symbol, entry_price, stop_loss_price, signal_date)
+            return self._calculate_with_external_cursor(symbol, entry_price, stop_loss_price,
+                                                        signal_date, portfolio_value=portfolio_value)
         except Exception as e:
             return {
                 'shares': 0,
@@ -357,10 +363,12 @@ class PositionSizer:
                 'reason': str(e)
             }
 
-    def _calculate_with_external_cursor(self, symbol, entry_price, stop_loss_price, signal_date=None):
+    def _calculate_with_external_cursor(self, symbol, entry_price, stop_loss_price,
+                                         signal_date=None, portfolio_value=None):
         """Internal method for position calculation."""
         try:
-            portfolio_value = self.get_portfolio_value()
+            if portfolio_value is None:
+                portfolio_value = self.get_portfolio_value()
             risk_adjustment = self.get_risk_adjustment()
             active_positions = self.get_position_count()
             active_position_value = self.get_active_positions_value()

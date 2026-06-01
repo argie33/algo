@@ -120,7 +120,9 @@ class FilterTiers45Mixin:
 
             from algo.algo_position_sizer import PositionSizer
             sizer = PositionSizer(self.config)
-            result = sizer.calculate_position_size(symbol, entry_price, stop_loss_price, signal_date)
+            cached_pv = getattr(self, '_cached_portfolio_value', None)
+            result = sizer.calculate_position_size(symbol, entry_price, stop_loss_price, signal_date,
+                                                   portfolio_value=cached_pv)
 
             if result['status'] != 'ok':
                 return {

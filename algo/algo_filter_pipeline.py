@@ -143,6 +143,18 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             if ctx['market_breadth']:
                 logger.info(f"  AAII bull/bear spread: {ctx['market_breadth']['bull_bear_spread']:+.1f}")
 
+            # Pre-fetch portfolio value ONCE to avoid one Alpaca HTTP call per stock in Tier 5.
+            # PositionSizer.get_portfolio_value() calls paper-api.alpaca.markets for every
+            # stock that reaches Tier 5 — with 100+ candidates that's 100+ HTTP round-trips.
+            # Cache here and pass via self._cached_portfolio_value for FilterTiers45Mixin to use.
+            self._cached_portfolio_value = None
+            try:
+                from algo.algo_position_sizer import PositionSizer as _PSizer
+                self._cached_portfolio_value = _PSizer(self.config).get_portfolio_value()
+                logger.info(f"  Portfolio value (cached for Tier 5 sizing): ${self._cached_portfolio_value:,.0f}")
+            except Exception as _pv_err:
+                logger.warning(f"  Could not pre-fetch portfolio value: {_pv_err} — will fetch per-stock (slower)")
+
             tier_pass_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
             advanced_passed = 0
             advanced_blocked = 0
