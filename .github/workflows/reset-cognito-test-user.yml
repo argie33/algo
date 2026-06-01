@@ -1,4 +1,4 @@
-ï»¿name: Reset Cognito Test User Password
+name: Reset Cognito Test User Password
 
 on:
   workflow_dispatch:
@@ -34,12 +34,10 @@ jobs:
       - name: Get Cognito User Pool ID
         id: pool
         run: |
-          # The active frontend pool is stocks-trading-pool-dev (us-east-1_VBNqfLbSp)
           POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 \
             --query 'UserPools[?Name=="stocks-trading-pool-dev"].Id | [0]' \
             --output text 2>/dev/null || echo "")
           if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
-            # Fallback: read pool ID from deployed config.js on S3
             BUCKET=$(aws s3api list-buckets \
               --query 'Buckets[?starts_with(Name, "algo-frontend")].Name | [0]' \
               --output text 2>/dev/null || echo "")
@@ -60,7 +58,6 @@ jobs:
             --filter "email = \"$EMAIL\"" \
             --query 'Users[0].Username' --output text 2>/dev/null || echo "")
           if [ -z "$USERNAME" ] || [ "$USERNAME" = "None" ]; then
-            # Fallback: list all and find by email attribute
             USERNAME=$(aws cognito-idp list-users \
               --user-pool-id "$POOL_ID" \
               --query "Users[?Attributes[?Name=='email' && Value=='$EMAIL']].Username | [0]" \
@@ -82,7 +79,7 @@ jobs:
             --username "$USERNAME" \
             --password "${{ inputs.new_password }}" \
             --permanent
-          echo "Ã¢Å“â€¦ Password set permanently for ${{ inputs.user_email }}"
+          echo "OK: Password set permanently for ${{ inputs.user_email }}"
 
       - name: Verify user status
         run: |
@@ -94,7 +91,7 @@ jobs:
             --query 'UserStatus' --output text)
           echo "User status: $STATUS"
           if [ "$STATUS" = "CONFIRMED" ]; then
-            echo "Ã¢Å“â€¦ User is CONFIRMED and ready to log in"
+            echo "OK: User is CONFIRMED and ready to log in"
           else
-            echo "Ã¢Å¡Â Ã¯Â¸Â�- User status is $STATUS Ã¢â‚¬â€�- may need additional confirmation"
+            echo "WARN: User status is $STATUS — may need additional confirmation"
           fi
