@@ -20,6 +20,12 @@ permissions:
   id-token: write
   contents: read
 
+# Only one orchestrator test at a time — Lambda reserved_concurrency=1 means
+# a second simultaneous invocation raises TooManyRequestsException.
+concurrency:
+  group: orchestrator-invoke
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-east-1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
