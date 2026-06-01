@@ -354,6 +354,10 @@ module "monitoring" {
   aws_account_id = local.aws_account_id
   common_tags    = local.common_tags
 
+  # Network configuration
+  vpc_id   = module.vpc.vpc_id
+  vpc_cidr = var.vpc_cidr
+
   # API & Lambda configuration
   api_lambda_name  = module.services.api_lambda_function_name
   algo_lambda_name = module.services.algo_lambda_function_name

@@ -14,5 +14,9 @@ requests>=2.33.0
 # Configuration
 python-dotenv>=1.0
 
+# Scientific computing (required for Phase 7 portfolio optimization in orchestrator)
+numpy>=1.24.0
+scipy>=1.10.0
+
 # Data (minimal, only if actually needed by all functions)
 # pydantic>=2.5.0  # Only needed by API, not included to keep layer small

@@ -28,6 +28,40 @@ resource "aws_sns_topic_subscription" "circuit_breaker_email" {
 }
 
 # ============================================================
+# 0b. Circuit Breaker Lambda Security Group
+# ============================================================
+
+resource "aws_security_group" "circuit_breaker" {
+  name        = "${var.project_name}-circuit-breaker-sg"
+  description = "Security group for circuit breaker Lambda (RDS access only)"
+  vpc_id      = var.vpc_id
+
+  # Egress: allow PostgreSQL to RDS
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "Allow PostgreSQL to RDS (database queries for portfolio P&L)"
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-circuit-breaker-sg"
+  })
+}
+
+# Allow circuit breaker to query RDS for portfolio P&L
+resource "aws_security_group_rule" "rds_from_circuit_breaker" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = var.rds_security_group_id
+  source_security_group_id = aws_security_group.circuit_breaker.id
+  description              = "Allow PostgreSQL from circuit breaker Lambda"
+}
+
+# ============================================================
 # 1. IAM Role for Circuit Breaker Lambda
 # ============================================================
 
@@ -127,12 +161,12 @@ resource "aws_lambda_function" "circuit_breaker" {
   handler       = "index.lambda_handler"
   timeout       = 60
   memory_size   = 512
-  runtime       = "python3.12"
+  runtime       = "python3.11"
   source_code_hash = fileexists("${path.root}/lambda/circuit_breaker.zip") ? filebase64sha256("${path.root}/lambda/circuit_breaker.zip") : ""
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.rds_security_group_id]
+    security_group_ids = [aws_security_group.circuit_breaker.id]
   }
 
   environment {

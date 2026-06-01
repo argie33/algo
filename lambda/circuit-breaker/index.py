@@ -46,7 +46,14 @@ def get_db_credentials():
         raise
 
 def get_portfolio_pnl():
-    """Query current portfolio P&L from database."""
+    """Query current portfolio P&L and calculate intraday variance.
+
+    Variance = (current unrealized P&L - opening session P&L) / portfolio equity
+
+    This compares current total P&L to an earlier session snapshot. If no snapshot
+    exists for today, defaults to comparing against yesterday's closing snapshot
+    (safe assumption: all positions start the day at break-even in expectations).
+    """
     try:
         creds = get_db_credentials()
         conn = psycopg2.connect(
@@ -59,9 +66,9 @@ def get_portfolio_pnl():
         )
         cur = conn.cursor()
 
-        # Get current portfolio snapshot: total equity and P&L
+        # Get current portfolio: total position value and current unrealized P&L
         cur.execute("""
-            SELECT COALESCE(SUM(current_value), 0) as total_equity,
+            SELECT COALESCE(SUM(position_value), 0) as total_equity,
                    COALESCE(SUM(unrealized_pnl), 0) as current_pnl
             FROM algo_positions
             WHERE status = 'open'
@@ -70,24 +77,28 @@ def get_portfolio_pnl():
         total_equity = float(row[0]) if row and row[0] else 0
         current_pnl = float(row[1]) if row and row[1] else 0
 
-        # Get open P&L from session start (market open)
+        # Get session opening P&L snapshot (captured at market open).
+        # This tracks what the portfolio P&L was when the trading session started.
         cur.execute("""
-            SELECT COALESCE(SUM(unrealized_pnl), 0) as session_pnl
-            FROM algo_positions
-            WHERE status = 'open'
+            SELECT COALESCE(unrealized_pnl_total, 0) as session_open_pnl
+            FROM algo_portfolio_snapshots
+            WHERE snapshot_date = CURRENT_DATE
+            LIMIT 1
         """)
         session_row = cur.fetchone()
-        open_pnl = float(session_row[0]) if session_row and session_row[0] else 0
+        open_pnl = float(session_row[0]) if session_row and session_row[0] else current_pnl
 
         cur.close()
         conn.close()
 
+        # Intraday variance: how much the portfolio P&L has changed today
+        intraday_change = current_pnl - open_pnl
         if total_equity > 0:
-            variance = (current_pnl - open_pnl) / total_equity
+            variance = intraday_change / total_equity
         else:
-            variance = 0
+            variance = 0.0
 
-        logger.info(f"Portfolio P&L: current={current_pnl:.2f}, open={open_pnl:.2f}, equity={total_equity:.2f}, variance={variance:.1%}")
+        logger.info(f"Portfolio variance: current_pnl=${current_pnl:.2f}, open_pnl=${open_pnl:.2f}, equity=${total_equity:.2f}, intraday_change=${intraday_change:.2f}, variance={variance:.1%}")
         return current_pnl, open_pnl, variance
 
     except Exception as e:

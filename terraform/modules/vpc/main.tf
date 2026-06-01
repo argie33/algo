@@ -360,6 +360,9 @@ resource "aws_security_group_rule" "rds_from_bastion" {
   description              = "Allow PostgreSQL from Bastion"
 }
 
+# Note: Circuit breaker Lambda SG is created in monitoring module and added here via Terraform
+# This allows the circuit breaker to query portfolio P&L without being in the RDS SG
+
 resource "aws_security_group_rule" "rds_self_postgres" {
   type                     = "ingress"
   from_port                = 5432

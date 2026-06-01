@@ -47,6 +47,20 @@ variable "api_gateway_name" {
 }
 
 # ============================================================
+# Network Configuration
+# ============================================================
+
+variable "vpc_id" {
+  description = "VPC ID for security groups"
+  type        = string
+}
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block for security group rules"
+  type        = string
+}
+
+# ============================================================
 # Database Configuration
 # ============================================================
 
