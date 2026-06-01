@@ -49,13 +49,16 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 1. **Intraday pricing stale (F-01 - CRITICAL):** Prices loaded once daily at 4 AM (price_daily table). 1 PM and 3 PM orchestrator runs use 4 AM close prices, not current intraday prices. Position sizing is wrong if a stock gaps 10%+ at open. **FIX:** Integrate real-time pricing feed (Alpaca real-time API, IEX Cloud, or WebSocket) into orchestrator Phase 3b (Position Monitoring). Replace price_daily lookups with live API calls for intraday position sizing.
 
-2. **Intraday circuit breaker (F-02 - FIXED):** Circuit breaker Lambda now:
+2. **Intraday circuit breaker (F-02 - MOSTLY FIXED):** Circuit breaker Lambda:
    - **FIXED:** Correctly bundles config/ and utils/ modules (was missing, caused ModuleNotFoundError)
    - **FIXED:** Clears halt flag when portfolio variance returns to safe range (was stuck permanently)
-   - Runs at 10 AM and 12 PM ET to halt trading if portfolio P&L drops > 15%
+   - **FIXED:** Moved from RDS SG to dedicated SG (was using rds_self_postgres as accidental side effect)
+   - **FIXED:** Runtime/layer mismatch resolved (was Python 3.12 with 3.11 layer)
+   - **FIXED:** P&L variance logic now reads opening snapshot from algo_portfolio_snapshots instead of comparing same data twice
+   - Runs at 10 AM, 12 PM, and 3 PM ET to halt trading if portfolio P&L drops > 15%
    - Updates DynamoDB `orchestrator_halt` flag; orchestrator Phase 1 checks and fails-closed
 
-3. **numpy/scipy not deployed to Lambda (F-03 - CRITICAL):** Shared-deps Lambda layer skipped because numpy + scipy exceed 69 MB direct upload limit. Phase 7 code (algo_var.py, algo_weight_optimizer.py) wrapped in try/except fail-open. Silently fails every run. **FIX:** (a) Split scipy/numpy into separate layer compressed with zip --unzip-pattern, OR (b) Use Lambda@Edge CloudFront layer, OR (c) Move Phase 7 to ECS task (like orchestrator) instead of Lambda.
+3. **numpy/scipy not deployed to Lambda (F-03 - FIXED):** Added numpy + scipy to Lambda layer requirements. Phase 7 portfolio optimization now executes instead of silently failing.
 
 ## Analytics Loader OOM Risk
 
@@ -178,16 +181,25 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 ## Live Trading Readiness
 
 - Authentication: ENABLED (cognito_enabled = true). Primary user: argeropolos@gmail.com.
-- Email: DISABLED (cognito_custom_email_enabled = false). See "Authentication & Email" section to enable.
+- Email: ENABLED (cognito_custom_email_enabled = true). SES configured; password reset codes arrive in seconds.
 - RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
-- Circuit breaker: FIXED. Now correctly halts trading on portfolio variance > 15%, clears flag when safe (F-02). Runs at 10 AM, 12 PM, 3 PM ET.
-- Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
+- API Lambda: FIXED provisioned concurrency (1 unit) to prevent 15-40s VPC cold start 502 errors on first request. Cost: ~$12/month.
+- Circuit breaker: FIXED (F-02). Correctly halts trading on portfolio variance > 15%, clears flag when safe. P&L variance now reads from session snapshot (algo_portfolio_snapshots) instead of comparing duplicate data. Runs at 10 AM, 12 PM, 3 PM ET.
+- Portfolio optimization: FIXED (F-03). numpy + scipy now in Lambda layer; Phase 7 (reconciliation + weight optimization) executes instead of silently failing.
+- Intraday pricing: STALE (F-01). Prices loaded once daily at 4 AM; 1 PM and 3 PM runs use stale closes. Integrate real-time Alpaca feed before live trading.
 
 **⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars but `alpaca_paper_trading = false` (LIVE TRADING). All AWS resources named `-dev`. If staging is provisioned in same account, rename this to `prod` to prevent conflicts. For now: documented understanding that "dev" = live capital environment.
 
 ## Recent Fixes (2026-06-01)
 
-**Critical Fixes:**
+**Critical Fixes (6-1):**
+- **F-02 Circuit Breaker P&L Variance Logic:** Fixed variance calculation that was always 0% (both queries read same column at same instant). Now compares current unrealized P&L against session opening snapshot from algo_portfolio_snapshots table.
+- **F-02 Circuit Breaker Architecture:** Moved Lambda from RDS security group (was using rds_self_postgres as accidental side effect) to dedicated security group with explicit RDS ingress rule. Fixed runtime/layer mismatch (was Python 3.12 with 3.11 layer wheels).
+- **F-03 Phase 7 Silent Failure:** Added numpy + scipy to Lambda layer so portfolio optimization (algo_var.py, algo_weight_optimizer.py) actually executes. Was wrapped in try/except fail-open and silently failed every run.
+- **API Lambda Cold Start 502 Errors:** Enabled provisioned concurrency (1 unit) to keep API Lambda warm during trading hours. Fixes guaranteed 15-40s VPC cold start timeouts that exceed 29s API Gateway hard limit.
+- **Terraform Deploy Blocker:** Removed undefined var.circuit_breaker_role_arn reference in services/main.tf. Deduplicated redundant DynamoDB IAM policies.
+
+**Earlier Critical Fixes:**
 - **F-02 Circuit Breaker Module Imports:** Fixed missing config/ bundling in circuit breaker Lambda build. Now uses same pattern as orchestrator (bundles config/ + utils/ in ZIP).
 - **F-02 Circuit Breaker Reset Logic:** Added explicit halt flag reset when portfolio variance drops below 15%. Previously failed-closed permanently.
 - **Orchestrator Evening Schedule:** Fixed cron expression from 22:30 UTC (10:30 PM ET) to 17:30 UTC (5:30 PM ET) for correct post-market signal prep.
