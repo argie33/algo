@@ -1,8 +1,10 @@
 environment  = "dev"
 aws_region   = "us-east-1"
 project_name = "algo"
-# CORS origin for frontend (set to CloudFront domain in production, localhost in dev)
-frontend_origin = "http://localhost:3000"
+# CORS origin for frontend
+# Note: This variable is not actively used. API CORS is controlled via api_cors_allowed_origins below.
+# Keep in sync with actual CloudFront domain or update to current deployment URL.
+frontend_origin = "https://d2u93283nn45h2.cloudfront.net"
 # Frontend deployment
 cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
 # API Gateway CORS configuration

@@ -154,6 +154,38 @@ All credentials rotate on fixed schedules. Update locally when rotated:
 
 **If a credential is leaked:** Rotate immediately (don't wait for quarterly schedule). For AWS keys, delete old key in IAM console and trigger `rotate-dev-credentials.yml`. For API keys, regenerate in dashboard immediately and update GitHub Secrets.
 
+## LIVE TRADING READINESS CHECKLIST
+
+**Security & Authentication:**
+- ❌ Dashboard has NO authentication (`cognito_enabled = false`). Acceptable for paper trading only.
+  - To enable: Set `cognito_enabled = true`, configure Cognito user pool, update API Gateway auth settings.
+- ✅ AWS credentials rotated quarterly, OIDC-based (no static keys in GitHub).
+- ✅ Database password in Secrets Manager, no hardcoded values.
+
+**Monitoring & Alerts:**
+- ✅ SNS infrastructure alerts (CloudWatch → SNS → email).
+- ✅ Application-level alerts via SMTP (populate alert_smtp_password secret).
+- ✅ CloudWatch metrics for orchestrator performance, phase timing.
+
+**Operational:**
+- ❓ RDS Proxy disabled (cost optimization). Re-enable (`enable_rds_proxy = true`) if scaling beyond t4g.micro or adding more concurrent API users.
+- ❓ Intraday runs use yesterday's close price (architectural limitation, see KNOWN LIMITATION above).
+- ❓ No real-time circuit breaker for intraday market crashes (see KNOWN LIMITATION above).
+- ✅ Phase 7 reconciliation syncs with Alpaca account daily.
+- ✅ IC computation and weight optimization run post-trading (fail-open, don't block trades).
+
+**Before flipping to live trading:**
+1. Enable Cognito authentication for dashboard
+2. Re-enable RDS Proxy if expecting high concurrent load
+3. Review intraday pricing limitation and consider real-time feed integration
+4. Add CloudWatch alarm on portfolio variance for intraday protection
+5. Rotate all credentials (AWS, Alpaca live keys, FRED, SMTP)
+6. Verify alarm email delivery (send test via SNS)
+7. Run in paper mode for 1-2 weeks, monitor CloudWatch logs daily
+8. Test error scenarios: DB unavailability, API rate limits, market gaps
+9. Document your risk tolerance and position limits in README
+10. Notify your stakeholders of automation and manual circuit breakers available
+
 ## DEPLOYMENT ARCHITECTURE (THE RIGHT WAY - OIDC ONLY)
 
 **How to Deploy:**
@@ -602,6 +634,18 @@ terraform plan -var-file=terraform.tfvars  # Should succeed now
 All phases write to `algo_audit_log`. Fail-closed on critical (Phase 1, 2), fail-open on operational (Phases 3-7).
 
 **`_final_report()` returns:** `success=True` if no error/fail statuses; `halted=True` if any phase halted (expected behavior). Lambda returns 200 regardless — use `halted` field to distinguish intended halt from error.
+
+**KNOWN LIMITATION - Intraday Pricing:**
+The 1 PM and 3 PM orchestrator runs use **yesterday's close price** for entry and position sizing. `price_daily` is loaded once per day at 4 AM ET and contains only daily closes. Intraday runs (1 PM, 3 PM) do not have access to today's real-time prices. This means:
+- Position sizes may be oversized if a stock gapped up 10%+ at open
+- Entry prices may be stale (yesterday's close vs today's market)
+- To fix this: integrate real-time price feed (WebSocket or polling) into Phase 5/6. Currently acceptable for paper/sim trading; flag for review before live deployment.
+
+**KNOWN LIMITATION - No Real-Time Circuit Breaker:**
+Phase 2 circuit breakers check daily P&L and portfolio health but do not respond to intraday crashes. If the market drops 15% in the first 30 minutes of trading, the system won't know until after-hours reconciliation. Consider adding a CloudWatch alarm on portfolio variance if deploying live capital.
+
+**KNOWN LIMITATION - Config System Unused in Lambda:**
+Both `algo_config` and `algo_runtime_config` database tables exist but Lambda skips database loads (line 200 in algo_config.py) and uses Python defaults only. Configuration changes require code deploys. Simplify to one system or enable config DB loads when not in Lambda (local dev).
 
 ## SIGNAL FILTER ARCHITECTURE (Tier 2 market gate)
 
