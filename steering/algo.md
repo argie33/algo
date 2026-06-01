@@ -47,9 +47,11 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 ## Known Limitations (Blocking Live Capital)
 
-1. **Intraday pricing stale:** Prices loaded once daily at 4 AM (price_daily table). 1 PM and 3 PM orchestrator runs use 4 AM close prices, not current intraday prices. Position sizing is wrong if a stock gaps 10%+ at open. FIX: Integrate real-time feed (IEX Cloud, Alpaca) before live capital.
+1. **Intraday pricing stale (F-01 - CRITICAL):** Prices loaded once daily at 4 AM (price_daily table). 1 PM and 3 PM orchestrator runs use 4 AM close prices, not current intraday prices. Position sizing is wrong if a stock gaps 10%+ at open. **FIX:** Integrate real-time pricing feed (Alpaca real-time API, IEX Cloud, or WebSocket) into orchestrator Phase 3b (Position Monitoring). Replace price_daily lookups with live API calls for intraday position sizing.
 
-2. **No intraday circuit breaker:** Phase 2 circuit breaker checks daily P&L only. If SPY drops 15% in the first 30 minutes of trading, the orchestrator doesn't run until 1 PM. No automated protection to halt trading mid-day. FIX: Add CloudWatch alarm on portfolio variance + auto-halt step in Phase 2 before live capital.
+2. **No intraday circuit breaker (F-02 - CRITICAL):** Phase 2 circuit breaker checks daily P&L only. If SPY drops 15% in first 30 min of trading, orchestrator doesn't run until 1 PM. No automated protection to halt trading mid-day. **FIX:** Deploy CloudWatch alarm on portfolio variance (compute at 10 AM, 12 PM ET). On breach: publish SNS alert + invoke Lambda to set orchestrator_dry_run = true in Secrets Manager. Orchestrator Phase 1 checks this flag and fails-closed.
+
+3. **numpy/scipy not deployed to Lambda (F-03 - CRITICAL):** Shared-deps Lambda layer skipped because numpy + scipy exceed 69 MB direct upload limit. Phase 7 code (algo_var.py, algo_weight_optimizer.py) wrapped in try/except fail-open. Silently fails every run. **FIX:** (a) Split scipy/numpy into separate layer compressed with zip --unzip-pattern, OR (b) Use Lambda@Edge CloudFront layer, OR (c) Move Phase 7 to ECS task (like orchestrator) instead of Lambda.
 
 ## Analytics Loader OOM Risk
 
@@ -57,13 +59,18 @@ company_profile, analyst_sentiment, stability_metrics, value_metrics iterate 500
 
 Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate runs. Lock auto-releases on exit/crash. Manual stop if needed: `aws ecs stop-task --cluster algo-cluster --task <ARN>`.
 
-## Supporting Loader Failure Monitoring Gap
+## Loader Failure Monitoring (F-04 - HIGH)
 
-**Problem:** 9 core loaders run in Step Functions EOD pipeline (4:30 AM) with centralized failure monitoring. 28 supporting loaders run via independent EventBridge schedules with NO centralized failure alerting. If a supporting loader fails silently, Phase 1 won't catch the stale data until 9:30 AM — too late to prevent trading on bad data.
+**Problem:** 9 core loaders (Step Functions) + 28 supporting loaders (EventBridge). Core loaders have centralized monitoring via step function state machine. Supporting loaders fail silently with NO alerts. If a supporting loader fails, Phase 1 won't catch stale data until 9:30 AM trading window — too late.
 
-**Current workaround:** Check loader-result-logger CloudWatch logs for failures. Check loader-execution Lambda logs.
+**Current state:** SQS DLQ exists but no CloudWatch alarms. Requires manual log inspection to discover failures.
 
-**Recommended fix:** Add CloudWatch alarms for each EventBridge schedule that trigger on ECS task failure + log to SNS topic for pre-market alerting.
+**Required fix:**
+1. Create CloudWatch metric filter on loader ECS task logs: `[... CRITICAL, FAILED, Exception ...]`
+2. Add CloudWatch alarm per supporting loader (26+ alarms) OR consolidate to single alarm with multiple dimensions
+3. Trigger SNS alert to pre-market mailing list (ops@, traders@)
+4. Dashboard: Real-time loader status heatmap (name, last_run, status, error)
+Example: `aws cloudwatch put-metric-alarm --alarm-name algo-loader-{loader_name}-failed --metric-name TaskFailedCount --statistic Sum --period 300 --threshold 1`
 
 ## Orchestrator Phases
 
@@ -78,6 +85,26 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 9. **Phase 7:** Reconciliation + reporting
 
 Phases 1-2 fail-closed (halt trading). Phases 3-7 fail-open (continue trading).
+
+## Staging Environment Isolation (F-07 - HIGH)
+
+**Current Issue:** Staging Lambda and production Lambda share the same RDS instance (main). A bad migration or SQL on staging runs against the production database. Even "dry_run" mode doesn't protect DDL (CREATE/ALTER/DROP).
+
+**Risk:** Data corruption on production database from staging testing.
+
+**Solution:** Create separate RDS instance for staging (terraform/main.tf):
+```hcl
+# Add staging-specific RDS instance
+resource "aws_db_instance" "staging" {
+  identifier = "${var.project_name}-db-staging"
+  instance_class = "db.t4g.micro"  # Cost-optimized
+  # ... config identical to production except:
+  skip_final_snapshot = true  # Don't bother backing up ephemeral staging data
+}
+```
+- Update staging Lambda environment: DB_HOST → staging endpoint
+- Staging ECS loaders → staging endpoint
+- Add safety: staging terraform vars prevent `terraform apply` on production (check AWS account ID)
 
 ## Configuration
 
@@ -105,6 +132,31 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
 - Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
 - Circuit breaker: NO intraday protection. Add CloudWatch alarm on portfolio variance before live capital.
+
+## GitHub Actions Workflows
+
+26 workflows exist in `.github/workflows/`. Consolidation plan:
+
+**Core Workflows (keep as-is):**
+- `deploy-all-infrastructure.yml` — Main deployment pipeline (Terraform + Lambda + frontend + migrations)
+- `deploy-code.yml` — Manual selective deployment
+- `deploy-staging.yml` — Staging dry-run deployment
+- `ci-fast-gates.yml` — Fast pre-commit validation (syntax, dependencies)
+- `build-lambda-layer.yml` — Build shared Python dependencies layer
+- `build-push-ecr.yml` — Build and push Docker image to ECR
+- `credential-rotation-reminder.yml` — Quarterly rotation reminder
+- `update-credentials.yml` — GitHub Secrets/Secrets Manager sync
+
+**Diagnostic Workflows (consolidate or delete):**
+- `diagnose-api-lambda.yml` — Merge into manual test workflow
+- `check-lambda-logs.yml` — Merge into manual test workflow
+- `verify-both-envs.yml` — Merge into manual test workflow
+- `test-api-endpoint.yml`, `test-api-lambda.yml`, `test-eod-pipeline.yml`, `test-orchestrator.yml` — Consolidate into single parametrized `test-workflow.yml`
+- `refresh-dev-credentials.yml`, `reset-cognito-test-user.yml`, `rotate-credentials-simple.yml`, `rotate-developer-credentials.yml` — Consolidate into single `credential-management.yml`
+- `manual-invoke-loaders.yml`, `manual-invoke-orchestrator.yml`, `run-fred-loader.yml` — Consolidate into single `manual-run.yml`
+- `populate-and-test.yml`, `check-system-health.yml`, `verify-and-init-db.yml` — Consolidate into single `system-setup.yml`
+
+**Action:** Delete diagnostic workflows; consolidate into 4 helper workflows. Reduces 26 → 12 workflows.
 
 ## Troubleshooting
 

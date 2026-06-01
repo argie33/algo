@@ -321,11 +321,9 @@ locals {
       description = "Russell 2000 small-cap constituent symbols - 3:35am ET (after sp500_constituents)"
     }
 
-    # 4:00am ET = 9am UTC Mon-Fri
-    "stock_prices_daily" = {
-      schedule    = "cron(0 9 ? * MON-FRI *)"
-      description = "Unified price loader: daily, weekly, monthly for stocks and ETFs - 4:00am ET"
-    }
+    # FIXED Issue #8: Removed stock_prices_daily from EventBridge schedules.
+    # stock_prices_daily is now managed exclusively by Step Functions EOD pipeline (~4:30am ET).
+    # Previously ran independently at 4:00am ET, causing double-execution with Step Functions.
 
     # FIXED Issue #14: Moved from 4:05am to 4:30pm ET to provide fresh data for EOD pipeline
     # Previously ran 4:05am ET but EOD pipeline runs 4:05pm ET same day, making data stale
@@ -492,9 +490,11 @@ locals {
     }
 
     # NOTE: These loaders are managed via the Step Functions EOD pipeline:
-    # - trend_template_data, signal_quality_scores, technical_data_daily,
-    #   algo_metrics_daily, swing_trader_scores, buy_sell_daily
+    # - stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily,
+    #   trend_template_data, buy_sell_daily, signal_quality_scores,
+    #   algo_metrics_daily, swing_trader_scores
     # Task definitions remain in all_loaders for Step Functions to reference.
+    # EventBridge schedules for these loaders have been removed to prevent double-execution.
   }
 }
 
