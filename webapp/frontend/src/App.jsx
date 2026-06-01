@@ -454,7 +454,7 @@ function App() {
         <Route path="/app/trading-signals" element={<ErrorBoundary><ProtectedRoute requireAuth><TradingSignals /></ProtectedRoute></ErrorBoundary>} />
         <Route path="/app/swing" element={<ErrorBoundary><ProtectedRoute requireAuth><SwingCandidates /></ProtectedRoute></ErrorBoundary>} />
         <Route path="/app/scores" element={<ErrorBoundary><ProtectedRoute requireAuth><ScoresDashboard /></ProtectedRoute></ErrorBoundary>} />
-        <Route path="/app/stock/:symbol" element={<ErrorBoundary><StockDetail /></ErrorBoundary>} />
+        <Route path="/app/stock/:symbol" element={<ErrorBoundary><ProtectedRoute requireAuth><StockDetail /></ProtectedRoute></ErrorBoundary>} />
 
         {/* Portfolio & Trading */}
         <Route path="/app/portfolio" element={<ErrorBoundary><ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute></ErrorBoundary>} />
