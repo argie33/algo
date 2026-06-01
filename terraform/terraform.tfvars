@@ -49,7 +49,7 @@ orchestrator_dry_run            = false
 orchestrator_log_level          = "info"
 data_patrol_enabled             = true
 data_patrol_timeout_ms          = 30000
-alpaca_paper_trading            = true  # PAPER trading mode — paper keys in Secrets Manager via update-credentials.yml -f trading_mode=paper
+alpaca_paper_trading            = false  # LIVE trading mode
 api_lambda_timeout              = 300
 api_lambda_reserved_concurrency = 10   # Supports concurrent dashboard requests (MarketsHealth makes 5+ simultaneous calls). Prevents 503 throttle errors.
 algo_lambda_timeout = 600
@@ -64,7 +64,7 @@ algo_lambda_timeout = 600
 rds_backup_retention_period = 1
 
 # Alpaca API configuration
-alpaca_api_base_url = "https://paper-api.alpaca.markets" # PAPER API
+alpaca_api_base_url = "https://api.alpaca.markets"  # LIVE API
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = true # Deploy execution monitor Lambda
