@@ -120,13 +120,16 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"FILTER PIPELINE EVALUATION - {eval_date}")
             logger.info(f"{'='*70}\n")
 
+            # Simple scan of buy_sell_daily — no JOIN on swing_trader_scores here.
+            # The swing score JOIN was timing out (45s) on t4g.micro under morning load
+            # (stock_prices_daily loader does heavy writes during 4-9 AM ET window).
+            # Swing scores are fetched per-symbol in the SAVEPOINT swing_score block below.
             cur.execute(
                 """
                 SELECT b.symbol, b.date, b.signal_type
                 FROM buy_sell_daily b
-                LEFT JOIN swing_trader_scores ss ON b.symbol = ss.symbol AND b.date = ss.date
                 WHERE b.date = %s AND b.signal_type = 'BUY'
-                ORDER BY COALESCE(ss.score, 0) DESC, b.symbol
+                ORDER BY b.symbol
                 """,
                 (eval_date,),
             )
