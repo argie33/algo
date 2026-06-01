@@ -437,25 +437,14 @@ def run(
                 return PhaseResult(1, 'data_freshness', 'halted', {}, True,
                                  f'Stale: {"; ".join(stale_items)}')
 
-        # Run data patrol (quick checks only for speed in orchestrator context)
-        try:
-            import concurrent.futures
-            from algo.algo_data_patrol import DataPatrol
-            patrol = DataPatrol()
-            if verbose:
-                logger.info("  [PATROL] Running quick data integrity checks (45s timeout)...")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(patrol.run, True, False)
-                try:
-                    future.result(timeout=45)
-                    if verbose:
-                        logger.info(f"  [PATROL] Complete (checks: {len(patrol.check_timings)})")
-                    log_phase_result_fn(1, 'data_patrol', 'success', f'Patrol complete: {len(patrol.check_timings)} checks')
-                except concurrent.futures.TimeoutError:
-                    future.cancel()
-                    logger.warning("  [PATROL] Timed out after 45s — using cached patrol results")
-        except Exception as e:
-            logger.warning(f"  [WARN] Data patrol execution failed: {e} (continuing with cache)")
+        # Read cached data patrol results only — do NOT run a new patrol in-line.
+        # The in-line patrol (via ThreadPoolExecutor) always times out after 45s, but
+        # the background thread CONTINUES running after future.cancel() (Python threads
+        # can't be force-killed). That background patrol opens 30+ DB connections with
+        # slow MAX(date) queries, saturating the t4g.micro and causing "Connection refused"
+        # for all subsequent DB operations in Phase 1 and beyond.
+        # Solution: patrol runs as a pre-scheduled job; orchestrator only reads results.
+        log_phase_result_fn(1, 'data_patrol', 'success', 'Using cached patrol results')
 
         with DatabaseContext('read') as _patrol_cur:
             patrol_ok = _check_data_patrol(_patrol_cur, run_date, verbose, log_phase_result_fn)
