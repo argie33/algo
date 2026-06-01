@@ -1067,14 +1067,9 @@ jobs:
             echo "WARNING: Could not fetch database credentials, skipping migrations"
             exit 0
           fi
-          # Extract credentials and set env vars for migrations/run.py
-          export DB_HOST=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('host','localhost'))")
-          export DB_PORT=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('port',5432))")
-          export DB_USER=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('username','postgres'))")
-          export DB_PASSWORD=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('password',''))")
-          export DB_NAME=$(echo "$SECRET" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('dbname','algo'))")
-          export DB_SSL=require
-          python3 migrations/run.py apply --all 2>&1 || echo "[WARN] Migrations failed (non-blocking)"
+          # SECURITY: Pass credentials via stdin to avoid logging them in env vars
+          # Credentials never stored in GITHUB_ENV or shell exports that could be logged
+          echo "$SECRET" | python3 migrations/run.py apply --all --credentials-from-stdin 2>&1 || echo "[WARN] Migrations failed (non-blocking)"
 
   #
   # Final Summary

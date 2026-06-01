@@ -7,11 +7,14 @@ Usage:
     python migrations/run.py apply --all         # Apply all pending migrations
     python migrations/run.py status              # Show applied/pending migrations
     python migrations/run.py rollback <version>  # Rollback a specific migration
+
+Credentials can be provided via environment variables or stdin JSON (--credentials-from-stdin).
 """
 
 import os
 import sys
 import logging
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -25,12 +28,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Database connection details from environment
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = int(os.getenv('DB_PORT', 5432))
-DB_USER = os.getenv('DB_USER', 'postgres')
-DB_PASSWORD = os.getenv('DB_PASSWORD', '')
-DB_NAME = os.getenv('DB_NAME', 'algo')
+def _load_credentials():
+    """Load database credentials from environment or stdin."""
+    # Check if credentials should be loaded from stdin
+    if '--credentials-from-stdin' in sys.argv:
+        try:
+            creds_json = sys.stdin.read()
+            creds = json.loads(creds_json)
+            return (
+                creds.get('host', 'localhost'),
+                int(creds.get('port', 5432)),
+                creds.get('username', 'postgres'),
+                creds.get('password', ''),
+                creds.get('dbname', 'algo'),
+            )
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Failed to parse credentials from stdin: {e}")
+            sys.exit(1)
+
+    # Fall back to environment variables
+    return (
+        os.getenv('DB_HOST', 'localhost'),
+        int(os.getenv('DB_PORT', 5432)),
+        os.getenv('DB_USER', 'postgres'),
+        os.getenv('DB_PASSWORD', ''),
+        os.getenv('DB_NAME', 'algo'),
+    )
+
+# Database connection details from environment or stdin
+DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME = _load_credentials()
+
 # Map environment DB_SSL values to psycopg2 SSL modes
 _ssl_map = {'true': 'require', 'false': 'disable', 'disable': 'disable', 'prefer': 'prefer', 'require': 'require'}
 DB_SSL = _ssl_map.get(os.getenv('DB_SSL', 'require').lower(), 'require')
@@ -235,6 +262,10 @@ class MigrationRunner:
 
 def main():
     """CLI entry point."""
+    # Filter out --credentials-from-stdin from sys.argv for cleaner argument parsing
+    if '--credentials-from-stdin' in sys.argv:
+        sys.argv.remove('--credentials-from-stdin')
+
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
