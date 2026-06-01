@@ -432,19 +432,24 @@ def run(
         executor = TradeExecutor(config)
         recorder = TradeRecorder()
 
-        # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete
-        data_quality_ok, dq_issues, dq_warnings = _validate_pre_trade_data_quality(run_date)
-        if not data_quality_ok:
-            log_phase_result_fn(
-                6, 'entry_execution', 'halt',
-                f'Data quality gate failed: {"; ".join(dq_issues)}'
-            )
-            return PhaseResult(
-                6, 'entry_execution', 'halted', {}, True,
-                f'Data quality gate failed: {"; ".join(dq_issues)}'
-            )
-        if dq_warnings:
-            logger.warning(f"Data quality warnings: {'; '.join(dq_warnings)}")
+        # PRE-TRADE DATA QUALITY GATE: Verify all required data is fresh and complete.
+        # Skip when no qualified trades — price data for today not needed if nothing to execute
+        # (weekends/holidays have no price data yet; halting here blocks Phase 7 reconciliation).
+        if qualified_trades:
+            data_quality_ok, dq_issues, dq_warnings = _validate_pre_trade_data_quality(run_date)
+            if not data_quality_ok:
+                log_phase_result_fn(
+                    6, 'entry_execution', 'halt',
+                    f'Data quality gate failed: {"; ".join(dq_issues)}'
+                )
+                return PhaseResult(
+                    6, 'entry_execution', 'halted', {}, True,
+                    f'Data quality gate failed: {"; ".join(dq_issues)}'
+                )
+            if dq_warnings:
+                logger.warning(f"Data quality warnings: {'; '.join(dq_warnings)}")
+        else:
+            logger.info("Phase 6: Skipping data quality gate (no qualified trades to execute)")
 
         # Apply exposure tier entry constraints
         if exposure_constraints and exposure_constraints.get('halt_new_entries'):
