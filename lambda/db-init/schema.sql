@@ -510,13 +510,18 @@ CREATE TABLE IF NOT EXISTS stability_metrics (
 -- Value metrics
 CREATE TABLE IF NOT EXISTS value_metrics (
     symbol VARCHAR(20) PRIMARY KEY,
+    date DATE,
+    market_cap BIGINT,
     pe_ratio DECIMAL(8, 4),
     pb_ratio DECIMAL(8, 4),
     ps_ratio DECIMAL(8, 4),
     peg_ratio DECIMAL(8, 4),
     dividend_yield DECIMAL(8, 4),
     fcf_yield DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    held_percent_insiders DECIMAL(8, 4),
+    held_percent_institutions DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Positioning metrics

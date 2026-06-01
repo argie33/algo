@@ -23,6 +23,9 @@ EXCLUSION_PATTERNS = [
     r"\bpreferred\b", r"\bwarrant(s)?\b", r"\bunit(s)?\b", r"\bconvertible\b",
     r"\bpreferred share(s)?\b", r"\btest stock\b", r"\bfund\b", r"\bblank check\b",
     r"\bspac\b", r"\bspecial purpose\b", r"\binvestment corp\b",
+    r"\betn\b", r"\bexchange[- ]traded note\b",
+    r"\bnotes?\b.*\bdue\b",  # bonds/notes with maturity date
+    r"\bclosed[- ]end\b", r"\b2x\b", r"\b3x\b", r"\binverse\b",
 ]
 
 
@@ -38,7 +41,11 @@ class StockSymbolsLoader(OptimalLoader):
     watermark_field = "updated_at"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
-        """Fetch all stock symbols from NASDAQ/NYSE."""
+        """Fetch all stock symbols from NASDAQ/NYSE.
+
+        Also populates etf_symbols table with ETF-flagged symbols so that
+        the anti-join filter in /api/scores/stockscores can exclude them.
+        """
         try:
             logger.info("Downloading NASDAQ list")
             nas_text = requests.get(NASDAQ_URL, timeout=15).text
@@ -46,6 +53,7 @@ class StockSymbolsLoader(OptimalLoader):
             oth_text = requests.get(OTHER_URL, timeout=15).text
 
             rows = []
+            etf_rows = []
             for text in [nas_text, oth_text]:
                 reader = csv.DictReader(text.splitlines(), delimiter="|")
                 for r in reader:
@@ -54,8 +62,12 @@ class StockSymbolsLoader(OptimalLoader):
                         continue
                     name = r.get("Security Name", "").strip()
 
-                    # Skip ETFs and excluded securities
-                    if r.get("ETF", "").upper() == "Y" or should_exclude(name):
+                    # ETF-flagged symbols go into etf_symbols table (not stock_symbols)
+                    if r.get("ETF", "").upper() == "Y":
+                        etf_rows.append({'symbol': sym, 'security_name': name})
+                        continue
+
+                    if should_exclude(name):
                         continue
                     if re.match(r'^[A-Z]+\.[A-Z]$', sym):
                         continue
@@ -71,11 +83,30 @@ class StockSymbolsLoader(OptimalLoader):
                         'etf': 'N',
                     })
 
+            # Populate etf_symbols so the anti-join in /api/scores/stockscores works
+            if etf_rows:
+                self._upsert_etf_symbols(etf_rows)
+
             return rows if rows else None
 
         except Exception as e:
             logger.error(f"Failed to fetch symbols: {e}")
             return None
+
+    def _upsert_etf_symbols(self, etf_rows: List[dict]) -> None:
+        """Upsert ETF symbols into etf_symbols table."""
+        try:
+            from utils.database_context import DatabaseContext
+            with DatabaseContext('write') as cur:
+                for row in etf_rows:
+                    cur.execute("""
+                        INSERT INTO etf_symbols (symbol, security_name)
+                        VALUES (%s, %s)
+                        ON CONFLICT (symbol) DO UPDATE SET security_name = EXCLUDED.security_name
+                    """, (row['symbol'], row['security_name']))
+            logger.info(f"Upserted {len(etf_rows)} ETF symbols into etf_symbols table")
+        except Exception as e:
+            logger.warning(f"Failed to upsert etf_symbols: {e}")
 
 
 def main():

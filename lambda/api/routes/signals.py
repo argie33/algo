@@ -36,6 +36,11 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             params = [limit]
 
             if symbol_filter:
+                # SECURITY FIX VULN-3: Validate symbol format before use
+                # Only alphanumeric and common separators allowed
+                import re
+                if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol_filter.upper()):
+                    return error_response(400, 'bad_request', 'Invalid symbol format')
                 where_clause += " AND bsd.symbol = %s"
                 params.insert(0, symbol_filter.upper())
 

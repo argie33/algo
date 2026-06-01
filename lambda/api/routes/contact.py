@@ -4,10 +4,40 @@ from typing import Dict
 import logging, re
 from datetime import datetime, timezone
 from .utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness
+from collections import defaultdict
+from time import time
 
 logger = logging.getLogger(__name__)
 
-_EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+# SECURITY FIX: More strict email validation (RFC 5322 simplified)
+_EMAIL_RE = re.compile(
+    r'^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~\-]+@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
+)
+
+# SECURITY FIX VULN-6: Rate limiting for contact form submissions
+# Prevent spam abuse by limiting submissions per email per time window
+_CONTACT_SUBMISSION_HISTORY = defaultdict(list)
+CONTACT_RATE_LIMIT_REQUESTS = 5  # Max 5 submissions per email
+CONTACT_RATE_LIMIT_WINDOW = 3600  # Per hour
+
+def _is_contact_spam(email: str) -> bool:
+    """Check if email has exceeded contact form submission rate limit."""
+    now = time()
+
+    # Clean old entries outside the window
+    _CONTACT_SUBMISSION_HISTORY[email] = [
+        req_time for req_time in _CONTACT_SUBMISSION_HISTORY[email]
+        if now - req_time < CONTACT_RATE_LIMIT_WINDOW
+    ]
+
+    # Check if limit exceeded
+    if len(_CONTACT_SUBMISSION_HISTORY[email]) >= CONTACT_RATE_LIMIT_REQUESTS:
+        logger.warning(f"Contact form rate limit exceeded for {email}")
+        return True
+
+    # Record this submission
+    _CONTACT_SUBMISSION_HISTORY[email].append(now)
+    return False
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/contact/* endpoints. Submissions require auth."""
@@ -42,6 +72,10 @@ def _submit_contact(cur, body: Dict) -> Dict:
         return error_response(400, 'bad_request', 'Valid email is required')
     if not message:
         return error_response(400, 'bad_request', 'Message is required')
+
+    # SECURITY FIX VULN-6: Rate limit contact form submissions per email
+    if _is_contact_spam(email):
+        return error_response(429, 'rate_limit_exceeded', 'Too many contact submissions. Please try again later.')
 
     try:
         cur.execute("""

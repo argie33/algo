@@ -567,10 +567,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Import error check (after health so health always works despite missing modules)
     if IMPORT_ERROR:
         cors_headers = get_cors_headers(event)
+        # SECURITY FIX: Don't expose internal error details to clients; log server-side
+        logger.error(f'[IMPORT_ERROR] {IMPORT_ERROR}')
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers},
-            'body': json.dumps({'error': 'import_error', 'message': f'Failed to import dependencies: {IMPORT_ERROR}'})
+            'body': json.dumps({'error': 'service_unavailable', 'message': 'Service temporarily unavailable'})
         }
 
     # Validate critical environment variables (non-health requests only)
@@ -579,10 +581,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         error_msg = '; '.join(env_errors)
         logger.error(f'[ENV_VALIDATION_FAILED] {error_msg}')
         cors_headers = get_cors_headers(event)
+        # SECURITY FIX: Don't expose which env vars are missing (info disclosure)
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'error': 'configuration_error', 'message': f'Missing required environment variables: {error_msg}'})
+            'body': json.dumps({'error': 'configuration_error', 'message': 'Service configuration incomplete'})
         }
 
     # Test database connection (non-health requests only)
@@ -736,6 +739,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except Exception as e:
             cors_headers = get_cors_headers(event)
+            # SECURITY FIX VULN-4: Don't leak error details to client
+            # Log full details for debugging, but return generic message to user
             error_detail = f'{type(e).__name__}: {str(e)[:300]}'
             logger.error(f'[HANDLER_ERROR] path={path} {error_detail}', exc_info=True)
             return {
@@ -743,7 +748,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                 'body': json.dumps({
                     'error': 'service_unavailable',
-                    'message': f'Service temporarily unavailable — {error_detail}'
+                    'message': 'Service temporarily unavailable. Please try again later.'
                 })
             }
 

@@ -16,6 +16,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 offset_str = params.get('offset', [None])[0] if params else None
                 offset = safe_offset(offset_str)
                 status_filter = params.get('status', [None])[0] if params else None
+
+                # SECURITY FIX: Validate status filter against whitelist (enum validation)
+                VALID_STATUSES = {'pending', 'open', 'closed', 'filled', 'cancelled', 'rejected'}
+                if status_filter:
+                    if status_filter.lower() not in VALID_STATUSES:
+                        return error_response(400, 'bad_request', f'Invalid status value: {status_filter}')
+                    status_filter = status_filter.lower()
+
                 query = """
                     SELECT trade_id, symbol, signal_date, trade_date, entry_time,
                            entry_price, entry_quantity, entry_reason,

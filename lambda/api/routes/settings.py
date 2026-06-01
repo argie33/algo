@@ -19,18 +19,29 @@ _DEFAULTS = {
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle /api/settings endpoints."""
+    # SECURITY FIX: Require authentication for all settings endpoints
+    if not jwt_claims or not jwt_claims.get('sub'):
+        return error_response(401, 'unauthorized', 'Authentication required')
+
     if path != '/api/settings':
         return error_response(404, 'not_found', f'No settings handler for {path}')
 
     if method == 'GET':
-        return _get_settings(cur, params)
+        return _get_settings(cur, jwt_claims)
     if method in ('POST', 'PUT', 'PATCH'):
-        return _save_settings(cur, body or {}, params)
+        return _save_settings(cur, body or {}, jwt_claims)
     return error_response(405, 'method_not_allowed', f'{method} not supported')
 
-def _get_settings(cur, params: Dict) -> Dict:
-    """Return user settings, falling back to defaults."""
-    user_id = params.get('user_id', [None])[0] if params else None
+def _get_settings(cur, jwt_claims: Dict) -> Dict:
+    """Return user settings, falling back to defaults.
+
+    SECURITY FIX: Use authenticated user's ID from JWT, not from query params.
+    Users can only access their own settings, preventing IDOR.
+    """
+    # SECURITY: Get user_id from authenticated JWT claims, not from query params
+    user_id = jwt_claims.get('sub')
+    if not user_id:
+        return error_response(401, 'unauthorized', 'Unable to identify user')
     try:
         if user_id:
             cur.execute("""
@@ -55,9 +66,16 @@ def _get_settings(cur, params: Dict) -> Dict:
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         return handle_db_error(e, logger, 'get settings')
 
-def _save_settings(cur, body: Dict, params: Dict) -> Dict:
-    """Persist user settings."""
-    user_id = (params.get('user_id', [None])[0] if params else None) or body.get('user_id')
+def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
+    """Persist user settings.
+
+    SECURITY FIX: Use authenticated user's ID from JWT, not from body/params.
+    Users can only modify their own settings, preventing IDOR.
+    """
+    # SECURITY: Get user_id from authenticated JWT claims, not from request
+    user_id = jwt_claims.get('sub')
+    if not user_id:
+        return error_response(401, 'unauthorized', 'Unable to identify user')
     try:
         if user_id:
             theme = body.get('theme', 'dark')

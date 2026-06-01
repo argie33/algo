@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List
 import time
 
@@ -22,7 +22,7 @@ class ValueMetricsLoader(OptimalLoader):
 
     table_name = "value_metrics"
     primary_key = ("symbol",)
-    watermark_field = "date"
+    watermark_field = "updated_at"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch value metrics from yfinance for a symbol."""
@@ -42,23 +42,30 @@ class ValueMetricsLoader(OptimalLoader):
                 ps = info.get('priceToSalesTrailing12Months')
                 peg = info.get('trailingPegRatio')
                 div = info.get('dividendYield')
+                fcf = info.get('freeCashflow')
                 held_insiders = info.get('heldPercentInsiders')
                 held_institutions = info.get('heldPercentInstitutions')
 
                 if not any([mkt_cap, pe, pb, ps]):
                     return None
 
+                fcf_yield = None
+                if fcf and mkt_cap and mkt_cap > 0:
+                    fcf_yield = float(fcf) / float(mkt_cap)
+
                 return [{
                     'symbol': symbol,
                     'date': date.today(),
-                    'market_cap': float(mkt_cap) if mkt_cap else None,
+                    'market_cap': int(mkt_cap) if mkt_cap else None,
                     'pe_ratio': float(pe) if pe and pe > 0 else None,
                     'pb_ratio': float(pb) if pb and pb > 0 else None,
                     'ps_ratio': float(ps) if ps and ps > 0 else None,
                     'peg_ratio': float(peg) if peg and peg > 0 else None,
                     'dividend_yield': float(div) if div else None,
+                    'fcf_yield': fcf_yield,
                     'held_percent_insiders': float(held_insiders) if held_insiders else None,
                     'held_percent_institutions': float(held_institutions) if held_institutions else None,
+                    'updated_at': datetime.now().isoformat(),
                 }]
 
             except Exception as e:
@@ -75,11 +82,31 @@ class ValueMetricsLoader(OptimalLoader):
         return None
 
 
+def _apply_schema_migrations():
+    """Add columns that were missing from initial schema deployment."""
+    from utils.database_context import DatabaseContext
+    migrations = [
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS date DATE",
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS market_cap BIGINT",
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_insiders DECIMAL(8,4)",
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS held_percent_institutions DECIMAL(8,4)",
+        "ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    ]
+    try:
+        with DatabaseContext('write') as cur:
+            for sql in migrations:
+                cur.execute(sql)
+    except Exception as e:
+        logger.warning(f"Schema migration failed (non-fatal): {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Value Metrics Loader')
     parser.add_argument('--symbols', type=str, help='Comma-separated symbols or blank for all')
     parser.add_argument('--parallelism', type=int, default=2, help='Parallel workers')
     args = parser.parse_args()
+
+    _apply_schema_migrations()
 
     loader = ValueMetricsLoader()
 
