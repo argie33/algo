@@ -227,6 +227,30 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **Status:** All critical/high-priority red team vulnerabilities remediated (2026-06-01 20:18 UTC).
 
+## Post-Mortem: June 1 Live Trading Failure + Fixes
+
+**Root cause (confirmed):** Circuit breaker Lambda was deployed with handler `index.lambda_handler` but the ZIP contained only a stale file structure — "No module named 'index'" error on every invocation. Each failed invocation (10 AM, 12 PM, 3 PM ET) set `halt_flag=True` in DynamoDB. The orchestrator's Phase 4–7 halt flag check blocked entries AND exits. Phase 5 also had a transaction abort cascade issue that returned 0 signals when any statement timed out.
+
+**Fixes deployed (2026-06-01 evening):**
+
+1. **Halt flag auto-expiry** (`algo/algo_orchestrator.py`): `_check_halt_flag()` now reads `triggered_at` from DynamoDB; if it was set on a prior trading day, the flag is auto-cleared and returns False. Prevents yesterday's circuit breaker trigger from blocking tomorrow's 9:30 AM run.
+
+2. **Phase 4 exits unblocked**: Removed halt flag check from `phase_4_exit_execution()`. Exits must always run regardless of halt state — blocking exits while the portfolio is stressed causes losses to compound.
+
+3. **Phase 7 snapshot unblocked**: Removed halt flag check from `phase_7_reconcile()`. Snapshot must always write so circuit breakers have accurate portfolio P&L on the next invocation. Without a snapshot, `_check_daily_loss` always returns "No today snapshot" (halt=False), masking real losses.
+
+4. **Circuit breaker Lambda retry** (`lambda/circuit-breaker/index.py`): DB connection now retried 3× (with 3s, 6s backoff) before returning None. Single RDS hiccup no longer halts trading for the rest of the day. `triggered_at` timestamp now consistently written by `_set_halt()` helper so auto-expiry works.
+
+5. **Migration 005** (`migrations/versions/005_seed_algo_config.py`): Seeds all `algo_config` defaults in the DB on deploy. ON CONFLICT DO NOTHING so safe to re-run. Previously the table was empty and hot-reload config changes had no effect.
+
+6. **Migration 006** (`migrations/versions/006_update_t3_threshold.py`): Lowers `min_trend_template_score` 7→6. Score=7 was filtering 91% of T3 candidates (36/1472 passed). Score=6 still enforces strong Minervini alignment while allowing legitimate high-quality setups through.
+
+7. **Phase 5 transaction abort** (`algo/algo_filter_pipeline.py`): Added early-exit detection when transaction is already aborted — stops Phase 5 immediately and logs CRITICAL instead of silently returning 0 candidates.
+
+**Emergency tool:** `python scripts/check_halt_flag.py` — shows current halt flag state. `--clear` flag resets it manually if needed.
+
+**Troubleshooting halt flag:** If tomorrow's run halts and you suspect a stale flag: `python scripts/check_halt_flag.py` (needs AWS creds). The auto-expiry in the orchestrator should handle this automatically for flags set on prior days.
+
 ## Recent Fixes (2026-06-01 continued)
 
 **Critical Fixes (6-1):**
