@@ -101,9 +101,13 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         except Exception:
             pass
 
-        # Schema migration: ensure swing_trader_scores.grade column exists
+        # Schema migration: ensure swing_trader_scores.grade column exists.
+        # Uses a SEPARATE DatabaseContext so a timeout on the ALTER TABLE lock-wait
+        # doesn't abort the outer Phase 5 cursor (which would silently skip all 1472 signals).
         try:
-            cur.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS grade VARCHAR(4)")
+            with DatabaseContext('write') as _mig_cur:
+                _mig_cur.execute("SET statement_timeout = 3000")  # 3s max for schema check
+                _mig_cur.execute("ALTER TABLE swing_trader_scores ADD COLUMN IF NOT EXISTS grade VARCHAR(4)")
         except Exception:
             pass  # Column already exists or table doesn't exist yet
 
