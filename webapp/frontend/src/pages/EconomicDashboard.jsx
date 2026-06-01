@@ -591,7 +591,7 @@ export default function EconomicDashboard() {
                     {joltsInd && (
                       <div className="stile">
                         <div className="stile-label">Job Openings</div>
-                        <div className="stile-value">{joltsInd.value ? `${joltsInd.value}K` : '—'}</div>
+                        <div className="stile-value">{joltsInd.rawValue != null ? `${((+joltsInd.rawValue)/1000).toFixed(1)}M` : '—'}</div>
                         <div className="stile-sub muted t-xs">High openings = labor demand strong — Beveridge Curve tightness</div>
                       </div>
                     )}
