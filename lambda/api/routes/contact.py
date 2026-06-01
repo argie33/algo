@@ -134,9 +134,11 @@ def _submit_contact(cur, body: Dict) -> Dict:
         if re.search(pattern, subject, re.IGNORECASE):
             return error_response(400, 'bad_request', 'Subject contains invalid content')
 
-    # Rate limit contact form submissions per email
+    # SECURITY L-NEW-01: Return 200 even when rate limited — a 429 lets an
+    # attacker enumerate whether an email has submitted recently.
     if _is_contact_spam(email):
-        return error_response(429, 'rate_limit_exceeded', 'Too many contact submissions. Please try again later.')
+        logger.warning(f"Contact rate limit hit (silenced to caller): ...@{email.split('@')[-1]}")
+        return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
 
     try:
         cur.execute("""

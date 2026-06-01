@@ -966,7 +966,7 @@ jobs:
           export REGION="$REGION"
 
           python3 << 'PYEOF'
-          import os
+          import os, json
           pool_id = os.environ.get('POOL_ID', '')
           client_id = os.environ.get('CLIENT_ID', '')
           cognito_domain = os.environ.get('COGNITO_DOMAIN', '')
@@ -975,16 +975,18 @@ jobs:
           pool_id = pool_id if pool_id not in ['', 'None', 'null'] else ''
           client_id = client_id if client_id not in ['', 'None', 'null'] else ''
           cognito_domain = cognito_domain if cognito_domain not in ['', 'None', 'null'] else f'https://algo-dev.auth.{region}.amazoncognito.com'
-          config_js = 'window.__CONFIG__ = {\n'
-          config_js += f'  "API_URL": "{api_url}",\n'
-          config_js += f'  "USER_POOL_ID": "{pool_id}",\n'
-          config_js += f'  "USER_POOL_CLIENT_ID": "{client_id}",\n'
-          config_js += f'  "USER_POOL_DOMAIN": "{cognito_domain}",\n'
-          config_js += f'  "AWS_REGION": "{region}",\n'
-          config_js += f'  "ENVIRONMENT": "production"\n'
-          config_js += '};'
-          import os as _os
-          _os.makedirs('webapp/frontend/dist', exist_ok=True)
+          # SECURITY L-NEW-02: json.dumps() ensures special chars in Terraform outputs
+          # cannot produce malformed or injected JavaScript in the browser config.
+          config = {
+              'API_URL': api_url,
+              'USER_POOL_ID': pool_id,
+              'USER_POOL_CLIENT_ID': client_id,
+              'USER_POOL_DOMAIN': cognito_domain,
+              'AWS_REGION': region,
+              'ENVIRONMENT': 'production',
+          }
+          config_js = 'window.__CONFIG__ = ' + json.dumps(config, indent=2) + ';'
+          os.makedirs('webapp/frontend/dist', exist_ok=True)
           with open('webapp/frontend/dist/config.js', 'w') as f:
               f.write(config_js)
           print('Generated config.js:')

@@ -451,9 +451,9 @@ function App() {
 
         {/* Stocks Analysis & Signals */}
         <Route path="/app/deep-value" element={<ErrorBoundary><DeepValueStocks /></ErrorBoundary>} />
-        <Route path="/app/trading-signals" element={<ErrorBoundary><TradingSignals /></ErrorBoundary>} />
-        <Route path="/app/swing" element={<ErrorBoundary><SwingCandidates /></ErrorBoundary>} />
-        <Route path="/app/scores" element={<ErrorBoundary><ScoresDashboard /></ErrorBoundary>} />
+        <Route path="/app/trading-signals" element={<ErrorBoundary><ProtectedRoute requireAuth><TradingSignals /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/swing" element={<ErrorBoundary><ProtectedRoute requireAuth><SwingCandidates /></ProtectedRoute></ErrorBoundary>} />
+        <Route path="/app/scores" element={<ErrorBoundary><ProtectedRoute requireAuth><ScoresDashboard /></ProtectedRoute></ErrorBoundary>} />
         <Route path="/app/stock/:symbol" element={<ErrorBoundary><StockDetail /></ErrorBoundary>} />
 
         {/* Portfolio & Trading */}
