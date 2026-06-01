@@ -137,8 +137,15 @@ class CredentialManager:
         DB_SECRET_ARN. We fetch and parse that blob rather
         than looking up individual secret names, which don't exist in this setup.
         Falls back to individual env vars for local dev.
+
+        Result is cached in self._cache to avoid a Secrets Manager API call on every
+        DatabaseContext creation (which is called 10+ times per orchestrator run).
         """
         import json as _json
+
+        _DB_CREDS_CACHE_KEY = '__db_credentials__'
+        if _DB_CREDS_CACHE_KEY in self._cache:
+            return self._cache[_DB_CREDS_CACHE_KEY]
 
         secret_arn = os.getenv('DB_SECRET_ARN')
         if secret_arn and self._is_aws:
@@ -147,20 +154,23 @@ class CredentialManager:
                 if client:
                     response = client.get_secret_value(SecretId=secret_arn)
                     creds = _json.loads(response.get('SecretString', '{}'))
-                    # DB_HOST is required - no localhost fallback
-                    db_host = creds.get('host') or os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT')
+                    # Prefer DB_HOST env var (proxy endpoint set by Terraform) over
+                    # the secret's host field (which may point to direct RDS endpoint).
+                    db_host = os.getenv('DB_HOST') or os.getenv('DB_ENDPOINT') or creds.get('host')
                     if not db_host:
                         raise ValueError("DB_HOST not set in Secrets Manager or environment")
                     password = creds.get('password')
                     if not password:
                         raise ValueError("password not found in DB_SECRET_ARN")
-                    return {
+                    result = {
                         'host': db_host,
                         'port': int(creds.get('port') or os.getenv('DB_PORT', '5432')),
                         'user': creds.get('username', 'stocks'),
                         'password': password,
                         'database': creds.get('dbname') or os.getenv('DB_NAME', 'stocks'),
                     }
+                    self._cache[_DB_CREDS_CACHE_KEY] = result
+                    return result
             except Exception as e:
                 logger.warning("Failed to load DB credentials from secret ARN %s: %s — falling back to env vars", secret_arn, e)
 
@@ -169,13 +179,15 @@ class CredentialManager:
         if not db_host:
             raise ValueError("DB_HOST not set in environment. Set DB_HOST before using credential manager.")
 
-        return {
+        result = {
             'host': db_host,
             'port': int(os.getenv('DB_PORT', '5432')),
             'user': self.get_password('db/username', default='stocks'),
             'password': self.get_password('db/password'),  # REQUIRED - no default
             'database': os.getenv('DB_NAME', 'stocks'),
         }
+        self._cache[_DB_CREDS_CACHE_KEY] = result
+        return result
 
     def get_alpaca_credentials(self) -> Dict[str, str]:
         """Get Alpaca API credentials as a dict.
