@@ -46,12 +46,11 @@ resource "aws_security_group" "circuit_breaker" {
   }
 
   # Egress: HTTPS to Secrets Manager via NAT Gateway (VPC endpoints not available in all AZs)
-  #tfsec:ignore:aws-ec2-no-public-egress-sgr
   egress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"] #tfsec:ignore:aws-ec2-no-public-egress-sgr
     description = "Allow HTTPS to Secrets Manager API (fetch DB credentials)"
   }
 
