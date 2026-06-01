@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional, Dict
 
 from utils.loader_helpers import get_active_symbols
@@ -85,6 +85,7 @@ class PositioningMetricsLoader(OptimalLoader):
                     'insider_ownership': round(insider_ownership, 2) if insider_ownership else None,
                     'short_interest_percent': round(short_interest_percent, 2) if short_interest_percent else None,
                     'short_interest_trend': short_interest_trend,
+                    'updated_at': datetime.now().isoformat(),
                 }
 
             return None

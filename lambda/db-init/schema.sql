@@ -3069,4 +3069,14 @@ ALTER TABLE economic_calendar ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFA
 DROP INDEX IF EXISTS idx_economic_calendar_event;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_economic_calendar_event ON economic_calendar(event_id, event_date);
 
+-- value_metrics: add updated_at so OptimalLoader watermark works (watermark_field = "updated_at")
+ALTER TABLE value_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+-- quality_metrics, growth_metrics, stability_metrics, positioning_metrics:
+-- add updated_at for watermark consistency across metric tables
+ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
 -- Note: INSERT/UPDATE requires dedicated service role with audit logging

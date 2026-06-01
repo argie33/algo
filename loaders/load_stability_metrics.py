@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 import logging
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict
 
 from utils.loader_helpers import get_active_symbols
@@ -86,6 +86,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 'volatility_60d': round(volatility_60d, 4) if volatility_60d else None,
                 'volatility_252d': round(volatility_252d, 4) if volatility_252d else None,
                 'beta': round(beta, 4) if beta else None,
+                'updated_at': datetime.now().isoformat(),
             }
 
         except Exception as e:
