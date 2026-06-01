@@ -123,7 +123,7 @@ resource "aws_sns_topic_subscription" "loader_alerts_email" {
 # ============================================================
 
 resource "aws_cloudwatch_dashboard" "loader_monitoring" {
-  count          = 0  # Disabled: dashboard metric format needs fix after ECS metric emission is confirmed
+  count          = var.ecs_log_group_name != "" ? 1 : 0
   dashboard_name = "${var.project_name}-loader-monitoring-${var.environment}"
 
   dashboard_body = jsonencode({
@@ -133,7 +133,7 @@ resource "aws_cloudwatch_dashboard" "loader_monitoring" {
         x      = 0
         y      = 0
         width  = 24
-        height = 6
+        height = 8
         properties = {
           metrics = [
             ["${var.project_name}/Loaders", "LoaderFailureCount"]
@@ -141,9 +141,33 @@ resource "aws_cloudwatch_dashboard" "loader_monitoring" {
           period = 300
           stat   = "Sum"
           region = var.aws_region
-          title  = "Loader Failure Count (5-min Sum)"
+          title  = "Loader Task Failures (5-min window)"
           view   = "timeSeries"
           yAxis  = { left = { min = 0 } }
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 8
+        width  = 24
+        height = 10
+        properties = {
+          query   = "fields @timestamp, @message, @logStream | filter @message like /FAILED|CRITICAL|Exception|Error/ | stats count() as failure_count by @logStream"
+          region  = var.aws_region
+          title   = "Recent Loader Errors (Last 1 hour)"
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 18
+        width  = 24
+        height = 6
+        properties = {
+          query   = "fields @timestamp, @logStream, @message | filter @message like /completed|finished|success/ | stats count() as success_count by @logStream | sort success_count desc"
+          region  = var.aws_region
+          title   = "Successful Loader Runs (Last 24 hours)"
         }
       }
     ]

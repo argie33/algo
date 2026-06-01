@@ -1,0 +1,62 @@
+name: Verify CloudFront Domain
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run daily at 5 AM ET to catch if CloudFront domain changes
+    - cron: '0 10 * * *'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+
+      - name: Verify CloudFront domain
+        run: |
+          # Get actual CloudFront domain from AWS
+          ACTUAL_DOMAIN=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='algo-frontend'].DomainName | [0]" \
+            --output text)
+
+          if [ -z "$ACTUAL_DOMAIN" ] || [ "$ACTUAL_DOMAIN" = "None" ]; then
+            echo "ERROR: CloudFront distribution 'algo-frontend' not found"
+            exit 1
+          fi
+
+          echo "Actual CloudFront domain: https://$ACTUAL_DOMAIN"
+
+          # Extract hardcoded domain from terraform.tfvars
+          HARDCODED=$(grep "frontend_origin" terraform/terraform.tfvars | grep -oP '(?<="https://)[^"]+')
+
+          echo "Hardcoded domain: $HARDCODED"
+
+          if [ "$HARDCODED" != "$ACTUAL_DOMAIN" ]; then
+            echo ""
+            echo "❌ MISMATCH DETECTED"
+            echo "The hardcoded CloudFront domain in terraform.tfvars does not match the actual deployed domain."
+            echo ""
+            echo "⚠️  ACTION REQUIRED:"
+            echo "Update terraform/terraform.tfvars:"
+            echo "  Line 9:  frontend_origin = \"https://$ACTUAL_DOMAIN\""
+            echo "  Line 19: api_cors_allowed_origins = [ \"https://$ACTUAL_DOMAIN\" ]"
+            echo ""
+            echo "After updating:"
+            echo "  git add terraform/terraform.tfvars"
+            echo "  git commit -m 'fix: Update CloudFront domain to $ACTUAL_DOMAIN'"
+            echo "  git push"
+            exit 1
+          else
+            echo ""
+            echo "✓ CloudFront domain verification passed"
+          fi

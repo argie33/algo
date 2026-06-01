@@ -178,7 +178,30 @@ class RealtimePricingEngine:
             return {}
 
     def _get_fallback_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Fallback: use cached or daily prices."""
-        # Would query price_daily table from database
-        logger.info(f"Using fallback prices for {len(symbols)} symbols")
-        return {}
+        """Fallback: use cached or daily prices from database."""
+        from utils.database_context import DatabaseContext
+        from datetime import date as _date
+
+        try:
+            prices = {}
+            with DatabaseContext('read') as cur:
+                current_date = _date.today()
+                for symbol in symbols:
+                    cur.execute(
+                        """
+                        SELECT close FROM price_daily
+                        WHERE symbol = %s AND date <= %s
+                        ORDER BY date DESC LIMIT 1
+                        """,
+                        (symbol, current_date)
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        prices[symbol] = float(row[0])
+
+            if prices:
+                logger.info(f"Fetched fallback daily prices for {len(prices)} symbols")
+            return prices
+        except Exception as e:
+            logger.error(f"Failed to fetch fallback prices from database: {e}")
+            return {}
