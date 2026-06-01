@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 import logging
 
-from utils.database_context import DatabaseContext, database_transaction
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -409,7 +409,7 @@ class LivePerformance:
                 expectancy_val = float(expectancy) if expectancy is not None else None
                 max_dd_val = float(max_dd) if max_dd is not None else None
 
-                with database_transaction('write') as cur:
+                with DatabaseContext('write') as cur:
                     cur.execute(
                         """
                         INSERT INTO algo_performance_daily (

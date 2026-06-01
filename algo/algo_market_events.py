@@ -243,8 +243,8 @@ class MarketEventHandler:
             dict with action taken
         """
         try:
-            from utils.database_context import database_transaction
-            with database_transaction() as cur:
+            from utils.database_context import DatabaseContext
+            with DatabaseContext('write') as cur:
                 # Cancel any pending orders for this symbol
                 cur.execute(
                     """
@@ -302,7 +302,7 @@ class MarketEventHandler:
             else:
                 return {'action': 'ERROR', 'message': f'Invalid circuit breaker level: {level}'}
 
-            with database_transaction() as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (

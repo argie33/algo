@@ -21,7 +21,7 @@ import os
 import logging
 from datetime import datetime, date, timezone
 from typing import Optional, Dict, Any
-from utils.database_context import DatabaseContext, database_transaction
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

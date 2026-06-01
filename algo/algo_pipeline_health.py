@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from enum import Enum
 
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
-from utils.database_context import database_transaction
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +184,7 @@ class PipelineHealth:
         status = PipelineStatus()
 
         try:
-            with database_transaction('read') as cur:
+            with DatabaseContext('read') as cur:
                 # Set statement timeout for health checks (fail fast)
                 stmt_timeout_ms = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', 30000))
                 cur.execute(f"SET statement_timeout = {stmt_timeout_ms}")
@@ -238,7 +238,7 @@ class PipelineHealth:
     def log_health_check(self, status: PipelineStatus):
         """Log pipeline health to database for historical tracking."""
         try:
-            with database_transaction('write') as cur:
+            with DatabaseContext('write') as cur:
                 for table_health in status.tables.values():
                     cur.execute(
                         """

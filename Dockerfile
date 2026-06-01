@@ -12,7 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY loaders/ ./loaders/
 COPY utils/ ./utils/
 COPY config/ ./config/
-COPY algo/ ./algo/
 COPY monitoring/ ./monitoring/
 
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app

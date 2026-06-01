@@ -52,9 +52,6 @@ def lambda_handler(event, context):
             }
         }
     """
-    # Clear credential cache on invocation to ensure fresh creds for rotated secrets
-    from config.credential_manager import clear_credential_cache
-    clear_credential_cache()
 
     # Reset config singleton on invocation to load fresh DB config
     from algo.algo_config import reset_config

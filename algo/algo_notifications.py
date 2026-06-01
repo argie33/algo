@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Dict, List
 
 from algo.algo_alerts import AlertManager
-from utils.database_context import database_transaction
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class TradeNotificationService:
     def get_recent_events(self, minutes: int = 5) -> List[Dict]:
         """Fetch recent audit log events."""
         try:
-            with database_transaction('read') as cur:
+            with DatabaseContext('read') as cur:
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
                 cur.execute("""
                     SELECT id, action_type, symbol, action_date, details,
@@ -129,7 +129,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                            message: str, symbol: Optional[str] = None, details: Optional[dict] = None):
         """Save notification to database."""
         try:
-            with database_transaction('write') as cur:
+            with DatabaseContext('write') as cur:
                 cur.execute("""
                     INSERT INTO algo_notifications
                     (kind, severity, title, message, symbol, details, seen, created_at)

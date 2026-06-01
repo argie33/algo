@@ -18,7 +18,7 @@ from datetime import date
 from typing import Optional
 import logging
 
-from utils.database_context import database_transaction
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class TCAEngine:
             dict with tca_id, slippage_bps, fill_rate, etc.
         """
         try:
-            with database_transaction('write') as cur:
+            with DatabaseContext('write') as cur:
                 # Compute slippage in basis points
                 if side == 'BUY':
                     # For buy, adverse if fill_price > signal_price
@@ -138,7 +138,7 @@ class TCAEngine:
             if not report_date:
                 report_date = date.today()
 
-            with database_transaction('read') as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     SELECT
@@ -215,7 +215,7 @@ class TCAEngine:
             Monthly aggregated metrics
         """
         try:
-            with database_transaction('read') as cur:
+            with DatabaseContext('read') as cur:
                 cur.execute(
                     """
                     SELECT

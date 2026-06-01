@@ -97,7 +97,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 ## Live Trading Readiness
 
-- Authentication: DISABLED (cognito_enabled = false). Enable before live trading.
+- Authentication: ENABLED (cognito_enabled = true). Primary user: argeropolos@gmail.com.
 - RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
 - Intraday pricing: STALE (see Known Limitations). Integrate real-time feed before live trading.
 - Circuit breaker: NO intraday protection. Add CloudWatch alarm on portfolio variance before live capital.
@@ -106,7 +106,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
 
-**API Lambda 500 errors on first request:** VPC cold-start (15-40s). API Gateway timeout is 29s. Workaround: retry (second request works). Solution: reserved concurrency = 1 in Terraform.
+**API Lambda 500 errors on first request:** VPC cold-start (15-40s). API Gateway timeout is 29s. Workaround: retry (second request works). Reserved concurrency = 10 configured to handle concurrent dashboard requests (MarketsHealth makes 5+ simultaneous calls).
 
 **Alpaca 401 errors:** Verify PowerShell profile has correct ALPACA_PAPER_TRADING and APCA_API_BASE_URL settings.
 

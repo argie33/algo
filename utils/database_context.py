@@ -18,7 +18,7 @@ from psycopg2.extras import DictCursor, RealDictCursor
 from utils.db_connection import get_db_connection
 
 logger = logging.getLogger(__name__)
-__all__ = ['DatabaseContext', 'database_transaction']
+__all__ = ['DatabaseContext']
 
 class DatabaseContext:
     """Thread-safe database context with automatic resource cleanup.
@@ -44,7 +44,7 @@ class DatabaseContext:
         Args:
             role: 'read' or 'write' (controls timeout, retry behavior)
             timeout: Connection timeout in seconds (20s for API Gateway limit of 29s; RDS Proxy handles pooling)
-            cursor_factory: psycopg2 cursor factory (default RealDictCursor for dict rows)
+            cursor_factory: psycopg2 cursor factory (default DictCursor for dict rows)
         """
         self.role = role
         self.timeout = timeout
@@ -79,44 +79,3 @@ class DatabaseContext:
             self.cur = None
             self.conn = None
 
-@contextmanager
-def database_transaction(role: str = 'write', timeout: int = 10):
-    """Context manager for transactional database operations.
-
-    WARNING: Unlike DatabaseContext, this does NOT auto-commit on exit.
-    The caller MUST explicitly call cur.connection.commit() to persist changes.
-    On exception, changes are automatically rolled back.
-
-    Usage:
-        with database_transaction() as cur:
-            cur.execute("INSERT INTO table VALUES ...")
-            cur.connection.commit()  # Explicit commit REQUIRED
-        # On exit: closes connection, rolls back if exception occurred
-    """
-    conn = None
-    cur = None
-    try:
-        conn = get_db_connection(timeout=timeout)
-        cur = conn.cursor(cursor_factory=DictCursor)
-        yield cur
-        # Caller must explicitly commit - we don't auto-commit
-    except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-                logger.info(f"[DB_TRANSACTION] Rolled back on {type(e).__name__}")
-            except Exception as rollback_err:
-                logger.warning(f"[DB_ROLLBACK_FAILED] {rollback_err}")
-        logger.error(f"[DB_TRANSACTION_ERROR] {e}", exc_info=True)
-        raise
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception as e:
-                logger.warning(f"[DB_CURSOR_CLOSE_FAILED] {e}")
-        if conn:
-            try:
-                conn.close()
-            except Exception as e:
-                logger.warning(f"[DB_CONNECTION_CLOSE_FAILED] {e}")

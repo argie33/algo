@@ -45,7 +45,7 @@ class CredentialManager:
 
     def _detect_aws(self) -> bool:
         """Check if running in AWS Lambda/ECS."""
-        return bool(os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"))
+        return bool(os.getenv("AWS_EXECUTION_ENV"))
 
     def _get_secrets_client(self):
         """Lazy-load boto3 Secrets Manager client."""
