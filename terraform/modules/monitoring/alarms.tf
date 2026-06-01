@@ -413,6 +413,29 @@ resource "aws_cloudwatch_composite_alarm" "data_loading_issues" {
   tags = var.common_tags
 }
 
+# Alarm: Supporting loader failures via SQS DLQ (F-04)
+# Monitors SQS DLQ for loader failures. Any message in DLQ indicates a loader failed.
+resource "aws_cloudwatch_metric_alarm" "supporting_loaders_dlq_failures" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-supporting-loaders-dlq-failures-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "1"
+  alarm_description   = "Triggers when any supporting loader fails and message appears in DLQ"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
+
+  dimensions = {
+    QueueName = "${var.project_name}-loader-dlq"
+  }
+
+  tags = var.common_tags
+}
+
 # Composite alarm: Database Health
 resource "aws_cloudwatch_composite_alarm" "database_health_critical" {
   count             = var.sns_alerts_enabled ? 1 : 0
