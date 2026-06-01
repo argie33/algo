@@ -879,7 +879,7 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: actions/setup-node@0a44ba7841725637474d55d59489290ecb39bfcd  # v4.0.3
+      - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
