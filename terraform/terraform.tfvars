@@ -2,16 +2,19 @@ environment  = "dev"
 aws_region   = "us-east-1"
 project_name = "algo"
 # CORS origin for frontend
-# Note: This variable is not actively used. API CORS is controlled via api_cors_allowed_origins below.
+# CRITICAL: Hardcoded CloudFront domain. If CloudFront distribution is recreated, this MUST be updated
+# or CORS will break silently. The CloudFront domain cannot be a Terraform variable here (circular dependency).
+# Current domain: d2u93283nn45h2.cloudfront.net (created 2026-05-29)
 # Keep in sync with actual CloudFront domain or update to current deployment URL.
 frontend_origin = "https://d2u93283nn45h2.cloudfront.net"
 # Frontend deployment
 cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
 # API Gateway CORS configuration
 # Includes localhost for local dev and the CloudFront domain for production.
-# The CloudFront domain cannot be a Terraform resource reference here (circular dep:
-# API GW CORS → CF domain → CF origin → API GW endpoint → API GW). Supply it as a
-# known value. Update this list if the CloudFront distribution is ever recreated.
+# CRITICAL HARDCODING: The CloudFront domain (d2u93283nn45h2.cloudfront.net) cannot be a Terraform
+# resource reference here due to circular dependency: API GW CORS → CF domain → CF origin → API GW.
+# If CloudFront distribution is recreated, UPDATE THIS LIST IMMEDIATELY or CORS will break silently.
+# Last updated: 2026-05-29. Check CloudFront distributions in AWS console to verify current domain.
 api_cors_allowed_origins = [
   "http://localhost:5173",
   "http://localhost:3000",
@@ -38,7 +41,7 @@ cognito_test_user_email       = "argeropolos@gmail.com"      # Primary user — 
 # Database configuration
 rds_instance_class = "db.t4g.micro" # COST OPTIMIZED: Graviton t4g.micro ($8-12/month) vs t3.medium ($60/month). RDS Proxy handles connection pooling.
 enable_rds_proxy = true # ENABLED: Required to prevent connection saturation OOM crashes on t4g.micro (4 loaders stuck → 4 OOM crashes 2026-06-01). $11/month is worth the stability.
-dev_mode = "false" # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
+dev_mode = false # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode                  = "auto"
