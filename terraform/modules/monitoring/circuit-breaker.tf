@@ -113,21 +113,15 @@ resource "aws_cloudwatch_log_group" "circuit_breaker" {
 # 3. Circuit Breaker Lambda Function
 # ============================================================
 
-data "archive_file" "circuit_breaker" {
-  type        = "zip"
-  source_file = "${path.module}/../../lambda/circuit-breaker/index.py"
-  output_path = "/tmp/algo-circuit-breaker.zip"
-}
-
 resource "aws_lambda_function" "circuit_breaker" {
-  filename      = data.archive_file.circuit_breaker.output_path
+  filename      = "${path.root}/lambda/circuit_breaker.zip"
   function_name = "${var.project_name}-circuit-breaker-${var.environment}"
   role          = aws_iam_role.circuit_breaker.arn
-  handler       = "index.lambda_handler"
+  handler       = "lambda_function.lambda_handler"
   timeout       = 60
   memory_size   = 512
   runtime       = "python3.12"
-  source_code_hash = data.archive_file.circuit_breaker.output_base64sha256
+  source_code_hash = filebase64sha256("${path.root}/lambda/circuit_breaker.zip")
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids

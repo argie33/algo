@@ -42,8 +42,6 @@ resource "aws_cognito_user_pool" "stocks_trading" {
   }
 
   tags = var.common_tags
-
-  depends_on = [aws_lambda_permission.cognito_invoke_email_lambda]
 }
 
 # User Pool Client for Web App (React/Vite frontend)

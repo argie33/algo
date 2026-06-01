@@ -141,6 +141,16 @@ def lambda_handler(event, context):
             }
         else:
             logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
+            # Clear halt flag when variance is within safe range
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+            table.put_item(Item={
+                'key': 'orchestrator_halt',
+                'halt_flag': False,
+                'reason': f'Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}',
+                'reset_at': datetime.now(timezone.utc).isoformat(),
+                'check_time': event.get('check_time', 'unscheduled')
+            })
             return {
                 "statusCode": 200,
                 "body": json.dumps({

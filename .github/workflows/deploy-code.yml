@@ -185,13 +185,33 @@ jobs:
             exit 1
           fi
 
-          # Extract credentials from JSON secret
-          echo "DB_HOST=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("host", "localhost"))')" >> $GITHUB_ENV
-          echo "DB_PORT=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("port", "5432"))')" >> $GITHUB_ENV
-          echo "DB_USER=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("username", "postgres"))')" >> $GITHUB_ENV
-          echo "DB_PASSWORD=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("password", ""))')" >> $GITHUB_ENV
-          echo "DB_NAME=$(echo $SECRET | python3 -c 'import sys, json; print(json.load(sys.stdin).get("dbname", "algo"))')" >> $GITHUB_ENV
-          echo "DB_SSL=require" >> $GITHUB_ENV
+          # Store credentials in secure Python file (not exposed to GITHUB_ENV)
+          python3 << 'PYTHON_CREDS'
+import json
+import sys
+import os
+
+try:
+            secret_str = """$SECRET"""
+            secret = json.loads(secret_str)
+
+            config = f"""import os
+os.environ['DB_HOST'] = {json.dumps(secret.get('host', 'localhost'))}
+os.environ['DB_PORT'] = {json.dumps(str(secret.get('port', 5432)))}
+os.environ['DB_USER'] = {json.dumps(secret.get('username', 'postgres'))}
+os.environ['DB_PASSWORD'] = {json.dumps(secret.get('password', ''))}
+os.environ['DB_NAME'] = {json.dumps(secret.get('dbname', 'algo'))}
+os.environ['DB_SSL'] = 'require'
+"""
+
+            with open('/tmp/db_config.py', 'w') as f:
+                f.write(config)
+            os.chmod('/tmp/db_config.py', 0o600)
+            print("✓ Database credentials stored securely")
+except Exception as e:
+            print(f"ERROR: Failed to process credentials: {e}")
+            sys.exit(1)
+PYTHON_CREDS
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -206,19 +226,24 @@ jobs:
       - name: Run Migrations
         run: |
           echo "=== Running Database Migrations ==="
-          python migrations/run.py status
-          if [ $? -ne 0 ]; then
-            echo "ERROR: Migration status check failed"
-            exit 1
-          fi
-          echo ""
-          python migrations/run.py apply --all
-          if [ $? -ne 0 ]; then
-            echo "ERROR: Migration apply failed"
-            exit 1
-          fi
-          echo ""
-          echo "[OK] Migrations completed successfully"
+          # Load database credentials from secure config (not from GITHUB_ENV)
+          python3 << 'MIGRATE_SCRIPT'
+import sys
+sys.path.insert(0, '/tmp')
+import db_config  # This sets environment variables securely
+import subprocess
+result = subprocess.run([sys.executable, 'migrations/run.py', 'status'], check=False)
+if result.returncode != 0:
+    print("ERROR: Migration status check failed")
+    sys.exit(1)
+result = subprocess.run([sys.executable, 'migrations/run.py', 'apply', '--all'], check=False)
+if result.returncode != 0:
+    print("ERROR: Migration apply failed")
+    sys.exit(1)
+print("[OK] Migrations completed successfully")
+MIGRATE_SCRIPT
+          # Securely delete credentials file
+          rm -f /tmp/db_config.py 2>/dev/null || true
 
   # ------------------------------------------------------------
   # Algo Lambda
