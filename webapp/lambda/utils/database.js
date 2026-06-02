@@ -60,6 +60,13 @@ async function getDbConfig() {
         } else if (typeof result.SecretString === "string") {
           try {
             secret = JSON.parse(result.SecretString);
+            // SECURITY FIX S-10: Validate secret structure to ensure it has required fields
+            if (!secret || typeof secret !== 'object') {
+              throw new Error("Secret must be a JSON object");
+            }
+            if (!secret.username || !secret.password || !secret.host || !secret.dbname) {
+              throw new Error("Secret missing required fields: username, password, host, dbname");
+            }
           } catch (parseError) {
             throw new Error(
               `Secret parsing failed: ${parseError.message}`

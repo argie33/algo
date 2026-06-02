@@ -96,8 +96,9 @@ export default function AppLayout({ children }) {
 
   const toggleTheme = () => theme.toggleTheme();
 
-  // Poll status every 30s
+  // Poll status every 30s — only when authenticated
   useEffect(() => {
+    if (!isAuthenticated) return;
     let cancelled = false;
     const fetchStatus = async () => {
       try {
@@ -113,7 +114,7 @@ export default function AppLayout({ children }) {
     fetchStatus();
     const id = setInterval(fetchStatus, 30000);
     return () => { cancelled = true; clearInterval(id); };
-  }, []);
+  }, [isAuthenticated]);
 
   // Close drawer on route change
   useEffect(() => { setDrawerOpen(false); setUserMenuOpen(false); }, [location.pathname]);

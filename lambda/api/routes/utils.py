@@ -139,10 +139,11 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
             "warning": f"Data is {data_age} days old" if is_stale else None
         }
     except Exception as e:
+        # SECURITY FIX S-11: Don't expose database error details to client
         return {
             "data_age_days": None,
             "is_stale": True,
-            "error": str(e)
+            "warning": "Unable to determine data freshness"
         }
 
 def json_response(code, data):

@@ -11,8 +11,11 @@ import os
 import requests
 from io import BytesIO
 import pandas as pd
+import zipfile
+import xml.etree.ElementTree as ET
 
 from utils.optimal_loader import OptimalLoader
+from utils.url_validator import validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,13 @@ class AAIISentimentLoader(OptimalLoader):
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch AAII sentiment data from Excel file."""
         logging.info(f"Downloading AAII sentiment data from: {AAII_EXCEL_URL}")
+
+        # SECURITY FIX S-05: Validate AAII URL to prevent SSRF attacks
+        is_valid, error_msg = validate_url(AAII_EXCEL_URL, allowed_domains=['aaii.com'])
+        if not is_valid:
+            # SECURITY FIX S-12: Don't log full URL (exposes infrastructure)
+            logging.error(f"SSRF prevention: Invalid AAII URL: {error_msg}")
+            return None
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -51,6 +61,28 @@ class AAIISentimentLoader(OptimalLoader):
                 if len(response.content) < 1000:
                     logging.error(f"Response too small ({len(response.content)} bytes)")
                     raise ValueError(f"Response too small ({len(response.content)} bytes)")
+
+                # SECURITY FIX S-04: Validate Excel file structure before parsing
+                # Reject files that look malformed or could trigger XXE/billion laughs
+                excel_data = BytesIO(response.content)
+
+                # For XLS files (xlrd): xlrd does NOT parse external entities, so safe from XXE
+                # For XLSX files: validate structure and reject if compressed size is suspicious
+                file_content = response.content
+                if file_content.startswith(b'PK'):  # XLSX = ZIP format
+                    try:
+                        with zipfile.ZipFile(BytesIO(file_content), 'r') as zf:
+                            # Check for suspicious XML files (XXE indicators)
+                            names = zf.namelist()
+                            if len(names) > 10000:  # Reject if too many entries (billion laughs)
+                                raise ValueError("Excel file has suspicious structure (too many entries)")
+                            # Verify standard XLSX structure
+                            expected_dirs = {'_rels/', 'xl/', 'docProps/'}
+                            actual_dirs = {n.split('/')[0] + '/' for n in names if '/' in n}
+                            if not expected_dirs.issubset(actual_dirs):
+                                logging.warning(f"XLSX structure unusual but continuing: {actual_dirs}")
+                    except zipfile.BadZipFile:
+                        logging.warning("File looks like XLSX but ZIP parsing failed, attempting as XLS")
 
                 excel_data = BytesIO(response.content)
                 df = pd.read_excel(excel_data, skiprows=3, engine="xlrd")

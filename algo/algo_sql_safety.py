@@ -135,22 +135,29 @@ def safe_select_count(cur, table: str, date_column: Optional[str] = None, where_
     table_safe = assert_safe_table(table)
 
     # SECURITY FIX M-05: Comprehensive validation of where_clause
-    # Reject ANY suspicious SQL pattern - more comprehensive than simple blacklist
+    # Use allowlist approach: only allow specific patterns, reject everything else
     if where_clause:
-        # Reject obvious injection attempts with expanded pattern set
-        dangerous_patterns = [
-            ';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION',
-            'TRUNCATE', 'EXECUTE', 'COPY', 'ALTER', 'CREATE', 'pg_', 'CAST',
-            'SELECT INTO', '$$',  # PostgreSQL dollar-quoting
-        ]
         where_upper = where_clause.upper()
-        if any(pattern in where_upper for pattern in dangerous_patterns):
-            raise ValueError(f"Dangerous SQL pattern detected in where_clause (M-05): {where_clause}")
 
-        # Additional check: where_clause should only contain basic comparison operators
-        # Allowed: column = value, column > value, AND, OR, NOT
-        if not re.match(r'^[a-zA-Z0-9_\s=<>!().,\-\+]*$', where_clause):
-            raise ValueError(f"where_clause contains unexpected characters (M-05): {where_clause}")
+        # CRITICAL: Reject SQL keywords that could enable injection or expansion attacks
+        # Even if in comments or strings, these patterns indicate malicious intent
+        dangerous_keywords = [
+            ';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION',
+            'TRUNCATE', 'EXECUTE', 'COPY', 'ALTER', 'CREATE', 'CAST', 'pg_',
+            'SELECT INTO', '$$', 'WITH', 'CASE', 'EXISTS', 'HAVING',
+            'CROSS JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
+        ]
+        if any(kw in where_upper for kw in dangerous_keywords):
+            raise ValueError(f"SQL keyword detected in where_clause (M-05): {where_clause}")
+
+        # Strict character whitelist: only alphanumeric, underscores, comparison operators, AND/OR
+        # Do NOT allow: parentheses (can hide injection), function calls, quotes, special chars
+        if not re.match(r'^[a-zA-Z0-9_\s=<>!\.]+(\s+(AND|OR)\s+[a-zA-Z0-9_\s=<>!\.]+)*$', where_clause, re.IGNORECASE):
+            raise ValueError(f"where_clause contains disallowed characters or structure (M-05): {where_clause}")
+
+        # Prevent comment-style tricks: no consecutive special chars
+        if '--' in where_clause or '/*' in where_clause or '*/' in where_clause:
+            raise ValueError(f"SQL comments detected in where_clause (M-05): {where_clause}")
 
         where_sql = f" WHERE {where_clause}"
     else:

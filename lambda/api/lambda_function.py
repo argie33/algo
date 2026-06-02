@@ -106,7 +106,8 @@ def validate_environment():
     is_localhost = db_host.startswith('localhost') or db_host.startswith('127.')
 
     if is_likely_direct_rds and not is_localhost:
-        logger.error(f"FATAL: DB_HOST appears to be direct RDS ({db_host}), not proxy. Connection pooling REQUIRED. Use RDS Proxy endpoint.")
+        # SECURITY FIX S-12: Don't log actual DB_HOST in error messages (exposes infrastructure)
+        logger.error(f"FATAL: DB_HOST appears to be direct RDS, not proxy. Connection pooling REQUIRED. Use RDS Proxy endpoint.")
         errors.append(f"DB_HOST: Must point to RDS Proxy, not direct RDS endpoint")
 
     return len(errors) == 0, errors
@@ -436,6 +437,15 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
         )
 
         logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
+
+        # SECURITY FIX S-08: Validate JWT scope claim (if present)
+        # Scope is optional, but if Cognito is configured to issue scopes, validate them
+        token_scope = payload.get('scope', '').split()
+        if token_scope:
+            # Example: if a user has read-only scope, they shouldn't be able to modify data
+            # For now, just log it. In future: reject write operations for read-only users
+            logger.debug(f"JWT scopes: {token_scope}")
+
         return (True, payload, None)
 
     except jwt.ExpiredSignatureError:

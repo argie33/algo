@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, date, timezone
 import boto3
 from botocore.exceptions import ClientError
 from .utils import error_response, success_response, list_response, json_response, safe_limit, safe_days, safe_offset, handle_db_error, check_data_freshness
+from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +39,22 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
 
-                # algo_notifications has no user_id column — notifications are system-wide.
-                # Auth is already enforced at the Lambda level; just verify the record exists.
-                cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
+                # SECURITY FIX: Enforce row-level access control via user_id
+                # User can only mark their own notifications as seen
+                # (or system-wide notifications where user_id is NULL)
+                cur.execute("""
+                    SELECT id FROM algo_notifications
+                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
+                    LIMIT 1
+                """, (notif_id_int, user_id))
                 if not cur.fetchone():
-                    return error_response(404, 'not_found', 'Notification not found')
+                    return error_response(404, 'not_found', 'Notification not found or access denied')
 
-                cur.execute("UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s", (notif_id_int,))
+                cur.execute("""
+                    UPDATE algo_notifications
+                    SET seen=TRUE, seen_at=NOW()
+                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
+                """, (notif_id_int, user_id))
                 return json_response(200, {'status': 'updated'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -59,12 +69,21 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
 
-                # algo_notifications has no user_id column — notifications are system-wide.
-                cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
+                # SECURITY FIX: Enforce row-level access control via user_id
+                # User can only delete their own notifications
+                # (or system-wide notifications where user_id is NULL)
+                cur.execute("""
+                    SELECT id FROM algo_notifications
+                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
+                    LIMIT 1
+                """, (notif_id_int, user_id))
                 if not cur.fetchone():
-                    return error_response(404, 'not_found', 'Notification not found')
+                    return error_response(404, 'not_found', 'Notification not found or access denied')
 
-                cur.execute("DELETE FROM algo_notifications WHERE id=%s", (notif_id_int,))
+                cur.execute("""
+                    DELETE FROM algo_notifications
+                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
+                """, (notif_id_int, user_id))
                 return json_response(200, {'status': 'deleted'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -73,6 +92,12 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
+            # SECURITY FIX S-09: Rate limit expensive operations
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
             return _trigger_data_patrol()
         if method == 'POST' and path == '/api/algo/pre-trade-impact':
             if not _check_admin_access(jwt_claims):

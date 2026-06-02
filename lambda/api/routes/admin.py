@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
 from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
+from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,18 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return error_response(403, 'forbidden', 'Admin access required')
 
             user_id = (jwt_claims or {}).get('sub', 'unknown')
+
+            # SECURITY FIX S-09: Rate limit admin endpoints to prevent abuse
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(
+                    user_id, path,
+                    max_requests=limits['max_requests'],
+                    window_seconds=limits['window']
+                )
+                if not is_allowed:
+                    _audit_log_admin_action(cur, user_id, path, 'denied', f'rate_limited: {error_msg}')
+                    return error_response(429, 'too_many_requests', error_msg)
 
             if path == '/api/admin/loader-status':
                 result = _get_loader_status(cur)

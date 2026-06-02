@@ -12,6 +12,7 @@ from typing import Optional, List
 import requests
 
 from utils.database_context import DatabaseContext
+from utils.url_validator import validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,13 @@ def _get_fred_api_key() -> str:
 def _fetch_release_dates(series_id: str, api_key: str, start: date, end: date) -> List[date]:
     """Fetch upcoming release dates for a FRED series via the releases endpoint."""
     try:
+        # SECURITY FIX S-05: Validate FRED URLs to prevent SSRF attacks
+        is_valid, error_msg = validate_url(FRED_BASE, allowed_domains=['stlouisfed.org', 'api.stlouisfed.org'])
+        if not is_valid:
+            # SECURITY FIX S-12: Don't log full URL (exposes infrastructure)
+            logger.error(f"SSRF prevention: Invalid FRED URL: {error_msg}")
+            return []
+
         # Get the release ID for this series
         r = requests.get(
             f"{FRED_BASE}/series/release",

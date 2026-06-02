@@ -10,6 +10,7 @@ from typing import Optional, List
 import requests
 
 from utils.optimal_loader import OptimalLoader
+from utils.url_validator import validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,12 @@ class FearGreedIndexLoader(OptimalLoader):
         """Fetch Fear & Greed Index from CNN."""
         import time
         url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+
+        # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
+        is_valid, error_msg = validate_url(url, allowed_domains=['cnn.io', 'dataviz.cnn.io'])
+        if not is_valid:
+            logger.error(f"SSRF prevention: Invalid URL {url}: {error_msg}")
+            return None
         # CNN blocks plain User-Agent strings from data centers. Mimic a real browser.
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',

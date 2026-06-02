@@ -164,13 +164,16 @@ export function AuthProvider({ children }) {
       const session = await fetchAuthSession({ forceRefresh: true });
 
       if (session.tokens) {
+        const tokens = {
+          accessToken: session.tokens.accessToken.toString(),
+          idToken: session.tokens.idToken?.toString(),
+          refreshToken: session.tokens.refreshToken?.toString(),
+        };
+        // CRITICAL: update tokenManager so api.js interceptor retries with the new token
+        tokenManager.setTokens({ access: tokens.accessToken, id: tokens.idToken, refresh: tokens.refreshToken });
         dispatch({
           type: AUTH_ACTIONS.UPDATE_TOKENS,
-          payload: {
-            accessToken: session.tokens.accessToken.toString(),
-            idToken: session.tokens.idToken?.toString(),
-            refreshToken: session.tokens.refreshToken?.toString(),
-          },
+          payload: tokens,
         });
         return { success: true };
       }

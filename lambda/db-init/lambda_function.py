@@ -219,9 +219,12 @@ def lambda_handler(event, context):
 
         sql_script = ''
         try:
-            with open('schema.sql', 'r') as f:
+            # SECURITY FIX S-07: Use absolute path to prevent path traversal
+            import os
+            schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
+            with open(schema_path, 'r') as f:
                 sql_script = f.read()
-            logger.info("Using schema.sql")
+            logger.info(f"Using schema from {schema_path}")
         except FileNotFoundError:
             logger.warning("schema.sql not found")
 

@@ -166,6 +166,15 @@ try {
 
         // Handle 401 — try refresh once, then redirect
         if (error.response?.status === 401) {
+          // Guard against infinite retry loops: only attempt refresh once per request
+          if (originalRequest._retried) {
+            tokenManager.clearTokens();
+            if (typeof window !== "undefined" && window.location) {
+              window.location.href = "/login";
+            }
+            return Promise.reject(error);
+          }
+
           if (isRefreshing) {
             // Already refreshing, queue this request
             return new Promise((resolve, reject) => {
@@ -173,12 +182,14 @@ try {
             })
               .then((token) => {
                 originalRequest.headers.Authorization = `Bearer ${token}`;
+                originalRequest._retried = true;
                 return api(originalRequest);
               })
               .catch((err) => Promise.reject(err));
           }
 
           isRefreshing = true;
+          originalRequest._retried = true;
 
           if (_refreshCallback) {
             try {
