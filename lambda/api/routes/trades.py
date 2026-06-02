@@ -21,7 +21,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return _create_manual_trade(cur, body or {})
             if path == '/api/trades':
                 limit_str = params.get('limit', [None])[0] if params else None
-                limit = safe_limit(limit_str, max_val=50000, default=50000)
+                limit = safe_limit(limit_str, max_val=5000, default=500)
                 offset_str = params.get('offset', [None])[0] if params else None
                 offset = safe_offset(offset_str)
                 status_filter = params.get('status', [None])[0] if params else None

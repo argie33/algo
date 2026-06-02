@@ -67,8 +67,15 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
 
     try:
         theme = body.get('theme', 'dark')
-        notifications = body.get('notifications', True)
+        notifications_raw = body.get('notifications', True)
         other_prefs = {k: v for k, v in body.items() if k not in ('user_id', 'theme', 'notifications')}
+        # notifications column is BOOLEAN; if frontend sends a dict (per-type toggles),
+        # store it in preferences JSONB so it survives the round-trip intact.
+        if isinstance(notifications_raw, dict):
+            other_prefs['notifications'] = notifications_raw
+            notifications = True
+        else:
+            notifications = bool(notifications_raw)
 
         cur.execute("""
             INSERT INTO user_dashboard_settings (user_id, theme, notifications, preferences, updated_at)

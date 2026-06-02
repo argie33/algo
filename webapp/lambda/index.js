@@ -36,6 +36,7 @@ const serverlessHttp = require('serverless-http');
 const errorHandler = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
 const auditLogger = require("./middleware/auditLogger");
+const { authenticateToken } = require("./middleware/auth");
 const { initializeDatabase, initializeSchema, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const { marketCache } = require("./utils/market-cache");
@@ -276,48 +277,8 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-// CSRF Protection: Add CSRF token validation for state-changing operations
-// Skip CSRF for: GET/HEAD/OPTIONS requests, API tokens, preflight requests
-const csrf = (req, res, next) => {
-  // Skip CSRF validation for:
-  // - GET, HEAD, OPTIONS (read-only operations)
-  // - Requests with Bearer tokens (API clients)
-  // - Preflight CORS requests
-  if (
-    ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ||
-    req.headers.authorization?.startsWith('Bearer ') ||
-    req.method === 'OPTIONS'
-  ) {
-    return next();
-  }
-
-  // For POST/PUT/DELETE without Bearer token, require CSRF token
-  const token = req.headers['x-csrf-token'] || req.body?.csrf_token;
-  const sessionToken = req.session?.csrfToken;
-
-  if (!token || token !== sessionToken) {
-    return sendError(res, 'CSRF token invalid or missing', 403, { code: 'CSRF_VALIDATION_FAILED' });
-  }
-
-  next();
-};
-
-// Apply CSRF middleware to state-changing endpoints (excluding authenticated API calls)
-// Note: API clients should use Bearer tokens, not session-based auth
-app.use((req, res, next) => {
-  // Generate CSRF token for the session if not present
-  if (!req.session) {
-    req.session = {};
-  }
-  if (!req.session.csrfToken) {
-    const crypto = require('crypto');
-    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
-  }
-
-  // Attach token to request for use in forms
-  res.locals.csrfToken = req.session.csrfToken;
-  next();
-});
+// Note: CSRF protection not needed — all endpoints use Bearer token authentication,
+// which is immune to CSRF attacks (tokens are not sent automatically by browsers).
 
 // Response normalizer - ensures all responses follow standard format
 app.use(responseNormalizer);
@@ -461,11 +422,6 @@ app.use(async (req, res, next) => {
 
 // API routes use standard Express response methods - see RULES.md for response pattern
 
-// TEST endpoint to verify API routing works
-app.get("/api/test", (req, res) => {
-  return sendSuccess(res, { message: "API test endpoint works!" });
-});
-
 // Root-level health check alias (AWS ALB / CI expect /health without /api prefix)
 app.use("/health", healthRoutes);
 
@@ -482,7 +438,7 @@ app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
 // STANDALONE signals search endpoint - FULL FILTERING SUPPORT with aggressive caching for AWS stability
-app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
+app.get("/api/signals/search", authenticateToken, cacheMiddleware(60), async (req, res) => {
   try {
     const {
       type = 'swing',

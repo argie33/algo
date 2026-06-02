@@ -2,8 +2,10 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { authenticateToken } = require("../middleware/auth");
 const logger = require('../utils/logger');
 const router = express.Router();
+router.use(authenticateToken);
 
 // Root endpoint - documentation
 router.get("/", (req, res) => {

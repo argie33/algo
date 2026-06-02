@@ -1,8 +1,10 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
+const { authenticateToken } = require("../middleware/auth");
 const logger = require('../utils/logger');
 const router = express.Router();
+router.use(authenticateToken);
 
 // GET /api/optimization/analysis - Real portfolio optimization data from DB
 router.get("/analysis", async (req, res) => {
@@ -109,7 +111,7 @@ router.get("/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching optimization data:", error.message);
-    return sendError(res, `Failed to fetch optimization data: ${error.message}`, 500);
+    return sendError(res, "Failed to fetch optimization data", 500);
   }
 });
 

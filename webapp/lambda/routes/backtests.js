@@ -12,7 +12,7 @@ const requireAuth = authenticateToken;
  * GET /api/research/backtests
  * List all backtest runs with pagination
  */
-router.get('/', async (req, res, next) => {
+router.get('/', requireAuth, async (req, res, next) => {
   try {
     const {
       strategy_name,
@@ -72,7 +72,7 @@ router.get('/', async (req, res, next) => {
     });
   } catch (error) {
     console.error("Error fetching backtests", error);
-    return sendError(res, "Failed to fetch backtests: " + error.message, 500);
+    return sendError(res, "Failed to fetch backtests", 500);
   }
 });
 
@@ -80,7 +80,7 @@ router.get('/', async (req, res, next) => {
  * GET /api/research/backtests/:run_id
  * Get detailed backtest run with trades
  */
-router.get('/:run_id', async (req, res, next) => {
+router.get('/:run_id', requireAuth, async (req, res, next) => {
   try {
     const { run_id } = req.params;
     const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'trades');
