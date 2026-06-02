@@ -54,7 +54,8 @@ def _is_contact_spam(email: str) -> bool:
     try:
         dynamodb = boto3.resource('dynamodb')
         table = dynamodb.Table(dynamodb_table)
-        response = table.get_item(Key={'email_hash': email_hash})
+        # DynamoDB table hash_key is "email" — we store the SHA256 hash as its value
+        response = table.get_item(Key={'email': email_hash})
         item = response.get('Item', {})
         submission_times = item.get('submission_times', [])
         recent_submissions = [t for t in submission_times if t > window_start]
@@ -64,7 +65,7 @@ def _is_contact_spam(email: str) -> bool:
             return True
 
         recent_submissions.append(now)
-        table.put_item(Item={'email_hash': email_hash, 'submission_times': recent_submissions, 'ttl': now + CONTACT_RATE_LIMIT_WINDOW})
+        table.put_item(Item={'email': email_hash, 'submission_times': recent_submissions, 'ttl': now + CONTACT_RATE_LIMIT_WINDOW})
         return False
     except ClientError as e:
         logger.error(f"DynamoDB rate limit check failed: {e}. Rejecting request for safety.")
