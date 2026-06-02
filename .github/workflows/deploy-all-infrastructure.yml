@@ -685,7 +685,8 @@ jobs:
       - name: Setup Cognito Admin Group
         run: |
           POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
-          PRIMARY_USER=$(grep 'cognito_test_user_email' terraform/terraform.tfvars | cut -d'"' -f2)
+          # working-directory is terraform/ so no prefix needed
+          PRIMARY_USER=$(grep 'cognito_test_user_email' terraform.tfvars | cut -d'"' -f2)
 
           if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
             echo "[SKIP] No Cognito user pool ID found — skipping admin group setup"
