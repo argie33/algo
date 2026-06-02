@@ -112,8 +112,8 @@ jobs:
             sleep 10
           done
 
-          echo "[WARN] API returned errors. Checking detailed health..."
-          curl -v "$API/api/health/detailed" 2>&1 | head -100
+          echo "[WARN] API returned errors. Checking public health endpoint..."
+          curl -v "$API/api/health" 2>&1 | head -100
 
       - name: Check RDS connectivity
         run: |
