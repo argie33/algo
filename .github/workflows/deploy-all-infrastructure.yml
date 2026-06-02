@@ -266,7 +266,7 @@ jobs:
             2>&1 | tail -20
           # Strip debug symbols to reduce size
           find $BUILD_DIR/python -name "*.so" -exec strip --strip-debug {} \; 2>/dev/null || true
-          OUTPUT_ZIP=$GITHUB_WORKSPACE/lambda/shared-deps-layer.zip
+          OUTPUT_ZIP=$GITHUB_WORKSPACE/terraform/lambda/shared-deps-layer.zip
           mkdir -p $(dirname $OUTPUT_ZIP)
           cd $BUILD_DIR && zip -r $OUTPUT_ZIP python/ -q
           SIZE=$(du -sh $OUTPUT_ZIP | cut -f1)
