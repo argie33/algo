@@ -69,6 +69,16 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
         theme = body.get('theme', 'dark')
         notifications_raw = body.get('notifications', True)
         other_prefs = {k: v for k, v in body.items() if k not in ('user_id', 'theme', 'notifications')}
+
+        # Validate arbitrary preference keys - limit to 50 keys to prevent storage abuse
+        if len(other_prefs) > 50:
+            return error_response(400, 'bad_request', 'Too many preference fields (max 50)')
+
+        # Validate preference JSON size - limit to 10KB
+        prefs_json = json.dumps(other_prefs)
+        if len(prefs_json.encode('utf-8')) > 10240:  # 10KB
+            return error_response(400, 'bad_request', 'Preferences too large (max 10KB)')
+
         # notifications column is BOOLEAN; if frontend sends a dict (per-type toggles),
         # store it in preferences JSONB so it survives the round-trip intact.
         if isinstance(notifications_raw, dict):
@@ -85,7 +95,7 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
                   notifications = EXCLUDED.notifications,
                   preferences = EXCLUDED.preferences,
                   updated_at = NOW()
-        """, (user_id, theme, notifications, json.dumps(other_prefs)))
+        """, (user_id, theme, notifications, prefs_json))
 
         return json_response(200, {'success': True, 'message': 'Settings saved'})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
