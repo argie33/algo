@@ -134,20 +134,28 @@ def _submit_contact(cur, body: Dict) -> Dict:
         if re.search(pattern, subject, re.IGNORECASE):
             return error_response(400, 'bad_request', 'Subject contains invalid content')
 
-    # SECURITY L-NEW-01: Return 200 even when rate limited — a 429 lets an
+    # SECURITY L-NEW-01: Return 200 even when rate limited ï¿½ a 429 lets an
     # attacker enumerate whether an email has submitted recently.
     if _is_contact_spam(email):
         logger.warning(f"Contact rate limit hit (silenced to caller): ...@{email.split('@')[-1]}")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
 
     try:
-        cur.execute("""
-            INSERT INTO contact_submissions (name, email, subject, message, phone, submitted_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (name, email, subject, message, phone if phone else None, datetime.now(timezone.utc)))
+        # Try with phone column first (migration 007 adds it; falls back gracefully if not yet applied)
+        try:
+            cur.execute("""
+                INSERT INTO contact_submissions (name, email, subject, message, phone, submitted_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (name, email, subject, message, phone if phone else None, datetime.now(timezone.utc)))
+        except psycopg2.errors.UndefinedColumn:
+            cur.connection.rollback()
+            cur.execute("""
+                INSERT INTO contact_submissions (name, email, subject, message, submitted_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (name, email, subject, message, datetime.now(timezone.utc)))
         logger.info(f"Contact form submission from ...@{email.split('@')[-1]}")
         return json_response(200, {'success': True, 'message': "Thank you for reaching out. We'll get back to you soon."})
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+    except psycopg2.errors.UndefinedTable:
         logger.error(f"contact_submissions table missing; unable to process submission")
         return error_response(503, 'service_unavailable', 'Contact service unavailable. Please try again later.')
     except Exception as e:
@@ -157,13 +165,20 @@ def _get_submissions(cur, params: Dict) -> Dict:
     """Get contact submissions (admin-only)."""
     try:
         limit = safe_limit(params.get('limit', [100])[0] if params else 100)
-        cur.execute("""
-            SELECT id, name, email, subject, message, phone, submitted_at
-            FROM contact_submissions ORDER BY submitted_at DESC LIMIT %s
-        """, (limit,))
+        try:
+            cur.execute("""
+                SELECT id, name, email, subject, message, phone, submitted_at
+                FROM contact_submissions ORDER BY submitted_at DESC LIMIT %s
+            """, (limit,))
+        except psycopg2.errors.UndefinedColumn:
+            cur.connection.rollback()
+            cur.execute("""
+                SELECT id, name, email, subject, message, submitted_at
+                FROM contact_submissions ORDER BY submitted_at DESC LIMIT %s
+            """, (limit,))
         rows = cur.fetchall()
         return list_response(rows, total=len(rows))
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+    except psycopg2.errors.UndefinedTable:
         logger.error("contact_submissions table missing; unable to list submissions")
         return error_response(503, 'service_unavailable', 'Contact service unavailable.')
     except Exception as e:
