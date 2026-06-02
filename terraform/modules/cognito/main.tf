@@ -122,25 +122,26 @@ resource "aws_cognito_user_pool_domain" "main" {
 }
 
 # Test user for development
-# Terraform will attempt to create the user or import it if it already exists.
-# Lifecycle: ignore_changes on temporary_password since password reset is outside Terraform.
-resource "aws_cognito_user" "test_user" {
-  count              = var.cognito_test_user_email != "" ? 1 : 0
-  user_pool_id       = aws_cognito_user_pool.stocks_trading.id
-  username           = var.cognito_test_user_email
-  temporary_password = var.test_user_password
-  attributes = {
-    email          = var.cognito_test_user_email
-    email_verified = true
-  }
+# NOTE: Test user creation is handled by post-Terraform workflow step (see deploy-all-infrastructure.yml)
+# to avoid UsernameExistsException errors when the user already exists in AWS but not in Terraform state.
+# If you need to manage the test user via Terraform, uncomment this resource and run:
+#   terraform import module.cognito.aws_cognito_user.test_user[0] 'us-east-1_XJpLb9SKX/edgebrookecapital@gmail.com'
+# to sync the existing user into Terraform state first.
 
-  lifecycle {
-    ignore_changes = [temporary_password]
-  }
-}
-
-# Note: Test user password should be set manually via AWS console or AWS CLI
-# Example: aws cognito-idp admin-set-user-password --user-pool-id <id> --username testuser --password "TestPassword123!" --permanent
+# resource "aws_cognito_user" "test_user" {
+#   count              = var.cognito_test_user_email != "" ? 1 : 0
+#   user_pool_id       = aws_cognito_user_pool.stocks_trading.id
+#   username           = var.cognito_test_user_email
+#   temporary_password = var.test_user_password
+#   attributes = {
+#     email          = var.cognito_test_user_email
+#     email_verified = true
+#   }
+#
+#   lifecycle {
+#     ignore_changes = [temporary_password]
+#   }
+# }
 
 # Admin group — created by post-Terraform workflow step (not Terraform).
 # Reason: creating the group requires cognito-idp:CreateGroup in the GitHub Actions
