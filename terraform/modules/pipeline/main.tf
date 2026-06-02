@@ -93,6 +93,16 @@ resource "aws_iam_role_policy" "sfn_pipeline" {
         Resource = var.algo_orchestrator_task_definition_arn
       },
       {
+        # Required for LogXxxFailure states that invoke the loader-failure-handler Lambda
+        # directly (Resource = var.loader_failure_handler_arn in state machine definition).
+        # The aws_lambda_permission resource-based policy allows states.amazonaws.com but
+        # the execution role identity also needs lambda:InvokeFunction.
+        Sid      = "InvokeFailureHandler"
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = var.loader_failure_handler_arn
+      },
+      {
         Sid      = "PublishFailureAlert"
         Effect   = "Allow"
         Action   = "sns:Publish"
