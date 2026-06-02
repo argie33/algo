@@ -72,7 +72,6 @@ const NAV_SECTIONS = [
       { text: 'Notifications',     icon: Bell,        path: '/app/notifications' },
       { text: 'Audit Log',         icon: FileText,    path: '/app/audit' },
       { text: 'System Blueprint',  icon: Map,         path: '/app/blueprint' },
-      { text: 'Pre-Trade Sim',     icon: Cpu,         path: '/app/pre-trade-simulator' },
     ],
   },
 ];
