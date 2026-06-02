@@ -151,7 +151,13 @@ class MarketHealthDailyLoader(OptimalLoader):
                     except Exception as e:
                         logger.warning(f"Could not fetch cached breadth data: {e}")
 
-                # Now compute breadth data only for recent dates (more efficient)
+                # Now compute breadth data only for recent dates (more efficient).
+                # 90s timeout: this query joins 365-day price history for 5000+ symbols.
+                # Under write load from stock_prices_daily ECS tasks the query can block
+                # for minutes — fail fast and let the loader write market health rows
+                # without breadth columns (orchestrator Phase 1 only checks date freshness,
+                # not whether advance_decline_ratio is populated).
+                cur.execute("SET LOCAL statement_timeout = '90s'")
                 cur.execute("""
                     WITH prices AS (
                         SELECT symbol, date, close

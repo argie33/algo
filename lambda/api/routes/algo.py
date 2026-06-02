@@ -1291,7 +1291,7 @@ def _get_sector_breadth(cur) -> Dict:
                         pd.symbol, pd.close
                     FROM price_daily pd
                     WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
-                      AND pd.symbol NOT LIKE '^^%%'
+                      AND pd.symbol NOT LIKE '^%%'
                     ORDER BY pd.symbol, pd.date DESC
                 ),
                 sector_breadth AS (
@@ -1334,7 +1334,7 @@ def _get_sector_breadth(cur) -> Dict:
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
-            cur.execute("SET statement_timeout TO '25s'")
+            cur.execute("SET LOCAL statement_timeout TO '25s'")
             # Use psycopg2.sql for safe SQL composition
             filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '14 days'")]
             query_params = []

@@ -18,23 +18,24 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 if not sectors_str:
                     return error_response(400, 'bad_request', 'sectors parameter required (comma-separated)')
 
-                sectors = [s.strip() for s in sectors_str.split(',')]
-                result = {}
+                sectors = [s.strip() for s in sectors_str.split(',') if s.strip()]
+                result = {s: [] for s in sectors}
 
-                for sector in sectors:
-                    if not sector:
-                        continue
-                    # Double-quote alias to preserve camelCase (PostgreSQL lowercases unquoted aliases)
+                if sectors:
                     cur.execute("""
-                        SELECT date, AVG(close) AS "avgPrice"
+                        SELECT cp.sector, pd.date, AVG(pd.close) AS "avgPrice"
                         FROM price_daily pd
                         JOIN company_profile cp ON pd.symbol = cp.ticker
-                        WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-                        GROUP BY pd.date
-                        ORDER BY pd.date ASC
-                    """, (sector, days))
-                    rows = cur.fetchall()
-                    result[sector] = [dict(r) for r in rows] if rows else []
+                        WHERE cp.sector = ANY(%s)
+                          AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                        GROUP BY cp.sector, pd.date
+                        ORDER BY cp.sector, pd.date ASC
+                    """, (sectors, days))
+                    for row in cur.fetchall():
+                        r = dict(row)
+                        sector_key = r['sector']
+                        if sector_key in result:
+                            result[sector_key].append({'date': r['date'], 'avgPrice': r['avgPrice']})
 
                 return json_response(200, result)
 

@@ -151,35 +151,46 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 base['data_freshness'] = freshness
                 return json_response(200, base)
             elif path == '/api/market/top-movers':
-                cur.execute("""
-                    WITH latest_d AS (
-                        SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
-                    ),
-                    today AS (
-                        SELECT symbol, close
-                        FROM price_daily
-                        WHERE date = (SELECT d FROM latest_d)
-                    ),
-                    yesterday AS (
-                        SELECT symbol, close
-                        FROM price_daily
-                        WHERE date = (
-                            SELECT date FROM price_daily WHERE date < (SELECT d FROM latest_d)
-                            ORDER BY date DESC LIMIT 1
+                movers = []
+                try:
+                    cur.execute("SAVEPOINT top_movers")
+                    cur.execute("SET LOCAL statement_timeout = '8s'")
+                    cur.execute("""
+                        WITH latest_d AS (
+                            SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
+                        ),
+                        today AS (
+                            SELECT symbol, close
+                            FROM price_daily
+                            WHERE date = (SELECT d FROM latest_d)
+                        ),
+                        yesterday AS (
+                            SELECT symbol, close
+                            FROM price_daily
+                            WHERE date = (
+                                SELECT date FROM price_daily WHERE date < (SELECT d FROM latest_d)
+                                ORDER BY date DESC LIMIT 1
+                            )
                         )
-                    )
-                    SELECT t.symbol, ss.security_name,
-                           ROUND(((t.close - y.close) / NULLIF(y.close, 0) * 100)::numeric, 2) as pct_change
-                    FROM today t
-                    JOIN yesterday y ON t.symbol = y.symbol
-                    JOIN stock_symbols ss ON t.symbol = ss.symbol
-                    WHERE y.close > 0
-                      AND t.symbol NOT LIKE '^%%'
-                      AND COALESCE(ss.etf, 'N') != 'Y'
-                    ORDER BY ABS(t.close - y.close) / y.close DESC
-                    LIMIT 40
-                """)
-                movers = cur.fetchall()
+                        SELECT t.symbol, ss.security_name,
+                               ROUND(((t.close - y.close) / NULLIF(y.close, 0) * 100)::numeric, 2) as pct_change
+                        FROM today t
+                        JOIN yesterday y ON t.symbol = y.symbol
+                        JOIN stock_symbols ss ON t.symbol = ss.symbol
+                        WHERE y.close > 0
+                          AND t.symbol NOT LIKE '^%%'
+                          AND COALESCE(ss.etf, 'N') != 'Y'
+                        ORDER BY ABS(t.close - y.close) / y.close DESC
+                        LIMIT 40
+                    """)
+                    movers = cur.fetchall()
+                    cur.execute("RELEASE SAVEPOINT top_movers")
+                except Exception as e:
+                    logger.warning(f"Top movers query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT top_movers")
+                        cur.execute("RELEASE SAVEPOINT top_movers")
+                    except Exception: pass
                 items = [dict(m) for m in movers] if movers else []
                 gainers = sorted([m for m in items if (m.get('pct_change') or 0) >= 0],
                                  key=lambda x: -(x.get('pct_change') or 0))[:10]
@@ -189,6 +200,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/market/distribution-days':
                 DIST_INDEX_NAMES = {'^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^NYA': 'NYSE Composite', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000'}
                 try:
+                    cur.execute("SAVEPOINT dist_days")
+                    cur.execute("SET LOCAL statement_timeout = '8s'")
                     cur.execute("""
                         WITH sessions AS (
                             SELECT symbol, date,
@@ -231,9 +244,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                                   'CAUTION' if count >= 3 else
                                   'WATCH' if count >= 1 else 'NORMAL')
                         result[sym] = {'name': DIST_INDEX_NAMES.get(sym, sym), 'count': count, 'signal': signal, 'days': days}
+                    cur.execute("RELEASE SAVEPOINT dist_days")
                     return json_response(200, result)
                 except Exception as e:
-                    return handle_db_error(e, logger, 'get distribution days')
+                    logger.warning(f"Distribution days query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT dist_days")
+                        cur.execute("RELEASE SAVEPOINT dist_days")
+                    except Exception: pass
+                    return json_response(200, {})
             elif path == '/api/market/seasonality':
                 # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
                 monthly_data = []
@@ -614,6 +633,8 @@ def _get_correlation_matrix(cur) -> Dict:
         try:
             symbols = ['^GSPC', '^IXIC', 'SPY', 'QQQ', 'IVV', 'TLT', 'GLD']
 
+            cur.execute("SAVEPOINT correlation_matrix")
+            cur.execute("SET LOCAL statement_timeout = '8s'")
             cur.execute("""
                 SELECT symbol, date, close
                 FROM price_daily
@@ -622,6 +643,7 @@ def _get_correlation_matrix(cur) -> Dict:
                 ORDER BY symbol, date
             """, (symbols,))
             rows = cur.fetchall()
+            cur.execute("RELEASE SAVEPOINT correlation_matrix")
 
             if not rows:
                 return json_response(200, {
@@ -778,6 +800,11 @@ def _get_correlation_matrix(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.warning(f"Correlation matrix query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
+                cur.execute("RELEASE SAVEPOINT correlation_matrix")
+            except Exception: pass
             return handle_db_error(e, logger, 'get correlation matrix')
 
 def _get_cap_distribution(cur) -> Dict:
