@@ -14,6 +14,7 @@ const errorMessageMap = {
   'TooManyRequestsException': 'Too many requests. Please try again later',
   'UserNotFoundException': 'User not found',
   'UserNotConfirmedException': 'User is not confirmed',
+  'Cannot reset password': 'Email address must be verified first. Please contact support.',
 };
 
 /**

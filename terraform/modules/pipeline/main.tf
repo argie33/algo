@@ -5,15 +5,20 @@
  * Step Functions state machine. Guarantees the orchestrator only runs when
  * all signal data is actually ready, not on a fixed timer.
  *
- * Pipeline DAG:
- *   stock_symbols (reference data)
- *     → stock_prices_daily (unified price loader for all intervals/assets)
+ * MORNING PREP PIPELINE (4:30 AM ET):
+ *   stock_prices_daily (1d only)
+ *     → [parallel] technical_data_daily + market_health_daily
+ *       → [parallel] buy_sell_daily + signal_quality_scores + swing_trader_scores
+ *         → Orchestrator run at 9:30 AM uses fresh data
+ *
+ * EOD PIPELINE (4:05 PM ET):
+ *   stock_symbols
+ *     → stock_prices_daily (all intervals 1d/1wk/1mo)
  *       → [parallel] technical_data_daily + market_health_daily
  *         → [parallel] trend_template_data
  *           → [parallel] buy_sell_daily + signal_quality_scores
  *             → algo_metrics_daily
  *               → swing_trader_scores
- *                 → Invoke algo orchestrator ECS task
  *
  * Note: stock_prices_daily runs ~6h for all 5000+ symbols across all intervals (1d, 1wk, 1mo).
  * technicals_daily uses cached prices; runs in parallel with market_health_daily.
@@ -782,8 +787,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 # ============================================================
 # Morning Prep Pipeline - Separate State Machine
 # FIXED Issue #5: Split morning and EOD pipelines to prevent signal double-generation
-# Morning (3:30-4:30 AM ET): Load prices → compute technicals
+# Morning (4:30 AM ET): Load prices → technicals + market health → signals
 # FIXED Issue #13: Signals NOT generated here; orchestrator regenerates at 9:30 AM using fresh data
+# FIXED 2026-06-02: Added market_health_daily to morning pipeline (was only in EOD).
+# If EOD pipeline fails, market health data went stale; now refreshed daily at 4:30 AM.
 # ============================================================
 
 resource "aws_sfn_state_machine" "morning_prep_pipeline" {
@@ -847,27 +854,62 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       }
 
       MorningTechnicals = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 5400
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
+        Type = "Parallel"
+        Branches = [
+          {
+            StartAt = "TechnicalsTask"
+            States = {
+              TechnicalsTask = {
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 5400
+                Parameters = {
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["technical_data_daily"]
+                  NetworkConfiguration = local.network_config
+                }
+                Retry = [{
+                  ErrorEquals     = ["States.ALL"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2.0
+                }]
+                End = true
+              }
+            }
+          },
+          {
+            StartAt = "MarketHealthTask"
+            States = {
+              MarketHealthTask = {
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 1200
+                Parameters = {
+                  Cluster              = var.ecs_cluster_arn
+                  LaunchType           = "FARGATE"
+                  TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
+                  NetworkConfiguration = local.network_config
+                }
+                Retry = [{
+                  ErrorEquals     = ["States.ALL"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2.0
+                }]
+                End = true
+              }
+            }
+          }
+        ]
+        ResultPath = null
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          # Fail-open: if technicals fail (e.g. advisory lock conflict with EOD pipeline still
-          # running), still regenerate signals using prior technicals rather than hard-failing.
+          # Fail-open: if technicals or market health fail, still regenerate signals
+          # using prior data rather than hard-failing the entire morning prep.
           Next        = "MorningSignals"
-          ResultPath  = "$.technicalsError"
+          ResultPath  = "$.technicalError"
         }]
         Next = "MorningSignals"
       }

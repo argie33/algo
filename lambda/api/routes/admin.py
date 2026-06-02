@@ -1,7 +1,7 @@
 """Route: admin"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re
+import logging, re, os, boto3
 from datetime import datetime, timedelta, date, timezone
 from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 from utils.admin_rate_limiter import check_admin_rate_limit, ADMIN_RATE_LIMITS
@@ -71,6 +71,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/admin/data-quality':
                 result = _get_data_quality(cur)
                 _audit_log_admin_action(cur, user_id, path, 'success')
+                return result
+            elif path == '/api/admin/verify-user-email' and method == 'POST':
+                result = _verify_user_email(body)
+                _audit_log_admin_action(cur, user_id, path, 'success', f"verified: {body.get('username', 'unknown')}")
                 return result
 
             _audit_log_admin_action(cur, user_id, path, 'failed', 'endpoint not found')
@@ -272,3 +276,40 @@ def _get_data_quality(cur) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'get data quality')
+
+def _verify_user_email(body: Dict = None) -> Dict:
+        """Verify a user's email in Cognito (dev/testing only)."""
+        if not body or 'username' not in body:
+            return error_response(400, 'bad_request', 'username required')
+
+        try:
+            cognito_user_pool_id = os.getenv('COGNITO_USER_POOL_ID', '').strip()
+            cognito_region = os.getenv('COGNITO_REGION', 'us-east-1').strip()
+
+            if not cognito_user_pool_id:
+                return error_response(500, 'error', 'Cognito not configured')
+
+            cognito_client = boto3.client('cognito-idp', region_name=cognito_region)
+            username = body.get('username')
+
+            # Update user attributes to mark email as verified
+            cognito_client.admin_update_user_attributes(
+                UserPoolId=cognito_user_pool_id,
+                Username=username,
+                UserAttributes=[
+                    {'Name': 'email_verified', 'Value': 'true'}
+                ]
+            )
+
+            logger.info(f"Email verified for user: {username}")
+            return json_response(200, {
+                'status': 'success',
+                'message': f'Email verified for {username}',
+                'username': username
+            })
+        except Exception as e:
+            error_str = str(e)
+            if 'UserNotFoundException' in error_str:
+                return error_response(404, 'not_found', f'User not found: {body.get("username")}')
+            logger.error(f"Failed to verify email: {e}")
+            return error_response(500, 'error', f'Failed to verify email: {error_str}')
