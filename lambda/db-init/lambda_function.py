@@ -128,6 +128,36 @@ def lambda_handler(event, context):
             logger.info(f"Terminated {terminated} idle connections (advisory lock cleanup)")
             return {'statusCode': 200, 'body': json.dumps(f'Terminated {terminated} idle connections')}
 
+        # Step 0: Release stale advisory locks from crashed/stuck ECS loader tasks.
+        # OptimalLoader uses pg_try_advisory_lock() — if a task crashes mid-run, the
+        # lock hangs in idle connections in the RDS Proxy pool and blocks all subsequent
+        # runs. Clearing these at deploy time is safe: they belong to loader tasks
+        # that are no longer running (idle > 60 minutes).
+        try:
+            _conn = psycopg2.connect(
+                host=creds['host'], port=creds['port'],
+                database=creds['database'], user=creds['user'],
+                password=creds['password'], connect_timeout=10,
+            )
+            _conn.autocommit = True
+            _cur = _conn.cursor()
+            _cur.execute("""
+                SELECT count(pg_terminate_backend(pid))
+                FROM pg_stat_activity
+                WHERE pid != pg_backend_pid()
+                  AND state IN ('idle', 'idle in transaction')
+                  AND query_start < NOW() - INTERVAL '60 minutes'
+            """)
+            terminated = _cur.fetchone()[0]
+            _cur.close()
+            _conn.close()
+            if terminated:
+                logger.info(f"Step 0: Released {terminated} stale idle connections (advisory lock cleanup)")
+            else:
+                logger.info("Step 0: No stale connections found (advisory locks clean)")
+        except Exception as _e:
+            logger.warning(f"Step 0: Advisory lock cleanup failed (non-fatal): {_e}")
+
         # Step 1: Ensure stocks user exists (as master user)
         logger.info("Step 1: Ensuring stocks user exists with correct password...")
 
