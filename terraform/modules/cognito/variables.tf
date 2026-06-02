@@ -55,12 +55,6 @@ variable "cognito_sender_email" {
   default     = "noreply@bullseyetrading.com"
 }
 
-variable "admin_user_email" {
-  description = "Email of the primary admin user to add to the 'admin' Cognito group (empty = skip)"
-  type        = string
-  default     = ""
-}
-
 variable "mfa_configuration" {
   description = "MFA configuration for the user pool: OFF, OPTIONAL, or REQUIRED"
   type        = string

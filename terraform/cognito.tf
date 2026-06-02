@@ -11,7 +11,6 @@ module "cognito" {
   cloudfront_domain              = var.cloudfront_domain
   common_tags                    = local.common_tags
   cognito_test_user_email        = var.cognito_test_user_email
-  admin_user_email               = var.cognito_admin_user_email
   cognito_custom_email_enabled   = var.cognito_custom_email_enabled
   mfa_configuration              = var.cognito_mfa_configuration
   advanced_security_mode         = var.cognito_advanced_security_mode
