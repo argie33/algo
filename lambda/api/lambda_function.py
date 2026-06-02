@@ -124,16 +124,28 @@ def test_db_connection():
     Returns: (success: bool, error_msg: Optional[str])
     """
     try:
-        # 2s timeout: if DB is under heavy load (e.g., ECS loaders running), fail fast
-        # so Lambda init stays short. The handler will reconnect on each request.
-        with DatabaseContext('read', timeout=2) as cur:
+        # connect_timeout=2: abort fast if RDS Proxy is unresponsive
+        # max_retries=1: no retry (init must stay short; handler reconnects per-request)
+        # statement_timeout=1s: even if TCP connects, query must complete in 1s
+        from utils.db_connection import get_db_connection
+        conn = get_db_connection(max_retries=1, timeout=2)
+        cur = conn.cursor()
+        try:
+            cur.execute("SET statement_timeout TO '1000'")  # 1 second
             cur.execute("SELECT 1 as connection_test")
             result = cur.fetchone()
-            if result and result.get('connection_test') == 1:
+            cur.close()
+            conn.close()
+            if result and result[0] == 1:
                 logger.info("[DB_TEST_SUCCESS] Database connection verified at cold start")
                 return True, None
             else:
+                conn.close()
                 return False, "Connection test query returned unexpected result"
+        except Exception as qe:
+            try: conn.close()
+            except Exception: pass
+            raise qe
     except Exception as e:
         error_msg = f"Database connection test failed at cold start: {type(e).__name__}: {str(e)}"
         logger.error(f"[DB_TEST_FAILED] {error_msg}")
