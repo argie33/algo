@@ -232,41 +232,57 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 **Cognito User Pool:** `algo-pool-dev` (us-east-1). Primary user: argeropolos@gmail.com (confirmed).
 
 **Password Reset & Sign-Up Flow:**
-- Currently disabled: AWS SES in sandbox mode. Can only send to pre-verified emails. Password reset codes do NOT arrive for new users.
-- **Enable production email:** 3-step setup required.
+- Frontend: ✓ Implemented (forgot password link, reset form, code input)
+- Backend Cognito: ✓ Configured (resetPassword, confirmResetPassword from AWS Amplify)
+- Email delivery: ❌ BLOCKED — AWS SES in sandbox mode. Emails only reach verified recipients.
 
-**Setup: Professional Email for Password Resets (Production)**
+**Current Issue:** SES cannot send to new/unverified users until sandbox restrictions are lifted.
 
-1. **Request SES production access** (one-time, ~24 hours):
-   ```bash
-   # AWS console: SES → Account Dashboard → Request Production Access
-   # Reason: "Trading platform authentication"
-   # After approval, SES can send to any email address
-   ```
+**Fix: Enable Email for All Users (3 Steps)**
 
-2. **Store SMTP credentials in Secrets Manager** (if using SMTP relay):
-   ```bash
-   aws secretsmanager create-secret --name algo/cognito-smtp \
-     --secret-string '{"host":"smtp.gmail.com","port":587,"user":"YOUR_EMAIL","password":"YOUR_APP_PASSWORD"}'
-   ```
+**Step 1: Verify Sender Email in SES** (~1 minute)
+```bash
+# AWS Console: https://console.aws.amazon.com/ses/home?region=us-east-1#verified-senders:
+# Click "Create identity" → Email address
+# Enter: noreply@bullseyetrading.com
+# Check email inbox → Click verification link
+# After verification, Lambda can send from this address
+```
 
-3. **Enable custom email Lambda**:
-   ```bash
-   # terraform/terraform.tfvars
-   cognito_custom_email_enabled = true
-   
-   # Deploy: triggers Lambda creation, wires into Cognito
-   terraform apply
-   ```
+**Step 2: Verify Test Recipients (Dev/Sandbox Mode)** (~2 minutes)
+```bash
+# For development, verify your own email to receive password reset codes
+# AWS Console → Create identity → your-email@example.com → Confirm
+# Test password reset: Login page → Forgot password → Enter your verified email
+```
 
-**Architecture:** Cognito detects password reset → Lambda intercepts → SES sends via AWS infrastructure (99.9% deliverability, audit logs, no rate limits).
+**Step 3: Request SES Production Access (Production)** (~24 hours)
+```bash
+# AWS Console: https://console.aws.amazon.com/ses/home?region=us-east-1#account-provisioning:
+# Click "Request production access" or "Request sending limit increase"
+# Use case: "Authentication and user password reset emails for stock trading platform"
+# Daily sending limit recommendation: 50,000 (covers 1000+ users)
+# After approval, can send to any email address (no whitelist required)
+```
 
-**Test:** Reset password for argeropolos@gmail.com → code arrives in seconds.
+**Email Architecture:**
+- Cognito detects password reset request → CustomMessage trigger fires
+- Custom Lambda (`cognito-email-trigger/lambda_function.py`) intercepts
+- Lambda sends via SES with professional HTML template (Bullseye Trading branding)
+- Sender: `noreply@bullseyetrading.com` (verified in SES)
+- Delivery: 99.9% uptime, audit logs in CloudWatch
+
+**Troubleshooting:**
+- Email not arriving? Check CloudWatch logs: `/aws/lambda/algo-cognito-email-trigger-dev`
+- Check SES: https://console.aws.amazon.com/ses/home?region=us-east-1#sending-statistics:
+- If "noreply@bullseyetrading.com" shows 0 verified, go to Step 1
+- If error "MessageRejected", verify sender in SES console
+- If in sandbox and recipient email not verified, add recipient to verified addresses
 
 ## Live Trading Readiness
 
-- Authentication: ENABLED (cognito_enabled = true). Primary user: argeropolos@gmail.com.
-- Email: ENABLED (cognito_custom_email_enabled = true). SES configured; password reset codes arrive in seconds.
+- Authentication: ✓ ENABLED (cognito_enabled = true). Primary user: argeropolos@gmail.com.
+- Email: ⚠️ CONFIGURED BUT SANDBOX-BLOCKED (cognito_custom_email_enabled = true). Lambda ready, SES needs sender verification + production access request to send to all users. See "Authentication & Email" section above for 3-step fix.
 - RDS Proxy: ENABLED (enable_rds_proxy = true). Prevents connection saturation OOM crashes on t4g.micro.
 - API Lambda: FIXED provisioned concurrency (1 unit) to prevent 15-40s VPC cold start 502 errors on first request. Cost: ~$12/month.
 - Circuit breaker: FIXED (F-02). Correctly halts trading on portfolio variance > 15%, clears flag when safe. P&L variance now reads from session snapshot (algo_portfolio_snapshots) instead of comparing duplicate data. Runs at 10 AM, 12 PM, 3 PM ET.
