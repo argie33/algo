@@ -72,7 +72,7 @@ class AlgoConfig:
         'require_sma50_above_sma200': ('true', 'bool', 'Price and MA alignment'),
         'min_percent_from_52w_low': ('30.0', 'float', 'Min % from 52w low (Minervini standard)'),
         'max_percent_from_52w_high': ('25.0', 'float', 'Max % from 52w high'),
-        'min_trend_template_score': ('7', 'int', 'Min Minervini score 0-8 (Minervini standard: 7+ ideal, 8 perfect)'),
+        'min_trend_template_score': ('6', 'int', 'Min Minervini score 0-8 (score 6 allows consolidating bases through; migration-006 lowered from 7)'),
 
         # Entry Quality Gates (Sprint 2)
         'max_signal_age_days': ('3', 'int', 'Reject BUY signals older than N days'),
@@ -81,8 +81,8 @@ class AlgoConfig:
         'require_weekly_stage_2': ('true', 'bool', 'Require weekly chart Stage 2'),
         'min_rs_line_slope_days': ('10', 'int', 'Days for RS line slope check'),
         'max_rs_pct_from_60d_high': ('15.0', 'float', 'Max % RS-line below 60d high (Minervini strict = 5%)'),
-        'rs_slope_gate_enabled': ('true', 'bool', 'Hard-gate T3 on RS line trending up (set false during strong SPY runs)'),
-        'volume_decay_gate_enabled': ('true', 'bool', 'Hard-gate T3 on volume decay into breakout (set false to soften)'),
+        'rs_slope_gate_enabled': ('false', 'bool', 'Hard-gate T3 on RS line trending up (false=warn-only; consolidating bases show flat RS by design)'),
+        'volume_decay_gate_enabled': ('false', 'bool', 'Hard-gate T3 on volume decay into breakout (false=warn-only; accumulation naturally shows drying volume)'),
 
         # Exit Rules
         'require_target_pullback': ('false', 'bool', 'Require 2%+ pullback before partial profit exits at T1/T2 (false = exit immediately at target)'),
