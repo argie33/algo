@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging
+import os
 from datetime import date, datetime
 from typing import List, Optional, Dict
 
@@ -107,7 +108,7 @@ class PositioningMetricsLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Positioning Metrics Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=2, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Concurrent workers")
     args = parser.parse_args()
 
     symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)

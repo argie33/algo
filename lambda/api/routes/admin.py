@@ -23,12 +23,13 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
         return is_admin
 
 def _audit_log_admin_action(cur, user_id: str, endpoint: str, status: str = 'success', details: str = '') -> None:
-    """SECURITY FIX: Log all admin actions for accountability."""
+    """Log all admin actions for accountability."""
     try:
+        import json as _json
         cur.execute("""
-            INSERT INTO algo_audit_log (action_type, actor, status, details, created_at)
-            VALUES (%s, %s, %s, %s, NOW())
-        """, ('admin_access', user_id, status, f'{endpoint}: {details}'))
+            INSERT INTO algo_audit_log (action_type, actor, status, details, action_date, created_at)
+            VALUES (%s, %s, %s, %s, NOW(), NOW())
+        """, ('admin_access', user_id, status, _json.dumps({'endpoint': endpoint, 'details': details})))
     except Exception as e:
         logger.warning(f"Failed to audit admin access: {e}")
 

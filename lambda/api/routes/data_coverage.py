@@ -213,6 +213,11 @@ def get_overall_coverage_summary(cur) -> Dict[str, Any]:
         if section_name == 'timestamp':
             continue
         if isinstance(section_data, dict):
+            # error_response() returns {'statusCode': ..., 'errorType': ..., 'message': ...}
+            # Detect these and treat as critical so they don't silently pass the rollup.
+            if 'statusCode' in section_data and section_data.get('statusCode', 200) >= 400:
+                statuses.append('critical')
+                continue
             status = section_data.get('status')
             if status == 'error' or status == 'missing':
                 statuses.append('critical')

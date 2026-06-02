@@ -104,8 +104,10 @@ resource "aws_db_instance" "main" {
   enabled_cloudwatch_logs_exports       = ["postgresql"] # Query logs to CloudWatch
   monitoring_interval                   = 60
   monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
-  performance_insights_enabled          = var.environment == "prod"
-  performance_insights_retention_period = var.environment == "prod" ? 7 : null
+  # Always enable Performance Insights: free for 7-day retention, essential for slow-query diagnosis.
+  # Cannot be gated on environment == "prod" because this environment is named "dev" but runs live capital.
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
 
   # Apply parameter changes during maintenance window to avoid production disruptions
   # Parameter group changes (max_connections, etc.) may require database reboot
@@ -150,6 +152,16 @@ resource "aws_db_parameter_group" "postgres" {
     name         = "max_connections"
     value        = "500"
     apply_method = "pending-reboot"
+  }
+
+  # Set statement_timeout at the cluster level so every connection respects the limit
+  # without paying an extra round-trip on every Lambda request (was SET per-request in lambda_function.py).
+  # 30s matches the previous per-request value. apply_method = "immediate" is safe: this is a session-level
+  # parameter (no reboot required). The value is in milliseconds.
+  parameter {
+    name         = "statement_timeout"
+    value        = "30000"
+    apply_method = "immediate"
   }
 
   lifecycle {

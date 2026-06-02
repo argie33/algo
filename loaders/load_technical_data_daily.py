@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging
+import os
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -208,7 +209,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load technical indicators")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=8, help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "8")), help="Parallel workers")
     args = parser.parse_args()
 
     try:

@@ -22,6 +22,7 @@ import argparse
 from datetime import date, timedelta
 from typing import List, Optional, Dict
 import logging
+import os
 
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
@@ -489,7 +490,7 @@ class StockScoresLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load stock scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=8, help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "8")), help="Parallel workers")
     args = parser.parse_args()
 
     try:

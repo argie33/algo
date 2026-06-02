@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
+import os
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -197,7 +198,7 @@ class TrendCriteriaLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load trend criteria data")
     parser.add_argument("--symbols", help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "4")), help="Parallel workers")
     args = parser.parse_args()
 
     try:

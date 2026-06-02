@@ -249,7 +249,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "8")), help="Concurrent workers")
     args = parser.parse_args()
 
     symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)

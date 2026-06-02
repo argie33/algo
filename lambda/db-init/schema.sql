@@ -575,11 +575,12 @@ CREATE TABLE IF NOT EXISTS users (
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user'));
 
 -- User dashboard settings and preferences
+-- user_id is the Cognito sub (UUID string), not an integer FK to users
 CREATE TABLE IF NOT EXISTS user_dashboard_settings (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    theme VARCHAR(20) DEFAULT 'light',
+    user_id VARCHAR(255) PRIMARY KEY,
+    theme VARCHAR(20) DEFAULT 'dark',
     notifications BOOLEAN DEFAULT TRUE,
-    preferences JSONB,
+    preferences JSONB DEFAULT '{}',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

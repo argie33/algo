@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import {
   Bell, X, CheckCircle, AlertCircle, AlertTriangle, XCircle,
@@ -12,6 +13,9 @@ import {
 } from 'lucide-react';
 
 const NotificationCenter = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+
   const [filters, setFilters] = useState({
     kind: 'all',
     severity: 'all',
@@ -193,10 +197,14 @@ const NotificationCenter = () => {
           }}
         >
           <option value="all">All kinds</option>
-          <option value="trade">Trade alerts</option>
+          <option value="trade">Trade</option>
+          <option value="signal">Signals</option>
           <option value="alert">Alerts</option>
+          <option value="halt">Halts</option>
           <option value="error">Errors</option>
           <option value="safeguard">Safeguards</option>
+          <option value="market">Market</option>
+          <option value="system">System</option>
         </select>
 
         <select
@@ -357,47 +365,49 @@ const NotificationCenter = () => {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div style={{
-                display: 'flex',
-                gap: '8px',
-                flexShrink: 0
-              }}>
-                {!notif.seen && (
+              {/* Actions — mark-as-read and delete require admin */}
+              {isAdmin && (
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  flexShrink: 0
+                }}>
+                  {!notif.seen && (
+                    <button
+                      onClick={() => markAsRead(notif.id)}
+                      title="Mark as read"
+                      style={{
+                        padding: '6px',
+                        background: 'var(--brand-soft)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        color: 'var(--brand)',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <CheckCircle size={14} />
+                    </button>
+                  )}
                   <button
-                    onClick={() => markAsRead(notif.id)}
-                    title="Mark as read"
+                    onClick={() => deleteNotification(notif.id)}
+                    title="Delete"
                     style={{
                       padding: '6px',
-                      background: 'var(--brand-soft)',
+                      background: 'var(--danger-soft)',
                       border: '1px solid var(--border)',
                       borderRadius: '3px',
                       cursor: 'pointer',
-                      color: 'var(--brand)',
+                      color: 'var(--danger)',
                       display: 'flex',
                       alignItems: 'center'
                     }}
                   >
-                    <CheckCircle size={14} />
+                    <X size={14} />
                   </button>
-                )}
-                <button
-                  onClick={() => deleteNotification(notif.id)}
-                  title="Delete"
-                  style={{
-                    padding: '6px',
-                    background: 'var(--danger-soft)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    color: 'var(--danger)',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

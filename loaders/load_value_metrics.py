@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging
+import os
 from datetime import date, datetime
 from typing import Optional, List
 import time
@@ -103,7 +104,7 @@ def _apply_schema_migrations():
 def main():
     parser = argparse.ArgumentParser(description='Value Metrics Loader')
     parser.add_argument('--symbols', type=str, help='Comma-separated symbols or blank for all')
-    parser.add_argument('--parallelism', type=int, default=2, help='Parallel workers')
+    parser.add_argument('--parallelism', type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help='Parallel workers')
     args = parser.parse_args()
 
     _apply_schema_migrations()

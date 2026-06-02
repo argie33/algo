@@ -830,7 +830,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
             limit = safe_limit(limit_str, max_val=10000, default=100)
 
             # SECURITY M-04: Validate kind and severity against whitelists
-            VALID_KINDS = {'signal', 'halt', 'alert', 'error', 'trade', 'position', 'market', 'system'}
+            VALID_KINDS = {'signal', 'halt', 'alert', 'error', 'trade', 'position', 'market', 'system', 'safeguard'}
             VALID_SEVERITIES = {'info', 'warning', 'error', 'critical'}
 
             if kind and kind not in VALID_KINDS:

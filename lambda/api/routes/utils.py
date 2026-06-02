@@ -64,16 +64,16 @@ def safe_string(value_str, allowed_values=None, default=None, max_length=100):
     return str(value_str)
 
 def safe_symbol(symbol_str):
-    """Validate stock symbol (alphanumeric + dash only)."""
+    """Validate stock symbol (alphanumeric + dash + caret for indices)."""
     if not symbol_str:
         return None
 
-    # Allow up to 5 chars, alphanumeric + dash (e.g., BRK-A)
+    # Allow up to 10 chars: alphanumeric, dash, caret (^GSPC, BRK-A, BRK.B)
     symbol = str(symbol_str).upper()
-    if len(symbol) > 5:
+    if len(symbol) > 10:
         return None
 
-    if not all(c.isalnum() or c == '-' for c in symbol):
+    if not all(c.isalnum() or c in '-^.' for c in symbol):
         return None
 
     return symbol
@@ -129,8 +129,21 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
         if hasattr(max_date, 'date'):
             max_date = max_date.date()
 
-        data_age = (date.today() - max_date).days
-        is_stale = data_age > warning_days
+        today = date.today()
+        data_age = (today - max_date).days
+
+        # Financial market data only updates on trading days (Mon–Fri).
+        # Adjust the staleness threshold on weekends so Friday's data stays
+        # "fresh" through Sunday without triggering false stale warnings.
+        weekday = today.weekday()  # 0=Mon … 6=Sun
+        if weekday == 5:    # Saturday: Friday data is 1 day old → +1
+            effective_warning = warning_days + 1
+        elif weekday == 6:  # Sunday:   Friday data is 2 days old → +2
+            effective_warning = warning_days + 2
+        else:
+            effective_warning = warning_days
+
+        is_stale = data_age > effective_warning
 
         return {
             "data_age_days": data_age,

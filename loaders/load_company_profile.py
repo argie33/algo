@@ -50,10 +50,11 @@ class CompanyProfileLoader(OptimalLoader):
 
 def main():
     import argparse
+    import os
 
     parser = argparse.ArgumentParser(description='Company Profile Loader')
     parser.add_argument('--symbols', type=str, help='Comma-separated symbols, or blank for all active')
-    parser.add_argument('--parallelism', type=int, default=2, help='Number of parallel workers')
+    parser.add_argument('--parallelism', type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help='Number of parallel workers')
     args = parser.parse_args()
 
     loader = CompanyProfileLoader()

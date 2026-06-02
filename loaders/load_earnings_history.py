@@ -107,7 +107,7 @@ class EarningsHistoryLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Optimal earnings_history loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=2, help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Concurrent workers")
     args = parser.parse_args()
 
     if args.symbols:

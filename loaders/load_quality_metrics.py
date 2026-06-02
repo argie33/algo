@@ -158,7 +158,7 @@ class QualityMetricsLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Quality metrics loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
-    parser.add_argument("--parallelism", type=int, default=8)
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "8")))
     args = parser.parse_args()
 
     symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)

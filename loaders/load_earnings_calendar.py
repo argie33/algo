@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging
+import os
 from datetime import date
 from typing import List, Optional
 
@@ -60,7 +61,7 @@ class EarningsCalendarLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Earnings Calendar Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols, or blank for all active")
-    parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "4")), help="Parallel workers")
     args = parser.parse_args()
 
     loader = EarningsCalendarLoader()

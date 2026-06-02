@@ -27,14 +27,14 @@ data "aws_lambda_layer_version" "api_deps" {
 }
 
 # Shared dependencies Lambda layer (numpy, pandas, scipy for Phase 7 optimization + IC computation)
-# ZIP is built by deploy-all-infrastructure.yml before terraform apply, placed at repo-root/lambda/shared-deps-layer.zip.
-# path.root = terraform/ subdirectory, so the zip is one level up (path.root/../lambda/).
+# ZIP lives at terraform/lambda/shared-deps-layer.zip (committed to repo, built by build-lambda-layer.yml).
+# path.root = terraform/ (root module dir), so the zip is at path.root/lambda/shared-deps-layer.zip.
 resource "aws_lambda_layer_version" "shared_deps" {
-  count                    = fileexists("${path.root}/../lambda/shared-deps-layer.zip") ? 1 : 0
-  filename                 = "${path.root}/../lambda/shared-deps-layer.zip"
+  count                    = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? 1 : 0
+  filename                 = "${path.root}/lambda/shared-deps-layer.zip"
   layer_name               = "${var.project_name}-shared-deps-${var.environment}"
   compatible_runtimes      = ["python3.12"]
-  source_code_hash         = fileexists("${path.root}/../lambda/shared-deps-layer.zip") ? filebase64sha256("${path.root}/../lambda/shared-deps-layer.zip") : null
+  source_code_hash         = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? filebase64sha256("${path.root}/lambda/shared-deps-layer.zip") : null
   compatible_architectures = ["x86_64"]
 }
 
@@ -85,7 +85,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "python3.12"
   timeout       = var.api_lambda_timeout
   memory_size   = var.api_lambda_memory
-  # publish = true  # Disabled: provisioned concurrency resources removed; publish not needed
+  publish       = var.api_lambda_provisioned_concurrency > 0 # Publish versions only when PC is enabled
 
   # FIXED Issue #22: Keep Lambda warm to avoid cold-start timeouts AND allow concurrent requests
   # VPC cold-start risk: 15-40s start + DNS + DB connection can exceed 29s API Gateway timeout
@@ -165,17 +165,20 @@ resource "aws_lambda_function" "api" {
 }
 
 # ============================================================
-# API Lambda Alias and Provisioned Concurrency (F-01 cold-start mitigation)
-# ============================================================
-# Lambda provisioned concurrency keeps instances warm to avoid 15-40s cold starts
-# Pre-warms N concurrent instances so they're ready for immediate use
-# Cost: ~$12/month per unit in us-east-1, disabled by default (api_lambda_provisioned_concurrency = 0)
-
 # API Lambda Provisioned Concurrency (F-01 cold-start mitigation)
-# DISABLED: Terraform aws_lambda_function_version resource not available in current provider version
-# Provisioned concurrency can be enabled manually via AWS CLI:
-#   aws lambda put-provisioned-concurrency-config \
-#     --function-name <arn> --provisioned-concurrent-executions 1 --qualifier live
+# ============================================================
+# Keeps N pre-initialized instances ready to avoid 15-40s VPC cold starts.
+# Requires publish = true on the Lambda so Terraform can target a specific version.
+# Cost: ~$12/month per unit in us-east-1 (set api_lambda_provisioned_concurrency = 0 to disable).
+
+resource "aws_lambda_provisioned_concurrency_config" "api" {
+  count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+  function_name                     = aws_lambda_function.api.function_name
+  qualifier                         = aws_lambda_function.api.version
+  provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
+
+  depends_on = [aws_lambda_function.api]
+}
 
 # ============================================================
 # API Gateway HTTP API
@@ -457,19 +460,22 @@ resource "aws_cloudfront_distribution" "frontend" {
     viewer_protocol_policy = "redirect-to-https"
   }
 
-  # SPA error responses — redirect 403/404 to index.html for client-side routing
+  # SPA error responses — redirect 403/404 to index.html for client-side routing.
+  # error_caching_min_ttl = 300: CloudFront caches the rewritten 200+index.html for 5 minutes
+  # so hard reloads to /dashboard, /signals etc. hit the edge cache instead of re-fetching
+  # from S3 origin (which returns 403 for every non-root SPA path).
   custom_error_response {
     error_code            = 403
     response_code         = 200
     response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
+    error_caching_min_ttl = 300
   }
 
   custom_error_response {
     error_code            = 404
     response_code         = 200
     response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
+    error_caching_min_ttl = 300
   }
 
   restrictions {
