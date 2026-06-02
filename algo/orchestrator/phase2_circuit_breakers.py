@@ -54,16 +54,16 @@ def run(
             from algo.algo_market_events import MarketEventHandler
             meh = MarketEventHandler(config)
             cb_result = meh.check_market_circuit_breaker()
-            if cb_result and cb_result.get('triggered'):
+            if cb_result:  # If not None, market circuit breaker triggered
                 halt_level = cb_result.get('level', '?')
-                halt_reason = cb_result.get('reason', 'circuit breaker triggered')
+                halt_reason = cb_result.get('description', 'market circuit breaker triggered')
                 if verbose:
                     logger.info(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
                 alerts.send_position_alert(
                     'PORTFOLIO',
                     'MARKET_CIRCUIT_BREAKER',
                     f'Market circuit breaker L{halt_level} triggered: {halt_reason}',
-                    {'level': halt_level, 'reason': halt_reason}
+                    {'level': halt_level, 'reason': halt_reason, 'pct_down': cb_result.get('pct_down')}
                 )
                 log_phase_result_fn(2, 'market_circuit_breaker', 'halt',
                                    f'L{halt_level} breaker active: {halt_reason}')
