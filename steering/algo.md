@@ -482,7 +482,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **Outstanding performance gaps (not yet fixed):**
 - Analytics loaders (company_profile etc.) iterate 5000+ symbols via yfinance serially. Root fix: batch yfinance calls via `yf.download(tickers, group_by='ticker')` with concurrent chunking. Current mitigation: 2-hour ECS task kill.
-- Fargate Spot capacity: core EOD loaders (Step Functions, 4:30 AM) run on FARGATE_SPOT. Spot interruption can cause stale data by 9:30 AM. Fix: set `capacityProviderStrategy` for core loader task definitions to use FARGATE (On-Demand).
+- Fargate Spot capacity: supporting loaders (EventBridge-triggered) run on FARGATE_SPOT. Core EOD loaders (Step Functions, 4:30 AM) already hardcode `LaunchType = "FARGATE"` (on-demand) in `terraform/modules/pipeline/main.tf` — Spot interruption only affects supporting loaders, which are non-blocking.
 - Single-AZ RDS: failover is manual. Acceptable cost trade-off until live capital scales up.
 
 ## Troubleshooting
