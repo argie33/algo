@@ -35,7 +35,7 @@ const WealthManagement = () => {
       icon: <ShowChartIcon />,
       title: 'Performance Metrics',
       description: 'Analyze your trading record with win rate, average gain/loss, expectancy, and trade-by-trade attribution. Understand which setups and conditions are actually producing returns.',
-      link: '/app/performance',
+      link: '/app/portfolio',
     },
     {
       icon: <ShieldIcon />,

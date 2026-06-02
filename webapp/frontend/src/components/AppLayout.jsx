@@ -51,7 +51,6 @@ const NAV_SECTIONS = [
     items: [
       { text: 'Portfolio',    icon: Wallet,    path: '/app/portfolio' },
       { text: 'Trade Tracker', icon: History,  path: '/app/trades' },
-      { text: 'Performance',  icon: BarChart2, path: '/app/performance' },
     ],
   },
   {

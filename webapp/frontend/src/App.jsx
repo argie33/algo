@@ -14,7 +14,6 @@ const Sentiment = React.lazy(() => import("./pages/Sentiment"));
 const ScoresDashboard = React.lazy(() => import("./pages/ScoresDashboard"));
 const TradeTracker = React.lazy(() => import("./pages/TradeTracker"));
 const PortfolioDashboard = React.lazy(() => import("./pages/PortfolioDashboard"));
-const PerformanceMetrics = React.lazy(() => import("./pages/PerformanceMetrics"));
 const ServiceHealth = React.lazy(() => import("./pages/ServiceHealth"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const AlgoTradingDashboard = React.lazy(() => import("./pages/AlgoTradingDashboard"));
@@ -118,7 +117,6 @@ function App() {
             {/* Portfolio & Trading */}
             <Route path="/app/portfolio" element={<ErrorBoundary><ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/trades" element={<ErrorBoundary><ProtectedRoute requireAuth><TradeTracker /></ProtectedRoute></ErrorBoundary>} />
-            <Route path="/app/performance" element={<ErrorBoundary><ProtectedRoute requireAuth><PerformanceMetrics /></ProtectedRoute></ErrorBoundary>} />
 
             {/* Research & Testing */}
             <Route path="/app/backtests" element={<ErrorBoundary><ProtectedRoute requireAuth><BacktestResults /></ProtectedRoute></ErrorBoundary>} />

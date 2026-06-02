@@ -20,7 +20,6 @@ const APP_PAGES = [
   { path: '/app/trading-signals', name: 'Trading Signals' },
   { path: '/app/portfolio', name: 'Portfolio' },
   { path: '/app/trades', name: 'Trade History' },
-  { path: '/app/performance', name: 'Performance' },
   { path: '/app/backtests', name: 'Backtest Results' },
   { path: '/app/scores', name: 'Scores Dashboard' },
   { path: '/app/health', name: 'System Health' },
