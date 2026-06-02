@@ -357,16 +357,20 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **Troubleshooting halt flag:** If tomorrow's run halts and you suspect a stale flag: `python scripts/check_halt_flag.py` (needs AWS creds). The auto-expiry in the orchestrator should handle this automatically for flags set on prior days.
 
-## Signal Refresh Fix (2026-06-02 10:00 AM ET)
+## Morning Prep Pipeline Complete (2026-06-02 4:30 AM ET)
 
-**Root cause:** Signal generation loaders (buy_sell_daily, signal_quality_scores, swing_trader_scores) were not running because the morning prep pipeline Step Functions state machine was defined in terraform but not deployed. Prices and technicals were fresh (2026-06-01) but signals were stale (2026-05-29).
+**Root cause (found 2026-06-02 2 PM):** Orchestrator halted Phase 1 with "market_health_daily is 4 days stale (2026-05-29)". Investigation revealed:
 
-**Fix applied:** Manually ran signal generation loaders (parallelism: buy_sell_daily=4, signal_quality_scores=8, swing_trader_scores=8). Updated database:
-- buy_sell_daily: now 2026-06-01 (11 BUY signals)
-- signal_quality_scores: now 2026-06-01
-- swing_trader_scores: now 2026-06-01 (19 rows)
+1. **Missing market_health_daily in morning prep:** Morning pipeline (4:30 AM ET) only loaded prices + technicals + signals, not market health
+2. **Market health only in EOD:** market_health_daily was only in the 4:05 PM ET EOD pipeline
+3. **Full chain broken:** If EOD pipeline failed to complete market health, the data stayed stale until next EOD run (24h+ staleness)
 
-**Next deployment:** Terraform will deploy the missing morning_prep_pipeline state machine (cron 4:30 AM ET Mon-Fri) + EventBridge scheduler so signal generation runs automatically every morning before 9:30 AM orchestrator. Prevents future 4-day staleness.
+**Fix deployed (commit 358b90f6):** Added market_health_daily to morning prep pipeline as a parallel task alongside technical_data_daily. Now:
+- Morning: 4:30 AM ET loads prices → [parallel] technicals + market health → signals (fail-open)
+- EOD: 4:05 PM ET loads full pipeline including market health (no change, redundancy is OK)
+- Result: market health refreshed daily before 9:30 AM, independent of EOD pipeline success
+
+**Data refresh (2026-06-02):** Manually loaded missing price/technical/health data for 2026-06-01 and 2026-06-02 to allow orchestrator to run with current data. Morning prep pipeline will prevent staleness going forward.
 
 ## Overnight Fixes (2026-06-01 → 2026-06-02)
 
