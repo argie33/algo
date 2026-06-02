@@ -21,7 +21,7 @@ def run(
     log_phase_result_fn: Callable,
     position_recs: List[Dict[str, Any]],
     exposure_actions: List[Dict[str, Any]],
-    check_halt_flag: Callable,
+    check_halt_flag: Callable = None,
 ) -> PhaseResult:
     """Execute Phase 4: Exit Execution.
 
@@ -34,14 +34,15 @@ def run(
         log_phase_result_fn: Function to log phase results
         position_recs: Recommendations from phase_3_position_monitor
         exposure_actions: Actions from phase_3b_exposure_policy
-        check_halt_flag: Function to check halt flag
+        check_halt_flag: Unused (kept for API compatibility). Exits always run.
 
     Returns:
-        PhaseResult with status 'ok' or 'halted'
+        PhaseResult with status 'ok'
     """
-    if check_halt_flag():
-        return PhaseResult(4, 'exit_execution', 'halted', {}, True, 'Halt flag detected')
-
+    # No halt flag check here: exits MUST run regardless of halt state.
+    # When circuit breaker fires, we still need to exit stressed positions
+    # to reduce risk. Blocking exits compounds losses.
+    # New entries are blocked by Phase 2/6 — exits are always executed.
     try:
         from algo.algo_trade_executor import TradeExecutor
         from algo.algo_exit_engine import ExitEngine
