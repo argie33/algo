@@ -105,6 +105,29 @@ def lambda_handler(event, context):
                 'body': json.dumps('Missing required database credentials')
             }
 
+        # Support unlock action: terminates idle connections holding advisory locks.
+        # Invoke with {"action": "unlock_advisory_locks"} to clear stuck pg_advisory_lock sessions.
+        if isinstance(event, dict) and event.get('action') == 'unlock_advisory_locks':
+            conn = psycopg2.connect(
+                host=creds['host'], port=creds['port'],
+                database=creds['database'], user=creds['user'],
+                password=creds['password'], connect_timeout=15,
+            )
+            conn.autocommit = True
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT count(pg_terminate_backend(pid))
+                FROM pg_stat_activity
+                WHERE pid != pg_backend_pid()
+                  AND state IN ('idle', 'idle in transaction')
+                  AND query_start < NOW() - INTERVAL '60 minutes'
+            """)
+            terminated = cur.fetchone()[0]
+            cur.close()
+            conn.close()
+            logger.info(f"Terminated {terminated} idle connections (advisory lock cleanup)")
+            return {'statusCode': 200, 'body': json.dumps(f'Terminated {terminated} idle connections')}
+
         # Step 1: Ensure stocks user exists (as master user)
         logger.info("Step 1: Ensuring stocks user exists with correct password...")
 
