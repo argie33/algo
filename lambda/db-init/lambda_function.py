@@ -119,8 +119,8 @@ def lambda_handler(event, context):
                 SELECT count(pg_terminate_backend(pid))
                 FROM pg_stat_activity
                 WHERE pid != pg_backend_pid()
-                  AND state IN ('idle', 'idle in transaction')
-                  AND query_start < NOW() - INTERVAL '60 minutes'
+                  AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')
+                  AND state_change < NOW() - INTERVAL '5 minutes'
             """)
             terminated = cur.fetchone()[0]
             cur.close()
@@ -145,8 +145,8 @@ def lambda_handler(event, context):
                 SELECT count(pg_terminate_backend(pid))
                 FROM pg_stat_activity
                 WHERE pid != pg_backend_pid()
-                  AND state IN ('idle', 'idle in transaction')
-                  AND query_start < NOW() - INTERVAL '60 minutes'
+                  AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')
+                  AND state_change < NOW() - INTERVAL '5 minutes'
             """)
             terminated = _cur.fetchone()[0]
             _cur.close()
