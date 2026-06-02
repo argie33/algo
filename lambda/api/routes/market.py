@@ -30,28 +30,28 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
-                # Compute A/D per day using a self-join on consecutive trading days.
-                # Avoids a full table scan: reads only 2 dates worth of data at a time.
-                # Returns the last 20 trading days (sufficient for breadth sparkline).
-                cur.execute("SET LOCAL statement_timeout = '20s'")
-                cur.execute("""
-                    WITH trading_dates AS (
-                        SELECT DISTINCT date
-                        FROM price_daily
-                        WHERE date >= CURRENT_DATE - INTERVAL '40 days'
-                          AND date <= CURRENT_DATE
-                        ORDER BY date DESC
-                        LIMIT 21
-                    ),
-                    date_pairs AS (
-                        SELECT
-                            d1.date AS d,
-                            MAX(d2.date) AS prev_d
-                        FROM trading_dates d1
-                        JOIN trading_dates d2 ON d2.date < d1.date
-                        GROUP BY d1.date
-                    ),
-                    daily AS (
+                # Compute A/D per day using a self-join on consecutive trading dates.
+                # Self-join is faster than LAG window over 35 days × 9000 symbols.
+                # Falls back to empty list on timeout (DB under heavy write load).
+                # Uses SAVEPOINT so timeout doesn't abort the outer transaction,
+                # allowing check_data_freshness to still run after a timeout.
+                breadth = []
+                try:
+                    cur.execute("SAVEPOINT breadth_check")
+                    cur.execute("SET LOCAL statement_timeout = '20s'")
+                    cur.execute("""
+                        WITH trading_dates AS (
+                            SELECT DISTINCT date
+                            FROM price_daily
+                            WHERE date >= CURRENT_DATE - INTERVAL '40 days'
+                            ORDER BY date DESC LIMIT 21
+                        ),
+                        date_pairs AS (
+                            SELECT d1.date AS d, MAX(d2.date) AS prev_d
+                            FROM trading_dates d1
+                            JOIN trading_dates d2 ON d2.date < d1.date
+                            GROUP BY d1.date
+                        )
                         SELECT
                             dp.d AS date,
                             COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
@@ -62,13 +62,18 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         JOIN price_daily t ON t.date = dp.d AND t.symbol NOT LIKE '^%%'
                         JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
                         GROUP BY dp.d
-                    )
-                    SELECT date, advances, declines, unchanged, total
-                    FROM daily
-                    ORDER BY date DESC
-                    LIMIT 20
-                """)
-                breadth = cur.fetchall()
+                        ORDER BY dp.d DESC
+                        LIMIT 20
+                    """)
+                    breadth = cur.fetchall()
+                    cur.execute("RELEASE SAVEPOINT breadth_check")
+                except Exception as e:
+                    logger.warning(f"Breadth query failed: {type(e).__name__} — returning empty")
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT breadth_check")
+                        cur.execute("RELEASE SAVEPOINT breadth_check")
+                    except Exception:
+                        pass
                 freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
                 return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
