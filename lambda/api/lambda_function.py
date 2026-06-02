@@ -427,14 +427,24 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
             logger.error("FATAL: COGNITO_CLIENT_ID not configured - JWT audience validation will be skipped (SECURITY H-01)")
             return (False, None, "Authentication system misconfigured - COGNITO_CLIENT_ID missing")
 
+        # Cognito access tokens use `client_id` claim (not `aud`).
+        # ID tokens use `aud` = client_id. Skip PyJWT audience validation
+        # and check whichever claim is present to support both token types.
         payload = jwt.decode(
             token,
             jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data)),
             algorithms=['RS256'],
-            audience=cognito_client_id,
             issuer=f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}",
-            options={'verify_exp': True}
+            options={'verify_exp': True, 'verify_aud': False}
         )
+
+        # Manually verify client identity from either claim
+        actual_client = payload.get('client_id') or payload.get('aud', '')
+        if isinstance(actual_client, list):
+            actual_client = actual_client[0] if actual_client else ''
+        if actual_client != cognito_client_id:
+            logger.warning(f"JWT client_id/aud mismatch: expected {cognito_client_id}, got {actual_client}")
+            return (False, None, "Token client mismatch")
 
         logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
 
@@ -522,14 +532,17 @@ def require_auth(event: Dict, path: str) -> tuple:
         '/health',
         '/api/health',
         '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
-        '/api/algo/markets',  # Market regime data (public market conditions - not sensitive)
+        '/api/algo/markets',  # Market regime data (public market conditions)
         '/api/algo/sector-rotation',  # Sector rotation analysis (public market analysis)
+        '/api/algo/sector-breadth',   # Sector breadth analysis (public market data)
+        '/api/algo/sector-stage2',    # Stage 2 sector stocks (public market analysis)
         '/api/economic',  # Economic indicators (public data)
         '/api/sectors',  # Sector analysis (aggregate market data only)
         '/api/sentiment',  # Market sentiment (aggregate only)
         '/api/industries',  # Industry analysis (aggregate market data)
         '/api/prices',  # Historical prices (public market data)
         '/api/stocks',  # Stock metadata/list (public data)
+        '/api/scores',  # Stock scores/analysis (public market analysis, used by Sentiment and SectorAnalysis)
         '/api/financials',  # Company financials (public data)
         '/api/earnings',  # Earnings data (public data)
         '/api/research',  # Research endpoints (public analysis)
