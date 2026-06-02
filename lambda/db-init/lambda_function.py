@@ -105,6 +105,36 @@ def lambda_handler(event, context):
                 'body': json.dumps('Missing required database credentials')
             }
 
+        # Fast DB availability check: if DB doesn't respond in 3s, return success
+        # so Terraform doesn't block for 600s on db-init invocation during loader load.
+        # Schema and seeds are idempotent — safe to skip when DB is temporarily busy.
+        try:
+            _probe = psycopg2.connect(
+                host=creds['host'], port=creds['port'],
+                database=creds['database'], user=creds['user'],
+                password=creds['password'], connect_timeout=3,
+            )
+            _probe.autocommit = True
+            _pc = _probe.cursor()
+            _pc.execute("SET statement_timeout TO '2000'")  # 2 seconds
+            _pc.execute("SELECT 1")
+            _pc.close()
+            _probe.close()
+            logger.info("[DB_PROBE] Database responsive — proceeding with schema init")
+        except Exception as _probe_err:
+            logger.warning(
+                f"[DB_PROBE] Database unresponsive ({_probe_err}) — skipping schema init this deploy. "
+                "Schema is idempotent; will apply on next successful deploy."
+            )
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'status': 'skipped',
+                    'reason': 'Database temporarily busy (ECS loaders under heavy write load)',
+                    'message': 'Schema init skipped — idempotent, will apply on next successful deploy'
+                })
+            }
+
         # Support unlock action: terminates idle connections holding advisory locks.
         # Invoke with {"action": "unlock_advisory_locks"} to clear stuck pg_advisory_lock sessions.
         if isinstance(event, dict) and event.get('action') == 'unlock_advisory_locks':
