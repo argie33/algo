@@ -357,6 +357,38 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **Troubleshooting halt flag:** If tomorrow's run halts and you suspect a stale flag: `python scripts/check_halt_flag.py` (needs AWS creds). The auto-expiry in the orchestrator should handle this automatically for flags set on prior days.
 
+## Full Dataset Resolution (2026-06-02 Session)
+
+**Goal:** Run orchestrator with complete fresh dataset to verify all fixes work end-to-end.
+
+**Issues Discovered & Fixed:**
+
+### 1. Market Health Missing from Morning Pipeline
+**Root cause:** market_health_daily only in EOD pipeline (4:05 PM). If EOD failed, health data went 24+ hours stale, halting next day's 9:30 AM run at Phase 1.
+
+**Fix (commit 358b90f6, deployed):** Added market_health_daily to morning pipeline (4:30 AM) as parallel task with technicals. Now guaranteed fresh before market open.
+
+### 2. Missing Data for 2026-06-01 and 2026-06-02
+**Root cause:** Morning pipeline hadn't run since 2026-05-29 (not yet fully deployed/scheduled).
+
+**Status:** Manually loaded data via background loaders:
+- **stock_prices_daily:** ✓ Loaded (partial: ~4,600 symbols vs expected 8,900)
+- **technical_data_daily:** ✓ Loaded (2026-06-02, 8.2M rows)
+- **market_health_daily:** ✓ Loaded (2026-06-02)
+- **trend_template_data:** IN PROGRESS (needed to pass Phase 1)
+- **buy_sell_daily:** ✓ Loaded (2026-06-01)
+
+**Phase 1 Halt Logic:** Expects data from previous trading day. For 2026-06-02 run, needs ≥ 2026-06-01 data. Trend template stuck at 2026-05-29, blocking Phase 1.
+
+**In-Progress:** Background scripts waiting for trend template loader to complete, then updating data_loader_status and retriggering orchestrator.
+
+### 3. Data Loader Status Table Not Updated
+**Issue:** Load scripts load data but don't update data_loader_status, so Phase 1 freshness checks see stale dates even when data is current.
+
+**Workaround:** Manual updates to data_loader_status with actual MAX(date) from each table.
+
+**Permanent Fix:** Verify all loaders (especially technical, trend, market health) update data_loader_status on completion.
+
 ## Morning Prep Pipeline Complete (2026-06-02 4:30 AM ET)
 
 **Root cause (found 2026-06-02 2 PM):** Orchestrator halted Phase 1 with "market_health_daily is 4 days stale (2026-05-29)". Investigation revealed:
