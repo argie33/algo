@@ -178,18 +178,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Theme and QueryClient created, looking for root element
-
-const rootElement = document.getElementById("root");
-if (!rootElement) {
-  console.error("❌ Root element not found!");
-  alert("Root element not found!");
-} else {
-  // Root element found
-}
-
-// Creating React root and rendering app
-
 try {
   logger.info("React application initialization starting");
 

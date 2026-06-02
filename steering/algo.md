@@ -328,7 +328,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - **Dockerfile**: Added `COPY algo/` — ECS loaders importing from `algo.*` were failing with ModuleNotFoundError in every container run.
 - **API Lambda package**: `utils/` directory was missing from the direct-deploy ZIP. `utils.admin_rate_limiter` import caused ModuleNotFoundError on every API request since security hardening commit.
 - **Developer IAM**: Added DynamoDB `GetItem`/`PutItem`/`DescribeTable` on `algo_orchestrator_state` — `scripts/check_halt_flag.py` previously failed with AccessDeniedException.
-- **Seasonality loader removed**: Was failing with no data; removed from EventBridge schedule.
+- **Seasonality loader guard**: Was failing with no data (TRUNCATE + empty commit destroyed historical data). Fixed: loader returns 0 early if no SPY rows in price_daily, preserving existing seasonality tables. Runs weekly Monday 6:00 AM ET.
 - **Morning prep pipeline**: Added `LOADER_INTERVALS=1d` override to `MorningPrices` step — was fetching weekly/monthly price history too, taking 6+ hours instead of ~15 minutes.
 
 **Migrations deployed:**
