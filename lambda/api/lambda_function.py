@@ -278,12 +278,6 @@ def get_json_content_type() -> str:
 
 def get_security_headers() -> Dict[str, str]:
     """Return security headers for all responses."""
-    origins = _build_allowed_origins()
-    # Also include production CloudFront domain if configured
-    frontend_url = os.getenv('FRONTEND_URL', '')
-    if frontend_url:
-        origins.add(frontend_url)
-    allowed_origins_list = ' '.join(sorted(origins))
     return {
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
         'X-Content-Type-Options': 'nosniff',
@@ -291,7 +285,7 @@ def get_security_headers() -> Dict[str, str]:
         'X-XSS-Protection': '1; mode=block',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-        'Content-Security-Policy': f"default-src 'self'; img-src 'self' data: https:; connect-src 'self' {allowed_origins_list}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'self'",
     }
 
 def get_cache_headers(cache_type: str = 'no-cache') -> Dict[str, str]:

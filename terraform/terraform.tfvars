@@ -70,7 +70,7 @@ algo_lambda_provisioned_concurrency = 0  # Orchestrator runs on schedule, cold s
 rds_backup_retention_period = 1
 
 # Alpaca API configuration
-alpaca_api_base_url = "https://api.alpaca.markets"  # LIVE API
+alpaca_api_base_url = "https://paper-api.alpaca.markets"  # Paper API — matches paper keys in algo/alpaca secret
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = true # Deploy execution monitor Lambda
