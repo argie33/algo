@@ -13,16 +13,18 @@ const router = express.Router();
 router.use(authenticateToken);
 
 /**
- * GET /manual-trades - List all manual trades
+ * GET /manual-trades - List all manual trades for authenticated user
  */
 router.get('/', async (req, res) => {
   try {
+    const userId = req.user.sub;
     const result = await dbQuery(
       `SELECT id, symbol, side as trade_type, quantity, execution_price as price,
               trade_date as execution_date
        FROM trades
+       WHERE user_id = $1
        ORDER BY trade_date DESC`,
-      []
+      [userId]
     );
 
     return sendSuccess(res, {
@@ -36,18 +38,19 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * GET /manual-trades/:id - Get a specific manual trade
+ * GET /manual-trades/:id - Get a specific manual trade (user's own trades only)
  */
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.sub;
 
     const result = await dbQuery(
       `SELECT id, symbol, side as trade_type, quantity, execution_price as price,
               trade_date as execution_date
        FROM trades
-       WHERE id = $1`,
-      [id]
+       WHERE id = $1 AND user_id = $2`,
+      [id, userId]
     );
 
     if (result.rowCount === 0) {
@@ -68,6 +71,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', createInputValidationMiddleware(inputSchemas.manualTrade), async (req, res) => {
   try {
     const { symbol, trade_type, quantity, price, execution_date, commission } = req.body;
+    const userId = req.user.sub;
 
     // Normalize trade type (middleware already validated)
     const tradeType = trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SELL';
@@ -78,13 +82,13 @@ router.post('/', createInputValidationMiddleware(inputSchemas.manualTrade), asyn
 
     const orderValue = qty * prc;
 
-    // Insert trade
+    // Insert trade with user_id
     const result = await dbQuery(
-      `INSERT INTO trades (symbol, side, quantity, execution_price, trade_date)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO trades (user_id, symbol, side, quantity, execution_price, trade_date)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, symbol, side as trade_type, quantity, execution_price as price,
                  trade_date as execution_date`,
-      [symbol.toUpperCase(), tradeType, qty, prc, tradeDate]
+      [userId, symbol.toUpperCase(), tradeType, qty, prc, tradeDate]
     );
 
     if (result.rowCount === 0) {
@@ -96,7 +100,7 @@ router.post('/', createInputValidationMiddleware(inputSchemas.manualTrade), asyn
     // Update portfolio_holdings with the new position (for buy/sell trades)
     if (['BUY', 'SELL'].includes(tradeType)) {
       try {
-        await updatePortfolioHoldings(symbol.toUpperCase(), tradeType, qty, prc);
+        await updatePortfolioHoldings(userId, symbol.toUpperCase(), tradeType, qty, prc);
       } catch (holdingsErr) {
         console.warn('Warning: Failed to update portfolio holdings:', holdingsErr.message);
         // Don't fail the trade creation if portfolio update fails
@@ -111,17 +115,18 @@ router.post('/', createInputValidationMiddleware(inputSchemas.manualTrade), asyn
 });
 
 /**
- * PATCH /manual-trades/:id - Update a manual trade
+ * PATCH /manual-trades/:id - Update a manual trade (user's own trades only)
  */
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.sub;
     const { symbol, trade_type, quantity, price, execution_date, commission } = req.body;
 
-    // Get existing trade first
+    // Get existing trade first (verify user ownership)
     const existingResult = await dbQuery(
-      'SELECT symbol, type, quantity, execution_price FROM trades WHERE id = $1',
-      [id]
+      'SELECT symbol, type, quantity, execution_price FROM trades WHERE id = $1 AND user_id = $2',
+      [id, userId]
     );
 
     if (existingResult.rowCount === 0) {
@@ -165,14 +170,14 @@ router.patch('/:id', async (req, res) => {
     // Recompute portfolio holdings for the symbol
     if (['BUY', 'SELL'].includes(existing.type)) {
       try {
-        await recomputeHoldings(existing.symbol);
+        await recomputeHoldings(userId, existing.symbol);
       } catch (err) {
         console.warn('Warning: Failed to recompute holdings:', err.message);
       }
     }
     if (['BUY', 'SELL'].includes(newType) && newSymbol !== existing.symbol) {
       try {
-        await recomputeHoldings(newSymbol);
+        await recomputeHoldings(userId, newSymbol);
       } catch (err) {
         console.warn('Warning: Failed to recompute holdings:', err.message);
       }
@@ -186,16 +191,17 @@ router.patch('/:id', async (req, res) => {
 });
 
 /**
- * DELETE /manual-trades/:id - Delete a manual trade
+ * DELETE /manual-trades/:id - Delete a manual trade (user's own trades only)
  */
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.sub;
 
-    // Get trade before deleting
+    // Get trade before deleting (verify user ownership)
     const result = await dbQuery(
-      'SELECT symbol, type FROM trades WHERE id = $1',
-      [id]
+      'SELECT symbol, type FROM trades WHERE id = $1 AND user_id = $2',
+      [id, userId]
     );
 
     if (result.rowCount === 0) {
@@ -206,14 +212,14 @@ router.delete('/:id', async (req, res) => {
 
     // Delete trade
     await dbQuery(
-      'DELETE FROM trades WHERE id = $1',
-      [id]
+      'DELETE FROM trades WHERE id = $1 AND user_id = $2',
+      [id, userId]
     );
 
     // Recompute holdings for that symbol
     if (['BUY', 'SELL'].includes(trade.type)) {
       try {
-        await recomputeHoldings(trade.symbol);
+        await recomputeHoldings(userId, trade.symbol);
       } catch (err) {
         console.warn('Warning: Failed to recompute holdings:', err.message);
       }
@@ -228,10 +234,8 @@ router.delete('/:id', async (req, res) => {
 
 /**
  * Helper: Update portfolio_holdings based on a new trade
- * Uses 'manual-trades' as the system user_id for manual trade positions
  */
-async function updatePortfolioHoldings(symbol, side, quantity, price) {
-  const userId = 'manual-trades'; // System user for manual trades
+async function updatePortfolioHoldings(userId, symbol, side, quantity, price) {
 
   if (side === 'BUY') {
     const currentResult = await dbQuery(
@@ -289,18 +293,15 @@ async function updatePortfolioHoldings(symbol, side, quantity, price) {
 }
 
 /**
- * Helper: Recompute holdings by summing all buy/sell trades
- * Uses 'manual-trades' as the system user_id for manual trade positions
+ * Helper: Recompute holdings by summing all buy/sell trades for a user
  */
-async function recomputeHoldings(symbol) {
-  const userId = 'manual-trades'; // System user for manual trades
-
+async function recomputeHoldings(userId, symbol) {
   const tradesResult = await dbQuery(
     `SELECT type, quantity, execution_price
      FROM trades
-     WHERE symbol = $1 AND type IN ('BUY', 'SELL')
+     WHERE user_id = $1 AND symbol = $2 AND type IN ('BUY', 'SELL')
      ORDER BY execution_date ASC`,
-    [symbol]
+    [userId, symbol]
   );
 
   let totalQty = 0;

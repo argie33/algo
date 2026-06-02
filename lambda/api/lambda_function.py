@@ -721,18 +721,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             try:
                 with DatabaseContext('read') as cur:
-                    ALLOWED_TABLES = {'price_daily', 'signals', 'stock_scores', 'technical_data_daily'}
-                    table_counts = {}
-                    for table in ALLOWED_TABLES:
-                        try:
-                            query = psycopg2.sql.SQL('SELECT COUNT(*) FROM {}').format(
-                                psycopg2.sql.Identifier(table)
-                            )
-                            cur.execute(query)
-                            table_counts[table] = cur.fetchone()[0]
-                        except Exception as e:
-                            logger.warning(f"API exception: {e}")
-                            table_counts[table] = 0
+                    _HEALTH_TABLES = ('price_daily', 'buy_sell_daily', 'stock_scores', 'technical_data_daily')
+                    cur.execute("""
+                        SELECT relname, n_live_tup
+                        FROM pg_stat_user_tables
+                        WHERE relname = ANY(%s)
+                    """, (_HEALTH_TABLES,))
+                    table_counts = {row[0]: row[1] for row in cur.fetchall()}
+                    for t in _HEALTH_TABLES:
+                        table_counts.setdefault(t, 0)
 
                     cors_headers = get_cors_headers(event)
                     return {
@@ -816,7 +813,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         }
                     try:
                         body = json.loads(body_str)
-                    except json.JSONDecodeError as e:
+                    except (json.JSONDecodeError, Exception) as e:
                         cors_headers = get_cors_headers(event)
                         logger.warning(f'Failed to parse JSON body: {e}')
                         log_api_request(event, 400, error_msg='invalid_json')
@@ -825,9 +822,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                             'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
                         }
-                    except Exception as e:
-                        logger.warning(f"Exception caught: {e}")
-                        pass
 
                 # Route request to appropriate handler
                 response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)

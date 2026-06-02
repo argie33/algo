@@ -65,7 +65,7 @@ class FilterTier3Mixin:
                     'trend_score': trend_score,
                 }
 
-            min_score = int(self.config.get('min_trend_template_score', 7))
+            min_score = int(self.config.get('min_trend_template_score', 6))
             if trend_score < min_score:
                 return {
                     'pass': False,
@@ -118,7 +118,7 @@ class FilterTier3Mixin:
             # (useful when SPY is running hot and good stocks temporarily show flat RS slope).
             rs_slope_check = self._check_rs_line_slope(symbol, signal_date, cur)
             if not rs_slope_check.get('pass', True):
-                if bool(self.config.get('rs_slope_gate_enabled', True)):
+                if bool(self.config.get('rs_slope_gate_enabled', False)):
                     return {
                         'pass': False,
                         'reason': rs_slope_check.get('reason', 'RS line not trending up'),
@@ -130,7 +130,7 @@ class FilterTier3Mixin:
             # Hard gate by default; set volume_decay_gate_enabled=false in algo_config to soften.
             vol_check = self._check_volume_decay(symbol, signal_date, cur)
             if vol_check and not vol_check.get('pass', True):
-                if bool(self.config.get('volume_decay_gate_enabled', True)):
+                if bool(self.config.get('volume_decay_gate_enabled', False)):
                     return {
                         'pass': False,
                         'reason': vol_check.get('reason', 'Volume declining'),
@@ -176,48 +176,6 @@ class FilterTier3Mixin:
             }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}
-
-    def _check_volume_decay(self, symbol, signal_date, cur) -> Dict[str, Any]:
-        """Minervini warning: declining volume into breakout signals false breakout.
-
-        Checks if 10-day average volume is declining relative to 50-day average.
-        A breakout with declining volume = weak accumulation = false setup.
-        """
-        try:
-            cur.execute(
-                """
-                SELECT volume FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                ORDER BY date DESC LIMIT 60
-                """,
-                (symbol, signal_date),
-            )
-            rows = cur.fetchall()
-            if len(rows) < 50:
-                return {'pass': True, 'reason': 'Insufficient volume history'}
-
-            volumes = [float(r[0]) for r in rows if r[0]]
-            if len(volumes) < 50:
-                return {'pass': True, 'reason': 'No volume data'}
-
-            # 10-day vs 50-day average volume (use exactly 50 bars for the baseline)
-            vol_10d_avg = sum(volumes[:10]) / 10.0
-            vol_50d_avg = sum(volumes[:50]) / 50.0
-
-            if vol_10d_avg > 0 and vol_50d_avg > 0:
-                vol_decline_pct = ((vol_50d_avg - vol_10d_avg) / vol_50d_avg) * 100.0
-
-                # If 10-day avg is >15% below 50-day avg, volume is declining (red flag)
-                if vol_decline_pct > 15.0:
-                    return {
-                        'pass': False,
-                        'reason': f'Volume declining: 10d avg {vol_decline_pct:.1f}% below 50d (sign of weak setup)',
-                    }
-
-            return {'pass': True, 'reason': 'Volume OK'}
-        except Exception as e:
-            logger.debug(f'Volume decay check failed for {symbol}: {e}')
-            return {'pass': True, 'reason': 'Volume check error (continuing)'}
 
     def _check_rs_line_strength(self, symbol, signal_date, cur) -> Dict[str, Any]:
         """Minervini rule: RS-line (stock vs SPY) should be strong (at/near new highs).

@@ -62,7 +62,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                     logging.warning(f"Could not read swing_trader_scores watermark for {symbol}: {e}")
 
             if since is None:
-                start = end - timedelta(days=5 * 365)
+                start = end - timedelta(days=30)
             else:
                 # Use since - 1d overlap (standard across loaders) so that if
                 # signal_quality_scores finishes after an earlier swing score run,

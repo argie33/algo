@@ -525,7 +525,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 for t in passed_all_tiers:
                     t['final_score'] = t.get('trend_score', 0)
                 passed_all_tiers.sort(key=lambda x: x['final_score'], reverse=True)
-                max_positions = int(self.config.get('max_positions', 6))
+                max_positions = int(self.config.get('max_positions', 12))
                 final_trades = passed_all_tiers[:max_positions]
                 # Skip to target price calculation (jump past regime/swing filter below)
                 swing_fallback_active = True
@@ -563,7 +563,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     t['final_score'] = t.get('swing_score', 0)
 
                 passed_all_tiers.sort(key=lambda x: x['final_score'], reverse=True)
-                max_positions = int(self.config.get('max_positions', 6))
+                max_positions = int(self.config.get('max_positions', 12))
                 final_trades = passed_all_tiers[:max_positions]
 
             # Calculate target prices for all final trades (R-multiple based)

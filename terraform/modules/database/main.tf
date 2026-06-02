@@ -164,6 +164,30 @@ resource "aws_db_parameter_group" "postgres" {
     apply_method = "immediate"
   }
 
+  # work_mem: 16 MB per sort/hash operation (default 4 MB). Allows in-memory sorts for 5000-symbol
+  # queries. At 30 reserved concurrency on the API Lambda, worst-case is 480 MB — safe on t4g.micro.
+  parameter {
+    name         = "work_mem"
+    value        = "16384"
+    apply_method = "immediate"
+  }
+
+  # effective_cache_size: planner hint for how much OS + shared_buffers cache is available.
+  # Set to 75% of instance RAM (768 MB = 786432 kB). Tells the planner index scans are cheap.
+  parameter {
+    name         = "effective_cache_size"
+    value        = "786432"
+    apply_method = "immediate"
+  }
+
+  # random_page_cost: cost model for random disk reads. Default 4.0 assumes spinning disk.
+  # RDS uses SSD-backed storage; 1.1 makes the planner prefer index scans over seq scans.
+  parameter {
+    name         = "random_page_cost"
+    value        = "1.1"
+    apply_method = "immediate"
+  }
+
   lifecycle {
     create_before_destroy = true
   }

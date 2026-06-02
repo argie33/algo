@@ -206,10 +206,13 @@ class SignalsDailyLoader(OptimalLoader):
             )
 
             # Enhanced signal rules with volume and volatility confirmation
-            if rsi < 30 and macd > macd_signal and vol_confirmed and has_volatility:
+            # Rule 1: RSI<30 pullback buy — requires Stage 2 (close > SMA50 > SMA200) so
+            # mean-reversion signals don't flood the filter pipeline with declining stocks
+            # that will always be rejected at pre-filter (Stage 2 gate).
+            if rsi < 30 and macd > macd_signal and vol_confirmed and has_volatility and in_stage2_uptrend:
                 signal_type = "BUY"
                 strength = (30 - rsi) / 30 * (1.0 if vol_confirmed else 0.7)
-                reason = "Oversold with bullish MACD + volume confirmation"
+                reason = "Oversold pullback in Stage 2 uptrend with bullish MACD + volume confirmation"
             elif rsi > 70 and macd < macd_signal and vol_confirmed and has_volatility:
                 signal_type = "SELL"
                 strength = (rsi - 70) / 30 * (1.0 if vol_confirmed else 0.7)
