@@ -22,6 +22,7 @@ import { setRefreshCallback } from "../services/api";
 import { tokenManager } from "../services/tokenManager";
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 import sessionManager from "../services/sessionManager";
+import { getErrorMessage } from "../utils/cognitoErrorHandler";
 
 // Initial auth state
 const initialState = {
@@ -181,7 +182,7 @@ export function AuthProvider({ children }) {
       return { success: false, error: "No valid tokens" };
     } catch (error) {
       console.error("❌ Session refresh error:", error);
-      return { success: false, error: getErrorMessage(error) };
+      return { success: false, error: formatErrorMessage(error) };
     }
   }, []);
 
@@ -196,7 +197,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error("Logout error:", error);
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      return { success: false, error: getErrorMessage(error) };
+      return { success: false, error: formatErrorMessage(error) };
     }
   }, []);
 
@@ -452,7 +453,7 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error("❌ Cognito login error:", error);
-      const errorMessage = getErrorMessage(error);
+      const errorMessage = formatErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -494,7 +495,7 @@ export function AuthProvider({ children }) {
       };
     } catch (error) {
       console.error("Registration error:", error);
-      const errorMessage = getErrorMessage(error);
+      const errorMessage = formatErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -526,7 +527,7 @@ export function AuthProvider({ children }) {
       };
     } catch (error) {
       console.error("Confirmation error:", error);
-      const errorMessage = getErrorMessage(error);
+      const errorMessage = formatErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -554,7 +555,7 @@ export function AuthProvider({ children }) {
       };
     } catch (error) {
       console.error("Resend confirmation error:", error);
-      const errorMessage = getErrorMessage(error);
+      const errorMessage = formatErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -583,7 +584,7 @@ export function AuthProvider({ children }) {
       };
     } catch (error) {
       console.error("Forgot password error:", error);
-      const errorMessage = getErrorMessage(error);
+      const errorMessage = formatErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -620,7 +621,7 @@ export function AuthProvider({ children }) {
       };
     } catch (error) {
       console.error("Confirm password reset error:", error);
-      const errorMessage = getErrorMessage(error);
+      const errorMessage = formatErrorMessage(error);
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -646,7 +647,13 @@ export function AuthProvider({ children }) {
   };
 
   // Helper function to get user-friendly error messages
-  const getErrorMessage = (error) => {
+  const formatErrorMessage = (error) => {
+    // First try the centralized error handler for comprehensive message mapping
+    const mappedMessage = formatErrorMessage(error);
+    if (mappedMessage !== (error.message || 'An error occurred')) {
+      return mappedMessage;
+    }
+    // Fallback to inline handling for specific cases
     if (error.name === "NotAuthorizedException") {
       return "Invalid username or password";
     }

@@ -5,20 +5,15 @@
  * Step Functions state machine. Guarantees the orchestrator only runs when
  * all signal data is actually ready, not on a fixed timer.
  *
- * MORNING PREP PIPELINE (4:30 AM ET):
- *   stock_prices_daily (1d only)
- *     → [parallel] technical_data_daily + market_health_daily
- *       → [parallel] buy_sell_daily + signal_quality_scores + swing_trader_scores
- *         → Orchestrator run at 9:30 AM uses fresh data
- *
  * EOD PIPELINE (4:05 PM ET):
- *   stock_symbols
- *     → stock_prices_daily (all intervals 1d/1wk/1mo)
+ *   stock_symbols (reference data)
+ *     → stock_prices_daily (unified price loader for all intervals/assets)
  *       → [parallel] technical_data_daily + market_health_daily
  *         → [parallel] trend_template_data
  *           → [parallel] buy_sell_daily + signal_quality_scores
  *             → algo_metrics_daily
  *               → swing_trader_scores
+ *                 → Invoke algo orchestrator ECS task
  *
  * Note: stock_prices_daily runs ~6h for all 5000+ symbols across all intervals (1d, 1wk, 1mo).
  * technicals_daily uses cached prices; runs in parallel with market_health_daily.
