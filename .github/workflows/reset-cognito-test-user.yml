@@ -35,7 +35,7 @@ jobs:
         id: pool
         run: |
           POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 \
-            --query 'UserPools[?Name=="stocks-trading-pool-dev"].Id | [0]' \
+            --query 'UserPools[?Name=="algo-pool-dev"].Id | [0]' \
             --output text 2>/dev/null || echo "")
           if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
             BUCKET=$(aws s3api list-buckets \
