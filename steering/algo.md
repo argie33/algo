@@ -139,17 +139,30 @@ Two bugs limited the algo to evaluating only a fraction of the full 5000+ stock 
 
 ## Orchestrator Phases
 
-1. **Phase 1:** Data freshness (halt if stale)
-2. **Phase 2:** Circuit breakers (halt if triggered)
+1. **Phase 1:** Data freshness (halt if stale) — **FAIL-CLOSED**
+   - Halts if SPY price data > 1 trading day old
+   - Halts if market health data > 1 trading day old
+   - Halts if trend template data > 1 trading day old
+   - Uses trading-day-aware freshness (accounts for weekends/holidays)
+2. **Phase 2:** Circuit breakers (halt if triggered) — **FAIL-CLOSED**
+   - Portfolio drawdown ≥ 20%
+   - Daily loss ≥ 2%
+   - Consecutive losses ≥ 3 trades
+   - Total open risk ≥ 4% of portfolio
+   - VIX ≥ 35 (extreme fear)
+   - Market stage = 4 (confirmed downtrend)
+   - Weekly loss ≥ 5%
+   - Prior-day market health (SPY down >2% yesterday)
+   - Win rate floor < 40% (on 30-trade sample)
 3. **Phase 3:** Position monitor
 4. **Phase 3b:** Market exposure policy
-5. **Phase 4:** Execute exits
+5. **Phase 4:** Execute exits (unblocked by halt flag, must always run)
 6. **Phase 4b:** Pyramid adds
-7. **Phase 5:** Signal generation
-8. **Phase 6:** Trade entries
-9. **Phase 7:** Reconciliation + reporting
+7. **Phase 5:** Signal generation (blocked by halt flag)
+8. **Phase 6:** Trade entries (blocked by halt flag)
+9. **Phase 7:** Reconciliation + reporting (unblocked by halt flag, must always run)
 
-Phases 1-2 fail-closed (halt trading). Phases 3-7 fail-open (continue trading).
+**Fail-Closed Guarantee:** Phases 1-2 are fail-closed. If data is uncertain or any circuit breaker fires, the orchestrator halts new entries immediately. Phases 3-7 are fail-open (continue without entries). Exit execution (Phase 4) and portfolio reconciliation (Phase 7) always run regardless of halt state to manage existing risk.
 
 ## Staging Environment Isolation (F-07 - FIXED)
 
