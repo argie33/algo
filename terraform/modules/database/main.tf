@@ -155,12 +155,15 @@ resource "aws_db_parameter_group" "postgres" {
   }
 
   # Set statement_timeout at the cluster level so every connection respects the limit
-  # without paying an extra round-trip on every Lambda request (was SET per-request in lambda_function.py).
-  # 30s matches the previous per-request value. apply_method = "immediate" is safe: this is a session-level
-  # parameter (no reboot required). The value is in milliseconds.
+  # without paying an extra round-trip on every Lambda request.
+  # Increased from 30s → 900s (15 minutes) to support batch loaders processing 5000+ symbols.
+  # Batch loaders (signal_quality_scores, swing_trader_scores) with 5000+ symbols × DB joins
+  # can exceed 30s. API requests that need 30s strict timeout can override via SET statement in handler.
+  # apply_method = "immediate" is safe: this is a session-level parameter (no reboot required).
+  # Value is in milliseconds.
   parameter {
     name         = "statement_timeout"
-    value        = "30000"
+    value        = "900000"
     apply_method = "immediate"
   }
 
