@@ -30,43 +30,43 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
-                # Compute advancing/declining counts per trading day.
-                # Scoped to symbols active in the last 5 days to avoid scanning 9000+
-                # symbols, many of which are inactive/delisted (reduces rows by ~50%).
-                cur.execute("SET LOCAL statement_timeout = '22s'")
+                # Compute A/D per day using a self-join on consecutive trading days.
+                # Avoids a full table scan: reads only 2 dates worth of data at a time.
+                # Returns the last 20 trading days (sufficient for breadth sparkline).
+                cur.execute("SET LOCAL statement_timeout = '20s'")
                 cur.execute("""
-                    WITH active AS (
-                        SELECT DISTINCT symbol
+                    WITH trading_dates AS (
+                        SELECT DISTINCT date
                         FROM price_daily
-                        WHERE date >= CURRENT_DATE - INTERVAL '5 days'
-                          AND symbol NOT LIKE '^%%'
+                        WHERE date >= CURRENT_DATE - INTERVAL '40 days'
+                          AND date <= CURRENT_DATE
+                        ORDER BY date DESC
+                        LIMIT 21
                     ),
-                    recent AS (
-                        SELECT pd.symbol, pd.date, pd.close
-                        FROM price_daily pd
-                        JOIN active a ON a.symbol = pd.symbol
-                        WHERE pd.date >= CURRENT_DATE - INTERVAL '35 days'
-                    ),
-                    with_prev AS (
+                    date_pairs AS (
                         SELECT
-                            symbol, date, close,
-                            LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
-                        FROM recent
+                            d1.date AS d,
+                            MAX(d2.date) AS prev_d
+                        FROM trading_dates d1
+                        JOIN trading_dates d2 ON d2.date < d1.date
+                        GROUP BY d1.date
                     ),
                     daily AS (
-                        SELECT date,
-                            COUNT(*) FILTER (WHERE close > prev_close)  AS advances,
-                            COUNT(*) FILTER (WHERE close < prev_close)  AS declines,
-                            COUNT(*) FILTER (WHERE close = prev_close)  AS unchanged,
-                            COUNT(*) FILTER (WHERE prev_close IS NOT NULL) AS total
-                        FROM with_prev
-                        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                          AND prev_close IS NOT NULL
-                        GROUP BY date
+                        SELECT
+                            dp.d AS date,
+                            COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
+                            COUNT(*) FILTER (WHERE t.close < y.close) AS declines,
+                            COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
+                            COUNT(t.symbol) AS total
+                        FROM date_pairs dp
+                        JOIN price_daily t ON t.date = dp.d AND t.symbol NOT LIKE '^%%'
+                        JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
+                        GROUP BY dp.d
                     )
                     SELECT date, advances, declines, unchanged, total
                     FROM daily
                     ORDER BY date DESC
+                    LIMIT 20
                 """)
                 breadth = cur.fetchall()
                 freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
