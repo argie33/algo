@@ -122,6 +122,8 @@ resource "aws_cognito_user_pool_domain" "main" {
 }
 
 # Test user for development
+# Terraform will attempt to create the user or import it if it already exists.
+# Lifecycle: ignore_changes on temporary_password since password reset is outside Terraform.
 resource "aws_cognito_user" "test_user" {
   count              = var.cognito_test_user_email != "" ? 1 : 0
   user_pool_id       = aws_cognito_user_pool.stocks_trading.id

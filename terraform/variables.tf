@@ -386,6 +386,12 @@ variable "algo_lambda_timeout" {
   default     = 300
 }
 
+variable "algo_lambda_provisioned_concurrency" {
+  description = "Provisioned concurrency for algo Lambda (0 = disabled, cold start acceptable for scheduled orchestrator)"
+  type        = number
+  default     = 0
+}
+
 variable "algo_lambda_ephemeral_storage" {
   description = "Ephemeral storage for algo Lambda"
   type        = number
@@ -586,6 +592,12 @@ variable "enable_premarket_orchestrator" {
 
 variable "enable_preclose_orchestrator" {
   description = "Enable pre-close (3:00 PM ET) orchestrator execution for final trades before market close"
+  type        = bool
+  default     = false
+}
+
+variable "enable_data_freshness_monitoring" {
+  description = "Enable data freshness monitor Lambda to alert if loader data is stale before 9:30 AM trading window"
   type        = bool
   default     = false
 }

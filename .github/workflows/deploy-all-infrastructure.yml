@@ -482,6 +482,19 @@ jobs:
             fi
           }
 
+          # Import Cognito test user if it exists in AWS but not in state
+          PRIMARY_USER=$(grep "^cognito_test_user_email" terraform.tfvars | cut -d'"' -f2)
+          if [ -n "$PRIMARY_USER" ]; then
+            POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --region us-east-1 --query "UserPools[?Name=='${PROJECT_NAME}-pool-dev'].Id" --output text 2>/dev/null || echo "")
+            if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+              USER_EXISTS=$(aws cognito-idp admin-get-user --user-pool-id "$POOL_ID" --username "$PRIMARY_USER" --region us-east-1 2>/dev/null && echo "true" || echo "false")
+              if [ "$USER_EXISTS" = "true" ]; then
+                echo "-> Cognito user exists in AWS but not in state. Importing..."
+                import_if_missing "module.cognito.aws_cognito_user.test_user[0]" "${POOL_ID}/${PRIMARY_USER}" || echo "[WARN] Could not import Cognito user — it may already be in state or the import format may differ"
+              fi
+            fi
+          fi
+
           # Import S3 backend bucket dynamically
           import_if_missing module.bootstrap.aws_s3_bucket.terraform_state "$STATE_BUCKET"
 
