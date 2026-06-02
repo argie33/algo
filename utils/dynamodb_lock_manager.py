@@ -59,8 +59,8 @@ class DynamoDBLockManager:
         Returns: True if lock acquired, False if another instance holds it
         """
         if not self.dynamodb:
-            logger.warning("DynamoDB unavailable — lock acquire skipped")
-            return True  # Fallback: allow execution
+            logger.critical("[LOCK] DynamoDB unavailable — refusing to acquire lock. Halt to prevent duplicate runs.")
+            return False
 
         start_time = time.time()
         while time.time() - start_time < timeout_seconds:
@@ -97,8 +97,8 @@ class DynamoDBLockManager:
                 time.sleep(0.1)
 
             except Exception as e:
-                logger.error(f"[LOCK] Error acquiring lock: {e} — proceeding anyway")
-                return True  # Fallback on DynamoDB errors
+                logger.critical(f"[LOCK] Error acquiring lock: {e} — refusing to proceed without lock.")
+                return False
 
         logger.error(f"[LOCK] Failed to acquire {lock_key} after {timeout_seconds}s")
         return False
