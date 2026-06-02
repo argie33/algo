@@ -70,6 +70,10 @@ def load_seasonality() -> int:
         """)
         monthly_rows = cur.fetchall()
 
+        if not monthly_rows:
+            logger.warning("No SPY price data found in price_daily — skipping seasonality update to preserve existing data")
+            return 0
+
         cur.execute("TRUNCATE TABLE seasonality_monthly_stats")
         monthly_records = [
             (
