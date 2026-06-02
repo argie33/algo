@@ -332,10 +332,6 @@ locals {
       schedule    = "cron(30 20 ? * MON-FRI *)"
       description = "FRED economic indicators (T10Y2Y, yields, jobless claims) - 4:30pm ET (before EOD pipeline)"
     }
-    "seasonality" = {
-      schedule    = "cron(0 10 ? * SUN *)"
-      description = "SPY seasonality statistics (monthly + day-of-week) - Sunday 10am UTC"
-    }
 
     # Financial statements — run Sunday night only (data changes quarterly, not daily)
     # STAGGERED: 60-minute intervals to prevent concurrent SEC EDGAR rate limit cascades

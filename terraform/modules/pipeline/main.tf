@@ -746,7 +746,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningPrices"
       }
 
-      # Load only daily prices (not weekly/monthly) for morning prep
+      # Load only daily prices (not weekly/monthly) for morning prep.
+      # Override LOADER_INTERVALS to "1d" so only daily prices are loaded (~15 min vs 6+ hours).
+      # The full 1d/1wk/1mo load runs in the EOD pipeline at 4:05pm ET.
       MorningPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -756,6 +758,15 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["stock_prices_daily"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "${var.project_name}-stock_prices_daily"
+              Environment = [
+                { Name = "LOADER_INTERVALS", Value = "1d" },
+                { Name = "LOADER_ASSET_CLASSES", Value = "stock,etf" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
