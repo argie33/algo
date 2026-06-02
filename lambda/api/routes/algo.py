@@ -93,58 +93,29 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     return error_response(429, 'too_many_requests', error_msg)
             return _analyze_pre_trade_impact(cur, body)
         if path == '/api/algo/status':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo status access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
-            if path in ADMIN_RATE_LIMITS:
-                limits = ADMIN_RATE_LIMITS[path]
-                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
-                if not is_allowed:
-                    return error_response(429, 'too_many_requests', error_msg)
+            # Status is accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_status(cur)
         elif path == '/api/algo/trades':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo trades access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
-            if path in ADMIN_RATE_LIMITS:
-                limits = ADMIN_RATE_LIMITS[path]
-                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
-                if not is_allowed:
-                    return error_response(429, 'too_many_requests', error_msg)
+            # Trades accessible to authenticated users (Portfolio Dashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             return _get_algo_trades(cur, limit)
         elif path == '/api/algo/positions':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo positions access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
-            if path in ADMIN_RATE_LIMITS:
-                limits = ADMIN_RATE_LIMITS[path]
-                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
-                if not is_allowed:
-                    return error_response(429, 'too_many_requests', error_msg)
+            # Positions accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_positions(cur)
         elif path == '/api/algo/performance':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo performance access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Performance accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_performance(cur)
         elif path == '/api/algo/circuit-breakers':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo circuit-breakers access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Circuit breakers accessible to authenticated users (Portfolio Dashboard)
             return _get_circuit_breakers(cur)
         elif path == '/api/algo/equity-curve':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo equity-curve access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Equity curve accessible to authenticated users (Portfolio Dashboard)
             days_str = params.get('limit', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=180)
             return _get_equity_curve(cur, days)
         elif path == '/api/algo/data-status':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo data-status access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Data status accessible to authenticated users
             return _get_data_status(cur)
         elif path == '/api/algo/notifications':
             # Admin-only: GET returns circuit breaker alerts, halt flags, position alerts, trade execution failures
@@ -168,10 +139,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
         elif path == '/api/algo/swing-scores':
-            # Admin-only: Returns current trading candidates before execution — front-run risk
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized swing-scores access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Swing scores accessible to authenticated users (AlgoTradingDashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             min_score_str = params.get('min_score', [None])[0] if params else None
@@ -190,34 +158,24 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             days = safe_days(days_str, max_val=365, default=30)
             return _get_swing_scores_history(cur, days)
         elif path == '/api/algo/rejection-funnel':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo rejection-funnel access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Rejection funnel accessible to authenticated users
             return _get_rejection_funnel(cur)
         elif path == '/api/algo/markets':
             # Market regime data is public - no auth required (market conditions are not sensitive)
             return _get_markets(cur)
         elif path == '/api/algo/evaluate':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo evaluate access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Evaluate accessible to authenticated users (AlgoTradingDashboard)
             return _get_algo_evaluate(cur)
         elif path == '/api/algo/data-quality':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo data-quality access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Data quality accessible to authenticated users
             return _get_data_quality(cur)
         elif path == '/api/algo/exposure-policy':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo exposure-policy access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Exposure policy accessible to authenticated users
             return _get_exposure_policy(cur)
         elif path == '/api/algo/sector-stage2':
             return _get_sector_stage2(cur)
         elif path == '/api/algo/config':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Config accessible to authenticated users
             return _get_algo_config(cur)
         elif path.startswith('/api/algo/config/'):
             if not _check_admin_access(jwt_claims):
@@ -226,9 +184,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             key = path[len('/api/algo/config/'):]
             return _get_algo_config_key(cur, key)
         elif path == '/api/algo/last-run':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo last-run access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
+            # Last run accessible to authenticated users
             return _get_last_run(cur)
         elif path == '/api/algo/audit-log':
             if not _check_admin_access(jwt_claims):
