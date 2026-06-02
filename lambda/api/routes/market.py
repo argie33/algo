@@ -32,13 +32,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/market/breadth':
                 # Compute A/D per day using a self-join on consecutive trading dates.
                 # Self-join is faster than LAG window over 35 days × 9000 symbols.
-                # Falls back to empty list on timeout (DB under heavy write load).
-                # Uses SAVEPOINT so timeout doesn't abort the outer transaction,
-                # allowing check_data_freshness to still run after a timeout.
+                # Falls back gracefully on timeout (DB under heavy write load from loaders).
+                # When a statement times out in psycopg2, the whole transaction is aborted.
+                # We reset using conn.rollback() so subsequent queries can still run.
                 breadth = []
+                freshness = {}
                 try:
-                    cur.execute("SAVEPOINT breadth_check")
-                    cur.execute("SET LOCAL statement_timeout = '20s'")
+                    cur.execute("SET LOCAL statement_timeout = '18s'")
                     cur.execute("""
                         WITH trading_dates AS (
                             SELECT DISTINCT date
@@ -66,15 +66,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         LIMIT 20
                     """)
                     breadth = cur.fetchall()
-                    cur.execute("RELEASE SAVEPOINT breadth_check")
+                    freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
                 except Exception as e:
-                    logger.warning(f"Breadth query failed: {type(e).__name__} — returning empty")
+                    logger.warning(f"Breadth query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
+                    # Reset aborted transaction so the connection can be reused by subsequent requests.
                     try:
-                        cur.execute("ROLLBACK TO SAVEPOINT breadth_check")
-                        cur.execute("RELEASE SAVEPOINT breadth_check")
+                        cur.connection.rollback()
                     except Exception:
                         pass
-                freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
                 return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
                 cur.execute("""
