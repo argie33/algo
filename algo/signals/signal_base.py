@@ -72,7 +72,7 @@ class SignalBase:
                 SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS start_close
                 FROM price_daily pd
                 JOIN universe u ON u.symbol = pd.symbol
-                WHERE pd.date <= %s::date - (%s || ' days')::INTERVAL
+                WHERE pd.date <= %s::date - make_interval(days => %s)
                 ORDER BY pd.symbol, pd.date DESC
             ),
             spy_end AS (
@@ -81,7 +81,7 @@ class SignalBase:
             ),
             spy_start AS (
                 SELECT close FROM price_daily WHERE symbol = 'SPY'
-                    AND date <= %s::date - (%s || ' days')::INTERVAL
+                    AND date <= %s::date - make_interval(days => %s)
                 ORDER BY date DESC LIMIT 1
             ),
             spy_ret AS (

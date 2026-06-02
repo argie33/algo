@@ -20,6 +20,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     return error_response(403, 'forbidden', 'Admin access required')
                 return _create_manual_trade(cur, body or {})
             if path == '/api/trades':
+                if not _check_admin_access(jwt_claims):
+                    return error_response(403, 'forbidden', 'Admin access required')
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = safe_limit(limit_str, max_val=5000, default=500)
                 offset_str = params.get('offset', [None])[0] if params else None
@@ -61,6 +63,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
                 return json_response(200, {'items': [dict(t) for t in trades], 'total': total, 'data_freshness': freshness})
             elif path == '/api/trades/summary':
+                if not _check_admin_access(jwt_claims):
+                    return error_response(403, 'forbidden', 'Admin access required')
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,

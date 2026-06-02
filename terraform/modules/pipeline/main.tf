@@ -587,7 +587,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogSwingScoresFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "TriggerOrchestrator"
+        Next = "DataPatrol"
       }
 
       LogSwingScoresFailure = {
@@ -595,6 +595,57 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "swing_trader_scores"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "DataPatrol"
+          ResultPath  = "$.logError"
+        }]
+        Next = "DataPatrol"
+      }
+
+      # ── Step 8b: Data patrol — validates data quality before orchestrator runs ──
+      # Runs algo/algo_data_patrol.py, writes findings to data_patrol_log.
+      # Orchestrator Phase 1 reads data_patrol_log; CRITICAL findings block trading.
+      # Fail-open: if patrol itself errors, pipeline continues (Phase 1 passes vacuously).
+      DataPatrol = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.patrol_task_definition_arn
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogPatrolFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "TriggerOrchestrator"
+      }
+
+      LogPatrolFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "data_patrol"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }

@@ -150,3 +150,9 @@ variable "ecs_log_group_name" {
   type        = string
   default     = ""
 }
+
+variable "patrol_task_definition_arn" {
+  description = "ARN (or family name) of the data patrol ECS task definition (from loaders module)"
+  type        = string
+  default     = ""
+}
