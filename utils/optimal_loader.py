@@ -442,6 +442,12 @@ class OptimalLoader(ABC):
             _lock_conn = get_db_connection(timeout=30)
             _lock_conn.autocommit = True
             with _lock_conn.cursor() as _cur:
+                # Release any advisory locks inherited from a pooled RDS Proxy connection.
+                # Session-level locks persist on the physical TCP connection when the ECS task
+                # that acquired them exits and the connection returns to the RDS Proxy pool.
+                # The next task that gets the same physical connection would inherit the lock,
+                # causing pg_try_advisory_lock to return false even for a fresh task.
+                _cur.execute("SELECT pg_advisory_unlock_all()")
                 _cur.execute("SELECT pg_try_advisory_lock(hashtext(%s)::bigint)", (self.table_name,))
                 acquired = _cur.fetchone()[0]
             if not acquired:
@@ -558,6 +564,7 @@ class OptimalLoader(ABC):
             _lock_conn = get_db_connection(timeout=30)
             _lock_conn.autocommit = True
             with _lock_conn.cursor() as _cur:
+                _cur.execute("SELECT pg_advisory_unlock_all()")
                 _cur.execute("SELECT pg_try_advisory_lock(hashtext(%s)::bigint)", (self.table_name,))
                 acquired = _cur.fetchone()[0]
             if not acquired:
