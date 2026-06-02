@@ -55,11 +55,6 @@ const handleTestAuth = (req, res, next) => {
     return sendError(res, 'Authentication required', 401, { code: 'MISSING_TOKEN' });
   }
 
-  // Reject dev-bypass-token in test environment
-  if (token === 'dev-bypass-token') {
-    return sendError(res, 'Invalid token', 403, { code: 'INVALID_TOKEN' });
-  }
-
   // Allow test tokens
   if (token === 'test-token' || token === 'mock-access-token' || token === 'admin-token') {
     const isAdmin = token === 'admin-token';
@@ -150,7 +145,27 @@ const authenticateTokenAsync = async (req, res, next) => {
       return sendError(res, result.error || 'Authentication credentials are invalid', 401, { code: 'INVALID_CREDENTIALS' });
     }
 
+    // SECURITY FIX #7: Check if token has been revoked
     const user = result.user;
+    const tokenJti = user.jti || user.token_use; // JWT jti claim (unique token ID)
+    const tokenExp = user.exp; // JWT exp claim (expiration timestamp)
+
+    try {
+      const { isTokenRevoked } = require('../utils/tokenBlocklist');
+      const revoked = await isTokenRevoked(tokenJti, tokenExp);
+      if (revoked) {
+        logger.security('revoked_token_rejected', {
+          userId: user.sub,
+          path: req.path,
+          ip: req.ip || req.connection.remoteAddress,
+        });
+        return sendError(res, 'Token has been revoked. Please log in again.', 401, { code: 'TOKEN_REVOKED' });
+      }
+    } catch (err) {
+      logger.warn('Token revocation check failed:', err.message);
+      // Don't fail the request - revocation is a nice-to-have, not critical
+    }
+
     req.user = user;
     req.token = token;
     req.sessionId = user.sessionId;
