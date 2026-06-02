@@ -242,12 +242,15 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 action_type = action_type.lower()
                 VALID_ACTION_TYPES = {'entry', 'exit', 'alert', 'halt', 'reconciliation', 'error',
                                       'stop', 'pyramid', 'skip', 'pass',
-                                      'phase_1_data_freshness', 'phase_2_circuit_breakers', 'phase_3_position_monitor',
-                                      'phase_3b_exposure_policy', 'phase_4_exit_execution', 'phase_4b_pyramid_adds',
-                                      'phase_5_signal_generation', 'phase_6_entry_execution',
-                                      'phase_7_reconciliation', 'halt_flag_detected',
-                                      'position_review', 'position_monitor', 'pipeline_health',
-                                      'single_stock_halts', 'halt_check_error'}
+                                      'phase_0_halt_flag_detected', 'phase_0_oom_prevention',
+                                      'phase_0_table_validation',
+                                      'phase_1_data_freshness', 'phase_1_data_patrol',
+                                      'phase_2_circuit_breakers', 'phase_3_position_monitor',
+                                      'phase_3b_exposure_policy', 'phase_4_exit_execution',
+                                      'phase_4b_pyramid_adds', 'phase_5_signal_generation',
+                                      'phase_6_entry_execution', 'phase_7_reconciliation',
+                                      'halt_flag_detected', 'position_review', 'position_monitor',
+                                      'pipeline_health', 'single_stock_halts', 'halt_check_error'}
                 if action_type not in VALID_ACTION_TYPES:
                     return error_response(400, 'bad_request', f'Invalid action_type: {action_type}')
             return _get_algo_audit_log(cur, limit, offset, action_type)
