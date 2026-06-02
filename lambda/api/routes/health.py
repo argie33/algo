@@ -12,7 +12,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
     """Handle /api/health endpoint - PUBLIC health check (no auth required).
 
     Returns basic system status without exposing internal details.
-    For detailed health info, use /api/admin/health (requires authentication).
+    For detailed health info, use /api/health/detailed (requires authentication).
     """
     health = {
         "status": "healthy",

@@ -117,7 +117,7 @@ router.post('/', createInputValidationMiddleware(inputSchemas.manualTrade), asyn
 /**
  * PATCH /manual-trades/:id - Update a manual trade (user's own trades only)
  */
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', createInputValidationMiddleware(inputSchemas.manualTrade), async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.sub;
