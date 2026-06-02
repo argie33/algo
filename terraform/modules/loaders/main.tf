@@ -242,6 +242,7 @@ locals {
 
     # Pricing data — unified loader handles all intervals/asset classes via env vars
     "stock_prices_daily" = "load_prices.py"
+    "etf_prices_daily"   = "load_prices.py"
 
     # Financial statements
     "financials_annual_income"      = "load_income_statement.py"
@@ -324,6 +325,14 @@ locals {
     # FIXED Issue #8: Removed stock_prices_daily from EventBridge schedules.
     # stock_prices_daily is now managed exclusively by Step Functions EOD pipeline (~4:30am ET).
     # Previously ran independently at 4:00am ET, causing double-execution with Step Functions.
+
+    # ETF prices — loads 17 sector/index ETFs for market breadth, sentiment, analysis endpoints
+    # Non-critical, runs independently so algo doesn't wait for ETF data
+    # Scheduled: 5:00pm ET (after orchestrator 5:30pm run completes). Runs weekly Mon-Fri for daily refresh.
+    "etf_prices_daily" = {
+      schedule    = "cron(0 21 ? * MON-FRI *)"
+      description = "ETF sector/index prices for market analysis - 5:00pm ET"
+    }
 
     # FIXED Issue #14: Moved from 4:05am to 4:30pm ET to provide fresh data for EOD pipeline
     # Previously ran 4:05am ET but EOD pipeline runs 4:05pm ET same day, making data stale
@@ -525,6 +534,10 @@ locals {
     # Unified Price Loader — critical path; 4x parallelism reduces 46 min → ~12 min at similar cost
     # cpu=1024 (1 vCPU) + memory=2048 is the minimum valid Fargate combo at this memory tier
     "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 4 }
+
+    # ETF prices — non-critical; loads 17 ETF symbols for market breadth/analysis
+    # Runs independently so algo doesn't wait for ETF data
+    "etf_prices_daily" = { cpu = 256, memory = 512, timeout = 1800, parallelism = 1 }
 
     # Financial statements
     "financials_annual_income"      = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
@@ -748,7 +761,18 @@ resource "aws_ecs_task_definition" "loader" {
           },
           {
             name  = "LOADER_ASSET_CLASSES"
-            value = "stock,etf"
+            value = "stock"
+          }
+        ] : [],
+        # ETF price loader: loads sector/index ETFs (17 symbols) for market analysis
+        each.key == "etf_prices_daily" ? [
+          {
+            name  = "LOADER_INTERVALS"
+            value = "1d,1wk,1mo"
+          },
+          {
+            name  = "LOADER_ASSET_CLASSES"
+            value = "etf"
           }
         ] : [],
         # Financial loaders: determine period from task name
