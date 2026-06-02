@@ -399,7 +399,6 @@ export default function PortfolioDashboard() {
 
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
 function CircuitBreakerPanel({ data }) {
-  // API now returns raw array instead of {breakers: [...], active: ...}
   const breakers = Array.isArray(data) ? data : data?.breakers || [];
   if (breakers.length === 0) {
     return (
