@@ -298,9 +298,36 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 7. **Phase 5 transaction abort** (`algo/algo_filter_pipeline.py`): Added early-exit detection when transaction is already aborted — stops Phase 5 immediately and logs CRITICAL instead of silently returning 0 candidates.
 
-**Emergency tool:** `python scripts/check_halt_flag.py` — shows current halt flag state. `--clear` flag resets it manually if needed.
+**Emergency tool:** `python scripts/check_halt_flag.py` — shows current halt flag state. `--clear` flag resets it manually if needed. Requires `scripts/refresh-aws-credentials.ps1` first (algo-developer IAM user now has DynamoDB GetItem + PutItem on algo_orchestrator_state).
 
 **Troubleshooting halt flag:** If tomorrow's run halts and you suspect a stale flag: `python scripts/check_halt_flag.py` (needs AWS creds). The auto-expiry in the orchestrator should handle this automatically for flags set on prior days.
+
+## Overnight Fixes (2026-06-01 → 2026-06-02)
+
+**Phase 5 signal pipeline improvements:**
+- **Fallback sort**: When `swing_trader_scores` is empty, falls back to `trend_template_data.minervini_trend_score` as secondary sort. Previously returned 0 candidates silently.
+- **Time budget**: Phase 5 budget increased from 120 s to 240 s (120 s ≈ 40 symbols at 200–500 ms each; too tight for 200+ BUY signals).
+- **Minervini breakout condition** added to `buy_sell_daily` loader: Stage 2 + within 2–15% of 52-week high + volume ≥ 1.5× 20-day avg + MACD ≥ signal. Catches momentum entries the RSI<30 condition misses.
+- **Migration 011**: Sets `rs_slope_gate_enabled=false` and `volume_decay_gate_enabled=false` — consolidating bases naturally show flat RS and drying volume (accumulation), hard-gating on these rejected valid Minervini setups.
+
+**Infrastructure fixes:**
+- **Dockerfile**: Added `COPY algo/` — ECS loaders importing from `algo.*` were failing with ModuleNotFoundError in every container run.
+- **API Lambda package**: `utils/` directory was missing from the direct-deploy ZIP. `utils.admin_rate_limiter` import caused ModuleNotFoundError on every API request since security hardening commit.
+- **Developer IAM**: Added DynamoDB `GetItem`/`PutItem`/`DescribeTable` on `algo_orchestrator_state` — `scripts/check_halt_flag.py` previously failed with AccessDeniedException.
+- **Seasonality loader removed**: Was failing with no data; removed from EventBridge schedule.
+- **Morning prep pipeline**: Added `LOADER_INTERVALS=1d` override to `MorningPrices` step — was fetching weekly/monthly price history too, taking 6+ hours instead of ~15 minutes.
+
+**Migrations deployed:**
+- **009**: Seeds `rs_slope_gate_enabled=true` and `volume_decay_gate_enabled=true` (migration 011 then overwrites both to false)
+- **010**: Drops and recreates `user_dashboard_settings` with `VARCHAR(255)` Cognito sub PK (was INTEGER FK → non-functional; pgcrypto extension not installed)
+- **011**: Softens T3 RS-slope and volume-decay gates to warn-only
+
+**Security round 2:**
+- `/api/health/detailed` and `/api/health/pipeline` now require JWT (were publicly accessible)
+- `/api/research` now requires JWT (was exposing backtest strategy data publicly)
+- Notification DELETE/PATCH require admin group (was any authenticated user)
+- `_check_admin_access()` defensive fix: `.get('cognito:groups') or []` (was `.get(..., [])` which returns None when field is explicitly null, causing TypeError)
+- API Lambda IAM GetSecretValue scoped to `algo/database*` and `settings/*` only
 
 ## Recent Fixes (2026-06-01 continued)
 
