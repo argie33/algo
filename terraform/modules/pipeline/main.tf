@@ -787,7 +787,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       MorningTechnicals = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 36000
+        TimeoutSeconds = 5400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -802,8 +802,10 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          # Fail-open: if technicals fail (e.g. advisory lock conflict with EOD pipeline still
+          # running), still regenerate signals using prior technicals rather than hard-failing.
+          Next        = "MorningSignals"
+          ResultPath  = "$.technicalsError"
         }]
         Next = "MorningSignals"
       }
@@ -910,19 +912,6 @@ resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
   source_arn    = aws_sfn_state_machine.eod_pipeline.arn
 }
 
-# ============================================================
-# EventBridge rule: fires at 4:05pm ET = 20:05 UTC Mon-Fri
-# (5 min after market close gives Alpaca time to settle EOD prices)
-#
-# IMPORTANT: Classic EventBridge rules use UTC only and don't support timezone attributes.
-# Therefore:
-#   - EDT (summer): cron(5 20) = 8:05 PM UTC = 4:05 PM EDT ✓ (correct)
-#   - EST (winter): cron(5 20) = 8:05 PM UTC = 3:05 PM EST ✗ (1 hour early!)
-#
-# FUTURE: Migrate EOD pipeline trigger to EventBridge Scheduler (supports schedule_expression_timezone)
-# or split into EDT/EST specific rules. For now, pipeline runs early in EST but data is cached.
-# ============================================================
-
 resource "aws_iam_role" "eventbridge_sfn" {
   name = "${var.project_name}-eventbridge-sfn-role-${var.environment}"
 
@@ -982,12 +971,11 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
   })
 }
 
-# FIXED Issue #2, #3: Migrate to EventBridge Scheduler for timezone-aware cron
-# Classic EventBridge rules use UTC only; Scheduler supports schedule_expression_timezone
-# This fixes the "pipeline runs 1h early in winter (EST)" bug
+# EventBridge Scheduler (timezone-aware): both pipelines use America/New_York so they
+# fire at the correct wall-clock time year-round regardless of EST/EDT offset.
 #
-# Morning: 4:30 AM ET (not dependent on EST/EDT)
-# EOD: 4:05 PM ET (not dependent on EST/EDT, 5 min after market close)
+# Morning: 4:30 AM ET   — loads prices + technicals before market open
+# EOD:     4:05 PM ET   — 5 min after market close, gives Alpaca time to settle prices
 
 resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
   name                         = "${var.project_name}-morning-pipeline-${var.environment}"

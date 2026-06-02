@@ -473,6 +473,9 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 **RDS (db.t4g.micro, 1 GB RAM):**
 - Performance Insights: ENABLED (7-day free retention). Previously blocked by `env == "prod"` condition; now unconditional.
 - `statement_timeout = 30000ms` set in RDS parameter group. Applies to all connections via RDS Proxy without per-request overhead.
+- `work_mem = 16384` (16 MB per sort/hash operation). Allows in-memory sorts and hash joins over 5000 symbols without spilling to disk. Default was 4 MB.
+- `effective_cache_size = 786432` (768 MB = 75% of 1 GB RAM). Planner hint — tells PostgreSQL index scans are cheap because most of the data fits in OS + shared buffer cache.
+- `random_page_cost = 1.1` (from default 4.0). Corrects planner cost model for SSD-backed RDS storage; makes index scans preferred over sequential scans for selective queries.
 - Known limitation: 1 GB RAM constrains shared_buffers (~256 MB). Complex queries over 5000 symbols cause disk I/O. Upgrade to `db.t4g.small` (2 GB, ~$20/month more) if query durations in Performance Insights regularly exceed 5 seconds.
 
 **CloudFront:**
@@ -480,10 +483,16 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - API: `Managed-CachingDisabled`. All /api/* requests pass through to API Gateway.
 - Client-side: `dataCache.js` caches API responses 5 minutes in-memory (per Lambda instance).
 
+**AWS Performance Review Gap Closure (2026-06-01):**
+- **CRITICAL FIXED:** 3 PM SLA-critical orchestrator run cold start risk. Added 2:55 PM pre-warm schedule (dry_run=true) to eliminate 15-40s VPC cold start that would blow the 3:15 PM finish deadline. Cost: one Lambda invocation (~$0.0000002).
+- **CRITICAL FIXED:** 1 PM orchestrator run cold start risk. Added 12:55 PM pre-warm schedule (dry_run=true) to prevent guaranteed cold start after 3+ hour gap from 9:30 AM finish.
+- **CRITICAL FIXED:** MorningTechnicals timeout reduced from 36000s (10 hours) to 5400s (1.5 hours). If stuck, morning prep now times out by 6 AM ET instead of potentially blocking until 2:30 PM ET. Morning signals and swing scores remain fresh for 9:30 AM run.
+
 **Outstanding performance gaps (not yet fixed):**
 - Analytics loaders (company_profile etc.) iterate 5000+ symbols via yfinance serially. Root fix: batch yfinance calls via `yf.download(tickers, group_by='ticker')` with concurrent chunking. Current mitigation: 2-hour ECS task kill.
-- Fargate Spot capacity: supporting loaders (EventBridge-triggered) run on FARGATE_SPOT. Core EOD loaders (Step Functions, 4:30 AM) already hardcode `LaunchType = "FARGATE"` (on-demand) in `terraform/modules/pipeline/main.tf` — Spot interruption only affects supporting loaders, which are non-blocking.
+- Supporting loaders (EventBridge-triggered, non-critical) run on FARGATE_SPOT. Core EOD loaders (Step Functions) use `"LaunchType": "FARGATE"` (on-demand) throughout `terraform/modules/pipeline/main.tf`. The 9 core signal-chain loaders have no EventBridge schedules (removed to prevent double-execution) — Spot interruption only affects non-blocking supporting loaders.
 - Single-AZ RDS: failover is manual. Acceptable cost trade-off until live capital scales up.
+- API Lambda reserved concurrency (30 slots) may be tight: MarketsHealth fires 26 concurrent calls on dashboard load. Headroom of 4 slots. Monitor after adding users; upgrade to 50 if 429s appear under concurrent load.
 
 ## Troubleshooting
 

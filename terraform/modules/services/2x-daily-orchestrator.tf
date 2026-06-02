@@ -290,9 +290,9 @@ resource "aws_scheduler_schedule" "data_patrol_daily" {
 # Enable by setting enable_morning_orchestrator = true (reuses same gate).
 # ============================================================
 
-resource "aws_scheduler_schedule" "algo_orchestrator_prewarm" {
+resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_morning" {
   count                        = var.enable_morning_orchestrator ? 1 : 0
-  name                         = "${var.project_name}-algo-schedule-prewarm-${var.environment}"
+  name                         = "${var.project_name}-algo-schedule-prewarm-morning-${var.environment}"
   description                  = "Pre-warm algo Lambda 5 min before market open (dry_run, no trades) to avoid 15-40s cold start at 9:30 AM"
   schedule_expression          = "cron(25 9 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
@@ -312,6 +312,79 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm" {
       run_identifier = "prewarm"
       dry_run        = true
       note           = "Pre-warm only: warms Lambda container before 9:30 AM market-open run. No trades executed."
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
+# ============================================================
+# Pre-Warm Schedule (12:55 PM ET) — 5 minutes before 1 PM run
+# Prevents cold start on the 1 PM afternoon orchestrator run.
+# Without this, the 3+ hour gap from 9:30 AM finish guarantees a cold start (15-40s VPC init).
+# ============================================================
+
+resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_afternoon" {
+  count                        = var.enable_afternoon_orchestrator ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-prewarm-afternoon-${var.environment}"
+  description                  = "Pre-warm algo Lambda 5 min before 1 PM run (dry_run, no trades) to avoid 15-40s cold start"
+  schedule_expression          = "cron(55 12 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "prewarm"
+      dry_run        = true
+      note           = "Pre-warm only: warms Lambda container before 1:00 PM afternoon run. No trades executed."
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
+# ============================================================
+# Pre-Warm Schedule (2:55 PM ET) — 5 minutes before 3 PM pre-close run
+# CRITICAL SLA: 3 PM run must finish by 3:15 PM ET to leave 45-min buffer for trade execution.
+# Without pre-warm, a 40s cold start + 7 phases running up to 600s blows the SLA.
+# This schedule eliminates cold-start risk entirely for the SLA-critical 3 PM run.
+# ============================================================
+
+resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_preclose" {
+  count                        = var.enable_preclose_orchestrator ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-prewarm-preclose-${var.environment}"
+  description                  = "Pre-warm algo Lambda 5 min before 3 PM SLA-critical run (dry_run, no trades) to guarantee 3:15 PM finish deadline"
+  schedule_expression          = "cron(55 14 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "prewarm"
+      dry_run        = true
+      note           = "Pre-warm only: warms Lambda container before 3:00 PM pre-close run (SLA-critical, must finish by 3:15 PM). No trades executed."
     })
   }
 
