@@ -391,7 +391,7 @@ function RankingsTab({
               <tbody>
                 {rows.map((s, i) => (
                   <tr
-                    key={s.symbol}
+                    key={`${s.symbol}-${i}`}
                     onClick={() => onExpand(s.symbol)}
                     style={{
                       cursor: 'pointer',
