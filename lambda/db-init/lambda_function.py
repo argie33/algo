@@ -220,7 +220,6 @@ def lambda_handler(event, context):
         sql_script = ''
         try:
             # SECURITY FIX S-07: Use absolute path to prevent path traversal
-            import os
             schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
             with open(schema_path, 'r') as f:
                 sql_script = f.read()
