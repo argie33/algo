@@ -101,6 +101,18 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 **Alert flow:** Loader fails → EventBridge task state change → SNS → Email alert
 **Dashboard:** CloudWatch console → CloudWatch → Dashboards → algo-loader-monitoring-dev
 
+## Full-Universe Data Coverage Fix (2026-06-01)
+
+**Root cause of "subset of data" / algo working with limited stock universe:**
+
+Two bugs limited the algo to evaluating only a fraction of the full 5000+ stock universe:
+
+1. **ETF price loader was loading all non-ETF stocks into ETF tables** (`loaders/load_prices.py`): The ETF asset_class path was using `get_active_symbols()` (5000+ non-ETF stocks) as the symbol list for `etf_price_daily/weekly/monthly`. This doubled the data load from ~300 batches to ~600 batches, causing the ECS task to time out (3h limit) before completing stock price updates for L-Z symbols. Stocks alphabetically in the second half (NFLX, ORCL, TSLA, etc.) had stale/missing price data. **Fix:** ETF price tables now only load the 17 essential ETF symbols (sector ETFs, index ETFs, macro ETFs) they actually need.
+
+2. **RS percentile universe was S&P 500 only** (`algo/signals/signal_base.py`): The Mansfield RS percentile ranking used `WHERE is_sp500 = true` as its universe, returning `None` for the 4500+ non-S&P 500 stocks. This reduced their AdvancedFilters composite quality score by up to 15 points. **Fix:** Universe now uses all non-ETF stocks in `stock_symbols` so every active stock gets a proper RS percentile ranking. The `idx_price_daily_symbol_date` composite index makes this efficient for 5000+ symbols.
+
+**Result:** The algo now evaluates the full 5000+ stock universe with fresh daily price data for all symbols, not just the alphabetical first half.
+
 ## Signal Pipeline Reliability (2026-06-01)
 
 **Root cause of "few symbols" / 0-trade days:** When `swing_trader_scores` is empty or stale for the eval date, all BUY signals get `swing_score=0`. The `min_swing_score=55` post-tier gate then eliminates all candidates silently. This happens when the EOD pipeline's SwingScores step times out (was 30 min) or when the chain from TechnicalDataDaily → TrendTemplate → SignalGeneration → SignalQualityScores → SwingScores runs past 9:30 AM ET.

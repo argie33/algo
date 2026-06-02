@@ -513,14 +513,18 @@ def main():
     for asset_class in asset_classes:
         for interval in intervals:
             try:
-                # Build per-asset-class symbol list by appending essentials to the DB list.
+                # Build per-asset-class symbol list.
                 # dict.fromkeys preserves insertion order and deduplicates.
                 if asset_class == 'stock':
                     run_symbols = list(dict.fromkeys(symbols + ESSENTIAL_STOCK_PRICE_DAILY))
                     logger.info(f"[MAIN] stock symbols: {len(symbols)} from DB + {len(ESSENTIAL_STOCK_PRICE_DAILY)} essential ETFs = {len(run_symbols)} total")
                 else:  # etf
-                    run_symbols = list(dict.fromkeys(symbols + ESSENTIAL_ETF_SYMBOLS))
-                    logger.info(f"[MAIN] etf symbols: {len(symbols)} from DB + {len(ESSENTIAL_ETF_SYMBOLS)} essential ETFs = {len(run_symbols)} total")
+                    # ETF tables (etf_price_daily/weekly/monthly) should only contain ETF symbols,
+                    # not the 5000+ non-ETF stocks. Loading all non-ETF stocks into ETF tables
+                    # was doubling the data load (~600 extra batches), causing the ECS task to
+                    # time out before completing stock price updates for L-Z symbols.
+                    run_symbols = list(dict.fromkeys(ESSENTIAL_ETF_SYMBOLS))
+                    logger.info(f"[MAIN] etf symbols: {len(run_symbols)} essential ETFs only (sector, index, macro ETFs)")
 
                 loader = PriceLoader(interval=interval, asset_class=asset_class)
                 logger.info(f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}")
