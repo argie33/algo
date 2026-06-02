@@ -27,7 +27,7 @@ resource "aws_db_proxy" "main" {
   connection_borrow_timeout       = 120  # seconds to wait for available connection
   session_pinning_filters         = []   # No pinning = full multiplexing (better for Lambdas)
   init_query                      = ""   # No startup queries needed
-  max_connection_lifetime_seconds = 3600 # Recycle connections hourly
+  max_connection_lifetime_seconds = 300  # Recycle connections every 5 min to clear stale/idle connections
 
   require_tls            = true
   vpc_subnet_ids         = var.vpc_subnet_ids
