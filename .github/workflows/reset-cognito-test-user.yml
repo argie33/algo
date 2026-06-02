@@ -34,28 +34,27 @@ jobs:
       - name: Get Cognito User Pool ID
         id: pool
         run: |
-          # Try direct lookup by pool name
-          POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 \
-            --query 'UserPools[?Name=="algo-pool-dev"].Id | [0]' \
-            --output text 2>&1 || echo "")
+          # Try to get pool ID from environment or direct lookup
+          echo "Looking up Cognito pool 'algo-pool-dev'..."
 
-          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
-            echo "Direct pool lookup failed, trying S3 config fallback..."
-            # Fallback: get pool ID from frontend config
-            BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?contains(Name, "algo-frontend")].Name | [0]' \
-              --output text 2>&1 || echo "")
+          # Direct list - use simple JQ filtering
+          POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --output json 2>/dev/null | jq -r '.UserPools[] | select(.Name=="algo-pool-dev") | .Id' | head -1)
 
-            if [ -n "$BUCKET" ] && [ "$BUCKET" != "None" ]; then
-              echo "Found frontend bucket: $BUCKET"
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ]; then
+            echo "Direct lookup failed, checking S3 frontend config..."
+
+            # Try to find pool ID from frontend config
+            BUCKET=$(aws s3api list-buckets --output json 2>/dev/null | jq -r '.Buckets[] | select(.Name | startswith("algo-frontend")) | .Name' | head -1)
+
+            if [ -n "$BUCKET" ] && [ "$BUCKET" != "null" ]; then
+              echo "Found bucket: $BUCKET, extracting pool ID..."
               POOL_ID=$(aws s3 cp "s3://${BUCKET}/config.js" - 2>/dev/null | grep -oP '"USER_POOL_ID":\s*"\K[^"]+' || echo "")
-            else
-              echo "ERROR: Could not find frontend bucket"
             fi
           fi
 
-          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ]; then
             echo "ERROR: Could not determine Cognito User Pool ID"
+            echo "This may indicate: missing AWS permissions, pool doesn't exist, or IAM credentials expired"
             exit 1
           fi
 
