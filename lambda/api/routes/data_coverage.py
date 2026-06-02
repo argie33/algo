@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def get_price_coverage(cur) -> Dict[str, Any]:
     """Get price_daily coverage metrics."""
     try:
-
+        cur.execute("SET LOCAL statement_timeout = '10s'")
         cur.execute("""
             SELECT
                 COUNT(DISTINCT symbol) as total_symbols,
@@ -64,7 +64,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
 def get_technical_coverage(cur) -> Dict[str, Any]:
     """Get technical_data_daily coverage and completeness."""
     try:
-
+        cur.execute("SET LOCAL statement_timeout = '10s'")
         cur.execute("""
             SELECT
                 COUNT(DISTINCT symbol) as symbols,
