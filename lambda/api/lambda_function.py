@@ -124,7 +124,9 @@ def test_db_connection():
     Returns: (success: bool, error_msg: Optional[str])
     """
     try:
-        with DatabaseContext('read', timeout=5) as cur:
+        # 2s timeout: if DB is under heavy load (e.g., ECS loaders running), fail fast
+        # so Lambda init stays short. The handler will reconnect on each request.
+        with DatabaseContext('read', timeout=2) as cur:
             cur.execute("SELECT 1 as connection_test")
             result = cur.fetchone()
             if result and result.get('connection_test') == 1:
