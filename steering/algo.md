@@ -357,6 +357,17 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **Troubleshooting halt flag:** If tomorrow's run halts and you suspect a stale flag: `python scripts/check_halt_flag.py` (needs AWS creds). The auto-expiry in the orchestrator should handle this automatically for flags set on prior days.
 
+## Signal Refresh Fix (2026-06-02 10:00 AM ET)
+
+**Root cause:** Signal generation loaders (buy_sell_daily, signal_quality_scores, swing_trader_scores) were not running because the morning prep pipeline Step Functions state machine was defined in terraform but not deployed. Prices and technicals were fresh (2026-06-01) but signals were stale (2026-05-29).
+
+**Fix applied:** Manually ran signal generation loaders (parallelism: buy_sell_daily=4, signal_quality_scores=8, swing_trader_scores=8). Updated database:
+- buy_sell_daily: now 2026-06-01 (11 BUY signals)
+- signal_quality_scores: now 2026-06-01
+- swing_trader_scores: now 2026-06-01 (19 rows)
+
+**Next deployment:** Terraform will deploy the missing morning_prep_pipeline state machine (cron 4:30 AM ET Mon-Fri) + EventBridge scheduler so signal generation runs automatically every morning before 9:30 AM orchestrator. Prevents future 4-day staleness.
+
 ## Overnight Fixes (2026-06-01 → 2026-06-02)
 
 **Phase 5 signal pipeline improvements:**
