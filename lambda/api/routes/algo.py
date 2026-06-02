@@ -626,7 +626,7 @@ def _get_algo_performance(cur) -> Dict:
                 'sharpe_ratio': round(sharpe, 2),
                 'sortino_annualized': round(sortino, 2),
                 'sortino_ratio': round(sortino, 2),
-                'max_drawdown_pct': round(max_dd * 100, 2),
+                'max_drawdown_pct': round(abs(max_dd) * 100, 2),
                 'calmar_ratio': calmar_ratio,
                 'ulcer_index': ulcer_index,
                 'recovery_factor': recovery_factor,
