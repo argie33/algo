@@ -37,7 +37,7 @@ enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM E
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
 cognito_enabled                  = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
-cognito_test_user_email          = "argeropolos@gmail.com"      # Primary user — created by Terraform with temp password, set permanent via CLI after deploy
+cognito_test_user_email          = "edgebrookecapital@gmail.com" # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
 cognito_custom_email_enabled     = true                        # Cognito custom message Lambda for professional emails via SES
 
 # Database configuration
