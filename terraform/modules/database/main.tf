@@ -303,16 +303,15 @@ resource "aws_db_proxy" "main" {
 
 # Configure connection pool for the default target group (executes before aws_db_proxy_target)
 resource "aws_db_proxy_default_target_group" "main" {
-  count                = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name        = aws_db_proxy.main[0].name
+  count             = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name     = aws_db_proxy.main[0].name
 
-  connection_pool_config {
-    max_idle_connections      = 50
-    max_connections           = 200  # 36+ loaders (9 core + 28 supporting) + API Lambda + headroom
-    connection_borrow_timeout = 120
-    session_pinning_filters   = []   # No session pinning = full multiplexing for better resource utilization
-    init_query                = ""   # No init queries needed
-  }
+  # Fix connection pool exhaustion: 36+ concurrent loaders + API + headroom
+  max_idle_connections      = 50
+  max_connections           = 200
+  connection_borrow_timeout = 120
+  session_pinning_filters   = []
+  init_query                = ""
 
   depends_on = [aws_db_proxy.main]
 }
