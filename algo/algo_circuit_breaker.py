@@ -26,11 +26,12 @@ When a circuit breaker fires:
 import json
 from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date
-from typing import Dict, Any, List
+from typing import Dict, Any
 from utils.trade_status import TradeStatus, PositionStatus
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class CircuitBreaker:
     """Pre-trade kill-switch checks."""
@@ -299,7 +300,7 @@ class CircuitBreaker:
 
         wins = int(row[0] or 0)
         losses = int(row[1] or 0)
-        breakeven = int(row[2] or 0)
+        int(row[2] or 0)  # breakeven trades (excluded from win rate calculation)
         total = int(row[3])
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
@@ -395,7 +396,7 @@ class CircuitBreaker:
             # Compute daily returns
             returns = []
             for i in range(1, len(prices)):
-                ret = (prices[i] - prices[i-1]) / prices[i-1]
+                ret = (prices[i] - prices[i - 1]) / prices[i - 1]
                 returns.append(ret)
 
             # Standard deviation of returns * sqrt(252) to annualize
@@ -664,6 +665,7 @@ class CircuitBreaker:
         except Exception as e:
             logger.warning(f"Warning: Could not send circuit breaker notification: {e}")
 
+
 if __name__ == "__main__":
     from algo.algo_config import get_config
     cb = CircuitBreaker(get_config())
@@ -673,6 +675,6 @@ if __name__ == "__main__":
         flag = '[HALT]' if state.get('halted') else '[OK]  '
         logger.info(f"  {flag} {name:22s} : {state.get('reason', 'no detail')}")
     if result['halted']:
-        logger.info(f"\nHALT REASONS:")
+        logger.info("\nHALT REASONS:")
         for r in result['halt_reasons']:
             logger.info(f"  - {r}")

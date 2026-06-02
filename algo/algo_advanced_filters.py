@@ -7,6 +7,7 @@ from algo.algo_signals import SignalComputer
 
 logger = logging.getLogger(__name__)
 
+
 class AdvancedFilters:
     """Quality boosters that turn 'qualifying' signals into 'best' signals."""
 
@@ -641,4 +642,3 @@ class AdvancedFilters:
                 next_q_date = _date(next_q_date.year + 1, 1, 15)
 
         return (next_q_date - signal_d).days
-

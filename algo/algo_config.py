@@ -9,11 +9,12 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 import os
 import time
 import logging
-from typing import Optional, Any, Dict
+from typing import Any
 from config.credential_validator import assert_credentials
 from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
+
 
 def validate_environment():
     """Validate that all required environment variables are set."""
@@ -28,6 +29,7 @@ try:
 except Exception as e:
     logger.error(f"ERROR: Environment validation failed: {e}")
     raise
+
 
 class AlgoConfig:
     """Configuration manager with hot-reload from database."""
