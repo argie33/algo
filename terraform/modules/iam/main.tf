@@ -1386,6 +1386,22 @@ data "aws_iam_policy_document" "developer" {
 
     resources = ["*"]
   }
+
+  # DynamoDB (read/write orchestrator state for halt flag inspection and emergency clear)
+  statement {
+    sid    = "DynamoDBOrchestratorState"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DescribeTable"
+    ]
+
+    resources = [
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/algo_orchestrator_state"
+    ]
+  }
 }
 
 # Managed policy for Cognito (inline policies are capped at 2048 bytes combined per user;
