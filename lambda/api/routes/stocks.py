@@ -33,13 +33,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=200)
             # Fast check: return empty if financial data not loaded yet (table missing or empty)
             try:
+                cur.execute("SET statement_timeout TO '2s'")
                 cur.execute("SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1")
+                cur.execute("SET statement_timeout TO DEFAULT")
                 if not cur.fetchone():
                     return list_response([])
             except Exception:
                 return list_response([])
             try:
-                cur.execute("SET statement_timeout TO '28s'")
+                cur.execute("SET statement_timeout TO '8s'")
                 cur.execute("""
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
