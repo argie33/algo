@@ -1,9 +1,8 @@
-# Shared-deps Lambda layer: ONLY packages not already available in Lambda runtime
-# or other layers. Lambda runtime already provides boto3, botocore, urllib3.
-# The psycopg2 layer provides psycopg2. The API layer provides requests.
+# Shared-deps Lambda layer — numpy only (scipy is 40+ MB and pushes base64-encoded
+# request over Lambda's 70 MB API limit; scipy imports all fail-open already).
+# Raw zip must be under ~50 MB so base64-encoded upload stays under 70167211 bytes.
 #
-# Keep this list minimal — numpy+scipy alone are ~60 MB and near the 67 MB direct-upload limit.
+# scipy features (weight optimization, IC, attribution) continue to fail-open
+# gracefully when scipy is missing — Phase 7 log: "scipy not available".
 
-# Scientific computing (required for Phase 7 portfolio optimization, VaR, IC)
 numpy>=1.24.0
-scipy>=1.10.0

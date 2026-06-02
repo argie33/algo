@@ -272,12 +272,13 @@ jobs:
           SIZE=$(du -sh $OUTPUT_ZIP | cut -f1)
           ZIP_BYTES=$(stat -c%s $OUTPUT_ZIP)
           echo "shared-deps layer: $SIZE ($ZIP_BYTES bytes)"
-          # AWS hard limit: 70167211 bytes. Use 66 MB (69206016) as threshold for margin.
-          if [ $ZIP_BYTES -gt 69206016 ]; then
-            echo "[WARN] Layer $SIZE exceeds 66 MB threshold — deleting zip so Terraform skips it (Phase 7 fails-open)"
+          # AWS limit: 70167211 bytes BASE64-ENCODED, so raw zip must be < ~52 MB.
+          # Threshold: 50 MB raw (52428800 bytes) for safe headroom.
+          if [ $ZIP_BYTES -gt 52428800 ]; then
+            echo "[WARN] Layer $SIZE exceeds 50 MB raw threshold (base64 overhead would hit 70 MB API limit) — deleting zip so Terraform skips it (Phase 7 fails-open)"
             rm -f $OUTPUT_ZIP
           else
-            echo "[OK] Layer $SIZE is within 66 MB limit — will be deployed via Terraform"
+            echo "[OK] Layer $SIZE is within 50 MB limit — will be deployed via Terraform"
           fi
 
       - name: Build db-init Lambda
