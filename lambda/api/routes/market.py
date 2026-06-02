@@ -30,12 +30,34 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
+                # Compute advancing/declining counts per trading day using LAG window function.
+                # Uses a date-range window (not a correlated subquery) so it runs in one pass.
                 cur.execute("""
-                    SELECT date,
-                        ROUND(advance_decline_ratio * 1000) AS total,
-                        ROUND(advance_decline_ratio * 1000 / (1 + advance_decline_ratio)) AS advances
-                    FROM market_health_daily
-                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                    WITH recent AS (
+                        SELECT symbol, date, close
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '35 days'
+                          AND symbol NOT LIKE '^^%%'
+                    ),
+                    with_prev AS (
+                        SELECT
+                            symbol, date, close,
+                            LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
+                        FROM recent
+                    ),
+                    daily AS (
+                        SELECT date,
+                            COUNT(*) FILTER (WHERE close > prev_close)  AS advances,
+                            COUNT(*) FILTER (WHERE close < prev_close)  AS declines,
+                            COUNT(*) FILTER (WHERE close = prev_close)  AS unchanged,
+                            COUNT(*) FILTER (WHERE prev_close IS NOT NULL) AS total
+                        FROM with_prev
+                        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                          AND prev_close IS NOT NULL
+                        GROUP BY date
+                    )
+                    SELECT date, advances, declines, unchanged, total
+                    FROM daily
                     ORDER BY date DESC
                 """)
                 breadth = cur.fetchall()

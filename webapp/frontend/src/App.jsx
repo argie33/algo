@@ -462,7 +462,7 @@ function App() {
         <Route path="/app/performance" element={<ErrorBoundary><ProtectedRoute requireAuth><PerformanceMetrics /></ProtectedRoute></ErrorBoundary>} />
 
         {/* Research & Testing */}
-        <Route path="/app/backtests" element={<ErrorBoundary><BacktestResults /></ErrorBoundary>} />
+        <Route path="/app/backtests" element={<ErrorBoundary><ProtectedRoute requireAuth><BacktestResults /></ProtectedRoute></ErrorBoundary>} />
 
         {/* Algo */}
         <Route path="/app/algo-dashboard" element={<ErrorBoundary><ProtectedRoute requireAuth><AlgoTradingDashboard /></ProtectedRoute></ErrorBoundary>} />

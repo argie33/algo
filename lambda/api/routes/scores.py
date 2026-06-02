@@ -30,9 +30,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == 'true', symbol)
             else:
                 return error_response(404, 'not_found', f'No scores handler for {path}')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Scores data unavailable: {e}')
+            return error_response(503, 'service_unavailable', 'Data unavailable')
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f'Scores DB error: {e}')
+            return error_response(503, 'service_unavailable', 'Database unavailable')
         except Exception as e:
-            logger.warning(f'Scores handler error: {e}')
-            return list_response([])
+            logger.error(f'Scores handler error: {e}', exc_info=True)
+            return error_response(500, 'internal_error', 'Scores handler failed')
 
 def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'composite_score',
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
@@ -196,7 +202,13 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
             freshness = check_data_freshness(cur, 'stock_scores', 'updated_at', warning_days=7)
 
             return list_response(items, data_freshness=freshness)
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Stock scores data unavailable: {e}')
+            return error_response(503, 'service_unavailable', 'Data unavailable')
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f'Stock scores DB error: {e}')
+            return error_response(503, 'service_unavailable', 'Database unavailable')
         except Exception as e:
-            logger.warning(f'Stock scores unavailable: {e}')
-            return list_response([])
+            logger.error(f'Stock scores query failed: {e}', exc_info=True)
+            return error_response(500, 'internal_error', 'Failed to fetch stock scores')
 

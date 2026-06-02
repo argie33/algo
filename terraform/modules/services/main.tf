@@ -1154,3 +1154,39 @@ resource "aws_iam_role_policy" "api_contact_rate_limit" {
     ]
   })
 }
+
+# ============================================================
+# API Lambda Warmup (cold-start mitigation)
+# ============================================================
+# Fires every 4 minutes so the Lambda container stays alive.
+# Provisioned concurrency requires a published alias pointed to
+# by API Gateway — that creates a Terraform cycle with the
+# psycopg2 layer.  A periodic ping achieves the same effect:
+# keeps one container warm, costs ~0 (free-tier invocations).
+# The Lambda handler returns 200 immediately on warmup events
+# without opening a DB connection.
+
+resource "aws_cloudwatch_event_rule" "api_lambda_warmup" {
+  name                = "${var.project_name}-api-warmup-${var.environment}"
+  description         = "Keep API Lambda warm every 4 min to avoid VPC cold-start 502s"
+  schedule_expression = "rate(4 minutes)"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-api-warmup"
+  })
+}
+
+resource "aws_cloudwatch_event_target" "api_lambda_warmup" {
+  rule      = aws_cloudwatch_event_rule.api_lambda_warmup.name
+  target_id = "APILambdaWarmup"
+  arn       = aws_lambda_function.api.arn
+  input     = jsonencode({ source = "warmup", keep_alive = true })
+}
+
+resource "aws_lambda_permission" "api_lambda_warmup" {
+  statement_id  = "AllowWarmupEventBridge"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.api_lambda_warmup.arn
+}

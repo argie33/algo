@@ -654,6 +654,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         }
 
+    # EventBridge warmup ping — return immediately without touching DB or Cognito.
+    # Keeps one Lambda container alive to eliminate VPC cold-start 502s for real users.
+    if event.get('source') == 'warmup':
+        return {'statusCode': 200, 'body': 'warm'}
+
     # Health check returns immediately — even if imports failed (uptime monitors must always succeed)
     if path in ['/health', '/api/health']:
         cors_headers = get_cors_headers(event)

@@ -243,8 +243,11 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 VALID_ACTION_TYPES = {'entry', 'exit', 'alert', 'halt', 'reconciliation', 'error',
                                       'stop', 'pyramid', 'skip', 'pass',
                                       'phase_1_data_freshness', 'phase_2_circuit_breakers', 'phase_3_position_monitor',
-                                      'phase_4_exit_execution', 'phase_5_signal_generation', 'phase_6_entry_execution',
-                                      'phase_7_reconciliation', 'halt_flag_detected'}
+                                      'phase_3b_exposure_policy', 'phase_4_exit_execution', 'phase_4b_pyramid_adds',
+                                      'phase_5_signal_generation', 'phase_6_entry_execution',
+                                      'phase_7_reconciliation', 'halt_flag_detected',
+                                      'position_review', 'position_monitor', 'pipeline_health',
+                                      'single_stock_halts', 'halt_check_error'}
                 if action_type not in VALID_ACTION_TYPES:
                     return error_response(400, 'bad_request', f'Invalid action_type: {action_type}')
             return _get_algo_audit_log(cur, limit, offset, action_type)
@@ -333,9 +336,9 @@ def _get_algo_status(cur) -> Dict:
                         'unrealized_pnl_pct': round((float(snap[2] or 0) / pv * 100) if pv > 0 else 0, 2),
                         'open_positions': int(snap[3] or 0),
                     }
-            except Exception as e:
-                logger.warning(f"Exception caught: {e}")
-                pass
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                    psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+                logger.warning(f"[STATUS] Portfolio snapshot unavailable: {type(e).__name__}: {e}")
 
             freshness = check_data_freshness(cur, 'algo_audit_log', 'created_at', warning_days=1)
             return json_response(200, {
@@ -378,20 +381,90 @@ def _get_algo_trades(cur, limit: int = 200) -> Dict:
             return handle_db_error(e, logger, 'fetch algo trades')
 
 def _get_algo_positions(cur) -> Dict:
-        """Get current open positions with all tracking fields."""
+        """Get current open positions enriched with targets, sector, stage, and computed risk fields."""
         try:
             cur.execute("""
-                SELECT position_id, symbol, quantity, avg_entry_price, current_price,
-                       position_value, unrealized_pnl, unrealized_pnl_pct, status,
-                       days_since_entry, distribution_day_count, target_levels_hit,
-                       current_stop_price, current_stop_price AS stop_loss_price,
-                       stage_in_exit_plan, created_at, updated_at
-                FROM algo_positions
-                WHERE LOWER(status) = 'open'
-                ORDER BY position_value DESC
+                WITH latest_trend AS (
+                    SELECT DISTINCT ON (symbol)
+                        symbol, weinstein_stage, minervini_trend_score, percent_from_52w_low
+                    FROM trend_template_data
+                    WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                    ORDER BY symbol, date DESC
+                )
+                SELECT
+                    p.position_id, p.symbol, p.quantity, p.avg_entry_price, p.current_price,
+                    p.position_value, p.unrealized_pnl, p.unrealized_pnl_pct, p.status,
+                    p.days_since_entry, p.distribution_day_count, p.target_levels_hit,
+                    p.current_stop_price,
+                    p.current_stop_price AS stop_loss_price,
+                    p.stage_in_exit_plan, p.created_at, p.updated_at,
+                    -- Original entry trade: stop and targets
+                    ot.stop_loss_price AS trade_stop_price,
+                    ot.target_1_price, ot.target_2_price, ot.target_3_price,
+                    -- Sector from company_profile
+                    cp.sector,
+                    -- Stage / trend from trend_template_data
+                    lt.weinstein_stage,
+                    lt.minervini_trend_score,
+                    lt.percent_from_52w_low AS pct_from_52w_low,
+                    -- Computed: r_multiple = (current - entry) / (entry - stop)
+                    CASE
+                        WHEN p.avg_entry_price IS NOT NULL
+                             AND p.current_stop_price IS NOT NULL
+                             AND (p.avg_entry_price - p.current_stop_price) > 0
+                        THEN ROUND(
+                            ((p.current_price - p.avg_entry_price) /
+                             (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
+                    END AS r_multiple,
+                    -- open_risk_dollars = quantity * (entry_price - stop_price)
+                    CASE
+                        WHEN p.current_stop_price IS NOT NULL AND p.avg_entry_price > p.current_stop_price
+                        THEN ROUND((p.quantity * (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
+                    END AS open_risk_dollars,
+                    -- distance_to_stop_pct: positive = above stop, negative = stop already broken
+                    CASE
+                        WHEN p.current_stop_price IS NOT NULL AND p.current_price > 0
+                        THEN ROUND(
+                            ((p.current_price - p.current_stop_price) / p.current_price * 100)::NUMERIC, 2)
+                    END AS distance_to_stop_pct,
+                    -- distance_to_t1/t2/t3_pct: positive = target above current price
+                    CASE
+                        WHEN ot.target_1_price IS NOT NULL AND p.current_price > 0
+                        THEN ROUND(
+                            ((ot.target_1_price - p.current_price) / p.current_price * 100)::NUMERIC, 2)
+                    END AS distance_to_t1_pct,
+                    CASE
+                        WHEN ot.target_2_price IS NOT NULL AND p.current_price > 0
+                        THEN ROUND(
+                            ((ot.target_2_price - p.current_price) / p.current_price * 100)::NUMERIC, 2)
+                    END AS distance_to_t2_pct,
+                    CASE
+                        WHEN ot.target_3_price IS NOT NULL AND p.current_price > 0
+                        THEN ROUND(
+                            ((ot.target_3_price - p.current_price) / p.current_price * 100)::NUMERIC, 2)
+                    END AS distance_to_t3_pct
+                FROM algo_positions p
+                LEFT JOIN LATERAL (
+                    SELECT stop_loss_price, target_1_price, target_2_price, target_3_price
+                    FROM algo_trades at
+                    WHERE p.trade_ids_arr IS NOT NULL AND at.trade_id = ANY(p.trade_ids_arr)
+                    ORDER BY at.id ASC
+                    LIMIT 1
+                ) ot ON true
+                LEFT JOIN company_profile cp ON cp.ticker = p.symbol
+                LEFT JOIN latest_trend lt ON lt.symbol = p.symbol
+                WHERE LOWER(p.status) = 'open'
+                ORDER BY p.position_value DESC
             """)
             positions = cur.fetchall()
-            items = [dict(p) for p in positions]
+            items = []
+            for p in positions:
+                d = dict(p)
+                # Prefer current_stop_price (updated by monitor) over original trade stop
+                if d.get('current_stop_price') is None and d.get('trade_stop_price') is not None:
+                    d['current_stop_price'] = d['trade_stop_price']
+                    d['stop_loss_price'] = d['trade_stop_price']
+                items.append(d)
             freshness = check_data_freshness(cur, 'algo_positions', 'updated_at', warning_days=1)
             return json_response(200, {
                 'items': items,
@@ -1234,15 +1307,24 @@ def _get_sector_breadth(cur) -> Dict:
             """)
             breadth = cur.fetchall()
             return list_response([dict(b) for b in breadth])
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.warning(f'Sector breadth data unavailable: {e}')
+            return error_response(503, 'service_unavailable', 'Data unavailable')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Sector breadth DB connection error: {e}')
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Sector breadth DB error: {e}')
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.warning(f'Sector breadth unavailable: {e}', extra={'operation': 'get sector breadth'})
-            return list_response([])
+            logger.error(f'Sector breadth unexpected error: {e}', extra={'operation': 'get sector breadth'})
+            return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
             cur.execute("SET statement_timeout TO '25s'")
             # Use psycopg2.sql for safe SQL composition
-            filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '7 days'")]
+            filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '14 days'")]
             query_params = []
             if min_score is not None:
                 filters.append(psycopg2.sql.SQL("s.score >= %s"))
@@ -1503,8 +1585,7 @@ def _get_markets(cur) -> Dict:
                 if mh:
                     market_health = dict(mh)
             except Exception as e:
-                logger.warning(f"Exception caught: {e}")
-                pass
+                logger.warning(f"[MARKETS] market_health_daily unavailable: {type(e).__name__}: {e}")
 
             return json_response(200, {
                 'success': True,
@@ -1831,17 +1912,17 @@ def _get_sector_stage2(cur) -> Dict:
             rows = cur.fetchall()
             return list_response([dict(r) for r in rows])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.warning(f'Table/column not ready (sector stage2): {e}')
-            return list_response([])
+            logger.warning(f'Sector stage2 data unavailable: {e}')
+            return error_response(503, 'service_unavailable', 'Data unavailable')
         except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get sector stage2'})
+            logger.error(f'Sector stage2 DB connection error: {e}')
             return error_response(503, 'service_unavailable', 'Database unavailable')
         except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
-            return list_response([])
+            logger.error(f'Sector stage2 DB error: {e}')
+            return error_response(500, 'internal_error', 'Database query failed')
         except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector stage2', 'error_type': type(e).__name__})
-            return list_response([])
+            logger.error(f'Sector stage2 unexpected error: {e}')
+            return error_response(500, 'internal_error', 'Failed to fetch sector stage2')
 def _get_algo_config(cur) -> Dict:
         """Return all algo configuration rows."""
         try:

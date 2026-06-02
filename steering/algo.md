@@ -33,13 +33,15 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 ## Schedule
 
 **Daily runs (Mon-Fri):**
-- 3:25 AM ET: stock_symbols
-- 3:30 AM ET: sp500/russell constituents
-- 4:00 AM ET: stock_prices_daily
-- 4:30 AM ET: step functions EOD pipeline (9 core loaders)
+- 3:25 AM ET: stock_symbols (EventBridge)
+- 3:30 AM ET: sp500/russell constituents (EventBridge)
+- 4:30 AM ET: morning-prep-pipeline (Step Functions) — loads 1d prices (stock+etf), technicals, **then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores** (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
+- 4:05 PM ET: EOD pipeline (Step Functions, 9 core loaders) — loads all intervals (1d/1wk/1mo), signals, scores, orchestrator dry-run.
 - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
 
 **Loaders:** 37 total (9 core via Step Functions, 28 supporting via EventBridge). Core loaders: stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily, trend_template_data, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores.
+
+**LOADER_PARALLELISM:** All loaders read thread-pool concurrency from the `LOADER_PARALLELISM` environment variable (set by Terraform ECS task definition). CLI `--parallelism` arg falls back to the env var. Critical path loaders (technical_data_daily, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores) run at parallelism=4. Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics, growth_metrics, quality_metrics) run at parallelism=1 to avoid yfinance rate limits and RDS saturation.
 
 ## Infrastructure Constraints
 
@@ -98,6 +100,30 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 
 **Alert flow:** Loader fails → EventBridge task state change → SNS → Email alert
 **Dashboard:** CloudWatch console → CloudWatch → Dashboards → algo-loader-monitoring-dev
+
+## Signal Pipeline Reliability (2026-06-01)
+
+**Root cause of "few symbols" / 0-trade days:** When `swing_trader_scores` is empty or stale for the eval date, all BUY signals get `swing_score=0`. The `min_swing_score=55` post-tier gate then eliminates all candidates silently. This happens when the EOD pipeline's SwingScores step times out (was 30 min) or when the chain from TechnicalDataDaily → TrendTemplate → SignalGeneration → SignalQualityScores → SwingScores runs past 9:30 AM ET.
+
+**Fixes deployed:**
+
+1. **Swing score fallback** (`algo/algo_filter_pipeline.py`): When <10% of evaluated BUY signals have non-zero swing scores, the `min_swing_score` gate is bypassed and candidates are ranked by `minervini_trend_score` instead. Prevents 0-trade cascade on swing-score outage days.
+
+2. **Phase 1 swing score freshness warning** (`algo/orchestrator/phase1_data_freshness.py`): Detects stale/missing swing scores and fires an SNS/email alert at 9:30 AM so the issue is visible before it silently produces 0 trades.
+
+3. **Phase 5 zero-trade alert** (`algo/orchestrator/phase5_signal_generation.py`): When `len(qualified)==0` on a live run, fires `AlertManager.send_position_alert('SIGNAL', 'ZERO_QUALIFIED_TRADES', ...)` with full diagnostic context (buy signal count, Stage 2 count, market stage, VIX).
+
+4. **T3 gates softened** (`migrations/versions/007_soften_t3_gates.py`): `rs_slope_gate_enabled` and `volume_decay_gate_enabled` set to `false` (warn-only). Consolidating bases show flat/declining RS slope and drying volume — hard-gating on these rejects the exact setups Minervini methodology targets. The remaining 6 hard gates (Stage 2, Minervini score, 52w distances, RS line strength, weekly Stage 2) maintain quality.
+
+5. **SwingScores Step Functions timeout** (`terraform/modules/pipeline/main.tf`): Raised from 1800s (30 min) → 3600s (1h). 5000+ symbols with DB joins can approach 30 min under load.
+
+6. **Morning prep refreshes signals** (`terraform/modules/pipeline/main.tf`): `morning_prep_pipeline` now runs `buy_sell_daily → signal_quality_scores → swing_trader_scores` after prices+technicals (all fail-open). Guarantees fresh swing scores before 9:30 AM even when the EOD pipeline's signal steps run past midnight.
+
+**Debugging 0-trade days:**
+1. Check Phase 1 CloudWatch logs for `[SWING SCORES]` warnings.
+2. Check Phase 5 logs for `[SWING FALLBACK]` — if present, swing scores were stale but fallback kicked in.
+3. Check `[ZERO TRADES DIAGNOSIS]` log line for buy_signals/stage2_stocks/market_stage.
+4. Check Step Functions console for morning-prep-pipeline execution status.
 
 ## Orchestrator Phases
 
@@ -209,7 +235,14 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Intraday pricing: IMPLEMENTED (F-01). RealtimePricingEngine fetches real-time prices (Alpaca → IEX → YFinance) during market hours; falls back to daily prices. Position monitor (Phase 3) uses live prices when available for accurate 1 PM and 3 PM position sizing.
 - Loader monitoring: IMPLEMENTED (F-04). CloudWatch dashboard shows loader status. EventBridge + SNS alerts on task failures.
 
-**⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars but `alpaca_paper_trading = false` (LIVE TRADING). All AWS resources named `-dev`. If staging is provisioned in same account, rename this to `prod` to prevent conflicts. For now: documented understanding that "dev" = live capital environment.
+**⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars. All AWS resources named `-dev`. If staging is provisioned in same account, rename this to `prod` to prevent conflicts. For now: documented understanding that "dev" = live capital environment.
+
+**⚠️ Trading Mode:** `alpaca_paper_trading = true` (PAPER mode). The `algo/alpaca` Secrets Manager secret contains paper trading keys (PK prefix). With `paper_trading=false`, the credential manager would use those paper keys against `api.alpaca.markets` (live endpoint) and receive 401 on every Alpaca call, blocking Phase 4/6/7. Paper mode correctly routes to `paper-api.alpaca.markets`.
+
+**To switch to live trading:**
+1. Run GitHub Actions → `update-credentials.yml` → set `trading_mode=live` to load live Alpaca keys into `algo/alpaca`
+2. Change `alpaca_paper_trading = false` in `terraform/terraform.tfvars`
+3. Push → triggers deploy → Terraform propagates to Lambda env vars
 
 ## Security Hardening (2026-06-01)
 
@@ -260,6 +293,8 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 5. **Migration 005** (`migrations/versions/005_seed_algo_config.py`): Seeds all `algo_config` defaults in the DB on deploy. ON CONFLICT DO NOTHING so safe to re-run. Previously the table was empty and hot-reload config changes had no effect.
 
 6. **Migration 006** (`migrations/versions/006_update_t3_threshold.py`): Lowers `min_trend_template_score` 7→6. Score=7 was filtering 91% of T3 candidates (36/1472 passed). Score=6 still enforces strong Minervini alignment while allowing legitimate high-quality setups through.
+
+6b. **Migration 011** (`migrations/versions/011_soften_t3_gates.py`): Sets `rs_slope_gate_enabled=false` and `volume_decay_gate_enabled=false`. Consolidating bases show flat/declining RS slope and drying volume by design — hard-gating on these rejected the exact Minervini setups we want. Both are now warn-only.
 
 7. **Phase 5 transaction abort** (`algo/algo_filter_pipeline.py`): Added early-exit detection when transaction is already aborted — stops Phase 5 immediately and logs CRITICAL instead of silently returning 0 candidates.
 
@@ -383,13 +418,39 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Kept scheduled jobs separate (consolidating breaks schedules)
 - Kept production paths untouched (deploy-all-infrastructure, ci-gates are sacred)
 
+## Performance Architecture
+
+**API Lambda (256 MB, 28s timeout, 30 reserved concurrency, 1 provisioned concurrency):**
+- Provisioned concurrency wired via `aws_lambda_provisioned_concurrency_config` in `terraform/modules/services/main.tf`. Requires `publish=true` on the Lambda. Every deploy creates a new version; PC config is updated to target the new version (60-90s warm-up window).
+- `statement_timeout` is set to 30 seconds at the RDS parameter group level (not per-request). Removed from per-request path in `lambda/api/lambda_function.py`.
+- CloudFront `error_caching_min_ttl = 300` for SPA 403/404 → index.html rewrites: hard reloads to /dashboard etc. are served from edge cache, not S3 origin.
+
+**Orchestrator Lambda (512 MB, 600s timeout, 1 reserved concurrency, 0 provisioned concurrency):**
+- Pre-warm schedule: 9:25 AM ET Mon-Fri (5 minutes before market open). `run_identifier=prewarm`, `dry_run=true`. Acquires and releases the DynamoDB lock in ~5s, leaving the Lambda container warm for the 9:30 AM trading run. Defined in `terraform/modules/services/2x-daily-orchestrator.tf`.
+- The 5:30 PM → 9:30 AM gap (16h) would otherwise guarantee a cold start. Pre-warm prevents this.
+
+**RDS (db.t4g.micro, 1 GB RAM):**
+- Performance Insights: ENABLED (7-day free retention). Previously blocked by `env == "prod"` condition; now unconditional.
+- `statement_timeout = 30000ms` set in RDS parameter group. Applies to all connections via RDS Proxy without per-request overhead.
+- Known limitation: 1 GB RAM constrains shared_buffers (~256 MB). Complex queries over 5000 symbols cause disk I/O. Upgrade to `db.t4g.small` (2 GB, ~$20/month more) if query durations in Performance Insights regularly exceed 5 seconds.
+
+**CloudFront:**
+- Static assets: `Managed-CachingOptimized` (long TTL, compressed). SPA routes cached 5 minutes at edge after first navigation.
+- API: `Managed-CachingDisabled`. All /api/* requests pass through to API Gateway.
+- Client-side: `dataCache.js` caches API responses 5 minutes in-memory (per Lambda instance).
+
+**Outstanding performance gaps (not yet fixed):**
+- Analytics loaders (company_profile etc.) iterate 5000+ symbols via yfinance serially. Root fix: batch yfinance calls via `yf.download(tickers, group_by='ticker')` with concurrent chunking. Current mitigation: 2-hour ECS task kill.
+- Fargate Spot capacity: core EOD loaders (Step Functions, 4:30 AM) run on FARGATE_SPOT. Spot interruption can cause stale data by 9:30 AM. Fix: set `capacityProviderStrategy` for core loader task definitions to use FARGATE (On-Demand).
+- Single-AZ RDS: failover is manual. Acceptable cost trade-off until live capital scales up.
+
 ## Troubleshooting
 
 **DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
 
 **API Lambda 503 errors / protected endpoints returning 401 "Unable to fetch Cognito keys":** The API Lambda is in a private VPC subnet. Cognito IDP (`cognito-idp.us-east-1.amazonaws.com`) is a public endpoint. The Lambda security group must allow HTTPS (port 443) egress to `0.0.0.0/0` so Cognito JWKS requests can route via NAT Gateway. If the SG only allows HTTPS to the VPC CIDR (10.0.0.0/16), Cognito will timeout after 30s and every protected endpoint returns 401. Fix: add `egress { from_port=443, cidr_blocks=["0.0.0.0/0"] }` to the api-lambda SG in `terraform/modules/vpc/main.tf` and apply. Reserved concurrency = 30 (MarketsHealth fires 26 concurrent calls on load via batch endpoints).
 
-**API Lambda 500 errors on first request (cold start):** VPC cold-start (15-40s) + API Gateway timeout (29s). Workaround: retry (second request works).
+**API Lambda 500 errors on first request (cold start):** VPC cold-start (15-40s) + API Gateway timeout (29s). Provisioned concurrency (1 unit) is wired in Terraform and activates on every deploy (`aws_lambda_provisioned_concurrency_config` in `terraform/modules/services/main.tf`). If 502s recur after a fresh deploy, allow 60-90 seconds for PC warm-up to complete before testing. Workaround if PC isn't active: retry (second request works).
 
 **Alpaca 401 errors:** Verify PowerShell profile has correct ALPACA_PAPER_TRADING and APCA_API_BASE_URL settings.
 

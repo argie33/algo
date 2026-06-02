@@ -554,10 +554,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 8: Swing trader scores (depends on signals + metrics) ───────
       # FIXED Issue #4: Graceful degradation — if scoring fails, continue with available data
+      # Timeout raised from 1800→3600: 5000+ symbols at parallelism=8 with DB joins
+      # can approach 30 min under RDS load; 1h buffer prevents premature timeouts.
       SwingScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
+        TimeoutSeconds = 3600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -802,6 +804,85 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
           ErrorEquals = ["States.ALL"]
           Next        = "PipelineFailed"
           ResultPath  = "$.error"
+        }]
+        Next = "MorningSignals"
+      }
+
+      # ── Morning signal refresh (fail-open) ─────────────────────────────
+      # Regenerates buy_sell_daily, signal_quality_scores, and swing_trader_scores
+      # using today's fresh prices and technicals. Ensures the 9:30 AM Lambda
+      # orchestrator always has up-to-date signals even if the EOD pipeline ran slow
+      # or its signal steps didn't complete before midnight.
+      # All three steps are fail-open: a failure here falls through to MorningSuccess
+      # so that price/technical data freshness is never blocked by signal issues.
+      MorningSignals = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["buy_sell_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MorningSuccess"
+          ResultPath  = "$.signalError"
+        }]
+        Next = "MorningQualityScores"
+      }
+
+      MorningQualityScores = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["signal_quality_scores"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MorningSuccess"
+          ResultPath  = "$.qualityError"
+        }]
+        Next = "MorningSwingScores"
+      }
+
+      MorningSwingScores = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 3600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MorningSuccess"
+          ResultPath  = "$.swingError"
         }]
         Next = "MorningSuccess"
       }

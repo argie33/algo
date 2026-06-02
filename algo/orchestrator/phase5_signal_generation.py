@@ -144,6 +144,17 @@ def run(
                         (eval_date,)
                     )
                     stage2_stocks = (cur.fetchone() or [0])[0]
+
+                    diag = {
+                        'eval_date': str(eval_date),
+                        'buy_signals': bsd_count,
+                        'stage2_stocks': stage2_stocks,
+                        'market_stage': mh[1] if mh else None,
+                        'market_trend': mh[2] if mh else None,
+                        'dist_days': mh[3] if mh else None,
+                        'vix': str(mh[4]) if mh else None,
+                    }
+
                     if mh:
                         logger.warning(
                             f"[ZERO TRADES DIAGNOSIS] eval_date={eval_date} | "
@@ -158,6 +169,22 @@ def run(
                             )
                     else:
                         logger.warning(f"[ZERO TRADES DIAGNOSIS] eval_date={eval_date} | market_health_daily: NO ROWS FOUND")
+
+                    # Alert: 0 qualified trades is never silent
+                    # Suppress alert during dry_run to avoid noise from pipeline validation runs
+                    if not dry_run:
+                        try:
+                            from algo.algo_alerts import AlertManager
+                            AlertManager().send_position_alert(
+                                'SIGNAL', 'ZERO_QUALIFIED_TRADES',
+                                f'Phase 5 found 0 qualified trades on {eval_date}. '
+                                f'buy_signals={bsd_count}, stage2_stocks={stage2_stocks}, '
+                                f'market_stage={diag["market_stage"]}, vix={diag["vix"]}. '
+                                f'Check CloudWatch logs for filter rejection details.',
+                                diag,
+                            )
+                        except Exception as _alert_err:
+                            logger.warning(f"Zero-trades alert failed (non-blocking): {_alert_err}")
         except Exception as e:
             logger.warning(f"Signal waterfall report failed (non-blocking): {e}")
 
