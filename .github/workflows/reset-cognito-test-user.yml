@@ -34,17 +34,31 @@ jobs:
       - name: Get Cognito User Pool ID
         id: pool
         run: |
+          # Try direct lookup by pool name
           POOL_ID=$(aws cognito-idp list-user-pools --max-results 20 \
             --query 'UserPools[?Name=="algo-pool-dev"].Id | [0]' \
-            --output text 2>/dev/null || echo "")
+            --output text 2>&1 || echo "")
+
           if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            echo "Direct pool lookup failed, trying S3 config fallback..."
+            # Fallback: get pool ID from frontend config
             BUCKET=$(aws s3api list-buckets \
-              --query 'Buckets[?starts_with(Name, "algo-frontend")].Name | [0]' \
-              --output text 2>/dev/null || echo "")
+              --query 'Buckets[?contains(Name, "algo-frontend")].Name | [0]' \
+              --output text 2>&1 || echo "")
+
             if [ -n "$BUCKET" ] && [ "$BUCKET" != "None" ]; then
+              echo "Found frontend bucket: $BUCKET"
               POOL_ID=$(aws s3 cp "s3://${BUCKET}/config.js" - 2>/dev/null | grep -oP '"USER_POOL_ID":\s*"\K[^"]+' || echo "")
+            else
+              echo "ERROR: Could not find frontend bucket"
             fi
           fi
+
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            echo "ERROR: Could not determine Cognito User Pool ID"
+            exit 1
+          fi
+
           echo "pool_id=$POOL_ID" >> $GITHUB_OUTPUT
           echo "Using pool: $POOL_ID"
 
