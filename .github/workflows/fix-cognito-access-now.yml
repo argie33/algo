@@ -1,0 +1,110 @@
+name: Fix Cognito Access NOW
+
+on:
+  workflow_dispatch:
+    inputs:
+      pool_name:
+        description: 'Cognito pool name (leave blank to auto-detect)'
+        required: false
+        default: 'algo-pool-dev'
+      admin_password:
+        description: 'Admin password'
+        required: true
+        default: 'AdminAccess123!@'
+      user_password:
+        description: 'User password'
+        required: true
+        default: 'UserAccess123!@'
+
+env:
+  AWS_REGION: us-east-1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  fix_cognito:
+    name: Reset Passwords
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Find Cognito Pool
+        id: find_pool
+        run: |
+          echo "Searching for Cognito pools..."
+          aws cognito-idp list-user-pools --max-results 50 --region $AWS_REGION --output json > /tmp/pools.json
+
+          POOL_ID=$(jq -r '.UserPools[] | select(.Name | contains("algo") and contains("pool")) | .Id' /tmp/pools.json | head -1)
+
+          if [ -z "$POOL_ID" ]; then
+            echo "No algo pool found, trying generic search..."
+            POOL_ID=$(jq -r '.UserPools[0].Id' /tmp/pools.json)
+          fi
+
+          POOL_NAME=$(jq -r --arg id "$POOL_ID" '.UserPools[] | select(.Id == $id) | .Name' /tmp/pools.json)
+
+          echo "Found pool: $POOL_NAME ($POOL_ID)"
+          echo "pool_id=$POOL_ID" >> $GITHUB_OUTPUT
+          echo "pool_name=$POOL_NAME" >> $GITHUB_OUTPUT
+
+      - name: List existing users
+        run: |
+          POOL_ID="${{ steps.find_pool.outputs.pool_id }}"
+          echo "Users in pool:"
+          aws cognito-idp list-users --user-pool-id "$POOL_ID" --region $AWS_REGION --output table
+
+      - name: Set admin password
+        run: |
+          POOL_ID="${{ steps.find_pool.outputs.pool_id }}"
+          echo "Setting admin user password..."
+          aws cognito-idp admin-set-user-password \
+            --user-pool-id "$POOL_ID" \
+            --username admin \
+            --password "${{ inputs.admin_password }}" \
+            --permanent \
+            --region $AWS_REGION && echo "✓ Admin password set" || echo "⚠ Admin user not found or error"
+
+      - name: Create or set argeropolos@gmail.com password
+        run: |
+          POOL_ID="${{ steps.find_pool.outputs.pool_id }}"
+          EMAIL="argeropolos@gmail.com"
+
+          # Try to create the user if it doesn't exist
+          aws cognito-idp admin-create-user \
+            --user-pool-id "$POOL_ID" \
+            --username "$EMAIL" \
+            --message-action SUPPRESS \
+            --region $AWS_REGION 2>/dev/null || echo "User already exists"
+
+          # Set the password (works whether user was created or already exists)
+          echo "Setting password for $EMAIL..."
+          aws cognito-idp admin-set-user-password \
+            --user-pool-id "$POOL_ID" \
+            --username "$EMAIL" \
+            --password "${{ inputs.user_password }}" \
+            --permanent \
+            --region $AWS_REGION && echo "✓ Password set for $EMAIL"
+
+      - name: Final Status
+        run: |
+          POOL_ID="${{ steps.find_pool.outputs.pool_id }}"
+          echo "========== LOGIN CREDENTIALS =========="
+          echo "Admin:"
+          echo "  Username: admin"
+          echo "  Password: ${{ inputs.admin_password }}"
+          echo ""
+          echo "User:"
+          echo "  Username: argeropolos@gmail.com"
+          echo "  Password: ${{ inputs.user_password }}"
+          echo "========================================"
+          echo ""
+          echo "Pool ID: $POOL_ID"
+          aws cognito-idp list-users --user-pool-id "$POOL_ID" --region $AWS_REGION --output table
