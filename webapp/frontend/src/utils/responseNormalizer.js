@@ -53,7 +53,13 @@ export const extractData = (response) => {
     return data;
   }
 
-  throw new Error(`Unable to extract data from response: ${JSON.stringify(data).substring(0, 100)}`);
+  // Enhanced error for debugging: detect HTML responses (usually 404/error pages from CDN)
+  const isHtml = typeof data === 'string' && data.includes('<');
+  const preview = typeof data === 'string'
+    ? data.substring(0, 150)
+    : JSON.stringify(data).substring(0, 150);
+  const statusCode = response.status ? ` (HTTP ${response.status})` : '';
+  throw new Error(`Unable to extract data from response${statusCode}${isHtml ? ' (received HTML, likely 404 or CDN error)' : ''}: ${preview}`);
 };
 
 /**

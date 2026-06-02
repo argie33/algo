@@ -44,10 +44,18 @@ export const useApiQuery = (
     ...restOptions,
   });
 
+  const enrichedError = error ? {
+    message: error?.message || 'Unknown error',
+    status: error?.response?.status,
+    code: error?.code,
+    url: error?.config?.url,
+    responseData: error?.response?.data,
+  } : null;
+
   return {
     data: rawData,
     loading: isLoading,
-    error: error?.message || null,
+    error: enrichedError,
     isFetching: rest.isFetching,
     refetch: rest.refetch,
     ...rest,
@@ -94,13 +102,21 @@ export const useApiPaginatedQuery = (
     ...restOptions,
   });
 
+  const enrichedError = error ? {
+    message: error?.message || 'Unknown error',
+    status: error?.response?.status,
+    code: error?.code,
+    url: error?.config?.url,
+    responseData: error?.response?.data,
+  } : null;
+
   return {
     items: rawData?.items || [],
     pagination: rawData?.pagination || {
       total: 0, page: 1, totalPages: 1, hasNext: false, hasPrev: false,
     },
     loading: isLoading,
-    error: error?.message || null,
+    error: enrichedError,
     isFetching: rest.isFetching,
     refetch: rest.refetch,
     ...rest,

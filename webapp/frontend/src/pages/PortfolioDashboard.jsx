@@ -63,6 +63,31 @@ const PIE_PALETTE = [
   '#FFC107', '#795548', '#607D8B', '#FF6B6B',
 ];
 
+const formatErrorDetail = (err, context) => {
+  if (!err) return null;
+  if (typeof err === 'string') return err;
+
+  // Log to console for devtools debugging
+  if (context) {
+    console.error(`[Portfolio] ${context}:`, {
+      message: err.message,
+      status: err.status,
+      code: err.code,
+      url: err.url,
+      responseData: err.responseData,
+    });
+  }
+
+  const parts = [];
+  if (err.message) parts.push(err.message);
+  if (err.status) parts.push(`HTTP ${err.status}`);
+  if (err.code) parts.push(`(${err.code})`);
+  if (err.url) parts.push(`URL: ${err.url}`);
+  if (err.responseData?.error) parts.push(`Server: ${err.responseData.error}`);
+  if (err.responseData?.message) parts.push(`Server: ${err.responseData.message}`);
+  return parts.length > 0 ? parts.join(' • ') : 'Unknown error';
+};
+
 export default function PortfolioDashboard() {
   const navigate = useNavigate();
 
@@ -141,14 +166,14 @@ export default function PortfolioDashboard() {
         <div className="card" style={{ background: 'var(--surface-danger)', borderLeft: '3px solid var(--error)' }}>
           <div style={{ padding: 'var(--space-4)' }}>
             <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>Failed to load portfolio data</div>
-            <div className="muted t-sm" style={{ marginBottom: 'var(--space-4)' }}>
-              {statusError && <div>• Status unavailable</div>}
-              {posError && <div>• Positions unavailable</div>}
-              {perfError && <div>• Performance metrics unavailable</div>}
-              {tradesError && <div>• Trade history unavailable</div>}
-              {marketsError && <div>• Market data unavailable</div>}
-              {equityError && <div>• Equity curve unavailable</div>}
-              {breakersError && <div>• Circuit breakers unavailable</div>}
+            <div className="muted t-sm" style={{ marginBottom: 'var(--space-4)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {statusError && <div style={{ marginBottom: 'var(--space-2)' }}>Status: {formatErrorDetail(statusError, 'algo-status')}</div>}
+              {posError && <div style={{ marginBottom: 'var(--space-2)' }}>Positions: {formatErrorDetail(posError, 'algo-positions')}</div>}
+              {perfError && <div style={{ marginBottom: 'var(--space-2)' }}>Performance: {formatErrorDetail(perfError, 'algo-performance')}</div>}
+              {tradesError && <div style={{ marginBottom: 'var(--space-2)' }}>Trades: {formatErrorDetail(tradesError, 'algo-trades')}</div>}
+              {marketsError && <div style={{ marginBottom: 'var(--space-2)' }}>Markets: {formatErrorDetail(marketsError, 'algo-markets')}</div>}
+              {equityError && <div style={{ marginBottom: 'var(--space-2)' }}>Equity: {formatErrorDetail(equityError, 'algo-equity-curve')}</div>}
+              {breakersError && <div>Breakers: {formatErrorDetail(breakersError, 'algo-circuit-breakers')}</div>}
             </div>
             <button
               className="btn btn-sm"
