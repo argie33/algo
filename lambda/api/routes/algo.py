@@ -936,41 +936,72 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
             return error_response(500, 'internal_error', 'Failed to fetch equity curve')
 
 def _get_data_status(cur) -> Dict:
-        """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard."""
+        """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
+
+        Uses same trading-day-aware freshness logic as Phase 1 orchestrator to avoid
+        false stale warnings on Monday holidays or 3-day weekends.
+        """
         try:
+            from algo.algo_market_calendar import MarketCalendar
+
             cur.execute("""
-                SELECT table_name, row_count, last_updated,
-                       EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 AS age_hours
+                SELECT table_name, row_count, last_updated
                 FROM data_loader_status
                 ORDER BY table_name
             """)
             rows = cur.fetchall()
 
-            # Critical tables that must be fresh for live trading
-            CRITICAL_TABLES = {'price_daily', 'buy_sell_daily', 'swing_trader_scores', 'stock_symbols'}
+            # Critical tables that must be fresh for live trading (same as Phase 1)
+            CRITICAL_TABLES = {'price_daily', 'market_health_daily', 'trend_template_data'}
+
+            # Compute expected data date using trading-day-aware logic (match Phase 1)
+            today = date.today()
+            expected_date = today - timedelta(days=1)
+            try:
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(expected_date):
+                        break
+                    expected_date -= timedelta(days=1)
+            except Exception:
+                # Fallback: weekday check if MarketCalendar unavailable
+                while expected_date.weekday() >= 5:
+                    expected_date -= timedelta(days=1)
 
             sources = []
             summary = {'ok': 0, 'stale': 0, 'empty': 0, 'error': 0}
             critical_stale = []
 
             for row in rows:
-                age_h = float(row['age_hours'] or 999)
+                last_updated = row['last_updated']
                 row_count = row['row_count'] or 0
+
                 if row_count == 0:
                     status = 'empty'
-                elif age_h <= 24:
-                    status = 'ok'
-                elif age_h <= 72:
-                    status = 'stale'
+                elif last_updated is None:
+                    status = 'empty'
                 else:
-                    status = 'error'
+                    # Convert to date if datetime
+                    data_date = last_updated.date() if hasattr(last_updated, 'date') else last_updated
+
+                    # Use Phase 1 logic: stale if data_date < expected_date
+                    if data_date < expected_date:
+                        status = 'stale'
+                    else:
+                        status = 'ok'
+
+                # Calculate age in hours for reference
+                if last_updated:
+                    age_h = (datetime.now(timezone.utc) - (last_updated if isinstance(last_updated, datetime) else datetime.combine(last_updated, datetime.min.time()))).total_seconds() / 3600
+                else:
+                    age_h = 999
+
                 summary[status] = summary.get(status, 0) + 1
-                if status in ('stale', 'error', 'empty') and row['table_name'] in CRITICAL_TABLES:
+                if status in ('stale', 'empty') and row['table_name'] in CRITICAL_TABLES:
                     critical_stale.append(row['table_name'])
                 sources.append({
                     'name': row['table_name'],
                     'status': status,
-                    'last_updated': row['last_updated'].isoformat() if row.get('last_updated') else None,
+                    'last_updated': last_updated.isoformat() if last_updated else None,
                     'age_hours': round(age_h, 1),
                     'row_count': row_count,
                 })
@@ -982,6 +1013,7 @@ def _get_data_status(cur) -> Dict:
                 'summary': summary,
                 'sources': sources,
                 'critical_stale': critical_stale,
+                'expected_date': str(expected_date),
                 'as_of': datetime.now(timezone.utc).isoformat(),
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
