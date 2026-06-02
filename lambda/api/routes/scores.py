@@ -44,7 +44,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                          sort_order: str = 'desc', sp500_only: bool = False, symbol: str = None) -> Dict:
         """Get stock scores with multi-factor ranking."""
         try:
-            cur.execute("SET statement_timeout TO '25s'")
+            cur.execute("SET LOCAL statement_timeout TO '25s'")
             allowed_sorts = {
                 'composite_score': 'sc.composite_score',
                 'momentum_score': 'sc.momentum_score',
@@ -67,6 +67,10 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
             if sp500_only:
                 where_clause += " AND ss.is_sp500 = TRUE"
             if symbol:
+                # Validate symbol format (consistent with signals.py)
+                import re
+                if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol.upper()):
+                    return error_response(400, 'bad_request', 'Invalid symbol format')
                 where_clause += " AND sc.symbol = %s"
                 params_list.append(symbol.upper())
 

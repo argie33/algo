@@ -496,9 +496,10 @@ resource "aws_iam_role_policy" "ecs_task_execution" {
 }
 
 data "aws_iam_policy_document" "ecs_task_execution" {
-  # Secrets Manager (read task secrets from Secrets Manager, allow both patterns)
+  # Secrets Manager (ECS task execution role needs database credentials only)
+  # CRITICAL: Do NOT include algo/developer-credentials — privilege escalation vector
   statement {
-    sid    = "SecretsManager"
+    sid    = "SecretsManagerDatabaseOnly"
     effect = "Allow"
 
     actions = [
@@ -507,8 +508,7 @@ data "aws_iam_policy_document" "ecs_task_execution" {
     ]
 
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*"
     ]
   }
 
@@ -597,9 +597,10 @@ resource "aws_iam_role_policy" "ecs_task" {
 }
 
 data "aws_iam_policy_document" "ecs_task" {
-  # Secrets Manager (read DB credentials, allow both patterns)
+  # Secrets Manager (ECS loaders need database credentials only)
+  # CRITICAL: Do NOT include algo/developer-credentials — privilege escalation vector
   statement {
-    sid    = "SecretsManager"
+    sid    = "SecretsManagerDatabaseOnly"
     effect = "Allow"
 
     actions = [
@@ -607,8 +608,7 @@ data "aws_iam_policy_document" "ecs_task" {
     ]
 
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*"
     ]
   }
 
@@ -881,9 +881,11 @@ data "aws_iam_policy_document" "lambda_algo" {
     resources = ["*"]
   }
 
-  # Secrets Manager (allow both ${project_name}-* and ${project_name}/* patterns)
+  # Secrets Manager (only specific secrets needed for orchestrator)
+  # Orchestrator needs: database (RDS creds), alpaca (trading), fred (economic data), orchestrator state
+  # CRITICAL: Do NOT include algo/developer-credentials — privilege escalation vector
   statement {
-    sid    = "SecretsManager"
+    sid    = "SecretsManagerOrchestratorOnly"
     effect = "Allow"
 
     actions = [
@@ -891,8 +893,10 @@ data "aws_iam_policy_document" "lambda_algo" {
     ]
 
     resources = [
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/alpaca*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/fred*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/orchestrator*"
     ]
   }
 

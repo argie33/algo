@@ -149,15 +149,15 @@ def _submit_contact(cur, body: Dict) -> Dict:
         r'<iframe',
         r'<embed',
         r'<object',
-        r'<img\s+[^>]*src',  # img tag with src (could load xss)
+        r'<img[\s/]',        # img tag (with space or slash after <img to catch <img...> and <img/...> variants)
         r'<svg\s+[^>]*on',   # svg with event handlers
         # JavaScript protocol
         r'javascript:',
         r'vbscript:',
         r'data:text/html',
         # Event handlers — must have = to be dangerous (onclick=, onerror=, onload=, etc.)
-        # Intentionally not matching bare words like "online", "once", "ongoing" which cause false positives.
-        r'on\w+\s*=',        # onclick=, onerror=, onload=, onfocus=, etc. (requires = to be dangerous)
+        # Catches all variations: onclick=, onerror=, onload=, on\w+=, etc.
+        r'on\w+[\s/]*=',     # onclick=, onerror=, onload=, onfocus=, on/*=, etc. (handles space and slash variants)
         # HTML entity encodings that spell out dangerous patterns (e.g. &#106;avascript:)
         r'&#x[0-9a-fA-F]+;',  # hex entity sequence (requires semicolon to be decodable)
         r'&#\d{2,};',          # decimal entity sequence (2+ digits + semicolon = decodable entity)

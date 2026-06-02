@@ -147,6 +147,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return error_response(403, 'forbidden', 'Admin access required')
             return _get_data_status(cur)
         elif path == '/api/algo/notifications':
+            # Admin-only: GET returns circuit breaker alerts, halt flags, position alerts, trade execution failures
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized notifications access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             return _get_notifications(cur, params, jwt_claims)
         elif path == '/api/algo/patrol-log':
             if not _check_admin_access(jwt_claims):
@@ -164,6 +168,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
         elif path == '/api/algo/swing-scores':
+            # Admin-only: Returns current trading candidates before execution — front-run risk
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized swing-scores access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             min_score_str = params.get('min_score', [None])[0] if params else None
