@@ -39,22 +39,13 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
 
-                # SECURITY FIX: Enforce row-level access control via user_id
-                # User can only mark their own notifications as seen
-                # (or system-wide notifications where user_id is NULL)
-                cur.execute("""
-                    SELECT id FROM algo_notifications
-                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
-                    LIMIT 1
-                """, (notif_id_int, user_id))
+                # algo_notifications are system-wide (no user_id column). Access is
+                # already gated at the Lambda level (JWT required). Verify record exists.
+                cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
                 if not cur.fetchone():
-                    return error_response(404, 'not_found', 'Notification not found or access denied')
+                    return error_response(404, 'not_found', 'Notification not found')
 
-                cur.execute("""
-                    UPDATE algo_notifications
-                    SET seen=TRUE, seen_at=NOW()
-                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
-                """, (notif_id_int, user_id))
+                cur.execute("UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s", (notif_id_int,))
                 return json_response(200, {'status': 'updated'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -69,21 +60,13 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
 
-                # SECURITY FIX: Enforce row-level access control via user_id
-                # User can only delete their own notifications
-                # (or system-wide notifications where user_id is NULL)
-                cur.execute("""
-                    SELECT id FROM algo_notifications
-                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
-                    LIMIT 1
-                """, (notif_id_int, user_id))
+                # algo_notifications are system-wide (no user_id column). Access is
+                # already gated at the Lambda level (JWT required). Verify record exists.
+                cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
                 if not cur.fetchone():
-                    return error_response(404, 'not_found', 'Notification not found or access denied')
+                    return error_response(404, 'not_found', 'Notification not found')
 
-                cur.execute("""
-                    DELETE FROM algo_notifications
-                    WHERE id=%s AND (user_id=%s OR user_id IS NULL)
-                """, (notif_id_int, user_id))
+                cur.execute("DELETE FROM algo_notifications WHERE id=%s", (notif_id_int,))
                 return json_response(200, {'status': 'deleted'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
