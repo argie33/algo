@@ -188,6 +188,20 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - `terraform/main.tf`: infrastructure as code
 - `lambda/db-init/schema.sql`: database schema (3031 lines)
 
+## Performance Baseline (2026-06-01)
+
+**API Lambda cold-start mitigation:** EventBridge rule (`algo-api-warmup-dev`) fires every 4 minutes and invokes the API Lambda with `{"source": "warmup"}`. Lambda returns 200 immediately without opening a DB connection — keeps one container alive so the first real user request avoids the 15-40s VPC cold-start that would exceed the 29s API Gateway hard timeout. This replaces provisioned concurrency, which required a Lambda alias that created a Terraform circular dependency with the psycopg2 layer.
+
+**Performance Insights:** Always enabled on RDS (`performance_insights_enabled = true`, 7-day retention free tier). Use the RDS console → Performance Insights tab to diagnose slow queries during trading hours.
+
+**Database indexes (migration 012):** Date-leading indexes prevent full sequential scans on multi-million-row tables:
+- `idx_price_daily_date ON price_daily(date DESC)` — market breadth CTEs, latest-close queries
+- `idx_buy_sell_daily_date_signal ON buy_sell_daily(date DESC, signal)` — signals page listing
+- `idx_technical_data_daily_date ON technical_data_daily(date DESC)` — signal generation joins
+- `idx_market_health_daily_date ON market_health_daily(date DESC)` — market status endpoint
+
+**Known gap (accepted):** Single NAT Gateway in one AZ routes all private-subnet egress (Lambda Cognito JWT validation, ECS loader API calls). A second NAT in a second AZ costs ~$35/month extra; current single-NAT risk is documented and accepted for cost reasons.
+
 ## Authentication & Email
 
 **Cognito User Pool:** `algo-pool-dev` (us-east-1). Primary user: argeropolos@gmail.com (confirmed).

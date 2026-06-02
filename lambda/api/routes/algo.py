@@ -1403,7 +1403,7 @@ def _get_rejection_funnel(cur) -> Dict:
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as total_signals
                 FROM buy_sell_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
             row = cur.fetchone()
             initial_count = dict(row).get('total_signals', 0) if row else 0
@@ -1412,7 +1412,7 @@ def _get_rejection_funnel(cur) -> Dict:
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as scored
                 FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
             row = cur.fetchone()
             scored_count = dict(row).get('scored', 0) if row else 0
@@ -1421,7 +1421,7 @@ def _get_rejection_funnel(cur) -> Dict:
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as high_quality
                 FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
                 AND score >= 60
             """)
             row = cur.fetchone()
@@ -1623,7 +1623,7 @@ def _get_algo_evaluate(cur) -> Dict:
                     AVG(score) AS avg_score,
                     MIN(score) AS min_score
                 FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
             sig_row = cur.fetchone()
             if not sig_row or not sig_row.get('candidates_screened'):
