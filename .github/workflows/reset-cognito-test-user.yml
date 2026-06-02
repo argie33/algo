@@ -8,9 +8,9 @@ on:
         required: true
         type: string
       user_email:
-        description: 'Email of user to reset (default: testuser@stocks.local)'
+        description: 'Email of user to reset (default: edgebrookecapital@gmail.com)'
         required: false
-        default: 'testuser@stocks.local'
+        default: 'edgebrookecapital@gmail.com'
         type: string
 
 env:
