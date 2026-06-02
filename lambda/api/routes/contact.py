@@ -141,15 +141,40 @@ def _submit_contact(cur, body: Dict) -> Dict:
     if phone and not re.match(r'^\+?[\d\s\-\(\)]{10,15}$', phone):
         return error_response(400, 'bad_request', 'Phone number format invalid')
 
-    # SECURITY FIX: Reject messages with suspicious patterns (script tags, SQL keywords, etc.)
-    # This is defense-in-depth; fields are parameterized so no injection risk, but reject anyway
+    # SECURITY FIX #5: Comprehensive XSS blocklist with event handler variations
+    # Covers: direct tags, javascript protocol, event handlers (including bypass attempts)
     dangerous_patterns = [
+        # HTML tags that can execute scripts
         r'<script',
+        r'<iframe',
+        r'<embed',
+        r'<object',
+        r'<img\s+[^>]*src',  # img tag with src (could load xss)
+        r'<svg\s+[^>]*on',   # svg with event handlers
+        # JavaScript protocol
         r'javascript:',
-        r'on\w+\s*=',  # onclick=, onload=, etc.
-        r'union\s+select',  # SQL injection pattern
-        r'drop\s+table',  # SQL attack pattern
-        r'update\s+\w+\s+set',  # SQL attack pattern
+        r'vbscript:',
+        r'data:text/html',
+        # Event handlers - comprehensive coverage including bypasses
+        r'on\w+\s*=',        # onclick=, onerror=, onload=, etc.
+        r'on\w+\s+',         # space variant: on error =
+        r'on\s*\w+\s*=',     # space before name: on error=
+        # HTML entity encodings of event handlers
+        r'&#x[0-9a-fA-F]*;?',  # hex entities like &#x6f; (o)
+        r'&#\d+;?',             # decimal entities like &#111; (o)
+        # HTML5 attributes that can be dangerous
+        r'formaction\s*=',
+        r'onfocus\s*=',
+        r'onblur\s*=',
+        # SQL injection patterns (defense-in-depth)
+        r'union\s+select',
+        r'drop\s+table',
+        r'update\s+\w+\s+set',
+        r'delete\s+from',
+        r'insert\s+into',
+        # Command injection
+        r';\s*rm\s',
+        r';\s*cat\s',
     ]
 
     for pattern in dangerous_patterns:

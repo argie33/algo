@@ -61,6 +61,7 @@ const tradesRoutes = require("./routes/trades");
 const backtestsRoutes = require("./routes/backtests");
 const statusRoutes = require("./routes/status");
 const performanceRoutes = require("./routes/performance");
+const logoutRoutes = require("./routes/logout");
 
 const app = express();
 
@@ -674,6 +675,13 @@ app.use("/api/prices", cacheMiddleware(60), require("./routes/prices"));
 app.use("/api/financials", cacheMiddleware(120), require("./routes/financials"));
 app.use("/api/earnings", cacheMiddleware(60), require("./routes/earnings"));
 
+// SECURITY FIX #1: Apply authenticateToken BEFORE cacheMiddleware on /api/trades
+// to prevent cache bypass of authentication checks (cache must not bypass auth)
+app.use("/api/trades", authenticateToken);
+
+// Authentication routes
+app.use("/api/logout", logoutRoutes);
+
 // API info endpoint
 app.get("/api", (req, res) => {
   return sendSuccess(res, {
@@ -684,6 +692,7 @@ app.get("/api", (req, res) => {
       algo: "/api/algo",
       economic: "/api/economic",
       health: "/api/health",
+      logout: "/api/logout",
       market: "/api/market",
       sectors: "/api/sectors",
       signals: "/api/signals",

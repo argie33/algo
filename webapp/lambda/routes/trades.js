@@ -20,8 +20,9 @@ try {
   console.warn('⚠️ AlpacaService not available:', e.message);
 }
 
-// Require authentication for all trades operations
-router.use(authenticateToken);
+// SECURITY FIX #1: Authentication is now applied in index.js BEFORE cacheMiddleware
+// to prevent cache bypass. Keeping this comment for documentation.
+// router.use(authenticateToken); // Applied at app level before cache
 
 /**
  * GET /api/trades
