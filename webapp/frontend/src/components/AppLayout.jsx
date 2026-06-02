@@ -16,8 +16,8 @@ import {
   Menu, Settings, LogOut, LogIn, X, Sun, Moon,
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, GitBranch,
-  HeartPulse, Zap, Crosshair,
-  Bot, Bell,
+  HeartPulse, Zap, Crosshair, BarChart2,
+  Bot, Bell, FileText, Map, Cpu,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
@@ -49,8 +49,9 @@ const NAV_SECTIONS = [
   {
     title: 'Portfolio',
     items: [
-      { text: 'Portfolio',     icon: Wallet,  path: '/app/portfolio' },
-      { text: 'Trade Tracker', icon: History, path: '/app/trades' },
+      { text: 'Portfolio',    icon: Wallet,    path: '/app/portfolio' },
+      { text: 'Trade Tracker', icon: History,  path: '/app/trades' },
+      { text: 'Performance',  icon: BarChart2, path: '/app/performance' },
     ],
   },
   {
@@ -68,8 +69,11 @@ const NAV_SECTIONS = [
   {
     title: 'System',
     items: [
-      { text: 'Service Health', icon: HeartPulse, path: '/app/health' },
-      { text: 'Notifications', icon: Bell, path: '/app/notifications' },
+      { text: 'Service Health',    icon: HeartPulse, path: '/app/health' },
+      { text: 'Notifications',     icon: Bell,        path: '/app/notifications' },
+      { text: 'Audit Log',         icon: FileText,    path: '/app/audit' },
+      { text: 'System Blueprint',  icon: Map,         path: '/app/blueprint' },
+      { text: 'Pre-Trade Sim',     icon: Cpu,         path: '/app/pre-trade-simulator' },
     ],
   },
 ];
