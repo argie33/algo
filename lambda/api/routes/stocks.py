@@ -36,7 +36,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("SELECT 1 FROM value_metrics WHERE pe_ratio IS NOT NULL LIMIT 1")
                 if not cur.fetchone():
                     return list_response([])
-            except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError):
+            except Exception:
                 return list_response([])
             try:
                 cur.execute("SET statement_timeout TO '28s'")
