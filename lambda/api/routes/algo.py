@@ -808,6 +808,98 @@ def _get_circuit_breakers(cur) -> Dict:
                     'triggered': False, 'current': 0, 'threshold': 4, 'unit': '',
                     'description': 'No market data yet'})
 
+            # CB7: Total open risk
+            try:
+                cur.execute("""
+                    SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
+                    FROM algo_positions p
+                    JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                    WHERE LOWER(p.status) = 'open'
+                """)
+                risk_result = cur.fetchone()
+                total_risk = float(risk_result[0] or 0) if risk_result else 0
+
+                cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+                port_result = cur.fetchone()
+                port_val = float(port_result[0] or 1) if port_result else 1
+                risk_pct = (total_risk / port_val * 100) if port_val > 0 else 0
+                threshold_risk = 4.0
+                breakers.append({
+                    'id': 'total_risk', 'label': 'Total Open Risk',
+                    'triggered': risk_pct >= threshold_risk,
+                    'current': round(risk_pct, 2), 'threshold': threshold_risk, 'unit': '%',
+                    'description': f'Halt when total open risk ≥ {threshold_risk:.0f}% of portfolio',
+                })
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
+                breakers.append({'id': 'total_risk', 'label': 'Total Open Risk',
+                    'triggered': False, 'current': 0, 'threshold': 4, 'unit': '%',
+                    'description': 'No positions data yet'})
+
+            # CB8: Intraday market health (SPY down >2% yesterday)
+            try:
+                cur.execute("""
+                    SELECT close FROM price_daily
+                    WHERE symbol = 'SPY' AND date <= %s
+                    ORDER BY date DESC LIMIT 2
+                """, (today,))
+                prices = cur.fetchall()
+                if len(prices) >= 2:
+                    latest = float(prices[0][0] or 0)
+                    prior = float(prices[1][0] or 0)
+                    if latest > 0 and prior > 0:
+                        market_change = ((latest - prior) / prior * 100)
+                        threshold_mc = -2.0
+                        breakers.append({
+                            'id': 'intraday_health', 'label': 'Prior-Day Market Health',
+                            'triggered': market_change <= threshold_mc,
+                            'current': round(market_change, 2), 'threshold': threshold_mc, 'unit': '%',
+                            'description': f'Halt if SPY dropped >{abs(threshold_mc):.0f}% yesterday (await stability)',
+                        })
+                    else:
+                        raise ValueError("Invalid price data")
+                else:
+                    raise ValueError("Insufficient price history")
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
+                breakers.append({'id': 'intraday_health', 'label': 'Prior-Day Market Health',
+                    'triggered': False, 'current': 0, 'threshold': -2.0, 'unit': '%',
+                    'description': 'No price history yet'})
+
+            # CB9: Win rate floor
+            try:
+                cur.execute("""
+                    SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
+                           COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses,
+                           COUNT(*) as total
+                    FROM (
+                        SELECT profit_loss_pct
+                        FROM algo_trades
+                        WHERE status = 'closed' AND exit_date IS NOT NULL
+                        ORDER BY exit_date DESC LIMIT 30
+                    ) recent_trades
+                """)
+                wr_result = cur.fetchone()
+                if wr_result:
+                    wins = int(wr_result[0] or 0)
+                    losses = int(wr_result[1] or 0)
+                    decisive = wins + losses
+                    win_rate = (wins / decisive * 100) if decisive > 0 else 0
+                    threshold_wr = 40.0
+                    breakers.append({
+                        'id': 'win_rate', 'label': 'Win Rate Floor',
+                        'triggered': win_rate < threshold_wr and decisive >= 10,
+                        'current': round(win_rate, 1), 'threshold': threshold_wr, 'unit': '%',
+                        'description': f'Halt if win rate drops below {threshold_wr:.0f}% (last 30 closed)',
+                    })
+                else:
+                    raise ValueError("No trade data")
+            except Exception as e:
+                logger.warning(f"API exception: {e}")
+                breakers.append({'id': 'win_rate', 'label': 'Win Rate Floor',
+                    'triggered': False, 'current': 0, 'threshold': 40, 'unit': '%',
+                    'description': 'Insufficient closed trades (need 10+)'})
+
             any_halted = any(b['triggered'] for b in breakers)
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
             return json_response(200, {'breakers': breakers, 'system_halted': any_halted, 'data_freshness': freshness})
