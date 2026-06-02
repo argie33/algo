@@ -50,13 +50,16 @@ class SignalBase:
         if cache_key in self._rs_percentile_cache:
             return self._rs_percentile_cache[cache_key].get(symbol)
 
-        # Batch-compute RS percentiles for the full SP500 universe at once.
+        # Batch-compute RS percentiles for the full investable universe at once.
+        # Uses all non-ETF stocks so non-SP500 stocks get proper percentile rankings
+        # instead of returning None (which gave them 0 momentum points and dropped swing scores).
         # Uses LATERAL JOINs instead of correlated subqueries to avoid N*2 round-trips.
+        # idx_price_daily_symbol_date covers the DISTINCT ON efficiently for 5000+ symbols.
         cur.execute(
             """
             WITH
             universe AS (
-                SELECT DISTINCT symbol FROM stock_symbols WHERE is_sp500 = true
+                SELECT DISTINCT symbol FROM stock_symbols WHERE COALESCE(etf, 'N') != 'Y'
             ),
             end_prices AS (
                 SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close AS end_close
