@@ -253,25 +253,37 @@ class PriceLoader(OptimalLoader):
             logger.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
 
     def run(self, symbols: list, parallelism: int = 1, backfill_days: Optional[int] = None) -> dict:
-        """Override to use batch fetching (50x faster than per-symbol)."""
+        """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
         if backfill_days is not None:
             self._backfill_days = backfill_days
 
         import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         start = time.time()
         symbols = list(symbols)
         mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
         logger.info(
-            "[%s] Starting batch load: %d symbols (batch_size=%d)%s",
-            self.table_name, len(symbols), self.batch_size, mode,
+            "[%s] Starting batch load: %d symbols (batch_size=%d, concurrency=%d)%s",
+            self.table_name, len(symbols), self.batch_size, parallelism, mode,
         )
 
-        # Process symbols in batches
-        for i in range(0, len(symbols), self.batch_size):
-            batch = symbols[i:i + self.batch_size]
-            self._load_batch(batch)
-            progress = min(i + self.batch_size, len(symbols))
-            logger.info("  Progress: %d/%d", progress, len(symbols))
+        # Split into batches
+        batches = [symbols[i:i + self.batch_size] for i in range(0, len(symbols), self.batch_size)]
+        processed = 0
+
+        # Process batches with concurrency (limit to 5 to avoid overwhelming yfinance)
+        max_concurrent = min(parallelism, 5)  # Hard cap at 5 concurrent batches
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            futures = {executor.submit(self._load_batch, batch): batch for batch in batches}
+            for future in as_completed(futures):
+                batch = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(f"Batch failed: {e}")
+                processed += len(batch)
+                logger.info("  Progress: %d/%d", processed, len(symbols))
 
         self._stats["duration_sec"] = round(time.time() - start, 2)
         logger.info(

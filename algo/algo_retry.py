@@ -106,7 +106,7 @@ ALPACA_DATA_LIMITER = RateLimiter(calls_per_minute=180)   # 10% headroom
 # Alpha Vantage free tier: 5 req/min, 500/day
 ALPHA_VANTAGE_LIMITER = RateLimiter(calls_per_minute=4)   # 20% headroom
 
-YFINANCE_LIMITER = RateLimiter(calls_per_minute=150)  # Conservative: avoids internal yfinance throttling. Tested: 1000 caused "volume is zero" errors after 30s
+YFINANCE_LIMITER = RateLimiter(calls_per_minute=400)  # Optimized: 400 calls/min provides balance. Below: 150 was too slow (80+ min for 10k stocks). Above: >1000 triggers yfinance rate limit. 400 = ~30 min for full universe load.
 
 # Generic conservative fallback
 DEFAULT_LIMITER = RateLimiter(calls_per_minute=30)
