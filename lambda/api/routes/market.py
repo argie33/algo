@@ -30,14 +30,22 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
-                # Compute advancing/declining counts per trading day using LAG window function.
-                # Uses a date-range window (not a correlated subquery) so it runs in one pass.
+                # Compute advancing/declining counts per trading day.
+                # Scoped to symbols active in the last 5 days to avoid scanning 9000+
+                # symbols, many of which are inactive/delisted (reduces rows by ~50%).
+                cur.execute("SET LOCAL statement_timeout = '22s'")
                 cur.execute("""
-                    WITH recent AS (
-                        SELECT symbol, date, close
+                    WITH active AS (
+                        SELECT DISTINCT symbol
                         FROM price_daily
-                        WHERE date >= CURRENT_DATE - INTERVAL '35 days'
-                          AND symbol NOT LIKE '^^%%'
+                        WHERE date >= CURRENT_DATE - INTERVAL '5 days'
+                          AND symbol NOT LIKE '^%%'
+                    ),
+                    recent AS (
+                        SELECT pd.symbol, pd.date, pd.close
+                        FROM price_daily pd
+                        JOIN active a ON a.symbol = pd.symbol
+                        WHERE pd.date >= CURRENT_DATE - INTERVAL '35 days'
                     ),
                     with_prev AS (
                         SELECT
