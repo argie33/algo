@@ -507,38 +507,64 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"  QUALIFIED FOR TRADE: {qualified:3d}")
             logger.info(f"{'='*70}")
 
+            # Detect swing score data outage: if <10% of evaluated signals have non-zero scores,
+            # the swing_trader_scores loader likely didn't run for today's eval_date.
+            # In that case, bypass the min_swing_score gate entirely and fall back to ranking by
+            # minervini_trend_score so good setups still surface instead of 0 trades.
+            evaluated_count = len(passed_all_tiers)
+            non_zero_passed = sum(1 for t in passed_all_tiers if t.get('swing_score', 0) > 0)
+            swing_scores_available = evaluated_count == 0 or non_zero_passed >= max(1, evaluated_count * 0.10)
+
+            if not swing_scores_available:
+                logger.warning(
+                    f"[SWING FALLBACK] Only {non_zero_passed}/{evaluated_count} qualified candidates "
+                    f"have non-zero swing scores — swing_trader_scores may be stale or empty. "
+                    f"Bypassing min_swing_score gate and ranking by minervini_trend_score instead."
+                )
+                # Re-rank by trend score when swing data is unavailable
+                for t in passed_all_tiers:
+                    t['final_score'] = t.get('trend_score', 0)
+                passed_all_tiers.sort(key=lambda x: x['final_score'], reverse=True)
+                max_positions = int(self.config.get('max_positions', 6))
+                final_trades = passed_all_tiers[:max_positions]
+                # Skip to target price calculation (jump past regime/swing filter below)
+                swing_fallback_active = True
+            else:
+                swing_fallback_active = False
+
             # Regime-aware min_swing_score filter (from RegimeManager)
             # Config can explicitly override with a lower value (e.g., for testing):
             # set 'disable_regime_swing_floor' = True in config_overrides to skip regime override
-            config_min_swing = self.config.get('min_swing_score', 55)
-            min_swing_score = config_min_swing
-            disable_regime = bool(self.config.get('disable_regime_swing_floor', False))
-            if not disable_regime:
-                try:
-                    from algo.algo_regime_manager import RegimeManager
-                    regime_mgr = RegimeManager()
-                    regime_params = regime_mgr.get_regime_params(eval_date)
-                    regime_min = regime_params.get('min_swing_score', config_min_swing)
-                    # Regime can raise the floor but never below config's explicit setting
-                    min_swing_score = max(config_min_swing, regime_min) if config_min_swing > 0 else regime_min
-                    regime = regime_mgr.get_current_regime(eval_date)
-                    logger.info(f"Regime: {regime}, min_swing_score threshold: {min_swing_score}")
-                except Exception as e:
-                    logger.debug(f"Could not load regime min_swing_score: {e}. Using config default {min_swing_score}.")
-            else:
-                logger.info(f"Regime override disabled (disable_regime_swing_floor=True); using config min_swing_score: {min_swing_score}")
+            if not swing_fallback_active:
+                config_min_swing = self.config.get('min_swing_score', 55)
+                min_swing_score = config_min_swing
+                disable_regime = bool(self.config.get('disable_regime_swing_floor', False))
+                if not disable_regime:
+                    try:
+                        from algo.algo_regime_manager import RegimeManager
+                        regime_mgr = RegimeManager()
+                        regime_params = regime_mgr.get_regime_params(eval_date)
+                        regime_min = regime_params.get('min_swing_score', config_min_swing)
+                        # Regime can raise the floor but never below config's explicit setting
+                        min_swing_score = max(config_min_swing, regime_min) if config_min_swing > 0 else regime_min
+                        regime = regime_mgr.get_current_regime(eval_date)
+                        logger.info(f"Regime: {regime}, min_swing_score threshold: {min_swing_score}")
+                    except Exception as e:
+                        logger.debug(f"Could not load regime min_swing_score: {e}. Using config default {min_swing_score}.")
+                else:
+                    logger.info(f"Regime override disabled (disable_regime_swing_floor=True); using config min_swing_score: {min_swing_score}")
 
-            # Apply regime-aware minimum swing score filter
-            passed_all_tiers = [t for t in passed_all_tiers if t.get('swing_score', 0) >= min_swing_score]
-            logger.info(f"After regime min_swing_score filter ({min_swing_score}): {len(passed_all_tiers)} qualified")
+                # Apply regime-aware minimum swing score filter
+                passed_all_tiers = [t for t in passed_all_tiers if t.get('swing_score', 0) >= min_swing_score]
+                logger.info(f"After regime min_swing_score filter ({min_swing_score}): {len(passed_all_tiers)} qualified")
 
-            # PRIMARY RANKING: swing_score (research-weighted, swing-specific)
-            for t in passed_all_tiers:
-                t['final_score'] = t.get('swing_score', 0)
+                # PRIMARY RANKING: swing_score (research-weighted, swing-specific)
+                for t in passed_all_tiers:
+                    t['final_score'] = t.get('swing_score', 0)
 
-            passed_all_tiers.sort(key=lambda x: x['final_score'], reverse=True)
-            max_positions = int(self.config.get('max_positions', 6))
-            final_trades = passed_all_tiers[:max_positions]
+                passed_all_tiers.sort(key=lambda x: x['final_score'], reverse=True)
+                max_positions = int(self.config.get('max_positions', 6))
+                final_trades = passed_all_tiers[:max_positions]
 
             # Calculate target prices for all final trades (R-multiple based)
             # Read R-multiples from config

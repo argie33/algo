@@ -904,6 +904,8 @@ jobs:
           set -e
           mkdir -p api-pkg
           cp -r lambda/api/. api-pkg/
+          # Copy shared utils (admin_rate_limiter, url_validator, etc.) used by API routes
+          cp -r utils/ api-pkg/utils/
           pip install -r lambda/api/requirements.txt \
             -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
           cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..

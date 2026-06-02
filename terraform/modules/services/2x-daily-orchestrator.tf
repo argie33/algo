@@ -281,5 +281,44 @@ resource "aws_scheduler_schedule" "data_patrol_daily" {
   ]
 }
 
+# ============================================================
+# Pre-Warm Schedule (9:25 AM ET) — 5 minutes before market open
+# Warms the algo Lambda container so the 9:30 AM trading run gets a pre-initialized
+# Python environment (no 15-40s VPC cold start, pre-loaded DB connection, loaded modules).
+# dry_run=true: skips all trading phases (lock acquired+released in ~5s).
+# No cost beyond Lambda invocation price (~$0.0000002).
+# Enable by setting enable_morning_orchestrator = true (reuses same gate).
+# ============================================================
+
+resource "aws_scheduler_schedule" "algo_orchestrator_prewarm" {
+  count                        = var.enable_morning_orchestrator ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-prewarm-${var.environment}"
+  description                  = "Pre-warm algo Lambda 5 min before market open (dry_run, no trades) to avoid 15-40s cold start at 9:30 AM"
+  schedule_expression          = "cron(25 9 ? * MON-FRI *)"
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "prewarm"
+      dry_run        = true
+      note           = "Pre-warm only: warms Lambda container before 9:30 AM market-open run. No trades executed."
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
 # Cleanup: remove duplicate schedule resource if it exists
 # (The original aws_scheduler_schedule.algo_orchestrator is kept for backwards compatibility)
