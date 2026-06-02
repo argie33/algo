@@ -288,11 +288,12 @@ resource "aws_db_proxy" "main" {
     iam_auth    = "DISABLED"
   }
 
-  role_arn               = aws_iam_role.rds_proxy[0].arn
-  idle_client_timeout    = 1800
-  require_tls            = true
-  vpc_subnet_ids         = var.private_subnet_ids
-  vpc_security_group_ids = [var.rds_security_group_id]
+  role_arn                         = aws_iam_role.rds_proxy[0].arn
+  idle_client_timeout              = 900  # Close idle client connections after 15 min to free pool
+  require_tls                      = true
+  max_connection_lifetime_seconds  = 300  # Recycle proxy-to-RDS connections every 5 min to prevent stale pool exhaustion
+  vpc_subnet_ids                   = var.private_subnet_ids
+  vpc_security_group_ids           = [var.rds_security_group_id]
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-proxy"
@@ -301,31 +302,13 @@ resource "aws_db_proxy" "main" {
   depends_on = [aws_db_instance.main]
 }
 
-# Configure connection pool for the default target group
-# Fix connection pool exhaustion: 36+ concurrent loaders (9 core + 28 supporting) + API Lambda + headroom
-resource "aws_db_proxy_target_group" "main" {
-  count                = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name        = aws_db_proxy.main[0].name
-  name                 = "default"
-  db_parameter_group_name = "default"
-
-  connection_pool_config {
-    max_idle_connections      = 50
-    max_connections           = 200
-    connection_borrow_timeout = 120
-    session_pinning_filters   = []
-  }
-
-  depends_on = [aws_db_proxy.main]
-}
-
 resource "aws_db_proxy_target" "main" {
-  count                 = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name         = aws_db_proxy.main[0].name
-  target_group_name     = "default"
+  count                  = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name          = aws_db_proxy.main[0].name
+  target_group_name      = "default"
   db_instance_identifier = aws_db_instance.main.identifier
 
-  depends_on = [aws_db_proxy_target_group.main]
+  depends_on = [aws_db_proxy.main]
 }
 
 # ============================================================
