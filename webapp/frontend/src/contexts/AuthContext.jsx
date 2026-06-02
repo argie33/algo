@@ -649,7 +649,7 @@ export function AuthProvider({ children }) {
   // Helper function to get user-friendly error messages
   const formatErrorMessage = (error) => {
     // First try the centralized error handler for comprehensive message mapping
-    const mappedMessage = formatErrorMessage(error);
+    const mappedMessage = getErrorMessage(error);
     if (mappedMessage !== (error.message || 'An error occurred')) {
       return mappedMessage;
     }
