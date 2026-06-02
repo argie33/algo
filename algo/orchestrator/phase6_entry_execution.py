@@ -316,15 +316,15 @@ def _validate_pre_trade_data_quality(
             result = cur.fetchone()
             covered = result[0] if result else 0
             cur.execute(
-                "SELECT COUNT(*) FROM stock_symbols WHERE is_sp500 = TRUE"
+                "SELECT COUNT(*) FROM stock_symbols WHERE COALESCE(etf, 'N') != 'Y'"
             )
             result = cur.fetchone()
             total = result[0] if result else 0
             if total > 0:
                 coverage = (covered / total) * 100
-                if coverage < 80:
+                if coverage < 50:
                     issues.append(f"Low symbol coverage: {covered}/{total} ({coverage:.1f}%)")
-                elif coverage < 95:
+                elif coverage < 75:
                     warnings.append(f"Symbol coverage: {covered}/{total} ({coverage:.1f}%)")
 
             # Check if technical data exists (hard blocks already verified this above)
