@@ -731,7 +731,8 @@ data "aws_iam_policy_document" "lambda_api" {
   }
 
   # Secrets Manager - scoped to only what the API Lambda actually needs:
-  #   - Database credentials (fetched via DB_SECRET_ARN env var pointing to algo/database*)
+  #   - Database credentials: algo-db-credentials-dev (DB_SECRET_ARN env var points here)
+  #     Both algo-db-* (Terraform-managed) and algo/database* (legacy naming) included.
   #   - Settings encryption key (used by pgp_sym_encrypt/decrypt for user dashboard settings)
   # Alpaca trading keys (algo/alpaca), FRED keys (algo/fred), and developer credentials
   # are NOT needed by the API Lambda and are intentionally excluded.
@@ -744,6 +745,7 @@ data "aws_iam_policy_document" "lambda_api" {
     ]
 
     resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-db-*",
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*",
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-database*"
     ]
