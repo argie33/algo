@@ -18,7 +18,6 @@ const ServiceHealth = React.lazy(() => import("./pages/ServiceHealth"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const AlgoTradingDashboard = React.lazy(() => import("./pages/AlgoTradingDashboard"));
 const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
-const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
 const NotificationCenter = React.lazy(() => import("./pages/NotificationCenter"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const SystemBlueprint = React.lazy(() => import("./pages/SystemBlueprint"));
@@ -129,7 +128,6 @@ function App() {
             <Route path="/app/notifications" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><NotificationCenter /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/audit" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><AuditViewer /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/blueprint" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><SystemBlueprint /></ProtectedRoute></ErrorBoundary>} />
-            <Route path="/app/pre-trade-simulator" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><PreTradeSimulator /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/settings" element={<ErrorBoundary><ProtectedRoute requireAuth><Settings /></ProtectedRoute></ErrorBoundary>} />
 
             <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
