@@ -15,7 +15,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     """
     if not jwt_claims:
         return False
-    groups = jwt_claims.get('cognito:groups', [])
+    groups = jwt_claims.get('cognito:groups') or []
     is_admin = 'admin' in groups
     if not is_admin:
         logger.info(f"Audit access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}")

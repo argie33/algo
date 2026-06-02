@@ -529,8 +529,10 @@ def require_auth(event: Dict, path: str) -> tuple:
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {
-        '/health',
-        '/api/health',
+        # NOTE: /health and /api/health (exact) are handled by early return in lambda_handler
+        # before require_auth is called, so they do NOT need to be listed here.
+        # /api/health/detailed and /api/health/pipeline intentionally require authentication
+        # (they expose DB table names, loader names, row counts, freshness ages).
         '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
         '/api/algo/markets',  # Market regime data (public market conditions)
         '/api/algo/sector-rotation',  # Sector rotation analysis (public market analysis)
@@ -545,7 +547,7 @@ def require_auth(event: Dict, path: str) -> tuple:
         '/api/scores',  # Stock scores/analysis (public market analysis, used by Sentiment and SectorAnalysis)
         '/api/financials',  # Company financials (public data)
         '/api/earnings',  # Earnings data (public data)
-        '/api/research',  # Research endpoints (public analysis)
+        # /api/research intentionally NOT public: exposes backtest strategy names, returns, trade history
         '/api/data-coverage',  # Data freshness status (public metadata)
         '/api/contact',  # Public contact form (no auth required)
     }

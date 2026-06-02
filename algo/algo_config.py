@@ -81,6 +81,8 @@ class AlgoConfig:
         'require_weekly_stage_2': ('true', 'bool', 'Require weekly chart Stage 2'),
         'min_rs_line_slope_days': ('10', 'int', 'Days for RS line slope check'),
         'max_rs_pct_from_60d_high': ('15.0', 'float', 'Max % RS-line below 60d high (Minervini strict = 5%)'),
+        'rs_slope_gate_enabled': ('true', 'bool', 'Hard-gate T3 on RS line trending up (set false during strong SPY runs)'),
+        'volume_decay_gate_enabled': ('true', 'bool', 'Hard-gate T3 on volume decay into breakout (set false to soften)'),
 
         # Exit Rules
         'require_target_pullback': ('false', 'bool', 'Require 2%+ pullback before partial profit exits at T1/T2 (false = exit immediately at target)'),

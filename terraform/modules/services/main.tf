@@ -27,19 +27,16 @@ data "aws_lambda_layer_version" "api_deps" {
 }
 
 # Shared dependencies Lambda layer (numpy, pandas, scipy for Phase 7 optimization + IC computation)
+# ZIP is built by deploy-all-infrastructure.yml before terraform apply, placed at repo-root/lambda/shared-deps-layer.zip.
+# path.root = terraform/ subdirectory, so the zip is one level up (path.root/../lambda/).
 resource "aws_lambda_layer_version" "shared_deps" {
-  count                    = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? 1 : 0
-  filename                 = "${path.root}/lambda/shared-deps-layer.zip"
+  count                    = fileexists("${path.root}/../lambda/shared-deps-layer.zip") ? 1 : 0
+  filename                 = "${path.root}/../lambda/shared-deps-layer.zip"
   layer_name               = "${var.project_name}-shared-deps-${var.environment}"
   compatible_runtimes      = ["python3.12"]
-  source_code_hash         = fileexists("${path.root}/lambda/shared-deps-layer.zip") ? filebase64sha256("${path.root}/lambda/shared-deps-layer.zip") : null
+  source_code_hash         = fileexists("${path.root}/../lambda/shared-deps-layer.zip") ? filebase64sha256("${path.root}/../lambda/shared-deps-layer.zip") : null
   compatible_architectures = ["x86_64"]
 }
-
-# F-03: numpy/scipy Lambda layer is NOT deployed via Terraform.
-# numpy+scipy exceed Lambda's 69MB direct-upload limit.
-# Phase 7 (VaR/IC/weight optimization) fails-open without this layer.
-# To fix F-03: use S3-based layer upload or move Phase 7 to ECS.
 
 # Reference layer ARNs (use layer resources if created, else data sources)
 locals {

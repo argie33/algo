@@ -134,30 +134,38 @@ def safe_select_count(cur, table: str, date_column: Optional[str] = None, where_
     """
     table_safe = assert_safe_table(table)
 
-    # SECURITY FIX M-05: Comprehensive validation of where_clause
-    # Use allowlist approach: only allow specific patterns, reject everything else
+    # SECURITY FIX M-05: Validate where_clause against SQL injection
+    # These are always hardcoded internal strings — never user input (see docstring).
+    # Validation catches the rare case of accidental user-input misuse.
     if where_clause:
         where_upper = where_clause.upper()
 
-        # CRITICAL: Reject SQL keywords that could enable injection or expansion attacks
-        # Even if in comments or strings, these patterns indicate malicious intent
-        dangerous_keywords = [
-            ';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION',
-            'TRUNCATE', 'EXECUTE', 'COPY', 'ALTER', 'CREATE', 'CAST', 'pg_',
-            'SELECT INTO', '$$', 'WITH', 'CASE', 'EXISTS', 'HAVING',
-            'CROSS JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
+        # Reject SQL keywords that enable injection or data exfiltration.
+        # DML/control keywords use word-boundary matching so column names like
+        # "created_at" (contains CREATE) or "updated_at" (UPDATE) are not falsely rejected.
+        word_keywords = [
+            'DROP', 'DELETE', 'INSERT', 'UPDATE', 'UNION', 'TRUNCATE',
+            'EXECUTE', 'ALTER', 'CAST', 'WITH', 'CASE', 'EXISTS', 'HAVING',
         ]
-        if any(kw in where_upper for kw in dangerous_keywords):
-            raise ValueError(f"SQL keyword detected in where_clause (M-05): {where_clause}")
+        for kw in word_keywords:
+            if re.search(r'\b' + kw + r'\b', where_upper):
+                raise ValueError(f"SQL keyword detected in where_clause (M-05): {where_clause}")
+        # Pattern-based checks (prefixes, multi-word, special syntax)
+        dangerous_patterns = [
+            ';', '/*', '*/', 'pg_', 'SELECT INTO', '$$',
+            'CROSS JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
+            'COPY ', 'CREATE ',  # trailing space distinguishes from column prefixes
+        ]
+        if any(p in where_upper for p in dangerous_patterns):
+            raise ValueError(f"SQL pattern detected in where_clause (M-05): {where_clause}")
+        # SQL comment markers
+        if '--' in where_clause:
+            raise ValueError(f"SQL comment detected in where_clause (M-05): {where_clause}")
 
-        # Strict character whitelist: only alphanumeric, underscores, comparison operators, AND/OR
-        # Do NOT allow: parentheses (can hide injection), function calls, quotes, special chars
-        if not re.match(r'^[a-zA-Z0-9_\s=<>!\.]+(\s+(AND|OR)\s+[a-zA-Z0-9_\s=<>!\.]+)*$', where_clause, re.IGNORECASE):
-            raise ValueError(f"where_clause contains disallowed characters or structure (M-05): {where_clause}")
-
-        # Prevent comment-style tricks: no consecutive special chars
-        if '--' in where_clause or '/*' in where_clause or '*/' in where_clause:
-            raise ValueError(f"SQL comments detected in where_clause (M-05): {where_clause}")
+        # Character allowlist: comparison operators, INTERVAL literals (single quotes),
+        # IN lists (parentheses, commas), date arithmetic (hyphens), standard identifiers
+        if not re.match(r"^[a-zA-Z0-9_\s=<>!'(),.\-\+\%]+$", where_clause):
+            raise ValueError(f"where_clause contains disallowed characters (M-05): {where_clause}")
 
         where_sql = f" WHERE {where_clause}"
     else:

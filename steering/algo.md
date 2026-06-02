@@ -227,6 +227,22 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **Status:** All critical/high-priority red team vulnerabilities remediated (2026-06-01 20:18 UTC).
 
+## Security Hardening Round 2 (2026-06-01)
+
+**Vulnerabilities Fixed:**
+- **A (HIGH):** `/api/health/detailed` and `/api/health/pipeline` were publicly accessible without auth. Root cause: `/api/health` in `PUBLIC_PREFIXES` with prefix matching made all subpaths public. Fixed by removing `/health` and `/api/health` from `PUBLIC_PREFIXES`—exact paths are already handled by early return in `lambda_handler` before auth runs. Both endpoints now require a valid JWT.
+- **B (HIGH):** Any authenticated user could delete or mark-read all system notifications (circuit breaker alerts, halt warnings). Both PATCH `.../notifications/{id}/read` and DELETE `.../notifications/{id}` now require admin group membership.
+- **C (MEDIUM):** Lambda API IAM role could read all project secrets including `algo/alpaca` (live Alpaca trading credentials) and `algo/fred`. Tightened to only `algo/database*` and `settings/*`. The API Lambda does not execute trades and does not need Alpaca keys.
+- **E (LOW):** `/api/research` (backtest data) was in `PUBLIC_PREFIXES`, exposing strategy names, historical returns, Sharpe ratios, and all backtest trade history without authentication. Removed from public prefixes—now requires JWT.
+- **F (LOW):** All `_check_admin_access()` functions used `.get('cognito:groups', [])`. If Cognito issued a token with `cognito:groups: null`, this would return `None` and `'admin' in None` raises `TypeError` (500 instead of 403). Fixed to `.get('cognito:groups') or []` in algo.py, admin.py, audit.py, risk_dashboard.py, contact.py.
+
+**Known Residual Risk (documented, accepted):**
+- **D (MEDIUM):** Contact form `contact_submissions` table stores submitter email in plaintext PostgreSQL. The rate limiter hashes email (SHA256) before DynamoDB—correct. The DB record retains plaintext email so admin can reply to contacts. To remediate: encrypt with pgp_sym_encrypt using the settings key, or hash and drop email (accepting no reply capability). Currently accepted: admin DB access is required for any email read; no public exposure.
+- **G (LOW):** 8 marketing pages use `dangerouslySetInnerHTML` on hardcoded in-file constants. Zero XSS risk today. Risk materializes only if any of these pages are refactored to pull content from an API or CMS. If that happens, add DOMPurify before rendering.
+
+**How to debug auth on health endpoints:**
+`/api/health` and `/health` (exact) remain public—uptime monitors can always hit them. `/api/health/detailed` and `/api/health/pipeline` now require Bearer token. If an uptime monitor returns 401 after this deploy, update it to use an authenticated request.
+
 ## Post-Mortem: June 1 Live Trading Failure + Fixes
 
 **Root cause (confirmed):** Circuit breaker Lambda was deployed with handler `index.lambda_handler` but the ZIP contained only a stale file structure — "No module named 'index'" error on every invocation. Each failed invocation (10 AM, 12 PM, 3 PM ET) set `halt_flag=True` in DynamoDB. The orchestrator's Phase 4–7 halt flag check blocked entries AND exits. Phase 5 also had a transaction abort cascade issue that returned 0 signals when any statement timed out.

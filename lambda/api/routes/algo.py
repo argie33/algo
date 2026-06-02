@@ -14,7 +14,7 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
         return False
-    groups = jwt_claims.get('cognito:groups', [])
+    groups = jwt_claims.get('cognito:groups') or []
     return 'admin' in groups
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
@@ -31,16 +31,17 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
 
         if method == 'PATCH' and path.endswith('/read') and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1].replace('/read', '')
-            if not user_id:
-                return error_response(401, 'unauthorized', 'Authentication required')
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized notification mark-read attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             try:
                 try:
                     notif_id_int = int(notif_id)
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
 
-                # algo_notifications are system-wide (no user_id column). Access is
-                # already gated at the Lambda level (JWT required). Verify record exists.
+                # algo_notifications are system-wide; user_id is NULL for system events (migration 008).
+                # Access is gated at the Lambda level (JWT required). Verify record exists.
                 cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
                 if not cur.fetchone():
                     return error_response(404, 'not_found', 'Notification not found')
@@ -210,9 +211,6 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return error_response(403, 'forbidden', 'Admin access required')
             return _get_exposure_policy(cur)
         elif path == '/api/algo/sector-stage2':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo sector-stage2 access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
             return _get_sector_stage2(cur)
         elif path == '/api/algo/config':
             if not _check_admin_access(jwt_claims):
