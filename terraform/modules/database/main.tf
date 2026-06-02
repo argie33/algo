@@ -301,28 +301,31 @@ resource "aws_db_proxy" "main" {
   depends_on = [aws_db_instance.main]
 }
 
-# Configure connection pool for the default target group (executes before aws_db_proxy_target)
-resource "aws_db_proxy_default_target_group" "main" {
-  count             = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name     = aws_db_proxy.main[0].name
+# Configure connection pool for the default target group
+# Fix connection pool exhaustion: 36+ concurrent loaders (9 core + 28 supporting) + API Lambda + headroom
+resource "aws_db_proxy_target_group" "main" {
+  count                = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name        = aws_db_proxy.main[0].name
+  name                 = "default"
+  db_parameter_group_name = "default"
 
-  # Fix connection pool exhaustion: 36+ concurrent loaders + API + headroom
-  max_idle_connections      = 50
-  max_connections           = 200
-  connection_borrow_timeout = 120
-  session_pinning_filters   = []
-  init_query                = ""
+  connection_pool_config {
+    max_idle_connections      = 50
+    max_connections           = 200
+    connection_borrow_timeout = 120
+    session_pinning_filters   = []
+  }
 
   depends_on = [aws_db_proxy.main]
 }
 
 resource "aws_db_proxy_target" "main" {
-  count                  = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name          = aws_db_proxy.main[0].name
-  target_group_name      = "default"
+  count                 = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name         = aws_db_proxy.main[0].name
+  target_group_name     = "default"
   db_instance_identifier = aws_db_instance.main.identifier
 
-  depends_on = [aws_db_proxy_default_target_group.main]
+  depends_on = [aws_db_proxy_target_group.main]
 }
 
 # ============================================================
