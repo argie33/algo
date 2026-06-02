@@ -94,8 +94,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Trust only 1 hop (API Gateway / CloudFront) — prevents X-Forwarded-For spoofing
-app.set("trust proxy", 1);
+// SECURITY FIX #8: Trust 2 hops (CloudFront + API Gateway) to extract real client IP
+// CloudFront adds X-Forwarded-For header, then API Gateway adds its own
+// trust proxy 2 skips the rightmost 2 IPs to get the real client IP
+app.set("trust proxy", 2);
 
 // Enhanced security middleware for enterprise production deployment
 app.use(
@@ -114,19 +116,19 @@ app.use(
           "'self'",
           "data:",
           "blob:",
-          process.env.CLOUDFRONT_DOMAIN || "https://d*.cloudfront.net",
+          process.env.CLOUDFRONT_DOMAIN,
           "https://fonts.gstatic.com",
           "https://fonts.googleapis.com"
         ].filter(Boolean),
         scriptSrc: ["'self'"],
         // Note: If inline scripts are required, add nonces instead of unsafe-inline
         // scriptSrc: ["'self'", `'nonce-${nonce}'`]
-        // FIXED: Use specific domains instead of wildcard "https:" and "wss:"
+        // SECURITY FIX #7: Use specific domains instead of wildcard patterns
+        // Replace wildcard patterns (https:*, wss:*, https://d*.cloudfront.net, etc) with explicit domains
         connectSrc: [
           "'self'",
-          process.env.API_GATEWAY_URL || "https://api*.execute-api.us-east-1.amazonaws.com",
-          process.env.CLOUDFRONT_DOMAIN || "https://d*.cloudfront.net",
-          "wss://api*.execute-api.us-east-1.amazonaws.com",
+          process.env.API_GATEWAY_URL,
+          process.env.CLOUDFRONT_DOMAIN,
           "https://cognito-idp.us-east-1.amazonaws.com", // Cognito auth endpoint
         ].filter(Boolean),
         frameSrc: ["'none'"],

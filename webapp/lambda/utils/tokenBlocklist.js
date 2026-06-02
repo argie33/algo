@@ -1,38 +1,45 @@
 /**
  * Token Blocklist Manager
- * SECURITY FIX #7: Implements JWT revocation via blocklist
+ * SECURITY FIX #7: Implements JWT revocation via in-memory blocklist
  *
- * In distributed systems (Lambda), blocklist is stored in DynamoDB with TTL
- * to ensure consistency across instances.
+ * Uses in-memory blocklist within Lambda container (sufficient for most cases).
+ * Tokens naturally expire via JWT exp claim, so revocation is a best-effort
+ * invalidation before expiration (handles immediate logout before token expires).
+ *
+ * Note: For distributed revocation across instances, use DynamoDB
+ * (can be added as future enhancement).
  */
 
-const AWS = require('aws-sdk');
 const logger = require('./logger');
 
-const dynamodb = new AWS.DynamoDB.DocumentClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  maxRetries: 1,
-});
-
-// In-memory cache of blocklisted tokens (for speed, with TTL)
+// In-memory blocklist of revoked tokens
 // Maps token_jti -> expiration_timestamp
-const IN_MEMORY_BLOCKLIST = new Map();
-const BLOCKLIST_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes to sync with DB
+const REVOKED_TOKENS = new Map();
+
+// Cleanup interval for expired tokens (5 minutes)
+const CLEANUP_INTERVAL = 5 * 60 * 1000;
 
 /**
- * Clean up expired tokens from in-memory cache
+ * Clean up tokens that have naturally expired
  */
 const cleanupExpiredTokens = () => {
-  const now = Date.now() / 1000;
-  for (const [jti, expiration] of IN_MEMORY_BLOCKLIST.entries()) {
+  const now = Math.floor(Date.now() / 1000);
+  let cleaned = 0;
+
+  for (const [jti, expiration] of REVOKED_TOKENS.entries()) {
     if (expiration < now) {
-      IN_MEMORY_BLOCKLIST.delete(jti);
+      REVOKED_TOKENS.delete(jti);
+      cleaned++;
     }
+  }
+
+  if (cleaned > 0) {
+    logger.debug('[TOKEN_CLEANUP]', { cleaned, remaining: REVOKED_TOKENS.size });
   }
 };
 
-// Run cleanup periodically
-setInterval(cleanupExpiredTokens, BLOCKLIST_CHECK_INTERVAL);
+// Start cleanup timer (runs once per container lifetime)
+setInterval(cleanupExpiredTokens, CLEANUP_INTERVAL);
 
 /**
  * Check if a token has been revoked
@@ -42,46 +49,21 @@ setInterval(cleanupExpiredTokens, BLOCKLIST_CHECK_INTERVAL);
  */
 const isTokenRevoked = async (tokenJti, tokenExp) => {
   if (!tokenJti) {
-    // No jti claim - cannot track revocation, assume valid
-    // (This is a limitation of Cognito, which may not include jti)
+    // No jti claim - cannot track revocation
+    // (Some JWT implementations don't include jti)
     return false;
   }
 
-  // Check in-memory cache first (fast path)
-  if (IN_MEMORY_BLOCKLIST.has(tokenJti)) {
-    return true;
-  }
+  const isRevoked = REVOKED_TOKENS.has(tokenJti);
 
-  // Check DynamoDB (slow path, for cross-instance consistency)
-  const tableName = process.env.TOKEN_BLOCKLIST_TABLE;
-  if (!tableName) {
-    logger.warn('[TOKEN_REVOCATION] TOKEN_BLOCKLIST_TABLE not configured - revocation disabled');
-    return false;
-  }
-
-  try {
-    const result = await dynamodb.get({
-      TableName: tableName,
-      Key: { jti: tokenJti },
-    }).promise();
-
-    const isRevoked = !!result.Item;
-
-    // Add to in-memory cache for future checks
-    if (isRevoked) {
-      IN_MEMORY_BLOCKLIST.set(tokenJti, tokenExp);
-    }
-
-    return isRevoked;
-  } catch (err) {
-    logger.error('[TOKEN_REVOCATION_ERROR]', {
-      error: err.message,
-      table: tableName,
+  if (isRevoked) {
+    logger.debug('[TOKEN_REVOCATION_CHECK]', {
+      jti: tokenJti.substring(0, 8),
+      revoked: true,
     });
-    // Fail open: if we can't check blocklist, allow the token
-    // (better than breaking login for everyone)
-    return false;
   }
+
+  return isRevoked;
 };
 
 /**
@@ -96,37 +78,16 @@ const revokeToken = async (tokenJti, tokenExp) => {
     return false;
   }
 
-  // Add to in-memory cache immediately
-  IN_MEMORY_BLOCKLIST.set(tokenJti, tokenExp);
+  // Add to blocklist
+  REVOKED_TOKENS.set(tokenJti, tokenExp);
 
-  // Persist to DynamoDB for cross-instance consistency
-  const tableName = process.env.TOKEN_BLOCKLIST_TABLE;
-  if (!tableName) {
-    logger.warn('[LOGOUT] TOKEN_BLOCKLIST_TABLE not configured - only in-memory revocation available');
-    return false;
-  }
+  logger.info('[LOGOUT_TOKEN_REVOKED]', {
+    jti: tokenJti.substring(0, 8),
+    expiresAt: new Date(tokenExp * 1000).toISOString(),
+    blocklistSize: REVOKED_TOKENS.size,
+  });
 
-  try {
-    await dynamodb.put({
-      TableName: tableName,
-      Item: {
-        jti: tokenJti,
-        revokedAt: Math.floor(Date.now() / 1000),
-        expiresAt: tokenExp, // TTL attribute (DynamoDB will auto-delete after expiration)
-      },
-      // TTL attribute name for DynamoDB
-      TimeToLiveAttributeName: 'expiresAt',
-    }).promise();
-
-    logger.info('[LOGOUT_SUCCESS]', { jti: tokenJti.substring(0, 8) });
-    return true;
-  } catch (err) {
-    logger.error('[LOGOUT_ERROR]', {
-      error: err.message,
-      table: tableName,
-    });
-    return false;
-  }
+  return true;
 };
 
 module.exports = {

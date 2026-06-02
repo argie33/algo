@@ -290,6 +290,22 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 **How to debug auth on health endpoints:**
 `/api/health` and `/health` (exact) remain public—uptime monitors can always hit them. `/api/health/detailed` and `/api/health/pipeline` now require Bearer token. If an uptime monitor returns 401 after this deploy, update it to use an authenticated request.
 
+## Infrastructure Fixes (2026-06-02)
+
+**Root Causes Found and Fixed:**
+
+- **ECS loaders `No module named 'algo'`:** Dockerfile was missing `COPY algo/ ./algo/`. All loaders that import `algo.algo_market_calendar.MarketCalendar` (technical_data_daily, buy_sell_daily, signal_quality_scores, swing_trader_scores, etc.) were failing per-symbol with `ModuleNotFoundError`. Fixed by adding the `COPY` line to Dockerfile and rebuilding the image.
+
+- **API Lambda package missing `utils/`:** The direct Lambda deploy job (`2c. Deploy API Lambda`) copied only `lambda/api/` but API routes import `utils.admin_rate_limiter`. This caused `ModuleNotFoundError` on every request (500 on all endpoints). Fixed by adding `cp -r utils/ api-pkg/utils/` to the deploy step.
+
+- **IAM policy too narrow for DB secrets:** IAM security hardening scoped `GetSecretValue` to `algo/database*` and `algo-database*`, but the actual secret name is `algo-db-credentials-dev` (matches `algo-db-*`). This caused `AccessDeniedException` on DB credential fetch, breaking all DB-requiring endpoints (503). Fixed by adding `algo-db-*` to the IAM resource list.
+
+- **`cryptography` missing from API Lambda deps:** `PyJWT.algorithms.RSAAlgorithm` requires the `cryptography` package for RSA key operations. It was not in `lambda/api/requirements.txt`, so JWT validation failed on every authenticated request. Fixed by adding `cryptography>=41.0.0` to requirements.
+
+- **numpy layer too large for Lambda direct upload:** AWS `PublishLayerVersion` limit is ~70 MB **base64-encoded**, meaning the raw zip must be < ~52 MB. numpy+scipy combined ~65 MB raw → ~87 MB base64 → 413. Switched to numpy-only (~25 MB raw). Scipy imports in Phase 7 fail-open (weight optimization logs "scipy not available"). Layer output path was also wrong (`lambda/` vs `terraform/lambda/`).
+
+- **Alpaca 401 (paper keys vs live endpoint):** Both `algo/alpaca` and `ALGO_SECRETS_ARN` contain paper trading keys (PK prefix). With `alpaca_paper_trading=false` and `APCA_API_BASE_URL=https://api.alpaca.markets`, the orchestrator used paper keys against the live endpoint → 401 on every Alpaca call (Phase 7 reconciliation, and Phase 4/6 when trades needed). Fixed: `alpaca_paper_trading=true` + `APCA_API_BASE_URL=https://paper-api.alpaca.markets`. To switch to live: see "To switch to live trading" above.
+
 ## Post-Mortem: June 1 Live Trading Failure + Fixes
 
 **Root cause (confirmed):** Circuit breaker Lambda was deployed with handler `index.lambda_handler` but the ZIP contained only a stale file structure — "No module named 'index'" error on every invocation. Each failed invocation (10 AM, 12 PM, 3 PM ET) set `halt_flag=True` in DynamoDB. The orchestrator's Phase 4–7 halt flag check blocked entries AND exits. Phase 5 also had a transaction abort cascade issue that returned 0 signals when any statement timed out.
@@ -377,11 +393,12 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **All known gaps addressed (2026-06-01):**
 
-1. **F-03 numpy/scipy Lambda Layer** - ✅ READY TO DEPLOY
-   - Built: `lambda/shared-deps-layer.zip` (58.6 MB)
-   - Terraform detects ZIP and will create layer on next `git push main`
-   - Enables Phase 7 portfolio risk metrics and weight optimization
-   - Status: Awaiting next GitHub Actions deploy-all-infrastructure.yml run
+1. **F-03 numpy Lambda Layer** - ✅ DEPLOYED (numpy-only)
+   - Location: `terraform/lambda/shared-deps-layer.zip` (built by deploy workflow)
+   - Runtime limit: AWS PublishLayerVersion limit is ~50 MB raw (base64-encoded request must be < 70 MB). numpy alone stays under ~25 MB.
+   - scipy was removed: base64-encoded numpy+scipy ~87 MB exceeds limit; all scipy imports fail-open.
+   - Phase 7 numpy-based VaR computation works; scipy weight optimization logs "scipy not available" and skips.
+   - To restore scipy: implement S3-based layer upload (no direct size limit) — see `build-lambda-layer.yml`.
 
 2. **SMTP Email Alerts** - ✅ CONFIGURED (password pending)
    - Infrastructure: set up in terraform.tfvars with Gmail SMTP
