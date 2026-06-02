@@ -95,3 +95,12 @@ output "data_patrol_log_group_name" {
   value       = "/ecs/${var.project_name}-data-patrol"
 }
 
+# ============================================================
+# DynamoDB Lock Tables
+# ============================================================
+
+output "loader_locks_table_name" {
+  description = "DynamoDB table name for loader distributed locking"
+  value       = aws_dynamodb_table.loader_locks.name
+}
+

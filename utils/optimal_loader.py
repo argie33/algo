@@ -433,36 +433,23 @@ class OptimalLoader(ABC):
             parallelism: Number of concurrent workers
             backfill_days: If set, refetch last N days instead of using watermark (for extended history)
         """
-        # Session-level advisory lock: prevents concurrent instances of the same loader from
-        # stacking on t4g.micro. pg_try_advisory_lock is non-blocking — returns false immediately
-        # if another session holds the lock. Auto-released when connection closes (even on crash).
-        _lock_conn = None
+        # Distributed lock using DynamoDB (FIXED Issue #31: advisory locks don't work with RDS Proxy pooling)
+        # DynamoDB locks are atomic, auto-expiring, and work across network boundaries.
+        lock_manager = None
         try:
-            from utils.db_connection import get_db_connection
-            _lock_conn = get_db_connection(timeout=30)
-            _lock_conn.autocommit = True
-            with _lock_conn.cursor() as _cur:
-                # Release any advisory locks inherited from a pooled RDS Proxy connection.
-                # Session-level locks persist on the physical TCP connection when the ECS task
-                # that acquired them exits and the connection returns to the RDS Proxy pool.
-                # The next task that gets the same physical connection would inherit the lock,
-                # causing pg_try_advisory_lock to return false even for a fresh task.
-                _cur.execute("SELECT pg_advisory_unlock_all()")
-                _cur.execute("SELECT pg_try_advisory_lock(hashtext(%s)::bigint)", (self.table_name,))
-                acquired = _cur.fetchone()[0]
+            from utils.dynamodb_lock_manager import DynamoDBLockManager
+            lock_table = os.getenv('LOADER_LOCKS_TABLE', f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}')
+            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
+            acquired = lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5)
             if not acquired:
                 logger.warning(
-                    "[%s] Skipping: another instance already running (advisory lock held)",
+                    "[%s] Skipping: another instance already running (DynamoDB lock held)",
                     self.table_name,
                 )
-                try:
-                    _lock_conn.close()
-                except Exception:
-                    pass
                 return self._stats
         except Exception as _lock_err:
-            logger.warning("[%s] Advisory lock check failed (%s) — proceeding without lock", self.table_name, _lock_err)
-            _lock_conn = None
+            logger.warning("[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)", self.table_name, _lock_err)
+            lock_manager = None
 
         try:
             if backfill_days is not None:
@@ -535,11 +522,11 @@ class OptimalLoader(ABC):
 
             return self._stats
         finally:
-            if _lock_conn:
+            if lock_manager:
                 try:
-                    _lock_conn.close()
-                except Exception:
-                    pass
+                    lock_manager.release(lock_key=self.table_name)
+                except Exception as e:
+                    logger.warning(f"Failed to release DynamoDB lock: {e}")
 
     def close(self) -> None:
         """No-op. DatabaseContext handles connection cleanup automatically."""
@@ -558,28 +545,23 @@ class OptimalLoader(ABC):
           4. Return count of rows inserted.
         """
 
-        _lock_conn = None
+        lock_manager = None
         try:
-            from utils.db_connection import get_db_connection
-            _lock_conn = get_db_connection(timeout=30)
-            _lock_conn.autocommit = True
-            with _lock_conn.cursor() as _cur:
-                _cur.execute("SELECT pg_advisory_unlock_all()")
-                _cur.execute("SELECT pg_try_advisory_lock(hashtext(%s)::bigint)", (self.table_name,))
-                acquired = _cur.fetchone()[0]
+            from utils.dynamodb_lock_manager import DynamoDBLockManager
+            lock_table = os.getenv('LOADER_LOCKS_TABLE', f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}')
+            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
+            acquired = lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5)
             if not acquired:
                 logger.warning(
-                    "[%s] Skipping global load: another instance already running (advisory lock held)",
+                    "[%s] Skipping global load: another instance already running (DynamoDB lock held)",
                     self.table_name,
                 )
                 try:
-                    _lock_conn.close()
-                except Exception:
                     pass
                 return 0
         except Exception as _lock_err:
-            logger.warning("[%s] Advisory lock check failed (%s) — proceeding without lock", self.table_name, _lock_err)
-            _lock_conn = None
+            logger.warning("[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)", self.table_name, _lock_err)
+            lock_manager = None
 
         try:
             start = time.time()
@@ -632,11 +614,11 @@ class OptimalLoader(ABC):
 
             return inserted
         finally:
-            if _lock_conn:
+            if lock_manager:
                 try:
-                    _lock_conn.close()
-                except Exception:
-                    pass
+                    lock_manager.release(lock_key=self.table_name)
+                except Exception as e:
+                    logger.warning(f"Failed to release DynamoDB lock: {e}")
 
     def _run_serial(self, symbols: List[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
