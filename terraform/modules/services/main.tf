@@ -614,6 +614,7 @@ resource "aws_lambda_function" "algo" {
       DB_PORT       = "5432"
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username
+      DB_PASSWORD   = var.rds_password
       DB_SSL        = "require"
       # Orchestrator execution configuration (MATCHES what code expects)
       ORCHESTRATOR_EXECUTION_MODE = var.execution_mode
