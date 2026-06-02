@@ -122,26 +122,27 @@ resource "aws_cognito_user_pool_domain" "main" {
 }
 
 # Test user for development
-# NOTE: Test user creation is handled by post-Terraform workflow step (see deploy-all-infrastructure.yml)
-# to avoid UsernameExistsException errors when the user already exists in AWS but not in Terraform state.
-# If you need to manage the test user via Terraform, uncomment this resource and run:
-#   terraform import module.cognito.aws_cognito_user.test_user[0] 'us-east-1_XJpLb9SKX/edgebrookecapital@gmail.com'
-# to sync the existing user into Terraform state first.
-
-# resource "aws_cognito_user" "test_user" {
-#   count              = var.cognito_test_user_email != "" ? 1 : 0
-#   user_pool_id       = aws_cognito_user_pool.stocks_trading.id
-#   username           = var.cognito_test_user_email
-#   temporary_password = var.test_user_password
-#   attributes = {
-#     email          = var.cognito_test_user_email
-#     email_verified = true
-#   }
+# NOTE: Test user creation is disabled in Terraform to avoid UsernameExistsException errors
+# when the user already exists in AWS but not in Terraform state. The test user is created
+# and managed by the post-Terraform workflow step in deploy-all-infrastructure.yml.
 #
-#   lifecycle {
-#     ignore_changes = [temporary_password]
-#   }
-# }
+# To bring existing user into Terraform state, run:
+#   terraform import module.cognito.aws_cognito_user.test_user[0] 'us-east-1_XJpLb9SKX/edgebrookecapital@gmail.com'
+
+resource "aws_cognito_user" "test_user" {
+  count              = 0  # Disabled - managed by workflow step (deploy-all-infrastructure.yml)
+  user_pool_id       = aws_cognito_user_pool.stocks_trading.id
+  username           = var.cognito_test_user_email
+  temporary_password = var.test_user_password
+  attributes = {
+    email          = var.cognito_test_user_email
+    email_verified = true
+  }
+
+  lifecycle {
+    ignore_changes = [temporary_password]
+  }
+}
 
 # Admin group — created by post-Terraform workflow step (not Terraform).
 # Reason: creating the group requires cognito-idp:CreateGroup in the GitHub Actions
