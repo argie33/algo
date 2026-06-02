@@ -826,7 +826,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
               Name = "${var.project_name}-stock_prices_daily"
               Environment = [
                 { Name = "LOADER_INTERVALS", Value = "1d" },
-                { Name = "LOADER_ASSET_CLASSES", Value = "stock,etf" }
+                { Name = "LOADER_ASSET_CLASSES", Value = "stock" }
               ]
             }]
           }
