@@ -86,9 +86,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 row = cur.fetchone()
                 base = dict(row) if row else {}
                 # Compute today's advancing/declining counts from price_daily.
-                # Compare close to previous day's close (traditional A/D breadth),
-                # not close to open (intraday direction, which is a different measure).
+                # SAVEPOINT isolation: a timeout here must not abort the outer transaction.
                 try:
+                    cur.execute("SAVEPOINT technicals_breadth")
+                    cur.execute("SET LOCAL statement_timeout = '5s'")
                     cur.execute("""
                         WITH latest AS (
                                  SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
@@ -117,9 +118,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         JOIN yesterday y ON t.symbol = y.symbol
                     """)
                     brow = cur.fetchone()
+                    cur.execute("RELEASE SAVEPOINT technicals_breadth")
                     base['breadth'] = dict(brow) if brow else {}
                 except Exception as e:
-                    logger.warning(f"Exception: {e}")
+                    logger.warning(f"Technicals breadth query failed ({type(e).__name__}) — skipping. DB may be under write load.")
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
+                        cur.execute("RELEASE SAVEPOINT technicals_breadth")
+                    except Exception: pass
                     base['breadth'] = {}
                 # Build 30-day McClellan Oscillator history from market_exposure_daily.
                 # The factors JSONB column stores the true McClellan value (19-EMA minus

@@ -1273,7 +1273,11 @@ def _get_sector_breadth(cur) -> Dict:
         t4g.micro — caused 20s timeout). Joins latest tech row per symbol with company_profile.
         """
         try:
-            cur.execute("SET statement_timeout TO '20s'")
+            # SAVEPOINT isolation: sector breadth joins price_daily + technical_data_daily.
+            # Both tables receive heavy writes from ECS loaders — a timeout here must not
+            # abort the outer transaction and break subsequent API requests in the same Lambda.
+            cur.execute("SAVEPOINT sector_breadth_check")
+            cur.execute("SET LOCAL statement_timeout = '8s'")
             cur.execute("""
                 WITH latest_tech AS (
                     SELECT DISTINCT ON (tdd.symbol)
@@ -1311,19 +1315,22 @@ def _get_sector_breadth(cur) -> Dict:
                 ORDER BY pct_above_50d DESC
             """)
             breadth = cur.fetchall()
+            cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             return list_response([dict(b) for b in breadth])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
+                cur.execute("RELEASE SAVEPOINT sector_breadth_check")
+            except Exception: pass
             logger.warning(f'Sector breadth data unavailable: {e}')
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Sector breadth DB connection error: {e}')
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Sector breadth DB error: {e}')
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Sector breadth unexpected error: {e}', extra={'operation': 'get sector breadth'})
-            return error_response(500, 'internal_error', 'Failed to fetch sector breadth')
+            return list_response([])
+        except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
+                cur.execute("RELEASE SAVEPOINT sector_breadth_check")
+            except Exception: pass
+            logger.warning(f'Sector breadth query failed ({type(e).__name__}) — returning empty. DB may be under write load.')
+            return list_response([])
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
