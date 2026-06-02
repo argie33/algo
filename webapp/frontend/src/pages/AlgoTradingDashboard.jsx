@@ -1,9 +1,11 @@
 /**
  * Swing Trading Algo Dashboard
  *
- * Focus: orchestrator run status, signal pipeline, exposure, circuit breakers, config.
- * Portfolio P&L → /app/portfolio  |  Market internals → /app/markets
- * Trade history → /app/trades     |  Audit trail → /app/audit
+ * Focus: orchestrator run status, open positions (stops/targets/R), signal pipeline,
+ * exposure, circuit breakers, config, compact performance snapshot.
+ *
+ * Portfolio deep analytics → /app/portfolio  |  Market internals → /app/markets
+ * Trade history → /app/trades                |  Audit trail → /app/audit
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
@@ -17,7 +19,6 @@ import {
   Tooltip as RechartTooltip, ResponsiveContainer,
 } from 'recharts';
 import RiskTab from './components/RiskTab';
-import { formatPercentageChange, formatNumber } from '../utils/formatters';
 
 // ============================================================================
 // THEME / COLOR UTILITIES
@@ -38,15 +39,11 @@ const tierColor = (n) => ({
   correction: 'var(--danger)',
 }[n] || 'var(--text-muted)');
 
-
-// Reusable styled card
 const SectionCard = ({ title, action, children, sx = {} }) => (
   <div className="card" style={{ marginBottom: 'var(--space-4)', ...sx }}>
     {title && (
       <div className="card-head">
-        <div>
-          <div className="card-title">{title}</div>
-        </div>
+        <div><div className="card-title">{title}</div></div>
         {action && <div className="card-actions">{action}</div>}
       </div>
     )}
@@ -62,9 +59,8 @@ const Stat = ({ label, value, sub, color }) => (
   </div>
 );
 
-
 // ============================================================================
-// LAST RUN SUMMARY (small inline component for the header card)
+// LAST RUN SUMMARY
 // ============================================================================
 function LastRunSummary({ lastRun }) {
   if (!lastRun?.run_id) {
@@ -113,36 +109,42 @@ function LastRunSummary({ lastRun }) {
 }
 
 // ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 function AlgoTradingDashboard() {
   const [tab, setTab] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const qOpts = { refetchInterval: autoRefresh ? 30000 : false };
-  const adminOpts = { ...qOpts, retry: false }; // don't retry on 401/403
+  const adminOpts = { ...qOpts, retry: false };
 
-  // One hook per endpoint — React Query deduplicates and caches
-  const { data: markets,        isLoading: mLoading,  error: err1,  refetch: r1  } = useApiQuery(['algo','markets'],        () => api.get('/api/algo/markets'), qOpts);
-  const { items: scores,        isLoading: _sLoading, error: err2,  refetch: r2  } = useApiPaginatedQuery(['algo','scores'], () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
-  const { data: config,         isLoading: _cLoading, error: err5,  refetch: r5  } = useApiQuery(['algo','config'],         () => api.get('/api/algo/config'), qOpts);
-  const { data: dataStatus,     isLoading: _dLoading, error: err6,  refetch: r6  } = useApiQuery(['algo','data-status'],    () => api.get('/api/algo/data-status'), qOpts);
-  const { data: policy,         isLoading: _poLoading,error: err7,  refetch: r7  } = useApiQuery(['algo','policy'],         () => api.get('/api/algo/exposure-policy'), qOpts);
-  const { data: evaluated,      isLoading: _evLoading,error: err8,  refetch: r8  } = useApiQuery(['algo','evaluate'],       () => api.get('/api/algo/evaluate'), qOpts);
-  const { data: circuitBreakers,isLoading: _cbLoading,error: err11, refetch: r11 } = useApiQuery(['algo','circuit'],        () => api.get('/api/algo/circuit-breakers'), adminOpts);
-  const { data: dataQuality,    isLoading: _dqLoading,error: err12, refetch: r12 } = useApiQuery(['algo','dq'],             () => api.get('/api/algo/data-quality'), qOpts);
-  const { data: rejectionFunnel,isLoading: _rfLoading,error: err13, refetch: r13 } = useApiQuery(['algo','funnel'],         () => api.get('/api/algo/rejection-funnel'), qOpts);
-  const { data: lastRun,                              error: err14, refetch: r14 } = useApiQuery(['algo','last-run'],       () => api.get('/api/algo/last-run'), qOpts);
+  const { data: markets,         isLoading: mLoading,   error: err1,  refetch: r1  } = useApiQuery(['algo','markets'],        () => api.get('/api/algo/markets'), qOpts);
+  const { items: scores,         isLoading: _sLoading,  error: err2,  refetch: r2  } = useApiPaginatedQuery(['algo','scores'], () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
+  const { data: config,          isLoading: _cLoading,  error: err5,  refetch: r5  } = useApiQuery(['algo','config'],          () => api.get('/api/algo/config'), adminOpts);
+  const { data: dataStatus,      isLoading: _dLoading,  error: err6,  refetch: r6  } = useApiQuery(['algo','data-status'],     () => api.get('/api/algo/data-status'), adminOpts);
+  const { data: policy,          isLoading: _poLoading, error: err7,  refetch: r7  } = useApiQuery(['algo','policy'],          () => api.get('/api/algo/exposure-policy'), adminOpts);
+  const { data: evaluated,       isLoading: _evLoading, error: err8,  refetch: r8  } = useApiQuery(['algo','evaluate'],        () => api.get('/api/algo/evaluate'), adminOpts);
+  const { data: circuitBreakers, isLoading: _cbLoading, error: err11, refetch: r11 } = useApiQuery(['algo','circuit'],         () => api.get('/api/algo/circuit-breakers'), adminOpts);
+  const { data: dataQuality,     isLoading: _dqLoading, error: err12, refetch: r12 } = useApiQuery(['algo','dq'],              () => api.get('/api/algo/data-quality'), adminOpts);
+  const { data: rejectionFunnel, isLoading: _rfLoading, error: err13, refetch: r13 } = useApiQuery(['algo','funnel'],          () => api.get('/api/algo/rejection-funnel'), adminOpts);
+  const { data: lastRun,                                error: err14, refetch: r14 } = useApiQuery(['algo','last-run'],        () => api.get('/api/algo/last-run'), adminOpts);
+  const { data: positionsResp,   isLoading: posLoading, error: err15, refetch: r15 } = useApiQuery(['algo','positions'],       () => api.get('/api/algo/positions'), adminOpts);
+  const { data: performance,     isLoading: _perfLoad,  error: err16, refetch: r16 } = useApiQuery(['algo','performance'],     () => api.get('/api/algo/performance'), adminOpts);
 
   const refetchAll = useCallback(() => {
-    [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14].forEach(fn => fn?.());
-  }, [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14]);
+    [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14,r15,r16].forEach(fn => fn?.());
+  }, [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14,r15,r16]);
 
-  // Transform config from array [{key, value, ...}] to dict {key: {value, ...}}
   const configMap = useMemo(() => {
     const items = config?.items || (Array.isArray(config) ? config : []);
     return items.reduce((acc, row) => { acc[row.key] = row; return acc; }, {});
   }, [config]);
 
-  // Stable data shape consumed by sub-components
+  const positions = useMemo(() => {
+    const raw = positionsResp?.items || (Array.isArray(positionsResp) ? positionsResp : []);
+    return raw;
+  }, [positionsResp]);
+
   const data = {
     scores:           scores || [],
     config:           configMap,
@@ -153,9 +155,21 @@ function AlgoTradingDashboard() {
     dataQuality,
     rejectionFunnel,
     lastRun,
+    positions,
+    performance,
   };
 
   const market = markets;
+
+  // Aggregate position stats for KPI card
+  const posStats = useMemo(() => {
+    if (!positions.length) return { count: 0, totalValue: 0, unrealizedPnl: 0 };
+    return {
+      count: positions.length,
+      totalValue: positions.reduce((s, p) => s + (Number(p.position_value) || 0), 0),
+      unrealizedPnl: positions.reduce((s, p) => s + (Number(p.unrealized_pnl) || 0), 0),
+    };
+  }, [positions]);
 
   if (mLoading && !markets) {
     return (
@@ -164,6 +178,9 @@ function AlgoTradingDashboard() {
       </div>
     );
   }
+
+  const allErrors = [err1,err2,err5,err6,err7,err8,err11,err12,err13,err14,err15,err16];
+  const allErrorNames = ['markets','scores','config','data-status','policy','evaluate','circuit-breakers','data-quality','rejection-funnel','last-run','positions','performance'];
 
   return (
     <div className="main-content">
@@ -174,11 +191,9 @@ function AlgoTradingDashboard() {
           <div className="page-head-sub">Pine signals · multi-factor scoring · composite exposure · hedge-fund discipline</div>
         </div>
         <div className="page-head-actions">
-          {[err1,err2,err5,err6,err7,err8,err11,err12,err13,err14].some(Boolean) && (
-            <span className="badge badge-danger" title={`Failed: ${['markets','scores','config','data-status','policy','evaluate','circuit-breakers','data-quality','rejection-funnel','last-run']
-              .filter((_, i) => [err1,err2,err5,err6,err7,err8,err11,err12,err13,err14][i])
-              .join(', ')}`}>
-              ⚠ {[err1,err2,err5,err6,err7,err8,err11,err12,err13,err14].filter(Boolean).length} source(s) failed
+          {allErrors.some(Boolean) && (
+            <span className="badge badge-danger" title={`Failed: ${allErrorNames.filter((_, i) => allErrors[i]).join(', ')}`}>
+              ⚠ {allErrors.filter(Boolean).length} source(s) failed
             </span>
           )}
           <span className={`badge ${data.dataStatus?.ready_to_trade ? 'badge-success' : 'badge-danger'}`}>
@@ -218,33 +233,31 @@ function AlgoTradingDashboard() {
           </div>
         </div>
 
-        {/* Card 2: Active Tier Entry Rules */}
+        {/* Card 2: Open Positions */}
         <div className="card">
           <div className="card-body">
-            <div className="eyebrow">Entry Rules — Active Tier</div>
-            <div style={{ marginTop: 'var(--space-3)' }}>
-              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Risk multiplier</span>
-                <span className="mono tnum t-xs">{market?.active_tier?.risk_mult ?? '--'}x</span>
+            <div className="eyebrow">Open Positions</div>
+            {posLoading && !posStats.count ? (
+              <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>Loading…</div>
+            ) : (
+              <div style={{ marginTop: 'var(--space-3)' }}>
+                <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-bold)', lineHeight: 1, color: 'var(--text-2)' }}>
+                  {posStats.count}
+                </div>
+                <div style={{ marginTop: 'var(--space-3)' }}>
+                  <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
+                    <span className="t-xs muted">Total value</span>
+                    <span className="mono tnum t-xs">${posStats.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="t-xs muted">Unrealized P&L</span>
+                    <span className={`mono tnum t-xs ${posStats.unrealizedPnl >= 0 ? 'up' : 'down'}`}>
+                      {posStats.unrealizedPnl >= 0 ? '+' : ''}${posStats.unrealizedPnl.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Max new / day</span>
-                <span className="mono tnum t-xs">{market?.active_tier?.max_new ?? '--'}</span>
-              </div>
-              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Min grade</span>
-                <span className={`badge ${market?.active_tier?.min_grade?.startsWith('A') ? 'badge-success' : market?.active_tier?.min_grade === 'B' ? 'badge-cyan' : market?.active_tier?.min_grade === 'C' ? 'badge-amber' : 'badge'}`}
-                  style={{ fontSize: 'var(--t-2xs)' }}>
-                  {market?.active_tier?.min_grade || '--'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="t-xs muted">New entries</span>
-                <span className={`mono tnum t-xs strong ${market?.active_tier?.halt ? 'down' : 'up'}`}>
-                  {market?.active_tier?.halt ? 'HALTED' : 'ALLOWED'}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -258,7 +271,7 @@ function AlgoTradingDashboard() {
                 <span className="mono tnum t-xs">{data.evaluated?.candidates?.screened ?? '--'}</span>
               </div>
               <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Passed all 6 tiers</span>
+                <span className="t-xs muted">Passed all gates</span>
                 <span className="mono tnum t-xs up">{(data.scores || []).filter(s => s.pass_gates).length}</span>
               </div>
               <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
@@ -284,6 +297,64 @@ function AlgoTradingDashboard() {
         </div>
       </div>
 
+      {/* COMPACT PERFORMANCE STRIP */}
+      {data.performance && data.performance.total_trades > 0 && (
+        <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+          <div className="card-body">
+            <div className="flex gap-6 flex-wrap items-center">
+              <div>
+                <div className="t-2xs muted strong">WIN RATE</div>
+                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.win_rate_pct >= 50 ? 'var(--success)' : 'var(--danger)' }}>
+                  {data.performance.win_rate_pct}%
+                </div>
+              </div>
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+              <div>
+                <div className="t-2xs muted strong">TOTAL P&L</div>
+                <div className={`mono tnum ${data.performance.total_pnl_dollars >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                  {data.performance.total_pnl_dollars >= 0 ? '+' : ''}${(data.performance.total_pnl_dollars || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+              <div>
+                <div className="t-2xs muted strong">TRADES</div>
+                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                  {data.performance.total_trades} <span className="t-2xs muted">({data.performance.winning_trades}W / {data.performance.losing_trades}L)</span>
+                </div>
+              </div>
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+              <div>
+                <div className="t-2xs muted strong">SHARPE</div>
+                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.sharpe_annualized >= 1 ? 'var(--success)' : 'var(--amber)' }}>
+                  {data.performance.sharpe_annualized ?? '—'}
+                </div>
+              </div>
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+              <div>
+                <div className="t-2xs muted strong">MAX DD</div>
+                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.max_drawdown_pct > 20 ? 'var(--danger)' : data.performance.max_drawdown_pct > 10 ? 'var(--amber)' : 'var(--text-2)' }}>
+                  {data.performance.max_drawdown_pct ?? '—'}%
+                </div>
+              </div>
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+              <div>
+                <div className="t-2xs muted strong">STREAK</div>
+                <div className={`mono tnum ${data.performance.current_streak >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                  {data.performance.current_streak >= 0 ? `+${data.performance.current_streak} W` : `${Math.abs(data.performance.current_streak)} L`}
+                </div>
+              </div>
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+              <div>
+                <div className="t-2xs muted strong">EXPECTANCY</div>
+                <div className={`mono tnum ${data.performance.expectancy_r >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                  {data.performance.expectancy_r >= 0 ? '+' : ''}{data.performance.expectancy_r ?? '—'}R
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HALT REASONS BANNER */}
       {market?.current?.halt_reasons?.length > 0 && (
         <div className="alert alert-warn" style={{ marginBottom: 'var(--space-4)' }}>
@@ -296,6 +367,7 @@ function AlgoTradingDashboard() {
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
           {[
             { label: `SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`, errors: [err2, err8] },
+            { label: `POSITIONS (${posStats.count})`, errors: [err15] },
             { label: `RISK${data.circuitBreakers?.system_halted ? ' ⚠' : ''}`, errors: [err11] },
             { label: 'PIPELINE', errors: [err7, err12, err13] },
             { label: 'CONFIG', errors: [err5] },
@@ -318,12 +390,13 @@ function AlgoTradingDashboard() {
         </div>
 
         {tab === 0 && <SetupsTab scores={data.scores} evaluated={data.evaluated} error={err2 || err8} />}
-        {tab === 1 && (err11 ?
+        {tab === 1 && <PositionsTab positions={data.positions} error={err15} loading={posLoading} />}
+        {tab === 2 && (err11 ?
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load risk data:</strong> {err11?.message || 'Unknown error'}</div></div>
-          : data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={[]} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No circuit breaker data</div></div>
+          : data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No circuit breaker data</div></div>
         )}
-        {tab === 2 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} dataStatus={data.dataStatus} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} lastRun={data.lastRun} error={err7 || err12 || err13 || err14} />}
-        {tab === 3 && (err5 ?
+        {tab === 3 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} dataStatus={data.dataStatus} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} lastRun={data.lastRun} error={err7 || err12 || err13 || err14} />}
+        {tab === 4 && (err5 ?
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load config:</strong> {err5?.message || 'Unknown error'}</div></div>
           : data.config ? <ConfigTab config={data.config} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No config data</div></div>
         )}
@@ -410,7 +483,7 @@ function SetupsTab({ scores, evaluated, error }) {
       </SectionCard>
 
       {blocked.length > 0 && (
-        <SectionCard title={`Blocked Candidates (${blocked.length}) — Failed Hard Gates`} style={{ marginTop: 'var(--space-4)' }}>
+        <SectionCard title={`Blocked Candidates (${blocked.length}) — Failed Hard Gates`}>
           <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
@@ -473,6 +546,173 @@ const ScoreDetailExpanded = ({ details, _symbol }) => {
 };
 
 // ============================================================================
+// POSITIONS TAB — algo's live open book with risk management fields
+// ============================================================================
+function PositionsTab({ positions, error, loading }) {
+  const [expanded, setExpanded] = useState(null);
+
+  if (error) {
+    return (
+      <div style={{ padding: 'var(--space-4)' }}>
+        <div className="alert alert-danger">
+          <strong>Failed to load positions:</strong> {error?.message || 'Unknown error'}
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && !positions?.length) {
+    return <div style={{ padding: 'var(--space-4)' }}><div className="t-xs muted">Loading positions…</div></div>;
+  }
+
+  if (!positions?.length) {
+    return (
+      <div style={{ padding: 'var(--space-4)' }}>
+        <div className="empty">
+          <div className="empty-title">No open positions</div>
+          <div className="empty-sub">The algo is flat — no active holdings</div>
+        </div>
+      </div>
+    );
+  }
+
+  const totalValue = positions.reduce((s, p) => s + (Number(p.position_value) || 0), 0);
+  const totalUnrealized = positions.reduce((s, p) => s + (Number(p.unrealized_pnl) || 0), 0);
+  const totalRisk = positions.reduce((s, p) => s + (Number(p.open_risk_dollars) || 0), 0);
+
+  return (
+    <div style={{ padding: 'var(--space-4)' }}>
+      {/* Summary strip */}
+      <div className="flex gap-6 flex-wrap" style={{ marginBottom: 'var(--space-4)' }}>
+        <Stat label="Positions" value={positions.length} />
+        <Stat
+          label="Total Value"
+          value={`$${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
+        />
+        <Stat
+          label="Unrealized P&L"
+          value={`${totalUnrealized >= 0 ? '+' : ''}$${totalUnrealized.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
+          color={totalUnrealized >= 0 ? 'var(--success)' : 'var(--danger)'}
+        />
+        <Stat
+          label="Open Risk $"
+          value={`$${totalRisk.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
+          color="var(--amber)"
+          sub="to stop loss"
+        />
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th className="num">Entry</th>
+              <th className="num">Current</th>
+              <th className="num">P&L %</th>
+              <th className="num">R-Mult</th>
+              <th className="num">Stop</th>
+              <th className="num">Dist%</th>
+              <th className="num">T1→</th>
+              <th className="num">T2→</th>
+              <th className="num">Days</th>
+              <th>Stage</th>
+              <th>Sector</th>
+            </tr>
+          </thead>
+          <tbody>
+            {positions.map(p => {
+              const pnlPct = Number(p.unrealized_pnl_pct) || 0;
+              const rMult = Number(p.r_multiple);
+              const distToStop = Number(p.distance_to_stop_pct);
+              const stopWarning = !isNaN(distToStop) && distToStop < 3;
+              const isExpanded = expanded === p.symbol;
+              return (
+                <React.Fragment key={p.symbol}>
+                  <tr
+                    onClick={() => setExpanded(isExpanded ? null : p.symbol)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td className="strong mono">{p.symbol}</td>
+                    <td className="num mono tnum t-xs">${Number(p.avg_entry_price || 0).toFixed(2)}</td>
+                    <td className="num mono tnum t-xs">${Number(p.current_price || 0).toFixed(2)}</td>
+                    <td className={`num mono tnum t-xs ${pnlPct >= 0 ? 'up' : 'down'}`}>
+                      {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                    </td>
+                    <td className={`num mono tnum t-xs ${isNaN(rMult) ? '' : rMult >= 1 ? 'up' : rMult >= 0 ? '' : 'down'}`}>
+                      {isNaN(rMult) ? '—' : `${rMult >= 0 ? '+' : ''}${rMult.toFixed(2)}R`}
+                    </td>
+                    <td className="num mono tnum t-xs">
+                      {p.current_stop_price ? `$${Number(p.current_stop_price).toFixed(2)}` : '—'}
+                    </td>
+                    <td className={`num mono tnum t-xs ${stopWarning ? 'down' : ''}`} title={stopWarning ? 'Near stop!' : ''}>
+                      {isNaN(distToStop) ? '—' : `${distToStop.toFixed(1)}%`}
+                    </td>
+                    <td className="num mono tnum t-xs muted">
+                      {p.distance_to_t1_pct != null ? `+${Number(p.distance_to_t1_pct).toFixed(1)}%` : '—'}
+                    </td>
+                    <td className="num mono tnum t-xs muted">
+                      {p.distance_to_t2_pct != null ? `+${Number(p.distance_to_t2_pct).toFixed(1)}%` : '—'}
+                    </td>
+                    <td className="num mono tnum t-xs">{p.days_since_entry ?? '—'}</td>
+                    <td className="t-xs">
+                      {p.weinstein_stage ? (
+                        <span className={`badge ${p.weinstein_stage === 2 ? 'badge-success' : p.weinstein_stage === 1 ? 'badge-cyan' : p.weinstein_stage === 3 ? 'badge-amber' : 'badge-danger'}`}
+                          style={{ fontSize: 'var(--t-2xs)' }}>
+                          S{p.weinstein_stage}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="t-xs muted">{p.sector || '—'}</td>
+                  </tr>
+                  {isExpanded && (
+                    <tr style={{ background: 'var(--bg)' }}>
+                      <td colSpan={12} style={{ padding: 'var(--space-4)', borderColor: 'var(--border)' }}>
+                        <PositionDetail p={p} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PositionDetail({ p }) {
+  const fields = [
+    ['Position Value', p.position_value != null ? `$${Number(p.position_value).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'],
+    ['Shares / Qty', p.quantity ?? '—'],
+    ['Unrealized P&L', p.unrealized_pnl != null ? `$${Number(p.unrealized_pnl).toFixed(2)}` : '—'],
+    ['Open Risk $', p.open_risk_dollars != null ? `$${Number(p.open_risk_dollars).toFixed(2)}` : '—'],
+    ['Original Stop', p.trade_stop_price != null ? `$${Number(p.trade_stop_price).toFixed(2)}` : '—'],
+    ['Current Stop', p.current_stop_price != null ? `$${Number(p.current_stop_price).toFixed(2)}` : '—'],
+    ['Target 1', p.target_1_price != null ? `$${Number(p.target_1_price).toFixed(2)}` : '—'],
+    ['Target 2', p.target_2_price != null ? `$${Number(p.target_2_price).toFixed(2)}` : '—'],
+    ['Target 3', p.target_3_price != null ? `$${Number(p.target_3_price).toFixed(2)}` : '—'],
+    ['Levels Hit', p.target_levels_hit ?? 0],
+    ['Exit Stage', p.stage_in_exit_plan ?? '—'],
+    ['Dist-to-Stop', p.distance_to_stop_pct != null ? `${Number(p.distance_to_stop_pct).toFixed(2)}%` : '—'],
+    ['52w Low', p.pct_from_52w_low != null ? `+${Number(p.pct_from_52w_low).toFixed(1)}%` : '—'],
+    ['Trend Score', p.minervini_trend_score != null ? Number(p.minervini_trend_score).toFixed(1) : '—'],
+    ['Distrib. Days', p.distribution_day_count ?? 0],
+  ];
+  return (
+    <div className="grid grid-4" style={{ gap: 'var(--space-3)' }}>
+      {fields.map(([label, val]) => (
+        <div key={label}>
+          <div className="t-2xs muted strong">{label.toUpperCase()}</div>
+          <div className="mono t-xs" style={{ marginTop: 2, color: 'var(--text-2)' }}>{val}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
 // PIPELINE TAB — live 7-phase orchestrator status + data loader health
 // ============================================================================
 function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, circuitBreakers, lastRun }) {
@@ -485,7 +725,6 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
   const overallStatus = dataStatus?.ready_to_trade ? 'ok' : dataQuality?.accuracy_check === 'warning' ? 'warning' : 'error';
   const statusColor2 = overallStatus === 'ok' ? 'var(--success)' : overallStatus === 'warning' ? 'var(--amber)' : 'var(--danger)';
 
-  // Build phase status map from last run's audit log entries
   const phaseStatusMap = {};
   if (lastRun?.phases) {
     for (const p of lastRun.phases) {
@@ -583,7 +822,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
         <div>
           {/* Signal Rejection Funnel */}
           {funnelTiers.length > 0 && (
-            <SectionCard title={`Signal Filter Funnel (${rejectionFunnel?.summary?.total_initial || 0} total)`} style={{ marginBottom: 'var(--space-4)' }}>
+            <SectionCard title={`Signal Filter Funnel (${rejectionFunnel?.summary?.total_initial || 0} total)`} sx={{ marginBottom: 'var(--space-4)' }}>
               <div style={{ height: 160 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={funnelTiers} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
@@ -603,7 +842,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
           )}
 
           {/* Data Loader Status */}
-          <SectionCard title={`Data Loaders`} action={
+          <SectionCard title="Data Loaders" action={
             <span className={`badge ${statusColor2 === 'var(--success)' ? 'badge-success' : statusColor2 === 'var(--amber)' ? 'badge-amber' : 'badge-danger'}`}
               style={{ fontSize: 'var(--t-2xs)' }}>
               {overallStatus.toUpperCase()}
@@ -646,7 +885,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
           </SectionCard>
 
           {/* Exposure Policy Matrix */}
-          <SectionCard title="Exposure Tier Policy Matrix" style={{ marginTop: 'var(--space-4)' }}>
+          <SectionCard title="Exposure Tier Policy Matrix" sx={{ marginTop: 'var(--space-4)' }}>
             <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)' }}>
               Current exposure: {policy?.current_exposure_pct ?? '—'}% → tier <span style={{ color: 'var(--text-2)', fontWeight: 'var(--w-bold)' }}>{policy?.active_tier?.name?.toUpperCase()}</span>
             </div>
@@ -727,4 +966,3 @@ function ConfigTab({ config }) {
 }
 
 export default AlgoTradingDashboard;
-

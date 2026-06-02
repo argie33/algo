@@ -52,8 +52,17 @@ class CredentialManager:
         if self._secrets_client is None:
             try:
                 import boto3
+                import botocore.config
+                # Short timeouts prevent hanging Lambda INIT when Secrets Manager VPC endpoint
+                # is overloaded by concurrent cold-starts (26 parallel on MarketsHealth load).
+                # connect_timeout=2: TCP handshake must complete in 2s
+                # read_timeout=3: full response must arrive in 3s
+                # max_attempts=1: no retry so cold-start stays under the 10s INIT limit
+                _cfg = botocore.config.Config(connect_timeout=2, read_timeout=3,
+                                              retries={'max_attempts': 1})
                 self._secrets_client = boto3.client('secretsmanager',
-                                                     region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                                                     region_name=os.getenv('AWS_REGION', 'us-east-1'),
+                                                     config=_cfg)
             except ImportError:
                 logger.warning("boto3 not available; falling back to environment variables only")
                 self._secrets_client = False  # sentinel: tried and failed
