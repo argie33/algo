@@ -37,43 +37,45 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # We reset using conn.rollback() so subsequent queries can still run.
                 breadth = []
                 freshness = {}
-                try:
-                    cur.execute("SET LOCAL statement_timeout = '18s'")
-                    cur.execute("""
-                        WITH trading_dates AS (
-                            SELECT DISTINCT date
-                            FROM price_daily
-                            WHERE date >= CURRENT_DATE - INTERVAL '40 days'
-                            ORDER BY date DESC LIMIT 21
-                        ),
-                        date_pairs AS (
-                            SELECT d1.date AS d, MAX(d2.date) AS prev_d
-                            FROM trading_dates d1
-                            JOIN trading_dates d2 ON d2.date < d1.date
-                            GROUP BY d1.date
-                        )
-                        SELECT
-                            dp.d AS date,
-                            COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
-                            COUNT(*) FILTER (WHERE t.close < y.close) AS declines,
-                            COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
-                            COUNT(t.symbol) AS total
-                        FROM date_pairs dp
-                        JOIN price_daily t ON t.date = dp.d AND t.symbol NOT LIKE '^%%'
-                        JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
-                        GROUP BY dp.d
-                        ORDER BY dp.d DESC
-                        LIMIT 20
-                    """)
-                    breadth = cur.fetchall()
-                    freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
-                except Exception as e:
-                    logger.warning(f"Breadth query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
-                    # Reset aborted transaction so the connection can be reused by subsequent requests.
+                # Try full 20-day breadth first, then fallback to 5-day if DB is under load
+                for days_back, date_limit, limit_rows in [('40 days', 21, 20), ('12 days', 7, 5)]:
                     try:
-                        cur.connection.rollback()
-                    except Exception:
-                        pass
+                        cur.execute("SET LOCAL statement_timeout = '15s'")
+                        cur.execute(f"""
+                            WITH trading_dates AS (
+                                SELECT DISTINCT date
+                                FROM price_daily
+                                WHERE date >= CURRENT_DATE - INTERVAL '{days_back}'
+                                ORDER BY date DESC LIMIT {date_limit}
+                            ),
+                            date_pairs AS (
+                                SELECT d1.date AS d, MAX(d2.date) AS prev_d
+                                FROM trading_dates d1
+                                JOIN trading_dates d2 ON d2.date < d1.date
+                                GROUP BY d1.date
+                            )
+                            SELECT
+                                dp.d AS date,
+                                COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
+                                COUNT(*) FILTER (WHERE t.close < y.close) AS declines,
+                                COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
+                                COUNT(t.symbol) AS total
+                            FROM date_pairs dp
+                            JOIN price_daily t ON t.date = dp.d AND t.symbol NOT LIKE '^%%'
+                            JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
+                            GROUP BY dp.d
+                            ORDER BY dp.d DESC
+                            LIMIT {limit_rows}
+                        """)
+                        breadth = cur.fetchall()
+                        freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
+                        break  # success — no need for fallback
+                    except Exception as e:
+                        logger.warning(f"Breadth query ({days_back}) failed ({type(e).__name__}) — {'trying shorter range' if days_back == '40 days' else 'returning empty'}. DB may be under write load.")
+                        try:
+                            cur.connection.rollback()
+                        except Exception:
+                            pass
                 return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
                 cur.execute("""
