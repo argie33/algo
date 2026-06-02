@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0  # Full history to catch secrets in commits
 
       - name: TruffleHog — Detect secrets in commits
-        uses: trufflesecurity/trufflehog@1eb7fe35e0a49e4c6265879b8d65b3c2a22ee088  # v3.88.27
+        uses: trufflesecurity/trufflehog@main  # Latest version
         with:
           path: ./
           base: ${{ github.event.before || github.event.pull_request.base.sha }}
