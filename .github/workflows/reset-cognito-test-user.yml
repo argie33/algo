@@ -50,9 +50,10 @@ jobs:
 
       - name: Find user by email
         id: user
+        env:
+          EMAIL: ${{ inputs.user_email }}
         run: |
           POOL_ID="${{ steps.pool.outputs.pool_id }}"
-          EMAIL="${{ inputs.user_email }}"
           USERNAME=$(aws cognito-idp list-users \
             --user-pool-id "$POOL_ID" \
             --filter "email = \"$EMAIL\"" \
@@ -60,26 +61,29 @@ jobs:
           if [ -z "$USERNAME" ] || [ "$USERNAME" = "None" ]; then
             USERNAME=$(aws cognito-idp list-users \
               --user-pool-id "$POOL_ID" \
-              --query "Users[?Attributes[?Name=='email' && Value=='$EMAIL']].Username | [0]" \
+              --query "Users[?Attributes[?Name=='email' && Value=='${EMAIL}']].Username | [0]" \
               --output text 2>/dev/null || echo "")
           fi
           echo "username=$USERNAME" >> $GITHUB_OUTPUT
           echo "Found user: $USERNAME"
 
       - name: Set permanent password
+        env:
+          NEW_PASSWORD: ${{ inputs.new_password }}
+          USER_EMAIL: ${{ inputs.user_email }}
         run: |
           POOL_ID="${{ steps.pool.outputs.pool_id }}"
           USERNAME="${{ steps.user.outputs.username }}"
           if [ -z "$USERNAME" ] || [ "$USERNAME" = "None" ]; then
-            echo "ERROR: User '${{ inputs.user_email }}' not found in pool $POOL_ID"
+            echo "ERROR: User '${USER_EMAIL}' not found in pool $POOL_ID"
             exit 1
           fi
           aws cognito-idp admin-set-user-password \
             --user-pool-id "$POOL_ID" \
             --username "$USERNAME" \
-            --password "${{ inputs.new_password }}" \
+            --password "$NEW_PASSWORD" \
             --permanent
-          echo "OK: Password set permanently for ${{ inputs.user_email }}"
+          echo "OK: Password set permanently for ${USER_EMAIL}"
 
       - name: Verify user status
         run: |

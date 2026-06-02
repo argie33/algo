@@ -19,6 +19,7 @@ import {
   Tooltip as RechartTooltip, ResponsiveContainer,
 } from 'recharts';
 import RiskTab from './components/RiskTab';
+import PerformanceTab from './components/PerformanceTab';
 
 // ============================================================================
 // THEME / COLOR UTILITIES
@@ -129,11 +130,13 @@ function AlgoTradingDashboard() {
   const { data: rejectionFunnel, isLoading: _rfLoading, error: err13, refetch: r13 } = useApiQuery(['algo','funnel'],          () => api.get('/api/algo/rejection-funnel'), adminOpts);
   const { data: lastRun,                                error: err14, refetch: r14 } = useApiQuery(['algo','last-run'],        () => api.get('/api/algo/last-run'), adminOpts);
   const { data: positionsResp,   isLoading: posLoading, error: err15, refetch: r15 } = useApiQuery(['algo','positions'],       () => api.get('/api/algo/positions'), adminOpts);
-  const { data: performance,     isLoading: _perfLoad,  error: err16, refetch: r16 } = useApiQuery(['algo','performance'],     () => api.get('/api/algo/performance'), adminOpts);
+  const { data: performance,                            error: err16, refetch: r16 } = useApiQuery(['algo','performance'],     () => api.get('/api/algo/performance'), adminOpts);
+  const { data: algoStatus,                             error: err17, refetch: r17 } = useApiQuery(['algo','status'],          () => api.get('/api/algo/status'), adminOpts);
+  const { items: equityCurve,                           error: err18, refetch: r18 } = useApiPaginatedQuery(['algo','equity'], () => api.get('/api/algo/equity-curve?limit=180'), adminOpts);
 
   const refetchAll = useCallback(() => {
-    [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14,r15,r16].forEach(fn => fn?.());
-  }, [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14,r15,r16]);
+    [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14,r15,r16,r17,r18].forEach(fn => fn?.());
+  }, [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14,r15,r16,r17,r18]);
 
   const configMap = useMemo(() => {
     const items = config?.items || (Array.isArray(config) ? config : []);
@@ -144,6 +147,8 @@ function AlgoTradingDashboard() {
     const raw = positionsResp?.items || (Array.isArray(positionsResp) ? positionsResp : []);
     return raw;
   }, [positionsResp]);
+
+  const posFreshness = positionsResp?.data_freshness;
 
   const data = {
     scores:           scores || [],
@@ -157,6 +162,8 @@ function AlgoTradingDashboard() {
     lastRun,
     positions,
     performance,
+    algoStatus,
+    equityCurve:      equityCurve || [],
   };
 
   const market = markets;
@@ -179,8 +186,8 @@ function AlgoTradingDashboard() {
     );
   }
 
-  const allErrors = [err1,err2,err5,err6,err7,err8,err11,err12,err13,err14,err15,err16];
-  const allErrorNames = ['markets','scores','config','data-status','policy','evaluate','circuit-breakers','data-quality','rejection-funnel','last-run','positions','performance'];
+  const allErrors = [err1,err2,err5,err6,err7,err8,err11,err12,err13,err14,err15,err16,err17,err18];
+  const allErrorNames = ['markets','scores','config','data-status','policy','evaluate','circuit-breakers','data-quality','rejection-funnel','last-run','positions','performance','status','equity-curve'];
 
   return (
     <div className="main-content">
@@ -297,59 +304,86 @@ function AlgoTradingDashboard() {
         </div>
       </div>
 
-      {/* COMPACT PERFORMANCE STRIP */}
-      {data.performance && data.performance.total_trades > 0 && (
+      {/* ACCOUNT + PERFORMANCE STRIP */}
+      {(data.algoStatus?.portfolio?.total_value > 0 || data.performance?.total_trades > 0) && (
         <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
           <div className="card-body">
             <div className="flex gap-6 flex-wrap items-center">
-              <div>
-                <div className="t-2xs muted strong">WIN RATE</div>
-                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.win_rate_pct >= 50 ? 'var(--success)' : 'var(--danger)' }}>
-                  {data.performance.win_rate_pct}%
+              {/* Alpaca-sourced portfolio snapshot */}
+              {data.algoStatus?.portfolio?.total_value > 0 && <>
+                <div>
+                  <div className="t-2xs muted strong">PORTFOLIO VALUE</div>
+                  <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: 'var(--text-2)' }}>
+                    ${data.algoStatus.portfolio.total_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  </div>
                 </div>
-              </div>
-              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-              <div>
-                <div className="t-2xs muted strong">TOTAL P&L</div>
-                <div className={`mono tnum ${data.performance.total_pnl_dollars >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
-                  {data.performance.total_pnl_dollars >= 0 ? '+' : ''}${(data.performance.total_pnl_dollars || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">TODAY</div>
+                  <div className={`mono tnum ${(data.algoStatus.portfolio.daily_return_pct || 0) >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                    {(data.algoStatus.portfolio.daily_return_pct || 0) >= 0 ? '+' : ''}{(data.algoStatus.portfolio.daily_return_pct || 0).toFixed(2)}%
+                  </div>
                 </div>
-              </div>
-              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-              <div>
-                <div className="t-2xs muted strong">TRADES</div>
-                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
-                  {data.performance.total_trades} <span className="t-2xs muted">({data.performance.winning_trades}W / {data.performance.losing_trades}L)</span>
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">UNREALIZED</div>
+                  <div className={`mono tnum ${(data.algoStatus.portfolio.unrealized_pnl_pct || 0) >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                    {(data.algoStatus.portfolio.unrealized_pnl_pct || 0) >= 0 ? '+' : ''}{(data.algoStatus.portfolio.unrealized_pnl_pct || 0).toFixed(2)}%
+                  </div>
                 </div>
-              </div>
-              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-              <div>
-                <div className="t-2xs muted strong">SHARPE</div>
-                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.sharpe_annualized >= 1 ? 'var(--success)' : 'var(--amber)' }}>
-                  {data.performance.sharpe_annualized ?? '—'}
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+              </>}
+              {/* Closed-trade stats */}
+              {data.performance?.total_trades > 0 && <>
+                <div>
+                  <div className="t-2xs muted strong">WIN RATE</div>
+                  <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.win_rate_pct >= 50 ? 'var(--success)' : 'var(--danger)' }}>
+                    {data.performance.win_rate_pct}%
+                  </div>
                 </div>
-              </div>
-              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-              <div>
-                <div className="t-2xs muted strong">MAX DD</div>
-                <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.max_drawdown_pct > 20 ? 'var(--danger)' : data.performance.max_drawdown_pct > 10 ? 'var(--amber)' : 'var(--text-2)' }}>
-                  {data.performance.max_drawdown_pct ?? '—'}%
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">TOTAL P&L</div>
+                  <div className={`mono tnum ${data.performance.total_pnl_dollars >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                    {data.performance.total_pnl_dollars >= 0 ? '+' : ''}${(data.performance.total_pnl_dollars || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  </div>
                 </div>
-              </div>
-              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-              <div>
-                <div className="t-2xs muted strong">STREAK</div>
-                <div className={`mono tnum ${data.performance.current_streak >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
-                  {data.performance.current_streak >= 0 ? `+${data.performance.current_streak} W` : `${Math.abs(data.performance.current_streak)} L`}
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">TRADES</div>
+                  <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                    {data.performance.total_trades} <span className="t-2xs muted">({data.performance.winning_trades}W / {data.performance.losing_trades}L)</span>
+                  </div>
                 </div>
-              </div>
-              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-              <div>
-                <div className="t-2xs muted strong">EXPECTANCY</div>
-                <div className={`mono tnum ${data.performance.expectancy_r >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
-                  {data.performance.expectancy_r >= 0 ? '+' : ''}{data.performance.expectancy_r ?? '—'}R
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">SHARPE</div>
+                  <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.sharpe_annualized >= 1 ? 'var(--success)' : 'var(--amber)' }}>
+                    {data.performance.sharpe_annualized ?? '—'}
+                  </div>
                 </div>
-              </div>
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">MAX DD</div>
+                  <div className="mono tnum" style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)', color: data.performance.max_drawdown_pct > 20 ? 'var(--danger)' : data.performance.max_drawdown_pct > 10 ? 'var(--amber)' : 'var(--text-2)' }}>
+                    {data.performance.max_drawdown_pct ?? '—'}%
+                  </div>
+                </div>
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">STREAK</div>
+                  <div className={`mono tnum ${data.performance.current_streak >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                    {data.performance.current_streak >= 0 ? `+${data.performance.current_streak} W` : `${Math.abs(data.performance.current_streak)} L`}
+                  </div>
+                </div>
+                <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+                <div>
+                  <div className="t-2xs muted strong">EXPECTANCY</div>
+                  <div className={`mono tnum ${data.performance.expectancy_r >= 0 ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-base)', fontWeight: 'var(--w-bold)' }}>
+                    {data.performance.expectancy_r >= 0 ? '+' : ''}{data.performance.expectancy_r ?? '—'}R
+                  </div>
+                </div>
+              </>}
             </div>
           </div>
         </div>
@@ -368,6 +402,7 @@ function AlgoTradingDashboard() {
           {[
             { label: `SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`, errors: [err2, err8] },
             { label: `POSITIONS (${posStats.count})`, errors: [err15] },
+            { label: 'PERFORMANCE', errors: [err16, err18] },
             { label: `RISK${data.circuitBreakers?.system_halted ? ' ⚠' : ''}`, errors: [err11] },
             { label: 'PIPELINE', errors: [err7, err12, err13] },
             { label: 'CONFIG', errors: [err5] },
@@ -390,13 +425,14 @@ function AlgoTradingDashboard() {
         </div>
 
         {tab === 0 && <SetupsTab scores={data.scores} evaluated={data.evaluated} error={err2 || err8} />}
-        {tab === 1 && <PositionsTab positions={data.positions} error={err15} loading={posLoading} />}
-        {tab === 2 && (err11 ?
+        {tab === 1 && <PositionsTab positions={data.positions} priceFreshness={posFreshness} error={err15} loading={posLoading} />}
+        {tab === 2 && <PerformanceTab performance={data.performance} equityCurve={data.equityCurve} />}
+        {tab === 3 && (err11 ?
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load risk data:</strong> {err11?.message || 'Unknown error'}</div></div>
           : data.circuitBreakers ? <RiskTab circuitBreakers={data.circuitBreakers} markets={market} positions={data.positions} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No circuit breaker data</div></div>
         )}
-        {tab === 3 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} dataStatus={data.dataStatus} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} lastRun={data.lastRun} error={err7 || err12 || err13 || err14} />}
-        {tab === 4 && (err5 ?
+        {tab === 4 && <PipelineTab policy={data.policy} markets={market} dataQuality={data.dataQuality} dataStatus={data.dataStatus} rejectionFunnel={data.rejectionFunnel} circuitBreakers={data.circuitBreakers} lastRun={data.lastRun} error={err7 || err12 || err13 || err14} />}
+        {tab === 5 && (err5 ?
           <div style={{padding: 'var(--space-4)'}}><div className="alert alert-danger"><strong>Failed to load config:</strong> {err5?.message || 'Unknown error'}</div></div>
           : data.config ? <ConfigTab config={data.config} /> : <div style={{padding: 'var(--space-4)'}}><div className="alert alert-info">No config data</div></div>
         )}
@@ -548,7 +584,7 @@ const ScoreDetailExpanded = ({ details, _symbol }) => {
 // ============================================================================
 // POSITIONS TAB — algo's live open book with risk management fields
 // ============================================================================
-function PositionsTab({ positions, error, loading }) {
+function PositionsTab({ positions, priceFreshness, error, loading }) {
   const [expanded, setExpanded] = useState(null);
 
   if (error) {
@@ -580,10 +616,17 @@ function PositionsTab({ positions, error, loading }) {
   const totalUnrealized = positions.reduce((s, p) => s + (Number(p.unrealized_pnl) || 0), 0);
   const totalRisk = positions.reduce((s, p) => s + (Number(p.open_risk_dollars) || 0), 0);
 
+  const syncAge = priceFreshness?.last_updated
+    ? (() => {
+        const m = Math.round((Date.now() - new Date(priceFreshness.last_updated).getTime()) / 60000);
+        return m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
+      })()
+    : null;
+
   return (
     <div style={{ padding: 'var(--space-4)' }}>
       {/* Summary strip */}
-      <div className="flex gap-6 flex-wrap" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="flex gap-6 flex-wrap items-end" style={{ marginBottom: 'var(--space-4)' }}>
         <Stat label="Positions" value={positions.length} />
         <Stat
           label="Total Value"
@@ -600,6 +643,12 @@ function PositionsTab({ positions, error, loading }) {
           color="var(--amber)"
           sub="to stop loss"
         />
+        {syncAge && (
+          <div className="t-2xs muted" style={{ marginLeft: 'auto' }}>
+            Prices synced from Alpaca: <strong>{syncAge}</strong>
+            {priceFreshness?.status === 'stale' && <span className="down" style={{ marginLeft: 4 }}>· STALE</span>}
+          </div>
+        )}
       </div>
 
       <div style={{ overflowX: 'auto' }}>

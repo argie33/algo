@@ -978,7 +978,7 @@ def _get_markets(cur) -> Dict:
                     'price': round(price, 2),
                     'change': round(change, 2),
                     'changePercent': round(change_pct, 2),
-                    'pe': {}  # Valuation metrics not available in current schema
+                    'pe': None
                 })
 
             result = {

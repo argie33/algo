@@ -152,11 +152,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     'recentUpgrades': [],
                 })
             elif path.startswith('/api/sentiment/social/insights/'):
-                # Social sentiment not yet implemented; return 200 with empty data and informative message
-                return json_response(200, {
-                    'metrics': None,
-                    'trends': None,
-                    'historical': [],
+                # Social sentiment not yet implemented
+                return json_response(501, {
                     'status': 'not_implemented',
                     'message': 'Social sentiment feature coming soon. Requires external API integration (not yet configured).'
                 })

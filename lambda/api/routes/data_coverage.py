@@ -142,8 +142,9 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
         return error_response(500, 'error', str(e))
 
 def get_loader_health(cur) -> Dict[str, Any]:
-    """Get recent loader execution health."""
+    """Get recent loader execution health from patrol log or direct table freshness checks."""
     try:
+        # Try to get patrol data first
         cur.execute("""
             SELECT
                 table_name,
@@ -152,21 +153,58 @@ def get_loader_health(cur) -> Dict[str, Any]:
                 row_count
             FROM data_loader_status
             WHERE last_updated > NOW() - INTERVAL '7 days'
-               OR last_updated IS NULL
             ORDER BY table_name
         """)
 
         rows = cur.fetchall()
 
-        stale_loaders = [
-            row[0] for row in rows if row[1] in ('stale', 'error') or row[1] is None
+        # If patrol data is recent, use it
+        if rows:
+            stale_loaders = [
+                row[0] for row in rows if row[1] in ('stale', 'error') or row[1] is None
+            ]
+            return {
+                'total_tracked': len(rows),
+                'stale_loaders': list(set(stale_loaders)),
+                'stale_count': len(set(stale_loaders)),
+                'status': 'healthy' if not stale_loaders else 'degraded'
+            }
+
+        # Fallback: if patrol data is missing/stale, check key tables directly
+        tables_to_check = [
+            'price_daily',
+            'technical_data_daily',
+            'market_health_daily',
+            'sector_performance',
+            'economic_data',
+            'stock_symbols'
         ]
 
+        table_health = []
+        for table in tables_to_check:
+            try:
+                cur.execute(f"""
+                    SELECT MAX(updated_at) as last_update, COUNT(*) as row_count
+                    FROM {table}
+                    WHERE updated_at > NOW() - INTERVAL '30 days' OR updated_at IS NULL
+                """)
+                result = cur.fetchone()
+                if result:
+                    last_update, count = result
+                    days_old = (datetime.utcnow() - last_update).days if last_update else 999
+                    status = 'stale' if days_old > 7 else 'fresh'
+                    table_health.append((table, status, last_update, count))
+            except Exception:
+                # If table doesn't exist or query fails, skip it
+                pass
+
+        stale_loaders = [t[0] for t in table_health if t[1] == 'stale']
         return {
-            'total_tracked': len(rows),
-            'stale_loaders': list(set(stale_loaders)),
-            'stale_count': len(set(stale_loaders)),
-            'status': 'healthy' if not stale_loaders else 'degraded'
+            'total_tracked': len(table_health),
+            'stale_loaders': stale_loaders,
+            'stale_count': len(stale_loaders),
+            'status': 'healthy' if not stale_loaders else 'degraded',
+            'source': 'patrol' if rows else 'table_check'
         }
     except Exception as e:
         return error_response(500, 'error', str(e))

@@ -1198,10 +1198,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
             cur.execute("""
-                WITH sector_dates AS (
-                    SELECT DISTINCT date FROM sector_performance WHERE date >= %s ORDER BY date DESC LIMIT %s
-                ),
-                defensive_sectors AS (
+                WITH defensive_sectors AS (
                     SELECT 'Consumer Defensive' AS sector UNION ALL
                     SELECT 'Utilities' UNION ALL
                     SELECT 'Healthcare' UNION ALL
@@ -1234,23 +1231,47 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
                     LEFT JOIN cyclical_sectors c ON sp.sector = c.sector
                     WHERE d.sector IS NOT NULL OR c.sector IS NOT NULL
                     GROUP BY sp.date
+                ),
+                rotation_with_signal AS (
+                    SELECT
+                        date,
+                        defensive_strength,
+                        cyclical_strength,
+                        CASE
+                            WHEN defensive_strength > cyclical_strength THEN 'DEFENSIVE'
+                            WHEN cyclical_strength > defensive_strength THEN 'CYCLICAL'
+                            ELSE 'NEUTRAL'
+                        END AS signal
+                    FROM rotation_stats
+                ),
+                signal_changes AS (
+                    SELECT
+                        date,
+                        defensive_strength,
+                        cyclical_strength,
+                        signal,
+                        CASE WHEN signal != LAG(signal) OVER (ORDER BY date DESC) THEN 1 ELSE 0 END AS is_signal_change
+                    FROM rotation_with_signal
+                ),
+                signal_groups AS (
+                    SELECT
+                        date,
+                        defensive_strength,
+                        cyclical_strength,
+                        signal,
+                        SUM(is_signal_change) OVER (ORDER BY date DESC) AS signal_group_id
+                    FROM signal_changes
                 )
                 SELECT
                     date,
                     ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_lead_score,
-                    ROUND((COALESCE(defensive_strength, 0))::NUMERIC, 2) AS defensive_avg_rs,
                     ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_weak_score,
-                    ROUND((COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS cyclical_avg_rs,
                     ROUND((COALESCE(defensive_strength, 0) - COALESCE(cyclical_strength, 0))::NUMERIC, 2) AS spread,
-                    CASE
-                        WHEN COALESCE(defensive_strength, 0) > COALESCE(cyclical_strength, 0) THEN 'DEFENSIVE'
-                        WHEN COALESCE(cyclical_strength, 0) > COALESCE(defensive_strength, 0) THEN 'CYCLICAL'
-                        ELSE 'NEUTRAL'
-                    END AS signal,
-                    1 AS weeks_persistent
-                FROM rotation_stats
+                    signal,
+                    ROW_NUMBER() OVER (PARTITION BY signal_group_id ORDER BY date DESC) AS weeks_persistent
+                FROM signal_groups
                 ORDER BY date DESC
-            """, (cutoff_date, days, cutoff_date))
+            """, (cutoff_date,))
             rotation = cur.fetchall()
             return list_response([dict(r) for r in rotation])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
