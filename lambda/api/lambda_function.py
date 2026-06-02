@@ -454,6 +454,16 @@ def validate_bearer_token(token: Optional[str]) -> tuple:
             logger.warning(f"JWT client_id/aud mismatch: expected {cognito_client_id}, got {actual_client}")
             return (False, None, "Token client mismatch")
 
+        # O-1: Check server-side revocation (user called POST /api/logout)
+        jti = payload.get('jti')
+        if jti:
+            try:
+                from utils.token_blocklist import is_revoked
+                if is_revoked(jti):
+                    return (False, None, "Token has been revoked")
+            except Exception as e:
+                logger.warning(f"Blocklist check failed (non-fatal): {e}")
+
         logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
 
         # SECURITY FIX S-08: Validate JWT scope claim (if present)
@@ -830,6 +840,32 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
                             'body': json.dumps({'error': 'invalid_json', 'message': 'Request body must be valid JSON'})
                         }
+
+                # O-1: POST /api/logout — revoke current token server-side
+                if method == 'POST' and path == '/api/logout':
+                    cors_headers = get_cors_headers(event)
+                    if not is_authorized or not jwt_claims:
+                        log_api_request(event, 401, error_msg='unauthorized')
+                        return {
+                            'statusCode': 401,
+                            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                            'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
+                        }
+                    jti = jwt_claims.get('jti')
+                    exp = jwt_claims.get('exp')
+                    if jti and exp:
+                        try:
+                            from utils.token_blocklist import revoke_token
+                            revoke_token(jti, int(exp))
+                        except Exception as e:
+                            logger.error(f"[LOGOUT] Blocklist write failed: {e}")
+                    logger.info(f"[LOGOUT] User {jwt_claims.get('sub')} logged out")
+                    log_api_request(event, 200)
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
+                        'body': json.dumps({'status': 'logged_out'})
+                    }
 
                 # Route request to appropriate handler
                 response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)

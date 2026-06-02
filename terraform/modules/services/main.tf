@@ -144,6 +144,8 @@ resource "aws_lambda_function" "api" {
       PATROL_SECURITY_GROUP_ID   = var.ecs_tasks_sg_id
       # F-06: Contact form rate limiting (DynamoDB table for distributed rate limiting)
       CONTACT_RATE_LIMIT_TABLE = aws_dynamodb_table.contact_rate_limit.name
+      # O-1: JWT token blocklist for server-side logout (revoked tokens rejected until natural expiry)
+      TOKEN_BLOCKLIST_TABLE = aws_dynamodb_table.token_blocklist.name
     }
   }
 
@@ -1150,6 +1152,52 @@ resource "aws_iam_role_policy" "api_contact_rate_limit" {
           "dynamodb:UpdateItem",
         ]
         Resource = aws_dynamodb_table.contact_rate_limit.arn
+      }
+    ]
+  })
+}
+
+# ============================================================
+# JWT Token Blocklist (server-side logout / token revocation)
+# ============================================================
+# DynamoDB table stores revoked JWT token IDs (jti claims).
+# Entry expires automatically via TTL when token's exp claim is reached.
+# Used by POST /api/logout to revoke tokens immediately.
+
+resource "aws_dynamodb_table" "token_blocklist" {
+  name             = "${var.project_name}-token-blocklist-${var.environment}"
+  billing_mode     = "PAY_PER_REQUEST"
+  hash_key         = "jti"
+
+  attribute {
+    name = "jti"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-token-blocklist"
+  })
+}
+
+resource "aws_iam_role_policy" "api_token_blocklist" {
+  name = "${var.project_name}-api-token-blocklist-${var.environment}"
+  role = local.api_lambda_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+        ]
+        Resource = aws_dynamodb_table.token_blocklist.arn
       }
     ]
   })

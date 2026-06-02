@@ -13,13 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
-      - uses: actions/setup-node@v4  # v4.0.3
+      - uses: actions/setup-node@90eb8196f0305a9c803bfc85bc23a0f8e1597f3f  # v4  # v4.0.3
         with:
           node-version: '24'
       - run: node scripts/verify-environments.js --verbose 2>&1 | tee results.log
       - run: cat results.log >> $GITHUB_STEP_SUMMARY
         if: always()
-      - uses: actions/upload-artifact@v4  # v4.5.0
+      - uses: actions/upload-artifact@c7d193f32edde7bfbb20890a254236b78a04c9ce  # v4  # v4.5.0
         if: always()
         with:
           name: verification-logs
