@@ -114,22 +114,29 @@ class FilterTier3Mixin:
                     }
 
             # A5: RS Line Trending Up — RS line must have positive slope (not just "near high")
+            # Hard gate by default; set rs_slope_gate_enabled=false in algo_config to soften
+            # (useful when SPY is running hot and good stocks temporarily show flat RS slope).
             rs_slope_check = self._check_rs_line_slope(symbol, signal_date, cur)
             if not rs_slope_check.get('pass', True):
-                return {
-                    'pass': False,
-                    'reason': rs_slope_check.get('reason', 'RS line not trending up'),
-                    'trend_score': trend_score,
-                }
+                if bool(self.config.get('rs_slope_gate_enabled', True)):
+                    return {
+                        'pass': False,
+                        'reason': rs_slope_check.get('reason', 'RS line not trending up'),
+                        'trend_score': trend_score,
+                    }
+                logger.debug(f"  {symbol}: RS slope soft warn (gate disabled): {rs_slope_check.get('reason')}")
 
             # Volume decay check: declining volume into breakout = false breakout (Minervini warning)
+            # Hard gate by default; set volume_decay_gate_enabled=false in algo_config to soften.
             vol_check = self._check_volume_decay(symbol, signal_date, cur)
             if vol_check and not vol_check.get('pass', True):
-                return {
-                    'pass': False,
-                    'reason': vol_check.get('reason', 'Volume declining'),
-                    'trend_score': trend_score,
-                }
+                if bool(self.config.get('volume_decay_gate_enabled', True)):
+                    return {
+                        'pass': False,
+                        'reason': vol_check.get('reason', 'Volume declining'),
+                        'trend_score': trend_score,
+                    }
+                logger.debug(f"  {symbol}: Volume decay soft warn (gate disabled): {vol_check.get('reason')}")
 
             # Compute stop loss: best of (50-DMA, swing low, 2x ATR). Cap at 8% below entry.
             stop_info = self._compute_stop_loss(symbol, signal_date, sma_50, atr, cur)

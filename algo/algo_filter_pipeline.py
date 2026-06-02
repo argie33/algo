@@ -122,16 +122,22 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             logger.info(f"{'='*70}\n")
 
             # Pre-fetch all swing scores for today's BUY signals in one bulk query.
-            # Sorts by score descending so the 120s time budget prioritizes the best candidates.
-            # Symbols without precomputed scores default to score=0 (sort last).
+            # Primary sort: swing_score DESC (best-scored candidates first).
+            # Fallback sort: minervini_trend_score DESC when swing scores are all zero
+            # (pipeline failure — signal_quality_scores or swing_trader_scores timeout).
+            # Symbols without any scores default last (alphabetical).
             cur.execute(
                 """
                 SELECT b.symbol, b.date, b.signal_type,
-                       COALESCE(s.score, 0) as swing_score
+                       COALESCE(s.score, 0) as swing_score,
+                       COALESCE(tt.minervini_trend_score, 0) as trend_score_fallback
                 FROM buy_sell_daily b
                 LEFT JOIN swing_trader_scores s ON b.symbol = s.symbol AND b.date = s.date
+                LEFT JOIN trend_template_data tt ON b.symbol = tt.symbol AND b.date = tt.date
                 WHERE b.date = %s AND b.signal_type = 'BUY'
-                ORDER BY COALESCE(s.score, 0) DESC, b.symbol
+                ORDER BY COALESCE(s.score, 0) DESC,
+                         COALESCE(tt.minervini_trend_score, 0) DESC,
+                         b.symbol
                 """,
                 (eval_date,),
             )
@@ -139,6 +145,18 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             # Convert to list of (symbol, date, signal_type) tuples for loop compatibility
             signals = [(r[0], r[1], r[2]) for r in rows]
             signal_swing_scores = {r[0]: r[3] for r in rows}  # Cache for later lookups
+
+            # Detect empty/stale swing_trader_scores and warn — if <10% of signals have
+            # non-zero scores the table is likely empty due to pipeline timeout.
+            non_zero_scores = sum(1 for r in rows if r[3] > 0)
+            if rows and non_zero_scores < max(1, len(rows) * 0.10):
+                logger.warning(
+                    f"[SWING SCORES] Only {non_zero_scores}/{len(rows)} BUY signals have non-zero "
+                    f"swing scores for {eval_date}. swing_trader_scores may be empty or stale "
+                    f"(signal_quality_scores timeout or pipeline step failure). "
+                    f"Falling back to minervini_trend_score sort — check Step Functions logs."
+                )
+
             logger.info(f"Found {len(signals)} BUY signals to evaluate from {eval_date}")
             if not signals:
                 logger.warning(f"[CRITICAL] No BUY signals found in buy_sell_daily for {eval_date} — signal generation will return 0 trades")
@@ -202,14 +220,13 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 while _expected_recent.weekday() >= 5:
                     _expected_recent -= timedelta(days=1)
 
-            # Hard time budget: stop evaluating after 120s to fit in Lambda's 600s budget.
-            # Phase 5 evaluates all BUY signals alphabetically. With 5000+ stocks × per-symbol
-            # DB queries, unconstrained evaluation can take 5-10 minutes. Once we have enough
-            # candidates (top-scored signals come first because the initial SELECT is ordered
-            # by COALESCE(ss.score, 0) DESC), stop early.
+            # Hard time budget: stop evaluating after 240s to fit in Lambda's 600s budget.
+            # Phase 5 evaluates BUY signals sorted by swing_score (best first). With 5000+ stocks
+            # × per-symbol DB queries, unconstrained evaluation can take 5-10 minutes. The 240s
+            # budget is 40% of the 600s Lambda limit, leaving 360s for other phases and exits.
             import time as _time
             _phase5_start = _time.time()
-            _phase5_budget_secs = 120
+            _phase5_budget_secs = 240
 
             for symbol, signal_date, _signal in signals:
                 if _time.time() - _phase5_start > _phase5_budget_secs:

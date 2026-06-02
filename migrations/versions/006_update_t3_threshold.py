@@ -20,11 +20,14 @@ DESCRIPTION = "Lower min_trend_template_score from 7 to 6 for broader T3 signal 
 
 def up():
     with DatabaseContext('write') as cur:
+        # Use CAST comparison so '7.0' and '7' both match. Only lower the threshold
+        # if current value is 7 or higher — never override a manual value below 6.
         cur.execute(
             """
             UPDATE algo_config
             SET value = '6', updated_by = 'migration-006'
-            WHERE key = 'min_trend_template_score' AND value = '7'
+            WHERE key = 'min_trend_template_score'
+              AND CAST(value AS NUMERIC) >= 7
             """
         )
 

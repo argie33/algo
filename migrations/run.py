@@ -133,12 +133,16 @@ class MigrationRunner:
         """Get list of migration files that haven't been applied."""
         applied = set(self.get_applied_migrations())
 
-        # Find all .sql migration files
-        migration_files = sorted(MIGRATIONS_DIR.glob('*.sql'))
+        # Find all .sql and .py migration files (exclude __init__.py)
+        all_files = [
+            f for f in list(MIGRATIONS_DIR.glob('*.sql')) + list(MIGRATIONS_DIR.glob('*.py'))
+            if not f.name.startswith('_')
+        ]
+        migration_files = sorted(all_files, key=lambda f: f.stem)
 
         pending = []
         for mig_file in migration_files:
-            version = mig_file.stem  # e.g., "001_schema_versioning"
+            version = mig_file.stem  # e.g., "001_initial_schema"
             if version not in applied:
                 pending.append((version, mig_file))
 

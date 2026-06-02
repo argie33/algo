@@ -64,9 +64,11 @@ class SwingTraderScoresLoader(OptimalLoader):
             if since is None:
                 start = end - timedelta(days=5 * 365)
             else:
-                # BUG FIX: Same watermark issue as price loader - use since directly
-                # to allow refetch after weekend/holidays
-                start = since if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0])
+                # Use since - 1d overlap (standard across loaders) so that if
+                # signal_quality_scores finishes after an earlier swing score run,
+                # a re-run will recompute scores for the boundary date.
+                since_date = since if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0])
+                start = since_date - timedelta(days=1)
 
             if start > end:
                 return None

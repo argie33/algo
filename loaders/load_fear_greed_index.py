@@ -55,19 +55,47 @@ class FearGreedIndexLoader(OptimalLoader):
                 response.raise_for_status()
                 data = response.json()
 
-                if not data or 'fear_and_greed' not in data:
+                if not data or ('fear_and_greed' not in data and 'fear_and_greed_historical' not in data):
                     logger.warning("Invalid Fear & Greed data format")
                     return None
 
-                rows = []
-                for entry in data.get('fear_and_greed', []):
-                    try:
-                        rows.append({
-                            'date': entry.get('date'),
-                            'fear_greed_value': float(entry.get('value', 0)),
-                            'fear_greed_label': entry.get('description', 'Neutral'),
+                # CNN API two known formats:
+                # New: {"fear_and_greed": {...current dict...}, "fear_and_greed_historical": {"data": [{"x": ms_ts, "y": val, "rating": "..."}]}}
+                # Old: {"fear_and_greed": [{"x": ms_ts, "y": val, "rating": "..."}]}
+                raw = data.get('fear_and_greed', [])
+                if isinstance(raw, dict):
+                    entries = list(data.get('fear_and_greed_historical', {}).get('data', []))
+                    score = raw.get('score') or raw.get('value')
+                    if score is not None:
+                        from datetime import datetime as _dt
+                        entries.append({
+                            '_date': _dt.utcnow().strftime('%Y-%m-%d'),
+                            'y': score,
+                            'rating': raw.get('rating', 'Neutral'),
                         })
-                    except (ValueError, KeyError):
+                else:
+                    entries = raw
+
+                rows = []
+                for entry in entries:
+                    try:
+                        from datetime import datetime as _dt
+                        x_val = entry.get('x')
+                        date_str = entry.get('_date') or entry.get('date')
+                        if x_val is not None:
+                            entry_date = _dt.utcfromtimestamp(int(x_val) / 1000).strftime('%Y-%m-%d')
+                        elif date_str:
+                            entry_date = str(date_str)[:10]
+                        else:
+                            continue
+                        value = entry.get('y', entry.get('value', 0))
+                        label = entry.get('rating', entry.get('description', 'Neutral'))
+                        rows.append({
+                            'date': entry_date,
+                            'fear_greed_value': float(value),
+                            'fear_greed_label': str(label),
+                        })
+                    except (ValueError, KeyError, TypeError, AttributeError):
                         continue
 
                 return rows if rows else None

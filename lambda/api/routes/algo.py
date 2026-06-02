@@ -52,16 +52,15 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return handle_db_error(e, logger, 'handle algo')
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
-            if not user_id:
-                return error_response(401, 'unauthorized', 'Authentication required')
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized notification delete attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
             try:
                 try:
                     notif_id_int = int(notif_id)
                 except ValueError:
                     return error_response(400, 'bad_request', 'ID must be numeric')
 
-                # algo_notifications are system-wide (no user_id column). Access is
-                # already gated at the Lambda level (JWT required). Verify record exists.
                 cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
                 if not cur.fetchone():
                     return error_response(404, 'not_found', 'Notification not found')
@@ -86,16 +85,31 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo pre-trade-impact access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
             return _analyze_pre_trade_impact(cur, body)
         if path == '/api/algo/status':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo status access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
             return _get_algo_status(cur)
         elif path == '/api/algo/trades':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo trades access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             return _get_algo_trades(cur, limit)
@@ -103,6 +117,11 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo positions access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
+            if path in ADMIN_RATE_LIMITS:
+                limits = ADMIN_RATE_LIMITS[path]
+                is_allowed, error_msg = check_admin_rate_limit(user_id, path, max_requests=limits['max_requests'], window_seconds=limits['window'])
+                if not is_allowed:
+                    return error_response(429, 'too_many_requests', error_msg)
             return _get_algo_positions(cur)
         elif path == '/api/algo/performance':
             if not _check_admin_access(jwt_claims):
@@ -803,10 +822,7 @@ def _get_data_status(cur) -> Dict:
             return error_response(500, 'internal_error', 'Failed to fetch data status')
 
 def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dict:
-        """Get recent notifications with optional filtering.
-
-        Admin users see all notifications. Non-admin users see only their own.
-        """
+        """Get recent notifications. System broadcasts visible to all authenticated users."""
         try:
             params = params or {}
             kind = params.get('kind', [None])[0] if params.get('kind') else None
@@ -826,10 +842,6 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
 
             where_clauses = []
             where_params = []
-
-            # algo_notifications contains system-level events (circuit breaker, trades, market alerts).
-            # No user_id column exists — all authenticated users see all notifications.
-            # This is correct: notifications are system broadcasts, not per-user personal data.
 
             if kind:
                 where_clauses.append("kind = %s")
