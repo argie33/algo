@@ -581,8 +581,8 @@ locals {
 
     # Signal processing
     "signal_themes"         = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    # Critical path: 4x parallelism reduces ~90 min → ~25 min at similar cost
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    # Critical path: 8x parallelism reduces ~90 min → ~15 min, 2h timeout ensures full dataset
+    "signal_quality_scores" = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 8 }
 
     # BUY/SELL signals — critical path; 4x parallelism reduces ~28 min → ~8 min at similar cost
     "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 4 }
@@ -596,8 +596,8 @@ locals {
     # Algo metrics — critical path; 4x parallelism reduces ~45 min → ~12 min at similar cost
     "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
 
-    # Swing trader scores — critical path; 4x parallelism
-    "swing_trader_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 4 }
+    # Swing trader scores — critical path; 8x parallelism reduces compute time by 50%
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 8 }
 
     # FRED macro data — 27 series × ~2s each; 900s gives safe margin
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }

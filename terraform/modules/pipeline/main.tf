@@ -463,12 +463,13 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
-      # parallelism=4: ~25 min expected, 2h timeout for safety.
+      # parallelism=8: ~15 min expected, 2.5h timeout ensures full dataset processing.
       # FIXED Issue #4: Graceful degradation — if quality scoring fails, continue with available data
+      # FIXED 2026-06-02: Increased parallelism 4→8, timeout 3600→7200 to handle full 10k+ symbol dataset
       SignalQualityScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
+        TimeoutSeconds = 9000
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -564,12 +565,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 8: Swing trader scores (depends on signals + metrics) ───────
       # FIXED Issue #4: Graceful degradation — if scoring fails, continue with available data
-      # Timeout raised from 1800→3600: 5000+ symbols at parallelism=8 with DB joins
-      # can approach 30 min under RDS load; 1h buffer prevents premature timeouts.
+      # FIXED 2026-06-02: Increased parallelism 4→8, timeout 3600→7200 to handle full 10k+ symbol dataset
+      # 5000+ symbols at parallelism=8 with DB joins can take 30+ min under RDS load.
       SwingScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 9000
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
