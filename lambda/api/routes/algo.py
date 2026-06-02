@@ -164,9 +164,6 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
         elif path == '/api/algo/sector-breadth':
             return _get_sector_breadth(cur)
         elif path == '/api/algo/swing-scores':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo swing-scores access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
             min_score_str = params.get('min_score', [None])[0] if params else None
@@ -181,9 +178,6 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     return error_response(400, 'bad_request', 'Invalid symbol format')
             return _get_swing_scores(cur, limit, min_score, symbol_filter)
         elif path == '/api/algo/swing-scores-history':
-            if not _check_admin_access(jwt_claims):
-                logger.warning(f"Unauthorized algo swing-scores-history access attempt by {(jwt_claims or {}).get('sub')}")
-                return error_response(403, 'forbidden', 'Admin access required')
             days_str = params.get('days', [None])[0] if params else None
             days = safe_days(days_str, max_val=365, default=30)
             return _get_swing_scores_history(cur, days)
