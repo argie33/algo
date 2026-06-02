@@ -288,12 +288,11 @@ resource "aws_db_proxy" "main" {
     iam_auth    = "DISABLED"
   }
 
-  role_arn                         = aws_iam_role.rds_proxy[0].arn
-  idle_client_timeout              = 900  # Close idle client connections after 15 min to free pool
-  require_tls                      = true
-  max_connection_lifetime_seconds  = 300  # Recycle proxy-to-RDS connections every 5 min to prevent stale pool exhaustion
-  vpc_subnet_ids                   = var.private_subnet_ids
-  vpc_security_group_ids           = [var.rds_security_group_id]
+  role_arn               = aws_iam_role.rds_proxy[0].arn
+  idle_client_timeout    = 600  # Close idle client connections after 10 min to free pool (was 1800s/30m)
+  require_tls            = true
+  vpc_subnet_ids         = var.private_subnet_ids
+  vpc_security_group_ids = [var.rds_security_group_id]
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-proxy"
