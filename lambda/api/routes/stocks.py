@@ -188,8 +188,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
                 return list_response([dict(r) for r in rows], data_freshness=freshness)
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                    psycopg2.errors.QueryCanceled) as e:
-                logger.warning(f'deep-value data not ready: {type(e).__name__}')
+                    psycopg2.errors.QueryCanceled, psycopg2.OperationalError, psycopg2.DatabaseError,
+                    Exception) as e:
+                logger.error(f'deep-value query failed: {type(e).__name__}: {str(e)[:200]}')
                 return list_response([])
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=50000, default=500)
