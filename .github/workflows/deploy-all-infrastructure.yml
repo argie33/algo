@@ -569,6 +569,33 @@ jobs:
             echo "loader_failure_handler Lambda not found -- Terraform will create it"
           fi
 
+          # Import Cognito admin group if it already exists in AWS (prevents GroupExistsException on apply)
+          echo ""
+          echo "Querying AWS for Cognito user pool and admin group..."
+          POOL_ID=$(aws cognito-idp list-user-pools --max-results 10 --region $AWS_REGION \
+            --query "UserPools[?Name=='${PROJECT_NAME}-pool-${ENVIRONMENT}'].Id | [0]" \
+            --output text 2>/dev/null || echo "")
+          if [ -n "$POOL_ID" ] && [ "$POOL_ID" != "None" ]; then
+            echo "Found Cognito pool: $POOL_ID"
+            ADMIN_GROUP=$(aws cognito-idp get-group --user-pool-id "$POOL_ID" --group-name admin \
+              --region $AWS_REGION --query 'Group.GroupName' --output text 2>/dev/null || echo "")
+            if [ "$ADMIN_GROUP" = "admin" ]; then
+              echo "Admin group exists — importing"
+              import_if_missing "module.cognito.aws_cognito_user_group.admin" "${POOL_ID}/admin"
+              # Import admin user in group if present
+              ADMIN_IN_GROUP=$(aws cognito-idp admin-list-groups-for-user \
+                --user-pool-id "$POOL_ID" --username "${PROJECT_NAME}-admin-user" --region $AWS_REGION \
+                --query "Groups[?GroupName=='admin'].GroupName | [0]" --output text 2>/dev/null || echo "")
+              if [ "$ADMIN_IN_GROUP" = "admin" ]; then
+                import_if_missing "module.cognito.aws_cognito_user_in_group.admin_user[0]" "${POOL_ID}/admin/argeropolos@gmail.com"
+              fi
+            else
+              echo "Admin group not found — Terraform will create it"
+            fi
+          else
+            echo "[WARN] Cognito pool not found yet — will be created by Terraform"
+          fi
+
       - name: Remove Orphaned Pipeline Lambda From State
         run: |
           # loader_failure_handler was defined in both module.pipeline and module.services.

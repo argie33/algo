@@ -1070,6 +1070,16 @@ variable "cognito_test_user_email" {
   }
 }
 
+variable "cognito_admin_user_email" {
+  description = "Email of the primary admin user to add to Cognito admin group (empty = skip)"
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.cognito_admin_user_email == "" || can(regex("^[^@]+@[^@]+\\.[^@]+$", var.cognito_admin_user_email))
+    error_message = "Must be a valid email address or empty"
+  }
+}
+
 # ============================================================
 # Secrets & Rotation Configuration
 # ============================================================
