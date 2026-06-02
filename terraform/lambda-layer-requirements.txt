@@ -1,22 +1,9 @@
-# Consolidated Lambda Layer Dependencies
-# These are shared by ALL Lambda functions: API, Orchestrator, Data-freshness-monitor, etc.
-# Installed once in a layer, not duplicated in each function ZIP
+# Shared-deps Lambda layer: ONLY packages not already available in Lambda runtime
+# or other layers. Lambda runtime already provides boto3, botocore, urllib3.
+# The psycopg2 layer provides psycopg2. The API layer provides requests.
+#
+# Keep this list minimal — numpy+scipy alone are ~60 MB and near the 67 MB direct-upload limit.
 
-# Database
-psycopg2-binary>=2.9.0
-
-# AWS SDK
-boto3>=1.26.0
-
-# HTTP
-requests>=2.33.0
-
-# Configuration
-python-dotenv>=1.0
-
-# Scientific computing (required for Phase 7 portfolio optimization in orchestrator)
+# Scientific computing (required for Phase 7 portfolio optimization, VaR, IC)
 numpy>=1.24.0
 scipy>=1.10.0
-
-# Data (minimal, only if actually needed by all functions)
-# pydantic>=2.5.0  # Only needed by API, not included to keep layer small

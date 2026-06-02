@@ -249,10 +249,9 @@ jobs:
 
       - name: Build numpy/scipy Lambda layer
         run: |
-          # Build shared-deps layer (numpy + scipy + psycopg2 + boto3 + requests).
-          # Layer must be <69 MB for direct Lambda upload. Built with manylinux2014 wheels
-          # and debug-symbol stripping to stay under limit. If it exceeds 69 MB, Terraform's
-          # fileexists() check will still skip it and Phase 7 will fail-open (non-blocking).
+          # Build shared-deps layer (numpy + scipy ONLY — minimal to stay under AWS 67 MB limit).
+          # AWS hard limit for direct layer upload: 70167211 bytes (~67 MB).
+          # Layer must be under this limit or Terraform's fileexists() check skips it.
           set -e
           BUILD_DIR=/tmp/shared-deps-build
           mkdir -p $BUILD_DIR/python
@@ -271,11 +270,14 @@ jobs:
           mkdir -p $(dirname $OUTPUT_ZIP)
           cd $BUILD_DIR && zip -r $OUTPUT_ZIP python/ -q
           SIZE=$(du -sh $OUTPUT_ZIP | cut -f1)
-          echo "shared-deps layer: $SIZE"
-          if [ $(stat -c%s $OUTPUT_ZIP) -gt 72351744 ]; then
-            echo "[WARN] Layer exceeds 69 MB — Terraform will skip it and Phase 7 will fail-open"
+          ZIP_BYTES=$(stat -c%s $OUTPUT_ZIP)
+          echo "shared-deps layer: $SIZE ($ZIP_BYTES bytes)"
+          # AWS hard limit: 70167211 bytes. Use 66 MB (69206016) as threshold for margin.
+          if [ $ZIP_BYTES -gt 69206016 ]; then
+            echo "[WARN] Layer $SIZE exceeds 66 MB threshold — deleting zip so Terraform skips it (Phase 7 fails-open)"
+            rm -f $OUTPUT_ZIP
           else
-            echo "[OK] Layer within 69 MB limit — will be deployed via Terraform"
+            echo "[OK] Layer $SIZE is within 66 MB limit — will be deployed via Terraform"
           fi
 
       - name: Build db-init Lambda
