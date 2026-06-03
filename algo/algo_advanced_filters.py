@@ -45,9 +45,9 @@ class AdvancedFilters:
                 """
                 SELECT sector_name, current_rank, momentum_score
                 FROM sector_ranking
-                WHERE date = (
-                    SELECT MAX(date) FROM sector_ranking
-                    WHERE date <= %s
+                WHERE date_recorded = (
+                    SELECT MAX(date_recorded) FROM sector_ranking
+                    WHERE date_recorded <= %s
                 )
                 AND sector_name <> '' AND sector_name IS NOT NULL
                 AND sector_name <> 'Benchmark'

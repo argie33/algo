@@ -449,10 +449,10 @@ class PositionMonitor:
 
         cur.execute(
             """
-            SELECT current_rank, date FROM sector_ranking
+            SELECT current_rank, date_recorded FROM sector_ranking
             WHERE sector_name = %s
-              AND date <= %s
-            ORDER BY date DESC LIMIT 1
+              AND date_recorded <= %s
+            ORDER BY date_recorded DESC LIMIT 1
             """,
             (sector, current_date),
         )
@@ -468,9 +468,9 @@ class PositionMonitor:
             """
             SELECT current_rank FROM sector_ranking
             WHERE sector_name = %s
-              AND date >= %s
-              AND date <= %s
-            ORDER BY date ASC LIMIT 1
+              AND date_recorded >= %s
+              AND date_recorded <= %s
+            ORDER BY date_recorded ASC LIMIT 1
             """,
             (sector, four_weeks_ago, four_weeks_ago + timedelta(days=3)),
         )
