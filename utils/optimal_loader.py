@@ -556,8 +556,6 @@ class OptimalLoader(ABC):
                     "[%s] Skipping global load: another instance already running (DynamoDB lock held)",
                     self.table_name,
                 )
-                try:
-                    pass
                 return 0
         except Exception as _lock_err:
             logger.warning("[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)", self.table_name, _lock_err)
