@@ -207,6 +207,8 @@ def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
                     # Different tables use different date column names
                     if table == 'stock_scores':
                         col = 'updated_at'
+                    elif table == 'industry_ranking':
+                        col = 'date_recorded'
                     else:
                         col = 'date'
                     assert_safe_table(table)
