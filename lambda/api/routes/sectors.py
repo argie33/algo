@@ -249,6 +249,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 rows = cur.fetchall()
                 return list_response([dict(r) for r in rows])
             return error_response(404, 'not_found', f'No sector handler for {path}')
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle sectors')
+        except Exception as e:
+            logger.warning(f'Sectors unavailable: {e}')
+            return json_response(200, {
+                'items': [],
+                'total': 0,
+                'page': 1,
+                'limit': 50000,
+                'data_freshness': {'status': 'unavailable', 'data_age_days': None, 'is_stale': True}
+            })
