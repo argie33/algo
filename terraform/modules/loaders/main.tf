@@ -572,9 +572,9 @@ locals {
     "sp500_constituents"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Unified Price Loader — critical path; 4x parallelism reduces 46 min → ~12 min at similar cost
+    # Unified Price Loader — critical path; 8x parallelism reduces 6h → ~1.5h (batch size doubled 50→100, concurrency 4→8)
     # cpu=1024 (1 vCPU) + memory=2048 is the minimum valid Fargate combo at this memory tier
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 4 }
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 8 }
 
     # ETF prices — non-critical; loads 17 ETF symbols for market breadth/analysis
     # Runs independently so algo doesn't wait for ETF data
@@ -621,7 +621,7 @@ locals {
     "sentiment_aggregate" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Signal processing
-    "signal_themes"         = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    "signal_themes" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
     # Critical path: 8x parallelism reduces ~90 min → ~15 min, 2h timeout ensures full dataset
     "signal_quality_scores" = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 8 }
 

@@ -43,7 +43,7 @@ class PriceLoader(OptimalLoader):
 
         self.interval = interval
         self.asset_class = asset_class
-        self.batch_size = 50  # Batch 50 symbols per API call: 5000 symbols = 100 calls
+        self.batch_size = 100  # Batch 100 symbols per API call: 5000 symbols = 50 calls (2x faster)
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
@@ -272,8 +272,8 @@ class PriceLoader(OptimalLoader):
         batches = [symbols[i:i + self.batch_size] for i in range(0, len(symbols), self.batch_size)]
         processed = 0
 
-        # Process batches with concurrency (limit to 5 to avoid overwhelming yfinance)
-        max_concurrent = min(parallelism, 5)  # Hard cap at 5 concurrent batches
+        # Process batches with concurrency (increase max to 8 for better throughput on larger batches)
+        max_concurrent = min(parallelism, 8)  # Allow up to 8 concurrent batches for faster loading
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             futures = {executor.submit(self._load_batch, batch): batch for batch in batches}
             for future in as_completed(futures):
