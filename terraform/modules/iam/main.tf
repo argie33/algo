@@ -1416,6 +1416,22 @@ data "aws_iam_policy_document" "developer" {
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-locks-${var.environment}"
     ]
   }
+
+  # SES (email verification for Cognito custom email setup)
+  statement {
+    sid    = "SESVerification"
+    effect = "Allow"
+
+    actions = [
+      "ses:VerifyEmailIdentity",
+      "ses:ListIdentities",
+      "ses:GetAccountSendingEnabled",
+      "ses:GetSendStatistics",
+      "ses:SendEmail"
+    ]
+
+    resources = ["*"]
+  }
 }
 
 # Managed policy for Cognito (inline policies are capped at 2048 bytes combined per user;
