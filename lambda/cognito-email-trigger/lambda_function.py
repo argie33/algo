@@ -22,7 +22,7 @@ logger.setLevel(logging.INFO)
 ses_client = boto3.client('ses', region_name='us-east-1')
 
 # Configuration
-SENDER_EMAIL = "noreply@bullseyetrading.com"
+SENDER_EMAIL = "argeropolos@gmail.com"
 SENDER_NAME = "Bullseye Trading"
 
 
