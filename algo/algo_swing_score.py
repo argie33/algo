@@ -326,8 +326,8 @@ class SwingTraderScore:
                 max_industry_rank = self._load_config_val('swing_min_industry_rank', 100)
                 cur.execute(
                     """SELECT current_rank FROM industry_ranking
-                       WHERE industry = %s AND date_recorded <= %s
-                       ORDER BY date_recorded DESC LIMIT 1""",
+                       WHERE industry = %s AND date <= %s
+                       ORDER BY date DESC LIMIT 1""",
                     (industry, eval_date),
                 )
                 r = cur.fetchone()
@@ -856,8 +856,8 @@ class SwingTraderScore:
         if industry:
             cur.execute(
                 """SELECT current_rank, rank_4w_ago FROM industry_ranking
-                   WHERE industry = %s AND date_recorded <= %s
-                   ORDER BY date_recorded DESC LIMIT 1""",
+                   WHERE industry = %s AND date <= %s
+                   ORDER BY date DESC LIMIT 1""",
                 (industry, eval_date),
             )
             r = cur.fetchone()
@@ -877,8 +877,8 @@ class SwingTraderScore:
         if sector:
             cur.execute(
                 """SELECT current_rank, rank_4w_ago, momentum_score FROM sector_ranking
-                   WHERE sector_name = %s AND date_recorded <= %s
-                   ORDER BY date_recorded DESC LIMIT 1""",
+                   WHERE sector_name = %s AND date <= %s
+                   ORDER BY date DESC LIMIT 1""",
                 (sector, eval_date),
             )
             r = cur.fetchone()
