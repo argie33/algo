@@ -184,16 +184,19 @@ class PositionMonitor:
             logger.info(f"{'='*70}")
             logger.info(f"Reviewing {len(positions)} open position(s)\n")
 
-            for row in positions:
+            for i, row in enumerate(positions):
                 rec = self._evaluate_position(row, current_date, cur)
                 if rec is None:
                     continue
                 recs.append(rec)
                 self._print_recommendation(rec)
                 try:
+                    sp_name = f"sp_pos_{i}"
+                    cur.execute(f"SAVEPOINT {sp_name}")
                     self._persist_review(rec, cur)
                 except Exception as e:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
+                    cur.execute(f"ROLLBACK TO SAVEPOINT sp_pos_{i}")
                     continue
             return recs
 
