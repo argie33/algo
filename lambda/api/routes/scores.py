@@ -60,7 +60,6 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
 
             where_clause = """
             WHERE sc.composite_score > 0
-            AND COALESCE(ss.etf, 'N') != 'Y'
             """
             params_list = []
 
@@ -132,7 +131,6 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     ROUND(CASE WHEN tdd.sma_200 > 0 THEN ((lp.current_close - tdd.sma_200) / tdd.sma_200 * 100) END, 2) AS price_vs_sma_200
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
-                LEFT JOIN etf_symbols etfs ON etfs.symbol = sc.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
@@ -148,7 +146,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     ORDER BY date DESC LIMIT 1
                 ) tdd ON true
                 {where_clause}
-                AND etfs.symbol IS NULL
+                AND NOT EXISTS (SELECT 1 FROM etf_symbols WHERE symbol = sc.symbol)
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
             """
