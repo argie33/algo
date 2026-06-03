@@ -375,13 +375,13 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                         try:
                             cur.execute("SAVEPOINT swing_score")
                             cur.execute(
-                                "SELECT grade, components FROM swing_trader_scores WHERE symbol = %s AND date = %s LIMIT 1",
+                                "SELECT score, components FROM swing_trader_scores WHERE symbol = %s AND date = %s LIMIT 1",
                                 (symbol, signal_date)
                             )
                             swing_row = cur.fetchone()
                             cur.execute("RELEASE SAVEPOINT swing_score")
                             if swing_row:
-                                swing_grade, swing_comp_json = swing_row
+                                swing_score_from_db, swing_comp_json = swing_row
                                 import json as _json
                                 if isinstance(swing_comp_json, dict):
                                     swing_components = swing_comp_json
@@ -391,7 +391,16 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                                     swing_components = {}
                                 # Use score from pre-fetch cache
                                 swing_score_val = signal_swing_scores.get(symbol, 0.0)
-                                swing = {'pass': True, 'reason': 'precomputed', 'swing_score': float(swing_score_val), 'grade': swing_grade or 'C', 'components': swing_components}
+                                # Compute grade from score
+                                def score_to_grade(score):
+                                    if score >= 85: return 'A+'
+                                    elif score >= 75: return 'A'
+                                    elif score >= 65: return 'B'
+                                    elif score >= 55: return 'C'
+                                    elif score >= 45: return 'D'
+                                    else: return 'F'
+                                computed_grade = score_to_grade(float(swing_score_val))
+                                swing = {'pass': True, 'reason': 'precomputed', 'swing_score': float(swing_score_val), 'grade': computed_grade, 'components': swing_components}
                             else:
                                 swing_score_val = signal_swing_scores.get(symbol, 0.0)
                                 logger.debug(f"No grade/components for {symbol} on {signal_date}, using cached score {swing_score_val}")
