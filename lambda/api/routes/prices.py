@@ -20,6 +20,70 @@ _ETF_TABLE_MAP = {
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     try:
         parts = path.split('/')
+
+        # /api/prices?symbols=AAPL,MSFT (simple query format - redirect to batch-history)
+        if len(parts) == 3 and parts[2] in ['prices', 'prices?symbols']:
+            symbols_raw = (params.get('symbols', [None])[0] if params else None) or ''
+            if symbols_raw:
+                # Delegate to batch-history handler logic
+                symbols = [s.strip().upper() for s in symbols_raw.split(',') if s.strip()]
+                if not symbols:
+                    return error_response(400, 'bad_request', 'symbols parameter required')
+                if len(symbols) > 20:
+                    return error_response(400, 'bad_request', 'maximum 20 symbols per batch')
+                for sym in symbols:
+                    if not all(c.isalnum() or c in ('-', '.', '^') for c in sym):
+                        return error_response(400, 'bad_request', f'Invalid symbol: {sym}')
+
+                limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=252, default=30)
+                timeframe = (params.get('timeframe', [None])[0] if params else None) or 'daily'
+                table_name = _TABLE_MAP.get(timeframe, 'price_daily')
+                etf_table_name = _ETF_TABLE_MAP.get(timeframe, 'etf_price_daily')
+
+                result = {sym: [] for sym in symbols}
+
+                batch_query = psycopg2.sql.SQL("""
+                    WITH ranked AS (
+                        SELECT symbol, date, open, high, low, close, volume,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM {}
+                        WHERE symbol = ANY(%s)
+                    )
+                    SELECT symbol, date, open, high, low, close, volume
+                    FROM ranked
+                    WHERE rn <= %s
+                    ORDER BY symbol, date DESC
+                """).format(psycopg2.sql.Identifier(table_name))
+                cur.execute(batch_query, [symbols, limit])
+                found_symbols = set()
+                for row in cur.fetchall():
+                    sym = row['symbol']
+                    result[sym].append(dict(row))
+                    found_symbols.add(sym)
+
+                missing = [s for s in symbols if s not in found_symbols]
+                if missing:
+                    etf_query = psycopg2.sql.SQL("""
+                        WITH ranked AS (
+                            SELECT symbol, date, open, high, low, close, volume,
+                                   ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                            FROM {}
+                            WHERE symbol = ANY(%s)
+                        )
+                        SELECT symbol, date, open, high, low, close, volume
+                        FROM ranked
+                        WHERE rn <= %s
+                        ORDER BY symbol, date DESC
+                    """).format(psycopg2.sql.Identifier(etf_table_name))
+                    cur.execute(etf_query, [missing, limit])
+                    for row in cur.fetchall():
+                        sym = row['symbol']
+                        result[sym].append(dict(row))
+
+                return json_response(200, {'symbols': result, 'limit': limit})
+            else:
+                return error_response(400, 'bad_request', 'symbols parameter required')
+
         # /api/prices/history/{symbol}
         if len(parts) >= 5 and parts[3] == 'history':
             symbol = parts[4].upper()

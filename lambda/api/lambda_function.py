@@ -608,6 +608,10 @@ def require_auth(event: Dict, path: str) -> tuple:
     # SECURITY FIX: Authentication must be enforced for protected endpoints
     # In production, Cognito MUST be configured (COGNITO_USER_POOL_ID set)
     if not _COGNITO_ENABLED:
+        # Allow development bypass with DEV_BYPASS_AUTH environment variable
+        if os.getenv('DEV_BYPASS_AUTH', '').lower() == 'true':
+            logger.warning(f"[DEV_MODE] Authentication bypassed for {path}")
+            return (False, True, None, {})  # Bypass auth with empty claims
         logger.error(f"[AUTH_FAILURE] Protected endpoint {path} accessed but Cognito not configured")
         return (True, False, "Authentication system not configured. Contact administrator.", None)
 
