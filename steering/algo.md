@@ -599,6 +599,74 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Single-AZ RDS: failover is manual. Acceptable cost trade-off until live capital scales up.
 - API Lambda reserved concurrency (30 slots) may be tight: MarketsHealth fires 26 concurrent calls on dashboard load. Headroom of 4 slots. Monitor after adding users; upgrade to 50 if 429s appear under concurrent load.
 
+## Multi-User Support (2026-06-02)
+
+**Status:** IMPLEMENTED - Ready for testing
+
+Each user has isolated Alpaca trading accounts. Admin (argeropolos@gmail.com) and new users maintain completely separate portfolios, positions, and trades.
+
+**Implementation (5 phases completed):**
+
+1. **Phase 1 - Email Infrastructure:** AWS SES + Cognito email triggers for password reset and signup confirmation. Sandbox mode requires email verification (links sent to noreply@bullseyetrading.com and argeropolos@gmail.com). **STATUS:** Ready — awaiting email verification link clicks.
+
+2. **Phase 2 - Database Schema:** Migration `013_add_user_isolation.py` adds `cognito_sub` (UUID) column to:
+   - `algo_positions` (user's open positions)
+   - `algo_trades` (user's trade history)
+   - `algo_portfolio_snapshots` (user's daily snapshots)
+   - `algo_trade_adds` (user's pyramid adds)
+   Plus composite indexes for fast per-user lookups. Existing data backfilled with `'admin-user'` placeholder, populated by Phase 4 setup script.
+
+3. **Phase 3 - API User Scoping:** All portfolio endpoints (`/api/algo/*`) updated to filter by `cognito_sub` from JWT claims. Pattern: `WHERE cognito_sub = %s` added to all queries via `scope_query()` utility in `lambda/api/routes/user_isolation.py`. **ROUTES UPDATED:** `/api/algo/positions`, `/api/algo/trades`, `/api/algo/portfolio-snapshot`. Settings already scoped by user_id; admin routes already audit-logged per user.
+
+4. **Phase 4 - Credential Isolation:** `credential_manager.py` updated to support user-scoped Alpaca secrets via pattern `algo/alpaca/{cognito-sub}`. Falls back to shared `algo/alpaca` for backward compatibility. Setup script `scripts/setup-user-isolation.ps1` (ready to run):
+   - Fetches admin's Cognito sub from user pool
+   - Updates database: `UPDATE algo_positions SET cognito_sub = <admin-sub> WHERE cognito_sub = 'admin-user'`
+   - Creates admin user-specific secret `algo/alpaca/{admin-sub}` from shared credentials
+   - For new users: `aws secretsmanager create-secret --name algo/alpaca/{their-sub} --secret-string '{...}'`
+
+5. **Phase 5 - Testing:** Comprehensive test plan in `PHASE5_TESTING_GUIDE.md` validates:
+   - Password reset works for admin
+   - New users can sign up independently
+   - Each user sees only their own portfolio (complete isolation)
+   - Alpaca accounts are separate per user
+   - API endpoints respect user scoping
+   - CloudWatch logs show no cross-user data leaks
+
+**Remaining Setup Steps (in order):**
+
+1. **Email Verification (Manual):** Check noreply@bullseyetrading.com and argeropolos@gmail.com for SES verification links, click them to complete verification.
+
+2. **Request SES Production Access (Console):** Go to AWS SES Console → Account provisioning → Request production access. Form: use case = "Authentication and password reset emails for trading platform", daily limit = 50,000. ~24 hour approval. **Note:** Once approved, removes sandbox restrictions; email delivery to any address works immediately.
+
+3. **Execute Phase 4 Setup:** `pwsh scripts/setup-user-isolation.ps1` — populates database with admin's real Cognito sub and creates admin user-specific Alpaca secret.
+
+4. **Run Phase 5 Tests:** Follow `PHASE5_TESTING_GUIDE.md` — create 2 test users, verify complete isolation, confirm email delivery works.
+
+**Key Design Decisions:**
+
+- **JWT-based user identification:** Cognito `sub` claim (UUID, immutable) is the authoritative user ID. Never use email or other mutable attributes.
+- **Per-user secrets pattern:** Each user gets a secret `algo/alpaca/{cognito-sub}` with their Alpaca API keys. Admin gets migrated from shared secret on first setup.
+- **Database-enforced isolation:** `WHERE cognito_sub = %s` on every query for user-specific tables prevents accidental cross-user data access at the database layer.
+- **Fail-open email:** If SES is in sandbox and recipient unverified, email fails silently (not returned to user). Production access lifts this restriction.
+- **Backward compatibility:** Credential manager tries user-specific secret first, falls back to shared secret. Allows gradual migration of users to isolated accounts.
+
+**For New Users:**
+
+1. They sign up via frontend with their email and password
+2. Cognito sends confirmation email (works once SES production access granted)
+3. They confirm email in Cognito
+4. They log in and get a JWT with their `sub` claim
+5. API requests are scoped to their `sub` — they only see their own portfolio
+6. Admin creates their Alpaca secret: `aws secretsmanager create-secret --name "algo/alpaca/{their-sub}" --secret-string '{"api_key":"...","api_secret":"..."}'`
+7. They can then trade with their own Alpaca account, completely isolated from admin and other users
+
+**Troubleshooting Multi-User Issues:**
+
+- **Email not received:** Check CloudWatch logs for `/aws/lambda/algo-cognito-email-trigger-dev`. If "Email address is not verified" error: verify email in SES console or request production access.
+- **User sees admin's portfolio:** Check API logs that `cognito_sub` is correctly extracted from JWT (`require_user(jwt_claims)` call). Verify `WHERE cognito_sub = %s` is in the query.
+- **Wrong Alpaca credentials:** Verify setup script completed (check Secrets Manager for `algo/alpaca/{user-sub}` secret exists). Check credential_manager is called with `user_id=user_id` parameter.
+- **Database migration failed:** Check RDS: `SELECT COUNT(*) FROM algo_positions WHERE cognito_sub IS NULL` — should be 0 after migration + setup script. If >0, manually run: `UPDATE algo_positions SET cognito_sub = 'admin-user' WHERE cognito_sub IS NULL;`
+
 ## Troubleshooting
 
 **DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.

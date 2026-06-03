@@ -33,6 +33,7 @@ class DynamoDBLockManager:
         self.lock_duration_seconds = lock_duration_seconds
         self.lock_id = str(uuid.uuid4())
         self.acquired = False
+        self.is_available = False  # Track if DynamoDB is actually usable
 
         if not boto3:
             logger.warning("boto3 not available — falling back to noop lock manager")
@@ -42,9 +43,12 @@ class DynamoDBLockManager:
         try:
             self.dynamodb = boto3.resource('dynamodb')
             self.table = self.dynamodb.Table(self.table_name)
+            self.is_available = True  # Successfully initialized
         except Exception as e:
-            logger.error(f"Failed to initialize DynamoDB lock manager: {e}")
+            # DynamoDB unavailable due to permissions, network, or missing tables
+            logger.warning(f"DynamoDB lock manager unavailable: {e}. Will skip distributed locking.")
             self.dynamodb = None
+            self.is_available = False
 
     def acquire(self, lock_key: str = 'orchestrator-run-lock', timeout_seconds: int = 5) -> bool:
         """Acquire distributed lock using DynamoDB conditional write.
@@ -97,8 +101,14 @@ class DynamoDBLockManager:
                 time.sleep(0.1)
 
             except Exception as e:
-                logger.critical(f"[LOCK] Error acquiring lock: {e} — refusing to proceed without lock.")
-                return False
+                # Check if this is a permission error (AccessDeniedException) vs. a lock contention issue
+                if 'AccessDeniedException' in str(type(e)) or 'not authorized' in str(e):
+                    logger.warning(f"[LOCK] DynamoDB permission denied: {e} — marking as unavailable")
+                    self.is_available = False
+                    return False
+                else:
+                    logger.critical(f"[LOCK] Error acquiring lock: {e} — refusing to proceed without lock.")
+                    return False
 
         logger.error(f"[LOCK] Failed to acquire {lock_key} after {timeout_seconds}s")
         return False

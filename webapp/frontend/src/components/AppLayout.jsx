@@ -57,11 +57,6 @@ const NAV_SECTIONS = [
     title: 'Algo',
     items: [
       { text: 'Algo Dashboard', icon: Bot, path: '/app/algo-dashboard' },
-    ],
-  },
-  {
-    title: 'Research',
-    items: [
       { text: 'Backtests', icon: GitBranch, path: '/app/backtests' },
     ],
   },

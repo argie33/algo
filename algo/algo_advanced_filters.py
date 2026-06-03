@@ -68,9 +68,9 @@ class AdvancedFilters:
                 """
                 SELECT industry, momentum_score
                 FROM industry_ranking
-                WHERE date = (
-                    SELECT MAX(date) FROM industry_ranking
-                    WHERE date <= %s
+                WHERE date_recorded = (
+                    SELECT MAX(date_recorded) FROM industry_ranking
+                    WHERE date_recorded <= %s
                 )
                 AND industry <> '' AND industry IS NOT NULL
                 AND momentum_score IS NOT NULL

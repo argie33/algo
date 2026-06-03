@@ -435,9 +435,19 @@ class Orchestrator:
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
-        if not self._acquire_run_lock():
-            logger.error(f"\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
-            return {'success': False, 'error': 'Lock acquisition failed'}
+        # Skip lock check in dry-run mode (no actual trades) or when DynamoDB unavailable
+        if not self.dry_run:
+            lock_acquired = self._acquire_run_lock()
+            if not lock_acquired:
+                if self.lock_manager.is_available:
+                    # DynamoDB is available but lock couldn't be acquired (another instance running)
+                    logger.error(f"\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
+                    return {'success': False, 'error': 'Lock acquisition failed'}
+                else:
+                    # DynamoDB unavailable (no permissions, network issue, etc.) - allow to continue with warning
+                    logger.warning("[DEGRADED MODE] DynamoDB lock unavailable - running without distributed lock protection")
+        else:
+            logger.info("[DRY-RUN] Skipping distributed lock check (dry-run mode)")
 
         try:
             logger.info(f"\n{'='*70}")

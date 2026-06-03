@@ -117,11 +117,9 @@ function App() {
             <Route path="/app/portfolio" element={<ErrorBoundary><ProtectedRoute requireAuth><PortfolioDashboard /></ProtectedRoute></ErrorBoundary>} />
             <Route path="/app/trades" element={<ErrorBoundary><ProtectedRoute requireAuth><TradeTracker /></ProtectedRoute></ErrorBoundary>} />
 
-            {/* Research & Testing */}
-            <Route path="/app/backtests" element={<ErrorBoundary><ProtectedRoute requireAuth><BacktestResults /></ProtectedRoute></ErrorBoundary>} />
-
             {/* Algo */}
             <Route path="/app/algo-dashboard" element={<ErrorBoundary><ProtectedRoute requireAuth><AlgoTradingDashboard /></ProtectedRoute></ErrorBoundary>} />
+            <Route path="/app/backtests" element={<ErrorBoundary><ProtectedRoute requireAuth><BacktestResults /></ProtectedRoute></ErrorBoundary>} />
 
             {/* Admin & Settings */}
             <Route path="/app/health" element={<ErrorBoundary><ProtectedRoute requireAuth requireRole="admin"><ServiceHealth /></ProtectedRoute></ErrorBoundary>} />
