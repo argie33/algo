@@ -51,7 +51,7 @@ _DEFAULTS = [
     ('vix_caution_risk_reduction', '0.75', 'float', 'Risk multiplier when VIX > caution threshold'),
     # Entry Rules (Minervini)
     ('require_sma50_above_sma200', 'true', 'bool', 'Price and MA alignment'),
-    ('min_percent_from_52w_low', '30.0', 'float', 'Min % from 52w low'),
+    ('min_percent_from_52w_low', '0.0', 'float', 'Min % from 52w low (Minervini allows 52w lows with RS strength)'),
     ('max_percent_from_52w_high', '25.0', 'float', 'Max % from 52w high'),
     ('min_trend_template_score', '7', 'int', 'Min Minervini score 0-8'),
     # Entry Quality Gates
