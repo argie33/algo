@@ -14,6 +14,7 @@ Events:
 import boto3
 import json
 import logging
+import os
 from typing import Any
 
 logger = logging.getLogger()
@@ -24,6 +25,9 @@ ses_client = boto3.client('ses', region_name='us-east-1')
 # Configuration
 SENDER_EMAIL = "argeropolos@gmail.com"
 SENDER_NAME = "Bullseye Trading"
+
+# Development mode: log codes when SES fails
+DEV_MODE = os.environ.get('DEV_MODE', 'true').lower() == 'true'
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -54,9 +58,22 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         logger.info(f"Email sent successfully to {email}")
 
     except Exception as e:
-        logger.error(f"Failed to send email: {str(e)}", exc_info=True)
-        # Return event as-is so Cognito can fall back to its default email
-        # This prevents auth from breaking if SES fails temporarily
+        error_msg = str(e)
+        logger.error(f"Failed to send email: {error_msg}", exc_info=True)
+
+        # Development fallback: if SES is unverified (sandbox mode), log code clearly
+        if "Email address is not verified" in error_msg and DEV_MODE:
+            logger.warning(f"╔════════════════════════════════════════════════════════════════╗")
+            logger.warning(f"║ SES SANDBOX MODE - PASSWORD RESET CODE FALLBACK (DEV MODE)    ║")
+            logger.warning(f"╠════════════════════════════════════════════════════════════════╣")
+            logger.warning(f"║ Email: {email:<54} ║")
+            logger.warning(f"║ Type:  {trigger_source:<54} ║")
+            logger.warning(f"║ Code:  {code_parameter:<54} ║")
+            logger.warning(f"╚════════════════════════════════════════════════════════════════╝")
+            logger.info(f"[PASSWORD_RESET_CODE_DEV] Email={email} Code={code_parameter} Type={trigger_source}")
+
+        # Return event as-is so Cognito falls back to its default behavior
+        # This prevents auth from breaking if SES fails
         return event
 
     # Return event unchanged (Cognito won't send its default email)
