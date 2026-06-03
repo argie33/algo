@@ -99,10 +99,10 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             # Trades accessible to authenticated users (Portfolio Dashboard)
             limit_str = params.get('limit', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=10000, default=100)
-            return _get_algo_trades(cur, limit)
+            return _get_algo_trades(cur, limit, user_id=user_id)
         elif path == '/api/algo/positions':
             # Positions accessible to authenticated users (Portfolio Dashboard)
-            return _get_algo_positions(cur)
+            return _get_algo_positions(cur, user_id=user_id)
         elif path == '/api/algo/performance':
             # Performance accessible to authenticated users (Portfolio Dashboard)
             return _get_algo_performance(cur)
@@ -324,19 +324,27 @@ def _get_algo_status(cur) -> Dict:
         except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch algo status')
 
-def _get_algo_trades(cur, limit: int = 200) -> Dict:
-        """Get recent trades with all fields for frontend."""
+def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
+        """Get recent trades with all fields for frontend (scoped to user if user_id provided)."""
         try:
-            cur.execute("""
+            if user_id:
+                where_clause = "WHERE cognito_sub = %s"
+                params = (user_id, limit)
+            else:
+                where_clause = ""
+                params = (limit,)
+
+            cur.execute(f"""
                 SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
                        entry_quantity, entry_reason, exit_price, exit_date, exit_time,
                        exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
                        status, swing_score, swing_grade, base_type, stage_phase,
                        trade_duration_days, mfe_pct, mae_pct, created_at
                 FROM algo_trades
+                {where_clause}
                 ORDER BY trade_date DESC, trade_id DESC
                 LIMIT %s
-            """, (limit,))
+            """, params)
             trades = cur.fetchall()
             items = [dict(t) for t in trades]
             freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
@@ -349,10 +357,14 @@ def _get_algo_trades(cur, limit: int = 200) -> Dict:
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             return handle_db_error(e, logger, 'fetch algo trades')
 
-def _get_algo_positions(cur) -> Dict:
-        """Get current open positions enriched with targets, sector, stage, and computed risk fields."""
+def _get_algo_positions(cur, user_id: str = None) -> Dict:
+        """Get current open positions enriched with targets, sector, stage, and computed risk fields (scoped to user if user_id provided)."""
         try:
-            cur.execute("""
+            # Build WHERE clause with optional user scoping
+            user_filter = f"AND p.cognito_sub = %s" if user_id else ""
+            params = (user_id,) if user_id else ()
+
+            cur.execute(f"""
                 WITH latest_trend AS (
                     SELECT DISTINCT ON (symbol)
                         symbol, weinstein_stage, minervini_trend_score, percent_from_52w_low
@@ -422,9 +434,9 @@ def _get_algo_positions(cur) -> Dict:
                 ) ot ON true
                 LEFT JOIN company_profile cp ON cp.ticker = p.symbol
                 LEFT JOIN latest_trend lt ON lt.symbol = p.symbol
-                WHERE LOWER(p.status) = 'open'
+                WHERE LOWER(p.status) = 'open' {user_filter}
                 ORDER BY p.position_value DESC
-            """)
+            """, params)
             positions = cur.fetchall()
             items = []
             for p in positions:
