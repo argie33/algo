@@ -1426,12 +1426,30 @@ data "aws_iam_policy_document" "developer" {
     actions = [
       "ses:VerifyEmailIdentity",
       "ses:ListIdentities",
+      "ses:DescribeIdentities",
       "ses:GetAccountSendingEnabled",
       "ses:GetSendStatistics",
+      "ses:GetIdentityVerificationAttributes",
       "ses:SendEmail"
     ]
 
     resources = ["*"]
+  }
+
+  # CloudWatch Logs Insights (for advanced log querying)
+  statement {
+    sid    = "CloudWatchLogsInsights"
+    effect = "Allow"
+
+    actions = [
+      "logs:StartQuery",
+      "logs:GetQueryResults",
+      "logs:StopQuery"
+    ]
+
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*"
+    ]
   }
 }
 
