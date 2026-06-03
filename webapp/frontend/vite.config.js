@@ -15,8 +15,8 @@ export default defineConfig(({ mode }) => {
   // The Vite proxy will handle routing /api/* to localhost:3002
   // In production: use explicit URL from VITE_API_URL environment variable
   const apiUrl = env.VITE_API_URL || ""; // Empty for dev, explicit for prod
-  // Vite proxy target for development (backend running on localhost:3002)
-  const proxyTarget = isDevelopment ? "http://localhost:3002" : "";
+  // Vite proxy target for development (backend running on localhost:3003)
+  const proxyTarget = isDevelopment ? "http://localhost:3003" : "";
 
   return {
     plugins: [

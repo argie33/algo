@@ -216,12 +216,7 @@ router.get("/etf", async (req, res) => {
         bsd.strength,
         cp.short_name as company_name,
         pd.close,
-        pd.volume,
-        bsd.rsi,
-        bsd.atr,
-        bsd.adx,
-        bsd.sma_50,
-        bsd.sma_200
+        pd.volume
       FROM ${tableName} bsd
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol AND bsd.date = pd.date
