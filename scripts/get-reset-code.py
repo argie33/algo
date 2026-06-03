@@ -13,12 +13,12 @@ Cognito Lambda when SES email delivery failed (development mode).
 import boto3
 import sys
 import json
+import re
 from datetime import datetime, timedelta
 
 def get_reset_code(email):
     """Retrieve password reset code from CloudWatch logs."""
     logs_client = boto3.client('logs', region_name='us-east-1')
-
     log_group = '/aws/lambda/algo-cognito-email-trigger-dev'
 
     # Search for reset code in last 24 hours
@@ -26,20 +26,20 @@ def get_reset_code(email):
     end_time = int(datetime.now().timestamp() * 1000)
 
     try:
-        print(f"\n🔍 Searching CloudWatch logs for password reset code...")
-        print(f"📧 Email: {email}")
-        print(f"📝 Log group: {log_group}\n")
+        print("\n[*] Searching CloudWatch logs for password reset code...")
+        print(f"[*] Email: {email}")
+        print(f"[*] Log group: {log_group}\n")
 
-        # Query for reset code log entries
+        # Query for reset code log entries (search for [RESET_CODE] marker only, filter by email in Python)
         response = logs_client.filter_log_events(
             logGroupName=log_group,
             startTime=start_time,
             endTime=end_time,
-            filterPattern=f'[RESET_CODE] email={email}'
+            filterPattern='[RESET_CODE]'
         )
 
         if not response.get('events'):
-            print("❌ No reset code found in recent logs.")
+            print("[!] No reset code found in recent logs.")
             print("\nMake sure you:")
             print("1. Requested a password reset from the login page")
             print("2. Entered your email address")
@@ -47,41 +47,49 @@ def get_reset_code(email):
             print("\nThen run this script again.")
             return None
 
-        # Parse the most recent event
-        latest_event = response['events'][-1]
+        # Find the most recent event for this email
+        latest_event = None
+        for event in reversed(response['events']):
+            if f'email={email}' in event['message']:
+                latest_event = event
+                break
+
+        if not latest_event:
+            print(f"[!] No reset code found for {email}.")
+            return None
+
         message = latest_event['message']
 
         # Extract code from log message
         # Format: [RESET_CODE] email=user@example.com code=123456 type=CustomMessage_ForgotPassword
-        import re
         match = re.search(r'code=(\w+)', message)
         if not match:
-            print("❌ Could not parse reset code from logs")
-            print(f"Raw message: {message}")
+            print("[!] Could not parse reset code from logs")
+            print(f"[!] Raw message: {message}")
             return None
 
         code = match.group(1)
         timestamp = datetime.fromtimestamp(latest_event['timestamp'] / 1000)
 
-        print("✅ PASSWORD RESET CODE FOUND!\n")
+        print("[OK] PASSWORD RESET CODE FOUND!\n")
         print("=" * 60)
-        print(f"📌 Your reset code:  {code}")
+        print(f"[CODE] Your reset code: {code}")
         print("=" * 60)
-        print(f"\n⏰ Generated at: {timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-        print(f"\n📋 Next steps:")
-        print("1. Go back to password reset form")
-        print(f"2. Enter this code: {code}")
-        print("3. Set your new password")
-        print("4. Sign in with new password\n")
+        print(f"\n[*] Generated at: {timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        print(f"\n[*] Next steps:")
+        print("[1] Go back to password reset form")
+        print(f"[2] Enter this code: {code}")
+        print("[3] Set your new password")
+        print("[4] Sign in with new password\n")
 
         return code
 
     except Exception as e:
-        print(f"❌ Error accessing CloudWatch logs: {str(e)}")
-        print("\nMake sure:")
-        print("- AWS credentials are configured (run: scripts/refresh-aws-credentials.ps1)")
-        print("- You have CloudWatch Logs access")
-        print("- The Lambda has been invoked (requested a password reset)")
+        print(f"[!] Error accessing CloudWatch logs: {str(e)}")
+        print("\n[!] Make sure:")
+        print("[!] - AWS credentials are configured (run: scripts/refresh-aws-credentials.ps1)")
+        print("[!] - You have CloudWatch Logs access")
+        print("[!] - The Lambda has been invoked (requested a password reset)")
         return None
 
 if __name__ == '__main__':
