@@ -23,7 +23,7 @@ EXCLUSION_PATTERNS = [
     r"\bpreferred\b", r"\bwarrant(s)?\b", r"\bunit(s)?\b", r"\bconvertible\b",
     r"\bpreferred share(s)?\b", r"\btest stock\b", r"\bfund\b", r"\bblank check\b",
     r"\bspac\b", r"\bspecial purpose\b", r"\binvestment corp\b",
-    r"\betn\b", r"\bexchange[- ]traded note\b",
+    r"\betn\b", r"\bexchange[- ]traded note\b", r"\betf\b",
     r"\bnotes?\b.*\bdue\b",  # bonds/notes with maturity date
     r"\bclosed[- ]end\b", r"\b2x\b", r"\b3x\b", r"\binverse\b",
 ]
