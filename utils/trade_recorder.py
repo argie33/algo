@@ -129,8 +129,8 @@ class TradeRecorder:
                 # Update trade record (most recent entry for this symbol)
                 cursor.execute("""
                     UPDATE algo_trades
-                    SET exit_date = %s, exit_price = %s, pnl = %s, pnl_pct = %s,
-                        reason = %s, updated_at = CURRENT_TIMESTAMP
+                    SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s, profit_loss_pct = %s,
+                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE id = (
                         SELECT id FROM algo_trades
                         WHERE symbol = %s AND exit_date IS NULL
