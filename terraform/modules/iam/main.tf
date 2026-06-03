@@ -1395,19 +1395,25 @@ data "aws_iam_policy_document" "developer" {
     resources = ["*"]
   }
 
-  # DynamoDB (read/write orchestrator state for halt flag inspection and emergency clear)
+  # DynamoDB (read/write orchestrator state and locks for testing/debugging)
   statement {
-    sid    = "DynamoDBOrchestratorState"
+    sid    = "DynamoDBOrchestration"
     effect = "Allow"
 
     actions = [
       "dynamodb:GetItem",
       "dynamodb:PutItem",
-      "dynamodb:DescribeTable"
+      "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:DescribeTable",
+      "dynamodb:Query",
+      "dynamodb:Scan"
     ]
 
     resources = [
-      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/algo_orchestrator_state"
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/algo_orchestrator_state",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-${var.environment}",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-locks-${var.environment}"
     ]
   }
 }
