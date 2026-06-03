@@ -214,11 +214,6 @@ resource "aws_iam_role_policy" "cognito_email_lambda_ses" {
           "ses:SendRawEmail"
         ]
         Resource = "*"
-        Condition = {
-          StringEquals = {
-            "ses:FromAddress" = var.cognito_sender_email
-          }
-        }
       }
     ]
   })
