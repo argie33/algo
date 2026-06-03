@@ -175,7 +175,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     latest_sector_ranking AS (
                         SELECT sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
                         FROM sector_ranking
-                        WHERE date = (SELECT date FROM sector_ranking ORDER BY date DESC LIMIT 1)
+                        WHERE date_recorded = (SELECT date_recorded FROM sector_ranking ORDER BY date_recorded DESC LIMIT 1)
                     )
                     SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile,
                            sr.rank_1w_ago, sr.rank_4w_ago, sr.rank_12w_ago
