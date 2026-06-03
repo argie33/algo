@@ -2,10 +2,10 @@
 // For local development: keep API_URL empty (Vite proxy handles routing)
 // For production: deploy-code.yml injects CloudFront domain
 window.__CONFIG__ = {
-  "API_URL": "",
+  "API_URL": "https://d2u93283nn45h2.cloudfront.net",
   "USER_POOL_ID": "us-east-1_XJpLb9SKX",
   "USER_POOL_CLIENT_ID": "6smb0vrcidd9kvhju2kn2a3qrl",
   "USER_POOL_DOMAIN": "https://algo-dev.auth.us-east-1.amazoncognito.com",
   "AWS_REGION": "us-east-1",
-  "ENVIRONMENT": "development"
+  "ENVIRONMENT": "production"
 };
