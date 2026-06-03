@@ -126,13 +126,16 @@ class TradeRecorder:
                 pnl = (exit_price - entry_price) * quantity
                 pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
 
-                # Update trade record
+                # Update trade record (most recent entry for this symbol)
                 cursor.execute("""
                     UPDATE algo_trades
                     SET exit_date = %s, exit_price = %s, pnl = %s, pnl_pct = %s,
                         reason = %s, updated_at = CURRENT_TIMESTAMP
-                    WHERE symbol = %s AND exit_date IS NULL
-                    ORDER BY entry_time DESC LIMIT 1
+                    WHERE id = (
+                        SELECT id FROM algo_trades
+                        WHERE symbol = %s AND exit_date IS NULL
+                        ORDER BY entry_time DESC LIMIT 1
+                    )
                 """, (
                     exit_date, Decimal(str(exit_price)), Decimal(str(pnl)),
                     Decimal(str(pnl_pct)), reason, symbol
