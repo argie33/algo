@@ -182,10 +182,10 @@ class SignalsDailyLoader(OptimalLoader):
             last_swing_high_idx = -1
             for j in range(max(0, i-20), i):
                 lookback_ok = all(rows[k].get("high", 0) is not None and
-                                 (rows[k].get("high", 0) <= rows[j].get("high", 0) or k >= j)
+                                 (rows[k].get("high", 0) < rows[j].get("high", 0) or k >= j)
                                  for k in range(max(0, j-3), j))
                 lookforward_ok = all(rows[k].get("high", 0) is not None and
-                                    rows[k].get("high", 0) <= rows[j].get("high", 0)
+                                    rows[k].get("high", 0) < rows[j].get("high", 0)
                                     for k in range(j+1, min(len(rows), j+4)))
                 if lookback_ok and lookforward_ok:
                     candidate = rows[j].get("high")
@@ -199,10 +199,10 @@ class SignalsDailyLoader(OptimalLoader):
             recent_swing_low = None
             for j in range(max(0, i-10), i):
                 lookback_ok = all(rows[k].get("low", 999999) is not None and
-                                 (rows[k].get("low", 999999) >= rows[j].get("low", 999999) or k >= j)
+                                 (rows[k].get("low", 999999) > rows[j].get("low", 999999) or k >= j)
                                  for k in range(max(0, j-3), j))
                 lookforward_ok = all(rows[k].get("low", 999999) is not None and
-                                    rows[k].get("low", 999999) >= rows[j].get("low", 999999)
+                                    rows[k].get("low", 999999) > rows[j].get("low", 999999)
                                     for k in range(j+1, min(len(rows), j+4)))
                 if lookback_ok and lookforward_ok:
                     candidate = rows[j].get("low")
