@@ -137,6 +137,34 @@ Two bugs limited the algo to evaluating only a fraction of the full 5000+ stock 
 3. Check `[ZERO TRADES DIAGNOSIS]` log line for buy_signals/stage2_stocks/market_stage.
 4. Check Step Functions console for morning-prep-pipeline execution status.
 
+## Stock Scores ETF Filtering (2026-06-03)
+
+**Problem:** The `/api/scores` endpoint was returning only ETF symbols instead of stocks. Root cause: `etf_symbols` table was not being reliably populated, causing ETF filtering to fail with every deployment. Attempted fixes kept regressing on reloads because the table dependency wasn't robust.
+
+**Solution: Dual ETF filtering with fallback**
+
+1. **API endpoint filtering** (`lambda/api/routes/scores.py`):
+   - Primary filter: Check `etf_symbols` table (when populated)
+   - Fallback filter: Also check `stock_symbols.etf = 'Y'` column
+   - Both conditions must pass: `NOT EXISTS (... etf_symbols ...) AND COALESCE(ss.etf, 'N') != 'Y'`
+   - Result: Stocks are excluded even if `etf_symbols` is empty
+
+2. **ETF table reliability** (`loaders/load_stock_symbols.py`):
+   - `load_stock_symbols` now **TRUNCATE**s `etf_symbols` before repopulating
+   - Runs at 3:25 AM ET (EventBridge) before any scoring loaders
+   - Ensures the table always reflects current NASDAQ/NYSE source data
+   - Removes stale entries from delistings
+
+**Why dual filtering works:**
+- If `etf_symbols` is empty (deployment bug), fallback to `stock_symbols.etf`
+- If `stock_symbols.etf` is wrong (data corruption), `etf_symbols` catches it
+- Endpoint never returns ETFs, even during partial outages
+
+**Testing:**
+- Verified 4916 stocks returned (no ETFs) with empty `etf_symbols`
+- Verified 1223 ETFs loaded on each `stock_symbols` run
+- Regression test: Confirmed 0 ETFs in results after dual filtering
+
 ## Orchestrator Phases
 
 1. **Phase 1:** Data freshness (halt if stale) — **FAIL-CLOSED**
