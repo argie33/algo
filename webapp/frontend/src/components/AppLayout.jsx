@@ -154,7 +154,10 @@ export default function AppLayout({ children }) {
 
         {/* Nav */}
         <nav className="sidebar-nav">
-          {NAV_SECTIONS.map(section => (
+          {NAV_SECTIONS.filter(section => {
+            if (section.title === 'System') return user?.role === 'admin';
+            return true;
+          }).map(section => (
             <div className="sidebar-section" key={section.title}>
               <div className="sidebar-section-label">{section.title}</div>
               {section.items.map(item => {
