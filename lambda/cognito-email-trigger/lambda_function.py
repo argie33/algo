@@ -61,10 +61,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         error_msg = str(e)
         logger.error(f"Failed to send email: {error_msg}", exc_info=True)
 
-        # Development fallback: if SES is unverified (sandbox mode), log code clearly
-        if "Email address is not verified" in error_msg and DEV_MODE:
+        # Development fallback: if SES fails (sandbox or permissions), log code clearly
+        if DEV_MODE and ("Email address is not verified" in error_msg or "AccessDenied" in error_msg):
             logger.warning(f"╔════════════════════════════════════════════════════════════════╗")
-            logger.warning(f"║ SES SANDBOX MODE - PASSWORD RESET CODE FALLBACK (DEV MODE)    ║")
+            logger.warning(f"║ SES UNAVAILABLE - PASSWORD RESET CODE FALLBACK (DEV MODE)    ║")
             logger.warning(f"╠════════════════════════════════════════════════════════════════╣")
             logger.warning(f"║ Email: {email:<54} ║")
             logger.warning(f"║ Type:  {trigger_source:<54} ║")
