@@ -1301,7 +1301,8 @@ data "aws_iam_policy_document" "developer" {
       "cloudwatch:ListMetrics",
       "logs:DescribeLogGroups",
       "logs:DescribeLogStreams",
-      "logs:GetLogEvents"
+      "logs:GetLogEvents",
+      "logs:FilterLogEvents"
     ]
 
     resources = ["*"]
