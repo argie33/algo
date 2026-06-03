@@ -104,10 +104,37 @@ resource "aws_iam_role_policy" "execution_monitor_secrets" {
 # ============================================================
 
 data "archive_file" "execution_monitor_zip" {
-  count       = var.enable_execution_monitor ? 1 : 0
-  type        = "zip"
-  source_file = "${path.module}/../../../lambda/execution-monitor/index.py"
+  count   = var.enable_execution_monitor ? 1 : 0
+  type    = "zip"
   output_path = "${path.module}/../../../build/execution-monitor.zip"
+
+  source {
+    content  = file("${path.module}/../../../lambda/execution-monitor/index.py")
+    filename = "index.py"
+  }
+
+  # Include config/ directory (required for credential_manager imports)
+  source {
+    content  = ""
+    filename = "config/__init__.py"
+  }
+
+  dynamic "source" {
+    for_each = fileset("${path.module}/../../../config", "**/*.py")
+    content {
+      content  = file("${path.module}/../../../config/${source.value}")
+      filename = "config/${source.value}"
+    }
+  }
+
+  # Include utils/ directory (required for database utilities)
+  dynamic "source" {
+    for_each = fileset("${path.module}/../../../utils", "**/*.py")
+    content {
+      content  = file("${path.module}/../../../utils/${source.value}")
+      filename = "utils/${source.value}"
+    }
+  }
 }
 
 # ============================================================
