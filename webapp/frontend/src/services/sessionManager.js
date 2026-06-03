@@ -18,7 +18,8 @@ class SessionManager {
     };
     this.sessionData = null;
     this.config = {
-      sessionTimeout: 30 * 60 * 1000, // 30 minutes
+      sessionTimeout: 30 * 60 * 1000, // 30 minutes (default)
+      rememberMeTimeout: 30 * 24 * 60 * 60 * 1000, // 30 days for "remember me"
       warningTime: 5 * 60 * 1000, // 5 minutes before expiration
     };
   }
@@ -47,21 +48,25 @@ class SessionManager {
 
     if (rememberMe) {
       localStorage.setItem('rememberMe', 'true');
+    } else {
+      localStorage.removeItem('rememberMe');
     }
+
+    const sessionTimeout = rememberMe ? this.config.rememberMeTimeout : this.config.sessionTimeout;
 
     // Set warning timer
     this.timers.warning = setTimeout(() => {
       if (this.callbacks.onSessionWarning) {
         this.callbacks.onSessionWarning({ timeRemaining: this.config.warningTime });
       }
-    }, this.config.sessionTimeout - this.config.warningTime);
+    }, sessionTimeout - this.config.warningTime);
 
     // Set expiration timer
     this.timers.expiration = setTimeout(() => {
       if (this.callbacks.onSessionExpired) {
         this.callbacks.onSessionExpired();
       }
-    }, this.config.sessionTimeout);
+    }, sessionTimeout);
   }
 
   endSession() {

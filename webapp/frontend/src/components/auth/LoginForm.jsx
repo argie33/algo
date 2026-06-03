@@ -38,8 +38,7 @@ function LoginForm({ onSwitchToRegister, onSwitchToForgotPassword, onMFARequired
       return;
     }
 
-    localStorage.setItem("rememberMe", rememberMe.toString());
-    const result = await login(formData.username, formData.password);
+    const result = await login(formData.username, formData.password, rememberMe);
 
     if (result.nextStep) {
       onMFARequired?.(result.nextStep);

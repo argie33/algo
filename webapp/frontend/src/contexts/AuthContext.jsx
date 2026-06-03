@@ -358,8 +358,9 @@ export function AuthProvider({ children }) {
           },
         });
 
-        // Start session and token refresh timer (sessions do not persist across browser close)
-        sessionManager.startSession(false);
+        // Start session and token refresh timer
+        const rememberMe = localStorage.getItem('rememberMe') === 'true';
+        sessionManager.startSession(rememberMe);
         // Start proactive token refresh timer
         if (state.tokens?.accessToken) {
           sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
@@ -394,7 +395,7 @@ export function AuthProvider({ children }) {
     }
   }, [state.tokens?.accessToken, state.isAuthenticated]);
 
-  const login = async (username, password) => {
+  const login = async (username, password, rememberMe = false) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
@@ -442,7 +443,14 @@ export function AuthProvider({ children }) {
           },
         });
 
-        return { success: true };
+        // Store rememberMe preference for session manager to use
+        if (rememberMe) {
+          localStorage.setItem('rememberMe', 'true');
+        } else {
+          localStorage.removeItem('rememberMe');
+        }
+
+        return { success: true, rememberMe };
       } else {
         // Handle additional steps (MFA, password change, etc.)
         return {
