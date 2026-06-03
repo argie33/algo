@@ -225,7 +225,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         }
                     })
 
-                freshness = check_data_freshness(cur, 'sector_ranking', 'date', warning_days=1)
+                freshness = check_data_freshness(cur, 'sector_ranking', 'date_recorded', warning_days=1)
                 return json_response(200, {
                     'items': sectors,
                     'total': total,

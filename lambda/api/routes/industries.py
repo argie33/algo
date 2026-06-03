@@ -187,7 +187,7 @@ def _industry_list(cur, params):
             },
         })
 
-    freshness = check_data_freshness(cur, 'industry_ranking', 'date', warning_days=1)
+    freshness = check_data_freshness(cur, 'industry_ranking', 'date_recorded', warning_days=1)
     return json_response(200, {
         'items': industries,
         'total': total,
