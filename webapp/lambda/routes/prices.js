@@ -3,6 +3,7 @@
  *
  * Endpoints:
  * - GET /api/prices/history/:symbol - Get historical price data
+ * - GET /api/prices/batch-history - Get historical price data for multiple symbols
  */
 
 const express = require('express');
@@ -93,6 +94,97 @@ router.get('/history/:symbol', async (req, res) => {
 
   } catch (error) {
     logger.error('Error fetching price history:', { error: error.message });
+    return sendError(res, `Failed to fetch price history: ${error.message}`, 500);
+  }
+});
+
+/**
+ * GET /api/prices/batch-history
+ * Historical OHLCV price data for multiple symbols
+ *
+ * Query params:
+ * - symbols: Comma-separated list of symbols (required)
+ * - limit: Number of records to return per symbol (default: 30, max: 5000)
+ * - offset: Skip N records (default: 0)
+ * - timeframe: 'daily', 'weekly', 'monthly' (default: 'daily')
+ */
+router.get('/batch-history', async (req, res) => {
+  try {
+    const { symbols } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 5000);
+    const offset = parseInt(req.query.offset) || 0;
+    const timeframe = req.query.timeframe || 'daily';
+
+    if (!symbols) {
+      return sendError(res, 'Missing symbols parameter', 400);
+    }
+
+    const symbolList = symbols.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    if (symbolList.length === 0) {
+      return sendError(res, 'No valid symbols provided', 400);
+    }
+
+    const etfTableMap = {
+      'daily': 'etf_price_daily',
+      'weekly': 'etf_price_weekly',
+      'monthly': 'etf_price_monthly'
+    };
+    const stockTableMap = {
+      'daily': 'price_daily',
+      'weekly': 'price_weekly',
+      'monthly': 'price_monthly'
+    };
+    const stockTable = stockTableMap[timeframe] || 'price_daily';
+    const etfTable = etfTableMap[timeframe] || 'etf_price_daily';
+
+    const pool = getPool();
+
+    // Fetch data for all symbols
+    const priceQuery = `
+      SELECT symbol, date, open, high, low, close, volume, adj_close
+      FROM (
+        SELECT symbol, date, open, high, low, close, volume, adj_close
+        FROM ${stockTable} WHERE symbol = ANY($1)
+        UNION ALL
+        SELECT symbol, date, open, high, low, close, volume, adj_close
+        FROM ${etfTable} WHERE symbol = ANY($1)
+      ) combined
+      ORDER BY symbol, date DESC
+    `;
+
+    const result = await pool.query(priceQuery, [symbolList]);
+
+    // Group results by symbol and apply limit/offset per symbol
+    const dataBySymbol = {};
+    result.rows.forEach(row => {
+      if (!dataBySymbol[row.symbol]) {
+        dataBySymbol[row.symbol] = [];
+      }
+      dataBySymbol[row.symbol].push({
+        date: row.date,
+        open: parseFloat(row.open),
+        high: parseFloat(row.high),
+        low: parseFloat(row.low),
+        close: parseFloat(row.close),
+        volume: parseInt(row.volume),
+        adj_close: parseFloat(row.adj_close)
+      });
+    });
+
+    // Apply limit and offset to each symbol's data
+    const symbolData = {};
+    symbolList.forEach(symbol => {
+      const allData = dataBySymbol[symbol] || [];
+      const data = allData
+        .slice(offset, offset + limit)
+        .reverse(); // Return oldest first
+      symbolData[symbol] = data;
+    });
+
+    return sendSuccess(res, { symbols: symbolData });
+
+  } catch (error) {
+    logger.error('Error fetching batch price history:', { error: error.message });
     return sendError(res, `Failed to fetch price history: ${error.message}`, 500);
   }
 });

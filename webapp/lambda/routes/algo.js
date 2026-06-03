@@ -438,7 +438,7 @@ router.get('/markets', async (req, res) => {
       pool.query(`
         SELECT sector_name, current_rank, momentum_score
         FROM sector_ranking
-        WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
+        WHERE date = (SELECT MAX(date) FROM sector_ranking)
           AND sector_name <> '' AND sector_name IS NOT NULL AND sector_name <> 'Benchmark'
         ORDER BY current_rank ASC
       `),
@@ -661,7 +661,7 @@ router.get('/data-status', async (req, res) => {
                MAX(date)::date,        COUNT(*),  14 FROM economic_data
         UNION ALL
         SELECT 'sector_ranking',       'weekly',  'SUPPLEMENTAL',
-               MAX(date_recorded)::date, COUNT(*), 14 FROM sector_ranking
+               MAX(date)::date, COUNT(*), 14 FROM sector_ranking
         UNION ALL
         SELECT 'algo_positions',       'live',    'TRADING',
                GREATEST(MAX(updated_at)::date, CURRENT_DATE - 1), COUNT(*), 365 FROM algo_positions WHERE status = 'open'
