@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import logging
-import os
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -107,11 +106,9 @@ class SignalsDailyLoader(OptimalLoader):
                     """SELECT t.date, t.rsi, t.macd, t.macd_signal,
                               t.sma_50, t.sma_200, t.ema_12, t.ema_21, t.atr,
                               t.adx, t.mansfield_rs,
-                              p.close, p.volume, p.open, p.high, p.low,
-                              tt.percent_from_52w_high
+                              p.close, p.volume, p.open, p.high, p.low
                        FROM technical_data_daily t
                        LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-                       LEFT JOIN trend_template_data tt ON t.symbol = tt.symbol AND t.date = tt.date
                        WHERE t.symbol = %s AND t.date >= %s AND t.date <= %s
                        ORDER BY t.date ASC""",
                     (symbol, start, end),
@@ -137,7 +134,6 @@ class SignalsDailyLoader(OptimalLoader):
                         "open": float(r[13]) if r[13] is not None else None,
                         "high": float(r[14]) if r[14] is not None else None,
                         "low": float(r[15]) if r[15] is not None else None,
-                        "pct_from_52w_high": float(r[16]) if r[16] is not None else None,
                     })
                 return rows
         except Exception as e:
@@ -170,22 +166,12 @@ class SignalsDailyLoader(OptimalLoader):
             signal_type = None
             strength = 0.0
             reason = ""
-            pct_from_52w_high = row.get("pct_from_52w_high")
 
             # Calculate volume confirmation (compare to previous bar average)
             vol_confirmed = True
             if volume is not None and i > 0:
                 prev_vol = rows[i-1].get("volume", volume)
                 vol_confirmed = volume >= prev_vol * 0.8  # At least 80% of prior bar
-
-            # Calculate 20-bar average volume for breakout surge detection
-            vol_ratio_20d = None
-            if volume is not None and i >= 5:
-                recent_vols_20 = [rows[j].get("volume") for j in range(max(0, i-20), i) if rows[j].get("volume")]
-                if recent_vols_20:
-                    avg_vol_20d = sum(recent_vols_20) / len(recent_vols_20)
-                    if avg_vol_20d > 0:
-                        vol_ratio_20d = volume / avg_vol_20d
 
             # Calculate volatility (ATR-based, require meaningful moves)
             has_volatility = True
@@ -194,25 +180,11 @@ class SignalsDailyLoader(OptimalLoader):
                 # Require at least 0.5% volatility to avoid whipsaws in low-vol environments
                 has_volatility = volatility_pct >= 0.5
 
-            # Minervini breakout detection helpers
-            # pct_from_52w_high is (close - 52w_high) / 52w_high * 100 (≤ 0).
-            # -15 means 15% below 52w high; -2 means nearly at the high.
-            near_52w_high = pct_from_52w_high is not None and -15.0 <= pct_from_52w_high <= -2.0
-            vol_breakout = vol_ratio_20d is not None and vol_ratio_20d >= 1.5
-            in_stage2_uptrend = (
-                sma_50 is not None and sma_200 is not None
-                and close is not None
-                and close > sma_50 > sma_200
-            )
-
             # Enhanced signal rules with volume and volatility confirmation
-            # Rule 1: RSI<30 pullback buy — requires Stage 2 (close > SMA50 > SMA200) so
-            # mean-reversion signals don't flood the filter pipeline with declining stocks
-            # that will always be rejected at pre-filter (Stage 2 gate).
-            if rsi < 30 and macd > macd_signal and vol_confirmed and has_volatility and in_stage2_uptrend:
+            if rsi < 30 and macd > macd_signal and vol_confirmed and has_volatility:
                 signal_type = "BUY"
                 strength = (30 - rsi) / 30 * (1.0 if vol_confirmed else 0.7)
-                reason = "Oversold pullback in Stage 2 uptrend with bullish MACD + volume confirmation"
+                reason = "Oversold with bullish MACD + volume confirmation"
             elif rsi > 70 and macd < macd_signal and vol_confirmed and has_volatility:
                 signal_type = "SELL"
                 strength = (rsi - 70) / 30 * (1.0 if vol_confirmed else 0.7)
@@ -225,14 +197,6 @@ class SignalsDailyLoader(OptimalLoader):
                 signal_type = "SELL"
                 strength = 0.6 * (1.0 if vol_confirmed else 0.7)
                 reason = "Bearish alignment + volume confirmation"
-            elif near_52w_high and vol_breakout and in_stage2_uptrend and macd >= macd_signal:
-                # Minervini breakout: Stage 2 stock within 2–15% of 52w high with volume surge.
-                # This is the core VCP/Cup/Flat breakout the entire filter pipeline is built to find.
-                # Not a MACD crossover event — fires any day the stock is in this consolidation zone
-                # with ≥1.5× volume, which is exactly when accumulation is happening.
-                signal_type = "BUY"
-                strength = 0.8 * (min(vol_ratio_20d, 3.0) / 3.0)
-                reason = f"Minervini breakout: {abs(pct_from_52w_high):.1f}% from 52w high, vol {vol_ratio_20d:.1f}x avg"
 
             if signal_type:
                 # Compute volume surge: compare to 20-bar average volume
@@ -355,7 +319,7 @@ class SignalsDailyLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load daily trading signals")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "4")), help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=4, help="Parallel workers")
     args = parser.parse_args()
 
     try:
