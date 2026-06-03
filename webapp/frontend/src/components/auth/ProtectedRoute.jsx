@@ -21,8 +21,8 @@ function ProtectedRoute({ children, requireAuth = false, requireRole = null }) {
   // Check role requirement
   if (requireRole && isAuthenticated) {
     if (user?.role !== requireRole) {
-      // User doesn't have required role - redirect to markets (public page)
-      return <Navigate to="/app/markets" replace />;
+      // User doesn't have required role - redirect to dashboard
+      return <Navigate to="/app" replace />;
     }
   }
 
