@@ -1,0 +1,78 @@
+name: Request SES Production Access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  document-request:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate SES Production Request Form Data
+        run: |
+          cat > ses-production-request.md << 'EOF'
+          # AWS SES Production Access Request
+
+          **Status:** NEEDS MANUAL SUBMISSION
+
+          ## The Problem
+          SES account is in sandbox mode. Password reset emails cannot be verified because:
+          - Sandbox mode only allows sending to verified addresses
+          - AWS verification email itself is blocked (bootstrap issue)
+
+          ## Solution
+          Request SES Production Access (one-time AWS approval, ~24 hours)
+
+          ## Steps to Complete
+
+          1. Go to AWS SES Console:
+             https://console.aws.amazon.com/ses/home?region=us-east-1#account-provisioning:
+
+          2. Click: **"Request production access"** button
+
+          3. Fill the form with:
+             - **Email Address:** argeropolos@gmail.com
+             - **Use Case:** Authentication and password reset emails for stock trading platform
+             - **Website URL:** https://d2u93283nn45h2.cloudfront.net
+             - **Expected Volume:** 50,000 emails/day
+             - **Additional Details:**
+               ```
+               Application: Algo stock trading platform
+               Purpose: User authentication (sign-up, password reset)
+               Expected Recipients: Trading users
+               Sending Pattern: On-demand (not bulk/campaign marketing)
+               ```
+
+          4. Click **Submit**
+
+          5. Wait for email approval (AWS sends confirmation email)
+
+          6. Once approved:
+             - Sandbox mode automatically lifted
+             - Can send from any address
+             - No further verification needed
+
+          ## After Approval
+          Once AWS approves (check email):
+          1. Password reset emails work automatically
+          2. All users can receive verification codes
+          3. No per-email verification needed
+
+          This is the only way to fix the bootstrap problem.
+          EOF
+          cat ses-production-request.md
+
+      - name: Check account status
+        run: |
+          echo "Current SES Account Status:"
+          aws ses get-send-quota --region us-east-1 || echo "Cannot access send quota (likely sandbox mode)"
+
+      - name: Output action needed
+        run: |
+          echo "::warning::SES Production Access request requires manual AWS Console submission. See artifact ses-production-request.md for steps."
+
+      - name: Upload instructions
+        uses: actions/upload-artifact@v4
+        with:
+          name: ses-production-request-steps
+          path: ses-production-request.md
