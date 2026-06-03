@@ -118,7 +118,7 @@ def _industry_list(cur, params):
         latest_ranking AS (
             SELECT industry, rank_1w_ago, rank_4w_ago, rank_12w_ago
             FROM industry_ranking
-            WHERE date_recorded = (SELECT date_recorded FROM industry_ranking ORDER BY date_recorded DESC LIMIT 1)
+            WHERE date = (SELECT date FROM industry_ranking ORDER BY date DESC LIMIT 1)
         )
         SELECT
             r.industry, r.sector, r.stock_count, r.composite_score,
@@ -187,7 +187,7 @@ def _industry_list(cur, params):
             },
         })
 
-    freshness = check_data_freshness(cur, 'industry_ranking', 'date_recorded', warning_days=1)
+    freshness = check_data_freshness(cur, 'industry_ranking', 'date', warning_days=1)
     return json_response(200, {
         'items': industries,
         'total': total,
