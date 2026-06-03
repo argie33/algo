@@ -147,6 +147,7 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 ) tdd ON true
                 {where_clause}
                 AND NOT EXISTS (SELECT 1 FROM etf_symbols WHERE symbol = sc.symbol)
+                AND COALESCE(ss.etf, 'N') != 'Y'
                 ORDER BY {sort_col} {sort_direction}
                 LIMIT %s OFFSET %s
             """

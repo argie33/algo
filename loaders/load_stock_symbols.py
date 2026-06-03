@@ -94,19 +94,28 @@ class StockSymbolsLoader(OptimalLoader):
             return None
 
     def _upsert_etf_symbols(self, etf_rows: List[dict]) -> None:
-        """Upsert ETF symbols into etf_symbols table."""
+        """Replace ETF symbols in etf_symbols table to keep it in sync with source data.
+
+        Truncates the table first to ensure it only contains current ETFs from NASDAQ/NYSE,
+        then reloads. This prevents stale entries for delisted ETFs and ensures the table
+        never gets out of sync with the source.
+        """
         try:
             from utils.database_context import DatabaseContext
             with DatabaseContext('write') as cur:
+                # Truncate to clear stale ETF entries (e.g., from delistings)
+                cur.execute("TRUNCATE TABLE etf_symbols")
+                logger.debug("Truncated etf_symbols table")
+
+                # Bulk insert fresh ETF data
                 for row in etf_rows:
                     cur.execute("""
                         INSERT INTO etf_symbols (symbol, security_name)
                         VALUES (%s, %s)
-                        ON CONFLICT (symbol) DO UPDATE SET security_name = EXCLUDED.security_name
                     """, (row['symbol'], row['security_name']))
-            logger.info(f"Upserted {len(etf_rows)} ETF symbols into etf_symbols table")
+            logger.info(f"Refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
         except Exception as e:
-            logger.warning(f"Failed to upsert etf_symbols: {e}")
+            logger.warning(f"Failed to refresh etf_symbols: {e}")
 
 
 def main():
