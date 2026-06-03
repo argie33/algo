@@ -62,15 +62,21 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         logger.error(f"Failed to send email: {error_msg}", exc_info=True)
 
         # Development fallback: if SES fails (sandbox or permissions), log code clearly
-        if DEV_MODE and ("Email address is not verified" in error_msg or "AccessDenied" in error_msg):
+        if DEV_MODE and ("Email address is not verified" in error_msg or "AccessDenied" in error_msg or "MessageRejected" in error_msg):
             logger.warning(f"╔════════════════════════════════════════════════════════════════╗")
-            logger.warning(f"║ SES UNAVAILABLE - PASSWORD RESET CODE FALLBACK (DEV MODE)    ║")
+            logger.warning(f"║ [DEV MODE] PASSWORD RESET CODE - SES UNAVAILABLE              ║")
             logger.warning(f"╠════════════════════════════════════════════════════════════════╣")
             logger.warning(f"║ Email: {email:<54} ║")
             logger.warning(f"║ Type:  {trigger_source:<54} ║")
             logger.warning(f"║ Code:  {code_parameter:<54} ║")
+            logger.warning(f"║                                                                ║")
+            logger.warning(f"║ TO TEST PASSWORD RESET:                                        ║")
+            logger.warning(f"║ 1. Run: python scripts/get-reset-code.py {email}              ║")
+            logger.warning(f"║ 2. Enter the code when prompted for password reset             ║")
+            logger.warning(f"║ 3. Set your new password                                       ║")
             logger.warning(f"╚════════════════════════════════════════════════════════════════╝")
-            logger.info(f"[PASSWORD_RESET_CODE_DEV] Email={email} Code={code_parameter} Type={trigger_source}")
+            # Log in parseable format for script retrieval
+            logger.info(f"[RESET_CODE] email={email} code={code_parameter} type={trigger_source}")
 
         # Return event as-is so Cognito falls back to its default behavior
         # This prevents auth from breaking if SES fails

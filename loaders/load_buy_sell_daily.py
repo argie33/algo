@@ -141,62 +141,87 @@ class SignalsDailyLoader(OptimalLoader):
             return []
 
     def _generate_signals(self, symbol: str, rows: List[dict]) -> List[dict]:
-        """Generate buy/sell signals from technical indicators with volume and volatility confirmation."""
+        """Generate buy/sell signals matching Pine Script pivot-breakout logic.
+
+        BUY: High > recent_swing_high AND close > SMA50 (breakout above pivot with trend filter)
+        SELL: Low < recent_swing_low (stop loss trigger)
+        """
         if not rows:
             return []
 
         signals = []
+
         for i, row in enumerate(rows):
+            high = row.get("high")
+            low = row.get("low")
+            close = row.get("close")
+            sma_50 = row.get("sma_50")
+            sma_200 = row.get("sma_200")
+            volume = row.get("volume")
+            atr = row.get("atr")
             rsi = row.get("rsi")
             macd = row.get("macd")
             macd_signal = row.get("macd_signal")
-            sma_50 = row.get("sma_50")
-            sma_200 = row.get("sma_200")
-            close = row.get("close")
-            volume = row.get("volume")
-            atr = row.get("atr")
             ema_21 = row.get("ema_21")
             adx = row.get("adx")
             mansfield_rs = row.get("mansfield_rs")
 
-            # Skip if missing critical data
-            if any(v is None for v in [rsi, macd, macd_signal, close]):
+            if close is None or high is None or low is None:
                 continue
 
             signal_type = None
             strength = 0.0
             reason = ""
+            buylevel = None
+            stoplevel = None
 
-            # Calculate volume confirmation (compare to previous bar average)
-            vol_confirmed = True
-            if volume is not None and i > 0:
-                prev_vol = rows[i-1].get("volume", volume)
-                vol_confirmed = volume >= prev_vol * 0.8  # At least 80% of prior bar
+            # Find most recent swing high (3-bar pivot: high > high[i-3:i] AND high > high[i+1:i+4])
+            recent_swing_high = None
+            swing_high_sma50 = None
+            for j in range(max(0, i-6), i):
+                lookback_ok = all(rows[k].get("high", 0) is not None and
+                                 (rows[k].get("high", 0) <= rows[j].get("high", 0) or k >= j)
+                                 for k in range(max(0, j-3), j))
+                lookforward_ok = all(rows[k].get("high", 0) is not None and
+                                    rows[k].get("high", 0) <= rows[j].get("high", 0)
+                                    for k in range(j+1, min(len(rows), j+4)))
+                if lookback_ok and lookforward_ok:
+                    candidate = rows[j].get("high")
+                    if candidate and (recent_swing_high is None or candidate > recent_swing_high):
+                        recent_swing_high = candidate
+                        swing_high_sma50 = rows[j].get("sma_50")  # SMA50 at the time swing high formed
 
-            # Calculate volatility (ATR-based, require meaningful moves)
-            has_volatility = True
-            if atr is not None and close is not None and sma_50 is not None:
-                volatility_pct = (atr / close) * 100 if close > 0 else 0
-                # Require at least 0.5% volatility to avoid whipsaws in low-vol environments
-                has_volatility = volatility_pct >= 0.5
+            # Find most recent swing low (3-bar pivot: low < low[i-3:i] AND low < low[i+1:i+4])
+            recent_swing_low = None
+            for j in range(max(0, i-6), i):
+                lookback_ok = all(rows[k].get("low", 999999) is not None and
+                                 (rows[k].get("low", 999999) >= rows[j].get("low", 999999) or k >= j)
+                                 for k in range(max(0, j-3), j))
+                lookforward_ok = all(rows[k].get("low", 999999) is not None and
+                                    rows[k].get("low", 999999) >= rows[j].get("low", 999999)
+                                    for k in range(j+1, min(len(rows), j+4)))
+                if lookback_ok and lookforward_ok:
+                    candidate = rows[j].get("low")
+                    if candidate and (recent_swing_low is None or candidate < recent_swing_low):
+                        recent_swing_low = candidate
 
-            # Enhanced signal rules with volume and volatility confirmation
-            if rsi < 30 and macd > macd_signal and vol_confirmed and has_volatility:
+            # BUY: Breakout above swing high where swing_high > SMA50 (trend filter on pivot level, not current bar)
+            if recent_swing_high and swing_high_sma50 and high > recent_swing_high and recent_swing_high > swing_high_sma50:
                 signal_type = "BUY"
-                strength = (30 - rsi) / 30 * (1.0 if vol_confirmed else 0.7)
-                reason = "Oversold with bullish MACD + volume confirmation"
-            elif rsi > 70 and macd < macd_signal and vol_confirmed and has_volatility:
+                breakout_pct = ((high - recent_swing_high) / recent_swing_high * 100) if recent_swing_high > 0 else 0
+                strength = min(0.5 + (breakout_pct / 5.0), 1.0)
+                reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
+                buylevel = round(recent_swing_high, 4)
+                stoplevel = round(recent_swing_low, 4) if recent_swing_low else round(close * 0.92, 4)
+
+            # SELL: Breakdown below swing low (stop loss)
+            elif recent_swing_low and low < recent_swing_low:
                 signal_type = "SELL"
-                strength = (rsi - 70) / 30 * (1.0 if vol_confirmed else 0.7)
-                reason = "Overbought with bearish MACD + volume confirmation"
-            elif sma_50 and sma_200 and close > sma_50 > sma_200 and macd > macd_signal and vol_confirmed:
-                signal_type = "BUY"
-                strength = 0.6 * (1.0 if vol_confirmed else 0.7)
-                reason = "Bullish alignment + volume confirmation"
-            elif sma_50 and sma_200 and close < sma_50 < sma_200 and macd < macd_signal and vol_confirmed:
-                signal_type = "SELL"
-                strength = 0.6 * (1.0 if vol_confirmed else 0.7)
-                reason = "Bearish alignment + volume confirmation"
+                breakdown_pct = ((recent_swing_low - low) / recent_swing_low * 100) if recent_swing_low > 0 else 0
+                strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
+                reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
+                buylevel = round(close, 4)
+                stoplevel = round(close * 1.08, 4)
 
             if signal_type:
                 # Compute volume surge: compare to 20-bar average volume
@@ -207,7 +232,6 @@ class SignalsDailyLoader(OptimalLoader):
                         avg_vol = sum(recent_vols) / len(recent_vols)
                         if avg_vol > 0:
                             raw_surge = (volume / avg_vol - 1) * 100
-                            # Cap at 9999 to fit DECIMAL(8,4) column (max 9999.9999)
                             vol_surge = round(min(raw_surge, 9999.0), 2)
 
                 # Compute 50-bar average volume
@@ -229,41 +253,45 @@ class SignalsDailyLoader(OptimalLoader):
                     elif close < sma_200 and close > sma_50:
                         market_stage = "Stage 3"
 
-                # Basic entry planning from price action
-                risk_pct = 8.0  # Standard 8% initial risk
+                # Entry/exit planning based on signal type
+                risk_pct = 8.0
                 if signal_type == "BUY" and close:
-                    buylevel = round(close, 4)
-                    stoplevel = round(close * (1 - risk_pct / 100), 4)
+                    if buylevel is None:
+                        buylevel = round(close, 4)
+                    if stoplevel is None:
+                        stoplevel = round(close * (1 - risk_pct / 100), 4)
                     initial_stop = stoplevel
                     trailing_stop = stoplevel
                     sell_level = stoplevel
-                    pivot_price = round(close, 4)
-                    buy_zone_start = round(close * 0.99, 4)
-                    buy_zone_end = round(close * 1.05, 4)
-                    profit_target_8pct = round(close * 1.08, 4)
-                    profit_target_20pct = round(close * 1.20, 4)
-                    profit_target_25pct = round(close * 1.25, 4)
+                    pivot_price = buylevel
+                    buy_zone_start = round(buylevel * 0.99, 4)
+                    buy_zone_end = round(buylevel * 1.05, 4)
+                    profit_target_8pct = round(buylevel * 1.08, 4)
+                    profit_target_20pct = round(buylevel * 1.20, 4)
+                    profit_target_25pct = round(buylevel * 1.25, 4)
                     exit_trigger_1 = profit_target_8pct
                     exit_trigger_2 = profit_target_20pct
                     rr = round((profit_target_20pct - buylevel) / max(buylevel - stoplevel, 0.01), 2)
                 elif signal_type == "SELL" and close:
-                    buylevel = round(close, 4)
-                    stoplevel = round(close * (1 + risk_pct / 100), 4)
+                    if buylevel is None:
+                        buylevel = round(close, 4)
+                    if stoplevel is None:
+                        stoplevel = round(close * (1 + risk_pct / 100), 4)
                     initial_stop = stoplevel
                     trailing_stop = stoplevel
                     sell_level = round(close, 4)
-                    pivot_price = round(close, 4)
+                    pivot_price = buylevel
                     buy_zone_start = None
                     buy_zone_end = None
-                    profit_target_8pct = round(close * 0.92, 4)
-                    profit_target_20pct = round(close * 0.80, 4)
-                    profit_target_25pct = round(close * 0.75, 4)
+                    profit_target_8pct = round(buylevel * 0.92, 4)
+                    profit_target_20pct = round(buylevel * 0.80, 4)
+                    profit_target_25pct = round(buylevel * 0.75, 4)
                     exit_trigger_1 = profit_target_8pct
                     exit_trigger_2 = profit_target_20pct
                     rr = round((buylevel - profit_target_20pct) / max(stoplevel - buylevel, 0.01), 2)
                 else:
-                    buylevel = stoplevel = initial_stop = trailing_stop = sell_level = None
-                    pivot_price = buy_zone_start = buy_zone_end = None
+                    initial_stop = trailing_stop = sell_level = pivot_price = None
+                    buy_zone_start = buy_zone_end = None
                     profit_target_8pct = profit_target_20pct = profit_target_25pct = None
                     exit_trigger_1 = exit_trigger_2 = None
                     rr = None
@@ -294,10 +322,10 @@ class SignalsDailyLoader(OptimalLoader):
                     "stage_number": None,
                     "market_stage": market_stage,
                     "open": row.get("open"),
-                    "high": row.get("high"),
-                    "low": row.get("low"),
+                    "high": float(high) if high is not None else None,
+                    "low": float(low) if low is not None else None,
                     "close": float(close) if close is not None else None,
-                    "volume": row.get("volume"),
+                    "volume": volume,
                     "avg_volume_50d": avg_vol_50d,
                     "buylevel": buylevel,
                     "stoplevel": stoplevel,
