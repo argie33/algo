@@ -67,7 +67,7 @@ try:
     signals_today = cur.fetchone()[0]
     print(f"Buy/Sell signals (yesterday): {signals_today}")
 
-    cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = TRUE")
+    cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE etf IS NULL OR etf = 'N'")
     active_stocks = cur.fetchone()[0]
     print(f"Active symbols: {active_stocks}")
 

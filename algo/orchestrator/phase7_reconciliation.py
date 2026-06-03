@@ -200,6 +200,47 @@ def run(
         finally:
             log_phase_result_fn(7, 'risk_metrics', risk_status, risk_summary)
 
+        # Step 6: Update algo_metrics_daily with actual trade results from this run
+        metrics_status = 'warn'
+        metrics_summary = 'N/A'
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute("""
+                    SELECT
+                        COUNT(*) as total_actions,
+                        SUM(CASE WHEN action_type = 'BUY' THEN 1 ELSE 0 END) as entries,
+                        SUM(CASE WHEN action_type = 'SELL' THEN 1 ELSE 0 END) as exits,
+                        AVG(CAST(details->>'score' AS FLOAT)) as avg_signal_score
+                    FROM algo_audit_log
+                    WHERE DATE(created_at) = %s
+                """, (run_date,))
+                row = cur.fetchone()
+                if row:
+                    total_actions, entries, exits, avg_score = row
+                    # UPSERTable into algo_metrics_daily
+                    with DatabaseContext('write') as write_cur:
+                        write_cur.execute("""
+                            INSERT INTO algo_metrics_daily (date, total_actions, entries, exits, avg_signal_score)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT (date) DO UPDATE SET
+                                total_actions = EXCLUDED.total_actions,
+                                entries = EXCLUDED.entries,
+                                exits = EXCLUDED.exits,
+                                avg_signal_score = EXCLUDED.avg_signal_score
+                        """, (run_date, total_actions or 0, entries or 0, exits or 0, avg_score))
+                    metrics_status = 'success'
+                    metrics_summary = f"{total_actions or 0} actions, {entries or 0} entries, {exits or 0} exits"
+                    logger.info(f"Updated algo_metrics_daily: {metrics_summary}")
+                else:
+                    logger.info("No trades recorded today (metrics not updated)")
+                    metrics_status = 'warn'
+                    metrics_summary = 'No trades recorded'
+        except Exception as e:
+            logger.warning(f"Failed to update algo_metrics_daily: {e}")
+            metrics_summary = f"error: {str(e)[:60]}"
+        finally:
+            log_phase_result_fn(7, 'metrics_update', metrics_status, metrics_summary)
+
         data = {
             'portfolio_value': result.get('portfolio_value', 0),
             'positions': result.get('positions', 0),
