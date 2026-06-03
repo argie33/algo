@@ -213,19 +213,47 @@ class CredentialManager:
         self._cache[_DB_CREDS_CACHE_KEY] = (result, time.time())
         return result
 
-    def get_alpaca_credentials(self) -> Dict[str, str]:
+    def get_alpaca_credentials(self, user_id: Optional[str] = None) -> Dict[str, str]:
         """Get Alpaca API credentials as a dict.
 
+        Supports per-user credential isolation for multi-tenant trading.
+
+        Args:
+            user_id: Cognito sub (e.g., 'us-east-1_XJpLb9SKX:userid-12345'). If provided,
+                     tries user-specific secret first before falling back to shared.
+
         Checks in order:
-        1. ALGO_SECRETS_ARN env var → JSON blob (APCA_API_KEY_ID / APCA_API_SECRET_KEY fields)
-        2. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
-        3. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
-        4. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
+        1. User-specific secret: algo/alpaca/{user_id} (if user_id provided)
+        2. ALGO_SECRETS_ARN env var → JSON blob (APCA_API_KEY_ID / APCA_API_SECRET_KEY fields)
+        3. AWS Secrets Manager 'algo/alpaca' JSON blob (api_key, api_secret fields)
+        4. Individual secrets 'alpaca/key' and 'alpaca/secret' (legacy)
+        5. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
 
         Raises ValueError if credentials not found (required for live trading).
         """
 
-        # Try ALGO_SECRETS_ARN first (Terraform-managed secret: algo-algo-secrets-dev)
+        # Step 1: Try user-specific secret if user_id provided
+        if user_id and self._is_aws:
+            try:
+                client = self._get_secrets_client()
+                if client:
+                    user_secret_id = f"algo/alpaca/{user_id}"
+                    try:
+                        response = client.get_secret_value(SecretId=user_secret_id)
+                        creds = _json.loads(response.get('SecretString', '{}'))
+                        key = creds.get('api_key') or creds.get('APCA_API_KEY_ID')
+                        secret = creds.get('api_secret') or creds.get('APCA_API_SECRET_KEY')
+                        if key and secret:
+                            logger.info(f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}")
+                            return {'key': key, 'secret': secret}
+                    except client.exceptions.ResourceNotFoundException:
+                        logger.debug(f"[CREDENTIALS] No user-specific Alpaca secret for {user_id}, falling back to shared")
+                    except Exception as e:
+                        logger.warning(f"[CREDENTIALS] Could not fetch user-specific Alpaca credentials for {user_id}: {e}")
+            except Exception as e:
+                logger.warning(f"[CREDENTIALS] Error trying user-specific Alpaca secret: {e}")
+
+        # Step 2: Try ALGO_SECRETS_ARN (Terraform-managed secret: algo-algo-secrets-dev)
         # LIVE MODE EXCEPTION: ALGO_SECRETS_ARN always contains PAPER keys (hardcoded in deploy
         # workflow as ALPACA_API_KEY_ID). For live trading, skip this source and fall through to
         # algo/alpaca which is updated by update-credentials.yml -f trading_mode=live.
@@ -334,9 +362,14 @@ def get_db_credentials() -> Dict[str, str]:
     """Module-level convenience function."""
     return get_credential_manager().get_db_credentials()
 
-def get_alpaca_credentials() -> Dict[str, str]:
-    """Module-level convenience function."""
-    return get_credential_manager().get_alpaca_credentials()
+def get_alpaca_credentials(user_id: Optional[str] = None) -> Dict[str, str]:
+    """Module-level convenience function for Alpaca credentials.
+
+    Args:
+        user_id: Optional Cognito sub for user-scoped credentials.
+                 If None, uses shared/default credentials.
+    """
+    return get_credential_manager().get_alpaca_credentials(user_id=user_id)
 
 def get_db_password() -> str:
     """Get database password only.
