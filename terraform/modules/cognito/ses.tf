@@ -5,24 +5,18 @@
 resource "aws_ses_email_identity" "cognito_sender" {
   count = var.cognito_custom_email_enabled ? 1 : 0
   email = var.cognito_sender_email
-
-  tags = var.common_tags
 }
 
 # Alternative: Verify noreply@bullseyetrading.com as secondary sender
 resource "aws_ses_email_identity" "noreply" {
   count = var.cognito_custom_email_enabled ? 1 : 0
   email = "noreply@bullseyetrading.com"
-
-  tags = var.common_tags
 }
 
 # Verify argeropolos@gmail.com so admin can receive password reset emails during testing
 resource "aws_ses_email_identity" "admin_email" {
   count = var.cognito_custom_email_enabled ? 1 : 0
   email = "argeropolos@gmail.com"
-
-  tags = var.common_tags
 }
 
 # Note: SES Production Access Request
