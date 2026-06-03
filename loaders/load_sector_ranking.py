@@ -18,8 +18,8 @@ class SectorRankingLoader(OptimalLoader):
     """Rank sectors by composite score from stock_scores + company_profile."""
 
     table_name = "sector_ranking"
-    primary_key = ("sector_name", "date_recorded")
-    watermark_field = "date_recorded"
+    primary_key = ("sector_name", "date")
+    watermark_field = "date"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Compute sector rankings from stock scores and company profile data."""
@@ -49,28 +49,28 @@ class SectorRankingLoader(OptimalLoader):
                     rank_1w AS (
                         SELECT sector_name, current_rank AS rank_1w
                         FROM sector_ranking
-                        WHERE date_recorded = (
-                            SELECT date_recorded FROM sector_ranking
-                            WHERE date_recorded <= CURRENT_DATE - INTERVAL '7 days'
-                            ORDER BY date_recorded DESC LIMIT 1
+                        WHERE date = (
+                            SELECT date FROM sector_ranking
+                            WHERE date <= CURRENT_DATE - INTERVAL '7 days'
+                            ORDER BY date DESC LIMIT 1
                         )
                     ),
                     rank_4w AS (
                         SELECT sector_name, current_rank AS rank_4w
                         FROM sector_ranking
-                        WHERE date_recorded = (
-                            SELECT date_recorded FROM sector_ranking
-                            WHERE date_recorded <= CURRENT_DATE - INTERVAL '28 days'
-                            ORDER BY date_recorded DESC LIMIT 1
+                        WHERE date = (
+                            SELECT date FROM sector_ranking
+                            WHERE date <= CURRENT_DATE - INTERVAL '28 days'
+                            ORDER BY date DESC LIMIT 1
                         )
                     ),
                     rank_12w AS (
                         SELECT sector_name, current_rank AS rank_12w
                         FROM sector_ranking
-                        WHERE date_recorded = (
-                            SELECT date_recorded FROM sector_ranking
-                            WHERE date_recorded <= CURRENT_DATE - INTERVAL '84 days'
-                            ORDER BY date_recorded DESC LIMIT 1
+                        WHERE date = (
+                            SELECT date FROM sector_ranking
+                            WHERE date <= CURRENT_DATE - INTERVAL '84 days'
+                            ORDER BY date DESC LIMIT 1
                         )
                     )
                     SELECT
@@ -95,7 +95,7 @@ class SectorRankingLoader(OptimalLoader):
                 return [
                     {
                         'sector_name':    r['sector_name'],
-                        'date_recorded':  latest_date,
+                        'date':           latest_date,
                         'current_rank':   r['current_rank'],
                         'momentum_score': float(r['momentum_score']) if r['momentum_score'] is not None else None,
                         'rank_1w_ago':    r['rank_1w_ago'],
