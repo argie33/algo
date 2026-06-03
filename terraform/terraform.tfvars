@@ -39,6 +39,7 @@ enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET 
 cognito_enabled                  = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
 cognito_test_user_email          = "edgebrookecapital@gmail.com" # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
 cognito_custom_email_enabled     = true                        # Cognito custom message Lambda for professional emails via SES
+cognito_sender_email             = "argeropolos@gmail.com"     # SES sender email for password reset codes (must be verified in SES)
 
 # Database configuration
 rds_instance_class = "db.t4g.micro" # COST OPTIMIZED: Graviton t4g.micro ($8-12/month) vs t3.medium ($60/month). RDS Proxy handles connection pooling.

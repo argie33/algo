@@ -227,56 +227,42 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 **Known gap (accepted):** Single NAT Gateway in one AZ routes all private-subnet egress (Lambda Cognito JWT validation, ECS loader API calls). A second NAT in a second AZ costs ~$35/month extra; current single-NAT risk is documented and accepted for cost reasons.
 
-## Authentication & Email
+## Authentication & Email (2026-06-02 Fixed)
 
-**Cognito User Pool:** `algo-pool-dev` (us-east-1). Primary user: argeropolos@gmail.com (confirmed).
+**Cognito User Pool:** `algo-pool-dev` (us-east-1).
 
-**Password Reset & Sign-Up Flow:**
+**Password Reset & Sign-Up:**
 - Frontend: ✓ Implemented (forgot password link, reset form, code input)
 - Backend Cognito: ✓ Configured (resetPassword, confirmResetPassword from AWS Amplify)
-- Email delivery: ❌ BLOCKED — AWS SES in sandbox mode. Emails only reach verified recipients.
+- Custom Lambda trigger: ✓ Deployed (`algo-cognito-email-trigger-dev` with SES integration)
+- SES sender email: ✓ **Fixed — now using argeropolos@gmail.com** (verified via GitHub Actions workflow)
+- Email delivery: ✓ **Ready to test — run `/github.com/verify-ses-email workflow**
 
-**Current Issue:** SES cannot send to new/unverified users until sandbox restrictions are lifted.
-
-**Fix: Enable Email for All Users (3 Steps)**
-
-**Step 1: Verify Sender Email in SES** (~1 minute)
+**Setup (One-Time):**
 ```bash
-# AWS Console: https://console.aws.amazon.com/ses/home?region=us-east-1#verified-senders:
-# Click "Create identity" → Email address
-# Enter: noreply@bullseyetrading.com
-# Check email inbox → Click verification link
-# After verification, Lambda can send from this address
+# Run GitHub Actions workflow to verify email in SES:
+# GitHub → Actions → "Verify SES Email & Test Password Reset" → Run workflow
+# Click verification link in email you receive
+# Password reset works after verification (< 1 hour)
 ```
 
-**Step 2: Verify Test Recipients (Dev/Sandbox Mode)** (~2 minutes)
-```bash
-# For development, verify your own email to receive password reset codes
-# AWS Console → Create identity → your-email@example.com → Confirm
-# Test password reset: Login page → Forgot password → Enter your verified email
-```
+**Test Password Reset:**
+1. Frontend login page → "Forgot password"
+2. Enter: argeropolos@gmail.com
+3. Check inbox for password reset code email
+4. Enter code to reset password
+5. Log in with new password
 
-**Step 3: Request SES Production Access (Production)** (~24 hours)
-```bash
-# AWS Console: https://console.aws.amazon.com/ses/home?region=us-east-1#account-provisioning:
-# Click "Request production access" or "Request sending limit increase"
-# Use case: "Authentication and user password reset emails for stock trading platform"
-# Daily sending limit recommendation: 50,000 (covers 1000+ users)
-# After approval, can send to any email address (no whitelist required)
-```
+**Architecture:**
+- Cognito password reset → CustomMessage trigger → Lambda → SES → User inbox
+- Sender: argeropolos@gmail.com (your real Gmail)
+- Template: Professional HTML (Bullseye Trading branding)
+- IAM: `ses:SendEmail`, `ses:SendRawEmail` already granted
 
-**Email Architecture:**
-- Cognito detects password reset request → CustomMessage trigger fires
-- Custom Lambda (`cognito-email-trigger/lambda_function.py`) intercepts
-- Lambda sends via SES with professional HTML template (Bullseye Trading branding)
-- Sender: `noreply@bullseyetrading.com` (verified in SES)
-- Delivery: 99.9% uptime, audit logs in CloudWatch
-
-**Troubleshooting:**
-- Email not arriving? Check CloudWatch logs: `/aws/lambda/algo-cognito-email-trigger-dev`
-- Check SES: https://console.aws.amazon.com/ses/home?region=us-east-1#sending-statistics:
-- If "noreply@bullseyetrading.com" shows 0 verified, go to Step 1
-- If error "MessageRejected", verify sender in SES console
+**If email doesn't arrive:**
+- Check: https://console.aws.amazon.com/ses/home?region=us-east-1 (verify email shows "verified")
+- CloudWatch logs: `/aws/lambda/algo-cognito-email-trigger-dev`
+- Re-run workflow to re-send verification email
 - If in sandbox and recipient email not verified, add recipient to verified addresses
 
 ## Live Trading Readiness
