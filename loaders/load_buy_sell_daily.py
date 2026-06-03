@@ -176,9 +176,11 @@ class SignalsDailyLoader(OptimalLoader):
             stoplevel = None
 
             # Find most recent swing high (3-bar pivot: high > high[i-3:i] AND high > high[i+1:i+4])
+            # Use 20-bar lookback for swing trading (captures swings over 3-4 weeks)
             recent_swing_high = None
             swing_high_sma50 = None
-            for j in range(max(0, i-6), i):
+            last_swing_high_idx = -1
+            for j in range(max(0, i-20), i):
                 lookback_ok = all(rows[k].get("high", 0) is not None and
                                  (rows[k].get("high", 0) <= rows[j].get("high", 0) or k >= j)
                                  for k in range(max(0, j-3), j))
@@ -190,10 +192,12 @@ class SignalsDailyLoader(OptimalLoader):
                     if candidate and (recent_swing_high is None or candidate > recent_swing_high):
                         recent_swing_high = candidate
                         swing_high_sma50 = rows[j].get("sma_50")  # SMA50 at the time swing high formed
+                        last_swing_high_idx = j
 
             # Find most recent swing low (3-bar pivot: low < low[i-3:i] AND low < low[i+1:i+4])
+            # Use 10-bar lookback for swing lows (more reactive stop loss, not stale entries)
             recent_swing_low = None
-            for j in range(max(0, i-6), i):
+            for j in range(max(0, i-10), i):
                 lookback_ok = all(rows[k].get("low", 999999) is not None and
                                  (rows[k].get("low", 999999) >= rows[j].get("low", 999999) or k >= j)
                                  for k in range(max(0, j-3), j))
