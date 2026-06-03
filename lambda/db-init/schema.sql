@@ -1574,6 +1574,8 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     partial_exits_log TEXT,
     partial_exit_count INTEGER DEFAULT 0,
     last_partial_exit_date DATE,
+    mfe_pct DECIMAL(8, 4),
+    mae_pct DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, signal_date, entry_price)

@@ -1,16 +1,19 @@
-name: Populate Economic Calendar
+name: Run Economic Calendar Loader
+
+# Populates the economic_calendar table with upcoming economic events.
+# Uses the algo-load_economic_calendar_data-loader ECS task definition.
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: '0 4 * * 1-5'  # 4:00 AM UTC (11 PM ET prev day), before market open
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  populate-calendar:
-    name: Populate Economic Calendar Data
+  load-calendar:
+    name: Load Economic Calendar Data
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -19,135 +22,68 @@ jobs:
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
         with:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: us-east-1
 
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
+      - name: Get network config
+        id: network
         run: |
-          pip install psycopg2-binary boto3
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo*" \
+            --region us-east-1 --query "Vpcs[0].VpcId" --output text)
+          SUBNET=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=*private*" \
+            --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
+            SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
+              --region us-east-1 --query "Subnets[0].SubnetId" --output text)
+          fi
+          SG=$(aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=algo-ecs-tasks-sg" \
+            --region us-east-1 --query "SecurityGroups[0].GroupId" --output text)
+          echo "subnet=$SUBNET" >> $GITHUB_OUTPUT
+          echo "security_group=$SG" >> $GITHUB_OUTPUT
 
-      - name: Populate economic calendar
+      - name: Run economic calendar loader task
+        id: run_task
         run: |
-          python << 'PYTHON_EOF'
-          import sys
-          import json
-          import boto3
-          import psycopg2
-          from psycopg2.extras import DictCursor
-          from datetime import date
+          TASK_DEF=$(aws ecs list-task-definitions --region us-east-1 \
+            --family-prefix "algo-load_economic_calendar_data-loader" \
+            --sort DESC --query "taskDefinitionArns[0]" --output text)
 
-          # Fetch DB credentials from AWS Secrets Manager
-          secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
-          response = secrets_client.get_secret_value(SecretId='algo/database')
-          db_config = json.loads(response['SecretString'])
+          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
+            echo "ERROR: algo-load_economic_calendar_data-loader task definition not found."
+            echo "Run 'Deploy All Infrastructure' workflow to create it via Terraform."
+            exit 1
+          fi
 
-          # Connect to RDS
-          conn = psycopg2.connect(
-              host=db_config['host'],
-              port=int(db_config.get('port', 5432)),
-              database=db_config['dbname'],
-              user=db_config['username'],
-              password=db_config['password'],
-          )
-          print(f"Connected to RDS: {db_config['host']}")
+          echo "Using task definition: $TASK_DEF"
 
-          cur = conn.cursor(cursor_factory=DictCursor)
+          TASK_ARN=$(aws ecs run-task \
+            --cluster algo-cluster \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEF" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --region us-east-1 \
+            --query "tasks[0].taskArn" --output text)
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Task launched: $TASK_ARN"
 
-          # Economic events to insert
-          events = [
-              ('CPI_20260605', date(2026, 6, 5), '08:30', 'CPI - Consumer Price Index (YoY)', 'Economic', 'HIGH', 'US', 3.4, None, 3.5),
-              ('JOBLESS_20260604', date(2026, 6, 4), '08:30', 'Initial Jobless Claims', 'Economic', 'MEDIUM', 'US', 235000, None, 238000),
-              ('ISM_MANUFACTURING_20260601', date(2026, 6, 1), '10:00', 'ISM Manufacturing PMI', 'Economic', 'HIGH', 'US', 48.5, None, 48.2),
-              ('NFP_20260605', date(2026, 6, 5), '08:30', 'Nonfarm Payrolls (NFP)', 'Economic', 'HIGH', 'US', 180000, None, 175000),
-              ('UNEMPLOYMENT_20260605', date(2026, 6, 5), '08:30', 'Unemployment Rate', 'Economic', 'HIGH', 'US', 4.0, None, 3.9),
-              ('RETAIL_SALES_20260612', date(2026, 6, 12), '08:30', 'Retail Sales (MoM)', 'Economic', 'HIGH', 'US', 0.3, None, 0.0),
-              ('PPI_20260612', date(2026, 6, 12), '08:30', 'Producer Price Index (YoY)', 'Economic', 'MEDIUM', 'US', 2.1, None, 2.2),
-              ('FOMC_20260617', date(2026, 6, 17), '18:00', 'FOMC Meeting Decision & Press Conference', 'FOMC', 'HIGH', 'US', 5.25, None, 5.25),
-              ('GDP_Q1_20260625', date(2026, 6, 25), '08:30', 'GDP (Advance Estimate)', 'Economic', 'HIGH', 'US', 2.4, None, 2.7),
-          ]
-
-          # Insert events
-          for event_id, event_date, event_time, event_name, category, importance, country, forecast, actual, previous in events:
-              cur.execute("""
-                  INSERT INTO economic_calendar
-                      (event_id, event_date, event_time, event_name, category, importance, country,
-                       forecast_value, actual_value, previous_value, created_at, updated_at)
-                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-                  ON CONFLICT (event_id, event_date) DO UPDATE SET
-                      event_name = EXCLUDED.event_name,
-                      event_time = EXCLUDED.event_time,
-                      importance = EXCLUDED.importance,
-                      forecast_value = EXCLUDED.forecast_value,
-                      previous_value = EXCLUDED.previous_value,
-                      updated_at = NOW()
-              """, (event_id, event_date, event_time, event_name, category, importance, country, forecast, actual, previous))
-              print(f"  [OK] {event_date} - {event_name}")
-
-          conn.commit()
-          cur.close()
-          conn.close()
-
-          print(f"\nSuccessfully populated {len(events)} economic calendar events to AWS RDS")
-          PYTHON_EOF
-
-      - name: Verify data in AWS
+      - name: Wait for completion
         run: |
-          python << 'PYTHON_EOF'
-          import sys
-          import json
-          import boto3
-          import psycopg2
-          from psycopg2.extras import DictCursor
-          from datetime import date, timedelta
+          echo "Waiting for economic calendar loader to complete..."
+          aws ecs wait tasks-stopped \
+            --cluster algo-cluster \
+            --tasks "${{ steps.run_task.outputs.task_arn }}" \
+            --region us-east-1
 
-          secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
-          response = secrets_client.get_secret_value(SecretId='algo/database')
-          db_config = json.loads(response['SecretString'])
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster algo-cluster \
+            --tasks "${{ steps.run_task.outputs.task_arn }}" \
+            --region us-east-1 \
+            --query "tasks[0].containers[0].exitCode" --output text)
 
-          conn = psycopg2.connect(
-              host=db_config['host'],
-              port=int(db_config.get('port', 5432)),
-              database=db_config['dbname'],
-              user=db_config['username'],
-              password=db_config['password'],
-          )
-
-          cur = conn.cursor(cursor_factory=DictCursor)
-          today = date.today()
-          end = today + timedelta(days=30)
-
-          cur.execute("""
-              SELECT COUNT(*) as total,
-                     COUNT(CASE WHEN category = 'FOMC' THEN 1 END) as fomc,
-                     COUNT(CASE WHEN event_name LIKE '%CPI%' THEN 1 END) as cpi,
-                     COUNT(CASE WHEN event_name LIKE '%NFP%' THEN 1 END) as nfp,
-                     COUNT(CASE WHEN event_name LIKE '%GDP%' THEN 1 END) as gdp
-              FROM economic_calendar
-              WHERE event_date >= %s AND event_date <= %s
-          """, (today, end))
-
-          result = cur.fetchone()
-          print(f"\nVerification (next 30 days):")
-          print(f"  Total events: {result['total']}")
-          print(f"  FOMC: {result['fomc']}")
-          print(f"  CPI: {result['cpi']}")
-          print(f"  NFP: {result['nfp']}")
-          print(f"  GDP: {result['gdp']}")
-
-          if result['total'] > 0:
-              print("\n[SUCCESS] Economic calendar populated in AWS RDS")
-          else:
-              print("\n[ERROR] No events found in AWS RDS")
-              sys.exit(1)
-
-          cur.close()
-          conn.close()
-          PYTHON_EOF
+          echo "Exit code: $EXIT_CODE"
+          [ "$EXIT_CODE" = "0" ] && echo "Economic calendar loader succeeded!" || { echo "Economic calendar loader failed"; exit 1; }
