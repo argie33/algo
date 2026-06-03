@@ -50,11 +50,11 @@ jobs:
         id: run_task
         run: |
           TASK_DEF=$(aws ecs list-task-definitions --region us-east-1 \
-            --family-prefix "algo-load_economic_calendar_data-loader" \
+            --family-prefix "algo-load_economic_calendar_data" \
             --sort DESC --query "taskDefinitionArns[0]" --output text)
 
           if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
-            echo "ERROR: algo-load_economic_calendar_data-loader task definition not found."
+            echo "ERROR: algo-load_economic_calendar_data task definition not found."
             echo "Run 'Deploy All Infrastructure' workflow to create it via Terraform."
             exit 1
           fi
