@@ -322,7 +322,8 @@ jobs:
           # Copy all API code (routes, utils, handlers)
           cp -r $SOURCE_LAMBDA/* $PKG_DIR/
 
-          # Copy project utils directory for database_context and other shared utilities
+          # Copy project config and utils directories (required for credential_manager and database_context)
+          cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
           cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
 
           # Install dependencies into package directory
