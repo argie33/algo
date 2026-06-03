@@ -405,6 +405,8 @@ def run(
         # Compute the most recent trading day before run_date as the expected data date.
         # Using trading-day comparison prevents false halts after 3-day weekends where
         # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
+        # For full dataset compatibility, accept data up to 2 trading days old (allow fallback
+        # to previous session if today's data isn't available yet from loaders).
         try:
             from algo.algo_market_calendar import MarketCalendar
             expected_date = run_date - timedelta(days=1)
@@ -412,11 +414,20 @@ def run(
                 if MarketCalendar.is_trading_day(expected_date):
                     break
                 expected_date -= timedelta(days=1)
+            # Allow 2 trading days back (not strict 1 day) to permit yesterday's data if today isn't ready
+            min_acceptable_date = expected_date - timedelta(days=5)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(min_acceptable_date):
+                    break
+                min_acceptable_date -= timedelta(days=1)
         except Exception as cal_e:
             logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             expected_date = run_date - timedelta(days=1)
             while expected_date.weekday() >= 5:
                 expected_date -= timedelta(days=1)
+            min_acceptable_date = expected_date - timedelta(days=2)
+            while min_acceptable_date.weekday() >= 5:
+                min_acceptable_date -= timedelta(days=1)
 
         try:
             from algo.algo_metrics import MetricsPublisher
@@ -438,12 +449,13 @@ def run(
                 age = (run_date - d).days
                 if _metrics:
                     _metrics.put_data_freshness(table_keys[name], age)
-                is_stale = d < expected_date
+                is_stale = d < min_acceptable_date
                 if is_stale and is_halt_check:
-                    stale_items.append(f"{name}: {age}d old (expected {expected_date})")
+                    stale_items.append(f"{name}: {age}d old (need within {expected_date} to {min_acceptable_date})")
                 if verbose:
-                    flag = '[WARN]' if (is_stale and not is_halt_check) else '[STALE]' if is_stale else '[OK]'
-                    logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
+                    is_ideal = d >= expected_date
+                    flag = '[OK]' if is_ideal else '[WARN]' if (not is_stale) else '[STALE]'
+                    logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago, acceptable until {min_acceptable_date})")
 
         if _metrics:
             _metrics.flush()
