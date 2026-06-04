@@ -99,8 +99,13 @@ output "data_patrol_log_group_name" {
 # DynamoDB Lock Tables
 # ============================================================
 
-output "loader_locks_table_name" {
-  description = "DynamoDB table name for loader distributed locking"
-  value       = aws_dynamodb_table.loader_locks.name
+output "loader_execution_status_table_name" {
+  description = "DynamoDB table name for loader execution status tracking"
+  value       = aws_dynamodb_table.loader_execution_status.name
+}
+
+output "orchestrator_locks_table_name" {
+  description = "DynamoDB table name for orchestrator distributed locking"
+  value       = aws_dynamodb_table.orchestrator_locks.name
 }
 
