@@ -6,7 +6,8 @@
 /**
  * Extract data from API response
  * Handles multiple response formats:
- * - { success: true, data: {...}, items: [...] }
+ * - { statusCode: 200, items: [...], total: 10 } (new format from routes)
+ * - { success: true, data: {...}, items: [...] } (legacy format)
  * - { success: true, data: { items: [...] } }
  * - { success: true, items: [...] }
  * - { success: true, data: {...} }
@@ -27,14 +28,19 @@ export const extractData = (response) => {
     throw new Error('Response data is null or undefined');
   }
 
-  // If success is false, throw error
+  // If success is false (legacy format), throw error
   if (data.success === false) {
     throw new Error(data.message || 'API request failed');
   }
 
+  // If statusCode indicates error (new format from routes)
+  if (data.statusCode >= 400) {
+    throw new Error(data.message || data.errorType || `API error: ${data.statusCode}`);
+  }
+
   // Priority order for extracting data:
   // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
-  if (data.items) {
+  if (Array.isArray(data.items)) {
     return data;  // Return the full envelope, not just items
   }
 
@@ -70,12 +76,17 @@ export const extractData = (response) => {
 export const extractPaginatedData = (response) => {
   const data = response.data || response;
 
-  // If success is false, throw error
+  // If success is false (legacy format), throw error
   if (data.success === false) {
     throw new Error(data.message || 'API request failed');
   }
 
-  // Extract items (should be array, not full envelope)
+  // If statusCode indicates error (new format from routes)
+  if (data.statusCode >= 400) {
+    throw new Error(data.message || data.errorType || `API error: ${data.statusCode}`);
+  }
+
+  // Extract items (should be array, not full envelope) — default to empty array for safety
   const items = Array.isArray(data.items) ? data.items : [];
 
   return {
@@ -83,7 +94,7 @@ export const extractPaginatedData = (response) => {
     pagination: data.pagination || {
       limit: data.limit,
       offset: data.offset,
-      total: data.total,
+      total: data.total || items.length,
       page: data.page,
       totalPages: data.totalPages,
       hasNext: data.hasNext,

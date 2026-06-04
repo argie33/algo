@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
+import { safeExtractData, safeExtractPaginatedData, ensureArray } from '../utils/apiResponseHandler';
 
 /**
  * React Query wrapper with standardized error/loading/data handling.
@@ -29,8 +30,13 @@ export const useApiQuery = (
   const { data: rawData, isLoading, error, ...rest } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
-      const response = await queryFn();
-      return extractData(response);
+      try {
+        const response = await queryFn();
+        return extractData(response);
+      } catch (err) {
+        console.warn('[useApiQuery] Query failed:', err.message);
+        throw err;
+      }
     },
     staleTime,
     gcTime,
@@ -87,8 +93,13 @@ export const useApiPaginatedQuery = (
   const { data: rawData, isLoading, error, ...rest } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
-      const response = await queryFn();
-      return extractPaginatedData(response);
+      try {
+        const response = await queryFn();
+        return extractPaginatedData(response);
+      } catch (err) {
+        console.warn('[useApiPaginatedQuery] Query failed:', err.message);
+        throw err;
+      }
     },
     staleTime,
     gcTime,
@@ -111,9 +122,9 @@ export const useApiPaginatedQuery = (
   } : null;
 
   return {
-    items: rawData?.items || [],
-    pagination: rawData?.pagination || {
-      total: 0, page: 1, totalPages: 1, hasNext: false, hasPrev: false,
+    items: (rawData && Array.isArray(rawData.items)) ? rawData.items : [],
+    pagination: (rawData && rawData.pagination) ? rawData.pagination : {
+      total: 0, limit: 50, offset: 0, page: 1, totalPages: 1, hasNext: false, hasPrev: false,
     },
     loading: isLoading,
     error: enrichedError,
