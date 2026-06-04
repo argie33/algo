@@ -15,6 +15,7 @@ class SessionManager {
       warning: null,
       expiration: null,
       tokenRefreshTimer: null,
+      warningAfterFailedRefresh: null,
     };
     this.sessionData = null;
     this.config = {
@@ -56,22 +57,6 @@ class SessionManager {
     const sessionDays = sessionTimeout / (24 * 60 * 60 * 1000);
 
     console.log(`✅ Session started: ${rememberMe ? '30 days' : '30 minutes'} timeout (${sessionDays.toFixed(1)} days)`);
-
-    // Set warning timer
-    this.timers.warning = setTimeout(() => {
-      if (this.callbacks.onSessionWarning) {
-        console.log('⚠️ Session warning: 5 minutes remaining');
-        this.callbacks.onSessionWarning({ timeRemaining: this.config.warningTime });
-      }
-    }, sessionTimeout - this.config.warningTime);
-
-    // Set expiration timer
-    this.timers.expiration = setTimeout(() => {
-      console.log('❌ Session expired');
-      if (this.callbacks.onSessionExpired) {
-        this.callbacks.onSessionExpired();
-      }
-    }, sessionTimeout);
   }
 
   endSession() {
@@ -85,6 +70,10 @@ class SessionManager {
       clearTimeout(this.timers.tokenRefreshTimer);
       this.timers.tokenRefreshTimer = null;
     }
+    if (this.timers.warningAfterFailedRefresh) {
+      clearTimeout(this.timers.warningAfterFailedRefresh);
+      this.timers.warningAfterFailedRefresh = null;
+    }
 
     if (!accessToken) return;
 
@@ -95,7 +84,7 @@ class SessionManager {
       const payload = JSON.parse(atob(parts[1]));
       const expMs = payload.exp * 1000;
       const nowMs = Date.now();
-      const refreshEarlyMs = 5 * 60 * 1000; // refresh 5 minutes before expiry
+      const refreshEarlyMs = 5 * 60 * 1000;
       const refreshAtMs = expMs - nowMs - refreshEarlyMs;
 
       if (refreshAtMs > 0) {
@@ -111,6 +100,7 @@ class SessionManager {
                 console.log('✅ Token refresh successful');
               } else {
                 console.error('❌ Token refresh failed:', result.error);
+                this.scheduleWarningAfterRefreshFailure();
               }
               if (this.callbacks.onTokenRefresh) {
                 this.callbacks.onTokenRefresh(result);
@@ -120,6 +110,7 @@ class SessionManager {
               }
             } catch (error) {
               console.error('❌ Token refresh error:', error.message);
+              this.scheduleWarningAfterRefreshFailure();
               if (this.callbacks.onRefreshError) {
                 this.callbacks.onRefreshError(error.message, 1);
               }
@@ -132,6 +123,18 @@ class SessionManager {
     } catch (e) {
       console.warn('Could not parse token expiry for refresh timer', e);
     }
+  }
+
+  scheduleWarningAfterRefreshFailure() {
+    if (this.timers.warningAfterFailedRefresh) {
+      clearTimeout(this.timers.warningAfterFailedRefresh);
+    }
+    this.timers.warningAfterFailedRefresh = setTimeout(() => {
+      if (this.callbacks.onSessionWarning) {
+        console.log('⚠️ Session warning: Token refresh failed, session expiring soon');
+        this.callbacks.onSessionWarning({ timeRemaining: this.config.warningTime });
+      }
+    }, 1 * 60 * 1000);
   }
 
   extendSession() {
@@ -154,6 +157,10 @@ class SessionManager {
     if (this.timers.tokenRefreshTimer) {
       clearTimeout(this.timers.tokenRefreshTimer);
       this.timers.tokenRefreshTimer = null;
+    }
+    if (this.timers.warningAfterFailedRefresh) {
+      clearTimeout(this.timers.warningAfterFailedRefresh);
+      this.timers.warningAfterFailedRefresh = null;
     }
   }
 
