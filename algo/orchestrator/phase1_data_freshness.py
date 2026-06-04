@@ -298,10 +298,10 @@ def run(
         # Run ANALYZE on key tables to refresh PostgreSQL statistics. Stale statistics
         # cause the query planner to choose sequential scans instead of index scans,
         # making all downstream queries 30-100× slower. ANALYZE samples ~30k rows per
-        # column (fast, non-blocking) and takes <5s even on large tables.
+        # column but can take longer on large tables under concurrent load.
         try:
             with DatabaseContext('write') as cur:
-                cur.execute("SET statement_timeout = 5000")  # 5s — fail fast, not worth 60s wait
+                cur.execute("SET statement_timeout = 30000")  # 30s — allow time for large tables under load
                 cur.execute(
                     "ANALYZE price_daily, market_health_daily, trend_template_data, "
                     "technical_data_daily, buy_sell_daily, data_loader_status"

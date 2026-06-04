@@ -110,7 +110,11 @@ class RealtimePricingEngine:
             return {}
 
     def _fetch_alpaca_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Fetch latest quotes from Alpaca Data API using latest bars."""
+        """Fetch latest quotes from Alpaca Data API.
+
+        Note: Alpaca's free tier and some API versions have limited real-time data.
+        Falls back to IEX/YFinance if unavailable.
+        """
         try:
             import alpaca_trade_api as tradeapi
             api = tradeapi.REST(key_id=os.getenv("APCA_API_KEY_ID"),
@@ -118,6 +122,7 @@ class RealtimePricingEngine:
                                base_url=os.getenv("APCA_API_BASE_URL"))
 
             quotes = {}
+            # Try get_barset first (standard method in v0.26)
             try:
                 barset = api.get_barset(symbols, "1Min", limit=1)
                 if barset:
@@ -127,15 +132,21 @@ class RealtimePricingEngine:
                             if bars and len(bars) > 0:
                                 latest_bar = bars[-1]
                                 quotes[symbol] = (latest_bar.c + latest_bar.o) / 2
+                if quotes:
+                    return quotes
             except Exception as e:
-                logger.warning(f"Alpaca barset failed: {e}")
+                if '404' in str(e) or 'Not Found' in str(e):
+                    logger.debug(f"Alpaca 1Min bars endpoint unavailable (404): {e}")
+                else:
+                    logger.debug(f"Alpaca barset failed: {e}")
+
             return quotes
 
         except ImportError:
-            logger.warning("alpaca-trade-api not available")
+            logger.debug("alpaca-trade-api not available")
             return {}
         except Exception as e:
-            logger.error(f"Alpaca API error: {e}")
+            logger.debug(f"Alpaca API error: {e}")
             return {}
 
     def _fetch_iex_prices(self, symbols: List[str]) -> Dict[str, float]:
