@@ -1,0 +1,44 @@
+name: Trigger EOD Pipeline Test
+on:
+  workflow_dispatch:
+
+jobs:
+  trigger-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+      
+      - name: Trigger EOD Pipeline
+        run: |
+          STATE_MACHINE_ARN="arn:aws:states:us-east-1:$(aws sts get-caller-identity --query Account --output text):stateMachine:algo-eod-pipeline-dev"
+          
+          echo "Invoking: $STATE_MACHINE_ARN"
+          
+          EXEC_ARN=$(aws stepfunctions start-execution \
+            --state-machine-arn "$STATE_MACHINE_ARN" \
+            --name "manual-loader-test-$(date +%s)" \
+            --region us-east-1 \
+            --query 'executionArn' \
+            --output text)
+          
+          echo "Pipeline triggered: $EXEC_ARN"
+          echo ""
+          echo "Loaders executing:"
+          echo "  • stock_prices_daily (5000+ symbols)"
+          echo "  • technical_data_daily"
+          echo "  • market_health_daily"
+          echo "  • trend_template_data"
+          echo "  • buy_sell_daily"
+          echo "  • signal_quality_scores"
+          echo "  • algo_metrics_daily"
+          echo "  • swing_trader_scores"
+          echo ""
+          echo "Total runtime: 2-3 hours"
+          echo "Data live as each loader completes"
