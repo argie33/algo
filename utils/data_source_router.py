@@ -266,20 +266,19 @@ class DataSourceRouter:
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
-        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
+            # Use the yfinance_wrapper's throttling (semaphore + 2s min interval)
+            # This is more aggressive than the global limiter and prevents crumb invalidation
+            from utils.yfinance_wrapper import YFinanceWrapper
             def do_download():
-                return yf.download(
-                    yf_symbol,
-                    start=start,
-                    end=end,
-                    interval=interval,
-                    auto_adjust=False,
-                    progress=False,
-                )
-            logger.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
+                # Fetch data through wrapper's rate limiting mechanism
+                ticker = YFinanceWrapper.get_ticker(yf_symbol)
+                if not ticker:
+                    return None
+                return ticker.history(start=start, end=end, interval=interval, auto_adjust=False)
+            logger.debug(f"[yfinance] Calling ticker.history for {yf_symbol} with 120s timeout (AWS VPC)")
             hist = _call_with_timeout(do_download, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
@@ -334,19 +333,23 @@ class DataSourceRouter:
         if not symbols:
             return {}
 
-        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
 
         # Convert symbols to yfinance format
         yf_symbols = [sym.replace('.', '-') if '.' in sym else sym for sym in symbols]
 
         try:
+            # Use the yfinance_wrapper's session and aggressive throttling
+            from utils.yfinance_wrapper import YFinanceWrapper
             def do_download():
+                wrapper = YFinanceWrapper()
+                session = wrapper.get_session()
                 return yf.download(
                     yf_symbols,
                     start=start,
                     end=end,
                     interval=interval,
+                    session=session if session else None,
                     auto_adjust=False,
                     progress=False,
                 )

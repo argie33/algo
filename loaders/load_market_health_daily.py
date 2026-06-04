@@ -96,21 +96,22 @@ class MarketHealthDailyLoader(OptimalLoader):
         return health_metrics
 
     def _fetch_vix_data(self, start: date, end: date) -> dict:
-        """Fetch VIX close prices from yfinance. Returns {date_str: vix_close}."""
+        """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}."""
         try:
-            import yfinance as yf
-            df = yf.download("^VIX", start=start.isoformat(), end=(end + timedelta(days=1)).isoformat(),
-                             progress=False, auto_adjust=True)
+            from utils.yfinance_wrapper import YFinanceWrapper
+            ticker = YFinanceWrapper.get_ticker("^VIX")
+            if not ticker:
+                logger.warning("VIX ticker not available")
+                return {}
+            df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
             if df is None or df.empty:
-                logger.warning("VIX download returned no data")
+                logger.warning("VIX history returned no data")
                 return {}
             result = {}
             for idx, row in df.iterrows():
                 date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
-                close_val = row["Close"]
-                if hasattr(close_val, "__len__"):
-                    close_val = close_val.iloc[0] if len(close_val) > 0 else None
-                if close_val is not None and not (hasattr(close_val, "__float__") and float(close_val) != float(close_val)):
+                close_val = row.get("Close") if hasattr(row, "get") else row["Close"]
+                if close_val is not None and not (isinstance(close_val, float) and close_val != close_val):
                     result[date_str] = round(float(close_val), 2)
             logger.info(f"Fetched VIX data: {len(result)} days")
             return result

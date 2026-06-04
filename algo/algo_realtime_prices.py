@@ -174,22 +174,23 @@ class RealtimePricingEngine:
             return {}
 
     def _fetch_yfinance_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Fetch delayed prices from YFinance."""
+        """Fetch delayed prices from YFinance via wrapper."""
         try:
-            import yfinance as yf
+            from utils.yfinance_wrapper import YFinanceWrapper
             quotes = {}
             for symbol in symbols:
                 try:
-                    tick = yf.Ticker(symbol)
-                    hist = tick.history(period="1d")
-                    if not hist.empty:
-                        quotes[symbol] = hist["Close"].iloc[-1]
+                    ticker = YFinanceWrapper.get_ticker(symbol)
+                    if ticker:
+                        hist = ticker.history(period="1d")
+                        if not hist.empty:
+                            quotes[symbol] = hist["Close"].iloc[-1]
                 except Exception as e:
                     logger.warning(f"YFinance quote failed for {symbol}: {e}")
             return quotes
 
         except ImportError:
-            logger.warning("yfinance not available")
+            logger.warning("yfinance wrapper not available")
             return {}
 
     def _get_fallback_prices(self, symbols: List[str]) -> Dict[str, float]:
