@@ -142,7 +142,8 @@ export default function TradingSignals() {
   const gateMap = useMemo(() => {
     const m = new Map();
     const gatesArray = Array.isArray(gatesData) ? gatesData : (gatesData?.items || []);
-    gatesArray.forEach(g => m.set(g.symbol, g));
+    // Filter out null/undefined items before mapping to avoid "Cannot read property of undefined" errors
+    gatesArray.filter(g => g && g.symbol).forEach(g => m.set(g.symbol, g));
     return m;
   }, [gatesData]);
 
