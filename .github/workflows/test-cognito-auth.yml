@@ -1,0 +1,91 @@
+name: Test Cognito Auth Layer
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: "TEST 1: Direct Cognito Admin Auth (ADMIN_NO_SRP_AUTH)"
+        run: |
+          echo "=== TEST 1: Can Cognito authenticate with ADMIN_NO_SRP_AUTH? ==="
+          echo ""
+
+          result=$(aws cognito-idp admin-initiate-auth \
+            --user-pool-id us-east-1_XJpLb9SKX \
+            --client-id 6smb0vrcidd9kvhju2kn2a3qrl \
+            --auth-flow ADMIN_NO_SRP_AUTH \
+            --auth-parameters USERNAME="admin@stocks.local",PASSWORD="Test1234!@##" \
+            --region us-east-1 2>&1) || true
+
+          echo "$result" | jq . 2>/dev/null || echo "$result"
+
+          if echo "$result" | grep -q "AccessToken"; then
+            echo "✅ ADMIN_NO_SRP_AUTH works - Cognito auth layer OK"
+          else
+            echo "❌ ADMIN_NO_SRP_AUTH failed"
+          fi
+
+      - name: "TEST 2: User Password Auth (USER_PASSWORD_AUTH)"
+        run: |
+          echo ""
+          echo "=== TEST 2: Can Cognito authenticate with USER_PASSWORD_AUTH? ==="
+          echo "(This is what the frontend uses via Amplify)"
+          echo ""
+
+          result=$(aws cognito-idp initiate-auth \
+            --client-id 6smb0vrcidd9kvhju2kn2a3qrl \
+            --auth-flow USER_PASSWORD_AUTH \
+            --auth-parameters USERNAME="admin@stocks.local",PASSWORD="Test1234!@##" \
+            --region us-east-1 2>&1) || true
+
+          echo "$result" | jq . 2>/dev/null || echo "$result"
+
+          if echo "$result" | grep -q "AccessToken"; then
+            echo "✅ USER_PASSWORD_AUTH works - Frontend auth should work"
+          else
+            echo "❌ USER_PASSWORD_AUTH failed - Frontend can't log in"
+          fi
+
+      - name: "TEST 3: App Client Auth Flows"
+        run: |
+          echo ""
+          echo "=== TEST 3: What auth flows does the app client support? ==="
+          echo ""
+
+          aws cognito-idp describe-user-pool-client \
+            --user-pool-id us-east-1_XJpLb9SKX \
+            --client-id 6smb0vrcidd9kvhju2kn2a3qrl \
+            --region us-east-1 | jq '{
+              ClientName: .UserPoolClient.ClientName,
+              ExplicitAuthFlows: .UserPoolClient.ExplicitAuthFlows,
+              AllowExplicitAuthFlows: .UserPoolClient.AllowExplicitAuthFlows,
+              PreventUserExistenceErrors: .UserPoolClient.PreventUserExistenceErrors
+            }'
+
+      - name: "TEST 4: User Status"
+        run: |
+          echo ""
+          echo "=== TEST 4: Is the user account enabled and confirmed? ==="
+          echo ""
+
+          aws cognito-idp admin-get-user \
+            --user-pool-id us-east-1_XJpLb9SKX \
+            --username "admin@stocks.local" \
+            --region us-east-1 | jq '{
+              Username: .Username,
+              UserStatus: .UserStatus,
+              Enabled: .Enabled,
+              MFAOptions: .MFAOptions,
+              Attributes: [.UserAttributes[] | select(.Name | IN("email", "email_verified")) | {Name, Value}]
+            }'
