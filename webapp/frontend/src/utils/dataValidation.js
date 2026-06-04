@@ -42,7 +42,13 @@ export const ensureArray = (value, defaultArray = []) => {
  * @returns {object} Value as object or default
  */
 export const ensureObject = (value, defaultObj = {}) => {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : defaultObj;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value;
+  }
+  if (value !== null && value !== undefined) {
+    console.warn('[ensureObject] Expected object but got:', typeof value, value);
+  }
+  return defaultObj;
 };
 
 /**

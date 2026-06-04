@@ -59,11 +59,20 @@ export const extractData = (response) => {
     // Check if data.data has items (double-nested)
     if (Array.isArray(data.data.items)) {
       const filteredItems = data.data.items.filter(item => item !== null && item !== undefined);
-      return {
-        ...data.data,
-        items: filteredItems,
-        total: data.data.total || data.data.items.length,
-      };
+      // Extract all properties from data.data, filtering nulls in the wrapper
+      const result = {};
+      Object.entries(data.data).forEach(([key, value]) => {
+        if (key === 'items') {
+          result.items = filteredItems;
+        } else if (value !== null && value !== undefined) {
+          result[key] = value;
+        }
+      });
+      // Ensure total is set correctly
+      if (!result.total) {
+        result.total = filteredItems.length;
+      }
+      return result;
     }
     // Return the data object itself (ensure it's an object)
     if (typeof data.data === 'object') {
@@ -118,6 +127,44 @@ export const extractPaginatedData = (response) => {
       hasNext: data.hasNext,
       hasPrev: data.hasPrev,
     },
+  };
+};
+
+/**
+ * Validate that required fields exist in data items
+ * @param {array} items - Array of data items
+ * @param {array} requiredFields - Fields that must exist (non-null/non-empty)
+ * @returns {object} { valid: boolean, invalidItems: array, missingFields: Set }
+ */
+export const validateItems = (items, requiredFields = []) => {
+  if (!Array.isArray(items)) {
+    return { valid: true, invalidItems: [], missingFields: new Set() };
+  }
+
+  if (requiredFields.length === 0) {
+    return { valid: true, invalidItems: [], missingFields: new Set() };
+  }
+
+  const missingFields = new Set();
+  const invalidItems = items
+    .map((item, idx) => {
+      const missing = requiredFields.filter(field => {
+        const value = item?.[field];
+        return value === null || value === undefined || value === '';
+      });
+      missing.forEach(f => missingFields.add(f));
+      return missing.length > 0 ? idx : null;
+    })
+    .filter(idx => idx !== null);
+
+  if (invalidItems.length > 0) {
+    console.warn(`[validateItems] ${invalidItems.length} of ${items.length} items missing required fields:`, [...missingFields].join(', '));
+  }
+
+  return {
+    valid: invalidItems.length === 0,
+    invalidItems,
+    missingFields,
   };
 };
 
