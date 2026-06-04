@@ -23,7 +23,7 @@ class SP500ConstituentsLoader(OptimalLoader):
 
     table_name = "stock_symbols"
     primary_key = ("symbol",)
-    watermark_field = "updated_at"
+    watermark_field = "created_at"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch S&P 500 symbols from Wikipedia."""

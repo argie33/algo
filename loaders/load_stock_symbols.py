@@ -38,7 +38,7 @@ class StockSymbolsLoader(OptimalLoader):
 
     table_name = "stock_symbols"
     primary_key = ("symbol",)
-    watermark_field = "updated_at"
+    watermark_field = "created_at"
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Fetch all stock symbols from NASDAQ/NYSE.
