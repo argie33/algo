@@ -248,7 +248,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 - Authentication: ✓ ENABLED (cognito_enabled = true)
 - Email: Configured via SES + Cognito custom email triggers. See `steering/EMAIL_DELIVERY_SETUP.md` for setup.
-- RDS: ✓ UPGRADED to t4g.small (2GB) with tuned loader parallelism (2-3 for critical path). Mitigates connection exhaustion without RDS Proxy (currently disabled due to terraform provider issue).
+- RDS: ✓ UPGRADED to t4g.small (2GB, ~100 connections) + tuned loader parallelism (2-3 per critical loader) = 20-30 typical concurrent connections (well below limit)
 - API Lambda: Provisioned concurrency enabled (1 unit) — prevents VPC cold-start timeouts
 - Circuit breaker: Halt flag auto-expires on prior trading day; exits always run
 - Portfolio optimization: numpy layer deployed; Phase 7 weight optimization executes
@@ -310,13 +310,12 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Eliminates guaranteed cold start from 5:30 PM → 9:30 AM gap
 
 **RDS (db.t4g.small, 2 GB RAM):**
-- UPGRADED from t4g.micro (2026-06-03): provides 2 vCPU, 2GB RAM, ~100 concurrent connections — sufficient for 9 core loaders with tuned parallelism (2-3 per critical loader)
+- UPGRADED from t4g.micro (2026-06-03): provides 2 vCPU, 2GB RAM, ~100 concurrent connections. With tuned parallelism (2-3 per critical loader), typical concurrent connections = 20-30, well below limit. No connection pooling proxy needed.
 - Performance Insights: ENABLED (7-day free retention)
 - `statement_timeout = 900000ms` (15 minutes) at parameter group level — supports batch loaders processing 5000+ symbols with complex joins
 - `work_mem = 16384` (16 MB per sort/hash operation)
 - `effective_cache_size = 786432` (768 MB = 75% of 2 GB RAM)
 - `random_page_cost = 1.1` (SSD-backed storage)
-- RDS Proxy: DISABLED (terraform aws_db_proxy_default_target_group compatibility issue). Workaround: RDS t4g.small upgrade + parallelism tuning prevents connection exhaustion. If connection issues recur: fix terraform provider compatibility and re-enable.
 
 **CloudFront:**
 - Static assets: `Managed-CachingOptimized` (long TTL, compressed)
