@@ -41,7 +41,11 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 **Loaders:** 37 total (9 core via Step Functions, 28 supporting via EventBridge). Core loaders: stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily, trend_template_data, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores.
 
-**LOADER_PARALLELISM:** All loaders read thread-pool concurrency from the `LOADER_PARALLELISM` environment variable (set by Terraform ECS task definition). CLI `--parallelism` arg falls back to the env var. Critical path loaders (technical_data_daily, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores) run at parallelism=4. Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics, growth_metrics, quality_metrics) run at parallelism=1 to avoid yfinance rate limits and RDS saturation.
+**LOADER_PARALLELISM:** All loaders read thread-pool concurrency from the `LOADER_PARALLELISM` environment variable (set by Terraform ECS task definition). CLI `--parallelism` arg falls back to the env var. Parallelism tuned per loader to prevent database connection pool exhaustion:
+- **Critical path loaders**: technical_data_daily (parallelism=2), buy_sell_daily (parallelism=3), signal_quality_scores (parallelism=2), swing_trader_scores (parallelism=2)
+- **Analytics loaders**: company_profile (parallelism=2), analyst_sentiment (parallelism=2), stability_metrics (parallelism=2), value_metrics (parallelism=2), growth_metrics (parallelism=2), quality_metrics (parallelism=2)
+- **Small loaders**: parallelism=1 to avoid rate limiting or because data size is small
+- **Justification**: When 9 core loaders run via Step Functions EOD pipeline concurrently at parallelism=4, they create 36 concurrent database connections, exhausting the RDS Proxy connection pool. Reduced parallelism = longer individual execution time but no connection contention, leading to faster overall pipeline completion.
 
 ## Infrastructure Constraints
 
@@ -226,13 +230,14 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Pre-warm schedule: 9:25 AM ET Mon-Fri (5 minutes before market open, dry_run=true)
 - Eliminates guaranteed cold start from 5:30 PM → 9:30 AM gap
 
-**RDS (db.t4g.micro, 1 GB RAM):**
+**RDS (db.t4g.small, 2 GB RAM):**
+- UPGRADED from t4g.micro (2026-06-03): fixes loader connection pool exhaustion from previous capacity constraints
 - Performance Insights: ENABLED (7-day free retention)
-- `statement_timeout = 30000ms` at parameter group level
+- `statement_timeout = 900000ms` (15 minutes) at parameter group level — supports batch loaders processing 5000+ symbols with complex joins
 - `work_mem = 16384` (16 MB per sort/hash operation)
-- `effective_cache_size = 786432` (768 MB = 75% of 1 GB RAM)
+- `effective_cache_size = 786432` (768 MB = 75% of 2 GB RAM)
 - `random_page_cost = 1.1` (SSD-backed storage)
-- Known limitation: 1 GB RAM constrains shared_buffers (~256 MB). Upgrade to `db.t4g.small` (2 GB, ~$20/month more) if query durations regularly exceed 5 seconds
+- RDS Proxy: ENABLED (algo-proxy) — connection pooling for ECS loaders, prevents connection saturation
 
 **CloudFront:**
 - Static assets: `Managed-CachingOptimized` (long TTL, compressed)

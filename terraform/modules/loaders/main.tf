@@ -581,14 +581,17 @@ locals {
 
     # Signal processing — compute signal themes
     "signal_themes"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
+    # signal_quality_scores: reduced from parallelism=4 to 2 to prevent statement timeouts during concurrent loader runs
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 2 }
 
     # BUY/SELL signals — compute trade signals for all 5000+ symbols
-    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    # Reduced from parallelism=4 to 3 to allow headroom for concurrent analytics loaders
+    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 3 }
 
     # Technical indicators — compute-heavy, 5000+ symbols
-    # Reduced from parallelism=8 to parallelism=4 to avoid database connection pool exhaustion
-    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 4 }
+    # Reduced from parallelism=8→4→2 to prevent database connection pool exhaustion
+    # Parallelism=2 with larger batch processing is faster than parallelism=4 with connection contention
+    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 2 }
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
@@ -597,8 +600,8 @@ locals {
     "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
 
     # Swing trader scores — compute-heavy scoring
-    # Reduced from parallelism=8 to parallelism=4 to avoid database connection pool exhaustion
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 4 }
+    # Reduced from parallelism=8→4→2 to prevent connection pool exhaustion during signal_quality_scores runs
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
 
     # Sector ranking — compute sector composite scores and rankings
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
