@@ -130,18 +130,23 @@ class FredEconomicDataLoader(OptimalLoader):
         start_date = (date.today() - timedelta(days=1095)).isoformat()
 
         all_rows = []
+        failed_series = []
 
         for i, series_id in enumerate(SERIES):
-            # Add delay between requests to avoid rate limiting (FRED allows ~10 requests/sec)
+            # Conservative delay between requests: FRED API is aggressively rate limiting
+            # Previous: 0.5s was insufficient, resulting in 429 for all series
+            # New: 1.5s ensures ~0.67 req/sec (well under typical API limits)
             if i > 0:
-                time.sleep(0.5)
+                time.sleep(1.5)
 
             logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
 
-            # Exponential backoff for rate limiting: up to 3 retries
-            max_retries = 3
-            base_delay = 0.5
+            # Aggressive exponential backoff for rate limiting: up to 4 retries
+            # FRED is returning 429 on every request when rate limit is hit
+            max_retries = 4
+            base_delay = 2.0  # Start with 2s delay, double on each retry
 
+            success = False
             for attempt in range(max_retries):
                 try:
                     params = {
@@ -169,23 +174,30 @@ class FredEconomicDataLoader(OptimalLoader):
                         except (ValueError, KeyError):
                             continue
 
-                    logger.info(f"  {series_id}: {len([r for r in all_rows if r['series_id'] == series_id])} rows")
+                    logger.info(f"  {series_id}: SUCCESS ({len([r for r in all_rows if r['series_id'] == series_id])} rows)")
+                    success = True
                     break  # Success, exit retry loop
 
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code == 429:  # Rate limit
                         if attempt < max_retries - 1:
                             delay = base_delay * (2 ** attempt)
-                            logger.warning(f"  {series_id}: Rate limited (429), retrying in {delay}s (attempt {attempt + 1}/{max_retries})...")
+                            logger.warning(f"  {series_id}: 429 rate limit (attempt {attempt + 1}/{max_retries}), waiting {delay}s...")
                             time.sleep(delay)
                         else:
-                            logger.error(f"  {series_id}: FAILED after {max_retries} retries — {e}")
+                            logger.error(f"  {series_id}: FAILED after {max_retries} retries with 429 errors")
+                            failed_series.append(series_id)
                     else:
-                        logger.error(f"  {series_id}: FAILED — {e}")
+                        logger.error(f"  {series_id}: HTTP {e.response.status_code} — {e}")
+                        failed_series.append(series_id)
                         break  # Don't retry on non-rate-limit errors
                 except Exception as e:
-                    logger.error(f"  {series_id}: FAILED — {e}")
+                    logger.error(f"  {series_id}: ERROR — {e}")
+                    failed_series.append(series_id)
                     break  # Don't retry on other exceptions
+
+        if failed_series:
+            logger.warning(f"Failed to fetch {len(failed_series)} series: {', '.join(failed_series)}")
 
         return all_rows if all_rows else None
 
