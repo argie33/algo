@@ -1,36 +1,48 @@
 # Setup Cognito users and groups for algo trading platform
 param(
     [string]$UserPoolId = "",  # Leave empty to auto-detect
-    [string]$AdminEmail = "",  # Leave empty to use environment variable or prompt
-    [string]$TraderEmail = "",  # Leave empty to use environment variable or prompt
-    [string]$AwsRegion = "us-east-1"
+    [string]$AdminEmail = "",  # Leave empty to use environment variable (required)
+    [string]$TraderEmail = "",  # Leave empty to use environment variable (required)
+    [string]$AwsRegion = "us-east-1",
+    [string]$Environment = "dev"
 )
+
+# Load infrastructure names from Terraform outputs
+$HelperScript = Join-Path (Split-Path $PSScriptRoot) "scripts" "get-terraform-outputs.ps1"
+if (Test-Path $HelperScript) {
+    . $HelperScript -Environment $Environment -Region $AwsRegion
+}
+
+$PoolName = $env:COGNITO_POOL_NAME
+if ([string]::IsNullOrEmpty($PoolName)) { $PoolName = "algo-pool-$Environment" }
 
 # Auto-detect Cognito pool if not provided
 if ([string]::IsNullOrEmpty($UserPoolId)) {
-    Write-Host "Auto-detecting Cognito user pool..." -ForegroundColor Gray
-    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region $AwsRegion --query "UserPools[?Name=='algo-pool-dev']" --output json | ConvertFrom-Json
+    Write-Host "Auto-detecting Cognito user pool '$PoolName'..." -ForegroundColor Gray
+    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region $AwsRegion --query "UserPools[?Name=='$PoolName']" --output json | ConvertFrom-Json
 
     if ($poolInfo.Count -eq 0) {
-        Write-Host "ERROR: Could not find Cognito pool 'algo-pool-dev'" -ForegroundColor Red
+        Write-Host "ERROR: Could not find Cognito pool '$PoolName'" -ForegroundColor Red
         exit 1
     }
     $UserPoolId = $poolInfo[0].Id
     Write-Host "✓ Found pool: $UserPoolId" -ForegroundColor Green
 }
 
-# Use environment variables or defaults for email addresses
+# Use environment variables for email addresses (no defaults)
 if ([string]::IsNullOrEmpty($AdminEmail)) {
     $AdminEmail = $env:ADMIN_EMAIL
     if ([string]::IsNullOrEmpty($AdminEmail)) {
-        $AdminEmail = "edgebrookecapital@gmail.com"
+        Write-Host "ERROR: ADMIN_EMAIL environment variable not set. Use: `$env:ADMIN_EMAIL='your@email.com'" -ForegroundColor Red
+        exit 1
     }
 }
 
 if ([string]::IsNullOrEmpty($TraderEmail)) {
     $TraderEmail = $env:TRADER_EMAIL
     if ([string]::IsNullOrEmpty($TraderEmail)) {
-        $TraderEmail = "argeropolos@gmail.com"
+        Write-Host "ERROR: TRADER_EMAIL environment variable not set. Use: `$env:TRADER_EMAIL='your@email.com'" -ForegroundColor Red
+        exit 1
     }
 }
 

@@ -3,13 +3,24 @@
 Check RDS configuration and timeout parameters.
 """
 
+import sys
+import os
 import boto3
+
+# Add scripts directory to path for imports
+sys.path.insert(0, os.path.dirname(__file__))
+
+from terraform_helpers import get_infrastructure_names
 
 def check_rds_config():
     rds = boto3.client('rds', region_name='us-east-1')
 
+    # Get infrastructure names dynamically
+    names = get_infrastructure_names()
+    db_instance_id = names.get('rds_instance_id', 'algo-db')
+
     # Get RDS instance details
-    response = rds.describe_db_instances(DBInstanceIdentifier='algo-db')
+    response = rds.describe_db_instances(DBInstanceIdentifier=db_instance_id)
     instance = response['DBInstances'][0]
 
     print("=" * 80)

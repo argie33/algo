@@ -11,11 +11,22 @@ $ConfigFile = "webapp/frontend/public/config.js"
 Write-Host "Querying Cognito pool information..." -ForegroundColor Gray
 
 try {
+    # Load infrastructure names from Terraform outputs
+    $HelperScript = Join-Path (Split-Path $PSScriptRoot) "scripts" "get-terraform-outputs.ps1"
+    if (Test-Path $HelperScript) {
+        . $HelperScript -Environment "dev" -Region "us-east-1"
+    }
+
+    $PoolName = $env:COGNITO_POOL_NAME
+    $ClientName = $env:COGNITO_CLIENT_NAME
+    if ([string]::IsNullOrEmpty($PoolName)) { $PoolName = "algo-pool-dev" }
+    if ([string]::IsNullOrEmpty($ClientName)) { $ClientName = "algo-web-app-dev" }
+
     # Get Cognito user pool
-    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region us-east-1 --query "UserPools[?Name=='algo-pool-dev']" --output json | ConvertFrom-Json
+    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region us-east-1 --query "UserPools[?Name=='$PoolName']" --output json | ConvertFrom-Json
 
     if ($poolInfo.Count -eq 0) {
-        throw "Cognito pool 'algo-pool-dev' not found. Run: terraform apply in terraform/ directory"
+        throw "Cognito pool '$PoolName' not found. Run: terraform apply in terraform/ directory"
     }
 
     $poolId = $poolInfo[0].Id
@@ -23,10 +34,10 @@ try {
     Write-Host "✓ Found pool: $poolName ($poolId)" -ForegroundColor Green
 
     # Get app client
-    $clientInfo = aws cognito-idp list-user-pool-clients --user-pool-id $poolId --max-results 60 --region us-east-1 --query "UserPoolClients[?ClientName=='algo-app-dev']" --output json | ConvertFrom-Json
+    $clientInfo = aws cognito-idp list-user-pool-clients --user-pool-id $poolId --max-results 60 --region us-east-1 --query "UserPoolClients[?ClientName=='$ClientName']" --output json | ConvertFrom-Json
 
     if ($clientInfo.Count -eq 0) {
-        Write-Host "⚠ Client 'algo-app-dev' not found, using first available client" -ForegroundColor Yellow
+        Write-Host "⚠ Client '$ClientName' not found, using first available client" -ForegroundColor Yellow
         $clientInfo = aws cognito-idp list-user-pool-clients --user-pool-id $poolId --max-results 1 --region us-east-1 --output json | ConvertFrom-Json
     }
 
@@ -38,8 +49,9 @@ try {
     $domainInfo = aws cognito-idp describe-user-pool --user-pool-id $poolId --region us-east-1 --query "UserPool.Domain" --output text
 
     if ([string]::IsNullOrEmpty($domainInfo) -or $domainInfo -eq "None") {
-        # Construct domain from pool name
-        $domainInfo = "algo-dev.auth.us-east-1.amazoncognito.com"
+        # Construct domain from Terraform output or use pattern
+        $domainBase = $env:COGNITO_POOL_NAME -replace "-pool-.*", ""
+        $domainInfo = "$domainBase-dev.auth.us-east-1.amazoncognito.com"
         Write-Host "⚠ Using constructed Cognito domain: $domainInfo" -ForegroundColor Yellow
     } else {
         Write-Host "✓ Found Cognito domain: $domainInfo" -ForegroundColor Green

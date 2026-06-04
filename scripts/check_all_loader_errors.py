@@ -4,31 +4,24 @@ Comprehensive loader error analysis across all loaders.
 Identifies timeout, rate limit, and data collection issues.
 """
 
+import sys
+import os
 import boto3
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+# Add scripts directory to path for imports
+sys.path.insert(0, os.path.dirname(__file__))
+
+from terraform_helpers import get_infrastructure_names, get_loader_log_groups
+
 def check_all_loaders():
     logs = boto3.client('logs', region_name='us-east-1')
 
-    all_loaders = [
-        '/ecs/algo-stock_prices_daily-loader',
-        '/ecs/algo-technical_data_daily-loader',
-        '/ecs/algo-buy_sell_daily-loader',
-        '/ecs/algo-signal_quality_scores-loader',
-        '/ecs/algo-algo_metrics_daily-loader',
-        '/ecs/algo-swing_trader_scores-loader',
-        '/ecs/algo-company_profile-loader',
-        '/ecs/algo-stability_metrics-loader',
-        '/ecs/algo-analyst_sentiment-loader',
-        '/ecs/algo-analyst_upgrades_downgrades-loader',
-        '/ecs/algo-market_health_daily-loader',
-        '/ecs/algo-trend_template_data-loader',
-        '/ecs/algo-fred_economic_data-loader',
-        '/ecs/algo-growth_metrics-loader',
-        '/ecs/algo-quality_metrics-loader',
-        '/ecs/algo-value_metrics-loader',
-    ]
+    # Get infrastructure names dynamically
+    names = get_infrastructure_names()
+    log_groups = get_loader_log_groups(names)
+    all_loaders = list(log_groups.values())
 
     start_time = int((datetime.utcnow() - timedelta(hours=96)).timestamp() * 1000)
 

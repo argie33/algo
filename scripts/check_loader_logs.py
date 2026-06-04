@@ -3,23 +3,34 @@
 Check recent loader logs and execution times to verify data collection performance.
 """
 
+import sys
+import os
 import boto3
 from datetime import datetime, timedelta
+
+# Add scripts directory to path for imports
+sys.path.insert(0, os.path.dirname(__file__))
+
+from terraform_helpers import get_infrastructure_names, get_loader_log_groups
 
 def check_loader_logs():
     logs_client = boto3.client('logs', region_name='us-east-1')
     sfn_client = boto3.client('stepfunctions', region_name='us-east-1')
 
-    # Check ECS log groups for recent executions
+    # Get infrastructure names dynamically
+    names = get_infrastructure_names()
+    log_group_dict = get_loader_log_groups(names)
+
+    # Check ECS log groups for recent executions (sample of core loaders)
     log_groups = [
-        '/ecs/algo-stock_prices_daily-loader',
-        '/ecs/algo-technical_data_daily-loader',
-        '/ecs/algo-buy_sell_daily-loader',
-        '/ecs/algo-signal_quality_scores-loader',
-        '/ecs/algo-algo_metrics_daily-loader',
-        '/ecs/algo-swing_trader_scores-loader',
-        '/ecs/algo-company_profile-loader',
-        '/ecs/algo-stability_metrics-loader',
+        log_group_dict['stock_prices_daily'],
+        log_group_dict['technical_data_daily'],
+        log_group_dict['buy_sell_daily'],
+        log_group_dict['signal_quality_scores'],
+        log_group_dict['algo_metrics_daily'],
+        log_group_dict['swing_trader_scores'],
+        log_group_dict['company_profile'],
+        log_group_dict['stability_metrics'],
     ]
 
     start_time = int((datetime.utcnow() - timedelta(hours=72)).timestamp() * 1000)
