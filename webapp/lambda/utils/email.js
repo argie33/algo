@@ -17,7 +17,7 @@ const initEmailService = () => {
 
 const getEmailConfig = async () => {
   return {
-    contactEmail: process.env.CONTACT_EMAIL || 'edgebrookecapital@gmail.com',
+    contactEmail: process.env.CONTACT_EMAIL,
     isConfigured: emailConfigured
   };
 };
@@ -27,11 +27,17 @@ const sendEmail = async ({ to, subject, html, text }) => {
     return { success: true, skipped: true };
   }
 
+  const emailFrom = process.env.EMAIL_FROM;
+  if (!emailFrom) {
+    console.warn('⚠️  EMAIL_FROM not configured, email sending will fail');
+    return { success: false, error: 'EMAIL_FROM not configured' };
+  }
+
   try {
     const toAddresses = Array.isArray(to) ? to : [to];
 
     const command = new SendEmailCommand({
-      Source: process.env.EMAIL_FROM || 'noreply@edgebrooke.com',
+      Source: emailFrom,
       Destination: { ToAddresses: toAddresses },
       Message: {
         Subject: { Data: subject, Charset: 'UTF-8' },
