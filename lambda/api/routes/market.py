@@ -1,11 +1,59 @@
 """Route: market"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re
+import logging, re, time
 from datetime import datetime, timedelta, date, timezone
 from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
+
+def _execute_with_retry(cur, timeout_sec: int, query: str, max_attempts: int = 2, backoff_multiplier: float = 1.5):
+    """Execute a query with retry logic and exponential backoff on timeout.
+
+    Args:
+        cur: Database cursor
+        timeout_sec: Initial timeout in seconds
+        query: SQL query to execute
+        max_attempts: Number of retry attempts (default 2 = 1 retry)
+        backoff_multiplier: Multiplier for timeout on each retry (default 1.5)
+
+    Returns: Query result (list of rows) or empty list on failure
+    """
+    current_timeout = timeout_sec
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            cur.execute(f"SET LOCAL statement_timeout = '{int(current_timeout * 1000)}ms'")
+            cur.execute(query)
+            return cur.fetchall()
+        except psycopg2.errors.QueryCanceled as e:
+            last_error = e
+            if attempt < max_attempts - 1:
+                # Retry with increased timeout on timeout error
+                current_timeout *= backoff_multiplier
+                logger.warning(
+                    f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout"
+                )
+                # Rollback the aborted transaction
+                try:
+                    cur.connection.rollback()
+                except Exception:
+                    pass
+                time.sleep(0.1)  # Brief backoff before retry
+            else:
+                logger.warning(f"Query timeout after {max_attempts} attempts")
+        except Exception as e:
+            last_error = e
+            # Don't retry on non-timeout errors
+            logger.warning(f"Query failed ({type(e).__name__}): {str(e)}")
+            try:
+                cur.connection.rollback()
+            except Exception:
+                pass
+            break
+
+    return []
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/market/* endpoints."""
@@ -32,47 +80,48 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/market/breadth':
                 # Compute A/D per day using a self-join on consecutive trading dates.
                 # Self-join is faster than LAG window over 35 days × 9000 symbols.
-                # Falls back gracefully on timeout (DB under heavy write load from loaders).
-                # When a statement times out in psycopg2, the whole transaction is aborted.
-                # We reset using conn.rollback() so subsequent queries can still run.
-                # Single query with 8s timeout; fails gracefully on DB write-load.
-                # Two 15s queries would exceed the 28s Lambda limit — use one 8s query.
+                # Uses retry logic with exponential backoff to handle transient timeouts
+                # when DB is under heavy write load from loaders.
                 breadth = []
                 freshness = {}
-                try:
-                    cur.execute("SET LOCAL statement_timeout = '8s'")
-                    cur.execute("""
-                        WITH trading_dates AS (
-                            SELECT DISTINCT date
-                            FROM price_daily
-                            WHERE date >= CURRENT_DATE - INTERVAL '25 days'
-                            ORDER BY date DESC LIMIT 12
-                        ),
-                        date_pairs AS (
-                            SELECT d1.date AS d, MAX(d2.date) AS prev_d
-                            FROM trading_dates d1
-                            JOIN trading_dates d2 ON d2.date < d1.date
-                            GROUP BY d1.date
-                        )
-                        SELECT
-                            dp.d AS date,
-                            COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
-                            COUNT(*) FILTER (WHERE t.close < y.close) AS declines,
-                            COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
-                            COUNT(t.symbol) AS total
-                        FROM date_pairs dp
-                        JOIN price_daily t ON t.date = dp.d AND t.symbol NOT LIKE '^%%'
-                        JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
-                        GROUP BY dp.d
-                        ORDER BY dp.d DESC
-                        LIMIT 10
-                    """)
-                    breadth = cur.fetchall()
-                    freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
-                except Exception as e:
-                    logger.warning(f"Breadth query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
-                    try: cur.connection.rollback()
-                    except Exception: pass
+
+                breadth_query = """
+                    WITH trading_dates AS (
+                        SELECT DISTINCT date
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '25 days'
+                        ORDER BY date DESC LIMIT 12
+                    ),
+                    date_pairs AS (
+                        SELECT d1.date AS d, MAX(d2.date) AS prev_d
+                        FROM trading_dates d1
+                        JOIN trading_dates d2 ON d2.date < d1.date
+                        GROUP BY d1.date
+                    )
+                    SELECT
+                        dp.d AS date,
+                        COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
+                        COUNT(*) FILTER (WHERE t.close < y.close) AS declines,
+                        COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
+                        COUNT(t.symbol) AS total
+                    FROM date_pairs dp
+                    JOIN price_daily t ON t.date = dp.d AND t.symbol NOT LIKE '^%%'
+                    JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
+                    GROUP BY dp.d
+                    ORDER BY dp.d DESC
+                    LIMIT 10
+                """
+
+                # Execute with retry: start at 8s, retry at 12s if timeout
+                breadth = _execute_with_retry(cur, timeout_sec=8, query=breadth_query, max_attempts=2, backoff_multiplier=1.5)
+
+                if breadth:
+                    # Only fetch freshness if query succeeded
+                    try:
+                        freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
+                    except Exception:
+                        freshness = {}
+
                 return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
                 cur.execute("""

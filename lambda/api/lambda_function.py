@@ -113,41 +113,59 @@ def validate_environment():
     return len(errors) == 0, errors
 
 def test_db_connection():
-    """FIXED Issue #17: Test database connection at Lambda cold-start.
+    """Test database connection at Lambda cold-start.
 
     Validates that the database is reachable and responsive.
-    Fails fast if connection cannot be established, preventing silent failures later.
+    Fails fast if connection cannot be established, providing clear diagnostics.
 
-    Uses a 5-second timeout (not the default 60s) so cold-start overhead
-    stays well within the 29s API Gateway limit.
+    Uses adaptive timeouts:
+    - connect_timeout=5s: abort if RDS Proxy connection fails
+    - statement_timeout=3s: abort if query execution stalls
+    - Total overhead stays well within API Gateway 29s limit
 
     Returns: (success: bool, error_msg: Optional[str])
     """
+    import time
+    start_time = time.time()
+
     try:
-        # connect_timeout=2: abort fast if RDS Proxy is unresponsive
-        # max_retries=1: no retry (init must stay short; handler reconnects per-request)
-        # statement_timeout=1s: even if TCP connects, query must complete in 1s
         from utils.db_connection import get_db_connection
-        conn = get_db_connection(max_retries=1, timeout=2)
+        # Increased timeouts: 5s for connection, allows for slow startups
+        conn = get_db_connection(max_retries=0, timeout=5)
+        connect_time = time.time() - start_time
+
         cur = conn.cursor()
         try:
-            cur.execute("SET statement_timeout TO '1000'")  # 1 second
+            # 3-second query timeout (up from 1s) for more reliable test on slow systems
+            cur.execute("SET statement_timeout TO '3000'")
+            query_start = time.time()
             cur.execute("SELECT 1 as connection_test")
             result = cur.fetchone()
+            query_time = time.time() - query_start
+
             cur.close()
             conn.close()
+
             if result and result[0] == 1:
-                logger.info("[DB_TEST_SUCCESS] Database connection verified at cold start")
+                total_time = time.time() - start_time
+                logger.info(
+                    f"[DB_TEST_SUCCESS] Database connection verified at cold start "
+                    f"(connect={connect_time:.2f}s, query={query_time:.3f}s, total={total_time:.2f}s)"
+                )
                 return True, None
             else:
-                conn.close()
                 return False, "Connection test query returned unexpected result"
         except Exception as qe:
-            try: conn.close()
-            except Exception: pass
+            try:
+                conn.close()
+            except Exception:
+                pass
             raise qe
     except Exception as e:
-        error_msg = f"Database connection test failed at cold start: {type(e).__name__}: {str(e)}"
+        error_msg = (
+            f"Database connection test failed at cold start: {type(e).__name__}: {str(e)}. "
+            f"Verify RDS Proxy is running and network connectivity is available."
+        )
         logger.error(f"[DB_TEST_FAILED] {error_msg}")
         return False, error_msg
 
