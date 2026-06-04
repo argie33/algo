@@ -23,7 +23,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return _dispatch(cur, path, method, params, body, jwt_claims)
         except Exception as e:
             logger.error(f'[ALGO] unhandled {type(e).__name__}: {e}', exc_info=True)
-            return error_response(500, 'internal_error', f'Algo handler error: {type(e).__name__}')
+            return error_response(500, 'internal_error', 'An error occurred while processing your request')
 
 def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         # User identity from verified JWT claims (sub is the Cognito user ID)
