@@ -95,18 +95,21 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 
 ## Loader Execution Time Monitoring & Timeout Prevention
 
-**Critical Issue (Fixed 2026-06-04):** stock_prices_daily execution time was approaching timeout limit, risking pipeline failure.
+**Critical Issues (Fixed 2026-06-04):**
 
-**Problem Identified:**
-- stock_prices_daily loads 5000+ symbols across 3 intervals (1d, 1wk, 1mo) and 2 asset classes (stock, etf) = 30,000+ API requests
-- Batch fetching (batch_size=100) reduces to 300 API calls, but rate-limit retries add exponential backoff (5s → 10s → 20s → 40s → 80s)
-- Actual execution time: 5-6 hours with rate-limit delays
-- Previous timeout: 4 hours (14400s) — **INSUFFICIENT**, causing timeout risk when approaching 6 hours
+**Issue 1: Stale Data Failsafe Was Synchronous (Commit 619cf43c)**
+- Phase 1 triggered stock_prices_daily via failsafe but WAITED up to 600 seconds for completion
+- stock_prices_daily takes 1-2 hours (5000+ symbols × 3 intervals)
+- Orchestrator Lambda has only 10min total timeout — synchronous waits always timed out
+- Result: Failsafe always failed, orchestrator proceeded with stale data
+- **Fix (619cf43c)**: Changed to async (Event) invocation. Trigger and proceed immediately. Circuit breakers in Phase 2+ conservatively handle stale data while loader runs in parallel.
 
-**Solution Implemented (Commit 13cc6b96):**
-- Step Functions timeout: 14400s (4h) → 27000s (7.5h)
-- ECS container timeout: 21600s (6h) → 25200s (7h)  
-- Timeout hierarchy: ECS timeout (7h) triggers first if task runs too long; Step Functions timeout (7.5h) is final safeguard
+**Issue 2: stock_prices_daily Timeout Risk (Commit 13cc6b96)**
+- stock_prices_daily loads 5000+ symbols across 3 intervals (1d, 1wk, 1mo) and 2 asset classes = 30,000+ API requests
+- Batch fetching (batch_size=100) reduces to 300 API calls, but rate-limit retries add exponential backoff
+- Actual execution time: 1.5-2 hours with parallelism=8 (up from 6+ hours with parallelism=2)
+- Previous timeout: 4 hours — **INSUFFICIENT** for worst-case scenarios
+- **Solution**: Step Functions timeout 14400s → 27000s (7.5h), ECS timeout 21600s → 25200s (7h)
 
 **Execution Time Monitoring:**
 
@@ -245,12 +248,13 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 
 - Authentication: ✓ ENABLED (cognito_enabled = true)
 - Email: Configured via SES + Cognito custom email triggers. See `steering/EMAIL_DELIVERY_SETUP.md` for setup.
-- RDS Proxy: ENABLED (enable_rds_proxy = true) — prevents connection saturation OOM crashes
+- RDS: ✓ UPGRADED to t4g.small (2GB) with tuned loader parallelism (2-3 for critical path). Mitigates connection exhaustion without RDS Proxy (currently disabled due to terraform provider issue).
 - API Lambda: Provisioned concurrency enabled (1 unit) — prevents VPC cold-start timeouts
 - Circuit breaker: Halt flag auto-expires on prior trading day; exits always run
 - Portfolio optimization: numpy layer deployed; Phase 7 weight optimization executes
 - Intraday pricing: RealtimePricingEngine fetches live prices (Alpaca → IEX → YFinance); falls back to daily prices
 - Loader monitoring: CloudWatch dashboard + SNS alerts on task failures
+- Stale data failsafe: ✓ ASYNC trigger (commit 619cf43c) — loader runs in parallel, orchestrator proceeds with caution while Phase 2+ circuit breakers handle uncertainty
 
 **⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars (all AWS resources named `-dev`). Rename to `prod` if staging is provisioned in same account.
 
@@ -306,13 +310,13 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Eliminates guaranteed cold start from 5:30 PM → 9:30 AM gap
 
 **RDS (db.t4g.small, 2 GB RAM):**
-- UPGRADED from t4g.micro (2026-06-03): fixes loader connection pool exhaustion from previous capacity constraints
+- UPGRADED from t4g.micro (2026-06-03): provides 2 vCPU, 2GB RAM, ~100 concurrent connections — sufficient for 9 core loaders with tuned parallelism (2-3 per critical loader)
 - Performance Insights: ENABLED (7-day free retention)
 - `statement_timeout = 900000ms` (15 minutes) at parameter group level — supports batch loaders processing 5000+ symbols with complex joins
 - `work_mem = 16384` (16 MB per sort/hash operation)
 - `effective_cache_size = 786432` (768 MB = 75% of 2 GB RAM)
 - `random_page_cost = 1.1` (SSD-backed storage)
-- RDS Proxy: ENABLED (algo-proxy) — connection pooling for ECS loaders, prevents connection saturation
+- RDS Proxy: DISABLED (terraform aws_db_proxy_default_target_group compatibility issue). Workaround: RDS t4g.small upgrade + parallelism tuning prevents connection exhaustion. If connection issues recur: fix terraform provider compatibility and re-enable.
 
 **CloudFront:**
 - Static assets: `Managed-CachingOptimized` (long TTL, compressed)
