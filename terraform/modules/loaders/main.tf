@@ -517,22 +517,25 @@ locals {
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Computed metrics — CPU bound, process 5000+ symbols, need parallelism
-    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 8 }
-    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    # Computed metrics — CPU bound, process 5000+ symbols, reduced parallelism to avoid DB connection pool exhaustion
+    # Previous: parallelism=8, but when multiple loaders run concurrently (9 loaders × 8 parallelism = 72 connections) exhausted RDS Proxy
+    # New: parallelism=2-3 reduces peak connections to 27-54 range while maintaining parallelism benefits
+    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
+    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
+    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
+    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 3 }
 
     # Earnings data — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
     "earnings_history"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
     "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
     # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
-    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
-    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    # Reduced from parallelism=8 to parallelism=2 to avoid database connection pool exhaustion
+    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
+    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
+    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
     "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
     # Market sentiment data — small API calls
@@ -553,7 +556,8 @@ locals {
     "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
     # Technical indicators — compute-heavy, 5000+ symbols
-    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 8 }
+    # Reduced from parallelism=8 to parallelism=4 to avoid database connection pool exhaustion
+    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 4 }
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
@@ -562,7 +566,8 @@ locals {
     "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
 
     # Swing trader scores — compute-heavy scoring
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    # Reduced from parallelism=8 to parallelism=4 to avoid database connection pool exhaustion
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 4 }
 
     # Sector ranking — compute sector composite scores and rankings
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }

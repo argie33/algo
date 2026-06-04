@@ -46,11 +46,11 @@ class TrackedConnection:
         on_disconnect()
         return self._conn.close()
 
-def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False):
+def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = False):
     """Get a database connection with retries and proper credential fallback.
 
     Args:
-        max_retries: Number of retry attempts on transient errors
+        max_retries: Number of retry attempts on transient errors (increased from 3 to 5 for connection pool congestion)
         timeout: Connection timeout in seconds
         debug: If True, log detailed connection attempts
 

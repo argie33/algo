@@ -134,7 +134,7 @@ class FredEconomicDataLoader(OptimalLoader):
         for i, series_id in enumerate(SERIES):
             # Add delay between requests to avoid rate limiting (FRED allows ~10 requests/sec)
             if i > 0:
-                time.sleep(0.15)
+                time.sleep(0.5)
 
             logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
 
