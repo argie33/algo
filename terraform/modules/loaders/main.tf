@@ -68,35 +68,6 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
 }
 
 # ============================================================
-# DynamoDB Table for Loader Distributed Locking
-# FIXED Issue #31: Replace advisory locks with DynamoDB for loaders
-# ============================================================
-# Prevents concurrent runs of the same loader (same pattern as orchestrator).
-# Advisory locks don't work with RDS Proxy connection pooling.
-# DynamoDB locks are atomic, auto-expiring, and work across network boundaries.
-
-resource "aws_dynamodb_table" "loader_locks" {
-  name         = "${var.project_name}-loader-locks-${var.environment}"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "lock_key"
-
-  attribute {
-    name = "lock_key"
-    type = "S"
-  }
-
-  # TTL: lock entries expire after 15 minutes (prevents stale locks if task crashes)
-  ttl {
-    attribute_name = "expires_at"
-    enabled        = true
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-loader-locks"
-  })
-}
-
-# ============================================================
 # DynamoDB Table for Loader Execution Status
 # FIXED Issue #30: Separate loader status from lock TTL
 # ============================================================
@@ -154,7 +125,7 @@ resource "aws_iam_role_policy" "ecs_task_loader_status_access" {
   })
 }
 
-# Grant ECS tasks permission to access both orchestrator and loader lock tables
+# Grant ECS tasks permission to access the lock table
 resource "aws_iam_role_policy" "ecs_task_lock_access" {
   name = "${var.project_name}-ecs-lock-table-access"
   role = split("/", var.task_role_arn)[1]
@@ -162,18 +133,6 @@ resource "aws_iam_role_policy" "ecs_task_lock_access" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      {
-        Sid    = "DynamoDBLoaderLocks"
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Query",
-          "dynamodb:Scan"
-        ]
-        Resource = aws_dynamodb_table.loader_locks.arn
-      },
       {
         Sid    = "DynamoDBOrchestrationLocks"
         Effect = "Allow"
@@ -283,7 +242,6 @@ locals {
 
     # Pricing data — unified loader handles all intervals/asset classes via env vars
     "stock_prices_daily" = "load_prices.py"
-    "etf_prices_daily"   = "load_prices.py"
 
     # Financial statements
     "financials_annual_income"      = "load_income_statement.py"
@@ -312,9 +270,6 @@ locals {
     "analyst_sentiment"           = "load_analyst_sentiment_analysis.py"
     "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
     "industry_ranking"            = "load_industry_ranking.py"
-    "sector_ranking"              = "load_sector_ranking.py"
-    "sector_performance"          = "load_sector_performance.py"
-    "load_economic_calendar_data" = "load_economic_calendar_data.py"
 
     # Market sentiment
     "feargreed"  = "load_fear_greed_index.py"
@@ -340,7 +295,6 @@ locals {
     "market_health_daily" = "load_market_health_daily.py"
     "fred_economic_data"  = "load_fred_economic_data.py"
     "trend_template_data" = "load_trend_criteria_data.py"
-    "seasonality"         = "load_seasonality.py"
   }
 
   scheduled_loaders = {
@@ -363,16 +317,10 @@ locals {
       description = "Russell 2000 small-cap constituent symbols - 3:35am ET (after sp500_constituents)"
     }
 
-    # FIXED Issue #8: Removed stock_prices_daily from EventBridge schedules.
-    # stock_prices_daily is now managed exclusively by Step Functions EOD pipeline (~4:30am ET).
-    # Previously ran independently at 4:00am ET, causing double-execution with Step Functions.
-
-    # ETF prices — loads 17 sector/index ETFs for market breadth, sentiment, analysis endpoints
-    # Non-critical, runs independently so algo doesn't wait for ETF data
-    # Scheduled: 5:00pm ET (after orchestrator 5:30pm run completes). Runs weekly Mon-Fri for daily refresh.
-    "etf_prices_daily" = {
-      schedule    = "cron(0 21 ? * MON-FRI *)"
-      description = "ETF sector/index prices for market analysis - 5:00pm ET"
+    # 4:00am ET = 9am UTC Mon-Fri
+    "stock_prices_daily" = {
+      schedule    = "cron(0 9 ? * MON-FRI *)"
+      description = "Unified price loader: daily, weekly, monthly for stocks and ETFs - 4:00am ET"
     }
 
     # FIXED Issue #14: Moved from 4:05am to 4:30pm ET to provide fresh data for EOD pipeline
@@ -476,25 +424,9 @@ locals {
       schedule    = "cron(10 6 ? * MON-FRI *)"
       description = "Industry rankings - Daily 1:10am ET"
     }
-    "sector_ranking" = {
-      schedule    = "cron(12 6 ? * MON-FRI *)"
-      description = "Sector rankings - Daily 1:12am ET"
-    }
-    "sector_performance" = {
-      schedule    = "cron(14 6 ? * MON-FRI *)"
-      description = "Sector performance (YTD returns via SPDR ETFs) - Daily 1:14am ET"
-    }
-    "load_economic_calendar_data" = {
-      schedule    = "cron(0 4 ? * MON-FRI *)"
-      description = "Economic calendar (FOMC/CPI/NFP/GDP with forecasts) - Daily 4:00am ET"
-    }
     "earnings_calendar" = {
       schedule    = "cron(29 4 ? * MON-FRI *)"
       description = "Earnings calendar (next 180 days) - Daily 4:29am ET"
-    }
-    "seasonality" = {
-      schedule    = "cron(0 11 ? * MON *)"
-      description = "Seasonality stats (SPY monthly + day-of-week returns) - Monday 6:00am ET"
     }
 
     # Market sentiment data — run daily (data published at irregular intervals, daily refresh is fine)
@@ -536,11 +468,9 @@ locals {
     }
 
     # NOTE: These loaders are managed via the Step Functions EOD pipeline:
-    # - stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily,
-    #   trend_template_data, buy_sell_daily, signal_quality_scores,
-    #   algo_metrics_daily, swing_trader_scores
+    # - trend_template_data, signal_quality_scores, technical_data_daily,
+    #   algo_metrics_daily, swing_trader_scores, buy_sell_daily
     # Task definitions remain in all_loaders for Step Functions to reference.
-    # EventBridge schedules for these loaders have been removed to prevent double-execution.
   }
 }
 
@@ -563,91 +493,77 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    # COST OPTIMIZED: Background loaders set to parallelism=1. Critical path loaders set to
-    # parallelism=4 with proportional CPU — faster run times at similar cost (shorter duration
-    # offsets higher per-hour rate). Non-critical loaders remain at minimum viable CPU.
-
     # Reference data — tiny lists, parallelism=1
     "stock_symbols"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "sp500_constituents"       = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Unified Price Loader — critical path; 8x parallelism reduces 6h → ~1.5h (batch size doubled 50→100, concurrency 4→8)
-    # cpu=1024 (1 vCPU) + memory=2048 is the minimum valid Fargate combo at this memory tier
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 8 }
+    # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
+    # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
+    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
-    # ETF prices — non-critical; loads 17 ETF symbols for market breadth/analysis
-    # Runs independently so algo doesn't wait for ETF data
-    "etf_prices_daily" = { cpu = 256, memory = 512, timeout = 1800, parallelism = 1 }
+    # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
+    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Financial statements
-    "financials_annual_income"      = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "financials_annual_balance"     = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "financials_annual_cashflow"    = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_income"   = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_balance"  = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_cashflow" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "financials_ttm_income"         = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "financials_ttm_cashflow"       = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    # Computed metrics — CPU bound, process 5000+ symbols, need parallelism
+    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 8 }
+    "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
-    # Computed metrics — reduce CPU/memory and parallelism to 1
-    "growth_metrics"      = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
-    "quality_metrics"     = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
-    "value_metrics"       = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
-    "positioning_metrics" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "stability_metrics"   = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
-    "stock_scores"        = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
+    # Earnings data — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
+    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Earnings data
-    "earnings_history"  = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
+    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 8 }
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
-    # Company & analyst data
-    "company_profile"             = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "analyst_sentiment"           = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "analyst_upgrades_downgrades" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "industry_ranking"            = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "sector_ranking"              = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "sector_performance"          = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    "load_economic_calendar_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-
-    # Market sentiment data
+    # Market sentiment data — small API calls
     "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Sentiment aggregation
+    # Sentiment aggregation — combine multiple sentiment sources
     "sentiment"           = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "sentiment_aggregate" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
-    # Signal processing
-    "signal_themes" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
-    # Critical path: 8x parallelism reduces ~90 min → ~15 min, 2h timeout ensures full dataset
-    "signal_quality_scores" = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 8 }
+    # Signal processing — compute signal themes
+    "signal_themes"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
 
-    # BUY/SELL signals — critical path; 4x parallelism reduces ~28 min → ~8 min at similar cost
-    "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 4 }
+    # BUY/SELL signals — compute trade signals for all 5000+ symbols
+    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
 
-    # Technical indicators — critical path; 4x parallelism (already high CPU)
-    "technical_data_daily" = { cpu = 2048, memory = 4096, timeout = 18000, parallelism = 4 }
+    # Technical indicators — compute-heavy, 5000+ symbols
+    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 8 }
 
-    # Market health
-    "market_health_daily" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
+    # Market health — reads price_daily, processes 5000+ symbols
+    "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
 
-    # Algo metrics — critical path; 4x parallelism reduces ~45 min → ~12 min at similar cost
-    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 4 }
+    # Algo metrics — compute metrics on 5000+ symbols
+    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
 
-    # Swing trader scores — critical path; 8x parallelism reduces compute time by 50%
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 8 }
+    # Swing trader scores — compute-heavy scoring
+    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
 
-    # FRED macro data — 27 series × ~2s each; 900s gives safe margin
-    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
+    # FRED macro data — small API calls, 5 time series
+    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # Trend template
-    "trend_template_data" = { cpu = 512, memory = 1024, timeout = 10800, parallelism = 1 }
-
-    # Seasonality stats (SPY-derived, weekly refresh)
-    "seasonality" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # Trend template — compute-heavy scoring
+    "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
   }
 
   # For backward compatibility
@@ -792,19 +708,6 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "ALERT_WEBHOOK_URL"
           value = var.alert_webhook_url
-        },
-        # Distributed locking (FIXED Issue #31: replaced advisory locks with DynamoDB)
-        {
-          name  = "LOADER_LOCKS_TABLE"
-          value = aws_dynamodb_table.loader_locks.name
-        },
-        {
-          name  = "PROJECT_NAME"
-          value = var.project_name
-        },
-        {
-          name  = "ENVIRONMENT"
-          value = var.environment
         }
         ],
         # Unified price loader: handles all intervals and asset classes
@@ -815,18 +718,7 @@ resource "aws_ecs_task_definition" "loader" {
           },
           {
             name  = "LOADER_ASSET_CLASSES"
-            value = "stock"
-          }
-        ] : [],
-        # ETF price loader: loads sector/index ETFs (17 symbols) for market analysis
-        each.key == "etf_prices_daily" ? [
-          {
-            name  = "LOADER_INTERVALS"
-            value = "1d,1wk,1mo"
-          },
-          {
-            name  = "LOADER_ASSET_CLASSES"
-            value = "etf"
+            value = "stock,etf"
           }
         ] : [],
         # Financial loaders: determine period from task name
