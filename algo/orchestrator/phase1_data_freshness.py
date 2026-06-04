@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import json
 import logging
 from datetime import date as _date, timedelta
 from typing import Any, Callable, Optional, Dict
@@ -493,7 +494,27 @@ def run(
 
         if stale_items:
             logger.warning(f"[FAILSAFE] Data stale, attempting to trigger loader: {stale_items}")
-            failsafe_ok = _trigger_loader_failsafe('stock_prices_daily', verbose=verbose, wait_timeout=300)
+            # Stock prices loader takes 1-2 hours to fetch 5000+ symbols. Lambda orchestrator has
+            # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
+            # asynchronously and let Phase 2+ circuit breakers handle stale data.
+            # Try non-blocking trigger with short check (don't wait).
+            import boto3
+            try:
+                lambda_client = boto3.client('lambda')
+                loader_lambda = os.getenv('LOADER_TRIGGER_LAMBDA_ARN', '')
+                if loader_lambda:
+                    lambda_client.invoke(
+                        FunctionName=loader_lambda,
+                        InvocationType='Event',  # ASYNC — don't wait
+                        Payload=json.dumps({'loader_name': 'stock_prices_daily'})
+                    )
+                    logger.info("[FAILSAFE] ✓ Loader trigger sent (async). Proceeding with caution.")
+                    failsafe_ok = False  # Mark as "not confirmed" since we didn't wait
+                else:
+                    failsafe_ok = False
+            except Exception as e:
+                logger.warning(f"[FAILSAFE] Could not trigger loader: {e}")
+                failsafe_ok = False
 
             if not failsafe_ok:
                 # Failsafe failed or timed out. Log warning but DON'T halt immediately.
