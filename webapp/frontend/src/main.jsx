@@ -99,44 +99,59 @@ window.addEventListener("unhandledrejection", function (e) {
 
 // Application initialization
 
-// Aggressively clear all Service Workers and caches to fix old API URL caching
-if ("serviceWorker" in navigator) {
-  // Unregister all service workers
-  navigator.serviceWorker
-    .getRegistrations()
-    .then(function (registrations) {
-      // Found Service Worker registrations
-      for (let registration of registrations) {
-        registration.unregister().then(function (_boolean) {
-          // Service Worker unregistered
-        });
-      }
-    })
-    .catch(function (error) {
-      console.error("Service Worker unregistration failed:", error);
-    });
-}
+// Smart service worker and cache management
+// Only clear stale caches on deploy version change, not on every load
+const checkAndClearStaleCache = async () => {
+  const CACHE_VERSION_KEY = 'app-cache-version';
+  const CURRENT_VERSION = import.meta.env.VITE_BUILD_TIME || new Date().toISOString().split('T')[0];
 
-// Clear all caches to ensure fresh configuration loading
-if ("caches" in window) {
-  caches
-    .keys()
-    .then(function (cacheNames) {
-      // Found cache stores
-      return Promise.all(
-        (cacheNames || []).map(function (cacheName) {
-          // Deleting cache
-          return caches.delete(cacheName);
-        })
-      );
-    })
-    .then(function () {
-      // All caches cleared
-    })
-    .catch(function (error) {
-      console.error("Cache clearing failed:", error);
-    });
-}
+  try {
+    // Check if we have a cached version stored
+    const storedVersion = localStorage.getItem(CACHE_VERSION_KEY);
+
+    if (storedVersion && storedVersion !== CURRENT_VERSION) {
+      logger.info(`Cache version changed (${storedVersion} → ${CURRENT_VERSION}), clearing stale caches`);
+
+      // Only clear old caches on version change, not every load
+      if ("caches" in window) {
+        try {
+          const cacheNames = await caches.keys();
+          // Delete API response caches that may have stale endpoints
+          const cacheNamesToDelete = cacheNames.filter(name =>
+            name.startsWith('api-') || name.includes('http') || name === 'v1'
+          );
+
+          await Promise.all(cacheNamesToDelete.map(name => caches.delete(name)));
+          logger.info(`Cleared ${cacheNamesToDelete.length} stale cache stores`);
+        } catch (error) {
+          logger.warn("Failed to clear caches on version change", error);
+        }
+      }
+    }
+
+    // Update stored version
+    localStorage.setItem(CACHE_VERSION_KEY, CURRENT_VERSION);
+
+    // Unregister old service workers on deploy (one-time on version change)
+    if (storedVersion && storedVersion !== CURRENT_VERSION && "serviceWorker" in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let registration of registrations) {
+          // Unregister old service worker versions
+          await registration.unregister();
+        }
+        logger.info(`Unregistered ${registrations.length} old service worker(s)`);
+      } catch (error) {
+        logger.warn("Failed to unregister service workers", error);
+      }
+    }
+  } catch (error) {
+    logger.warn("Cache version check failed (non-critical)", error);
+  }
+};
+
+// Run cache check asynchronously (non-blocking)
+checkAndClearStaleCache().catch(() => {});
 
 
 // Wait for config.js to load before configuring Amplify

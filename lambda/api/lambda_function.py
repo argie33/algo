@@ -706,10 +706,24 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if ENV_VALIDATION_ERROR:
         cors_headers = get_cors_headers(event)
         logger.error(f'[ENV_VALIDATION_FAILED] {ENV_VALIDATION_ERROR}')
+
+        # Determine specific config error type for better client diagnostics
+        error_type = 'configuration_error'
+        if 'COGNITO' in ENV_VALIDATION_ERROR:
+            error_type = 'cognito_config_error'
+        elif 'DB_' in ENV_VALIDATION_ERROR or 'database' in ENV_VALIDATION_ERROR.lower():
+            error_type = 'database_config_error'
+        elif 'FRONTEND_URL' in ENV_VALIDATION_ERROR:
+            error_type = 'cors_config_error'
+
         return {
             'statusCode': 500,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'error': 'configuration_error', 'message': 'Service configuration incomplete'})
+            'body': json.dumps({
+                'error': error_type,
+                'message': 'Service configuration incomplete',
+                'details': 'Check server logs for configuration issues'
+            })
         }
 
     logger.info(f'[HANDLER_INVOKED] Event received: {path} {method}')
