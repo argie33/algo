@@ -630,6 +630,8 @@ resource "aws_ecs_task_definition" "loader" {
   depends_on = [null_resource.ensure_log_group]
 
   family = "${var.project_name}-${each.key}-loader"
+
+  # Force new task definition version to pick up environment variables (2026-06-04 12:14 UTC)
   container_definitions = jsonencode([
     {
       name      = "${var.project_name}-${each.key}"
