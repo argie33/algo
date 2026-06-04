@@ -7,10 +7,18 @@ on:
         description: 'Cognito pool name (leave blank to auto-detect)'
         required: false
         default: 'algo-pool-dev'
+      admin_username:
+        description: 'Admin username'
+        required: true
+        default: 'admin'
       admin_password:
         description: 'Admin password'
         required: true
         default: 'AdminAccess123!@'
+      user_email:
+        description: 'User email address'
+        required: true
+        default: ''
       user_password:
         description: 'User password'
         required: true
@@ -64,46 +72,58 @@ jobs:
       - name: Set admin password
         run: |
           POOL_ID="${{ steps.find_pool.outputs.pool_id }}"
+          ADMIN_USERNAME="${{ inputs.admin_username }}"
           echo "Setting admin user password..."
           aws cognito-idp admin-set-user-password \
             --user-pool-id "$POOL_ID" \
-            --username admin \
+            --username "$ADMIN_USERNAME" \
             --password "${{ inputs.admin_password }}" \
             --permanent \
             --region $AWS_REGION && echo "✓ Admin password set" || echo "⚠ Admin user not found or error"
 
-      - name: Create or set argeropolos@gmail.com password
+      - name: Create or set user password
         run: |
           POOL_ID="${{ steps.find_pool.outputs.pool_id }}"
-          EMAIL="argeropolos@gmail.com"
+          USER_EMAIL="${{ inputs.user_email }}"
+
+          if [ -z "$USER_EMAIL" ]; then
+            echo "⚠ No user email provided, skipping user password setup"
+            exit 0
+          fi
 
           # Try to create the user if it doesn't exist
           aws cognito-idp admin-create-user \
             --user-pool-id "$POOL_ID" \
-            --username "$EMAIL" \
+            --username "$USER_EMAIL" \
             --message-action SUPPRESS \
             --region $AWS_REGION 2>/dev/null || echo "User already exists"
 
           # Set the password (works whether user was created or already exists)
-          echo "Setting password for $EMAIL..."
+          echo "Setting password for $USER_EMAIL..."
           aws cognito-idp admin-set-user-password \
             --user-pool-id "$POOL_ID" \
-            --username "$EMAIL" \
+            --username "$USER_EMAIL" \
             --password "${{ inputs.user_password }}" \
             --permanent \
-            --region $AWS_REGION && echo "✓ Password set for $EMAIL"
+            --region $AWS_REGION && echo "✓ Password set for $USER_EMAIL"
 
       - name: Final Status
         run: |
           POOL_ID="${{ steps.find_pool.outputs.pool_id }}"
+          ADMIN_USERNAME="${{ inputs.admin_username }}"
+          USER_EMAIL="${{ inputs.user_email }}"
+
           echo "========== LOGIN CREDENTIALS =========="
           echo "Admin:"
-          echo "  Username: admin"
+          echo "  Username: $ADMIN_USERNAME"
           echo "  Password: ${{ inputs.admin_password }}"
           echo ""
-          echo "User:"
-          echo "  Username: argeropolos@gmail.com"
-          echo "  Password: ${{ inputs.user_password }}"
+          if [ -n "$USER_EMAIL" ]; then
+            echo "User:"
+            echo "  Username: $USER_EMAIL"
+            echo "  Password: ${{ inputs.user_password }}"
+            echo ""
+          fi
           echo "========================================"
           echo ""
           echo "Pool ID: $POOL_ID"
