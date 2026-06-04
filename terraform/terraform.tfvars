@@ -5,23 +5,19 @@
 environment  = "dev"
 aws_region   = "us-east-1"
 project_name = "algo"
-# CORS origin for frontend
-# CRITICAL: Hardcoded CloudFront domain. If CloudFront distribution is recreated, this MUST be updated
-# or CORS will break silently. The CloudFront domain cannot be a Terraform variable here (circular dependency).
-# Current domain: d2u93283nn45h2.cloudfront.net (created 2026-05-29)
-# Keep in sync with actual CloudFront domain or update to current deployment URL.
+# Frontend origin for authentication redirects
+# Dynamically set from deployment environment via TF_VAR_frontend_origin
+# Terraform module uses this for Cognito redirect URIs and similar CORS configurations
+# If empty, defaults to the CloudFront domain discovered at deployment time
 frontend_origin = ""
 # Frontend deployment
 cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
-# API Gateway CORS configuration - Production ONLY
-# CRITICAL HARDCODING: The CloudFront domain (d2u93283nn45h2.cloudfront.net) cannot be a Terraform
-# resource reference here due to circular dependency: API GW CORS → CF domain → CF origin → API GW.
-# If CloudFront distribution is recreated, UPDATE THIS LIST IMMEDIATELY or CORS will break silently.
-# Last updated: 2026-05-29. Check CloudFront distributions in AWS console to verify current domain.
-# NOTE: localhost origins for local development should be in terraform.local.tfvars (git-ignored).
-api_cors_allowed_origins = [
-  # Value will be injected from TF_VAR_cloudfront_domain
-]
+# API Gateway CORS configuration - Dynamically set from deployment environment
+# The CloudFront domain is discovered at deployment time and passed via TF_VAR_api_cors_allowed_origins
+# environment variable. This avoids hardcoding and ensures CORS always works with the current domain.
+# See .github/workflows/deploy-all-infrastructure.yml "Discover CloudFront domain for CORS configuration" step
+# Fallback: If no environment variable is set, this default is used (empty list is a safe fallback)
+api_cors_allowed_origins = []
 # ORCHESTRATOR SCHEDULE: 3 runs during market hours
 # Goal: Keep signals computed overnight, execute multiple times to catch opportunities + meet 4 PM ET close SLA
 # All runs use signals from previous night's EOD computation (no intraday signal recalc yet)

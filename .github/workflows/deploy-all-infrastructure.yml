@@ -180,6 +180,29 @@ jobs:
             echo "Trading mode: PAPER -- using paper keys"
           fi
 
+      - name: Discover CloudFront domain for CORS configuration
+        run: |
+          # Query existing CloudFront distribution to get the current domain
+          CLOUDFRONT_DOMAIN=$(aws cloudfront list-distributions \
+            --query 'DistributionList.Items[0].DomainName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ]; then
+            # Pass the CloudFront domain to Terraform for both CORS and auth redirects
+            HTTPS_DOMAIN="https://${CLOUDFRONT_DOMAIN}"
+            # Include localhost for local development testing
+            CORS_ORIGINS="[\"${HTTPS_DOMAIN}\", \"http://localhost:5173\", \"http://localhost:3000\"]"
+            echo "TF_VAR_api_cors_allowed_origins=${CORS_ORIGINS}" >> $GITHUB_ENV
+            echo "TF_VAR_frontend_origin=${HTTPS_DOMAIN}" >> $GITHUB_ENV
+            echo "[OK] Using CloudFront domain: ${CLOUDFRONT_DOMAIN}"
+          else
+            # If no CloudFront exists yet, use local development origins only
+            # (Terraform will create the distribution, but we can't know its domain in advance)
+            CORS_ORIGINS="[\"http://localhost:5173\", \"http://localhost:3000\"]"
+            echo "TF_VAR_api_cors_allowed_origins=${CORS_ORIGINS}" >> $GITHUB_ENV
+            echo "[WARN] No existing CloudFront found - will create new distribution"
+          fi
+
       - name: Delete Orphaned RDS Parameter Group
         run: |
           # Check if DB instance exists and is using this parameter group

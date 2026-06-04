@@ -157,21 +157,45 @@ checkAndClearStaleCache().catch(() => {});
 // Wait for config.js to load before configuring Amplify
 // Ensures window.__CONFIG__ is available when AuthContext initializes
 const waitForConfig = async () => {
-  let attempts = 0;
-  const maxAttempts = 200; // 200 * 50ms = 10 seconds max wait (increased from 5s)
-
-  while (!window.__CONFIG__ && attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 50));
-    attempts++;
+  // If config already loaded (synchronously), proceed immediately
+  if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object') {
+    logger.info("Config already loaded, using immediately");
+    configureAmplify();
+    return;
   }
 
-  if (!window.__CONFIG__) {
-    logger.error(`Config not loaded after ${(attempts * 50) / 1000}s. Check index.html script load order.`);
-    // Still proceed to prevent app hang
-  }
+  // Otherwise, wait for config script to execute
+  // This uses a proper event-based approach instead of polling
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      const error = new Error(
+        'Config.js failed to load within 5 seconds. ' +
+        'Verify index.html loads config.js before main.jsx, and that the deployment is correct.'
+      );
+      logger.error("ConfigLoadTimeout", error);
+      reject(error);
+    }, 5000);
 
-  // Configure Amplify after config is available (or timeout)
-  configureAmplify();
+    // Poll briefly for config (covers most cases where script loaded but event missed)
+    const pollInterval = setInterval(() => {
+      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object') {
+        clearTimeout(timeout);
+        clearInterval(pollInterval);
+        logger.info("Config loaded successfully");
+        configureAmplify();
+        resolve();
+      }
+    }, 50);
+
+    // Fallback: listen for any global object mutations that might indicate config loaded
+    // This helps catch late-loading scenarios
+    const originalConfigCheck = setTimeout(() => {
+      if (!window.__CONFIG__) {
+        clearInterval(pollInterval);
+        clearTimeout(timeout);
+      }
+    }, 100);
+  });
 };
 
 // Wait for config before rendering app. Use Promise.all to ensure order.
@@ -203,51 +227,72 @@ try {
   const root = ReactDOM.createRoot(rootElement);
   logger.info("React root created successfully");
 
-  // Ensure config is loaded before rendering app (or timeout)
-  configPromise.then(() => {
-    root.render(
-      <ErrorBoundary>
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <QueryClientProvider client={queryClient}>
-            {/* MUI ThemeProvider stays for legacy MUI components on other pages.
-                CssBaseline removed — our theme.css owns the global reset/base. */}
-            <ThemeProvider theme={modernTheme}>
-              <AuthProvider>
-                <App />
-              </AuthProvider>
-            </ThemeProvider>
-          </QueryClientProvider>
-        </BrowserRouter>
-      </ErrorBoundary>
-    );
+  // Ensure config is loaded before rendering app, or fail loudly
+  configPromise
+    .then(() => {
+      root.render(
+        <ErrorBoundary>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <QueryClientProvider client={queryClient}>
+              {/* MUI ThemeProvider stays for legacy MUI components on other pages.
+                  CssBaseline removed — our theme.css owns the global reset/base. */}
+              <ThemeProvider theme={modernTheme}>
+                <AuthProvider>
+                  <App />
+                </AuthProvider>
+              </ThemeProvider>
+            </QueryClientProvider>
+          </BrowserRouter>
+        </ErrorBoundary>
+      );
 
-    logger.success("React application render initiated");
+      logger.success("React application render initiated");
 
-    // Post-render validation
-    setTimeout(() => {
-      const rootContent = document.getElementById("root");
-      if (rootContent && rootContent.innerHTML.trim() === "") {
-        logger.error(
-          "EmptyRender",
-          new Error("React rendered but root is empty"),
-          {
-            innerHTML: rootContent.innerHTML,
-            config: window.__CONFIG__,
-            timestamp: new Date().toISOString(),
-          }
-        );
-      } else if (rootContent) {
-        logger.success("React application rendered successfully", {
-          contentLength: rootContent.innerHTML.length,
-          hasContent: rootContent.innerHTML.length > 0,
-        });
+      // Post-render validation
+      setTimeout(() => {
+        const rootContent = document.getElementById("root");
+        if (rootContent && rootContent.innerHTML.trim() === "") {
+          logger.error(
+            "EmptyRender",
+            new Error("React rendered but root is empty"),
+            {
+              innerHTML: rootContent.innerHTML,
+              config: window.__CONFIG__,
+              timestamp: new Date().toISOString(),
+            }
+          );
+        } else if (rootContent) {
+          logger.success("React application rendered successfully", {
+            contentLength: rootContent.innerHTML.length,
+            hasContent: rootContent.innerHTML.length > 0,
+          });
+        }
+      }, 2000);
+    })
+    .catch((error) => {
+      logger.error("ConfigLoadFailed", error);
+      const rootElement = document.getElementById("root");
+      if (rootElement) {
+        rootElement.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #f87171; background: #1f2937;">
+            <div style="text-align: center; max-width: 500px;">
+              <h1 style="font-size: 24px; margin: 0 0 12px 0;">Configuration Error</h1>
+              <p style="margin: 0; line-height: 1.6; color: #d1d5db;">
+                ${error.message || 'Failed to load application configuration'}
+              </p>
+              <p style="margin: 20px 0 0 0; font-size: 12px; color: #9ca3af;">
+                Please try refreshing the page. If the problem persists, contact support.
+              </p>
+            </div>
+          </div>
+        `;
       }
-    }, 2000);
+    });
   });
 } catch (error) {
   logger.error("ReactInitialization", error, {

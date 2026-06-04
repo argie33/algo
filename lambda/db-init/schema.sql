@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS stock_symbols (
     etf VARCHAR(5),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_etf ON stock_symbols(etf);
 
 -- Daily OHLCV price data
 CREATE TABLE IF NOT EXISTS price_daily (

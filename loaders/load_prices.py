@@ -507,7 +507,9 @@ def main():
             # max_symbols_limit=0 means no limit (loads all ~5000 symbols).
             # ECS task timeout is 12h which is sufficient for all symbols across all intervals.
             limit = max_symbols_limit if max_symbols_limit > 0 else None
-            symbols = get_active_symbols(max_symbols=limit, timeout_secs=120)
+            # Use 300s timeout (5 min) for symbol list query under EOD pipeline load
+            # Multiple loaders running concurrently can exhaust connection pool; allow extra time
+            symbols = get_active_symbols(max_symbols=limit, timeout_secs=300)
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
             if len(symbols) == 0:
                 logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
