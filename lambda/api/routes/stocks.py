@@ -3,9 +3,52 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging
 import re
+import time
 from .utils import error_response, list_response, json_response, safe_limit, safe_offset, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
+
+def _execute_with_retry(cur, timeout_sec: int, query: str, max_attempts: int = 2, backoff_multiplier: float = 1.5):
+    """Execute a query with retry logic and exponential backoff on timeout.
+
+    Args:
+        cur: Database cursor
+        timeout_sec: Initial timeout in seconds
+        query: SQL query to execute
+        max_attempts: Number of retry attempts (default 2 = 1 retry)
+        backoff_multiplier: Multiplier for timeout on each retry (default 1.5)
+
+    Returns: Query result (list of rows) or empty list on failure
+    """
+    current_timeout = timeout_sec
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            cur.execute(f"SET LOCAL statement_timeout = '{int(current_timeout * 1000)}ms'")
+            cur.execute(query)
+            return cur.fetchall()
+        except psycopg2.errors.QueryCanceled as e:
+            last_error = e
+            if attempt < max_attempts - 1:
+                current_timeout *= backoff_multiplier
+                logger.warning(
+                    f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout"
+                )
+                try:
+                    cur.connection.rollback()
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            else:
+                logger.warning(f"Query timeout after {max_attempts} attempts")
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Query failed ({type(e).__name__}): {str(e)}")
+            return []
+
+    logger.error(f"Query failed after retries: {last_error}")
+    return []
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     try:
@@ -41,8 +84,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             except Exception:
                 return list_response([])
             try:
-                cur.execute("SET statement_timeout TO '8s'")
-                cur.execute("""
+                deep_value_query = """
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
@@ -185,12 +227,16 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 CROSS JOIN market_median mm
                 ORDER BY generational_score DESC NULLS LAST
                 LIMIT %s
-            """, (limit,))
-                rows = cur.fetchall()
-                freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
-                return list_response([dict(r) for r in rows], data_freshness=freshness)
+                """ % limit
+
+                # Execute with retry logic and exponential backoff on timeout
+                rows = _execute_with_retry(cur, timeout_sec=8, query=deep_value_query, max_attempts=2, backoff_multiplier=1.5)
+                if rows:
+                    freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
+                    return list_response([dict(r) for r in rows], data_freshness=freshness)
+                return list_response([])
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                    psycopg2.errors.QueryCanceled, psycopg2.OperationalError, psycopg2.DatabaseError,
+                    psycopg2.errors.OperationalError, psycopg2.DatabaseError,
                     Exception) as e:
                 logger.error(f'deep-value query failed: {type(e).__name__}: {str(e)[:200]}')
                 return list_response([])
