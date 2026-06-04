@@ -1,5 +1,5 @@
 # ============================================================
-# Loaders Module - Outputs (All 40 Loaders)
+# Loaders Module - Outputs (All 37+ Loaders)
 # ============================================================
 
 output "loader_task_definition_arns" {
@@ -38,12 +38,12 @@ output "eventbridge_role_arn" {
 }
 
 output "all_loader_names" {
-  description = "List of all 40 configured loader names"
+  description = "List of all configured loader names (includes EOD pipeline + EventBridge scheduled loaders)"
   value       = keys(local.all_loaders)
 }
 
 output "scheduled_loader_names" {
-  description = "List of scheduled loader names (33 loaders)"
+  description = "List of scheduled loader names via EventBridge cron rules"
   value       = keys(local.scheduled_loaders)
 }
 

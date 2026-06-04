@@ -2,8 +2,8 @@
  * Loaders Module - ECS Task Definitions, EventBridge Scheduled Rules
  *
  * Creates:
- * - 36 ECS task definitions (data loaders)
- * - 26 EventBridge scheduled rules (staggered ET schedule)
+ * - 37 ECS task definitions (data loaders)
+ * - 27 EventBridge scheduled rules (staggered ET schedule)
  * - IAM roles for EventBridge and ECS task execution
  *
  * NOTE: 13 EOD-critical loaders are now triggered by Step Functions (modules/pipeline)
@@ -394,6 +394,12 @@ locals {
     "stock_scores" = {
       schedule    = "cron(30 21 ? * MON-FRI *)"
       description = "Multi-factor composite stock scores - Daily 5:30pm ET (after all metrics)"
+    }
+
+    # sector_ranking runs after stock_scores (depends on composite scores from stock_scores table)
+    "sector_ranking" = {
+      schedule    = "cron(0 22 ? * MON-FRI *)"
+      description = "Sector rankings by composite score - Daily 6:00pm ET (after stock_scores)"
     }
 
     # Earnings — run Sunday night only (data changes quarterly)
