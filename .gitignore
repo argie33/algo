@@ -71,6 +71,11 @@ yarn-error.log*
 !**/.env.*.example
 !**/.env.local.example
 
+# Frontend runtime config — NEVER commit with hardcoded URLs
+# Each environment (local/staging/production) generates its own config.js at build time
+webapp/frontend/public/config.js
+!webapp/frontend/public/config.example.js
+
 # Testing
 coverage/
 .nyc_output/
