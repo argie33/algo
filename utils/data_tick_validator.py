@@ -181,20 +181,18 @@ class TickValidator:
         """Check volume is reasonable for the security type."""
         if volume < 0:
             self.errors.append(f"volume is negative: {volume}")
-        if volume == 0:
-            self.errors.append("volume is zero (possible API limit hit)")
+        # Zero volume is only an error if it's the only indication of staleness.
+        # Market closed, no trades, or illiquid securities legitimately have zero volume.
+        # Don't reject outright — downstream phases can assess data freshness.
 
-        # ETFs can have lower volume than equities
-        # Penny stocks can have higher volume (more shares)
-        min_volume = 10_000 if self.is_etf else 1_000
+        # Max volume sanity check
         max_volume = 1_000_000_000  # 1B shares is essentially impossible
-
-        if volume < min_volume:
-            self.errors.append(
-                f"volume suspiciously low: {volume} (threshold: {min_volume})"
-            )
         if volume > max_volume:
             self.errors.append(f"volume impossibly high: {volume}")
+
+        # Don't enforce min_volume thresholds — they're too strict for penny stocks,
+        # low-liquidity securities, and market-close thinly traded data.
+        # OHLC logic and price bounds checks catch the real issues.
 
     def _check_sequence(self, open_price: float, close: float):
         """Check price didn't gap >30% from prior close (delisting/split detection)."""

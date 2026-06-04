@@ -204,6 +204,7 @@ class PriceLoader(OptimalLoader):
                 close=row.get('close'),
                 volume=row.get('volume'),
                 prior_close=prior_close,
+                is_etf=(self.asset_class == 'etf'),
             )
 
             if not is_valid:
@@ -560,7 +561,7 @@ def main():
                     stats = loader.run(run_symbols, parallelism=parallelism)
 
                 logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
-                total_stats["symbols_loaded"] += stats.get("symbols_loaded", 0)
+                total_stats["symbols_loaded"] += stats.get("symbols_processed", 0)
                 total_stats["symbols_failed"] += stats.get("symbols_failed", 0)
                 total_stats["rows_inserted"] += stats.get("rows_inserted", 0)
 

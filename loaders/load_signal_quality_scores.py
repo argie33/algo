@@ -219,13 +219,13 @@ class SignalQualityScoresLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load signal quality scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "4")), help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Parallel workers")
     parser.add_argument("--timeframe", type=str, default="daily", help="Timeframe (daily/weekly/monthly, ignored for quality scores)")
     parser.add_argument("--asset-class", type=str, default="stock", help="Asset class (stock/etf, ignored for quality scores)")
     args = parser.parse_args()
 
     try:
-        symbols = (args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60))
+        symbols = (args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=300))
         loader = SignalQualityScoresLoader()
         loader.run(symbols, parallelism=args.parallelism)
         logger.info("Signal quality scores load completed")
