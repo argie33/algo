@@ -142,6 +142,48 @@ def lambda_handler(event, context):
             os.environ['ORCHESTRATOR_EXECUTION_MODE'] = execution_mode
             logger.info(f"ORCHESTRATOR_EXECUTION_MODE set to {execution_mode} from event")
 
+        # Ensure sector_ranking schema is correct (has 'date' column, not 'date_recorded')
+        # This is a failsafe for when migrations don't run properly
+        try:
+            from utils.database_context import DatabaseContext
+            with DatabaseContext('write') as cur:
+                # Check if date column exists
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='sector_ranking' AND column_name='date'
+                    )
+                """)
+                has_date = cur.fetchone()[0]
+
+                if not has_date:
+                    logger.warning("[SCHEMA FIX] Adding 'date' column to sector_ranking...")
+                    # Check if date_recorded exists to migrate from
+                    cur.execute("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='sector_ranking' AND column_name='date_recorded'
+                        )
+                    """)
+                    has_date_recorded = cur.fetchone()[0]
+
+                    # Add date column
+                    cur.execute("ALTER TABLE sector_ranking ADD COLUMN date DATE")
+
+                    # Migrate data if needed
+                    if has_date_recorded:
+                        cur.execute("UPDATE sector_ranking SET date = date_recorded WHERE date IS NULL")
+                        cur.execute("ALTER TABLE sector_ranking DROP COLUMN date_recorded")
+                        logger.info("[SCHEMA FIX] Migrated date_recorded -> date")
+
+                    # Add constraint and indexes
+                    cur.execute("ALTER TABLE sector_ranking ALTER COLUMN date SET NOT NULL")
+                    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sector_ranking_unique ON sector_ranking(sector_name, date)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date DESC)")
+                    logger.info("[SCHEMA FIX] sector_ranking schema fixed successfully")
+        except Exception as e:
+            logger.warning(f"[SCHEMA FIX] Could not verify/fix sector_ranking schema: {e}. Continuing anyway...")
+
         # Create orchestrator instance
         orchestrator = Orchestrator(
             run_date=run_date,
