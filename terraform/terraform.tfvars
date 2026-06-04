@@ -39,7 +39,7 @@ cognito_sender_email             = ""     # SES sender email for password reset 
 
 # Database configuration
 rds_instance_class = "db.t4g.small" # REQUIRED for loader parallelism: Graviton t4g.small (2 vCPU, 2GB, ~100 max_connections) supports stock_prices parallelism=8 + concurrent loaders. Cost ~$25-30/month vs ~$10-15 for micro. t4g.micro cannot sustain 72+ concurrent connections (9 loaders × 8 parallelism).
-enable_rds_proxy = true # ENABLED: RDS Proxy multiplexes connections from 100 clients to ~100 backend connections. Required for efficient connection reuse at scale.
+enable_rds_proxy = false # TEMPORARILY DISABLED: Terraform AWS provider has compatibility issue with aws_db_proxy_default_target_group arguments. Direct RDS connection used for now.
 dev_mode = false # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
 
 # Data Freshness Monitoring (F-02 CRITICAL: Must be enabled for live trading)

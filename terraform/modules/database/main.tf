@@ -316,6 +316,7 @@ resource "aws_db_proxy_default_target_group" "main" {
   max_connections           = 200  # Increased from default 100: handles loader concurrency
   connection_borrow_timeout = 120  # Allow up to 120s wait for available connection
   session_pinning_filters   = []   # No pinning = full multiplexing for better resource utilization
+  init_query                = ""
 
   depends_on = [aws_db_proxy.main]
 }
