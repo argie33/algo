@@ -22,15 +22,16 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 result = {s: [] for s in sectors}
 
                 if sectors:
+                    placeholders = ','.join(['%s'] * len(sectors))
                     cur.execute("""
                         SELECT cp.sector, pd.date, AVG(pd.close) AS "avgPrice"
                         FROM price_daily pd
                         JOIN company_profile cp ON pd.symbol = cp.ticker
-                        WHERE cp.sector = ANY(%s)
+                        WHERE cp.sector IN ({})
                           AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                         GROUP BY cp.sector, pd.date
                         ORDER BY cp.sector, pd.date ASC
-                    """, (sectors, days))
+                    """.format(placeholders), tuple(sectors) + (days,))
                     for row in cur.fetchall():
                         r = dict(row)
                         sector_key = r['sector']
