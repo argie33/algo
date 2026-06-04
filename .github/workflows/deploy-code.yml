@@ -42,6 +42,7 @@ jobs:
       cognito_user_pool_id: ${{ steps.tf_outputs.outputs.cognito_user_pool_id }}
       cognito_user_pool_client_id: ${{ steps.tf_outputs.outputs.cognito_user_pool_client_id }}
       cognito_domain_url: ${{ steps.tf_outputs.outputs.cognito_domain_url }}
+      alpaca_api_base_url: ${{ steps.tf_outputs.outputs.alpaca_api_base_url }}
       terraform_backend_bucket: ${{ steps.tf_outputs.outputs.terraform_backend_bucket }}
       terraform_backend_key: ${{ steps.tf_outputs.outputs.terraform_backend_key }}
 
@@ -622,11 +623,12 @@ jobs:
           except Exception as e:
             print(f"WARNING: Could not read terraform.tfvars: {e} (defaulting to paper=True)")
 
-          apca_base_url = "https://paper-api.alpaca.markets" if paper_trading else "https://api.alpaca.markets"
+          apca_base_url = "${{ needs.resolve-infra.outputs.alpaca_api_base_url }}"
           trading_mode = "PAPER" if paper_trading else "LIVE"
 
           print(f"[OK] Credentials loaded: {db_host}:{db_port}/{db_name}")
           print(f"[OK] Trading mode: {trading_mode}")
+          print(f"[OK] Alpaca base URL: {apca_base_url}")
 
           # Deploy function code
           print("Deploying function code...")

@@ -11,10 +11,12 @@ const { query } = require("./database");
 // Import Alpaca service
 const AlpacaService = require("./alpacaService");
 
-// Default user ID for background syncs
-// In development, use 'dev_user' (matches auth.js line 28)
-// In production, this should be overridden by actual user_id from authenticated requests
-const DEFAULT_USER_ID = process.env.NODE_ENV === 'development' ? 'dev_user' : 'alpaca-user';
+// Default user ID for background syncs (must be valid Cognito sub UUID format)
+// Use environment variable, fall back to default UUIDs
+const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID ||
+  (process.env.NODE_ENV === 'development'
+    ? '00000000-0000-0000-0000-000000000001'
+    : '00000000-0000-0000-0000-000000000002');
 
 // Scheduler instance
 let syncScheduler = null;
@@ -133,15 +135,13 @@ async function performAlpacaSync() {
 
         await query(
           `INSERT INTO portfolio_performance
-          (user_id, date, total_value, daily_pnl, daily_pnl_percent, total_pnl, total_pnl_percent, created_at)
-          VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+          (user_id, date, total_value, total_gain_loss, total_return_pct, created_at)
+          VALUES ($1, CURRENT_DATE, $2, $3, $4, CURRENT_TIMESTAMP)
           ON CONFLICT (user_id, date) DO UPDATE SET
             total_value = $2,
-            daily_pnl = $3,
-            daily_pnl_percent = $4,
-            total_pnl = $5,
-            total_pnl_percent = $6`,
-          [DEFAULT_USER_ID, portfolioValue, dayChange, dayChangePercent, dayChange, dayChangePercent]
+            total_gain_loss = $3,
+            total_return_pct = $4`,
+          [DEFAULT_USER_ID, portfolioValue, dayChange, dayChangePercent]
         );
 
         lastSyncTime = now;

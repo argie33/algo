@@ -300,6 +300,11 @@ output "alpaca_paper_trading" {
   value       = var.alpaca_paper_trading
 }
 
+output "alpaca_api_base_url" {
+  description = "Alpaca API base URL (paper or live)"
+  value       = var.alpaca_api_base_url
+}
+
 output "execution_mode" {
   description = "Orchestrator execution mode (auto, paper, or live)"
   value       = var.execution_mode

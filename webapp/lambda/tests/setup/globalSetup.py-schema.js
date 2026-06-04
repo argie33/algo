@@ -148,34 +148,34 @@ module.exports = async () => {
       )
     `);
 
-    // Create portfolio_holdings table exactly matching Python setup_database_with_real_data.py
+    // Create portfolio_holdings table matching production schema.sql
     await query(`DROP TABLE IF EXISTS portfolio_holdings CASCADE`);
     await query(`
       CREATE TABLE portfolio_holdings (
         id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        quantity NUMERIC NOT NULL DEFAULT 0,
-        average_cost NUMERIC NOT NULL DEFAULT 0,
-        current_price NUMERIC DEFAULT 0,
-        last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        user_id VARCHAR(100) NOT NULL,
+        symbol VARCHAR(20) NOT NULL,
+        quantity DECIMAL(12, 4),
+        average_cost DECIMAL(12, 4),
+        current_price DECIMAL(12, 4),
+        market_value DECIMAL(15, 2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, symbol)
       )
     `);
 
-    // Create portfolio_performance table exactly matching Python setup_database_with_real_data.py
+    // Create portfolio_performance table matching production schema.sql
     await query(`DROP TABLE IF EXISTS portfolio_performance CASCADE`);
     await query(`
       CREATE TABLE portfolio_performance (
         id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        date DATE NOT NULL,
-        total_value NUMERIC NOT NULL DEFAULT 0,
-        daily_pnl NUMERIC DEFAULT 0,
-        total_pnl NUMERIC DEFAULT 0,
-        total_pnl_percent NUMERIC DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, date)
+        user_id VARCHAR(100) NOT NULL,
+        date DATE,
+        total_value DECIMAL(20, 2),
+        total_gain_loss DECIMAL(20, 2),
+        total_return_pct DECIMAL(8, 4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 

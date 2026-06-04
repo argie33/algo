@@ -44,10 +44,11 @@ Write-Host ""
 # Step 1: Find the EOD pipeline state machine
 Write-Host "📋 Finding EOD pipeline state machine..." -ForegroundColor Yellow
 try {
-    $stateMachines = aws stepfunctions list-state-machines `
+    $allStateMachines = aws stepfunctions list-state-machines `
         --region us-east-1 `
-        --query "stateMachines[?contains(name, 'EodBulk') || contains(name, 'eod')]" `
         2>$null | ConvertFrom-Json
+
+    $stateMachines = $allStateMachines.stateMachines | Where-Object { $_.name -like "*EodBulk*" -or $_.name -like "*eod*" }
 
     if ($stateMachines.Count -eq 0) {
         Write-Host "❌ No EOD pipeline state machine found. Check if Terraform deployed it." -ForegroundColor Red

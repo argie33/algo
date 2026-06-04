@@ -294,7 +294,6 @@ try {
         `;
       }
     });
-  });
 } catch (error) {
   logger.error("ReactInitialization", error, {
     phase: "main_render",
