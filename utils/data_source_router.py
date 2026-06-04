@@ -100,21 +100,30 @@ logger = logging.getLogger(__name__)
 # Global/shared rate limiters to prevent multiple DataSourceRouter instances from exceeding API limits
 # Multiple concurrent loaders each call DataSourceRouter, which would create multiple rate limiters.
 # Instead, use a single global limiter shared across all loaders to stay under yfinance's actual rate limits.
+# Set to 30 calls/min (2s minimum interval) to match yfinance_wrapper's conservative throttling
+# and account for yf.download() making multiple internal requests per visible API call.
 _GLOBAL_YFINANCE_LIMITER = None
 _GLOBAL_LIMITER_LOCK = threading.Lock()
 
 def get_global_yfinance_limiter():
-    """Get or create the global yfinance rate limiter (shared across all loaders)."""
+    """Get or create the global yfinance rate limiter (shared across all loaders).
+
+    Uses 30 calls/min (2s interval) to conservatively throttle requests and prevent
+    'Too Many Requests' (429) errors when multiple loaders run concurrently.
+    """
     global _GLOBAL_YFINANCE_LIMITER
     if _GLOBAL_YFINANCE_LIMITER is None:
         with _GLOBAL_LIMITER_LOCK:
             if _GLOBAL_YFINANCE_LIMITER is None:
                 try:
-                    # Use the module-imported limiter if available (shared instance from algo.algo_retry)
-                    _GLOBAL_YFINANCE_LIMITER = _MODULE_YFINANCE_LIMITER
-                except NameError:
-                    # Fallback if _MODULE_YFINANCE_LIMITER not defined
-                    _GLOBAL_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=200)
+                    # For per-process rate limiting, create a conservative limiter
+                    # Don't use _MODULE_YFINANCE_LIMITER (400/min) as it's too aggressive
+                    # Each ECS loader task has its own process, and when 4 run concurrently,
+                    # 400 calls/min per task = 1600 total, which triggers rate limits
+                    _GLOBAL_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=30)
+                except Exception:
+                    # Fallback if _RateLimiter not available
+                    _GLOBAL_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=30)
     return _GLOBAL_YFINANCE_LIMITER
 
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
@@ -266,19 +275,23 @@ class DataSourceRouter:
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
+        # Apply aggressive rate limiting: wait at least 2 seconds between yfinance requests
+        # This matches the yfinance_wrapper's conservative throttling and prevents
+        # multiple concurrent loaders from overwhelming Yahoo Finance's per-IP rate limits
+        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
-            # Use the yfinance_wrapper's throttling (semaphore + 2s min interval)
-            # This is more aggressive than the global limiter and prevents crumb invalidation
-            from utils.yfinance_wrapper import YFinanceWrapper
             def do_download():
-                # Fetch data through wrapper's rate limiting mechanism
-                ticker = YFinanceWrapper.get_ticker(yf_symbol)
-                if not ticker:
-                    return None
-                return ticker.history(start=start, end=end, interval=interval, auto_adjust=False)
-            logger.debug(f"[yfinance] Calling ticker.history for {yf_symbol} with 120s timeout (AWS VPC)")
+                return yf.download(
+                    yf_symbol,
+                    start=start,
+                    end=end,
+                    interval=interval,
+                    auto_adjust=False,
+                    progress=False,
+                )
+            logger.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
             hist = _call_with_timeout(do_download, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
@@ -333,23 +346,20 @@ class DataSourceRouter:
         if not symbols:
             return {}
 
+        # Apply aggressive rate limiting for batch operations too
+        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
 
         # Convert symbols to yfinance format
         yf_symbols = [sym.replace('.', '-') if '.' in sym else sym for sym in symbols]
 
         try:
-            # Use the yfinance_wrapper's session and aggressive throttling
-            from utils.yfinance_wrapper import YFinanceWrapper
             def do_download():
-                wrapper = YFinanceWrapper()
-                session = wrapper.get_session()
                 return yf.download(
                     yf_symbols,
                     start=start,
                     end=end,
                     interval=interval,
-                    session=session if session else None,
                     auto_adjust=False,
                     progress=False,
                 )
