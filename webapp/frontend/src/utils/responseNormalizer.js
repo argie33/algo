@@ -33,9 +33,10 @@ export const extractData = (response) => {
     throw new Error(data.message || 'API request failed');
   }
 
-  // If statusCode indicates error (new format from routes)
-  if (data.statusCode >= 400) {
-    throw new Error(data.message || data.errorType || `API error: ${data.statusCode}`);
+  // Check HTTP status from axios response object (statusCode was removed by lambda handler)
+  const httpStatus = response.status !== undefined ? response.status : data.statusCode;
+  if (httpStatus >= 400) {
+    throw new Error(data.message || data.errorType || `API error: ${httpStatus}`);
   }
 
   // Priority order for extracting data:
@@ -81,9 +82,10 @@ export const extractPaginatedData = (response) => {
     throw new Error(data.message || 'API request failed');
   }
 
-  // If statusCode indicates error (new format from routes)
-  if (data.statusCode >= 400) {
-    throw new Error(data.message || data.errorType || `API error: ${data.statusCode}`);
+  // Check HTTP status from axios response object (statusCode was removed by lambda handler)
+  const httpStatus = response.status !== undefined ? response.status : data.statusCode;
+  if (httpStatus >= 400) {
+    throw new Error(data.message || data.errorType || `API error: ${httpStatus}`);
   }
 
   // Extract items (should be array, not full envelope) — default to empty array for safety
