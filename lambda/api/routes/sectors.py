@@ -186,7 +186,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         SELECT sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
                         FROM sector_ranking
                         WHERE CASE WHEN (SELECT COUNT(*) FROM sector_ranking) > 0
-                                   THEN date = (SELECT MAX(date) FROM sector_ranking)
+                                   THEN sector_ranking.date = (SELECT MAX(date) FROM sector_ranking)
                                    ELSE FALSE END
                     )
                     SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile,
