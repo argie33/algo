@@ -48,6 +48,35 @@ This fetches fresh credentials from IaC (Secrets Manager) and updates your local
 - `print()` in: `algo_loader_*.py`, `algo_daily_report.py`, `scripts/`, `tests/`
 - Configuration files that are generated/static
 
+## Documentation Management (Preventing Accumulation)
+
+**Steering docs** (`steering/*.md`): PERMANENT only.
+- ✅ System architecture, infrastructure constraints, permanent procedures, troubleshooting, how-to guides
+- ❌ Session logs, incident status, "we did X on date Y", dated lists, timestamps (except in examples)
+- Lifetime: Until the system/procedure changes (rewrite, don't append dates)
+- Enforcement: Code review must reject dated language ("2026-06-01", "currently", "last", "just deployed")
+
+**Memory files** (`.claude/projects/*/memory/*.md`): Actionable NOW or delete.
+- ✅ Ongoing feedback/guidance, current project context, references to external systems
+- ❌ Historical incidents, completed fixes (they're in git log), resolved status, past dates
+- Process: After a fix ships, delete the memory file immediately. All context belongs in git commit history + steering docs if it becomes permanent procedure.
+- Enforcement: Pre-commit hook prevents committing memory files > 90 days old with "completed/fixed/resolved" in filename
+
+**Root-level files**: No session docs, logs, or one-time scripts (pre-commit enforced).
+- ❌ `STATUS_*.md`, `EXECUTION_*.md`, `*.log`, `test_*.py` (belongs in `tests/`), `check_*.py` (belongs in `scripts/`)
+- ✅ `CLAUDE.md`, `package.json`, `requirements.txt`, `Dockerfile`, `docker-compose.yml`
+
+**Quarterly cleanup** (first Monday of each quarter, during credential rotation day):
+1. Scan `memory/` for files matching `*_*.md` with past dates (use `git log --follow`)
+2. Delete completed incident/fix/status memory files
+3. Scan `steering/` for dated language (grep for `2026-`, `as of `, `currently `, `just `, `last `)
+4. Rewrite any dated sections as permanent procedures or delete
+
+**Git log is authoritative.** When a fix ships:
+- Good commit message = source of truth for "what happened and why"
+- Memory file = temporary context holder only, delete after commit
+- Steering doc = permanent procedure if discovery is useful long-term, otherwise leave it to git history
+
 ## Security Baseline
 
 All projects follow:
