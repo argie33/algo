@@ -550,6 +550,12 @@ variable "cognito_custom_email_enabled" {
   default     = false
 }
 
+variable "cognito_sender_email" {
+  description = "SES-verified email address for sending Cognito messages"
+  type        = string
+  default     = "argeropolos@gmail.com"
+}
+
 # ============================================================
 # Algo Orchestrator Configuration
 # ============================================================

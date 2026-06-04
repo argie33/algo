@@ -12,6 +12,7 @@ module "cognito" {
   common_tags                    = local.common_tags
   cognito_test_user_email        = var.cognito_test_user_email
   cognito_custom_email_enabled   = var.cognito_custom_email_enabled
+  cognito_sender_email           = var.cognito_sender_email
   mfa_configuration              = var.cognito_mfa_configuration
   advanced_security_mode         = var.cognito_advanced_security_mode
 }
