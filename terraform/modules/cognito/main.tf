@@ -55,10 +55,12 @@ resource "aws_cognito_user_pool_client" "web_app" {
   user_pool_id    = aws_cognito_user_pool.stocks_trading.id
   generate_secret = false # No secret for public frontend apps
 
-  # Authentication flows (secure defaults)
-  # ALLOW_USER_SRP_AUTH: Secure Remote Password (cryptographic proof of identity, immune to password spray)
+  # Authentication flows
+  # ALLOW_USER_PASSWORD_AUTH: Direct username/password login (required for Amplify signIn)
+  # ALLOW_USER_SRP_AUTH: Secure Remote Password (cryptographic, immune to password spray)
   # ALLOW_REFRESH_TOKEN_AUTH: Exchange refresh token for new access token
   explicit_auth_flows = [
+    "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
