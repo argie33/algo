@@ -63,6 +63,10 @@ function extractGroupsFromIdToken(idToken) {
 
 // Auth reducer
 function authReducer(state, action) {
+  if (!action || typeof action.type === 'undefined') {
+    console.error('[AUTH] Reducer called with invalid action:', action);
+    return state;
+  }
   switch (action.type) {
     case AUTH_ACTIONS.LOADING:
       return {
