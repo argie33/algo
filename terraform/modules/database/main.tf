@@ -305,21 +305,17 @@ resource "aws_db_proxy" "main" {
   depends_on = [aws_db_instance.main]
 }
 
-# RDS Proxy target group — configures connection pooling for loaders
+# RDS Proxy default target group — configures connection pooling for loaders
 # Handles: 9 loaders × 2-3 parallelism (18-27 connections) + API + orchestrator
 # Max connections increased from default 100 to 200 to prevent exhaustion under load
-resource "aws_db_proxy_target_group" "main" {
-  count              = var.enable_rds_proxy ? 1 : 0
-  db_proxy_name      = aws_db_proxy.main[0].name
-  name               = "default"
-  db_parameter_group_name = "default"
+resource "aws_db_proxy_default_target_group" "main" {
+  count             = var.enable_rds_proxy ? 1 : 0
+  db_proxy_name     = aws_db_proxy.main[0].name
 
-  connection_pool_config {
-    max_idle_connections      = 50
-    max_connections           = 200  # Increased from default 100: handles loader concurrency
-    connection_borrow_timeout = 120  # Allow up to 120s wait for available connection
-    session_pinning_filters   = []   # No pinning = full multiplexing for better resource utilization
-  }
+  max_idle_connections      = 50
+  max_connections           = 200  # Increased from default 100: handles loader concurrency
+  connection_borrow_timeout = 120  # Allow up to 120s wait for available connection
+  session_pinning_filters   = []   # No pinning = full multiplexing for better resource utilization
 
   depends_on = [aws_db_proxy.main]
 }
@@ -330,7 +326,7 @@ resource "aws_db_proxy_target" "main" {
   target_group_name      = "default"
   db_instance_identifier = aws_db_instance.main.identifier
 
-  depends_on = [aws_db_proxy_target_group.main]
+  depends_on = [aws_db_proxy_default_target_group.main]
 }
 
 # ============================================================
