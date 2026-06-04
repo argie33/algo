@@ -602,7 +602,7 @@ locals {
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
 
     # FRED macro data — 42 economic series, 0.5s delay between requests to avoid 429 rate limiting
-    # NOTE: Docker image has FRED rate limit fix (0.5s delay) — force new task def registration to pull it
+    # NOTE: Docker image has FRED rate limit fix + LOADER_LOCKS_TABLE env var (2026-06-04T12:27)
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Trend template — compute-heavy scoring
