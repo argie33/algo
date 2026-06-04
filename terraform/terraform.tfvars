@@ -10,7 +10,7 @@ project_name = "algo"
 # or CORS will break silently. The CloudFront domain cannot be a Terraform variable here (circular dependency).
 # Current domain: d2u93283nn45h2.cloudfront.net (created 2026-05-29)
 # Keep in sync with actual CloudFront domain or update to current deployment URL.
-frontend_origin = "https://d2u93283nn45h2.cloudfront.net"
+frontend_origin = ""
 # Frontend deployment
 cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
 # API Gateway CORS configuration - Production ONLY
@@ -20,7 +20,7 @@ cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins i
 # Last updated: 2026-05-29. Check CloudFront distributions in AWS console to verify current domain.
 # NOTE: localhost origins for local development should be in terraform.local.tfvars (git-ignored).
 api_cors_allowed_origins = [
-  "https://d2u93283nn45h2.cloudfront.net"
+  # Value will be injected from TF_VAR_cloudfront_domain
 ]
 # ORCHESTRATOR SCHEDULE: 3 runs during market hours
 # Goal: Keep signals computed overnight, execute multiple times to catch opportunities + meet 4 PM ET close SLA
@@ -37,9 +37,9 @@ enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM E
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
 cognito_enabled                  = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
-cognito_test_user_email          = "edgebrookecapital@gmail.com" # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
+cognito_test_user_email          = "" # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
 cognito_custom_email_enabled     = true                        # Cognito custom message Lambda for professional emails via SES
-cognito_sender_email             = "argeropolos@gmail.com"     # SES sender email for password reset codes (must be verified in SES)
+cognito_sender_email             = ""     # SES sender email for password reset codes (must be verified in SES)
 
 # Database configuration
 rds_instance_class = "db.t4g.small" # REQUIRED for loader parallelism: Graviton t4g.small (2 vCPU, 2GB, ~100 max_connections) supports stock_prices parallelism=8 + concurrent loaders. Cost ~$25-30/month vs ~$10-15 for micro. t4g.micro cannot sustain 72+ concurrent connections (9 loaders × 8 parallelism).
@@ -90,27 +90,27 @@ developer_key_rotation_date = "2026-05-29"
 #   1. Enable 2FA in Google Account settings
 #   2. Generate app-specific password at myaccount.google.com/apppasswords
 #   3. Set the variables below:
-#     alert_smtp_host     = "smtp.gmail.com"
+#     alert_smtp_host     = ""
 #     alert_smtp_port     = 587
-#     alert_smtp_user     = "your-email@gmail.com"
+#     alert_smtp_user     = ""
 #     alert_smtp_password = "your-app-specific-password" (NOT your regular Gmail password)
-#     alert_smtp_from     = "your-email@gmail.com"
+#     alert_smtp_from     = ""
 #
 # Other SMTP Providers:
 #   Outlook/Office365: smtp.office365.com:587
 #   Custom SMTP: Your email provider's SMTP hostname and port
 #
 sns_alerts_enabled = true                    # Enable SNS topic for infrastructure alerts (Step Functions, RDS, CloudWatch)
-sns_alert_email    = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
-alert_email_address = "argeropolos@gmail.com" # Email for circuit breaker alerts (SNS topic subscription)
-alert_email_to     = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
+sns_alert_email    = "" # SNS email subscription for infrastructure alerts
+alert_email_address = "" # Email for circuit breaker alerts (SNS topic subscription)
+alert_email_to     = "" # Email recipients for direct SMTP alerts from orchestrator
 alert_webhook_url  = ""  # Leave blank (using email alerts)
 # SMTP configuration for email alerts (set all)
-alert_smtp_host     = "smtp.gmail.com"  # SMTP hostname for Gmail
+alert_smtp_host     = ""  # SMTP hostname for Gmail
 alert_smtp_port     = 587 # SMTP port (587 for TLS, 465 for SSL)
-alert_smtp_user     = "argeropolos@gmail.com"  # Gmail account for sending alerts
+alert_smtp_user     = ""  # Gmail account for sending alerts
 alert_smtp_password = ""  # SMTP password (use GitHub Secrets ALERT_SMTP_PASSWORD in CI/CD)
-alert_smtp_from     = "argeropolos@gmail.com" # From email address for alerts
+alert_smtp_from     = "" # From email address for alerts
 
 # ============================================================
 # COST OPTIMIZATION: Storage & Database
@@ -123,3 +123,5 @@ rds_multi_az = false  # COST OPTIMIZED: Single-AZ. Saves ~$15/month.
 # ============================================================
 cloudwatch_log_retention_days = 7   # Increased from 1: 1 day was too short to debug why orchestrator wasn't trading; 7 days covers a full week of runs
 api_gateway_log_retention_days = 3  # Increased from 1: enough to debug API issues across a few days
+
+

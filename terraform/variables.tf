@@ -487,7 +487,7 @@ variable "domain_name" {
 variable "cloudfront_domain" {
   description = "CloudFront domain name for frontend (e.g., d2u93283nn45h2.cloudfront.net). Used for Cognito callback and logout URLs."
   type        = string
-  default     = "d2u93283nn45h2.cloudfront.net"
+  default     = ""
 }
 
 variable "common_tags" {
@@ -553,7 +553,7 @@ variable "cognito_custom_email_enabled" {
 variable "cognito_sender_email" {
   description = "SES-verified email address for sending Cognito messages"
   type        = string
-  default     = "argeropolos@gmail.com"
+  default     = ""
 }
 
 # ============================================================
@@ -1154,4 +1154,5 @@ variable "db_init_code_file" {
   type        = string
   default     = "lambda_artifacts/db-init.zip"
 }
+
 
