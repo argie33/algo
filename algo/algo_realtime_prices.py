@@ -110,7 +110,7 @@ class RealtimePricingEngine:
             return {}
 
     def _fetch_alpaca_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Fetch latest quotes from Alpaca Data API."""
+        """Fetch latest quotes from Alpaca Data API using latest bars."""
         try:
             import alpaca_trade_api as tradeapi
             api = tradeapi.REST(key_id=os.getenv("APCA_API_KEY_ID"),
@@ -118,13 +118,17 @@ class RealtimePricingEngine:
                                base_url=os.getenv("APCA_API_BASE_URL"))
 
             quotes = {}
-            for symbol in symbols:
-                try:
-                    quote = api.get_last_quote(symbol)
-                    if quote:
-                        quotes[symbol] = (quote.ask + quote.bid) / 2
-                except Exception as e:
-                    logger.warning(f"Alpaca quote failed for {symbol}: {e}")
+            try:
+                barset = api.get_barset(symbols, "1Min", limit=1)
+                if barset:
+                    for symbol in symbols:
+                        if symbol in barset:
+                            bars = barset[symbol]
+                            if bars and len(bars) > 0:
+                                latest_bar = bars[-1]
+                                quotes[symbol] = (latest_bar.c + latest_bar.o) / 2
+            except Exception as e:
+                logger.warning(f"Alpaca barset failed: {e}")
             return quotes
 
         except ImportError:

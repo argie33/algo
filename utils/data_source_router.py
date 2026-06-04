@@ -37,8 +37,11 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 
 # Lazy import to avoid "No module named 'algo'" errors when sys.path isn't set up yet
 # Loaders set sys.path.insert(0, parent_dir) at module top, which happens before utils imports
+_MODULE_YFINANCE_LIMITER = None  # Will be set below
+
 try:
     from algo.algo_retry import retry, YFINANCE_LIMITER
+    _MODULE_YFINANCE_LIMITER = YFINANCE_LIMITER
 except ImportError:
     # Fallback implementations if algo module not available
     import functools
@@ -83,11 +86,9 @@ except ImportError:
                     time.sleep(self._min_interval - elapsed)
                 self._last_call = time.monotonic()
 
-    # Create a shared global instance for all loaders
-    # NOTE: Called at module import time, before loaders set sys.path
-    # If imported via fallback, this creates an instance with calls_per_minute=400
-    # If imported from algo.algo_retry, this is the pre-built YFINANCE_LIMITER = RateLimiter(400)
-    _MODULE_YFINANCE_LIMITER = YFINANCE_LIMITER
+    # Create a shared global instance for all loaders when algo module not available
+    # This provides a fallback rate limiter with calls_per_minute=400
+    _MODULE_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=400)
 
 try:
     import yfinance as yf
