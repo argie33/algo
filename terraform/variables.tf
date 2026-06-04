@@ -137,10 +137,10 @@ variable "rds_db_name" {
 variable "rds_instance_class" {
   description = "RDS instance type"
   type        = string
-  default     = "db.t3.micro"
+  default     = "db.t4g.small"
   validation {
     condition     = can(regex("^db\\.", var.rds_instance_class))
-    error_message = "Must be a valid RDS instance class (e.g., db.t3.micro)"
+    error_message = "Must be a valid RDS instance class (e.g., db.t4g.small)"
   }
 }
 
