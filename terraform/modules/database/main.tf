@@ -125,7 +125,8 @@ resource "aws_db_instance" "main" {
     Name = "${var.project_name}-db"
   })
 
-  # Prevent accidental destruction of data
+  # Force Terraform state refresh to detect instance_class change from t4g.micro to t4g.small
+  # Terraform state was out of sync - this forces redetection
   lifecycle {
     prevent_destroy = true
   }
