@@ -133,18 +133,18 @@ class FredEconomicDataLoader(OptimalLoader):
         failed_series = []
 
         for i, series_id in enumerate(SERIES):
-            # Conservative delay between requests: FRED API is aggressively rate limiting
-            # Previous: 0.5s was insufficient, resulting in 429 for all series
-            # New: 1.5s ensures ~0.67 req/sec (well under typical API limits)
+            # Very conservative delay between requests: FRED API has strict per-key rate limiting
+            # After hitting 429, key is blocked for extended period - require long delays between ALL requests
+            # 5s per request = 12 req/min, well under FRED's typical ~120 req/min per key
             if i > 0:
-                time.sleep(1.5)
+                time.sleep(5.0)
 
             logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
 
-            # Aggressive exponential backoff for rate limiting: up to 4 retries
-            # FRED is returning 429 on every request when rate limit is hit
-            max_retries = 4
-            base_delay = 2.0  # Start with 2s delay, double on each retry
+            # Extreme exponential backoff for rate limiting: up to 5 retries with very long waits
+            # FRED blocks key for minutes after hitting rate limit - need long resets
+            max_retries = 5
+            base_delay = 10.0  # Start with 10s, double on each retry (10s, 20s, 40s, 80s, 160s)
 
             success = False
             for attempt in range(max_retries):
