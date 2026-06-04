@@ -774,10 +774,10 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "ALERT_WEBHOOK_URL"
           value = var.alert_webhook_url
         },
-        # Force task definition re-registration (2026-06-04 12:58 UTC)
+        # Force task definition re-registration (2026-06-04 13:45 UTC - rebuild after algo/ Dockerfile fix)
         {
           name  = "TASK_DEFINITION_VERSION_TIMESTAMP"
-          value = "2026-06-04T12:58:00Z"
+          value = "2026-06-04T13:45:00Z"
         }
         ],
         # Unified price loader: handles all intervals and asset classes

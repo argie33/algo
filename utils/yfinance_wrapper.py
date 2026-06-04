@@ -20,19 +20,22 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Global per-process rate limiter: prevents >2 concurrent requests and enforces
+# Global per-process rate limiter: prevents concurrent requests and enforces
 # a minimum interval between consecutive requests. This reduces Yahoo Finance
 # crumb invalidation when multiple threads share the same ECS task.
-_yf_semaphore = threading.Semaphore(2)
+# CRITICAL: Each ECS task runs one loader, so this per-process limit applies to
+# all symbols processed by that loader in parallel. Analytics loaders with 5000+ symbols
+# and parallelism=2 need aggressive throttling to avoid rate limits.
+_yf_semaphore = threading.Semaphore(1)  # Reduced from 2 to 1 for stricter control
 _yf_rate_lock = threading.Lock()
 _yf_last_request_time = [0.0]  # list for mutable access across threads
-_YF_MIN_INTERVAL_SECS = 0.5    # 500ms between requests
+_YF_MIN_INTERVAL_SECS = 2.0    # Increased from 0.5s to 2s (1 req/2s = ~1800 req/hour)
 
-# When Yahoo bans this process (all retries exhausted with 401), pause the
+# When Yahoo bans this process (all retries exhausted with 401/429), pause the
 # entire process briefly so the shared IP can cool down before next attempt.
 _yf_ban_lock = threading.Lock()
 _yf_ban_until = [0.0]
-_YF_BAN_COOLDOWN_SECS = 30  # pause 30s when Yahoo bans our IP
+_YF_BAN_COOLDOWN_SECS = 120  # Increased from 30s to 120s (2 min) when Yahoo bans our IP
 
 
 def _throttled_yf_request(fn):
@@ -119,15 +122,21 @@ class YFinanceWrapper:
             except Exception as e:
                 error_str = str(e).lower()
 
-                if 'invalid crumb' in error_str or '401' in error_str or 'unauthorized' in error_str or 'too many requests' in error_str:
-                    logger.warning(f"Auth error for {symbol} (attempt {attempt + 1}): {e}")
+                if 'invalid crumb' in error_str or '401' in error_str or '429' in error_str or 'unauthorized' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                    logger.warning(f"Auth/rate-limit error for {symbol} (attempt {attempt + 1}): {e}")
 
                     # Reset session so next attempt gets a fresh crumb
                     cls._session = None
                     cls._last_session_time = 0
 
                     if attempt < max_retries - 1:
-                        base_wait = 2 * (2 ** attempt)  # 2s, 4s, 8s, 16s, 32s
+                        # For rate-limit errors (429), use longer backoff to respect API limits
+                        if '429' in error_str or 'too many requests' in error_str or 'rate' in error_str:
+                            base_wait = 10 * (2 ** attempt)  # 10s, 20s, 40s, 80s, 160s for rate limits
+                            logger.warning(f"Rate-limited for {symbol}, backing off {base_wait + random.uniform(0, base_wait * 0.2):.0f}s...")
+                        else:
+                            base_wait = 2 * (2 ** attempt)  # 2s, 4s, 8s, 16s, 32s for auth errors
+
                         jitter = random.uniform(0, base_wait * 0.2)
                         wait_time = base_wait + jitter
                         logger.info(f"Retrying {symbol} in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})...")

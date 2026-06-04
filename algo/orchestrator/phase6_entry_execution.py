@@ -311,7 +311,7 @@ def _validate_pre_trade_data_quality(
 
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-                (today,)
+                (price_check_date,)
             )
             result = cur.fetchone()
             covered = result[0] if result else 0

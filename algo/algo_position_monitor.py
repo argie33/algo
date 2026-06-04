@@ -578,9 +578,9 @@ class PositionMonitor:
             WHERE position_id = %s
             """,
             (
-                rec['current_price'], rec['quantity'], rec['current_price'],
-                rec['current_price'], rec['current_price'],
-                rec['days_held'], rec['position_id'],
+                float(rec['current_price']), float(rec['quantity']), float(rec['current_price']),
+                float(rec['current_price']), float(rec['current_price']),
+                int(rec['days_held']), rec['position_id'],
             ),
         )
         # Log the review to audit (same transaction)
