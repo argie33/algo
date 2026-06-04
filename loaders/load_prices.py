@@ -96,6 +96,9 @@ class PriceLoader(OptimalLoader):
         """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
 
         Returns: dict[symbol] -> rows or None
+
+        Fallback: If batch API fails, fall back to per-symbol fetching to ensure
+        we don't lose an entire batch of symbols to a transient API error.
         """
         from algo.algo_market_calendar import MarketCalendar
 
@@ -112,7 +115,20 @@ class PriceLoader(OptimalLoader):
             return {s: None for s in symbols}
 
         # Batch fetch from router
-        return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+        try:
+            return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+        except Exception as e:
+            # Fallback: If batch fails, fetch per-symbol to avoid losing entire batch
+            logger.warning(f"Batch fetch failed ({len(symbols)} symbols): {e}. Falling back to per-symbol fetch.")
+            results = {}
+            for symbol in symbols:
+                try:
+                    rows = self._try_fetch(symbol, start, end)
+                    results[symbol] = rows
+                except Exception as sym_err:
+                    logger.warning(f"Per-symbol fallback for {symbol} also failed: {sym_err}")
+                    results[symbol] = None
+            return results
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
         """Try to fetch data from yfinance with retry logic for transient failures."""
