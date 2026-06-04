@@ -2008,6 +2008,7 @@ CREATE INDEX IF NOT EXISTS idx_analyst_symbol ON analyst_upgrade_downgrade(symbo
 CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date);
 CREATE INDEX IF NOT EXISTS idx_trend_template_symbol ON trend_template_data(symbol);
 CREATE INDEX IF NOT EXISTS idx_trend_template_date ON trend_template_data(date);
+CREATE INDEX IF NOT EXISTS idx_trend_template_symbol_date ON trend_template_data(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_vcp_patterns_symbol_date ON vcp_patterns(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_signal_quality_symbol_date ON signal_quality_scores(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_algo_signals_evaluated_date ON algo_signals_evaluated(signal_date);
