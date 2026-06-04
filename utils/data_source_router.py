@@ -35,6 +35,26 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable, Deque, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
+# Rate limiter class - used globally for all yfinance requests
+import functools
+import threading
+
+class _RateLimiter:
+    """Rate limiter for yfinance API requests."""
+    def __init__(self, calls_per_minute):
+        self._min_interval = 60.0 / calls_per_minute
+        self._lock = threading.Lock()
+        self._last_call = 0.0
+
+    def wait(self):
+        import time
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last_call
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+            self._last_call = time.monotonic()
+
 # Lazy import to avoid "No module named 'algo'" errors when sys.path isn't set up yet
 # Loaders set sys.path.insert(0, parent_dir) at module top, which happens before utils imports
 _MODULE_YFINANCE_LIMITER = None  # Will be set below
@@ -44,9 +64,6 @@ try:
     _MODULE_YFINANCE_LIMITER = YFINANCE_LIMITER
 except ImportError:
     # Fallback implementations if algo module not available
-    import functools
-    import threading
-
     def retry(max_attempts=3, base_delay=1.0, max_delay=60.0, backoff=2.0, jitter=True, exceptions=(Exception,)):
         """Simple retry decorator."""
         def decorator(fn):
@@ -69,22 +86,6 @@ except ImportError:
                         delay *= backoff
             return wrapper
         return decorator
-
-    # Fallback rate limiter (400 calls/min for yfinance)
-    class _RateLimiter:
-        def __init__(self, calls_per_minute):
-            self._min_interval = 60.0 / calls_per_minute
-            self._lock = threading.Lock()
-            self._last_call = 0.0
-
-        def wait(self):
-            import time
-            with self._lock:
-                now = time.monotonic()
-                elapsed = now - self._last_call
-                if elapsed < self._min_interval:
-                    time.sleep(self._min_interval - elapsed)
-                self._last_call = time.monotonic()
 
     # Create a shared global instance for all loaders when algo module not available
     # This provides a fallback rate limiter with calls_per_minute=400
