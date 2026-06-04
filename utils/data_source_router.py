@@ -459,10 +459,15 @@ class DataSourceRouter:
 
     def _yf_balance_sheet(self, symbol: str, period: str):
         try:
+            from utils.yfinance_wrapper import get_ticker
+
             def fetch():
-                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
-                ticker = yf.Ticker(yf_symbol)
+                # Use wrapper's get_ticker to ensure rate-limited access
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    return None
                 return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
+
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
                 return None
@@ -473,10 +478,15 @@ class DataSourceRouter:
 
     def _yf_income(self, symbol: str, period: str):
         try:
+            from utils.yfinance_wrapper import get_ticker
+
             def fetch():
-                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
-                ticker = yf.Ticker(yf_symbol)
+                # Use wrapper's get_ticker to ensure rate-limited access
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    return None
                 return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
+
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
                 return None
@@ -487,10 +497,15 @@ class DataSourceRouter:
 
     def _yf_cash_flow(self, symbol: str, period: str):
         try:
+            from utils.yfinance_wrapper import get_ticker
+
             def fetch():
-                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
-                ticker = yf.Ticker(yf_symbol)
+                # Use wrapper's get_ticker to ensure rate-limited access
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    return None
                 return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
+
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
                 return None
