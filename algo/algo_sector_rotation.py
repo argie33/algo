@@ -62,9 +62,9 @@ class SectorRotationDetector:
                     SELECT sector_name, current_rank, momentum_score,
                            rank_1w_ago, rank_4w_ago, rank_12w_ago
                     FROM sector_ranking
-                    WHERE date_recorded = (
-                        SELECT MAX(date_recorded) FROM sector_ranking
-                        WHERE date_recorded <= %s
+                    WHERE date = (
+                        SELECT MAX(date) FROM sector_ranking
+                        WHERE date <= %s
                     )
                     AND sector_name <> '' AND sector_name IS NOT NULL
                     AND sector_name <> 'Benchmark'
