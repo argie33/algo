@@ -11,8 +11,38 @@ import logging
 import socket
 import os
 import subprocess
+import sys
+from pathlib import Path
 
-from config.credential_manager import get_db_config
+# Add project root to path for imports to work in both local dev and Lambda
+# In Lambda: /var/task is already in path, credential_manager is in /var/task/config/
+# In local dev: need to add the project root so config.credential_manager can be found
+project_root = str(Path(__file__).resolve().parent.parent.parent.parent)  # algo/lambda/api/utils -> algo/
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Try importing with fallback strategies
+try:
+    from config.credential_manager import get_db_config
+except ImportError as import_err:
+    # Fallback 1: Direct import from config directory
+    try:
+        config_path = str(Path(__file__).resolve().parent.parent.parent.parent / 'config')
+        if config_path not in sys.path:
+            sys.path.insert(0, config_path)
+        from credential_manager import get_db_config
+    except ImportError:
+        # Fallback 2: Environment-based credential loading
+        # This allows the API to work even without the credential_manager module
+        def get_db_config():
+            return {
+                'host': os.getenv('DB_HOST'),
+                'port': int(os.getenv('DB_PORT', '5432')),
+                'user': os.getenv('DB_USER', 'stocks'),
+                'password': os.getenv('DB_PASSWORD'),
+                'database': os.getenv('DB_NAME', 'stocks'),
+            }
+        logging.warning("[DB_CONFIG] Using environment-only credential loading (credential_manager module not found)")
 
 logger = logging.getLogger(__name__)
 

@@ -19,29 +19,66 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import lambda_function
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import tempfile
+log_file = os.path.join(os.environ.get('TEMP', '/tmp'), 'dev_server.log')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(log_file, mode='w')
+    ]
+)
 logger = logging.getLogger(__name__)
+
+# Also write a marker to show the script started
+try:
+    with open(log_file, 'a') as f:
+        f.write("[DEV_SERVER_INIT] Script started\n")
+        f.flush()
+except:
+    pass
 
 class APIHandler(BaseHTTPRequestHandler):
     """HTTP request handler that routes to Lambda function."""
 
     def do_GET(self):
+        msg = f"[HTTP] GET {self.path}"
+        print(msg, flush=True)
+        logger.info(f'[HTTP_GET] {self.path}')
+        try:
+            with open(log_file, 'a') as f:
+                f.write(f"{msg}\n")
+                f.flush()
+        except:
+            pass
         self._handle_request('GET')
 
     def do_POST(self):
+        print(f"[HTTP] POST {self.path}", flush=True)
+        logger.info(f'[HTTP_POST] {self.path}')
         self._handle_request('POST')
 
     def do_PUT(self):
+        print(f"[HTTP] PUT {self.path}", flush=True)
+        logger.info(f'[HTTP_PUT] {self.path}')
         self._handle_request('PUT')
 
     def do_DELETE(self):
+        print(f"[HTTP] DELETE {self.path}", flush=True)
+        logger.info(f'[HTTP_DELETE] {self.path}')
         self._handle_request('DELETE')
 
     def do_PATCH(self):
+        print(f"[HTTP] PATCH {self.path}", flush=True)
+        logger.info(f'[HTTP_PATCH] {self.path}')
         self._handle_request('PATCH')
 
     def do_OPTIONS(self):
         """Handle CORS preflight."""
+        print(f"[HTTP] OPTIONS {self.path}", flush=True)
+        logger.info(f'[HTTP_OPTIONS] {self.path}')
         self.send_response(200)
         self._set_cors_headers()
         self.send_header('Content-Length', '0')
@@ -66,6 +103,9 @@ class APIHandler(BaseHTTPRequestHandler):
             parsed_url = urlparse(self.path)
             path = parsed_url.path
             query_string = parsed_url.query
+
+            # Very early logging
+            print(f"[DEV_SERVER] Handling {method} {path}", flush=True)
 
             # Get body
             content_length = int(self.headers.get('Content-Length', 0))
@@ -106,18 +146,30 @@ class APIHandler(BaseHTTPRequestHandler):
             if auth_header:
                 event['headers']['Authorization'] = auth_header
 
-            # Call Lambda handler
-            logger.info(f'{method} {path}')
+            # Call Lambda handler with timing info
+            logger.info(f'[REQ_START] {method} {path}')
+            import time
+            start = time.time()
             response = lambda_function.lambda_handler(event, None)
+            elapsed = time.time() - start
+            logger.info(f'[REQ_END] {method} {path} in {elapsed:.2f}s')
 
             # Parse response
             status_code = response.get('statusCode', 200)
             response_body = response.get('body', '{}')
             response_headers = response.get('headers', {})
 
+            # Encode response body
+            if isinstance(response_body, str):
+                response_body_bytes = response_body.encode('utf-8')
+            else:
+                response_body_bytes = response_body
+
             # Send response
             self.send_response(status_code)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(response_body_bytes)))
+
             # CORS headers come from lambda_function; don't double-send them
             cors_keys = {'access-control-allow-origin', 'access-control-allow-credentials',
                          'access-control-allow-methods', 'access-control-allow-headers'}
@@ -125,12 +177,13 @@ class APIHandler(BaseHTTPRequestHandler):
             if not has_cors:
                 self._set_cors_headers()
 
-            # Add response headers
+            # Add response headers (skip Content-Length if already in response_headers)
             for k, v in response_headers.items():
-                self.send_header(k, v)
+                if k.lower() != 'content-length':
+                    self.send_header(k, v)
 
             self.end_headers()
-            self.wfile.write(response_body.encode('utf-8') if isinstance(response_body, str) else response_body)
+            self.wfile.write(response_body_bytes)
 
         except Exception as e:
             logger.error(f'Error handling {method} {path}: {e}', exc_info=True)
