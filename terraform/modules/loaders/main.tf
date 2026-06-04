@@ -69,6 +69,35 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
 }
 
 # ============================================================
+# DynamoDB Table for Loader Distributed Locking
+# FIXED Issue #???: Prevent concurrent loader instances
+# ============================================================
+# Each loader acquires a 30-minute lock before running to prevent
+# duplicate processing if EventBridge fires while a loader is already running.
+# TTL auto-releases stale locks if a loader crashes.
+
+resource "aws_dynamodb_table" "loader_locks" {
+  name         = "${var.project_name}-loader-locks-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "lock_key"
+
+  attribute {
+    name = "lock_key"
+    type = "S"
+  }
+
+  # TTL: lock entries expire after 30 minutes (gives loaders time to complete, auto-releases crashes)
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-loader-locks"
+  })
+}
+
+# ============================================================
 # DynamoDB Table for Loader Execution Status
 # FIXED Issue #30: Separate loader status from lock TTL
 # ============================================================
@@ -712,6 +741,20 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "SEC_USER_AGENT"
           value = "algo-trading argeropolos@gmail.com"
+        },
+        # Distributed locking (required by OptimalLoader.load_global/load_symbol)
+        {
+          name  = "LOADER_LOCKS_TABLE"
+          value = aws_dynamodb_table.loader_locks.name
+        },
+        # Project/environment (required by credential_manager and lock table construction)
+        {
+          name  = "PROJECT_NAME"
+          value = var.project_name
+        },
+        {
+          name  = "ENVIRONMENT"
+          value = var.environment
         },
         # Alerting
         {
