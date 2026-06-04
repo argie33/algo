@@ -363,8 +363,8 @@ export const getStocks = async (params = {}) => {
       ...response.data,
       data: (response.data.items || []).map(item => ({
         ...item,
-        ticker: item.symbol, // Map symbol to ticker for compatibility
-        short_name: item.security_name || item.name, // Use security_name from API or fallback to name
+        ticker: item.symbol || '', // Map symbol to ticker (with fallback to empty string)
+        short_name: item.company_name || item.security_name || item.name || '', // Use company_name from API alias, fallback chain
       })),
     };
     // Cache successful response
