@@ -62,7 +62,6 @@ alpaca_api_base_url   = "https://paper-api.alpaca.markets"
 
 # ---- DATABASE: SAME SIZE AS DEV ----
 rds_instance_class          = "db.t4g.micro"
-enable_rds_proxy            = false
 rds_backup_retention_period = 1
 rds_multi_az                = false
 
@@ -99,9 +98,5 @@ api_lambda_timeout              = 300
 api_lambda_reserved_concurrency = 5
 algo_lambda_timeout             = 600
 
-# ---- ALPACA ----
-alpaca_api_base_url = "https://paper-api.alpaca.markets"
-
 # ---- MISC ----
 developer_key_rotation_date = "2026-05-29"
-rds_backup_retention_period = 1
