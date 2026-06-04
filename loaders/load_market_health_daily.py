@@ -321,7 +321,7 @@ INDEX_SYMBOLS_FOR_PRICE_DAILY = [
 
 
 def _write_vix_family_prices(start: date, end: date) -> int:
-    """Download VIX-family and market-index prices from yfinance and upsert into price_daily.
+    """Download VIX-family and market-index prices via wrapper and upsert into price_daily.
 
     Supplies data for:
     - VolTermStructureCard (^VIX9D / ^VIX3M / ^VIX6M)
@@ -329,18 +329,17 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     Returns the number of rows upserted.
     """
     try:
-        import yfinance as yf
+        from utils.yfinance_wrapper import YFinanceWrapper
 
         records = []
         for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:
             try:
-                df = yf.download(
-                    sym,
-                    start=start.isoformat(),
-                    end=(end + timedelta(days=1)).isoformat(),
-                    progress=False,
-                    auto_adjust=True,
-                )
+                ticker = YFinanceWrapper.get_ticker(sym)
+                if not ticker:
+                    logger.warning(f"Could not get ticker for {sym}")
+                    continue
+
+                df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
                 if df is None or df.empty:
                     logger.warning(f"No data for {sym}")
                     continue
@@ -349,7 +348,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     d = idx.date() if hasattr(idx, 'date') else date.fromisoformat(str(idx)[:10])
 
                     def _v(col):
-                        val = row.get(col)
+                        val = row.get(col) if hasattr(row, 'get') else row[col]
                         if val is None:
                             return None
                         if hasattr(val, '__len__'):
