@@ -2,14 +2,55 @@ name: Request SES Production Access
 
 on:
   workflow_dispatch:
+    inputs:
+      sender_email:
+        description: 'Email address to use for SES (leave blank to use AWS user identity)'
+        required: false
+        default: ''
+      expected_volume:
+        description: 'Expected email volume per day'
+        required: false
+        default: '50,000'
 
 jobs:
   document-request:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      - name: Generate SES Production Request Form Data
+      - uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: Get CloudFront domain
+        id: cloudfront
         run: |
+          DOMAIN=$(aws cloudfront list-distributions --query 'DistributionList.Items[0].DomainName' --output text 2>/dev/null || echo "")
+          if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "None" ]; then
+            echo "WARNING: Could not find CloudFront domain, using placeholder"
+            DOMAIN="<your-cloudfront-domain>"
+          fi
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "CloudFront domain: $DOMAIN"
+
+      - name: Generate SES Production Request Form Data
+        env:
+          SENDER_EMAIL: ${{ inputs.sender_email }}
+          EXPECTED_VOLUME: ${{ inputs.expected_volume }}
+        run: |
+          # Determine email to show in instructions
+          if [ -n "$SENDER_EMAIL" ]; then
+            EMAIL_TO_USE="$SENDER_EMAIL"
+          else
+            # Try to get AWS user identity
+            EMAIL_TO_USE=$(aws iam get-user --query 'User.UserName' --output text 2>/dev/null || echo "<your-email>")
+          fi
+
           cat > ses-production-request.md << 'EOF'
           # AWS SES Production Access Request
 
@@ -31,10 +72,10 @@ jobs:
           2. Click: **"Request production access"** button
 
           3. Fill the form with:
-             - **Email Address:** argeropolos@gmail.com
+             - **Email Address:** $EMAIL_TO_USE
              - **Use Case:** Authentication and password reset emails for stock trading platform
-             - **Website URL:** https://d2u93283nn45h2.cloudfront.net
-             - **Expected Volume:** 50,000 emails/day
+             - **Website URL:** https://${{ steps.cloudfront.outputs.domain }}
+             - **Expected Volume:** $EXPECTED_VOLUME emails/day
              - **Additional Details:**
                ```
                Application: Algo stock trading platform

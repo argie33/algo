@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
+import { ensureObject } from '../utils/dataValidation';
 
 /**
  * React Query wrapper with standardized error/loading/data handling.
@@ -60,7 +61,7 @@ export const useApiQuery = (
   } : null;
 
   return {
-    data: rawData,
+    data: ensureObject(rawData),
     loading: isLoading,
     error: enrichedError,
     isFetching: rest.isFetching,
