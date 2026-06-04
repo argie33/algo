@@ -601,7 +601,8 @@ locals {
     # Sector ranking — compute sector composite scores and rankings
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
 
-    # FRED macro data — small API calls, 5 time series
+    # FRED macro data — 42 economic series, 0.5s delay between requests to avoid 429 rate limiting
+    # NOTE: Docker image has FRED rate limit fix (0.5s delay) — force new task def registration to pull it
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
     # Trend template — compute-heavy scoring
