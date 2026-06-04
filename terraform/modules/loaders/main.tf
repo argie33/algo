@@ -608,7 +608,8 @@ locals {
 
     # FRED macro data — 42 economic series, 0.5s delay between requests to avoid 429 rate limiting
     # NOTE: Docker image has FRED rate limit fix + LOADER_LOCKS_TABLE env var (2026-06-04T12:27)
-    "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # UPDATED: Increased memory from 512MB to 1024MB to fix container crash (Exit code: None)
+    "fred_economic_data" = { cpu = 256, memory = 1024, timeout = 300, parallelism = 1 }
 
     # Trend template — compute-heavy scoring
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
