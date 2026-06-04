@@ -691,7 +691,7 @@ resource "aws_lambda_function" "loader_failure_handler" {
   filename         = "lambda/loader_failure_handler.zip"
   function_name    = "${var.project_name}-loader-failure-handler-${var.environment}"
   role             = var.algo_lambda_role_arn
-  handler          = "loader_failure_handler.lambda_handler"
+  handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
   timeout          = 60
   source_code_hash = filebase64sha256("lambda/loader_failure_handler.zip")

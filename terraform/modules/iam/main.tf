@@ -508,6 +508,7 @@ data "aws_iam_policy_document" "ecs_task_execution" {
     ]
 
     resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-db-credentials*",
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*"
     ]
   }
@@ -608,6 +609,7 @@ data "aws_iam_policy_document" "ecs_task" {
     ]
 
     resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-db-credentials*",
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*"
     ]
   }
