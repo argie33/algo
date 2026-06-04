@@ -218,11 +218,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
       # parallelism=8, batch=100, cpu=2048: ~1.5h expected (4× optimization), 4h timeout for safety.
-      # Timeout hierarchy: ECS container timeout (21600=6h) < Step Functions state timeout (14400=4h)
+      # Timeout hierarchy: ECS container timeout (25200=7h) < Step Functions state timeout (27000=7.5h)
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 14400
+        TimeoutSeconds = 27000
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -1188,3 +1188,5 @@ resource "aws_cloudwatch_metric_alarm" "pipeline_failed" {
   treat_missing_data  = "notBreaching"
   tags                = var.common_tags
 }
+
+
