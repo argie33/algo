@@ -112,8 +112,7 @@ resource "aws_db_instance" "main" {
   # Apply parameter changes during maintenance window to avoid production disruptions
   # Parameter group changes (max_connections, etc.) may require database reboot
   # Setting to false prevents mid-market reboots; changes apply during scheduled maintenance
-  # TEMPORARY: Set to true for RDS instance type change (t4g.micro -> t4g.small) to apply immediately
-  apply_immediately = true
+  apply_immediately = false
 
   # Deletion Protection — controlled explicitly, not by environment label
   deletion_protection = var.db_deletion_protection
