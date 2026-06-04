@@ -1,0 +1,55 @@
+name: Add User to Admin Group
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Username or email to add to admin group'
+        required: true
+        default: 'admin@stocks.local'
+
+jobs:
+  add_admin:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+
+      - name: Create admin group if it doesn't exist
+        run: |
+          POOL_ID="us-east-1_XJpLb9SKX"
+
+          # Try to create the group (will fail if exists, that's ok)
+          aws cognito-idp create-group \
+            --group-name admin \
+            --user-pool-id "$POOL_ID" \
+            --description "Administrator group" \
+            --region us-east-1 2>/dev/null || echo "Admin group already exists"
+
+      - name: Add user to admin group
+        run: |
+          POOL_ID="us-east-1_XJpLb9SKX"
+          USERNAME="${{ github.event.inputs.username }}"
+
+          echo "Adding $USERNAME to admin group..."
+          aws cognito-idp admin-add-user-to-group \
+            --user-pool-id "$POOL_ID" \
+            --username "$USERNAME" \
+            --group-name admin \
+            --region us-east-1
+
+          echo "✅ User added to admin group"
+
+          # Verify
+          echo ""
+          echo "Verifying membership..."
+          aws cognito-idp admin-list-groups-for-user \
+            --user-pool-id "$POOL_ID" \
+            --username "$USERNAME" \
+            --region us-east-1 | jq '.Groups[] | {GroupName, Description}'
