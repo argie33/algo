@@ -9,6 +9,7 @@ import os
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 import requests
+import time
 
 from utils.optimal_loader import OptimalLoader
 
@@ -130,39 +131,61 @@ class FredEconomicDataLoader(OptimalLoader):
 
         all_rows = []
 
-        for series_id in SERIES:
+        for i, series_id in enumerate(SERIES):
+            # Add delay between requests to avoid rate limiting (FRED allows ~10 requests/sec)
+            if i > 0:
+                time.sleep(0.15)
+
             logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
-            try:
-                params = {
-                    "series_id": series_id,
-                    "api_key": api_key,
-                    "file_type": "json",
-                    "observation_start": start_date,
-                    "observation_end": end_date,
-                    "sort_order": "asc",
-                }
-                resp = requests.get(FRED_BASE, params=params, timeout=30)
-                resp.raise_for_status()
-                observations = resp.json().get("observations", [])
 
-                for obs in observations:
-                    val_str = obs.get("value", ".")
-                    if val_str == ".":
-                        continue
-                    try:
-                        all_rows.append({
-                            'series_id': series_id,
-                            'date': obs["date"],
-                            'value': float(val_str)
-                        })
-                    except (ValueError, KeyError):
-                        continue
+            # Exponential backoff for rate limiting: up to 3 retries
+            max_retries = 3
+            base_delay = 0.5
 
-                logger.info(f"  {series_id}: {len([r for r in all_rows if r['series_id'] == series_id])} rows")
+            for attempt in range(max_retries):
+                try:
+                    params = {
+                        "series_id": series_id,
+                        "api_key": api_key,
+                        "file_type": "json",
+                        "observation_start": start_date,
+                        "observation_end": end_date,
+                        "sort_order": "asc",
+                    }
+                    resp = requests.get(FRED_BASE, params=params, timeout=30)
+                    resp.raise_for_status()
+                    observations = resp.json().get("observations", [])
 
-            except Exception as e:
-                logger.error(f"  {series_id}: FAILED — {e}")
-                continue
+                    for obs in observations:
+                        val_str = obs.get("value", ".")
+                        if val_str == ".":
+                            continue
+                        try:
+                            all_rows.append({
+                                'series_id': series_id,
+                                'date': obs["date"],
+                                'value': float(val_str)
+                            })
+                        except (ValueError, KeyError):
+                            continue
+
+                    logger.info(f"  {series_id}: {len([r for r in all_rows if r['series_id'] == series_id])} rows")
+                    break  # Success, exit retry loop
+
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 429:  # Rate limit
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt)
+                            logger.warning(f"  {series_id}: Rate limited (429), retrying in {delay}s (attempt {attempt + 1}/{max_retries})...")
+                            time.sleep(delay)
+                        else:
+                            logger.error(f"  {series_id}: FAILED after {max_retries} retries — {e}")
+                    else:
+                        logger.error(f"  {series_id}: FAILED — {e}")
+                        break  # Don't retry on non-rate-limit errors
+                except Exception as e:
+                    logger.error(f"  {series_id}: FAILED — {e}")
+                    break  # Don't retry on other exceptions
 
         return all_rows if all_rows else None
 
