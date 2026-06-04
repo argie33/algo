@@ -734,12 +734,6 @@ variable "rds_security_group_id" {
   default     = ""
 }
 
-variable "rds_proxy_endpoint" {
-  description = "RDS Proxy endpoint for Lambda DB connections (null if proxy disabled)"
-  type        = string
-  default     = null
-}
-
 # ============================================================
 # Weight Optimization Task Configuration
 # ============================================================

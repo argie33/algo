@@ -319,12 +319,6 @@ output "github_actions_role_arn" {
   value       = module.iam.github_actions_role_arn
 }
 
-output "rds_proxy_endpoint" {
-  description = "RDS Proxy endpoint (Lambda connects here, not direct RDS)"
-  value       = module.database.rds_proxy_endpoint
-  sensitive   = true
-}
-
 output "api_gateway_stage_name" {
   description = "API Gateway stage name (for frontend .env)"
   value       = module.services.api_gateway_stage_name

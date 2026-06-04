@@ -124,12 +124,6 @@ variable "rds_kms_key_id" {
   default     = null
 }
 
-variable "enable_rds_proxy" {
-  description = "Enable RDS Proxy for connection pooling (handles burst traffic and Lambda scaling)"
-  type        = bool
-  default     = true # Production should always use true for Lambda scalability
-}
-
 # ============================================================
 # Network Configuration
 # ============================================================

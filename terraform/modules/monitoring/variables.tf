@@ -138,12 +138,6 @@ variable "db_password" {
   sensitive   = true
 }
 
-variable "rds_proxy_endpoint" {
-  description = "RDS Proxy endpoint for secure database connections"
-  type        = string
-  default     = ""
-}
-
 variable "database_secret_arn" {
   description = "ARN of AWS Secrets Manager secret containing database credentials"
   type        = string

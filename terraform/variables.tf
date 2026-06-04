@@ -905,14 +905,8 @@ variable "require_terraform_tag" {
 }
 
 # ============================================================
-# RDS Proxy & KMS Configuration
+# RDS KMS Configuration
 # ============================================================
-
-variable "enable_rds_proxy" {
-  description = "Enable RDS Proxy for connection pooling"
-  type        = bool
-  default     = true
-}
 
 variable "enable_rds_kms_encryption" {
   description = "Enable KMS encryption for RDS (recommended for prod)"

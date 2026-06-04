@@ -117,7 +117,7 @@ resource "aws_lambda_function" "api" {
       # Database configuration (dynamic, all variables required for fallback path)
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
-      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_HOST       = split(":", var.rds_endpoint)[0]
       DB_PORT       = "5432"
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username
@@ -610,7 +610,7 @@ resource "aws_lambda_function" "algo" {
       # Database configuration (all vars required for fallback path when Secrets Manager unavailable)
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
-      DB_HOST       = var.rds_proxy_endpoint != null ? var.rds_proxy_endpoint : split(":", var.rds_endpoint)[0]
+      DB_HOST       = split(":", var.rds_endpoint)[0]
       DB_PORT       = "5432"
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username

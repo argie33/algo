@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(aws *)",
+      "PowerShell(aws *)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {

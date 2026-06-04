@@ -47,7 +47,7 @@ if ([string]::IsNullOrEmpty($TraderEmail)) {
 }
 
 Write-Host "========================================================================"
-Write-Host "  COGNITO USER & GROUP SETUP FOR ALGO TRADING PLATFORM"
+Write-Host "  COGNITO USER `& GROUP SETUP FOR ALGO TRADING PLATFORM"
 Write-Host "========================================================================"
 Write-Host ""
 Write-Host "Configuration:"

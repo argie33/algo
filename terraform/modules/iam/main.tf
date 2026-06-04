@@ -496,10 +496,10 @@ resource "aws_iam_role_policy" "ecs_task_execution" {
 }
 
 data "aws_iam_policy_document" "ecs_task_execution" {
-  # Secrets Manager (ECS task execution role needs database credentials only)
+  # Secrets Manager (ECS task execution role needs database + algo runtime secrets)
   # CRITICAL: Do NOT include algo/developer-credentials — privilege escalation vector
   statement {
-    sid    = "SecretsManagerDatabaseOnly"
+    sid    = "SecretsManagerDatabaseAndLoaderSecrets"
     effect = "Allow"
 
     actions = [
@@ -509,7 +509,8 @@ data "aws_iam_policy_document" "ecs_task_execution" {
 
     resources = [
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-db-credentials*",
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-algo-secrets*"
     ]
   }
 

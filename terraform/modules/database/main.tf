@@ -229,112 +229,7 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
 }
 
 # ============================================================
-# 4b. RDS Proxy IAM Role (Lambda Database Access)
-# ============================================================
-
-resource "aws_iam_role" "rds_proxy" {
-  count              = var.enable_rds_proxy ? 1 : 0
-  name               = "${var.project_name}-rds-proxy-${var.environment}"
-  assume_role_policy = data.aws_iam_policy_document.rds_proxy_assume[0].json
-
-  tags = var.common_tags
-}
-
-data "aws_iam_policy_document" "rds_proxy_assume" {
-  count = var.enable_rds_proxy ? 1 : 0
-
-  statement {
-    effect = "Allow"
-
-    principals {
-      type        = "Service"
-      identifiers = ["rds.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-resource "aws_iam_role_policy" "rds_proxy_secrets" {
-  count  = var.enable_rds_proxy ? 1 : 0
-  name   = "${var.project_name}-rds-proxy-secrets"
-  role   = aws_iam_role.rds_proxy[0].id
-  policy = data.aws_iam_policy_document.rds_proxy_secrets[0].json
-}
-
-data "aws_iam_policy_document" "rds_proxy_secrets" {
-  count = var.enable_rds_proxy ? 1 : 0
-
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "secretsmanager:DescribeSecret"
-    ]
-
-    resources = [aws_secretsmanager_secret.rds_credentials.arn]
-  }
-}
-
-# ============================================================
-# 4c. RDS Proxy (Connection Pooling)
-# ============================================================
-
-resource "aws_db_proxy" "main" {
-  count         = var.enable_rds_proxy ? 1 : 0
-  name          = "${var.project_name}-proxy"
-  debug_logging = false
-  engine_family = "POSTGRESQL"
-  auth {
-    auth_scheme = "SECRETS"
-    secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
-    iam_auth    = "DISABLED"
-  }
-
-  role_arn               = aws_iam_role.rds_proxy[0].arn
-  idle_client_timeout    = 600  # Close idle client connections after 10 min to free pool (was 1800s/30m)
-  require_tls            = true
-  vpc_subnet_ids         = var.private_subnet_ids
-  vpc_security_group_ids = [var.rds_security_group_id]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-proxy"
-  })
-
-  depends_on = [aws_db_instance.main]
-}
-
-# RDS Proxy default target group — TEMPORARILY DISABLED
-# TODO: Fix aws_db_proxy_default_target_group resource compatibility with Terraform AWS provider
-# The connection pool config arguments are not recognized by the current provider version
-# Handles: 9 loaders × 2-3 parallelism (18-27 connections) + API + orchestrator
-# Max connections increased from default 100 to 200 to prevent exhaustion under load
-#
-# resource "aws_db_proxy_default_target_group" "main" {
-#   count             = var.enable_rds_proxy ? 1 : 0
-#   db_proxy_name     = aws_db_proxy.main[0].name
-#
-#   max_idle_connections      = 50
-#   max_connections           = 200  # Increased from default 100: handles loader concurrency
-#   connection_borrow_timeout = 120  # Allow up to 120s wait for available connection
-#   session_pinning_filters   = []   # No pinning = full multiplexing for better resource utilization
-#   init_query                = ""
-#
-#   depends_on = [aws_db_proxy.main]
-# }
-#
-# resource "aws_db_proxy_target" "main" {
-#   count                  = var.enable_rds_proxy ? 1 : 0
-#   db_proxy_name          = aws_db_proxy.main[0].name
-#   target_group_name      = "default"
-#   db_instance_identifier = aws_db_instance.main.identifier
-#
-#   depends_on = [aws_db_proxy_default_target_group.main]
-# }
-
-# ============================================================
-# 5. Secrets Manager - Database Credentials
+# 4b. Secrets Manager - Database Credentials
 # ============================================================
 
 resource "aws_secretsmanager_secret" "rds_credentials" {
@@ -352,7 +247,7 @@ resource "aws_secretsmanager_secret_version" "rds_credentials" {
   secret_string = jsonencode({
     username = var.db_master_username
     password = local.rds_password
-    host     = var.enable_rds_proxy ? aws_db_proxy.main[0].endpoint : aws_db_instance.main.address
+    host     = aws_db_instance.main.address
     port     = aws_db_instance.main.port
     dbname   = aws_db_instance.main.db_name
     engine   = "postgresql"
@@ -638,17 +533,7 @@ resource "aws_cloudwatch_metric_alarm" "too_many_connections" {
 # Terraform no longer creates any db-init Lambda resources.
 
 # ============================================================
-# RDS Proxy - Connection Pooling (ENABLED BY DEFAULT)
-# ============================================================
-# Multiplexes many ECS task connections (40 loaders × 8 workers)
-# down to a smaller pool of actual DB connections (~20-30).
-# Cost: ~$0.015/hour for db.t3.micro
-# Benefit: Prevents connection limit errors, automatic failover
-# Status: ENABLED (var.enable_rds_proxy defaults to true)
-# To disable: Set enable_rds_proxy = false in terraform.tfvars if not needed for your scale
-
-# ============================================================
-# 11. Credential Rotation - RDS Database Passwords
+# 10. Credential Rotation - RDS Database Passwords
 # ============================================================
 # Automatically rotate database credentials every 30 days
 # Rotation happens in-place via RDS security group with no downtime

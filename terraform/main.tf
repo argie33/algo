@@ -67,7 +67,7 @@ module "secrets" {
   alpaca_api_key    = var.alpaca_api_key_id
   alpaca_api_secret = var.alpaca_api_secret_key
   fred_api_key      = var.fred_api_key
-  db_host           = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
+  db_host           = module.database.rds_address
   db_port           = local.db_port
   db_name           = var.rds_db_name
   db_user           = var.rds_username
@@ -98,7 +98,6 @@ module "database" {
   rds_password                    = var.rds_password
   rds_db_name                     = var.rds_db_name
   db_multi_az                     = var.rds_multi_az
-  enable_rds_proxy                = var.enable_rds_proxy
   enable_rds_kms_encryption       = var.enable_rds_kms_encryption
   rds_kms_key_id                  = var.rds_kms_key_alias != null ? "alias/${var.rds_kms_key_alias}" : null
   enable_rds_alarms               = var.enable_rds_alarms
@@ -176,7 +175,7 @@ module "loaders" {
   private_subnet_ids          = module.vpc.private_subnet_ids
   ecs_tasks_sg_id             = module.vpc.ecs_tasks_security_group_id
   db_secret_arn               = module.database.rds_credentials_secret_arn
-  db_host                     = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
+  db_host                     = module.database.rds_address
   db_port                     = local.db_port
   db_name                     = var.rds_db_name
   db_user                     = module.database.rds_username
@@ -214,7 +213,6 @@ module "services" {
   rds_credentials_secret_arn             = module.database.rds_credentials_secret_arn
   rds_password                           = module.database.rds_password
   rds_username                           = module.database.rds_username
-  rds_proxy_endpoint                     = module.database.rds_proxy_endpoint
   algo_secrets_arn                       = module.database.algo_secrets_arn
   psycopg2_layer_arn                     = module.database.psycopg2_layer_arn
   frontend_bucket_name                   = module.storage.frontend_bucket_name
@@ -336,7 +334,7 @@ module "pipeline" {
   execution_mode                        = var.execution_mode
   orchestrator_dry_run                  = var.orchestrator_dry_run
   orchestrator_log_level                = var.orchestrator_log_level
-  db_host                               = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
+  db_host                               = module.database.rds_address
   db_port                               = local.db_port
   db_name                               = var.rds_db_name
   alpaca_paper_trading                  = var.alpaca_paper_trading
@@ -366,11 +364,10 @@ module "monitoring" {
 
   # Database configuration
   rds_identifier        = module.database.rds_identifier
-  db_host               = coalesce(module.database.rds_proxy_endpoint, module.database.rds_address)
+  db_host               = module.database.rds_address
   db_user               = module.database.rds_username
   db_name               = module.database.rds_database_name
   db_password           = module.database.rds_password
-  rds_proxy_endpoint    = module.database.rds_proxy_endpoint
   database_secret_arn   = module.database.rds_credentials_secret_arn
   private_subnet_ids    = module.vpc.private_subnet_ids
   rds_security_group_id = module.vpc.rds_security_group_id
