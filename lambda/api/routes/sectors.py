@@ -183,11 +183,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         FROM sector_pe
                     ),
                     latest_sector_ranking AS (
-                        SELECT sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
+                        SELECT DISTINCT ON (sector_name) sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
                         FROM sector_ranking
-                        WHERE CASE WHEN (SELECT COUNT(*) FROM sector_ranking) > 0
-                                   THEN sector_ranking.date = (SELECT MAX(date) FROM sector_ranking)
-                                   ELSE FALSE END
+                        WHERE (SELECT COUNT(*) FROM sector_ranking) > 0
+                        ORDER BY sector_name, created_at DESC
                     )
                     SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile,
                            sr.rank_1w_ago, sr.rank_4w_ago, sr.rank_12w_ago
