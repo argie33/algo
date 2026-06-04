@@ -56,22 +56,38 @@ export const initializeApiConfig = () => {
   }
 };
 
-// If window.__CONFIG__ gets set after module init (due to Vite reordering), reinitialize on first use
-// Set up a timer to check if config has been loaded
+// If window.__CONFIG__ gets set after module init (due to Vite script loading order),
+// reinitialize API config when config.js loads.
+// Polling duration matches main.jsx config wait timeout (10 seconds).
 if (typeof window !== "undefined") {
   let initCheckCount = 0;
+  const CONFIG_POLL_TIMEOUT = 10000; // 10 seconds (matches main.jsx timeout)
+  const POLL_INTERVAL = 50; // 50ms polling
+  const MAX_CHECKS = Math.ceil(CONFIG_POLL_TIMEOUT / POLL_INTERVAL); // 200 checks
+
   const checkConfigInit = setInterval(() => {
     initCheckCount++;
-    if (typeof window !== "undefined" && window.__CONFIG__ && currentConfig.baseURL !== window.__CONFIG__.API_URL) {
-      console.log(`[API] Detected config.js loaded, reinitializing API config`);
+
+    // Check if config loaded and baseURL has changed
+    if (
+      typeof window !== "undefined" &&
+      window.__CONFIG__ &&
+      window.__CONFIG__.API_URL &&
+      currentConfig.baseURL !== window.__CONFIG__.API_URL
+    ) {
+      console.log(`[API] Config detected after module init, reinitializing baseURL`);
       initializeApiConfig();
       clearInterval(checkConfigInit);
     }
-    // Stop checking after 2 seconds (100 x 20ms checks)
-    if (initCheckCount > 100) {
+
+    // Stop checking after config load timeout (10 seconds)
+    if (initCheckCount >= MAX_CHECKS) {
       clearInterval(checkConfigInit);
+      if (!currentConfig.baseURL && typeof window !== "undefined" && !import.meta.env?.DEV) {
+        console.warn('[API] Config polling timeout: baseURL still not available after 10s');
+      }
     }
-  }, 20);
+  }, POLL_INTERVAL);
 }
 
 // Simple health check state

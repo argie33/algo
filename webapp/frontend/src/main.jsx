@@ -155,47 +155,53 @@ const checkAndClearStaleCache = async () => {
 checkAndClearStaleCache().catch(() => {});
 
 
-// Wait for config.js to load before configuring Amplify
-// Ensures window.__CONFIG__ is available when AuthContext initializes
+// Wait for config.js to load before configuring Amplify and rendering app.
+// Ensures window.__CONFIG__ is available when AuthContext initializes.
+// This is CRITICAL: API calls are blocked until this completes.
 const waitForConfig = async () => {
   // If config already loaded (synchronously), proceed immediately
-  if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object') {
+  if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && window.__CONFIG__.API_URL) {
     logger.info("Config already loaded, using immediately");
     configureAmplify();
     return;
   }
 
-  // Otherwise, wait for config script to execute
-  // This uses a proper event-based approach instead of polling
+  // Otherwise, wait for config script to execute with validation
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      const error = new Error(
-        'Config.js failed to load within 5 seconds. ' +
-        'Verify index.html loads config.js before main.jsx, and that the deployment is correct.'
-      );
-      logger.error("ConfigLoadTimeout", error);
-      reject(error);
-    }, 5000);
+    const CONFIG_TIMEOUT = 10000; // 10 seconds (increased from 5s for slow networks)
+    let configLoaded = false;
 
-    // Poll briefly for config (covers most cases where script loaded but event missed)
+    const timeout = setTimeout(() => {
+      if (!configLoaded) {
+        const error = new Error(
+          'Configuration failed to load within 10 seconds. ' +
+          'This usually means: (1) index.html is not loading config.js, ' +
+          '(2) config.js failed to deploy, or (3) network connectivity issue. ' +
+          'Check browser DevTools → Network tab for config.js load status.'
+        );
+        logger.error("ConfigLoadTimeout", error, {
+          configExists: !!window.__CONFIG__,
+          configType: typeof window.__CONFIG__,
+          configKeys: window.__CONFIG__ ? Object.keys(window.__CONFIG__) : [],
+        });
+        reject(error);
+      }
+    }, CONFIG_TIMEOUT);
+
+    // Poll for config with adaptive frequency
     const pollInterval = setInterval(() => {
-      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object') {
+      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && window.__CONFIG__.API_URL) {
+        configLoaded = true;
         clearTimeout(timeout);
         clearInterval(pollInterval);
-        logger.info("Config loaded successfully");
+        logger.info("Config loaded successfully", {
+          apiUrl: window.__CONFIG__.API_URL,
+          environment: window.__CONFIG__.ENVIRONMENT,
+        });
         configureAmplify();
         resolve();
       }
     }, 50);
-
-    // Fallback: listen for any global object mutations that might indicate config loaded
-    // This helps catch late-loading scenarios
-    const originalConfigCheck = setTimeout(() => {
-      if (!window.__CONFIG__) {
-        clearInterval(pollInterval);
-        clearTimeout(timeout);
-      }
-    }, 100);
   });
 };
 
