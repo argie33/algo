@@ -494,13 +494,13 @@ function SetupsTab({ scores, evaluated, error }) {
                       </span>
                     </td>
                     <td className="num strong mono">{(Number(s.swing_score) || 0).toFixed(1)}</td>
-                    <ScoreCell value={s.components.setup} max={25} />
-                    <ScoreCell value={s.components.trend} max={20} />
-                    <ScoreCell value={s.components.momentum} max={20} />
-                    <ScoreCell value={s.components.volume} max={12} />
-                    <ScoreCell value={s.components.fundamentals} max={10} />
-                    <ScoreCell value={s.components.sector} max={8} />
-                    <ScoreCell value={s.components.multi_tf} max={5} />
+                    <ScoreCell value={(s.components || {}).setup} max={25} />
+                    <ScoreCell value={(s.components || {}).trend} max={20} />
+                    <ScoreCell value={(s.components || {}).momentum} max={20} />
+                    <ScoreCell value={(s.components || {}).volume} max={12} />
+                    <ScoreCell value={(s.components || {}).fundamentals} max={10} />
+                    <ScoreCell value={(s.components || {}).sector} max={8} />
+                    <ScoreCell value={(s.components || {}).multi_tf} max={5} />
                     <td className="t-xs">{s.sector}</td>
                     <td className="t-2xs muted">{s.industry}</td>
                   </tr>
@@ -558,14 +558,14 @@ const ScoreCell = ({ value, max }) => {
 };
 
 const ScoreDetailExpanded = ({ details, _symbol }) => {
-  if (!details) return null;
-  const ent = Object.entries(details);
+  if (!details || typeof details !== 'object') return null;
+  const ent = Object.entries(details).filter(([_, v]) => v != null);
   return (
     <div className="grid grid-2" style={{ gap: 'var(--space-4)' }}>
       {ent.map(([key, info]) => (
         <div key={key}>
           <div className="t-xs mono strong" style={{ color: 'var(--brand)' }}>
-            {key.toUpperCase()}: {info?.pts?.toFixed?.(1) ?? '—'} / {info?.max ?? '—'}
+            {key.toUpperCase()}: {typeof info?.pts === 'number' ? info.pts.toFixed(1) : info?.pts ?? '—'} / {info?.max ?? '—'}
           </div>
           {info?.detail && (
             <div className="t-2xs muted mono" style={{ marginTop: 4 }}>
@@ -766,11 +766,13 @@ function PositionDetail({ p }) {
 // ============================================================================
 function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, circuitBreakers, lastRun }) {
   const loaders = dataStatus?.sources || [];
-  const funnelTiers = (rejectionFunnel?.funnel || []).map(f => ({
-    name: (f.stage || '').replace('All Signals Generated', 'All Signals').replace('Passed Quality Filters', 'Quality OK').replace(/High-Quality.*/, 'SQS ≥ 60'),
-    pass: f.count || 0,
-    reject: f.rejection_count || 0,
-  }));
+  const funnelTiers = (rejectionFunnel && Array.isArray(rejectionFunnel.funnel) ? rejectionFunnel.funnel : [])
+    .filter(f => f != null)
+    .map(f => ({
+      name: typeof f.stage === 'string' ? f.stage.replace('All Signals Generated', 'All Signals').replace('Passed Quality Filters', 'Quality OK').replace(/High-Quality.*/, 'SQS ≥ 60') : 'Unknown',
+      pass: Number(f.count) || 0,
+      reject: Number(f.rejection_count) || 0,
+    }));
   const overallStatus = dataStatus?.ready_to_trade ? 'ok' : dataQuality?.accuracy_check === 'warning' ? 'warning' : 'error';
   const statusColor2 = overallStatus === 'ok' ? 'var(--success)' : overallStatus === 'warning' ? 'var(--amber)' : 'var(--danger)';
 
