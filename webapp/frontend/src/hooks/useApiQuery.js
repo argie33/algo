@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
-import { safeExtractData, safeExtractPaginatedData, ensureArray } from '../utils/apiResponseHandler';
 
 /**
  * React Query wrapper with standardized error/loading/data handling.
@@ -22,7 +21,7 @@ export const useApiQuery = (
   {
     staleTime = 30000,
     gcTime = 10 * 60 * 1000,
-    retry = 2,
+    retry = 5,
     enabled = true,
     ...restOptions
   } = {}
@@ -43,9 +42,11 @@ export const useApiQuery = (
     retry: retry === false ? false : (failureCount, err) => {
       const status = err?.response?.status ?? err?.status;
       if (status === 401 || status === 403 || status === 404) return false;
+      // Retry on 5xx errors up to specified retry count (default 5)
+      // This handles transient failures during deployments/RDS restarts
       return failureCount < retry;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 60000),
     enabled,
     ...restOptions,
   });
@@ -85,7 +86,7 @@ export const useApiPaginatedQuery = (
   {
     staleTime = 30000,
     gcTime = 10 * 60 * 1000,
-    retry = 2,
+    retry = 5,
     enabled = true,
     ...restOptions
   } = {}
@@ -106,9 +107,11 @@ export const useApiPaginatedQuery = (
     retry: retry === false ? false : (failureCount, err) => {
       const status = err?.response?.status ?? err?.status;
       if (status === 401 || status === 403 || status === 404) return false;
+      // Retry on 5xx errors up to specified retry count (default 5)
+      // This handles transient failures during deployments/RDS restarts
       return failureCount < retry;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 60000),
     enabled,
     ...restOptions,
   });

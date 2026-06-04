@@ -42,17 +42,28 @@ export const extractData = (response) => {
   // Priority order for extracting data:
   // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
   if (Array.isArray(data.items)) {
-    return data;  // Return the full envelope, not just items
+    // Ensure items array is valid; filter out null/undefined entries
+    return {
+      ...data,
+      items: data.items.filter(item => item !== null && item !== undefined),
+      total: data.total || data.items.length,
+    };
   }
 
   // 2. data.data (nested structure)
-  if (data.data) {
+  if (data.data !== null && data.data !== undefined) {
     // Check if data.data has items (double-nested)
-    if (data.data.items) {
-      return data.data;  // Return the full nested object so components can access .items, .total, .pagination
+    if (Array.isArray(data.data.items)) {
+      return {
+        ...data.data,
+        items: data.data.items.filter(item => item !== null && item !== undefined),
+        total: data.data.total || data.data.items.length,
+      };
     }
-    // Return the data object itself
-    return data.data;
+    // Return the data object itself (ensure it's an object)
+    if (typeof data.data === 'object') {
+      return data.data;
+    }
   }
 
   // 3. The whole data object (if no items/data field)

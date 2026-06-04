@@ -139,29 +139,28 @@ if ("caches" in window) {
 }
 
 
-// FIXED: Wait for config.js to load before configuring Amplify
-// This ensures window.__CONFIG__ is available when AuthContext checks auth
+// Wait for config.js to load before configuring Amplify
+// Ensures window.__CONFIG__ is available when AuthContext initializes
 const waitForConfig = async () => {
   let attempts = 0;
-  const maxAttempts = 50; // 50 * 100ms = 5 seconds max wait
+  const maxAttempts = 200; // 200 * 50ms = 10 seconds max wait (increased from 5s)
 
   while (!window.__CONFIG__ && attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 50));
     attempts++;
   }
 
   if (!window.__CONFIG__) {
-    if (import.meta.env.DEV) {
-      console.warn("Config not loaded after 5 seconds, check index.html");
-    }
+    logger.error(`Config not loaded after ${(attempts * 50) / 1000}s. Check index.html script load order.`);
+    // Still proceed to prevent app hang
   }
 
-  // Configure Amplify after config is available
+  // Configure Amplify after config is available (or timeout)
   configureAmplify();
 };
 
-// Start waiting for config (non-blocking)
-waitForConfig().catch(() => configureAmplify());
+// Wait for config before rendering app. Use Promise.all to ensure order.
+const configPromise = waitForConfig();
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -189,49 +188,52 @@ try {
   const root = ReactDOM.createRoot(rootElement);
   logger.info("React root created successfully");
 
-  root.render(
-    <ErrorBoundary>
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        <QueryClientProvider client={queryClient}>
-          {/* MUI ThemeProvider stays for legacy MUI components on other pages.
-              CssBaseline removed — our theme.css owns the global reset/base. */}
-          <ThemeProvider theme={modernTheme}>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </ThemeProvider>
-        </QueryClientProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
-  );
+  // Ensure config is loaded before rendering app
+  configPromise.then(() => {
+    root.render(
+      <ErrorBoundary>
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <QueryClientProvider client={queryClient}>
+            {/* MUI ThemeProvider stays for legacy MUI components on other pages.
+                CssBaseline removed — our theme.css owns the global reset/base. */}
+            <ThemeProvider theme={modernTheme}>
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </ThemeProvider>
+          </QueryClientProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    );
 
-  logger.success("React application render initiated");
+    logger.success("React application render initiated");
 
-  // Post-render validation
-  setTimeout(() => {
-    const rootContent = document.getElementById("root");
-    if (rootContent && rootContent.innerHTML.trim() === "") {
-      logger.error(
-        "EmptyRender",
-        new Error("React rendered but root is empty"),
-        {
-          innerHTML: rootContent.innerHTML,
-          config: window.__CONFIG__,
-          timestamp: new Date().toISOString(),
-        }
-      );
-    } else if (rootContent) {
-      logger.success("React application rendered successfully", {
-        contentLength: rootContent.innerHTML.length,
-        hasContent: rootContent.innerHTML.length > 0,
-      });
-    }
-  }, 2000);
+    // Post-render validation
+    setTimeout(() => {
+      const rootContent = document.getElementById("root");
+      if (rootContent && rootContent.innerHTML.trim() === "") {
+        logger.error(
+          "EmptyRender",
+          new Error("React rendered but root is empty"),
+          {
+            innerHTML: rootContent.innerHTML,
+            config: window.__CONFIG__,
+            timestamp: new Date().toISOString(),
+          }
+        );
+      } else if (rootContent) {
+        logger.success("React application rendered successfully", {
+          contentLength: rootContent.innerHTML.length,
+          hasContent: rootContent.innerHTML.length > 0,
+        });
+      }
+    }, 2000);
+  });
 } catch (error) {
   logger.error("ReactInitialization", error, {
     phase: "main_render",

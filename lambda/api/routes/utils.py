@@ -173,27 +173,29 @@ def handle_db_error(error, logger, operation):
 
     Returns:
         Appropriate error_response tuple based on error type
-        Note: Always returns generic error message to client (never exposes DB details)
+        Note: Returns specific error types to client for diagnostics (never exposes DB details)
     """
     import psycopg2
 
-    # SECURITY FIX: Log full details server-side but never expose to client
+    # Log full details server-side for debugging
     error_type = type(error).__name__
     error_str = str(error)
 
     if isinstance(error, psycopg2.errors.UndefinedTable):
         logger.error(f'[DB_SCHEMA_ERROR] Table not found in {operation}: {error_str}')
-        # Generic message to client - don't expose table names
-        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
+        # Return specific error code for schema issues — clients can distinguish from connection errors
+        return error_response(503, 'schema_error', 'Database schema issue')
     elif isinstance(error, psycopg2.errors.UndefinedColumn):
         logger.error(f'[DB_SCHEMA_ERROR] Column not found in {operation}: {error_str}')
-        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
+        return error_response(503, 'schema_error', 'Database schema issue')
     elif isinstance(error, psycopg2.OperationalError):
         logger.error(f'[DB_CONNECTION_ERROR] Connection failed in {operation}: {error_str}')
-        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
+        # Return specific error code for connection issues
+        return error_response(503, 'connection_error', 'Database connection failed')
     elif isinstance(error, psycopg2.DatabaseError):
         logger.error(f'[DB_ERROR] Query failed in {operation}: {error_str}')
-        return error_response(503, 'service_unavailable', 'Service temporarily unavailable')
+        # Return specific error code for query execution issues
+        return error_response(503, 'query_error', 'Database query failed')
     else:
         logger.error(f'[UNEXPECTED_ERROR] {error_type} in {operation}: {error_str}')
-        return error_response(500, 'internal_error', 'Service temporarily unavailable')
+        return error_response(500, 'internal_error', 'Internal server error')

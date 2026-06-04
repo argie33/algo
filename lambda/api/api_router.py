@@ -36,7 +36,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 return handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
             except Exception as e:
                 logger.error(f"Public handler error for {path}: {e}", exc_info=True)
-                return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
+                return _format_handler_error(e)
 
     # Check authenticated handlers
     for prefix, handler in HANDLERS.items():
@@ -45,7 +45,29 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
                 return handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
-                # Return proper 500 error instead of silent 200+empty
-                # This ensures client-side and monitoring tools can detect failures
-                return {"statusCode": 500, "errorType": "error", "message": "Handler error"}
+                return _format_handler_error(e)
     return {"statusCode": 404, "errorType": "not_found", "message": "No handler"}
+
+
+def _format_handler_error(e):
+    """Format exception as error response with diagnostic details.
+
+    Returns error type to client for debugging without exposing sensitive details.
+    """
+    error_type = type(e).__name__
+    error_msg = str(e)
+
+    # Map common exception types to diagnostic error codes
+    if 'UndefinedTable' in error_type or 'UndefinedColumn' in error_type:
+        return {"statusCode": 503, "errorType": "schema_error", "message": "Database schema issue"}
+    elif 'OperationalError' in error_type or 'Connection' in error_type:
+        return {"statusCode": 503, "errorType": "connection_error", "message": "Database connection failed"}
+    elif 'Unauthorized' in error_type or 'Forbidden' in error_type or 'JWT' in error_type:
+        return {"statusCode": 403, "errorType": "auth_error", "message": "Authorization failed"}
+    elif 'ValueError' in error_type or 'TypeError' in error_type:
+        return {"statusCode": 400, "errorType": "invalid_input", "message": error_msg}
+    elif 'Timeout' in error_type:
+        return {"statusCode": 504, "errorType": "timeout", "message": "Request timeout"}
+    else:
+        # Generic internal error for unknown exceptions
+        return {"statusCode": 500, "errorType": error_type, "message": "Internal error"}
