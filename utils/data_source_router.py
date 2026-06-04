@@ -275,19 +275,22 @@ class DataSourceRouter:
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
-        # Apply aggressive rate limiting: wait at least 2 seconds between yfinance requests
-        # This matches the yfinance_wrapper's conservative throttling and prevents
-        # multiple concurrent loaders from overwhelming Yahoo Finance's per-IP rate limits
-        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
+            from utils.yfinance_wrapper import YFinanceWrapper
+
             def do_download():
+                # Use YFinanceWrapper to get a rate-limited session
+                # This ensures all requests go through the global rate limiter (2s min interval, 1 concurrent)
+                wrapper = YFinanceWrapper()
+                session = wrapper.get_session()
                 return yf.download(
                     yf_symbol,
                     start=start,
                     end=end,
                     interval=interval,
+                    session=session if session else None,
                     auto_adjust=False,
                     progress=False,
                 )
@@ -346,20 +349,25 @@ class DataSourceRouter:
         if not symbols:
             return {}
 
-        # Apply aggressive rate limiting for batch operations too
-        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
 
         # Convert symbols to yfinance format
         yf_symbols = [sym.replace('.', '-') if '.' in sym else sym for sym in symbols]
 
         try:
+            from utils.yfinance_wrapper import YFinanceWrapper
+
             def do_download():
+                # Use YFinanceWrapper to get a rate-limited session
+                # This ensures all requests go through the global rate limiter (2s min interval, 1 concurrent)
+                wrapper = YFinanceWrapper()
+                session = wrapper.get_session()
                 return yf.download(
                     yf_symbols,
                     start=start,
                     end=end,
                     interval=interval,
+                    session=session if session else None,
                     auto_adjust=False,
                     progress=False,
                 )
@@ -525,9 +533,13 @@ class DataSourceRouter:
 
     def _yf_earnings(self, symbol: str):
         try:
+            from utils.yfinance_wrapper import get_ticker
+
             def fetch():
-                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
-                ticker = yf.Ticker(yf_symbol)
+                # Use wrapper's get_ticker to ensure rate-limited access
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    return None
                 # earnings_dates API changed in newer yfinance — try calendar first
                 df = None
                 try:
@@ -570,9 +582,13 @@ class DataSourceRouter:
 
     def _fetch_yfinance_eps_revisions(self, symbol: str):
         try:
+            from utils.yfinance_wrapper import get_ticker
+
             def fetch():
-                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
-                ticker = yf.Ticker(yf_symbol)
+                # Use wrapper's get_ticker to ensure rate-limited access
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    return None
                 return ticker.eps_revisions
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -591,9 +607,13 @@ class DataSourceRouter:
 
     def _fetch_yfinance_eps_trend(self, symbol: str):
         try:
+            from utils.yfinance_wrapper import get_ticker
+
             def fetch():
-                yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
-                ticker = yf.Ticker(yf_symbol)
+                # Use wrapper's get_ticker to ensure rate-limited access
+                ticker = get_ticker(symbol)
+                if not ticker:
+                    return None
                 return ticker.eps_trend
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
