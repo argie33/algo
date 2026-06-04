@@ -73,6 +73,18 @@ resource "aws_ecr_repository_policy" "main" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "AllowECRPullFromECSTaskExecutionRole"
+        Effect = "Allow"
+        Principal = {
+          AWS = var.ecs_task_execution_role_arn
+        }
+        Action = [
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:DescribeImages"
+        ]
+      },
+      {
         Sid    = "AllowECRPullFromECSTaskRole"
         Effect = "Allow"
         Principal = {
