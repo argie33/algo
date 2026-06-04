@@ -9,7 +9,18 @@ import sys
 def fix_cognito_users():
     client = boto3.client('cognito-idp', region_name='us-east-1')
 
-    pool_id = 'us-east-1_XJpLb9SKX'
+    # Auto-detect Cognito pool by name
+    print("Auto-detecting Cognito pool...")
+    pools = client.list_user_pools(MaxResults=60)['UserPools']
+    pool = next((p for p in pools if p['Name'] == 'algo-pool-dev'), None)
+
+    if not pool:
+        print("ERROR: Could not find Cognito pool 'algo-pool-dev'", file=sys.stderr)
+        sys.exit(1)
+
+    pool_id = pool['Id']
+    print(f"✓ Found pool: {pool_id}\n")
+
     password = 'Bullseye@2026'
 
     print("=== Deleting old users ===")

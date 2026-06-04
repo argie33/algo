@@ -6,11 +6,27 @@ Verifies sender and recipient emails, tests password reset, and validates signup
 #>
 
 param(
-    [string]$SenderEmail = "noreply@bullseyetrading.com",
-    [string]$RecipientEmail = "argeropolos@gmail.com",
+    [string]$SenderEmail = "",  # Leave empty to use environment variable
+    [string]$RecipientEmail = "",  # Leave empty to use environment variable or prompt
     [string]$Region = "us-east-1",
-    [string]$UserPoolId = ""  # Leave empty to auto-detect
+    [string]$UserPoolId = "",  # Leave empty to auto-detect
+    [string]$FrontendUrl = ""  # Leave empty to auto-detect
 )
+
+# Use environment variables or defaults for email addresses
+if ([string]::IsNullOrEmpty($SenderEmail)) {
+    $SenderEmail = $env:SENDER_EMAIL
+    if ([string]::IsNullOrEmpty($SenderEmail)) {
+        $SenderEmail = "noreply@bullseyetrading.com"
+    }
+}
+
+if ([string]::IsNullOrEmpty($RecipientEmail)) {
+    $RecipientEmail = $env:RECIPIENT_EMAIL
+    if ([string]::IsNullOrEmpty($RecipientEmail)) {
+        $RecipientEmail = Read-Host "Enter recipient email address"
+    }
+}
 
 # Auto-detect Cognito user pool if not provided
 if ([string]::IsNullOrEmpty($UserPoolId)) {
@@ -22,6 +38,20 @@ if ([string]::IsNullOrEmpty($UserPoolId)) {
     } else {
         $UserPoolId = $poolInfo[0].Id
         Write-Host "✓ Found pool: $UserPoolId" -ForegroundColor Green
+    }
+}
+
+# Auto-detect frontend URL
+if ([string]::IsNullOrEmpty($FrontendUrl)) {
+    Write-Host "Auto-detecting CloudFront frontend URL..." -ForegroundColor Gray
+    $cfDomain = aws cloudfront list-distributions --region $Region --query "DistributionList.Items[0].DomainName" --output text 2>$null
+
+    if ([string]::IsNullOrEmpty($cfDomain) -or $cfDomain -eq "None") {
+        Write-Host "⚠ Warning: Could not find CloudFront distribution, using localhost fallback" -ForegroundColor Yellow
+        $FrontendUrl = "http://localhost:5173"
+    } else {
+        $FrontendUrl = "https://$cfDomain"
+        Write-Host "✓ Found frontend: $FrontendUrl" -ForegroundColor Green
     }
 }
 
@@ -105,7 +135,7 @@ Write-Host "  3. Click verification links in BOTH emails" -ForegroundColor White
 Write-Host ""
 
 Write-Host "AFTER EMAIL VERIFICATION (test flows):" -ForegroundColor Yellow
-Write-Host "  1. Open: https://d2u93283nn45h2.cloudfront.net" -ForegroundColor White
+Write-Host "  1. Open: $FrontendUrl" -ForegroundColor White
 Write-Host ""
 Write-Host "  TEST PASSWORD RESET:" -ForegroundColor Cyan
 Write-Host "    • Click 'Forgot Password'" -ForegroundColor White

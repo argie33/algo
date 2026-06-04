@@ -1,10 +1,38 @@
 # Setup Cognito users and groups for algo trading platform
 param(
-    [string]$UserPoolId = "us-east-1_XJpLb9SKX",
-    [string]$AdminEmail = "edgebrookecapital@gmail.com",
-    [string]$TraderEmail = "argeropolos@gmail.com",
+    [string]$UserPoolId = "",  # Leave empty to auto-detect
+    [string]$AdminEmail = "",  # Leave empty to use environment variable or prompt
+    [string]$TraderEmail = "",  # Leave empty to use environment variable or prompt
     [string]$AwsRegion = "us-east-1"
 )
+
+# Auto-detect Cognito pool if not provided
+if ([string]::IsNullOrEmpty($UserPoolId)) {
+    Write-Host "Auto-detecting Cognito user pool..." -ForegroundColor Gray
+    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region $AwsRegion --query "UserPools[?Name=='algo-pool-dev']" --output json | ConvertFrom-Json
+
+    if ($poolInfo.Count -eq 0) {
+        Write-Host "ERROR: Could not find Cognito pool 'algo-pool-dev'" -ForegroundColor Red
+        exit 1
+    }
+    $UserPoolId = $poolInfo[0].Id
+    Write-Host "✓ Found pool: $UserPoolId" -ForegroundColor Green
+}
+
+# Use environment variables or defaults for email addresses
+if ([string]::IsNullOrEmpty($AdminEmail)) {
+    $AdminEmail = $env:ADMIN_EMAIL
+    if ([string]::IsNullOrEmpty($AdminEmail)) {
+        $AdminEmail = "edgebrookecapital@gmail.com"
+    }
+}
+
+if ([string]::IsNullOrEmpty($TraderEmail)) {
+    $TraderEmail = $env:TRADER_EMAIL
+    if ([string]::IsNullOrEmpty($TraderEmail)) {
+        $TraderEmail = "argeropolos@gmail.com"
+    }
+}
 
 Write-Host "========================================================================"
 Write-Host "  COGNITO USER & GROUP SETUP FOR ALGO TRADING PLATFORM"

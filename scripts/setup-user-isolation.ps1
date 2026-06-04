@@ -8,10 +8,31 @@ Run AFTER database migrations complete.
 #>
 
 param(
-    [string]$CognitoUserPoolId = "us-east-1_XJpLb9SKX",
-    [string]$AdminEmail = "argeropolos@gmail.com",
+    [string]$CognitoUserPoolId = "",  # Leave empty to auto-detect
+    [string]$AdminEmail = "",  # Leave empty to use environment variable or prompt
     [string]$Region = "us-east-1"
 )
+
+# Auto-detect Cognito pool if not provided
+if ([string]::IsNullOrEmpty($CognitoUserPoolId)) {
+    Write-Host "Auto-detecting Cognito user pool..." -ForegroundColor Gray
+    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region $Region --query "UserPools[?Name=='algo-pool-dev']" --output json | ConvertFrom-Json
+
+    if ($poolInfo.Count -eq 0) {
+        Write-Host "ERROR: Could not find Cognito pool 'algo-pool-dev'" -ForegroundColor Red
+        exit 1
+    }
+    $CognitoUserPoolId = $poolInfo[0].Id
+    Write-Host "✓ Found pool: $CognitoUserPoolId" -ForegroundColor Green
+}
+
+# Use environment variable or prompt for admin email
+if ([string]::IsNullOrEmpty($AdminEmail)) {
+    $AdminEmail = $env:ADMIN_EMAIL
+    if ([string]::IsNullOrEmpty($AdminEmail)) {
+        $AdminEmail = Read-Host "Enter admin email address"
+    }
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "USER ISOLATION SETUP" -ForegroundColor Cyan

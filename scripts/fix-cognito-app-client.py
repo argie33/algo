@@ -4,12 +4,39 @@ Fix Cognito App Client - enable USER_PASSWORD_AUTH for username/password login
 Run via: python scripts/fix-cognito-app-client.py
 """
 import boto3
+import sys
 
 def fix_app_client():
     client = boto3.client('cognito-idp', region_name='us-east-1')
 
-    pool_id = 'us-east-1_XJpLb9SKX'
-    client_id = '6smb0vrcidd9kvhju2kn2a3qrl'
+    # Auto-detect Cognito pool and client by name
+    print("Auto-detecting Cognito pool and client...")
+    pools = client.list_user_pools(MaxResults=60)['UserPools']
+    pool = next((p for p in pools if p['Name'] == 'algo-pool-dev'), None)
+
+    if not pool:
+        print("ERROR: Could not find Cognito pool 'algo-pool-dev'", file=sys.stderr)
+        sys.exit(1)
+
+    pool_id = pool['Id']
+    print(f"✓ Found pool: {pool_id}")
+
+    # Get client by name
+    clients = client.list_user_pool_clients(
+        UserPoolId=pool_id,
+        MaxResults=60
+    )['UserPoolClients']
+    app_client = next((c for c in clients if c['ClientName'] == 'algo-app-dev'), None)
+
+    if not app_client:
+        print("WARNING: Could not find client 'algo-app-dev', using first available client", file=sys.stderr)
+        if not clients:
+            print("ERROR: No clients found in pool", file=sys.stderr)
+            sys.exit(1)
+        app_client = clients[0]
+
+    client_id = app_client['ClientId']
+    print(f"✓ Found client: {client_id}")
 
     print("=== Fixing Cognito App Client ===")
     print(f"Pool: {pool_id}")
