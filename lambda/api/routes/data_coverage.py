@@ -38,7 +38,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
 
         row = cur.fetchone()
         if not row:
-            return error_response(500, 'error', 'No price data found')
+            return error_response(500, 'no_data_error', 'No price data available')
 
         total_symbols, sp500_total, latest_date, total_rows, zero_vol, invalid_prices = row
 
@@ -59,7 +59,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
             }
         }
     except Exception as e:
-        return error_response(500, 'error', str(e))
+        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
 def get_technical_coverage(cur) -> Dict[str, Any]:
     """Get technical_data_daily coverage and completeness."""
@@ -80,7 +80,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
 
         row = cur.fetchone()
         if not row:
-            return error_response(500, 'error', 'No technical data found')
+            return error_response(500, 'no_data_error', 'No technical data available')
 
         symbols, latest_date, total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
@@ -99,7 +99,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
             'status': 'complete' if min_coverage >= 0.95 else 'incomplete'
         }
     except Exception as e:
-        return error_response(500, 'error', str(e))
+        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
 def get_market_data_coverage(cur) -> Dict[str, Any]:
     """Get market_health_daily and other market data coverage."""
@@ -139,7 +139,7 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
             }
         }
     except Exception as e:
-        return error_response(500, 'error', str(e))
+        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
 def get_loader_health(cur) -> Dict[str, Any]:
     """Get recent loader execution health from patrol log or direct table freshness checks."""
@@ -207,7 +207,7 @@ def get_loader_health(cur) -> Dict[str, Any]:
             'source': 'patrol' if rows else 'table_check'
         }
     except Exception as e:
-        return error_response(500, 'error', str(e))
+        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
 def _safe_call(cur, fn) -> Dict[str, Any]:
     """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.

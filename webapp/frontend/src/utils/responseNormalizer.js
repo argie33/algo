@@ -43,9 +43,10 @@ export const extractData = (response) => {
   // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
   if (Array.isArray(data.items)) {
     // Ensure items array is valid; filter out null/undefined entries
+    const filteredItems = data.items.filter(item => item !== null && item !== undefined);
     return {
       ...data,
-      items: data.items.filter(item => item !== null && item !== undefined),
+      items: filteredItems,
       total: data.total || data.items.length,
     };
   }
@@ -54,9 +55,10 @@ export const extractData = (response) => {
   if (data.data !== null && data.data !== undefined) {
     // Check if data.data has items (double-nested)
     if (Array.isArray(data.data.items)) {
+      const filteredItems = data.data.items.filter(item => item !== null && item !== undefined);
       return {
         ...data.data,
-        items: data.data.items.filter(item => item !== null && item !== undefined),
+        items: filteredItems,
         total: data.data.total || data.data.items.length,
       };
     }

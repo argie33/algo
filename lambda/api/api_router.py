@@ -53,6 +53,7 @@ def _format_handler_error(e):
     """Format exception as error response with diagnostic details.
 
     Returns error type to client for debugging without exposing sensitive details.
+    Logs full stack trace server-side for investigation.
     """
     error_type = type(e).__name__
     error_msg = str(e)
@@ -65,9 +66,12 @@ def _format_handler_error(e):
     elif 'Unauthorized' in error_type or 'Forbidden' in error_type or 'JWT' in error_type:
         return {"statusCode": 403, "errorType": "auth_error", "message": "Authorization failed"}
     elif 'ValueError' in error_type or 'TypeError' in error_type:
-        return {"statusCode": 400, "errorType": "invalid_input", "message": error_msg}
+        return {"statusCode": 400, "errorType": "invalid_input", "message": "Invalid input provided"}
     elif 'Timeout' in error_type:
         return {"statusCode": 504, "errorType": "timeout", "message": "Request timeout"}
+    elif 'AttributeError' in error_type or 'KeyError' in error_type or 'IndexError' in error_type:
+        # Data access errors - likely code bugs or unexpected data structure
+        return {"statusCode": 500, "errorType": "data_access_error", "message": "Data processing error"}
     else:
-        # Generic internal error for unknown exceptions
-        return {"statusCode": 500, "errorType": error_type, "message": "Internal error"}
+        # Generic internal error for unknown exceptions (always log type for debugging)
+        return {"statusCode": 500, "errorType": "internal_error", "message": "Service error"}

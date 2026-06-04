@@ -287,7 +287,7 @@ def _verify_user_email(body: Dict = None) -> Dict:
             cognito_region = os.getenv('COGNITO_REGION', 'us-east-1').strip()
 
             if not cognito_user_pool_id:
-                return error_response(500, 'error', 'Cognito not configured')
+                return error_response(500, 'cognito_config_error', 'Cognito not configured')
 
             cognito_client = boto3.client('cognito-idp', region_name=cognito_region)
             username = body.get('username')
@@ -312,4 +312,4 @@ def _verify_user_email(body: Dict = None) -> Dict:
             if 'UserNotFoundException' in error_str:
                 return error_response(404, 'not_found', f'User not found: {body.get("username")}')
             logger.error(f"Failed to verify email: {e}")
-            return error_response(500, 'error', f'Failed to verify email: {error_str}')
+            return error_response(500, 'email_verification_error', 'Failed to verify email')
