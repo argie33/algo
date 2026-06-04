@@ -244,6 +244,37 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - API: `Managed-CachingDisabled` (all /api/* requests pass through)
 - Client-side: `dataCache.js` caches API responses 5 minutes in-memory
 
+## Error Handling & Diagnostics
+
+**API Error Types (for client-side error handling):**
+All API errors return specific error types instead of generic "error" messages, enabling proper debugging:
+- `schema_error` (503): Database schema mismatch or migration issue. Action: Check RDS schema version.
+- `connection_error` (503): RDS/database connection failed. Action: Verify RDS Proxy and network connectivity.
+- `query_error` (503): Database query execution failed. Action: Check CloudWatch logs for SQL error details.
+- `auth_error` (403): JWT validation or Cognito authorization failed. Action: Verify token expiry and Cognito config.
+- `cognito_config_error` (500): Cognito environment variables not configured. Action: Check Lambda env vars (COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, COGNITO_REGION).
+- `email_verification_error` (500): Cognito email verification operation failed. Action: Check Cognito user pool email sending permissions.
+- `data_access_error` (500): Code bug accessing data fields (AttributeError, KeyError, IndexError). Action: Check CloudWatch logs for stack trace.
+- `no_data_error` (500): Required data table is empty or missing. Action: Check loader execution and data freshness.
+- `data_processing_error` (500): Generic data processing failure. Action: Check loader logs for specific error.
+- `timeout` (504): Request exceeded 30-second timeout. Action: Increase RDS statement_timeout or optimize query.
+- `invalid_input` (400): Client sent invalid query parameters or request body. Action: Check API parameter validation.
+
+**Response Extraction & Data Safety:**
+- Frontend `responseNormalizer.js` safely handles null/undefined values in API responses, filtering out bad items before returning to components.
+- All array responses filter null/undefined entries to prevent "Cannot read property .type of undefined" crashes.
+- Total pagination counts preserved even after filtering to maintain accurate pagination metadata.
+
+**React Query Retry Strategy:**
+- Default retry count increased from 2 to 5 attempts for better resilience during deployments.
+- Max backoff timeout: 60 seconds (increased from 30s) to handle RDS restarts and Lambda cold starts.
+- Non-retryable errors: 401 (Unauthorized), 403 (Forbidden), 404 (Not Found) — fail immediately.
+
+**Config Loading & Service Worker Management:**
+- Frontend config.js wait timeout increased from 5 seconds to 10 seconds to prevent auth failures on slow loads.
+- Service Worker and API cache clearing now version-based (only on deploy) instead of every page load, improving performance.
+- Smart cache invalidation: clears only API-related caches, not static asset caches.
+
 ## Troubleshooting
 
 **DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.

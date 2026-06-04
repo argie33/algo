@@ -203,7 +203,7 @@ try {
   const root = ReactDOM.createRoot(rootElement);
   logger.info("React root created successfully");
 
-  // Ensure config is loaded before rendering app
+  // Ensure config is loaded before rendering app (or timeout)
   configPromise.then(() => {
     root.render(
       <ErrorBoundary>

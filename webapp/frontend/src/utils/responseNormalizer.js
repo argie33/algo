@@ -101,8 +101,8 @@ export const extractPaginatedData = (response) => {
     throw new Error(data.message || data.errorType || `API error: ${httpStatus}`);
   }
 
-  // Extract items (should be array, not full envelope) — default to empty array for safety
-  const items = Array.isArray(data.items) ? data.items : [];
+  // Extract items (should be array, not full envelope) — filter out null/undefined entries, default to empty array for safety
+  const items = Array.isArray(data.items) ? data.items.filter(item => item !== null && item !== undefined) : [];
 
   return {
     items,
