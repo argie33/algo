@@ -599,10 +599,10 @@ resource "aws_iam_role_policy" "ecs_task" {
 }
 
 data "aws_iam_policy_document" "ecs_task" {
-  # Secrets Manager (ECS loaders need database credentials only)
+  # Secrets Manager (ECS loaders need database + Alpaca/FRED credentials)
   # CRITICAL: Do NOT include algo/developer-credentials — privilege escalation vector
   statement {
-    sid    = "SecretsManagerDatabaseOnly"
+    sid    = "SecretsManagerDatabaseAndLoaderSecrets"
     effect = "Allow"
 
     actions = [
@@ -611,7 +611,8 @@ data "aws_iam_policy_document" "ecs_task" {
 
     resources = [
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-db-credentials*",
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-algo-secrets*"
     ]
   }
 
