@@ -261,6 +261,7 @@ locals {
     "positioning_metrics" = "load_positioning_metrics.py"
     "stability_metrics"   = "load_stability_metrics.py"
     "stock_scores"        = "load_stock_scores.py"
+    "sector_ranking"      = "load_sector_ranking.py"
 
     # Earnings data
     "earnings_history"  = "load_earnings_history.py"
@@ -562,6 +563,9 @@ locals {
 
     # Swing trader scores — compute-heavy scoring
     "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 8 }
+
+    # Sector ranking — compute sector composite scores and rankings
+    "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
 
     # FRED macro data — small API calls, 5 time series
     "fred_economic_data" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
