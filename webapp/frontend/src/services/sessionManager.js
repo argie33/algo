@@ -53,16 +53,21 @@ class SessionManager {
     }
 
     const sessionTimeout = rememberMe ? this.config.rememberMeTimeout : this.config.sessionTimeout;
+    const sessionDays = sessionTimeout / (24 * 60 * 60 * 1000);
+
+    console.log(`✅ Session started: ${rememberMe ? '30 days' : '30 minutes'} timeout (${sessionDays.toFixed(1)} days)`);
 
     // Set warning timer
     this.timers.warning = setTimeout(() => {
       if (this.callbacks.onSessionWarning) {
+        console.log('⚠️ Session warning: 5 minutes remaining');
         this.callbacks.onSessionWarning({ timeRemaining: this.config.warningTime });
       }
     }, sessionTimeout - this.config.warningTime);
 
     // Set expiration timer
     this.timers.expiration = setTimeout(() => {
+      console.log('❌ Session expired');
       if (this.callbacks.onSessionExpired) {
         this.callbacks.onSessionExpired();
       }
@@ -94,10 +99,19 @@ class SessionManager {
       const refreshAtMs = expMs - nowMs - refreshEarlyMs;
 
       if (refreshAtMs > 0) {
+        const minutesUntilRefresh = Math.round(refreshAtMs / 60 / 1000);
+        console.log(`🔄 Token refresh scheduled in ~${minutesUntilRefresh} minutes (expires at ${new Date(expMs).toLocaleString()})`);
+
         this.timers.tokenRefreshTimer = setTimeout(async () => {
+          console.log('🔄 Token refresh triggered');
           if (this.authContext?.refreshSession) {
             try {
               const result = await this.authContext.refreshSession();
+              if (result.success) {
+                console.log('✅ Token refresh successful');
+              } else {
+                console.error('❌ Token refresh failed:', result.error);
+              }
               if (this.callbacks.onTokenRefresh) {
                 this.callbacks.onTokenRefresh(result);
               }
@@ -105,12 +119,15 @@ class SessionManager {
                 this.callbacks.onRefreshError(result.error, 1);
               }
             } catch (error) {
+              console.error('❌ Token refresh error:', error.message);
               if (this.callbacks.onRefreshError) {
                 this.callbacks.onRefreshError(error.message, 1);
               }
             }
           }
         }, refreshAtMs);
+      } else {
+        console.warn('⚠️ Token already expired or expires too soon, skipping refresh timer');
       }
     } catch (e) {
       console.warn('Could not parse token expiry for refresh timer', e);

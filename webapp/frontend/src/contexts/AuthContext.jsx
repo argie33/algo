@@ -5,6 +5,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import {
   fetchAuthSession,
@@ -326,7 +327,10 @@ export function AuthProvider({ children }) {
     });
   }, [checkAuthState, refreshSession]);
 
-  // Initialize session manager when authenticated
+  // Track if session has been started to avoid re-initializing on every token change
+  const sessionStartedRef = useRef(false);
+
+  // Initialize session manager ONCE when authenticated
   useEffect(() => {
     if (state.isAuthenticated && state.user) {
       try {
@@ -358,12 +362,14 @@ export function AuthProvider({ children }) {
           },
         });
 
-        // Start session and token refresh timer
-        const rememberMe = localStorage.getItem('rememberMe') === 'true';
-        sessionManager.startSession(rememberMe);
-        // Start proactive token refresh timer
-        if (state.tokens?.accessToken) {
-          sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
+        // Start session ONCE (not on every token refresh)
+        if (!sessionStartedRef.current) {
+          const rememberMe = localStorage.getItem('rememberMe') === 'true';
+          console.log(`[AUTH] Starting session with rememberMe=${rememberMe}`);
+          sessionManager.startSession(rememberMe);
+          sessionStartedRef.current = true;
+        } else {
+          console.log('[AUTH] Session already started, skipping re-initialization');
         }
       } catch (error) {
         console.error("❌ Failed to initialize session manager:", error);
@@ -372,6 +378,7 @@ export function AuthProvider({ children }) {
     } else if (!state.isAuthenticated) {
       // End session when logged out
       sessionManager.endSession();
+      sessionStartedRef.current = false;
       setSessionWarning({ show: false, timeRemaining: 0 });
     }
 
@@ -382,13 +389,12 @@ export function AuthProvider({ children }) {
   }, [
     state.isAuthenticated,
     state.user,
-    state.tokens?.accessToken,
     refreshSession,
     logout,
     setSessionWarning,
   ]);
 
-  // Restart token refresh timer when tokens change
+  // SEPARATE: Only handle token refresh timer (don't restart session on token change)
   useEffect(() => {
     if (state.tokens?.accessToken && state.isAuthenticated) {
       sessionManager.startTokenRefreshTimer(state.tokens.accessToken);
