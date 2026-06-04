@@ -217,8 +217,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
-      # parallelism=4 + cpu=2048: ~12 min expected, 3h timeout (3x buffer for retries).
-      # Timeout hierarchy: ECS container timeout (10800) < Step Functions state timeout (14400)
+      # parallelism=8, batch=100, cpu=2048: ~1.5h expected (4× optimization), 4h timeout for safety.
+      # Timeout hierarchy: ECS container timeout (21600=6h) < Step Functions state timeout (14400=4h)
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"

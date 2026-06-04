@@ -504,8 +504,8 @@ locals {
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
-    # I/O bound, 5000+ symbols, needs 2.5-3h for all combinations; 6h timeout ensures completion
-    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 4 }
+    # I/O bound, 5000+ symbols, 4× optimized (batch 100, parallelism=8): ~1.5h expected, 6h timeout ensures completion
+    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 8 }
 
     # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
