@@ -282,16 +282,13 @@ class DataSourceRouter:
             from utils.yfinance_wrapper import YFinanceWrapper
 
             def do_download():
-                # Use YFinanceWrapper to get a rate-limited session
-                # This ensures all requests go through the global rate limiter (2s min interval, 1 concurrent)
-                wrapper = YFinanceWrapper()
-                session = wrapper.get_session()
+                # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
+                # Let yfinance handle its own session management for compatibility
                 return yf.download(
                     yf_symbol,
                     start=start,
                     end=end,
                     interval=interval,
-                    session=session if session else None,
                     auto_adjust=False,
                     progress=False,
                 )
@@ -359,16 +356,13 @@ class DataSourceRouter:
             from utils.yfinance_wrapper import YFinanceWrapper
 
             def do_download():
-                # Use YFinanceWrapper to get a rate-limited session
-                # This ensures all requests go through the global rate limiter (2s min interval, 1 concurrent)
-                wrapper = YFinanceWrapper()
-                session = wrapper.get_session()
+                # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
+                # Let yfinance handle its own session management for compatibility
                 return yf.download(
                     yf_symbols,
                     start=start,
                     end=end,
                     interval=interval,
-                    session=session if session else None,
                     auto_adjust=False,
                     progress=False,
                 )

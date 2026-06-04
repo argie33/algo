@@ -435,19 +435,27 @@ class CircuitBreaker:
         # Use trading-day-aware staleness check (same pattern as _check_data_freshness and Phase 1).
         # Hardcoded calendar-day thresholds cause false halts after 3-day holiday weekends when
         # the market_health_daily record is from Friday but current_date is Tuesday (4 days gap).
+        # Allow up to 2 trading days of staleness to handle RDS Proxy replication lag and ECS scheduling delays.
         expected_date = current_date - timedelta(days=1)
+        min_acceptable_date = current_date - timedelta(days=3)  # 2 trading days back
         try:
             from algo.algo_market_calendar import MarketCalendar
             for _ in range(10):
                 if MarketCalendar.is_trading_day(expected_date):
                     break
                 expected_date -= timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(min_acceptable_date):
+                    break
+                min_acceptable_date -= timedelta(days=1)
         except Exception as cal_e:
             logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             while expected_date.weekday() >= 5:
                 expected_date -= timedelta(days=1)
+            while min_acceptable_date.weekday() >= 5:
+                min_acceptable_date -= timedelta(days=1)
 
-        if data_date < expected_date:
+        if data_date < min_acceptable_date:
             return {'halted': True, 'reason': f'Market stage data stale ({days_stale}d old, expected {expected_date}) — fail-closed'}
 
         if row[1] is None:
@@ -492,6 +500,7 @@ class CircuitBreaker:
 
         Compares against the previous trading day (not a fixed calendar threshold)
         so 3-day holiday weekends don't cause false halts.
+        Allows up to 2 trading days of staleness to handle RDS Proxy replication lag.
         """
         cur.execute(
             "SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1"
@@ -508,17 +517,24 @@ class CircuitBreaker:
         # fixed threshold even though the data is from the last trading day.
         from datetime import timedelta
         expected = current_date - timedelta(days=1)
+        min_acceptable = current_date - timedelta(days=3)  # 2 trading days back
         try:
             from algo.algo_market_calendar import MarketCalendar
             for _ in range(10):
                 if MarketCalendar.is_trading_day(expected):
                     break
                 expected -= timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(min_acceptable):
+                    break
+                min_acceptable -= timedelta(days=1)
         except Exception as cal_e:
             logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             while expected.weekday() >= 5:
                 expected -= timedelta(days=1)
-        is_stale = latest < expected
+            while min_acceptable.weekday() >= 5:
+                min_acceptable -= timedelta(days=1)
+        is_stale = latest < min_acceptable
 
         return {
             'halted': is_stale,
