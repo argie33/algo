@@ -35,7 +35,59 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable, Deque, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-from algo.algo_retry import retry, YFINANCE_LIMITER
+# Lazy import to avoid "No module named 'algo'" errors when sys.path isn't set up yet
+# Loaders set sys.path.insert(0, parent_dir) at module top, which happens before utils imports
+try:
+    from algo.algo_retry import retry, YFINANCE_LIMITER
+except ImportError:
+    # Fallback implementations if algo module not available
+    import functools
+    import threading
+
+    def retry(max_attempts=3, base_delay=1.0, max_delay=60.0, backoff=2.0, jitter=True, exceptions=(Exception,)):
+        """Simple retry decorator."""
+        def decorator(fn):
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                delay = base_delay
+                last_exc = None
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        return fn(*args, **kwargs)
+                    except exceptions as e:
+                        last_exc = e
+                        if attempt == max_attempts:
+                            raise
+                        import time, random
+                        sleep = min(delay, max_delay)
+                        if jitter:
+                            sleep *= 0.75 + random.random() * 0.5
+                        time.sleep(sleep)
+                        delay *= backoff
+            return wrapper
+        return decorator
+
+    # Fallback rate limiter (400 calls/min for yfinance)
+    class _RateLimiter:
+        def __init__(self, calls_per_minute):
+            self._min_interval = 60.0 / calls_per_minute
+            self._lock = threading.Lock()
+            self._last_call = 0.0
+
+        def wait(self):
+            import time
+            with self._lock:
+                now = time.monotonic()
+                elapsed = now - self._last_call
+                if elapsed < self._min_interval:
+                    time.sleep(self._min_interval - elapsed)
+                self._last_call = time.monotonic()
+
+    # Create a shared global instance for all loaders
+    # NOTE: Called at module import time, before loaders set sys.path
+    # If imported via fallback, this creates an instance with calls_per_minute=400
+    # If imported from algo.algo_retry, this is the pre-built YFINANCE_LIMITER = RateLimiter(400)
+    _MODULE_YFINANCE_LIMITER = YFINANCE_LIMITER
 
 try:
     import yfinance as yf
@@ -43,6 +95,26 @@ except ImportError:
     yf = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+# Global/shared rate limiters to prevent multiple DataSourceRouter instances from exceeding API limits
+# Multiple concurrent loaders each call DataSourceRouter, which would create multiple rate limiters.
+# Instead, use a single global limiter shared across all loaders to stay under yfinance's actual rate limits.
+_GLOBAL_YFINANCE_LIMITER = None
+_GLOBAL_LIMITER_LOCK = threading.Lock()
+
+def get_global_yfinance_limiter():
+    """Get or create the global yfinance rate limiter (shared across all loaders)."""
+    global _GLOBAL_YFINANCE_LIMITER
+    if _GLOBAL_YFINANCE_LIMITER is None:
+        with _GLOBAL_LIMITER_LOCK:
+            if _GLOBAL_YFINANCE_LIMITER is None:
+                try:
+                    # Use the module-imported limiter if available (shared instance from algo.algo_retry)
+                    _GLOBAL_YFINANCE_LIMITER = _MODULE_YFINANCE_LIMITER
+                except NameError:
+                    # Fallback if _MODULE_YFINANCE_LIMITER not defined
+                    _GLOBAL_YFINANCE_LIMITER = _RateLimiter(calls_per_minute=200)
+    return _GLOBAL_YFINANCE_LIMITER
 
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
     """Call a function with timeout protection and automatic retry on timeout."""
@@ -193,7 +265,7 @@ class DataSourceRouter:
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
-        YFINANCE_LIMITER.wait()
+        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
         try:
@@ -261,7 +333,7 @@ class DataSourceRouter:
         if not symbols:
             return {}
 
-        YFINANCE_LIMITER.wait()
+        get_global_yfinance_limiter().wait()
         logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
 
         # Convert symbols to yfinance format
