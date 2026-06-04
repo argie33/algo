@@ -355,11 +355,13 @@ locals {
     }
 
     # FIXED Issue #14: Moved from 4:05am to 4:30pm ET to provide fresh data for EOD pipeline
-    # Previously ran 4:05am ET but EOD pipeline runs 4:05pm ET same day, making data stale
-    # 4:30pm ET = 20:30 UTC Mon-Fri — runs after market close, feeds into EOD market health
+    # FIXED 2026-06-04: Changed from daily to weekly (Mon only) - macro data doesn't change daily
+    # Economic indicators (yields, jobless claims, inflation) publish weekly/monthly, not daily
+    # Running daily causes unnecessary FRED API load and database connection exhaustion during logging
+    # Monday-only schedule: cron(30 20 ? * MON *) = 4:30pm ET Mondays
     "fred_economic_data" = {
-      schedule    = "cron(30 20 ? * MON-FRI *)"
-      description = "FRED economic indicators (T10Y2Y, yields, jobless claims) - 4:30pm ET (before EOD pipeline)"
+      schedule    = "cron(30 20 ? * MON *)"
+      description = "FRED economic indicators - Weekly Monday 4:30pm ET (macro data doesn't change daily)"
     }
 
     # Financial statements — run Sunday night only (data changes quarterly, not daily)

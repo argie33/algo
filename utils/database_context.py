@@ -38,12 +38,12 @@ class DatabaseContext:
         # Connection automatically closed
     """
 
-    def __init__(self, role: str = 'read', timeout: int = 20, cursor_factory=DictCursor):
+    def __init__(self, role: str = 'read', timeout: int = 30, cursor_factory=DictCursor):
         """Initialize context.
 
         Args:
             role: 'read' or 'write' (controls timeout, retry behavior)
-            timeout: Connection timeout in seconds (20s for API Gateway limit of 29s; RDS Proxy handles pooling)
+            timeout: Connection timeout in seconds (30s for loader tasks; API Gateway uses shorter timeout)
             cursor_factory: psycopg2 cursor factory (default DictCursor for dict rows)
         """
         self.role = role
