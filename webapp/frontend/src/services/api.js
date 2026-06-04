@@ -1,6 +1,7 @@
 import axios from "axios";
 import { tokenManager } from "./tokenManager";
 import dataCache from "./dataCache";
+import { extractData } from "../utils/responseNormalizer";
 
 // Get API configuration
 export const getApiConfig = () => {
@@ -277,11 +278,18 @@ const handleApiError = async (error, cacheKey, fallbackData, action = "fetch") =
     const cached = await dataCache.get(cacheKey);
     if (cached) {
       console.debug(`[API] Using cached data for ${cacheKey}`);
-      return { success: true, data: cached, fromCache: true, error: errorMessage };
+      // Ensure cached data has consistent envelope format
+      // Cache stores normalized data from successful responses
+      return {
+        statusCode: 200,
+        ...cached,
+        fromCache: true,
+        error: errorMessage,
+      };
     }
   }
 
-  return { success: false, data: fallbackData, fromCache: false, error: errorMessage };
+  return { statusCode: 400, ...fallbackData, fromCache: false, error: errorMessage };
 };
 
 // ============================================
@@ -291,35 +299,38 @@ const handleApiError = async (error, cacheKey, fallbackData, action = "fetch") =
 export const getMarketTechnicals = async () => {
   try {
     const response = await api.get("/api/market/technicals");
-    // Cache successful response
-    if (response.data?.success !== false) {
-      dataCache.set("market_technicals", response.data);
+    // Normalize response envelope for consistent structure
+    const normalized = extractData(response);
+    // Cache normalized data
+    if (normalized && normalized.statusCode !== 400) {
+      dataCache.set("market_technicals", normalized);
     }
-    return response.data;
+    return normalized;
   } catch (error) {
-    return handleApiError(error, "market_technicals", {}, "fetch market technicals");
+    return handleApiError(error, "market_technicals", { data: {} }, "fetch market technicals");
   }
 };
 
 export const getMarketSentimentData = async (range = "1d") => {
   try {
     const response = await api.get(`/api/market/sentiment?range=${range}`);
-    if (response.data?.success !== false) {
-      dataCache.set("market_sentiment", response.data, { ttl: 10 * 60 * 1000 });
+    const normalized = extractData(response);
+    if (normalized && normalized.statusCode !== 400) {
+      dataCache.set("market_sentiment", normalized, { ttl: 10 * 60 * 1000 });
     }
-    return response.data;
+    return normalized;
   } catch (error) {
-    return handleApiError(error, "market_sentiment", { sentiment: 0.5 }, "fetch market sentiment");
+    return handleApiError(error, "market_sentiment", { data: { sentiment: 0.5 } }, "fetch market sentiment");
   }
 };
 
 export const getMarketSeasonalityData = async () => {
   try {
     const response = await api.get("/api/market/seasonality");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching market seasonality:", error);
-    return { success: false, data: {}, error: error.message };
+    return { statusCode: 400, data: {}, error: error.message };
   }
 };
 
@@ -327,40 +338,40 @@ export const getMarketCorrelation = async (symbols = null) => {
   try {
     const params = symbols ? `?symbols=${symbols}` : "";
     const response = await api.get(`/api/market/correlation${params}`);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching market correlation:", error);
-    return { success: false, data: {}, error: error.message };
+    return { statusCode: 400, data: {}, error: error.message };
   }
 };
 
 export const getMarketIndices = async () => {
   try {
     const response = await api.get("/api/market/indices");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching market indices:", error);
-    return { success: false, data: [], error: error.message };
+    return { statusCode: 400, items: [], error: error.message };
   }
 };
 
 export const getMarketTopMovers = async () => {
   try {
     const response = await api.get("/api/market/top-movers");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching market top movers:", error);
-    return { success: false, data: [], error: error.message };
+    return { statusCode: 400, items: [], error: error.message };
   }
 };
 
 export const getMarketCapDistribution = async () => {
   try {
     const response = await api.get("/api/market/cap-distribution");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching market cap distribution:", error);
-    return { success: false, data: [], error: error.message };
+    return { statusCode: 400, items: [], error: error.message };
   }
 };
 
@@ -373,18 +384,22 @@ export const getStocks = async (params = {}) => {
     const queryStr = new URLSearchParams(params).toString();
     const url = queryStr ? `/api/stocks?${queryStr}` : "/api/stocks";
     const response = await api.get(url);
-    // Transform response format for consistency with frontend expectations
-    // API returns { items: [...] }, but frontend expects { data: [...] }
+    // Normalize response envelope to consistent structure
+    const normalized = extractData(response);
+
+    // Transform items: map symbol→ticker, apply company_name alias fallback
+    // responseNormalizer provides items array (filtered of null/undefined)
     const transformedData = {
-      ...response.data,
-      data: (response.data.items || []).map(item => ({
+      ...normalized,
+      items: (normalized.items || []).map(item => ({
         ...item,
-        ticker: item.symbol || '', // Map symbol to ticker (with fallback to empty string)
-        short_name: item.company_name || item.security_name || item.name || '', // Use company_name from API alias, fallback chain
+        ticker: item.symbol || '',
+        short_name: item.company_name || item.security_name || item.name || '',
       })),
     };
-    // Cache successful response
-    if (transformedData.success !== false && transformedData.data?.length > 0) {
+
+    // Cache normalized, transformed data
+    if (transformedData.items?.length > 0) {
       dataCache.set("stocks", transformedData, { ttl: 5 * 60 * 1000 });
     }
     return transformedData;
@@ -392,49 +407,49 @@ export const getStocks = async (params = {}) => {
     const cached = await dataCache.get("stocks");
     if (cached) {
       console.debug("[API] Using cached stocks data due to error");
-      return { success: true, data: cached.data || [], fromCache: true, error: error.message };
+      return { statusCode: 200, ...cached, fromCache: true, error: error.message };
     }
-    return handleApiError(error, null, [], "fetch stocks");
+    return handleApiError(error, null, { items: [] }, "fetch stocks");
   }
 };
 
 export const getBalanceSheet = async (ticker, period = "annual") => {
   try {
     const response = await api.get(`/api/financials/${ticker}/balance-sheet?period=${period}`);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching balance sheet:", error);
-    return { success: false, data: {}, error: error.message };
+    return { statusCode: 400, data: {}, error: error.message };
   }
 };
 
 export const getIncomeStatement = async (ticker, period = "annual") => {
   try {
     const response = await api.get(`/api/financials/${ticker}/income-statement?period=${period}`);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching income statement:", error);
-    return { success: false, data: {}, error: error.message };
+    return { statusCode: 400, data: {}, error: error.message };
   }
 };
 
 export const getCashFlowStatement = async (ticker, period = "annual") => {
   try {
     const response = await api.get(`/api/financials/${ticker}/cash-flow?period=${period}`);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching cash flow statement:", error);
-    return { success: false, data: {}, error: error.message };
+    return { statusCode: 400, data: {}, error: error.message };
   }
 };
 
 export const getKeyMetrics = async (ticker) => {
   try {
     const response = await api.get(`/api/financials/${ticker}/key-metrics`);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching key metrics:", error);
-    return { success: false, data: {}, error: error.message };
+    return { statusCode: 400, data: {}, error: error.message };
   }
 };
 
@@ -445,20 +460,20 @@ export const getKeyMetrics = async (ticker) => {
 export const getContactSubmissions = async () => {
   try {
     const response = await api.get("/api/contact/submissions");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching contact submissions:", error);
-    return { success: false, data: { submissions: [], total: 0 }, error: error.message };
+    return { statusCode: 400, data: { submissions: [], total: 0 }, error: error.message };
   }
 };
 
 export const submitContact = async (data) => {
   try {
     const response = await api.post("/api/contact", data);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error submitting contact form:", error);
-    return { success: false, error: error.message };
+    return { statusCode: 400, error: error.message };
   }
 };
 
@@ -469,20 +484,20 @@ export const submitContact = async (data) => {
 export const getSettings = async () => {
   try {
     const response = await api.get("/api/settings");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching settings:", error);
-    return { success: false, data: {}, error: error.message };
+    return { statusCode: 400, data: {}, error: error.message };
   }
 };
 
 export const updateSettings = async (settings) => {
   try {
     const response = await api.post("/api/settings", settings);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error updating settings:", error);
-    return { success: false, error: error.message };
+    return { statusCode: 400, error: error.message };
   }
 };
 
@@ -517,20 +532,20 @@ export const getCurrentBaseURL = () => {
 export const healthCheck = async () => {
   try {
     const response = await api.get("/api/health");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching health check:", error);
-    return { success: false, error: error.message };
+    return { statusCode: 400, error: error.message };
   }
 };
 
 export const testApiConnection = async () => {
   try {
     const response = await api.get("/api/health");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error testing API connection:", error);
-    return { success: false, error: error.message };
+    return { statusCode: 400, error: error.message };
   }
 };
 
@@ -541,20 +556,20 @@ export const testApiConnection = async () => {
 export const getNaaimData = async () => {
   try {
     const response = await api.get("/api/market/naaim");
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching NAAIM data:", error);
-    return { success: false, data: { sentiment: 0.5 }, error: error.message };
+    return { statusCode: 400, data: { sentiment: 0.5 }, error: error.message };
   }
 };
 
 export const getFearGreedData = async (range = "30d") => {
   try {
     const response = await api.get(`/api/market/fear-greed?range=${range}`);
-    return response.data;
+    return extractData(response);
   } catch (error) {
     console.error("Error fetching Fear & Greed data:", error);
-    return { success: false, data: { sentiment: 50 }, error: error.message };
+    return { statusCode: 400, data: { sentiment: 50 }, error: error.message };
   }
 };
 
