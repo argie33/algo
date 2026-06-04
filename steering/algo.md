@@ -93,6 +93,81 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 **Alert flow:** Loader fails → EventBridge task state change → SNS → Email alert
 **Dashboard:** CloudWatch console → CloudWatch → Dashboards → algo-loader-monitoring-dev
 
+## Loader Execution Time Monitoring & Timeout Prevention
+
+**Critical Issue (Fixed 2026-06-04):** stock_prices_daily execution time was approaching timeout limit, risking pipeline failure.
+
+**Problem Identified:**
+- stock_prices_daily loads 5000+ symbols across 3 intervals (1d, 1wk, 1mo) and 2 asset classes (stock, etf) = 30,000+ API requests
+- Batch fetching (batch_size=100) reduces to 300 API calls, but rate-limit retries add exponential backoff (5s → 10s → 20s → 40s → 80s)
+- Actual execution time: 5-6 hours with rate-limit delays
+- Previous timeout: 4 hours (14400s) — **INSUFFICIENT**, causing timeout risk when approaching 6 hours
+
+**Solution Implemented (Commit 13cc6b96):**
+- Step Functions timeout: 14400s (4h) → 27000s (7.5h)
+- ECS container timeout: 21600s (6h) → 25200s (7h)  
+- Timeout hierarchy: ECS timeout (7h) triggers first if task runs too long; Step Functions timeout (7.5h) is final safeguard
+
+**Execution Time Monitoring:**
+
+1. **CloudWatch Metrics:**
+   - Metric: `LoaderDurationSeconds` (namespace: `algo/Loaders`, dimensions: table_name)
+   - Published by each loader via `MetricsPublisher.put_loader_result()`
+   - Available in CloudWatch console: Metrics → algo/Loaders → LoaderDurationSeconds
+
+2. **CloudWatch Logs Insights Query (copy-paste ready):**
+   ```
+   fields @timestamp, @duration, @logStream
+   | filter @message like /duration_sec|LoaderDurationSeconds/
+   | stats avg(@duration) as avg_sec, max(@duration) as max_sec, count() as runs by @logStream
+   | sort max_sec desc
+   ```
+
+3. **Manual Verification:**
+   ```bash
+   # List recent execution times for all loaders
+   aws logs start-query \
+     --log-group-name /ecs/algo-loader \
+     --start-time $(date -d '1 day ago' +%s) \
+     --end-time $(date +%s) \
+     --query-string 'fields @timestamp, @logStream, @message | filter @message like /duration_sec/ | stats max(@duration) by @logStream'
+
+   # Check specific loader duration (example: stock_prices_daily)
+   aws logs tail /ecs/algo-loader --follow | grep -i "price_daily" | grep "duration_sec"
+   ```
+
+4. **Step Functions Execution Monitoring:**
+   - AWS Console → Step Functions → `algo-eod-pipeline-dev` → Executions tab
+   - Look for execution duration in the "Execution summary" card
+   - If execution time > 7h, Step Functions will timeout
+
+**Rate Limiting Mitigation:**
+- **yfinance:** Batch fetching (batch_size=100) reduces API calls 50x (5000 symbols → 50 API calls). Retry logic: 5 max attempts with exponential backoff.
+- **Alpaca:** Paper API has higher rate limits. Current parallelism=8 stays well within limits.
+- **FRED:** Single endpoint, low call volume, no observed rate-limiting.
+
+**If Timeout Still Occurs (Troubleshooting):**
+
+1. **Check the symptom:**
+   - CloudWatch logs show `TASK STATUS: STOPPED` with high runtime (> 7h)
+   - Step Functions execution failed after 27000 seconds (7.5h)
+
+2. **Root cause analysis:**
+   - Check yfinance API status: `curl -s https://query1.finance.yahoo.com/v10/finance/quoteSummary/AAPL 2>&1 | head -c 100`
+   - Check RDS connections: `aws rds describe-db-instances --db-instance-identifier algo-db --query 'DBInstances[0].DBInstanceStatus'`
+   - Check for network issues: `aws logs tail /ecs/algo-loader --grep "timeout\|connection"`
+
+3. **Action:**
+   - If yfinance is slow: wait for recovery (usually recovers within hours)
+   - If RDS is slow: check DiskQueueDepth and CPU in CloudWatch RDS metrics
+   - If network: check security groups allow egress to port 443 for all AWS services
+   - Step Functions auto-retries 2x before failing; monitor for success on retry
+
+**Data Availability (Time-Based Constraints):**
+- **Loaders run at 3:25-4:05 AM ET:** Market is closed; previous day's data is available immediately after market close (4 PM ET previous day)
+- **Pipeline completes before 9:30 AM:** Ensures data is fresh for Phase 1 freshness check
+- **No intraday data issues:** Orchestrator intraday pricing (Phase 3) only active 9:30 AM - 4 PM ET Mon-Fri; uses fallback to daily prices outside market hours
+
 ## Orchestrator Phases
 
 1. **Phase 1:** Data freshness (halt if stale) — **FAIL-CLOSED**
