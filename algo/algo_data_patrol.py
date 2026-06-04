@@ -111,7 +111,7 @@ class DataPatrol:
             ('trend_template_data', 'date', 'daily', 7, CRIT),
             ('signal_quality_scores', 'date', 'daily', 7, WARN),
             ('market_health_daily', 'date', 'daily', 7, ERROR),
-            ('sector_ranking', 'date_recorded', 'daily', 10, WARN),
+            ('sector_ranking', 'date', 'daily', 10, WARN),
             ('industry_ranking', 'date_recorded', 'daily', 10, WARN),
             ('insider_transactions', 'trade_date', 'daily', 14, INFO),
             ('analyst_upgrade_downgrade', 'action_date', 'daily', 14, INFO),  # Optional - no real API source

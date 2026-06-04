@@ -985,10 +985,14 @@ CREATE TABLE IF NOT EXISTS index_metrics (
 CREATE TABLE IF NOT EXISTS sector_ranking (
     id SERIAL PRIMARY KEY,
     sector_name VARCHAR(100),
-    date_recorded DATE,
+    date DATE NOT NULL,
     current_rank INTEGER,
     momentum_score DECIMAL(8, 4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    rank_1w_ago INTEGER,
+    rank_4w_ago INTEGER,
+    rank_12w_ago INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(sector_name, date)
 );
 
 -- Sector performance data
