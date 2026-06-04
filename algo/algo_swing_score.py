@@ -877,8 +877,8 @@ class SwingTraderScore:
         if sector:
             cur.execute(
                 """SELECT current_rank, rank_4w_ago, momentum_score FROM sector_ranking
-                   WHERE sector_name = %s AND date_recorded <= %s
-                   ORDER BY date_recorded DESC LIMIT 1""",
+                   WHERE sector_name = %s AND date <= %s
+                   ORDER BY date DESC LIMIT 1""",
                 (sector, eval_date),
             )
             r = cur.fetchone()
