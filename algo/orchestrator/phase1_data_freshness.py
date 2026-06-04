@@ -15,25 +15,23 @@ logger = logging.getLogger(__name__)
 
 def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeout: int = 600) -> bool:
     """
-    Failsafe: trigger ECS loader via Lambda and WAIT for completion (synchronous).
+    Failsafe: trigger ECS loader via Lambda asynchronously (non-blocking).
 
-    This prevents the orchestrator from halting due to stale data while the failsafe
-    loader is still running. Without the wait, the async trigger would fail and halt
-    the orchestrator even though the loader would succeed if given time.
+    Stock_prices_daily takes 1-2 hours, but the orchestrator Lambda has only 10min total timeout.
+    We can't wait synchronously. Instead, trigger async and proceed immediately. Circuit breakers
+    in Phase 2+ will conservatively handle stale data while the loader runs in parallel.
 
     Args:
         loader_name: Name of the loader to trigger
         verbose: Whether to log verbose output
-        wait_timeout: Maximum seconds to wait for loader completion (default 600s = 10 min)
+        wait_timeout: Unused (kept for backward compatibility)
 
-    Returns: True if loader succeeded within timeout, False otherwise.
+    Returns: False (always, since we don't wait for completion).
     """
     try:
         import boto3
         import json
-        import time
 
-        # Invoke trigger-loaders Lambda
         lambda_client = boto3.client('lambda')
         loader_lambda = os.getenv('LOADER_TRIGGER_LAMBDA_ARN', '')
 
@@ -43,43 +41,21 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
             return False
 
         if verbose:
-            logger.info(f"[FAILSAFE] Triggering {loader_name} loader and waiting up to {wait_timeout}s for completion...")
+            logger.info(f"[FAILSAFE] Triggering {loader_name} loader asynchronously. Proceeding with caution.")
 
-        # Use RequestResponse (synchronous) instead of Event (async) to wait for loader.
-        # The Lambda will internally wait for the ECS task to complete, then return status.
         response = lambda_client.invoke(
             FunctionName=loader_lambda,
-            InvocationType='RequestResponse',  # SYNCHRONOUS - wait for loader to complete
-            Payload=json.dumps({
-                'loader_name': loader_name,
-                'task_count': 1,
-                'priority': 'FARGATE',  # critical, use on-demand
-                'wait_for_completion': True,  # Signal to Lambda to wait for task completion
-                'timeout_seconds': wait_timeout
-            })
+            InvocationType='Event',  # ASYNC — don't wait, trigger and return immediately
+            Payload=json.dumps({'loader_name': loader_name})
         )
 
-        status_code = response['StatusCode']
-        if status_code in (200, 202, 204):
-            # Check Lambda response payload for success/failure
-            try:
-                payload = json.loads(response.get('Payload', {}).read()) if hasattr(response.get('Payload'), 'read') else json.loads(response.get('Payload', '{}'))
-                if payload.get('success'):
-                    if verbose:
-                        logger.info(f"[FAILSAFE] ✓ {loader_name} loader completed successfully")
-                    return True
-                else:
-                    if verbose:
-                        logger.warning(f"[FAILSAFE] {loader_name} loader failed: {payload.get('error', 'unknown error')}")
-                    return False
-            except Exception as e:
-                # If we can't parse response, but Lambda returned 200, assume success
-                if verbose:
-                    logger.info(f"[FAILSAFE] {loader_name} loader trigger accepted (response parse warning: {e})")
-                return True
+        if response['StatusCode'] in (200, 202, 204):
+            if verbose:
+                logger.info(f"[FAILSAFE] ✓ Loader trigger sent (async). Proceeding with caution.")
+            return False
         else:
             if verbose:
-                logger.warning(f"[FAILSAFE] Failed to trigger {loader_name}: HTTP {status_code}")
+                logger.warning(f"[FAILSAFE] Failed to trigger {loader_name}: HTTP {response['StatusCode']}")
             return False
     except Exception as e:
         logger.warning(f"[FAILSAFE] Could not trigger loader: {e}")
