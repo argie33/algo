@@ -11,12 +11,52 @@ Prerequisites:
 #>
 
 param(
-    [string]$ClientId = "2gupf2mjl9pk5fq6e49ov1p89p",  # algo-web-app-dev
-    [string]$UserPoolId = "us-east-1_XJpLb9SKX",
+    [string]$ClientId = "",  # Leave empty to auto-detect
+    [string]$UserPoolId = "",  # Leave empty to auto-detect
     [string]$Region = "us-east-1",
     [string]$TestEmail = "argeropolos@gmail.com",
-    [string]$FrontendUrl = "https://d2u93283nn45h2.cloudfront.net"
+    [string]$FrontendUrl = ""  # Leave empty to auto-detect
 )
+
+# Auto-detect Cognito pool
+if ([string]::IsNullOrEmpty($UserPoolId)) {
+    Write-Host "Auto-detecting Cognito user pool..." -ForegroundColor Gray
+    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region $Region --query "UserPools[?Name=='algo-pool-dev']" --output json | ConvertFrom-Json
+
+    if ($poolInfo.Count -eq 0) {
+        Write-Host "ERROR: Could not find Cognito pool 'algo-pool-dev'" -ForegroundColor Red
+        exit 1
+    }
+    $UserPoolId = $poolInfo[0].Id
+    Write-Host "✓ Found pool: $UserPoolId" -ForegroundColor Green
+}
+
+# Auto-detect client ID
+if ([string]::IsNullOrEmpty($ClientId)) {
+    Write-Host "Auto-detecting Cognito app client..." -ForegroundColor Gray
+    $clientInfo = aws cognito-idp list-user-pool-clients --user-pool-id $UserPoolId --max-results 60 --region $Region --query "UserPoolClients[?ClientName=='algo-app-dev']" --output json | ConvertFrom-Json
+
+    if ($clientInfo.Count -eq 0) {
+        Write-Host "⚠ Warning: Could not find client 'algo-app-dev', using first available client" -ForegroundColor Yellow
+        $clientInfo = aws cognito-idp list-user-pool-clients --user-pool-id $UserPoolId --max-results 1 --region $Region --output json | ConvertFrom-Json
+    }
+    $ClientId = $clientInfo[0].ClientId
+    Write-Host "✓ Found client: $ClientId" -ForegroundColor Green
+}
+
+# Auto-detect frontend URL
+if ([string]::IsNullOrEmpty($FrontendUrl)) {
+    Write-Host "Auto-detecting CloudFront frontend URL..." -ForegroundColor Gray
+    $cfDomain = aws cloudfront list-distributions --region $Region --query "DistributionList.Items[0].DomainName" --output text 2>$null
+
+    if ([string]::IsNullOrEmpty($cfDomain) -or $cfDomain -eq "None") {
+        Write-Host "⚠ Warning: Could not find CloudFront distribution, using localhost fallback" -ForegroundColor Yellow
+        $FrontendUrl = "http://localhost:5173"
+    } else {
+        $FrontendUrl = "https://$cfDomain"
+        Write-Host "✓ Found frontend: $FrontendUrl" -ForegroundColor Green
+    }
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Cognito Email Flow Testing" -ForegroundColor Cyan

@@ -33,19 +33,20 @@ console.warn = function (...args) {
   _originalConsoleWarn.apply(console, args);
 };
 
-// Suppress expected CORS/network errors that occur during initial data load
-// These are transient and resolve after auth initialization/retries
+// Show all CORS and network errors for debugging
+// Don't suppress these - they help identify real CORS misconfigurations
+// React Query will automatically retry transient failures, so suppression isn't needed
 console.error = function (...args) {
   const msg = String(args[0] || '');
-  // Suppress CORS errors in development - they're expected during initial data fetch
-  // The requests retry and eventually succeed with proper auth
-  if (import.meta.env.DEV && (
-    msg.includes('Access to XMLHttpRequest') ||
-    msg.includes('Failed to load resource: net::ERR_FAILED') ||
-    msg.includes('net::ERR_FAILED')
-  )) {
+
+  // Only suppress known non-actionable browser warnings:
+  // - ResizeObserver errors from third-party libraries (not our code)
+  // - Non-critical React DevTools messages
+  if (msg.includes('ResizeObserver') && msg.includes('loop limit exceeded')) {
     return;
   }
+
+  // Show all CORS and network errors - they're important for debugging
   _originalConsoleError.apply(console, args);
 };
 

@@ -75,6 +75,18 @@ Write-Host "NEXT STEPS - MANUAL TESTING" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
+# Get CloudFront domain
+Write-Host "Detecting frontend URL..." -ForegroundColor Gray
+$frontendUrl = aws cloudfront list-distributions --region us-east-1 --query "DistributionList.Items[0].DomainName" --output text 2>$null
+if ([string]::IsNullOrEmpty($frontendUrl) -or $frontendUrl -eq "None") {
+    $frontendUrl = "<frontend-url>"
+    Write-Host "⚠ Could not auto-detect CloudFront domain" -ForegroundColor Yellow
+} else {
+    $frontendUrl = "https://$frontendUrl"
+    Write-Host "✓ Found frontend: $frontendUrl" -ForegroundColor Green
+}
+
+Write-Host ""
 Write-Host "📧 STEP 1: Verify Emails (Check Inboxes)" -ForegroundColor Yellow
 Write-Host "  ☐ Check noreply@bullseyetrading.com (or your sender email)" -ForegroundColor White
 Write-Host "  ☐ Check argeropolos@gmail.com" -ForegroundColor White
@@ -83,7 +95,7 @@ Write-Host "  ⏱ Time: ~2 minutes" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "🔐 STEP 2: Test Password Reset" -ForegroundColor Yellow
-Write-Host "  1. Open: https://d2u93283nn45h2.cloudfront.net" -ForegroundColor White
+Write-Host "  1. Open: $frontendUrl" -ForegroundColor White
 Write-Host "  2. Click 'Login' → 'Forgot Password'" -ForegroundColor White
 Write-Host "  3. Enter: argeropolos@gmail.com" -ForegroundColor White
 Write-Host "  4. Check email for reset code" -ForegroundColor White
@@ -92,7 +104,7 @@ Write-Host "  ⏱ Time: ~3 minutes" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "👤 STEP 3: Test New User Signup" -ForegroundColor Yellow
-Write-Host "  1. Open: https://d2u93283nn45h2.cloudfront.net" -ForegroundColor White
+Write-Host "  1. Open: $frontendUrl" -ForegroundColor White
 Write-Host "  2. Click 'Sign Up'" -ForegroundColor White
 Write-Host "  3. Enter email: test+$(Get-Date -Format 'yyyyMMddHHmm')@gmail.com" -ForegroundColor White
 Write-Host "  4. Check email for confirmation code" -ForegroundColor White

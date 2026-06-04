@@ -9,8 +9,21 @@ param(
     [string]$SenderEmail = "noreply@bullseyetrading.com",
     [string]$RecipientEmail = "argeropolos@gmail.com",
     [string]$Region = "us-east-1",
-    [string]$UserPoolId = "us-east-1_XJpLb9SKX"  # algo-pool-dev
+    [string]$UserPoolId = ""  # Leave empty to auto-detect
 )
+
+# Auto-detect Cognito user pool if not provided
+if ([string]::IsNullOrEmpty($UserPoolId)) {
+    Write-Host "Auto-detecting Cognito user pool..." -ForegroundColor Gray
+    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region $Region --query "UserPools[?Name=='algo-pool-dev']" --output json | ConvertFrom-Json
+
+    if ($poolInfo.Count -eq 0) {
+        Write-Host "⚠ Warning: Could not find Cognito pool 'algo-pool-dev', continuing without pool ID" -ForegroundColor Yellow
+    } else {
+        $UserPoolId = $poolInfo[0].Id
+        Write-Host "✓ Found pool: $UserPoolId" -ForegroundColor Green
+    }
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "SES Email Verification & Flow Testing" -ForegroundColor Cyan
