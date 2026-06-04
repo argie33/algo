@@ -609,7 +609,7 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 -- Manual trades entered by users
 CREATE TABLE IF NOT EXISTS trades (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER,
+    user_id VARCHAR(100),
     symbol VARCHAR(20) NOT NULL,
     side VARCHAR(10),
     quantity DECIMAL(12, 2),
@@ -622,7 +622,7 @@ CREATE TABLE IF NOT EXISTS trades (
 -- Manual portfolio positions
 CREATE TABLE IF NOT EXISTS manual_positions (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER,
+    user_id VARCHAR(100),
     symbol VARCHAR(20) NOT NULL,
     quantity DECIMAL(12, 2),
     average_cost DECIMAL(12, 4),
@@ -913,19 +913,21 @@ CREATE TABLE IF NOT EXISTS iv_history (
 -- Portfolio holdings for users
 CREATE TABLE IF NOT EXISTS portfolio_holdings (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER,
+    user_id VARCHAR(100) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     quantity DECIMAL(12, 4),
     average_cost DECIMAL(12, 4),
     current_price DECIMAL(12, 4),
+    market_value DECIMAL(15, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, symbol)
 );
 
 -- Portfolio performance metrics
 CREATE TABLE IF NOT EXISTS portfolio_performance (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER,
+    user_id VARCHAR(100) NOT NULL,
     date DATE,
     total_value DECIMAL(20, 2),
     total_gain_loss DECIMAL(20, 2),
