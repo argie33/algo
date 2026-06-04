@@ -10,6 +10,7 @@ import json
 from datetime import date, timedelta
 from typing import Optional, List
 import requests
+import boto3
 
 from utils.database_context import DatabaseContext
 from utils.url_validator import validate_url
@@ -67,23 +68,19 @@ FOMC_DATES_2027 = [
 
 
 def _get_fred_api_key() -> str:
+    """Get FRED API key from Secrets Manager, fall back to env var."""
     key = os.getenv("FRED_API_KEY", "")
     if key:
         return key
+
     try:
-        from config.credential_manager import get_secret
-        return get_secret("fred/api_key", default="")
-    except Exception:
-        pass
-    try:
-        import boto3
         client = boto3.client("secretsmanager", region_name="us-east-1")
         resp = client.get_secret_value(SecretId="algo/fred")
         data = json.loads(resp.get("SecretString", "{}"))
-        return data.get("api_key") or data.get("FRED_API_KEY", "")
-    except Exception:
-        pass
-    return ""
+        return data.get("api_key", "")
+    except Exception as e:
+        logger.debug(f"Secrets Manager lookup failed: {e}")
+        return ""
 
 
 def _fetch_release_dates(series_id: str, api_key: str, start: date, end: date) -> List[date]:
