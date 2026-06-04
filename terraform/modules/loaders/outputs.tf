@@ -104,8 +104,3 @@ output "loader_execution_status_table_name" {
   value       = aws_dynamodb_table.loader_execution_status.name
 }
 
-output "orchestrator_locks_table_name" {
-  description = "DynamoDB table name for orchestrator distributed locking"
-  value       = aws_dynamodb_table.orchestrator_locks.name
-}
-
