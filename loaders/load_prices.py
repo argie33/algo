@@ -459,7 +459,10 @@ def main():
     intervals_str = os.getenv("LOADER_INTERVALS", "1d,1wk,1mo")
     asset_classes_str = os.getenv("LOADER_ASSET_CLASSES", "stock,etf")
     symbols_str = os.getenv("LOADER_SYMBOLS", "")
-    parallelism = int(os.getenv("LOADER_PARALLELISM", "2"))
+    # CRITICAL: Use higher parallelism for stock_prices_daily to complete in reasonable time
+    # Loading 5000 symbols × 3 intervals = 15000+ records; parallelism=2 takes 6+ hours
+    # parallelism=8 reduces to ~2 hours while RDS Proxy handles connection pooling
+    parallelism = int(os.getenv("LOADER_PARALLELISM", "8"))
     max_symbols_limit = int(os.getenv("LOADER_MAX_SYMBOLS", "0"))  # 0 = no limit (loads all symbols)
 
     # Parse comma-separated values
