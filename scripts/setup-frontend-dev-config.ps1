@@ -7,6 +7,49 @@ $ErrorActionPreference = "Stop"
 
 $ConfigFile = "webapp/frontend/public/config.js"
 
+# Fetch Cognito pool information from AWS
+Write-Host "Querying Cognito pool information..." -ForegroundColor Gray
+
+try {
+    # Get Cognito user pool
+    $poolInfo = aws cognito-idp list-user-pools --max-results 60 --region us-east-1 --query "UserPools[?Name=='algo-pool-dev']" --output json | ConvertFrom-Json
+
+    if ($poolInfo.Count -eq 0) {
+        throw "Cognito pool 'algo-pool-dev' not found. Run: terraform apply in terraform/ directory"
+    }
+
+    $poolId = $poolInfo[0].Id
+    $poolName = $poolInfo[0].Name
+    Write-Host "✓ Found pool: $poolName ($poolId)" -ForegroundColor Green
+
+    # Get app client
+    $clientInfo = aws cognito-idp list-user-pool-clients --user-pool-id $poolId --max-results 60 --region us-east-1 --query "UserPoolClients[?ClientName=='algo-app-dev']" --output json | ConvertFrom-Json
+
+    if ($clientInfo.Count -eq 0) {
+        Write-Host "⚠ Client 'algo-app-dev' not found, using first available client" -ForegroundColor Yellow
+        $clientInfo = aws cognito-idp list-user-pool-clients --user-pool-id $poolId --max-results 1 --region us-east-1 --output json | ConvertFrom-Json
+    }
+
+    $clientId = $clientInfo[0].ClientId
+    $clientName = $clientInfo[0].ClientName
+    Write-Host "✓ Found client: $clientName ($clientId)" -ForegroundColor Green
+
+    # Get user pool domain
+    $domainInfo = aws cognito-idp describe-user-pool --user-pool-id $poolId --region us-east-1 --query "UserPool.Domain" --output text
+
+    if ([string]::IsNullOrEmpty($domainInfo) -or $domainInfo -eq "None") {
+        # Construct domain from pool name
+        $domainInfo = "algo-dev.auth.us-east-1.amazoncognito.com"
+        Write-Host "⚠ Using constructed Cognito domain: $domainInfo" -ForegroundColor Yellow
+    } else {
+        Write-Host "✓ Found Cognito domain: $domainInfo" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "ERROR: Failed to query Cognito: $_" -ForegroundColor Red
+    Write-Host "Make sure AWS credentials are configured and Cognito pool exists" -ForegroundColor Red
+    exit 1
+}
+
 # Development configuration
 $config = @"
 // Frontend Runtime Configuration (generated for local development)
@@ -14,9 +57,9 @@ $config = @"
 // Do NOT commit this file (it's in .gitignore)
 window.__CONFIG__ = {
   "API_URL": "",
-  "USER_POOL_ID": "us-east-1_XJpLb9SKX",
-  "USER_POOL_CLIENT_ID": "6smb0vrcidd9kvhju2kn2a3qrl",
-  "USER_POOL_DOMAIN": "https://algo-dev.auth.us-east-1.amazoncognito.com",
+  "USER_POOL_ID": "$poolId",
+  "USER_POOL_CLIENT_ID": "$clientId",
+  "USER_POOL_DOMAIN": "https://$domainInfo",
   "AWS_REGION": "us-east-1",
   "ENVIRONMENT": "development"
 };
@@ -26,5 +69,8 @@ window.__CONFIG__ = {
 Set-Content -Path $ConfigFile -Value $config -Encoding UTF8
 
 Write-Host "OK - Generated $ConfigFile for local development" -ForegroundColor Green
+Write-Host "  USER_POOL_ID: $poolId" -ForegroundColor Green
+Write-Host "  USER_POOL_CLIENT_ID: $clientId" -ForegroundColor Green
+Write-Host "  USER_POOL_DOMAIN: https://$domainInfo" -ForegroundColor Green
 Write-Host "  API_URL: (empty - uses Vite proxy to localhost:3001)" -ForegroundColor Gray
 Write-Host "  ENVIRONMENT: development" -ForegroundColor Gray

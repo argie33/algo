@@ -42,10 +42,35 @@ export const useApiQuery = (
     gcTime,
     retry: retry === false ? false : (failureCount, err) => {
       const status = err?.response?.status ?? err?.status;
-      if (status === 401 || status === 403 || status === 404) return false;
+      const errorMsg = err?.message || '';
+
+      // Never retry on explicit auth failures (user not logged in)
+      if (status === 401 || status === 403) {
+        // EXCEPTION: If auth token is being refreshed, allow ONE retry
+        // (token refresh happens in background, request might succeed on next attempt)
+        if (errorMsg.includes('token') || errorMsg.includes('auth') || errorMsg.includes('refresh')) {
+          if (failureCount < 1) {
+            console.warn('[useApiQuery] Auth token refresh in progress, retrying once:', err.message);
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // Never retry on not found (resource doesn't exist)
+      if (status === 404) return false;
+
       // Retry on 5xx errors up to specified retry count (default 5)
       // This handles transient failures during deployments/RDS restarts
-      return failureCount < retry;
+      if (status >= 500) return failureCount < retry;
+
+      // Retry on network errors and timeouts (transient issues)
+      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
+        return failureCount < retry;
+      }
+
+      // Default: no retry for unknown errors
+      return false;
     },
     retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 60000),
     enabled,
@@ -107,10 +132,35 @@ export const useApiPaginatedQuery = (
     gcTime,
     retry: retry === false ? false : (failureCount, err) => {
       const status = err?.response?.status ?? err?.status;
-      if (status === 401 || status === 403 || status === 404) return false;
+      const errorMsg = err?.message || '';
+
+      // Never retry on explicit auth failures (user not logged in)
+      if (status === 401 || status === 403) {
+        // EXCEPTION: If auth token is being refreshed, allow ONE retry
+        // (token refresh happens in background, request might succeed on next attempt)
+        if (errorMsg.includes('token') || errorMsg.includes('auth') || errorMsg.includes('refresh')) {
+          if (failureCount < 1) {
+            console.warn('[useApiQuery] Auth token refresh in progress, retrying once:', err.message);
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // Never retry on not found (resource doesn't exist)
+      if (status === 404) return false;
+
       // Retry on 5xx errors up to specified retry count (default 5)
       // This handles transient failures during deployments/RDS restarts
-      return failureCount < retry;
+      if (status >= 500) return failureCount < retry;
+
+      // Retry on network errors and timeouts (transient issues)
+      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
+        return failureCount < retry;
+      }
+
+      // Default: no retry for unknown errors
+      return false;
     },
     retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 60000),
     enabled,
