@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 import requests
 import time
+import boto3
 
 from utils.optimal_loader import OptimalLoader
 
@@ -88,28 +89,20 @@ SERIES = [
 
 
 def get_fred_api_key() -> str:
-    """Get FRED API key from environment or credential_manager."""
+    """Get FRED API key from Secrets Manager, fall back to env var."""
+    import json
     key = os.getenv("FRED_API_KEY", "")
     if key:
         return key
 
     try:
-        from config.credential_manager import get_secret
-        return get_secret("fred/api_key", default="")
-    except Exception as e:
-        logger.debug(f"credential_manager lookup failed: {e}")
-
-    try:
-        import boto3, json
         client = boto3.client("secretsmanager", region_name="us-east-1")
         resp = client.get_secret_value(SecretId="algo/fred")
         data = json.loads(resp.get("SecretString", "{}"))
-        return data.get("api_key") or data.get("FRED_API_KEY", "")
+        return data.get("api_key", "")
     except Exception as e:
         logger.debug(f"Secrets Manager lookup failed: {e}")
-
-    return ""
-
+        return ""
 
 class FredEconomicDataLoader(OptimalLoader):
     """Load FRED economic time-series data (market-wide)."""
