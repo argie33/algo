@@ -79,16 +79,40 @@ def safe_symbol(symbol_str):
     return symbol
 
 def error_response(code, typ, msg):
-    """Standardized error response."""
+    """Standardized error response.
+
+    Returns consistent error format with statusCode, errorType, and message.
+    All error responses include HTTP status code for client-side error handling.
+    """
     return {"statusCode": code, "errorType": typ, "message": msg}
 
-def success_response(data):
-    """Standardized success response."""
-    return {"statusCode": 200, "data": data}
+def success_response(data, metadata=None):
+    """Standardized success response for single object.
 
-def list_response(items, total=None, data_freshness=None):
-    """Standardized list response with optional freshness metadata."""
-    response = {"statusCode": 200, "items": items, "total": total or len(items)}
+    Always returns object with statusCode=200 and data field.
+    Optionally includes additional metadata (freshness, etc).
+    """
+    response = {"statusCode": 200, "data": data}
+    if metadata:
+        response.update(metadata)
+    return response
+
+def list_response(items, total=None, data_freshness=None, limit=None, offset=None):
+    """Standardized list response for paginated data.
+
+    Always returns array in 'items' field with total count.
+    Includes pagination metadata for client-side pagination.
+    Format: {statusCode: 200, items: [...], total: X, limit?: Y, offset?: Z}
+    """
+    response = {
+        "statusCode": 200,
+        "items": items if items else [],
+        "total": total if total is not None else len(items if items else [])
+    }
+    if limit is not None:
+        response["limit"] = limit
+    if offset is not None:
+        response["offset"] = offset
     if data_freshness:
         response["data_freshness"] = data_freshness
     return response

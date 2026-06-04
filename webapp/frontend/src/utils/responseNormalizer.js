@@ -5,16 +5,19 @@
 
 /**
  * Extract data from API response
- * Handles multiple response formats:
- * - { statusCode: 200, items: [...], total: 10 } (new format from routes)
- * - { success: true, data: {...}, items: [...] } (legacy format)
- * - { success: true, data: { items: [...] } }
- * - { success: true, items: [...] }
- * - { success: true, data: {...} }
  *
- * @param {object} response - axios/fetch response
- * @returns {object|array} the extracted data
- * @throws {Error} if response structure is unexpected
+ * STANDARD API RESPONSE FORMATS (from Lambda routes):
+ *   1. Paginated list: { statusCode: 200, items: [...], total: 10, limit?: N, offset?: N }
+ *   2. Single object: { statusCode: 200, data: {...} }
+ *   3. Error: { statusCode: 4xx|5xx, errorType: "...", message: "..." }
+ *
+ * LEGACY FORMATS (deprecated, but still supported):
+ *   - { success: true, data: {...} }
+ *   - { success: true, items: [...] }
+ *
+ * @param {object} response - axios/fetch response from API
+ * @returns {object|array} the extracted data with full response envelope
+ * @throws {Error} if response structure is invalid or status >= 400
  */
 export const extractData = (response) => {
   if (!response) {
