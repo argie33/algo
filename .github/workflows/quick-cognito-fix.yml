@@ -1,0 +1,30 @@
+name: Quick Cognito Fix
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: us-east-1
+      - name: Update Cognito App Client
+        run: |
+          aws cognito-idp update-user-pool-client \
+            --user-pool-id us-east-1_XJpLb9SKX \
+            --client-id 6smb0vrcidd9kvhju2kn2a3qrl \
+            --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \
+            --region us-east-1
+
+          echo "✅ App client updated"
+          aws cognito-idp describe-user-pool-client \
+            --user-pool-id us-east-1_XJpLb9SKX \
+            --client-id 6smb0vrcidd9kvhju2kn2a3qrl \
+            --region us-east-1 | jq '.UserPoolClient.ExplicitAuthFlows'
