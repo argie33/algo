@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
+import { QuerySection } from '../components/QueryErrorBoundary';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartTooltip, ResponsiveContainer,
@@ -188,6 +189,7 @@ function AlgoTradingDashboard() {
 
   const allErrors = [err1,err2,err5,err6,err7,err8,err11,err12,err13,err14,err15,err16,err17,err18];
   const allErrorNames = ['markets','scores','config','data-status','policy','evaluate','circuit-breakers','data-quality','rejection-funnel','last-run','positions','performance','status','equity-curve'];
+  const failedQueries = allErrorNames.filter((_, i) => allErrors[i]);
 
   return (
     <div className="main-content">
@@ -199,7 +201,7 @@ function AlgoTradingDashboard() {
         </div>
         <div className="page-head-actions">
           {allErrors.some(Boolean) && (
-            <span className="badge badge-danger" title={`Failed: ${allErrorNames.filter((_, i) => allErrors[i]).join(', ')}`}>
+            <span className="badge badge-danger" title={`Failed: ${failedQueries.join(', ')}`}>
               ⚠ {allErrors.filter(Boolean).length} source(s) failed
             </span>
           )}
@@ -215,6 +217,23 @@ function AlgoTradingDashboard() {
           </button>
         </div>
       </div>
+
+      {/* ERROR ALERTS FOR FAILED QUERIES */}
+      {failedQueries.length > 0 && (
+        <div style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-3)', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', borderRadius: 'var(--r-sm)' }}>
+          <div className="flex gap-3 items-start">
+            <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div className="t-sm strong" style={{ color: 'var(--danger)', marginBottom: 4 }}>
+                {failedQueries.length} data source{failedQueries.length === 1 ? '' : 's'} failed to load
+              </div>
+              <div className="t-xs muted">
+                {failedQueries.join(', ')}. Some sections may be incomplete. Click "Refresh" to retry.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TOP STRIP — 4 ALGO-SPECIFIC KPI CARDS */}
       <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
