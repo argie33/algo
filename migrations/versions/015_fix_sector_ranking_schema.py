@@ -24,34 +24,36 @@ DESCRIPTION = "Fix sector_ranking schema - rename date_recorded to date"
 
 def up():
     with DatabaseContext('write') as cur:
-        # Check if date column already exists
+        # Check what columns exist in sector_ranking
         cur.execute("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='sector_ranking' AND column_name='date'
-            )
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name='sector_ranking'
+            ORDER BY column_name
         """)
-        date_exists = cur.fetchone()[0]
+        columns = [row[0] for row in cur.fetchall()]
+        has_date = 'date' in columns
+        has_date_recorded = 'date_recorded' in columns
 
-        if not date_exists:
-            # Add date column
+        if not has_date:
+            # Add date column if it doesn't exist
             cur.execute("""
                 ALTER TABLE sector_ranking
                 ADD COLUMN date DATE
             """)
 
-            # Copy data from date_recorded to date
-            cur.execute("""
-                UPDATE sector_ranking
-                SET date = date_recorded
-                WHERE date IS NULL
-            """)
+            # If we have old data with date_recorded, migrate it
+            if has_date_recorded:
+                cur.execute("""
+                    UPDATE sector_ranking
+                    SET date = date_recorded
+                    WHERE date IS NULL
+                """)
 
-            # Drop the old date_recorded column
-            cur.execute("""
-                ALTER TABLE sector_ranking
-                DROP COLUMN date_recorded
-            """)
+                # Drop the old date_recorded column
+                cur.execute("""
+                    ALTER TABLE sector_ranking
+                    DROP COLUMN date_recorded
+                """)
 
             # Add NOT NULL constraint after data is migrated
             cur.execute("""
