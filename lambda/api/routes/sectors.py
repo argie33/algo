@@ -104,24 +104,28 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     WITH sector_perf_latest AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS latest_ytd
                         FROM sector_performance
+                        WHERE (SELECT COUNT(*) FROM sector_performance) > 0
                         ORDER BY sector, date DESC
                     ),
                     sector_perf_1d_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_1d
                         FROM sector_performance
                         WHERE date <= CURRENT_DATE - INTERVAL '1 day'
+                          AND (SELECT COUNT(*) FROM sector_performance) > 0
                         ORDER BY sector, date DESC
                     ),
                     sector_perf_5d_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_5d
                         FROM sector_performance
                         WHERE date <= CURRENT_DATE - INTERVAL '5 days'
+                          AND (SELECT COUNT(*) FROM sector_performance) > 0
                         ORDER BY sector, date DESC
                     ),
                     sector_perf_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_ytd
                         FROM sector_performance
                         WHERE date <= CURRENT_DATE - INTERVAL '20 days'
+                          AND (SELECT COUNT(*) FROM sector_performance) > 0
                         ORDER BY sector, date DESC
                     ),
                     sector_perf AS (
@@ -133,6 +137,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         LEFT JOIN sector_perf_1d_prior p1 ON p1.sector = l.sector
                         LEFT JOIN sector_perf_5d_prior p5 ON p5.sector = l.sector
                         LEFT JOIN sector_perf_prior p ON p.sector = l.sector
+                        UNION ALL
+                        SELECT DISTINCT cp.sector, 0 AS perf_1d, 0 AS perf_5d, 0 AS perf_20d
+                        FROM company_profile cp
+                        WHERE (SELECT COUNT(*) FROM sector_performance) = 0
+                          AND cp.sector IS NOT NULL
                     ),
                     sector_scores AS (
                         SELECT
@@ -176,7 +185,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     latest_sector_ranking AS (
                         SELECT sector_name, rank_1w_ago, rank_4w_ago, rank_12w_ago
                         FROM sector_ranking
-                        WHERE date = (SELECT date FROM sector_ranking ORDER BY date DESC LIMIT 1)
+                        WHERE CASE WHEN (SELECT COUNT(*) FROM sector_ranking) > 0
+                                   THEN date = (SELECT MAX(date) FROM sector_ranking)
+                                   ELSE FALSE END
                     )
                     SELECT r.*, spe.avg_trailing_pe, spe.avg_pb_ratio, spe.pe_percentile,
                            sr.rank_1w_ago, sr.rank_4w_ago, sr.rank_12w_ago
