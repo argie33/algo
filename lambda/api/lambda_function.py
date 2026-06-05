@@ -47,6 +47,60 @@ except Exception as e:
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+def fetch_cloudfront_domain_from_secrets():
+    """Fetch CloudFront domain from AWS Secrets Manager.
+
+    This eliminates hardcoding CloudFront domain in terraform.tfvars.
+    If domain is not found in Secrets Manager, falls back to FRONTEND_URL env var.
+
+    Returns: (domain: Optional[str], error: Optional[str])
+    """
+    global _CLOUDFRONT_DOMAIN_CACHE
+
+    if _CLOUDFRONT_DOMAIN_CACHE is not None:
+        return _CLOUDFRONT_DOMAIN_CACHE, None
+
+    try:
+        import boto3
+        import json
+
+        secrets_client = boto3.client('secretsmanager', region_name='us-east-1')
+        secret_name = 'algo/cloudfront-domain'
+
+        try:
+            response = secrets_client.get_secret_value(SecretId=secret_name)
+            secret = response.get('SecretString', '')
+
+            if isinstance(secret, str) and not secret.startswith('{'):
+                # Plain string secret (just the domain)
+                domain = secret.strip()
+            else:
+                # JSON secret with domain key
+                secret_dict = json.loads(secret) if isinstance(secret, str) else secret
+                domain = secret_dict.get('domain', '').strip()
+
+            if domain:
+                logger.info(f"[CloudFront] Fetched domain from Secrets Manager: {domain}")
+                _CLOUDFRONT_DOMAIN_CACHE = domain
+                return domain, None
+            else:
+                logger.warning("[CloudFront] Secret exists but domain is empty")
+                return None, "Secret exists but domain is empty"
+
+        except secrets_client.exceptions.ResourceNotFoundException:
+            logger.info("[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)")
+            return None, "Secret not found"
+        except json.JSONDecodeError as e:
+            logger.warning(f"[CloudFront] Failed to parse secret JSON: {e}")
+            return None, f"Invalid secret format: {e}"
+
+    except ImportError:
+        logger.warning("[CloudFront] boto3 not available, skipping Secrets Manager fetch")
+        return None, "boto3 not available"
+    except Exception as e:
+        logger.error(f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}")
+        return None, f"Error: {e}"
+
 def validate_environment():
     """Validate critical environment variables at cold start.
 
@@ -76,10 +130,23 @@ def validate_environment():
                 errors.append('COGNITO_REGION: Required in Lambda environment')
 
     # SECURITY FIX: In production, FRONTEND_URL must be explicitly set for CORS
+    # IMPROVEMENT: Try to fetch CloudFront domain from Secrets Manager if not set
     is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
     if is_lambda:
         frontend_url = os.getenv('FRONTEND_URL', '').strip()
         allow_localhost = os.getenv('ALLOW_LOCALHOST_CORS', '') == 'true'
+
+        # If FRONTEND_URL not set, try to fetch CloudFront domain from Secrets Manager
+        if not frontend_url:
+            cf_domain, cf_error = fetch_cloudfront_domain_from_secrets()
+            if cf_domain:
+                frontend_url = f'https://{cf_domain}' if not cf_domain.startswith(('http://', 'https://')) else cf_domain
+                os.environ['FRONTEND_URL'] = frontend_url
+                logger.info(f"[CloudFront] Set FRONTEND_URL from Secrets Manager: {frontend_url}")
+            elif cf_error != "Secret not found":
+                logger.warning(f"[CloudFront] Fetch attempt returned error (may be first deploy): {cf_error}")
+
+        # Validation: FRONTEND_URL or localhost must be available
         if not frontend_url and not allow_localhost:
             errors.append('FRONTEND_URL: Must be set for production CORS (or set ALLOW_LOCALHOST_CORS=true for dev)')
 
