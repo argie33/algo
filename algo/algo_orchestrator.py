@@ -134,6 +134,21 @@ class Orchestrator:
 
         return False
 
+    def _check_connection_pool_health(self) -> None:
+        """Monitor RDS connection pool and alert if approaching limits."""
+        try:
+            from algo.algo_connection_monitor import get_pool_status, check_stuck_connections
+            status = get_pool_status()
+            logger.debug(f"[RDS_POOL] Status: {status['active_connections']}/{status['max_connections']} "
+                        f"({status['usage_pct']:.0f}%)")
+
+            # Alert on stuck connections (held >5min)
+            if status['stuck_connections_count'] > 0:
+                logger.warning(f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections")
+                check_stuck_connections()
+        except Exception as e:
+            logger.debug(f"Could not check connection pool health: {e}")
+
     def _kill_long_running_loaders(self) -> None:
         """CRITICAL: Kill analytics loaders running > 2 hours to prevent OOM crashes.
 
@@ -484,6 +499,9 @@ class Orchestrator:
                 return report
             else:
                 logger.info("[OK] Database connectivity check passed")
+
+            logger.info("\n[CHECK] Monitoring RDS connection pool...")
+            self._check_connection_pool_health()
 
             logger.info("\n[CHECK] Killing long-running analytics loaders...")
             self._kill_long_running_loaders()

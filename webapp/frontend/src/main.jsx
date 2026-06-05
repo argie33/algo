@@ -160,7 +160,9 @@ checkAndClearStaleCache().catch(() => {});
 // This is CRITICAL: API calls are blocked until this completes.
 const waitForConfig = async () => {
   // If config already loaded (synchronously), proceed immediately
-  if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && window.__CONFIG__.API_URL) {
+  // In dev mode, API_URL is intentionally empty (Vite proxy handles /api/*)
+  // So check for the object existence, not the URL value
+  if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
     logger.info("Config already loaded, using immediately");
     configureAmplify();
     return;
@@ -189,13 +191,14 @@ const waitForConfig = async () => {
     }, CONFIG_TIMEOUT);
 
     // Poll for config with adaptive frequency
+    // Check for ENVIRONMENT property instead of API_URL (which is intentionally empty in dev mode)
     const pollInterval = setInterval(() => {
-      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && window.__CONFIG__.API_URL) {
+      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
         configLoaded = true;
         clearTimeout(timeout);
         clearInterval(pollInterval);
         logger.info("Config loaded successfully", {
-          apiUrl: window.__CONFIG__.API_URL,
+          apiUrl: window.__CONFIG__.API_URL || '(empty - using Vite proxy)',
           environment: window.__CONFIG__.ENVIRONMENT,
         });
         configureAmplify();
