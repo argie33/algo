@@ -2,11 +2,11 @@
 
 This guide walks you through enabling password reset emails so users can receive reset codes and manage passwords independently.
 
-## Current Status
+## Architecture Components
 
-✓ **Frontend:** Password reset UI complete (login → Forgot password? → email input → reset code + password form)  
-✓ **Backend:** AWS Cognito + Lambda custom email trigger configured  
-❌ **Email Delivery:** BLOCKED by AWS SES sandbox restrictions
+- **Frontend:** Password reset UI (login → Forgot password? → email input → reset code + password form)
+- **Backend:** AWS Cognito + Lambda custom email trigger
+- **Email Service:** AWS SES (sandbox mode by default)
 
 ## The Problem
 
