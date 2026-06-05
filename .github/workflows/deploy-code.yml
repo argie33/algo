@@ -1151,7 +1151,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js 24
-        uses: actions/setup-node@90eb8196f0305a9c803bfc85bc23a0f8e1597f3f  # v4  # v4.0.3
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
