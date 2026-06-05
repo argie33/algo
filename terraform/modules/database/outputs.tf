@@ -45,6 +45,17 @@ output "rds_arn" {
   value       = aws_db_instance.main.arn
 }
 
+# RDS Proxy (Connection Pooling)
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint (use this instead of direct RDS endpoint for loaders)"
+  value       = var.enable_rds_proxy ? aws_db_proxy.main[0].endpoint : aws_db_instance.main.endpoint
+}
+
+output "rds_proxy_address" {
+  description = "RDS Proxy hostname only"
+  value       = var.enable_rds_proxy ? split(":", aws_db_proxy.main[0].endpoint)[0] : aws_db_instance.main.address
+}
+
 # Secrets
 output "rds_credentials_secret_arn" {
   description = "ARN of RDS credentials secret"

@@ -200,6 +200,110 @@ resource "aws_db_parameter_group" "postgres" {
 }
 
 # ============================================================
+# 3b. RDS Proxy (Connection Pooling for Concurrent Loaders)
+# ============================================================
+# Multiplexes client connections to RDS database connection pool.
+# Each loader opens a short-lived connection; RDS Proxy manages a smaller persistent pool.
+#
+# Configuration rationale:
+# - max_connections_percent: 100% (use all 500 RDS connections for flexibility)
+# - max_idle_connections: 30 (balance between connection overhead and quick reuse)
+# - session_pinning_filters: [] (default, allows connection multiplexing across clients)
+# - init_query: "SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE" (ensure writers work)
+# - connection_borrow_timeout: 300 sec (5 min for slow loaders to acquire a connection)
+
+resource "aws_db_proxy" "main" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  name                   = "${var.project_name}-db-proxy"
+  engine_family          = "POSTGRESQL"
+  auth {
+    auth_scheme = "SECRETS"
+    secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
+  }
+
+  role_arn               = aws_iam_role.rds_proxy.arn
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [var.rds_security_group_id]
+
+  # Connection pooling configuration
+  max_connections            = 100  # Loaders share 100 connections to RDS (vs 500 direct)
+  max_idle_connections       = 30   # Keep 30 idle for quick reuse
+  connection_borrow_timeout  = 300  # Allow 5 min for slow loaders to wait
+  init_query                 = "SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE"
+  session_pinning_filters    = []   # Allow multiplexing across clients (default behavior)
+
+  # Monitoring
+  enable_cloudwatch_logs_exports = ["postgresql"]
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-db-proxy"
+  })
+
+  depends_on = [aws_db_instance.main]
+}
+
+# RDS Proxy IAM Role (allows proxy to read Secrets Manager credentials)
+resource "aws_iam_role" "rds_proxy" {
+  name = "${var.project_name}-svc-rds-proxy-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "rds.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+
+  tags = var.common_tags
+}
+
+resource "aws_iam_role_policy" "rds_proxy_secrets" {
+  name = "${var.project_name}-rds-proxy-secrets-policy"
+  role = aws_iam_role.rds_proxy.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "secretsmanager:GetSecretValue"
+      ]
+      Resource = aws_secretsmanager_secret.rds_credentials.arn
+    }]
+  })
+}
+
+# RDS Proxy Target Group (maps proxy to RDS instance)
+resource "aws_db_proxy_target_group" "main" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  db_proxy_name         = aws_db_proxy.main[0].name
+  name                  = "default"
+  db_parameter_group_name = "default.postgres${var.postgres_major_version}"
+
+  connection_pool_settings {
+    connection_borrow_timeout    = 300
+    connection_lifetime_seconds  = 3600  # Recycle connections after 1 hour
+    idle_in_transaction_session_timeout_seconds = 180  # Kill idle txns after 3 min
+    max_connection_percent       = 100   # Use all pooled connections available
+    max_idle_connections_percent = 50    # Keep up to 50% idle for quick reuse
+    session_pinning_filters      = []    # Allow client-level multiplexing
+  }
+}
+
+resource "aws_db_proxy_target" "main" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  db_proxy_name          = aws_db_proxy.main[0].name
+  target_group_name      = aws_db_proxy_target_group.main[0].name
+  db_instance_identifier = aws_db_instance.main.identifier
+}
+
+# ============================================================
 # 4. RDS Monitoring Role (CloudWatch Enhanced Monitoring)
 # ============================================================
 

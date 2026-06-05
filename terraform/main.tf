@@ -175,7 +175,7 @@ module "loaders" {
   private_subnet_ids          = module.vpc.private_subnet_ids
   ecs_tasks_sg_id             = module.vpc.ecs_tasks_security_group_id
   db_secret_arn               = module.database.rds_credentials_secret_arn
-  db_host                     = module.database.rds_address
+  db_host                     = module.database.rds_proxy_address
   db_port                     = local.db_port
   db_name                     = var.rds_db_name
   db_user                     = module.database.rds_username

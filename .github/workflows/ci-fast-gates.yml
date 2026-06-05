@@ -147,7 +147,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -q pytest pytest-cov pytest-mock
-          pip install -q psycopg2-binary python-dotenv
+          pip install -q psycopg2-binary python-dotenv requests boto3
       - name: Run unit tests — ${{ matrix.test-module }}
         run: pytest ${{ matrix.test-module }} -v --tb=short
         env:

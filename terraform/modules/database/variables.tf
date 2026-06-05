@@ -124,6 +124,12 @@ variable "rds_kms_key_id" {
   default     = null
 }
 
+variable "enable_rds_proxy" {
+  description = "Enable RDS Proxy for connection pooling - STRONGLY RECOMMENDED for concurrent loaders to prevent connection pool exhaustion"
+  type        = bool
+  default     = true
+}
+
 # ============================================================
 # Network Configuration
 # ============================================================

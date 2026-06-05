@@ -1053,6 +1053,28 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
   tags = var.common_tags
 }
 
+# CloudWatch Alarm: Morning pipeline not completed by 9:30 AM
+resource "aws_cloudwatch_metric_alarm" "morning_pipeline_timeout_risk" {
+  alarm_name          = "${var.project_name}-morning-pipeline-timeout-${var.environment}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ExecutionTime"
+  namespace           = "AWS/States"
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = 16200  # 4.5 hours (270 min) — alert if running >270 min at 9:00 AM
+  alarm_description   = "Morning pipeline running >4.5h (started 4:30 AM ET). May not complete before 9:30 AM orchestrator run."
+  alarm_actions       = [var.sns_topic_arn]
+
+  dimensions = {
+    StateMachineArn = aws_sfn_state_machine.morning_prep_pipeline.arn
+  }
+
+  treat_missing_data = "notBreaching"
+
+  tags = var.common_tags
+}
+
 resource "aws_lambda_permission" "loader_failure_handler_step_functions" {
   statement_id  = "AllowEODPipelineInvoke"
   action        = "lambda:InvokeFunction"
