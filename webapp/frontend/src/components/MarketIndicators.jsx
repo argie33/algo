@@ -125,7 +125,7 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                           {formatPercentageChange(stock.change_percent)}
                         </TableCell>
                         <TableCell>
-                          <Chip label={stock.sector} size="small" variant="outlined" />
+                          <Chip label={stock.sector || '—'} size="small" variant="outlined" />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -174,7 +174,7 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                           {parseFloat(stock.change_percent || 0).toFixed(2)}%
                         </TableCell>
                         <TableCell>
-                          <Chip label={stock.sector} size="small" variant="outlined" />
+                          <Chip label={stock.sector || '—'} size="small" variant="outlined" />
                         </TableCell>
                       </TableRow>
                     ))}

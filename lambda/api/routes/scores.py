@@ -92,13 +92,14 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                 )
                 SELECT
                     sc.symbol,
-                    ss.security_name AS company_name,
-                    cp.sector, cp.industry,
+                    COALESCE(ss.security_name, sc.symbol) AS company_name,
+                    COALESCE(cp.sector, 'Unknown') AS sector,
+                    COALESCE(cp.industry, 'Unknown') AS industry,
                     sc.composite_score, sc.momentum_score, sc.quality_score,
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
                     sc.updated_at AS last_updated,
-                    lp.current_close AS current_price,
-                    lp.current_close AS price,
+                    COALESCE(lp.current_close, 0) AS current_price,
+                    COALESCE(lp.current_close, 0) AS price,
                     ROUND(CASE
                         WHEN pp.prev_close IS NOT NULL THEN ((lp.current_close - pp.prev_close) / NULLIF(pp.prev_close, 0)) * 100
                         ELSE NULL
@@ -125,8 +126,8 @@ def _get_stock_scores(cur, limit: int = 5000, offset: int = 0, sort_by: str = 'c
                     pm.institutional_ownership AS inst_own_val,
                     pm.insider_ownership AS insider_own_val,
                     pm.short_interest_percent AS short_pct_val,
-                    tdd.rsi_14 AS tdd_rsi,
-                    tdd.macd AS tdd_macd,
+                    COALESCE(tdd.rsi_14, 0) AS tdd_rsi,
+                    COALESCE(tdd.macd, 0) AS tdd_macd,
                     ROUND(CASE WHEN tdd.sma_50 > 0 THEN ((lp.current_close - tdd.sma_50) / tdd.sma_50 * 100) END, 2) AS price_vs_sma_50,
                     ROUND(CASE WHEN tdd.sma_200 > 0 THEN ((lp.current_close - tdd.sma_200) / tdd.sma_200 * 100) END, 2) AS price_vs_sma_200
                 FROM stock_scores sc

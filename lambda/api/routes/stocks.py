@@ -165,11 +165,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 )
                 SELECT
                     ss.symbol,
-                    ss.security_name AS company_name,
-                    cp.sector,
-                    cp.industry,
+                    COALESCE(ss.security_name, ss.symbol) AS company_name,
+                    COALESCE(cp.sector, 'Unknown') AS sector,
+                    COALESCE(cp.industry, 'Unknown') AS industry,
                     cp.market_cap,
-                    lp.current_price,
+                    COALESCE(lp.current_price, 0) AS current_price,
                     ROUND((
                         COALESCE(sc.value_score, 0) * 0.5 +
                         COALESCE(sc.quality_score, 0) * 0.3 +
@@ -260,8 +260,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         query_params_with_limit = query_params + [limit, offset]
 
         cur.execute("""
-            SELECT ss.symbol, ss.security_name as company_name,
-                   cp.sector, cp.industry,
+            SELECT ss.symbol, COALESCE(ss.security_name, ss.symbol) as company_name,
+                   COALESCE(cp.sector, 'Unknown') as sector,
+                   COALESCE(cp.industry, 'Unknown') as industry,
                    ss.is_sp500
             FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker

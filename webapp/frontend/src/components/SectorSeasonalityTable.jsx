@@ -171,7 +171,7 @@ const SectorSeasonalityTable = ({ data }) => {
                       color: theme.palette.text.primary,
                     }}
                   >
-                    {sector.sector}
+                    {sector.sector || '—'}
                   </TableCell>
 
                   {/* Monthly Cells */}
@@ -183,7 +183,7 @@ const SectorSeasonalityTable = ({ data }) => {
                     return (
                       <Tooltip
                         key={monthNum}
-                        title={`${sector.sector} in ${MONTH_FULL_NAMES[monthNum - 1]}: ${formatReturn(monthlyReturn)} avg return${
+                        title={`${sector.sector || 'Unknown'} in ${MONTH_FULL_NAMES[monthNum - 1]}: ${formatReturn(monthlyReturn)} avg return${
                           status === "best" ? " (Best month)" : status === "worst" ? " (Worst month)" : ""
                         }`}
                         arrow
@@ -237,7 +237,7 @@ const SectorSeasonalityTable = ({ data }) => {
                   }}
                 >
                   <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                    {sector.sector}
+                    {sector.sector || '—'}
                   </Typography>
                   <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>

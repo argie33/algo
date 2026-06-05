@@ -382,8 +382,8 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                     -- Original entry trade: stop and targets
                     ot.stop_loss_price AS trade_stop_price,
                     ot.target_1_price, ot.target_2_price, ot.target_3_price,
-                    -- Sector from company_profile
-                    cp.sector,
+                    -- Sector from company_profile (with fallback to Unknown)
+                    COALESCE(cp.sector, 'Unknown') as sector,
                     -- Stage / trend from trend_template_data
                     lt.weinstein_stage,
                     lt.minervini_trend_score,

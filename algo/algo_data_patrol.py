@@ -41,40 +41,69 @@ class DataPatrol:
             self.check_timings[check_name] = elapsed
             raise
 
+    def _get_config_value(self, cur, key, default):
+        """Read configuration value from algo_config table, fall back to default.
+
+        Allows runtime tuning of patrol thresholds without code changes.
+        """
+        try:
+            cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+            result = cur.fetchone()
+            if result and result[0]:
+                # Try to parse as number (int or float)
+                try:
+                    if '.' in str(result[0]):
+                        return float(result[0])
+                    else:
+                        return int(result[0])
+                except (ValueError, TypeError):
+                    return result[0]  # Return as string if not numeric
+            return default
+        except Exception:
+            return default  # If query fails, use default
+
+    def _load_configuration(self, cur):
+        """Load patrol configuration from algo_config table with defaults.
+
+        Reads from database first, falls back to hardcoded defaults if not configured.
+        """
+        config = {
+            'staleness_windows': {
+                'price_daily': self._get_config_value(cur, 'patrol_staleness_price_daily', 7),
+                'technical_data_daily': self._get_config_value(cur, 'patrol_staleness_technical_daily', 7),
+                'buy_sell_daily': self._get_config_value(cur, 'patrol_staleness_buy_sell_daily', 7),
+                'signal_quality_scores': self._get_config_value(cur, 'patrol_staleness_signal_quality_scores', 7),
+                'stock_scores': self._get_config_value(cur, 'patrol_staleness_stock_scores', 14),
+                'earnings_history': self._get_config_value(cur, 'patrol_staleness_earnings_history', 120),
+            },
+            'coverage_thresholds': {
+                'min_universe_pct': self._get_config_value(cur, 'patrol_min_universe_pct', 75),
+                'min_coverage_ratio': self._get_config_value(cur, 'patrol_min_coverage_ratio', 0.75),
+            },
+            'price_sanity': {
+                'max_daily_move_pct': self._get_config_value(cur, 'patrol_max_daily_move_pct', 50),
+                'max_daily_move_count': self._get_config_value(cur, 'patrol_max_daily_move_count', 10),
+            },
+            'volume_sanity': {
+                'low_volume_threshold': self._get_config_value(cur, 'patrol_low_volume_threshold', 1000000),
+                'high_volume_threshold': self._get_config_value(cur, 'patrol_high_volume_threshold', 100000000),
+                'new_low_volume_alert': self._get_config_value(cur, 'patrol_new_low_volume_alert', 50),
+            },
+            'loader_contracts': {
+                'price_daily_14d_min': self._get_config_value(cur, 'patrol_price_daily_14d_min', 40000),
+                'buy_sell_daily_14d_min': self._get_config_value(cur, 'patrol_buy_sell_daily_14d_min', 800),
+                'coverage_ratio_min': self._get_config_value(cur, 'patrol_coverage_ratio_min', 0.80),
+            },
+        }
+        return config
+
     def _log_configuration(self, cur):
         """Log all patrol configuration at start of run.
 
         Captures thresholds, timeouts, and check settings. If someone silently
         changes a threshold, it will be in the log.
         """
-        config = {
-            'staleness_windows': {
-                'price_daily': 7,
-                'technical_data_daily': 7,
-                'buy_sell_daily': 7,
-                'signal_quality_scores': 7,
-                'stock_scores': 14,
-                'earnings_history': 120,
-            },
-            'coverage_thresholds': {
-                'min_universe_pct': 75,  # Allow 75% instead of 95% - yfinance has limits on OTC/penny stocks
-                'min_coverage_ratio': 0.75,
-            },
-            'price_sanity': {
-                'max_daily_move_pct': 50,
-                'max_daily_move_count': 10,
-            },
-            'volume_sanity': {
-                'low_volume_threshold': 1000000,
-                'high_volume_threshold': 100000000,
-                'new_low_volume_alert': 50,
-            },
-            'loader_contracts': {
-                'price_daily_14d_min': 40000,
-                'buy_sell_daily_14d_min': 800,
-                'coverage_ratio_min': 0.80,
-            },
-        }
+        config = self._load_configuration(cur)
         try:
             cur.execute("""
                 INSERT INTO data_patrol_log (patrol_run_id, check_name, severity,

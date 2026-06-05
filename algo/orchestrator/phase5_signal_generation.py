@@ -71,6 +71,13 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
 
         # Always log waterfall to diagnose 'no trades' situations
         logger.info(f"\n  [FILTER REJECTION ANALYSIS] Signal filtering on {run_date}:")
+
+        # Include source data ages in waterfall report (if available from Phase 5)
+        if 'signal_data_ages' in locals() and signal_data_ages:
+            max_age = max(signal_data_ages.values()) if signal_data_ages.values() else 0
+            logger.info(f"    Source data ages (max):   {max_age:4d}d (buy_sell={signal_data_ages.get('buy_sell_daily', '?')}d, "
+                       f"technical={signal_data_ages.get('technical_data', '?')}d, trend={signal_data_ages.get('trend_template', '?')}d)")
+
         logger.info(f"    Total BUY signals:        {total_signals:4d}")
         logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
         for tier_name in ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"]:
@@ -164,15 +171,18 @@ def run(
         _elapsed = _timing.time() - _start
         eval_date = pipeline._snapshot_eval_date or run_date
 
-        # Track signal freshness: check age of swing_trader_scores (critical for signal quality)
+        # Track signal freshness: check age of source data components
+        signal_data_ages = {}
         try:
             with DatabaseContext("read") as _cur:
+                # Check swing_trader_scores freshness (critical for signal quality)
                 _cur.execute("SELECT MAX(date) FROM swing_trader_scores")
                 result = _cur.fetchone()
                 latest_scores_date = result[0] if result and result[0] else None
 
                 if latest_scores_date:
                     score_age = (run_date - latest_scores_date).days
+                    signal_data_ages['swing_trader_scores'] = score_age
                     if score_age <= 0:
                         logger.info(
                             f"[SIGNAL FRESHNESS] swing_trader_scores: fresh ({latest_scores_date}, same day)"
@@ -185,24 +195,60 @@ def run(
                         logger.warning(
                             f"[SIGNAL FRESHNESS] swing_trader_scores: {score_age} days stale ({latest_scores_date}) — signals may lack freshness"
                         )
-
-                    # Emit metric for signal freshness tracking
-                    try:
-                        with MetricsPublisher(dry_run=dry_run) as _m:
-                            _m.put_metric(
-                                "SignalFreshnessAge",
-                                score_age,
-                                unit="Days",
-                                dimensions={"table": "swing_trader_scores"},
-                            )
-                    except Exception as _metric_err:
-                        logger.debug(
-                            f"Could not emit signal freshness metric: {_metric_err}"
-                        )
                 else:
                     logger.warning(
                         "[SIGNAL FRESHNESS] swing_trader_scores: NO DATA FOUND — signals will have zero scores"
                     )
+
+                # Check source data staleness columns (buy_sell_daily_age_days, etc.)
+                _cur.execute("""
+                    SELECT
+                        MAX(COALESCE(buy_sell_daily_age_days, 0)) as buy_sell_age,
+                        MAX(COALESCE(technical_data_age_days, 0)) as technical_age,
+                        MAX(COALESCE(trend_template_age_days, 0)) as trend_age,
+                        COUNT(*) as signal_count
+                    FROM signal_quality_scores
+                    WHERE date = %s
+                """, (eval_date,))
+
+                result = _cur.fetchone()
+                if result:
+                    buy_sell_age, technical_age, trend_age, signal_count = result
+                    signal_data_ages['buy_sell_daily'] = buy_sell_age or 0
+                    signal_data_ages['technical_data'] = technical_age or 0
+                    signal_data_ages['trend_template'] = trend_age or 0
+
+                    max_source_age = max(buy_sell_age or 0, technical_age or 0, trend_age or 0)
+                    logger.info(
+                        f"[SIGNAL DATA AGE] Source data freshness: buy_sell={buy_sell_age}d, "
+                        f"technical={technical_age}d, trend={trend_age}d (max={max_source_age}d, {signal_count} signals)"
+                    )
+
+                    # Warn if source data is 2+ days old (reduced freshness)
+                    if max_source_age >= 2:
+                        logger.warning(
+                            f"[SIGNAL DATA AGE] Source data {max_source_age} days old — signal quality may be reduced"
+                        )
+
+                    # Emit metrics for data age tracking
+                    try:
+                        with MetricsPublisher(dry_run=dry_run) as _m:
+                            _m.put_metric(
+                                "SignalFreshnessAge",
+                                max(score_age or 0, max_source_age or 0),
+                                unit="Days",
+                                dimensions={"component": "max_age"},
+                            )
+                            _m.put_metric(
+                                "SignalSourceDataAge",
+                                max_source_age or 0,
+                                unit="Days",
+                                dimensions={"component": "source_data"},
+                            )
+                    except Exception as _metric_err:
+                        logger.debug(
+                            f"Could not emit signal freshness metrics: {_metric_err}"
+                        )
         except Exception as _freshness_err:
             logger.debug(
                 f"Signal freshness check failed (non-blocking): {_freshness_err}"

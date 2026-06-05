@@ -71,7 +71,8 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
                     bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
                     bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
                     bsd.avg_volume_50d,
-                    cp.sector, cp.industry
+                    COALESCE(cp.sector, 'Unknown') as sector,
+                    COALESCE(cp.industry, 'Unknown') as industry
                 FROM buy_sell_daily bsd
                 LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                 LEFT JOIN LATERAL (
