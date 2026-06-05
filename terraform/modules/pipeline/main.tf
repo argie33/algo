@@ -865,10 +865,12 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       # Load only daily prices (not weekly/monthly) for morning prep.
       # Override LOADER_INTERVALS to "1d" so only daily prices are loaded (~15 min vs 6+ hours).
       # The full 1d/1wk/1mo load runs in the EOD pipeline at 4:05pm ET.
+      # OPTIMIZED: Reduce parallelism from 4→2 to stay within yfinance rate limits when loading 5000+ symbols.
+      # This adds ~10-15 min but prevents rate-limit cascades that could push to 90+ min timeout.
       MorningPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 5400
+        TimeoutSeconds = 4500
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -879,22 +881,35 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
               Name = "${var.project_name}-stock_prices_daily"
               Environment = [
                 { Name = "LOADER_INTERVALS", Value = "1d" },
-                { Name = "LOADER_ASSET_CLASSES", Value = "stock" }
+                { Name = "LOADER_ASSET_CLASSES", Value = "stock" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
               ]
             }]
           }
         }
         Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 120
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          ErrorEquals     = ["States.TaskStateAbortedError", "States.TaskStateTimedOut"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PipelineFailed"
-          ResultPath  = "$.error"
+          Next        = "MorningFallback"
+          ResultPath  = "$.priceError"
         }]
+        Next = "MorningTechnicals"
+      }
+
+      # Fallback: If stock prices fails, use yesterday's prices and continue with morning prep.
+      # This prevents 1 slow loader from blocking the entire pipeline.
+      # Phase 1 freshness checks will log the staleness but proceed (fail-open).
+      MorningFallback = {
+        Type = "Pass"
+        Parameters = {
+          "fallback_note.$" = "$.priceError"
+          "message" = "Stock prices load failed or timed out. Using yesterday's prices for technicals and signals. Phase 1 will flag this as stale."
+        }
         Next = "MorningTechnicals"
       }
 
