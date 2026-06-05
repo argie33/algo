@@ -1218,7 +1218,7 @@ def run(
                         WHERE table_name IN (
                             'price_daily', 'etf_price_daily',
                             'market_health_daily', 'trend_template_data',
-                            'signal_quality_scores', 'buy_sell_daily'
+                            'signal_quality_scores', 'buy_sell_daily', 'swing_trader_scores'
                         )
                     """)
                     for r in cur.fetchall():
@@ -1286,15 +1286,19 @@ def run(
         tt_date = dates.get('trend_template_data')
         sqs_date = dates.get('signal_quality_scores')
         buys_date = dates.get('buy_sell_daily')
+        swing_date = dates.get('swing_trader_scores')
 
         # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
         # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
         # their staleness creates a deadlock: Phase 1 blocks before Phase 5 can populate them.
         # They are logged for observability but excluded from the halt decision.
+        # FIX #8: swing_trader_scores is DIFFERENT — it's populated DURING morning pipeline,
+        # BEFORE 9:30 AM Phase 1. If missing/stale, Phase 5 cannot rank trades (no input data).
         halt_checks = {
             'SPY price data': spy_date,
             'Market health': mh_date,
             'Trend template': tt_date,
+            'Swing trader scores': swing_date,  # FIX #8: Required for Phase 5 ranking
         }
         observe_checks = {
             'Signal quality scores': sqs_date,
