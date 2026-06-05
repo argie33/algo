@@ -777,8 +777,9 @@ def run(
 
             # RETRY LOGIC: If first attempt fails, try once more with 10s backoff
             # (allows recovery from transient ECS/network issues without giving up)
-            # poll_timeout_sec=90 allows ECS task provision to complete under cluster load
             #
+            # Dynamic poll timeout: start at 30s, extend to 120s if under heavy load.
+            # ECS task provision can take 30-45s under normal load, 60-120s when busy.
             # RACE CONDITION MITIGATION: stock_prices_daily loader runs async (non-blocking).
             # Phases 2-7 may execute while loader is writing new data.
             # SAFE because:
@@ -789,7 +790,10 @@ def run(
             failsafe_ok = False
             for attempt in range(1, 3):
                 try:
-                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=90)
+                    # Increase poll timeout on retry (30s first attempt, 120s second)
+                    poll_timeout = 30 if attempt == 1 else 120
+                    logger.info(f"[FAILSAFE] Attempt {attempt}/2: launching loader with {poll_timeout}s poll timeout...")
+                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
                     if failsafe_ok:
                         break
                     elif attempt < 2:
