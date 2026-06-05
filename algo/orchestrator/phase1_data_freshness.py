@@ -236,6 +236,39 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
     """
     return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=180)
 
+def _check_failsafe_grace_period(state_table: Any, verbose: bool = False) -> Optional[float]:
+    """Check if a previously-triggered failsafe is within grace period window.
+
+    Returns:
+        - Minutes since trigger if <2 hours ago (loader likely still running)
+        - None if >2 hours ago or no record exists (need fresh trigger)
+
+    This prevents redundant failsafe triggers when a loader is already running
+    asynchronously in the background. Assumes typical stock_prices_daily takes
+    90-120 minutes to complete.
+    """
+    try:
+        response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
+        if 'Item' not in response:
+            return None
+
+        triggered_at = response['Item'].get('triggered_at', 0)
+        current_time = time.time()
+        age_minutes = (current_time - triggered_at) / 60
+
+        # Grace period: 2 hours = typical max runtime for stock_prices_daily
+        if age_minutes < 120:
+            if verbose:
+                logger.debug(f"[FAILSAFE] Within grace period: triggered {age_minutes:.0f}m ago")
+            return age_minutes
+        else:
+            logger.info(f"[FAILSAFE] Grace period expired: triggered {age_minutes:.0f}m ago (>2h)")
+            return None
+
+    except Exception as err:
+        logger.debug(f"[FAILSAFE] Could not check grace period: {err}")
+        return None
+
 def _get_most_recent_trading_day(from_date: _date = None, trading_days_back: int = 1) -> _date:
     """Get the Nth most recent trading day from a given date.
 
@@ -1111,7 +1144,7 @@ def run(
             # GRACE PERIOD: Check if a failsafe was already triggered in the last 2 hours.
             # If yes, skip redundant trigger and allow current run to proceed with in-flight loader.
             # This prevents 20+ potential halts/week from 4 daily runs each independently
-            # triggering the same loader.
+            # triggering the same loader. Assumes stock_prices_daily takes 90-120 minutes.
             failsafe_already_triggered = False
             failsafe_age_minutes = None
 
@@ -1121,18 +1154,14 @@ def run(
                 state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
                 state_table = dynamodb.Table(state_table_name)
 
-                response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
-                if 'Item' in response:
-                    last_trigger_time = response['Item'].get('triggered_at', 0)
-                    current_time = time.time()
-                    failsafe_age_minutes = (current_time - last_trigger_time) / 60
-
-                    if failsafe_age_minutes < 120:  # 2 hours
-                        failsafe_already_triggered = True
-                        logger.info(f"[FAILSAFE] Grace period: Failsafe already triggered {failsafe_age_minutes:.0f}m ago. "
-                                   f"Skipping redundant trigger, allowing in-flight loader to complete.")
+                # Enhanced: Check if trigger was recent (within 2-hour grace period)
+                failsafe_age_minutes = _check_failsafe_grace_period(state_table, verbose)
+                if failsafe_age_minutes is not None:
+                    failsafe_already_triggered = True
+                    logger.info(f"[FAILSAFE] Grace period: Failsafe was triggered {failsafe_age_minutes:.0f}m ago (<2h). "
+                               f"Skipping redundant trigger, allowing async loader to complete.")
             except Exception as state_err:
-                logger.debug(f"[FAILSAFE] Could not check failsafe trigger log: {state_err}. "
+                logger.debug(f"[FAILSAFE] Could not check failsafe grace period: {state_err}. "
                             f"Will proceed with fresh trigger.")
 
             if failsafe_already_triggered:
