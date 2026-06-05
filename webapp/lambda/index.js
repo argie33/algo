@@ -434,6 +434,20 @@ app.use("/api/commodities", cacheMiddleware(60), commoditiesRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
 app.use("/api/economic", cacheMiddleware(120), economicRoutes);
 app.use("/api/health", healthRoutes);
+
+// Database status endpoint - quick check for database connectivity
+app.get("/api/database-status", async (req, res) => {
+  try {
+    const result = await query("SELECT 1 as connected");
+    if (result && result.rows && result.rows.length > 0) {
+      return sendSuccess(res, { status: "connected", healthy: true });
+    }
+    return sendError(res, "Database query returned no results", 503);
+  } catch (error) {
+    return sendError(res, "Database connection failed: " + error.message, 503);
+  }
+});
+
 app.use("/api/industries", cacheMiddleware(120), industriesRoutes);
 app.use("/api/market", cacheMiddleware(60), marketRoutes);
 app.use("/api/optimization", optimizationRoutes);
