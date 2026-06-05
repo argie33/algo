@@ -248,38 +248,14 @@ resource "aws_scheduler_schedule" "weight_optimization" {
 }
 
 # ============================================================
-# Daily Data Patrol (6:00 AM ET = 11:00 AM UTC)
-# Runs daily to check data freshness, staleness, API status
+# Data Patrol Schedule (Handled by Step Functions EOD Pipeline)
 # ============================================================
-
-resource "aws_scheduler_schedule" "data_patrol_daily" {
-  name                         = "${var.project_name}-data-patrol-${var.environment}"
-  description                  = "Daily data patrol: 6:00 AM ET (check data freshness, API health)"
-  schedule_expression          = "cron(0 6 ? * MON-FRI *)" # 6:00 AM ET, Mon-Fri
-  schedule_expression_timezone = "America/New_York"
-  state                        = "ENABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = aws_lambda_function.algo.arn
-    role_arn = var.eventbridge_scheduler_role_arn
-
-    input = jsonencode({
-      source         = "eventbridge-scheduler"
-      run_date       = "now"
-      run_identifier = "daily_patrol"
-      note           = "Daily data patrol: check loader freshness + API health"
-      trigger_type   = "data_patrol"
-    })
-  }
-
-  depends_on = [
-    aws_lambda_permission.eventbridge_scheduler
-  ]
-}
+# Data patrol runs as part of the EOD pipeline (4:05 PM ET) in Step Functions,
+# validating data quality before the orchestrator runs. No separate scheduler needed.
+# The orchestrator Phase 1 checks for CRITICAL findings and can halt trading if detected.
+#
+# If a pre-market patrol is needed in the future, create a separate EventBridge rule
+# that invokes the patrol ECS task directly (not via Lambda, which doesn't handle it).
 
 # ============================================================
 # Pre-Warm Schedule (9:25 AM ET) — 5 minutes before market open
