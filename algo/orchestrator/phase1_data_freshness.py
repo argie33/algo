@@ -132,6 +132,28 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                             elapsed = time.time() - poll_start
                             logger.info(f"[FAILSAFE] ✓ Loader task {task_id} confirmed RUNNING after {elapsed:.1f}s")
 
+                            # Store actual_running_at for grace period compensation (Issue 12)
+                            # Grace period should start from when task actually runs, not from trigger time
+                            try:
+                                import boto3
+                                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                                state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+                                state_table = dynamodb.Table(state_table_name)
+
+                                now = time.time()
+                                state_table.update_item(
+                                    Key={'state_key': 'failsafe_trigger_log'},
+                                    UpdateExpression='SET actual_running_at = :running_at, scheduling_delay_seconds = :delay',
+                                    ExpressionAttributeValues={
+                                        ':running_at': now,
+                                        ':delay': elapsed,
+                                    }
+                                )
+                                if verbose:
+                                    logger.debug(f"[FAILSAFE] Stored actual_running_at and scheduling_delay: {elapsed:.1f}s")
+                            except Exception as state_err:
+                                logger.debug(f"[FAILSAFE] Could not store actual_running_at: {state_err}")
+
                             # Emit CloudWatch metric for ECS scheduling delay (how long from trigger to RUNNING)
                             try:
                                 from algo.algo_metrics import MetricsPublisher
@@ -377,18 +399,32 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
             logger.debug(f"[FAILSAFE] Could not check loader status: {db_err}, falling back to time-based grace period")
 
         # Fallback: check DynamoDB timestamp-based grace period
+        # FIXED Issue 12: Use actual_running_at if available (when loader actually started),
+        # otherwise fall back to triggered_at (when trigger was initiated).
+        # This ensures grace period is counted from when ECS task actually runs, not from trigger time.
         response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
         if 'Item' not in response:
             return None
 
         triggered_at = response['Item'].get('triggered_at', 0)
+        actual_running_at = response['Item'].get('actual_running_at')  # When task actually started RUNNING
+        scheduling_delay = response['Item'].get('scheduling_delay_seconds', 0)  # ECS provisioning delay in seconds
+
         current_time = time.time()
-        age_minutes = (current_time - triggered_at) / 60
+
+        # Use actual_running_at for grace period if available (more accurate)
+        # Otherwise fall back to triggered_at (for triggers that haven't reached RUNNING yet)
+        if actual_running_at:
+            age_minutes = (current_time - actual_running_at) / 60
+            age_source = f"running_at (delay {scheduling_delay:.0f}s)"
+        else:
+            age_minutes = (current_time - triggered_at) / 60
+            age_source = "triggered_at (no RUNNING confirmation yet)"
 
         # Dynamic grace period (configurable via algo_config):
         # Read from database if available, default to 150 minutes
         # - stock_prices_daily can take up to 2h with yfinance lag
-        # - Add 30-min safety margin for ECS scheduler delays
+        # - Grace period starts from actual_running_at, so no need to add ECS delay anymore
         # - Total: 150 minutes (2.5 hours) as hard limit
         try:
             with DatabaseContext("read") as cur:
@@ -401,10 +437,10 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
 
         if age_minutes < max_grace_period:
             if verbose:
-                logger.debug(f"[FAILSAFE] Within grace period: triggered {age_minutes:.0f}m ago (max {max_grace_period}m)")
+                logger.debug(f"[FAILSAFE] Within grace period: {age_source} {age_minutes:.0f}m ago (max {max_grace_period}m)")
             return age_minutes
         else:
-            logger.info(f"[FAILSAFE] Grace period expired: triggered {age_minutes:.0f}m ago (>{max_grace_period}m)")
+            logger.info(f"[FAILSAFE] Grace period expired: {age_source} {age_minutes:.0f}m ago (>{max_grace_period}m)")
             return None
 
     except Exception as err:

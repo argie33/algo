@@ -293,41 +293,50 @@ class DataPatrol:
             self.log(cur, 'zero_data', ERROR, 'price_daily', f'Check failed: {e}', None)
 
     def check_volume_sanity(self, cur):
-        """P5. Volume within realistic range â€” catches zero-volume and halted symbols.
+        “””P5. Volume within realistic range â€” catches zero-volume and halted symbols.
 
         Penny stocks legitimately have low volume; halted symbols have zero volume.
-        This check flags UNUSUAL patterns: symbols trading <1M or >100M on same day.
-        """
+        This check flags UNUSUAL patterns using parameterized thresholds:
+        patrol_low_volume_threshold, patrol_high_volume_threshold, patrol_new_low_volume_alert.
+        “””
         try:
-            cur.execute("""
+            # Get thresholds from config
+            low_vol_threshold = self._get_config_value(cur, 'patrol_low_volume_threshold', 1000000)
+            high_vol_threshold = self._get_config_value(cur, 'patrol_high_volume_threshold', 100000000)
+            new_low_alert = self._get_config_value(cur, 'patrol_new_low_volume_alert', 50)
+
+            cur.execute(“””
                 SELECT
-                    SUM(CASE WHEN volume < 1000000 THEN 1 ELSE 0 END) FILTER (
+                    SUM(CASE WHEN volume < %s THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)
-                          AND symbol NOT IN (SELECT symbol FROM price_daily WHERE date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day' AND volume < 1000000)
+                          AND symbol NOT IN (SELECT symbol FROM price_daily WHERE date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day' AND volume < %s)
                     ) AS low_volume_new,
-                    SUM(CASE WHEN volume > 100000000 THEN 1 ELSE 0 END) FILTER (
+                    SUM(CASE WHEN volume > %s THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)
                     ) AS high_volume,
                     COUNT(*) FILTER (WHERE date = (SELECT MAX(date) FROM price_daily)) AS total
                 FROM price_daily
-            """)
+            “””, (low_vol_threshold, low_vol_threshold, high_vol_threshold))
             low_new, high_vol, total = cur.fetchone()
             low_new = int(low_new or 0)
             high_vol = int(high_vol or 0)
             total = int(total or 1)
 
             issues = []
-            if low_new > 50:
-                issues.append(f'{low_new} symbols NEW low-volume (<1M) â€” possible data source issue')
+            if low_new > new_low_alert:
+                issues.append(f'{low_new} symbols NEW low-volume (<{low_vol_threshold}) â€” possible data source issue')
                 self.log(cur, 'volume_sanity', WARN, 'price_daily',
-                         f'{low_new} symbols with <1M volume (new pattern)',
-                         {'new_low_volume': low_new, 'total': total})
+                         f'{low_new} symbols with <{low_vol_threshold} volume (threshold {new_low_alert})',
+                         {'new_low_volume': low_new, 'total': total, 'threshold': new_low_alert})
             if high_vol > 5:
-                issues.append(f'{high_vol} symbols with extreme volume (>100M)')
+                issues.append(f'{high_vol} symbols with extreme volume (>{high_vol_threshold})')
                 self.log(cur, 'volume_sanity', INFO, 'price_daily',
-                         f'{high_vol} symbols with >100M volume', {'extreme_count': high_vol})
+                         f'{high_vol} symbols with >{high_vol_threshold} volume',
+                         {'extreme_count': high_vol, 'threshold': high_vol_threshold})
             if not issues:
-                self.log(cur, 'volume_sanity', INFO, 'price_daily', 'Volume patterns normal', None)
+                self.log(cur, 'volume_sanity', INFO, 'price_daily',
+                         f'Volume patterns normal (low<{low_vol_threshold}, high>{high_vol_threshold})',
+                         {'low_threshold': low_vol_threshold, 'high_threshold': high_vol_threshold})
         except Exception as e:
             self.log(cur, 'volume_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
 
