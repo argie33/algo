@@ -77,7 +77,7 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                 overrides={
                     'containerOverrides': [
                         {
-                            'name': task_def.replace('algo-load-', '').replace('-', '_'),
+                            'name': f"algo-{loader_name}",
                             'environment': [
                                 {'name': 'FAILSAFE_TRIGGER', 'value': 'true'},
                                 {'name': 'TRIGGER_TIME', 'value': datetime.now(timezone.utc).isoformat()},
