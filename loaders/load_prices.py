@@ -68,6 +68,39 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
+        # Proactive rate limiter for yfinance (global 30 calls/min limit)
+        # Use token bucket to pace requests, avoid hitting limit
+        self._rate_limit_tokens = 30  # Initial tokens (30 requests)
+        self._rate_limit_last_refill = time.time()
+        self._rate_limit_refill_rate = 30 / 60  # 30 tokens per 60 seconds = 0.5 per second
+
+    def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
+        """Apply token bucket rate limiting to avoid yfinance 429 errors.
+
+        Tokens refill at 30 per minute (0.5 per second). Before fetching,
+        wait if necessary to stay under the limit.
+        """
+        import time
+
+        while True:
+            now = time.time()
+            elapsed = now - self._rate_limit_last_refill
+            # Refill tokens based on elapsed time
+            self._rate_limit_tokens += elapsed * self._rate_limit_refill_rate
+            self._rate_limit_last_refill = now
+
+            if self._rate_limit_tokens >= tokens_needed:
+                # Sufficient tokens, consume and return
+                self._rate_limit_tokens -= tokens_needed
+                return
+            else:
+                # Wait for token refill (calculate how long to wait)
+                tokens_short = tokens_needed - self._rate_limit_tokens
+                wait_sec = tokens_short / self._rate_limit_refill_rate
+                if wait_sec > 0.1:  # Only log if waiting >100ms
+                    logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens")
+                time.sleep(min(wait_sec, 0.5))  # Wait up to 500ms before re-checking
+
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch OHLCV from yfinance at specified interval."""
         from algo.algo_market_calendar import MarketCalendar
@@ -116,6 +149,8 @@ class PriceLoader(OptimalLoader):
 
         # Batch fetch from router
         try:
+            # Apply rate limiting before batch fetch (batch = 1 API call)
+            self._rate_limit_wait(tokens_needed=1)
             return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
         except Exception as e:
             # Fallback: If batch fails, fetch per-symbol to avoid losing entire batch
@@ -123,6 +158,8 @@ class PriceLoader(OptimalLoader):
             results = {}
             for symbol in symbols:
                 try:
+                    # Rate limit each per-symbol fetch too
+                    self._rate_limit_wait(tokens_needed=1)
                     rows = self._try_fetch(symbol, start, end)
                     results[symbol] = rows
                 except Exception as sym_err:
@@ -288,6 +325,7 @@ class PriceLoader(OptimalLoader):
         # Split into batches
         batches = [symbols[i:i + self.batch_size] for i in range(0, len(symbols), self.batch_size)]
         processed = 0
+        batch_times = []  # Track batch execution times for monitoring
 
         # Process batches with concurrency (increase max to 8 for better throughput on larger batches)
         max_concurrent = min(parallelism, 8)  # Allow up to 8 concurrent batches for faster loading
@@ -295,12 +333,34 @@ class PriceLoader(OptimalLoader):
             futures = {executor.submit(self._load_batch, batch): batch for batch in batches}
             for future in as_completed(futures):
                 batch = futures[future]
+                batch_start = time.time()
                 try:
                     future.result()
                 except Exception as e:
                     logger.error(f"Batch failed: {e}")
+
+                batch_elapsed = time.time() - batch_start
+                batch_times.append(batch_elapsed)
                 processed += len(batch)
-                logger.info("  Progress: %d/%d", processed, len(symbols))
+
+                # Progress reporting with rate estimation
+                elapsed = time.time() - start
+                avg_batch_time = sum(batch_times) / len(batch_times) if batch_times else 0
+                remaining_batches = len(batches) - (processed // self.batch_size)
+                estimated_remaining_sec = remaining_batches * avg_batch_time
+
+                logger.info(
+                    "  Progress: %d/%d symbols (%.0f%%) — batch: %.1fs, avg: %.1fs, est. %d more min",
+                    processed, len(symbols), (processed / len(symbols) * 100),
+                    batch_elapsed, avg_batch_time, estimated_remaining_sec / 60
+                )
+
+                # WARN if any batch takes >120s (indicates heavy rate limiting)
+                if batch_elapsed > 120:
+                    logger.warning(
+                        f"  [SLOW BATCH] {len(batch)} symbols took {batch_elapsed:.0f}s — "
+                        f"likely yfinance rate limiting. Consider reducing parallelism or checking API status."
+                    )
 
         self._stats["duration_sec"] = round(time.time() - start, 2)
         logger.info(
