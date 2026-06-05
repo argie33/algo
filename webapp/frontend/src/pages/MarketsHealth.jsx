@@ -601,8 +601,8 @@ function ExposureHistory({ markets }) {
           <div className="card-sub">How the algo's risk allocation moved with the market regime</div>
         </div>
       </div>
-      <div className="card-body" style={{ padding: 'var(--space-4)' }}>
-        <div style={{ height: 320, minWidth: 0 }}>
+      <div className="card-body" style={{ padding: 'var(--space-4)', width: '100%', minWidth: 0 }}>
+        <div style={{ height: 320, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
@@ -649,7 +649,7 @@ function BreadthCard({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, minWidth: 0 }}>
+        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={56}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -708,7 +708,7 @@ function NewHighsLowsCard({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, minWidth: 0 }}>
+        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={64}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -760,7 +760,7 @@ function SentimentCard({ markets, sentiment, loading }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, minWidth: 0 }}>
+        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -881,7 +881,7 @@ function InternalsCard({ data, loading }) {
           <div className="stile"><div className="stile-label">A/D Ratio</div><div className={`stile-value ${adRatio > 1 ? 'up' : 'down'}`}>{num(adRatio, 2)}</div><div className="stile-sub">{unchanged} unch.</div></div>
         </div>
         {mcclellan.length > 1 && (
-          <div style={{ height: 140, minWidth: 0 }}>
+          <div style={{ height: 140, width: '100%', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={mcclellan} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <defs>
@@ -1188,7 +1188,7 @@ function SectorRotationMap({ markets, onSelect }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 360, position: 'relative' }}>
+        <div style={{ height: 360, width: '100%', position: 'relative', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 24 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -1274,7 +1274,7 @@ function SectorRotationSignalCard() {
         </span>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, minWidth: 0 }}>
+        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={items.map(d => ({
               date: fmtDate(d.date),
@@ -1378,7 +1378,7 @@ function YieldCurveCard() {
           borderRadius: 'var(--r-sm)',
           padding: isInverted ? 'var(--space-2)' : 0,
         }}>
-          <div style={{ height: 220 }}>
+          <div style={{ height: 220, width: '100%', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={curve} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -1484,7 +1484,7 @@ function VolTermStructureCard() {
         </span>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, minWidth: 0 }}>
+        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -1673,7 +1673,7 @@ function SentimentCompositeCard({ markets, sentiment, loading }) {
                   </div>
                 </div>
                 {fg.length > 1 && (
-                  <div style={{ height: 60, marginTop: 'var(--space-3)' }}>
+                  <div style={{ height: 60, width: '100%', marginTop: 'var(--space-3)', minWidth: 0 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={fg} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                         <defs>
@@ -1712,7 +1712,7 @@ function SentimentCompositeCard({ markets, sentiment, loading }) {
                     {Math.abs(aaiiLatest.spread) > 20 ? 'Contrarian extreme' : 'Normal range'}
                   </div>
                 </div>
-                <div style={{ height: 100 }}>
+                <div style={{ height: 100, width: '100%', minWidth: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={aaiiSeries} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                       <CartesianGrid stroke={C.border} strokeDasharray="2 4" />

@@ -47,8 +47,7 @@ export default function PETrendChart({ sectorName, industryName }) {
               <Tooltip
                 contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid #666", borderRadius: 4 }}
                 labelStyle={{ color: "#fff" }}
-                formatter={(value) => formatCurrency(value)}
-                labelFormatter={(label) => label}
+                formatter={(value) => value != null ? formatCurrency(value) : "N/A"}
               />
               <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" />
             </LineChart>

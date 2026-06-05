@@ -180,12 +180,6 @@ function MansfieldRotation({ sectors }) {
           <ReferenceLine x={50} stroke="var(--border)" strokeDasharray="3 3" />
           <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="3 3" />
           <Tooltip contentStyle={TT_STYLE}
-            formatter={(v, n) => {
-              if (n === 'RS Rank %ile') return [`${v}%`, n];
-              if (n === '1W Rank Δ') return [v > 0 ? `+${v}` : v, n];
-              return [v, n];
-            }}
-            labelFormatter={() => ''}
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const p = payload[0].payload;
@@ -270,8 +264,7 @@ function MomentumSpider({ sectors }) {
           <PolarAngleAxis dataKey="axis" stroke="var(--text-3)" fontSize={11} />
           <PolarRadiusAxis stroke="var(--text-3)" fontSize={10}
                            tickFormatter={(v) => `${v}%`} />
-          <Tooltip contentStyle={TT_STYLE}
-            formatter={(v) => [`${Number(v).toFixed(2)}%`, '']} />
+          <Tooltip contentStyle={TT_STYLE} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {sectorNames.map((name, i) => (
             <Radar key={name} dataKey={name} stroke={colorFor(name, i)}
@@ -339,8 +332,7 @@ function SectorRelativeChart({ sectors }) {
           <YAxis stroke="var(--text-3)" fontSize={11} width={48}
                  tickFormatter={(v) => Number(v).toFixed(0)} />
           <Tooltip contentStyle={TT_STYLE}
-            labelFormatter={(l) => formatXAxisDate(l)}
-            formatter={(v) => [v, '']} />
+            labelFormatter={(l) => formatXAxisDate(l)} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <ReferenceLine y={100} stroke="var(--border)" strokeDasharray="3 3" />
           {top.map((name, i) => (
@@ -379,7 +371,7 @@ function SectorBreadthChart() {
           <YAxis type="category" dataKey="sector" stroke="var(--text-3)"
                  fontSize={11} width={130} />
           <Tooltip contentStyle={TT_STYLE}
-            formatter={(v, n) => [`${v}%`, n === 'pct_above_50d' ? '> 50D MA' : '> 200D MA']} />
+            formatter={(v) => `${v}%`} />
           <Legend wrapperStyle={{ fontSize: 11 }}
                   formatter={(v) => v === 'pct_above_50d' ? '% > 50D MA' : '% > 200D MA'} />
           <Bar dataKey="pct_above_50d" fill="var(--cyan)" radius={[0, 2, 2, 0]} />

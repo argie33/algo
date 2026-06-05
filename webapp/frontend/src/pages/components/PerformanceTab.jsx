@@ -70,8 +70,8 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
               Equity Curve {totalReturn != null && <span className="muted t-xs" style={{ fontWeight: 'normal', marginLeft: 8 }}>·  {totalReturn >= 0 ? '+' : ''}{totalReturn}% total return</span>}
             </div>
           </div>
-          <div className="card-body">
-            <div style={{ height: 220, minWidth: 0 }}>
+          <div className="card-body" style={{ width: '100%', minWidth: 0 }}>
+            <div style={{ height: 220, width: '100%', minWidth: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={equityCurve} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
                   <defs>
@@ -83,7 +83,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
                   <XAxis dataKey="snapshot_date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => String(v).slice(5)} interval="preserveStartEnd" />
                   <YAxis tickFormatter={chartFmt} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={48} />
-                  <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`$${v?.toLocaleString()}`, 'Portfolio']} labelFormatter={v => v} />
+                  <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => v != null ? `$${Number(v).toLocaleString()}` : 'N/A'} labelFormatter={v => v} />
                   <Area type="monotone" dataKey="total_portfolio_value" stroke="var(--brand)" fill="url(#eqGrad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -97,8 +97,8 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
           <div className="card-head">
             <div className="card-title">Drawdown From Peak</div>
           </div>
-          <div className="card-body">
-            <div style={{ height: 140, minWidth: 0 }}>
+          <div className="card-body" style={{ width: '100%', minWidth: 0 }}>
+            <div style={{ height: 140, width: '100%', minWidth: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={drawdownData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
                   <defs>
@@ -111,7 +111,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
                   <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => String(v).slice(5)} interval="preserveStartEnd" />
                   <YAxis tickFormatter={v => `${v}%`} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={40} />
                   <ReferenceLine y={0} stroke="var(--border)" />
-                  <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}%`, 'Drawdown']} />
+                  <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => v != null ? `${Number(v)}%` : 'N/A'} />
                   <Area type="monotone" dataKey="drawdown" stroke="var(--danger)" fill="url(#ddGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>

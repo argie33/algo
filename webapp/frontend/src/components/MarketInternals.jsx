@@ -264,7 +264,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis domain={[0, 100]} />
-                    <Tooltip formatter={(value) => formatPercentageChange(value, 1)} />
+                    <Tooltip formatter={(value) => value != null ? `${Number(value).toFixed(1)}%` : "N/A"} />
                     <Bar dataKey="value" fill="#3b82f6" />
                   </BarChart>
                 </ResponsiveContainer>
