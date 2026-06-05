@@ -57,7 +57,7 @@ class FilterTier3Mixin:
             atr = float(row[7]) if row[7] is not None else None
 
             # Weinstein per-stock stage: only Stage 2 stocks
-            require_stock_stage_2 = bool(self.config.get('require_stock_stage_2', True))
+            require_stock_stage_2 = bool(self.config.get('require_stock_stage_2', False))
             if require_stock_stage_2 and stock_stage != 2:
                 return {
                     'pass': False,
@@ -73,8 +73,8 @@ class FilterTier3Mixin:
                     'trend_score': trend_score,
                 }
 
-            min_from_low = float(self.config.get('min_percent_from_52w_low', 30.0))
-            if pct_from_low < min_from_low:
+            min_from_low = float(self.config.get('min_percent_from_52w_low', 0.0))
+            if min_from_low > 0 and pct_from_low < min_from_low:
                 return {
                     'pass': False,
                     'reason': f'Only {pct_from_low:.0f}% from 52w low (need {min_from_low:.0f})',
