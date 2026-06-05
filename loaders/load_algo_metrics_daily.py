@@ -24,7 +24,11 @@ class AlgoMetricsDailyLoader(OptimalLoader):
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Compute daily algo metrics from audit log."""
         try:
-            run_date = date.today()
+            from datetime import datetime, timezone, timedelta as td
+            # CRITICAL: Use ET (trading hours), not UTC, to determine date.
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(timezone(td(hours=-5)))
+            run_date = now_et.date()
 
             with DatabaseContext('read') as cur:
                 # Compute portfolio stats from algo_audit_log
