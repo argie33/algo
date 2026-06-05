@@ -767,14 +767,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if event.get('source') == 'warmup':
         return {'statusCode': 200, 'body': 'warm'}
 
-    # Health check returns immediately — even if imports failed (uptime monitors must always succeed)
-    if path in ['/health', '/api/health']:
-        cors_headers = get_cors_headers(event)
-        return {
-            'statusCode': 200,
-            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'data': {'status': 'healthy', 'version': 'v2-2026-05-21'}})
-        }
+    # Health checks are handled via api_router (routes/health.py) for consistent response format
+    # All health endpoints (basic, detailed, pipeline) now route through normal flow
+    # This ensures all API responses use the same {statusCode, data/items/error} structure
 
     # Import error check (after health so health always works despite missing modules)
     if IMPORT_ERROR:
