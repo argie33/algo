@@ -334,7 +334,7 @@ module "pipeline" {
   execution_mode                        = var.execution_mode
   orchestrator_dry_run                  = var.orchestrator_dry_run
   orchestrator_log_level                = var.orchestrator_log_level
-  db_host                               = module.database.rds_address
+  db_host                               = module.database.rds_proxy_address
   db_port                               = local.db_port
   db_name                               = var.rds_db_name
   alpaca_paper_trading                  = var.alpaca_paper_trading
