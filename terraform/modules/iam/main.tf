@@ -687,6 +687,43 @@ data "aws_iam_policy_document" "ecs_task" {
       values   = ["${var.project_name}/loaders"]
     }
   }
+
+  # DynamoDB (halt flag, distributed locks, watermarks)
+  # Used by: orchestrator halt flag check, distributed locking, watermark tracking
+  statement {
+    sid    = "DynamoDBHaltFlagAndLocks"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:Query",
+      "dynamodb:Scan"
+    ]
+
+    resources = [
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-*",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/orchestrator-*"
+    ]
+  }
+
+  # ECS (OOM prevention - kill stuck loaders)
+  # Used by: orchestrator to list/kill long-running analytics loaders if they exceed max runtime
+  statement {
+    sid    = "ECSOOMPrevention"
+    effect = "Allow"
+
+    actions = [
+      "ecs:ListTasks",
+      "ecs:DescribeTasks",
+      "ecs:StopTask"
+    ]
+
+    resources = [
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-*",
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task/${var.project_name}-*/*"
+    ]
+  }
 }
 
 # ============================================================
@@ -1011,10 +1048,14 @@ data "aws_iam_policy_document" "lambda_algo" {
 
     resources = ["*"]
 
+    # Condition supports both cluster ARN and cluster name (both are valid for ECS API calls)
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "ecs:cluster"
-      values   = ["arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-cluster"]
+      values   = [
+        "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-cluster",
+        "${var.project_name}-cluster"
+      ]
     }
   }
 
