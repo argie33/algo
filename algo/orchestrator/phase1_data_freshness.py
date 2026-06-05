@@ -785,16 +785,45 @@ def _validate_required_schema_columns(cur: Any, verbose: bool = False) -> bool:
         logger.info("[SCHEMA] ✓ All required columns present with correct types")
     return True
 
-def _check_rds_connection_pool_health(cur: Any, verbose: bool = False) -> bool:
+def _check_rds_connection_pool_health(cur: Any, verbose: bool = False, fail_closed_at: int = 80) -> bool:
     """Pre-flight validation: check RDS connection pool health.
 
-    Queries active connections and warns if pool is under heavy load.
-    Doesn't halt execution but emits metrics for monitoring.
+    Queries active connections, kills hung connections, warns if pool is under heavy load.
+    Emits metrics for monitoring.
 
-    Returns: True (always continues, just emits warnings)
+    Args:
+        cur: Database cursor
+        verbose: Whether to log verbose output
+        fail_closed_at: Halt if active connections exceed this threshold (default 80)
+
+    Returns: True if pool OK (<80 connections), False if circuit breaker triggered (>80)
     """
     try:
-        # Query active connections
+        # STEP 1: Kill hung connections idle >15 minutes (900s)
+        try:
+            cur.execute("""
+                SELECT pid, usename, application_name,
+                       EXTRACT(EPOCH FROM (now() - state_change)) as idle_seconds
+                FROM pg_stat_activity
+                WHERE state = 'idle' AND query_start < now() - interval '15 minutes'
+                LIMIT 10  -- Kill max 10 connections at a time to avoid disruption
+            """)
+            hung_connections = cur.fetchall()
+            if hung_connections:
+                killed_count = 0
+                for pid, usename, app_name, idle_secs in hung_connections:
+                    try:
+                        cur.execute("SELECT pg_terminate_backend(%s)", (pid,))
+                        killed_count += 1
+                        logger.info(f"[RDS-POOL] Killed idle connection pid={pid} ({usename}/{app_name}, idle {idle_secs:.0f}s)")
+                    except Exception as kill_err:
+                        logger.debug(f"[RDS-POOL] Could not kill connection {pid}: {kill_err}")
+                if killed_count > 0:
+                    logger.warning(f"[RDS-POOL] Terminated {killed_count} hung connections (idle >15min)")
+        except Exception as hung_err:
+            logger.debug(f"[RDS-POOL] Could not check for hung connections: {hung_err}")
+
+        # STEP 2: Query active connections
         cur.execute("""
             SELECT count(*) as active_connections,
                    max(EXTRACT(EPOCH FROM (now() - state_change))) as max_idle_seconds
@@ -831,29 +860,35 @@ def _check_rds_connection_pool_health(cur: Any, verbose: bool = False) -> bool:
             except Exception as metric_err:
                 logger.debug(f"[RDS-POOL] Could not emit connection pool metrics: {metric_err}")
 
+            # Circuit breaker: fail-closed if connections exceed threshold
+            if active_conn >= fail_closed_at:
+                logger.critical(
+                    f"[RDS-POOL] CIRCUIT BREAKER TRIGGERED: {active_conn} active connections (>={fail_closed_at} threshold). "
+                    f"RDS pool exhaustion risk. Halting Phase 1 to prevent cascade failures."
+                )
+                try:
+                    alerts = AlertManager()
+                    alerts.send_position_alert(
+                        'RDS',
+                        'CONNECTION_POOL_EXHAUSTION',
+                        f'RDS connection pool critically high: {active_conn} active connections (>={fail_closed_at}). '
+                        f'Circuit breaker triggered - Phase 1 halted to prevent cascade failures.',
+                        {'active_connections': active_conn, 'max_idle_seconds': max_idle}
+                    )
+                except Exception as alert_err:
+                    logger.debug(f"[RDS-POOL] Could not send alert: {alert_err}")
+                return False  # FAIL-CLOSED: halt orchestrator
+
             # Warn if pool is getting full
             if active_conn >= 60:
                 logger.warning(f"[RDS-POOL] ⚠️ High connection load: {active_conn} active connections (pool 75% full)")
-                if active_conn >= 80:
-                    logger.critical(f"[RDS-POOL] ❌ CRITICAL: {active_conn} active connections (pool nearly exhausted)")
-                    try:
-                        alerts = AlertManager()
-                        alerts.send_position_alert(
-                            'RDS',
-                            'CONNECTION_POOL_EXHAUSTION',
-                            f'RDS connection pool critically high: {active_conn} active connections. '
-                            f'May cause cascade failures. Monitor query performance.',
-                            {'active_connections': active_conn, 'max_idle_seconds': max_idle}
-                        )
-                    except Exception as alert_err:
-                        logger.debug(f"[RDS-POOL] Could not send alert: {alert_err}")
             elif active_conn >= 40:
                 logger.info(f"[RDS-POOL] Connection pool at 50% capacity ({active_conn} active). Monitor for growth.")
 
     except Exception as e:
         logger.debug(f"[RDS-POOL] Could not check connection pool health: {e}. Proceeding normally.")
 
-    return True  # Always continue, just emit warnings
+    return True  # Continue if pool OK
 
 def run(
     config: Any,
@@ -889,9 +924,14 @@ def run(
                     return PhaseResult(1, 'schema_validation', 'halted', {}, True,
                                      'Schema validation failed: missing required columns')
 
-                # Check RDS connection pool health (emits warnings, doesn't halt)
+                # Check RDS connection pool health (circuit breaker if >80 connections)
                 try:
-                    _check_rds_connection_pool_health(cur, verbose)
+                    pool_ok = _check_rds_connection_pool_health(cur, verbose)
+                    if not pool_ok:
+                        log_phase_result_fn(1, 'rds_connection_pool', 'halt',
+                                           'RDS connection pool exhaustion (>80 connections)')
+                        return PhaseResult(1, 'rds_connection_pool', 'halted', {}, True,
+                                         'RDS connection pool circuit breaker triggered: >80 active connections')
                 except Exception as pool_err:
                     logger.debug(f"[RDS-POOL] Skipping connection pool check: {pool_err}")
 
