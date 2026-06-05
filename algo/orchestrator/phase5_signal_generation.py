@@ -128,6 +128,38 @@ def run(
         _elapsed = _timing.time() - _start
         eval_date = pipeline._snapshot_eval_date or run_date
 
+        # Track signal freshness: check age of swing_trader_scores (critical for signal quality)
+        try:
+            with DatabaseContext('read') as _cur:
+                _cur.execute(
+                    "SELECT MAX(date) FROM swing_trader_scores"
+                )
+                result = _cur.fetchone()
+                latest_scores_date = result[0] if result and result[0] else None
+
+                if latest_scores_date:
+                    score_age = (run_date - latest_scores_date).days
+                    if score_age <= 0:
+                        logger.info(f"[SIGNAL FRESHNESS] swing_trader_scores: fresh ({latest_scores_date}, same day)")
+                    elif score_age == 1:
+                        logger.info(f"[SIGNAL FRESHNESS] swing_trader_scores: 1 day stale ({latest_scores_date})")
+                    else:
+                        logger.warning(f"[SIGNAL FRESHNESS] swing_trader_scores: {score_age} days stale ({latest_scores_date}) — signals may lack freshness")
+
+                    # Emit metric for signal freshness tracking
+                    try:
+                        from algo.algo_metrics import MetricsPublisher
+                        with MetricsPublisher(dry_run=dry_run) as _m:
+                            _m.put_metric('SignalFreshnessAge', score_age, unit='Days', dimensions={
+                                'table': 'swing_trader_scores'
+                            })
+                    except Exception as _metric_err:
+                        logger.debug(f"Could not emit signal freshness metric: {_metric_err}")
+                else:
+                    logger.warning("[SIGNAL FRESHNESS] swing_trader_scores: NO DATA FOUND — signals will have zero scores")
+        except Exception as _freshness_err:
+            logger.debug(f"Signal freshness check failed (non-blocking): {_freshness_err}")
+
         logger.info(f"[TIMING] Phase 5 filter pipeline completed in {_elapsed:.1f}s for {len(qualified)} qualified trades")
 
         # Signal count waterfall report (for visibility on where signals die)
