@@ -82,10 +82,53 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_error_start_time = None
         self._rate_limit_circuit_break_threshold = 300  # 5 minutes of errors = circuit break (was 1800s/30min)
 
+        # Granular failure tracking for partial batch credit
+        # Instead of counting entire batch as 1 failure, track success ratio
+        self._batch_success_count = 0  # Symbols successfully fetched in current batch
+        self._batch_total_count = 0   # Total symbols in current batch
+        self._batch_failure_ratio = 0.0  # Success rate (0.0 = all failed, 1.0 = all succeeded)
+
         # Market close detection for EOD pipeline (4:05 PM ET start)
         # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
         # If running 1d interval at market close, wait for SPY close data before proceeding.
         self._market_close_detected = False
+
+    def _get_adaptive_batch_size(self) -> int:
+        """Calculate adaptive batch size based on recent success rates.
+
+        If recent batches have high success rate (>80%), keep batch size at 100.
+        If success rate moderate (50-80%), reduce to 50.
+        If success rate low (<50%), reduce to 20.
+
+        This reduces retry overhead when rate limiting is active.
+        """
+        if self._batch_total_count == 0:
+            return 100  # Default batch size on first run
+
+        success_rate = self._batch_success_count / self._batch_total_count
+
+        if success_rate > 0.8:
+            return 100  # High success: keep large batches
+        elif success_rate > 0.5:
+            return 50   # Moderate success: smaller batches
+        else:
+            return 20   # Low success: very small batches
+
+    def _record_batch_result(self, success_count: int, total_count: int):
+        """Record batch success/failure ratio for adaptive retry logic.
+
+        Allows tracking partial success without requiring per-symbol results.
+        """
+        self._batch_success_count = success_count
+        self._batch_total_count = total_count
+        self._batch_failure_ratio = 1.0 - (success_count / total_count) if total_count > 0 else 0.0
+
+        if success_count < total_count:
+            logger.info(
+                f"[BATCH RESULT] Partial success: {success_count}/{total_count} symbols ({success_count/total_count*100:.0f}%). "
+                f"Failure ratio: {self._batch_failure_ratio:.2f}. "
+                f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
+            )
 
     def _check_market_close_data_available(self, max_wait_sec: int = 600) -> bool:
         """Check if SPY close data is available (within 10 minutes after market close at 4 PM ET).
@@ -217,6 +260,8 @@ class PriceLoader(OptimalLoader):
 
         Fallback: If batch API fails, retry with smaller batch size. Only falls back
         to per-symbol for large rate-limiting errors.
+
+        Uses adaptive batch sizing based on recent success rates to reduce retries.
         """
         from algo.algo_market_calendar import MarketCalendar
 
@@ -232,8 +277,13 @@ class PriceLoader(OptimalLoader):
         if start >= end:
             return {s: None for s in symbols}
 
-        # Batch fetch with progressive fallback
-        return self._fetch_with_fallback(symbols, start, end, batch_size=len(symbols), attempt=0)
+        # Batch fetch with adaptive batch sizing based on recent success rates
+        # If recent batches had high success, use full batch. If rate limited recently, use smaller batches.
+        adaptive_batch_size = min(len(symbols), self._get_adaptive_batch_size())
+        logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size} "
+                    f"(based on {self._batch_total_count} recent batches, {self._batch_success_count} successful)")
+
+        return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
 
     def _fetch_with_fallback(self, symbols: List[str], start: date, end: date, batch_size: int, attempt: int = 0, max_attempts: int = 3):
         """Fetch with progressive batch size reduction and adaptive retry with jitter.
@@ -322,12 +372,21 @@ class PriceLoader(OptimalLoader):
                 )
                 time.sleep(wait_time)
 
-                # Split batch and fetch recursively
+                # Split batch and fetch recursively, tracking partial success
                 results = {}
+                successful_chunks = 0
                 for i in range(0, len(symbols), new_batch_size):
                     chunk = symbols[i:i+new_batch_size]
                     chunk_results = self._fetch_with_fallback(chunk, start, end, new_batch_size, attempt + 1, max_attempts)
                     results.update(chunk_results)
+                    # Count chunk as successful if it returned non-None results for any symbols
+                    if any(v is not None for v in chunk_results.values()):
+                        successful_chunks += 1
+
+                # Record partial success for adaptive batch sizing
+                total_chunks = (len(symbols) + new_batch_size - 1) // new_batch_size
+                self._record_batch_result(successful_chunks, total_chunks)
+
                 return results
             else:
                 # Transient error (network, timeout): retry with same batch size
