@@ -75,9 +75,12 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_refill_rate = 30 / 60  # 30 tokens per 60 seconds = 0.5 per second
 
         # Circuit breaker: track rate limit errors to detect persistent issues
+        # CRITICAL: 30-minute threshold was too long for EOD pipeline context
+        # If rate limiting starts at 4:05 PM ET, 30-min wait = 4:35 PM, consumes 1/4 of pipeline time
+        # FIXED: Reduced to 5 minutes (300s) — gives reasonable time for API recovery without cascade
         self._rate_limit_errors = 0
         self._rate_limit_error_start_time = None
-        self._rate_limit_circuit_break_threshold = 1800  # 30 minutes of errors = circuit break
+        self._rate_limit_circuit_break_threshold = 300  # 5 minutes of errors = circuit break (was 1800s/30min)
 
         # Market close detection for EOD pipeline (4:05 PM ET start)
         # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
@@ -245,14 +248,28 @@ class PriceLoader(OptimalLoader):
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
             return {s: None for s in symbols}
 
-        # Check circuit breaker: if rate limiting has persisted for > 30 min, fail loudly
+        # Check circuit breaker: if rate limiting has persisted for > 5 min, fail loudly
         if self._rate_limit_error_start_time is not None:
             error_duration = time.time() - self._rate_limit_error_start_time
             if error_duration > self._rate_limit_circuit_break_threshold:
-                logger.error(
-                    f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration/60:.0f} minutes. "
-                    f"yfinance API may be experiencing degradation. Failing batch to prevent cascade."
+                logger.critical(
+                    f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration/60:.1f} minutes ({error_duration:.0f}s). "
+                    f"yfinance API experiencing degradation. Circuit break triggered at {self._rate_limit_circuit_break_threshold}s threshold. "
+                    f"Failing batch to prevent EOD pipeline cascade. yfinance API status should be checked."
                 )
+                # Emit alert
+                try:
+                    from algo.algo_alerts import AlertManager
+                    alerts = AlertManager()
+                    alerts.send_position_alert(
+                        'YFINANCE',
+                        'RATE_LIMIT_CIRCUIT_BREAK',
+                        f'yfinance rate limiting persisted {error_duration/60:.1f}min, circuit breaker triggered. '
+                        f'EOD pipeline may be impacted. {self._rate_limit_errors} rate limit errors detected.',
+                        {'duration_seconds': error_duration, 'error_count': self._rate_limit_errors}
+                    )
+                except Exception as alert_err:
+                    logger.debug(f"Could not send rate limit alert: {alert_err}")
                 return {s: None for s in symbols}
 
         try:
@@ -272,6 +289,24 @@ class PriceLoader(OptimalLoader):
                 self._rate_limit_errors += 1
                 if self._rate_limit_error_start_time is None:
                     self._rate_limit_error_start_time = time.time()
+                    logger.warning(
+                        f"[RATE_LIMIT] First rate limiting error detected (error #{self._rate_limit_errors}). "
+                        f"Circuit will break if persists >5 minutes. Monitoring yfinance API recovery."
+                    )
+
+                # Emit CloudWatch metric for rate limit occurrence
+                try:
+                    from algo.algo_metrics import MetricsPublisher
+                    metrics = MetricsPublisher()
+                    metrics.add_metric(
+                        'RateLimitErrors',
+                        1,
+                        unit='Count',
+                        dimensions={'Loader': 'stock_prices_daily'}
+                    )
+                    metrics.flush()
+                except Exception:
+                    pass
 
                 # Calculate adaptive backoff with jitter
                 base_wait = min(60, (2 ** attempt) * 5)  # Exponential: 5s, 10s, 20s, 40s, 80s (cap at 60s)
@@ -279,8 +314,10 @@ class PriceLoader(OptimalLoader):
                 wait_time = base_wait * jitter
 
                 new_batch_size = max(1, batch_size // 2)
+                error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
                 logger.warning(
-                    f"[BATCH FETCH] Rate limited (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}). "
+                    f"[BATCH FETCH] Rate limited (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}, "
+                    f"duration {error_duration:.0f}s). "
                     f"Batch {batch_size} → {new_batch_size}, waiting {wait_time:.1f}s (base {base_wait}s + jitter)..."
                 )
                 time.sleep(wait_time)

@@ -2,9 +2,8 @@
 import psycopg2
 from typing import Dict
 import logging
-import json
 from datetime import datetime, timezone
-from .utils import check_data_freshness
+from .utils import check_data_freshness, success_response, error_response
 
 logger = logging.getLogger(__name__)
 
@@ -22,27 +21,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
     try:
         # Verify DB is responsive with a simple query
         cur.execute("SELECT 1")
-
-        status_code = 200
-        return {
-            'statusCode': status_code,
-            'body': json.dumps(health),
-            'headers': {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}
-        }
+        return success_response(health)
 
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.warning(f"Health check failed - DB issue: {str(e)[:100]}")
-        health["status"] = "critical"
-        return {
-            'statusCode': 503,
-            'body': json.dumps(health),
-            'headers': {'Content-Type': 'application/json'}
-        }
+        return error_response(503, 'connection_error', 'Database connection failed')
     except Exception as e:
         logger.error(f"Health check error: {str(e)[:100]}")
-        health["status"] = "critical"
-        return {
-            'statusCode': 500,
-            'body': json.dumps(health),
-            'headers': {'Content-Type': 'application/json'}
-        }
+        return error_response(500, 'internal_error', 'Internal server error')

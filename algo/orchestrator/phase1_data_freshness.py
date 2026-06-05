@@ -267,7 +267,8 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
             )
 
             # Check if a patrol trigger was already attempted recently (within last 1 hour)
-            # to avoid redundant triggers and cascade failures
+            # CRITICAL FIX: Distinguish between "patrol running" vs "patrol failed"
+            # Only apply grace period if patrol COMPLETED successfully, not just if it was triggered
             patrol_trigger_already_attempted = False
             patrol_trigger_age_minutes = None
             try:
@@ -279,13 +280,24 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                 response = state_table.get_item(Key={'state_key': 'patrol_trigger_log'})
                 if 'Item' in response:
                     last_trigger_time = response['Item'].get('triggered_at', 0)
+                    last_success_time = response['Item'].get('last_success_at', 0)  # When patrol last COMPLETED
                     current_time = time.time()
                     patrol_trigger_age_minutes = (current_time - last_trigger_time) / 60
+                    patrol_success_age_minutes = (current_time - last_success_time) / 60 if last_success_time else float('inf')
 
-                    if patrol_trigger_age_minutes < 60:  # 1 hour
+                    # Only apply grace period if patrol COMPLETED successfully in last hour
+                    # If patrol was triggered but never completed, OR if last success was >1 hour ago, trigger fresh patrol
+                    if patrol_trigger_age_minutes < 60 and patrol_success_age_minutes < 60:
                         patrol_trigger_already_attempted = True
-                        logger.info(f"[PATROL] Grace period: Patrol trigger already attempted {patrol_trigger_age_minutes:.0f}m ago. "
+                        logger.info(f"[PATROL] Grace period: Patrol trigger already attempted {patrol_trigger_age_minutes:.0f}m ago "
+                                   f"and COMPLETED successfully {patrol_success_age_minutes:.0f}m ago. "
                                    f"Skipping redundant trigger, allowing in-flight patrol to complete.")
+                    elif patrol_success_age_minutes >= 60:
+                        logger.warning(f"[PATROL] Last successful patrol was {patrol_success_age_minutes:.0f}m ago (>1h). "
+                                      f"Triggering fresh patrol to ensure current data freshness.")
+                    else:
+                        logger.warning(f"[PATROL] Patrol was triggered {patrol_trigger_age_minutes:.0f}m ago but never completed successfully. "
+                                      f"Triggering fresh patrol.")
             except Exception as state_err:
                 logger.debug(f"[PATROL] Could not check patrol trigger log: {state_err}. "
                             f"Will proceed with fresh trigger.")
