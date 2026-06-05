@@ -1269,7 +1269,8 @@ class DataPatrol:
                     ':status': 'ready' if ready else f'completed_with_findings'
                 }
             )
-            logger.info(f"[PATROL] ✓ Completed successfully. Updated DynamoDB for grace period tracking (status={':status' if ready else 'issues_detected'})")
+            status = 'ready' if ready else 'completed_with_findings'
+            logger.info(f"[PATROL] ✓ Completed successfully. Updated DynamoDB for grace period tracking (status={status})")
         except Exception as e:
             logger.warning(f"[PATROL] Could not update completion status in DynamoDB: {e}")
 
