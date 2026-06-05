@@ -810,25 +810,57 @@ def run(
 
             if not failsafe_ok:
                 # Failsafe failed or timeout - loader may not have started.
-                # Data is 2-5 trading days old (within acceptable window per tolerance).
-                # Downstream phases (2-7) have circuit breakers to conservatively handle stale data.
-                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 90s. Proceeding with stale data (risky).")
+                # Check how stale the data actually is. If VERY stale (2+ trading days),
+                # HALT instead of proceeding with risky old data.
+                oldest_stale_age = None
+                for item in stale_items:
+                    # Parse "name: 5d old (need...)" to extract age
+                    if 'd old' in item:
+                        try:
+                            age_str = item.split(': ')[1].split('d old')[0]
+                            age = int(age_str)
+                            if oldest_stale_age is None or age > oldest_stale_age:
+                                oldest_stale_age = age
+                        except (IndexError, ValueError):
+                            pass
+
+                # Decision: if data is 2+ trading days old and failsafe failed, HALT.
+                # This prevents silent failures in Phase 5 when signal gate kills trades.
+                if oldest_stale_age is not None and oldest_stale_age >= 2:
+                    logger.critical(f"[HALT] Failsafe loader trigger failed AND data is {oldest_stale_age}+ days stale. Too risky to proceed.")
+                    logger.critical(f"  Stale items: {stale_items}")
+                    logger.critical(f"  Loader failed to start. Halting orchestrator.")
+
+                    alerts.send_position_alert(
+                        'DATA',
+                        'STALE_DATA_FAILSAFE_CRITICAL',
+                        f'HALT: Failsafe loader trigger failed AND data is {oldest_stale_age}+ days stale. '
+                        f'Cannot safely proceed with this old data. Check loader ECS logs for startup errors. '
+                        f'Stale items: {"; ".join(stale_items)}',
+                        {'stale_items': stale_items, 'failsafe': 'failed', 'oldest_age': oldest_stale_age, 'halt': True}
+                    )
+                    log_phase_result_fn(1, 'data_freshness', 'halt',
+                                       f'CRITICAL: Failsafe failed and data is {oldest_stale_age}+ days stale')
+                    return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                     f'Failsafe failed with {oldest_stale_age}+ day stale data — too risky to trade')
+
+                # Failsafe failed but data is recent enough (1 trading day old) - proceed with caution
+                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 90s. Data is {oldest_stale_age}d old (acceptable window).")
                 logger.warning(f"  Stale items: {stale_items}")
-                logger.warning(f"  Data is within tolerance window (up to 5 calendar days old).")
-                logger.warning(f"  Circuit breakers in Phase 2 will halt if portfolio conditions warrant.")
-                logger.warning(f"  Check CloudWatch logs for LOADER_TRIGGER_LAMBDA_ARN and loader status.")
+                logger.warning(f"  Proceeding to Phase 2 circuit breakers for additional safety checks.")
+                logger.warning(f"  Check CloudWatch logs for ECS loader startup errors.")
 
                 alerts.send_position_alert(
                     'DATA',
                     'STALE_DATA_FAILSAFE_FAILED',
-                    f'Failsafe loader trigger did not confirm startup. Stale items: {"; ".join(stale_items)}. '
+                    f'Failsafe loader trigger did not confirm startup but data is recent ({oldest_stale_age}d). '
                     f'Proceeding with caution — circuit breakers active. '
-                    f'Check CloudWatch for loader startup errors.',
-                    {'stale_items': stale_items, 'expected_date': str(expected_date), 'failsafe': 'failed'}
+                    f'Stale items: {"; ".join(stale_items)}. Check CloudWatch for errors.',
+                    {'stale_items': stale_items, 'expected_date': str(expected_date), 'failsafe': 'failed', 'age': oldest_stale_age}
                 )
                 log_phase_result_fn(1, 'data_freshness', 'warn',
-                                   f'Stale, failsafe unconfirmed: {"; ".join(stale_items)}')
-                # Continue to Phase 2 circuit breakers instead of halting
+                                   f'Stale, failsafe unconfirmed ({oldest_stale_age}d): {"; ".join(stale_items)}')
+                # Continue to Phase 2 circuit breakers
             else:
                 # Failsafe confirmed - loader started successfully and will refresh data
                 logger.info("[FAILSAFE] ✓ Loader confirmed startup. Data will be refreshed in parallel.")
