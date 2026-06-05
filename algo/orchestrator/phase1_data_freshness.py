@@ -690,13 +690,25 @@ def _validate_required_schema_columns(cur: Any, verbose: bool = False) -> bool:
             ('buy_sell_daily_age_days', 'integer'),
             ('technical_data_age_days', 'integer'),
             ('trend_template_age_days', 'integer'),
-        ]
+        ],
+        'price_daily': [
+            ('symbol', 'text'),
+            ('date', 'text'),  # Stored as ISO string
+            ('close', 'numeric'),
+        ],
+        'market_health_daily': [
+            ('date', 'text'),
+            ('spy_close', 'numeric'),
+        ],
     }
 
     required_indexes = {
         'signal_quality_scores': [
             'idx_signal_quality_scores_symbol_date',  # Critical for Phase 5 lookups
-        ]
+        ],
+        'price_daily': [
+            'idx_price_daily_symbol_date',  # Critical for Phase 3 position monitor
+        ],
     }
 
     issues = []
@@ -734,10 +746,10 @@ def _validate_required_schema_columns(cur: Any, verbose: bool = False) -> bool:
         for index_name in indexes:
             try:
                 cur.execute(f"""
-                    SELECT 1 FROM information_schema.statistics
-                    WHERE table_name = %s AND index_name = %s
+                    SELECT 1 FROM pg_indexes
+                    WHERE tablename = %s AND indexname = %s
                     LIMIT 1
-                """)
+                """, (table, index_name))
                 result = cur.fetchone()
 
                 if not result:
