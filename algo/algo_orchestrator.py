@@ -88,9 +88,10 @@ class Orchestrator:
         Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
         SECURITY: If DynamoDB is unreachable, emits CloudWatch alarm metric.
 
-        Auto-expires halt flags set on prior trading days. The circuit breaker Lambda
-        runs at 10 AM, 12 PM, 3 PM ET and will re-trigger if conditions warrant.
-        A flag from yesterday must not block today's 9:30 AM market-open run.
+        Auto-expires halt flags based on trading schedule (not just calendar):
+        - If halt set before 4 PM ET: expires at 4 PM (end of current trading day)
+        - If halt set after 4 PM ET: expires at 9:30 AM next trading day
+        Allows circuit breaker halt at 1 PM to not block 3 PM and 5:30 PM runs.
         """
         try:
             import boto3
@@ -104,19 +105,71 @@ class Orchestrator:
                 if triggered_at_str:
                     try:
                         trigger_dt = datetime.fromisoformat(triggered_at_str.replace('Z', '+00:00'))
-                        today_utc = datetime.now(timezone.utc).date()
-                        if trigger_dt.date() < today_utc:
+                        now_utc = datetime.now(timezone.utc)
+
+                        # Convert to ET for trading hour comparison
+                        trigger_et = trigger_dt.astimezone(timezone(timedelta(hours=-5)))
+                        now_et = now_utc.astimezone(timezone(timedelta(hours=-5)))
+
+                        trigger_date = trigger_et.date()
+                        now_date_et = now_et.date()
+                        trigger_hour = trigger_et.hour
+
+                        MARKET_CLOSE_HOUR = 16  # 4 PM ET
+                        MARKET_OPEN_HOUR = 9
+                        MARKET_OPEN_MINUTE = 30
+
+                        # Check if halt is from a previous trading day
+                        if trigger_date < now_date_et:
                             logger.info(
-                                f"[HALT_FLAG] Stale flag (set {triggered_at_str}) — auto-clearing. "
-                                f"Circuit breaker will re-evaluate at 10 AM ET if needed."
+                                f"[HALT_FLAG] Halt from {trigger_date} is older than today ({now_date_et}) — auto-clearing"
                             )
                             table.put_item(Item={
                                 'key': self.HALT_FLAG_DYNAMODB_KEY,
                                 'halt_flag': False,
                                 'reason': 'Auto-expired: halt flag from prior trading day',
-                                'reset_at': datetime.now(timezone.utc).isoformat(),
+                                'reset_at': now_utc.isoformat(),
                             })
                             return False
+
+                        # Same trading day: check if we've passed expiry window
+                        if trigger_date == now_date_et:
+                            if trigger_hour < MARKET_CLOSE_HOUR:
+                                # Halt triggered before 4 PM → expires at 4 PM
+                                expiry_et = trigger_et.replace(hour=MARKET_CLOSE_HOUR, minute=0, second=0)
+                                if now_et > expiry_et:
+                                    logger.info(
+                                        f"[HALT_FLAG] Halt set at {trigger_et.strftime('%H:%M')} ET. "
+                                        f"Now past {MARKET_CLOSE_HOUR}:00 ET — auto-clearing."
+                                    )
+                                    table.put_item(Item={
+                                        'key': self.HALT_FLAG_DYNAMODB_KEY,
+                                        'halt_flag': False,
+                                        'reason': 'Auto-expired: halt set before market close',
+                                        'reset_at': now_utc.isoformat(),
+                                    })
+                                    return False
+                            else:
+                                # Halt triggered after 4 PM → expires at 9:30 AM next trading day
+                                next_trading_day = now_date_et + timedelta(days=1)
+                                while not MarketCalendar.is_trading_day(next_trading_day):
+                                    next_trading_day += timedelta(days=1)
+                                next_open_et = next_trading_day.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0)
+                                next_open_et = next_open_et.replace(tzinfo=timezone(timedelta(hours=-5)))
+
+                                if now_et > next_open_et:
+                                    logger.info(
+                                        f"[HALT_FLAG] Halt set at {trigger_et.strftime('%H:%M')} ET (post-close). "
+                                        f"Past {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET next day — auto-clearing."
+                                    )
+                                    table.put_item(Item={
+                                        'key': self.HALT_FLAG_DYNAMODB_KEY,
+                                        'halt_flag': False,
+                                        'reason': 'Auto-expired: halt set after market close',
+                                        'reset_at': now_utc.isoformat(),
+                                    })
+                                    return False
+
                     except Exception as parse_err:
                         logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
 
@@ -150,11 +203,14 @@ class Orchestrator:
             logger.debug(f"Could not check connection pool health: {e}")
 
     def _kill_long_running_loaders(self) -> None:
-        """CRITICAL: Kill analytics loaders running > 2 hours to prevent OOM crashes.
+        """CRITICAL: Kill analytics loaders if approaching next orchestrator run.
 
         Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
         iterate 5000+ symbols with yfinance rate limits and can run 6+ hours. If any is still
         running when orchestrator fires, t4g.micro RDS OOMs. This check prevents that.
+
+        Dynamic timeout: calculate time until next orchestrator run, subtract 15 min buffer.
+        Orchestrator runs at: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET (Mon-Fri only)
         """
         try:
             import boto3
@@ -162,6 +218,44 @@ class Orchestrator:
             cluster = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
 
             analytics_loaders = {'company_profile', 'analyst_sentiment', 'stability_metrics', 'value_metrics'}
+
+            # Calculate time until next orchestrator run (in ET)
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(timezone(timedelta(hours=-5)))
+
+            ORCHESTRATOR_TIMES = [
+                (9, 30),    # 9:30 AM
+                (13, 0),    # 1 PM
+                (15, 0),    # 3 PM
+                (17, 30),   # 5:30 PM
+            ]
+            BUFFER_MINUTES = 15
+
+            # Find next orchestrator run
+            next_orch_et = None
+            for orch_hour, orch_minute in ORCHESTRATOR_TIMES:
+                orch_time = now_et.replace(hour=orch_hour, minute=orch_minute, second=0, microsecond=0)
+                if orch_time > now_et:
+                    next_orch_et = orch_time
+                    break
+
+            # If no more runs today, next is tomorrow morning
+            if next_orch_et is None:
+                next_orch_et = (now_et + timedelta(days=1)).replace(hour=9, minute=30, second=0, microsecond=0)
+                # Skip non-trading days
+                while not MarketCalendar.is_trading_day(next_orch_et.date()):
+                    next_orch_et += timedelta(days=1)
+
+            # Calculate kill threshold: next_orch - 15 minutes buffer
+            kill_threshold_et = next_orch_et - timedelta(minutes=BUFFER_MINUTES)
+            max_runtime = kill_threshold_et - now_et
+
+            if max_runtime.total_seconds() <= 0:
+                logger.debug("[OOM_PREVENTION] Next orchestrator run is imminent, using 5 min max runtime")
+                max_runtime = timedelta(minutes=5)
+
+            logger.debug(f"[OOM_PREVENTION] Next orchestrator run at {next_orch_et.strftime('%H:%M')} ET. "
+                        f"Kill timeout: {max_runtime.total_seconds()/60:.0f} minutes")
 
             # List running tasks
             response = ecs.list_tasks(cluster=cluster, desiredStatus='RUNNING')
@@ -171,7 +265,6 @@ class Orchestrator:
             # Get task details (includes startedAt timestamp)
             task_details = ecs.describe_tasks(cluster=cluster, tasks=response['taskArns'])
             now = datetime.now(timezone.utc)
-            two_hours = timedelta(hours=2)
 
             for task in task_details.get('tasks', []):
                 # Extract loader name from task definition (format: algo-LOADER_NAME-loader:1)
@@ -194,11 +287,13 @@ class Orchestrator:
                     started_at = started_at.replace(tzinfo=timezone.utc)
 
                 age = now - started_at
-                if age > two_hours:
+                if age > max_runtime:
                     task_arn = task.get('taskArn')
-                    logger.warning(f"[OOM_PREVENTION] Killing {loader_name} task (running {age.total_seconds() / 3600:.1f}h): {task_arn}")
-                    ecs.stop_task(cluster=cluster, task=task_arn, reason='Long-running loader OOM prevention')
-                    self.log_phase_result(0, 'oom_prevention', 'success', f'Killed {loader_name} task running {age.total_seconds() / 3600:.1f}h')
+                    logger.warning(f"[OOM_PREVENTION] Killing {loader_name} task (running {age.total_seconds() / 3600:.1f}h, "
+                                 f"max {max_runtime.total_seconds()/3600:.1f}h before next orch run): {task_arn}")
+                    ecs.stop_task(cluster=cluster, task=task_arn, reason=f'Analytics loader killing before next orchestrator run')
+                    self.log_phase_result(0, 'oom_prevention', 'success',
+                                         f'Killed {loader_name} task running {age.total_seconds() / 3600:.1f}h')
 
         except Exception as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")

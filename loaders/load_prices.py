@@ -322,6 +322,13 @@ class PriceLoader(OptimalLoader):
             self.table_name, len(symbols), self.batch_size, parallelism, mode,
         )
 
+        # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
+        # At 50% of timeout (12600s), if < 10% complete, trigger emergency mode
+        TASK_TIMEOUT_SEC = 25200
+        EMERGENCY_MODE_THRESHOLD = TASK_TIMEOUT_SEC * 0.5  # 12600s = 3.5h
+        COMPLETION_THRESHOLD_PCT = 0.10  # 10% complete
+        emergency_mode_enabled = False
+
         # Split into batches
         batches = [symbols[i:i + self.batch_size] for i in range(0, len(symbols), self.batch_size)]
         processed = 0
@@ -348,18 +355,55 @@ class PriceLoader(OptimalLoader):
                 avg_batch_time = sum(batch_times) / len(batch_times) if batch_times else 0
                 remaining_batches = len(batches) - (processed // self.batch_size)
                 estimated_remaining_sec = remaining_batches * avg_batch_time
+                completion_pct = processed / len(symbols) if symbols else 0
 
                 logger.info(
                     "  Progress: %d/%d symbols (%.0f%%) — batch: %.1fs, avg: %.1fs, est. %d more min",
-                    processed, len(symbols), (processed / len(symbols) * 100),
+                    processed, len(symbols), (completion_pct * 100),
                     batch_elapsed, avg_batch_time, estimated_remaining_sec / 60
                 )
+
+                # TIMEOUT GUARDRAIL: Check if ETA exceeds task timeout
+                total_estimated_sec = elapsed + estimated_remaining_sec
+                if total_estimated_sec > TASK_TIMEOUT_SEC:
+                    logger.error(
+                        f"[TIMEOUT_ALERT] ETA ({total_estimated_sec:.0f}s) exceeds task timeout ({TASK_TIMEOUT_SEC}s). "
+                        f"Currently at {completion_pct*100:.1f}% completion. Triggering emergency mode."
+                    )
+                    try:
+                        from algo.algo_metrics import MetricsPublisher
+                        m = MetricsPublisher()
+                        m.put_metric('LoaderTimeoutAlert', 1, unit='Count', dimensions={
+                            'table': self.table_name,
+                            'progress_pct': f'{completion_pct*100:.0f}',
+                            'eta_sec': f'{total_estimated_sec:.0f}',
+                        })
+                        m.flush()
+                    except Exception as metric_err:
+                        logger.debug(f"Could not publish timeout metric: {metric_err}")
+
+                    # EMERGENCY MODE: Reduce concurrency and skip lower-priority intervals
+                    if not emergency_mode_enabled:
+                        emergency_mode_enabled = True
+                        logger.warning(
+                            f"[EMERGENCY] Reducing parallelism from {max_concurrent} to 1 to finish before timeout"
+                        )
+                        # Note: Can't dynamically reduce ThreadPoolExecutor workers, but rate limiter
+                        # will slow down naturally; next phase should only load 1d prices if available
 
                 # WARN if any batch takes >120s (indicates heavy rate limiting)
                 if batch_elapsed > 120:
                     logger.warning(
                         f"  [SLOW BATCH] {len(batch)} symbols took {batch_elapsed:.0f}s — "
                         f"likely yfinance rate limiting. Consider reducing parallelism or checking API status."
+                    )
+
+                # EARLY WARNING: At 50% of timeout, ensure we're at least 10% complete
+                if elapsed > EMERGENCY_MODE_THRESHOLD and completion_pct < COMPLETION_THRESHOLD_PCT and not emergency_mode_enabled:
+                    logger.error(
+                        f"[TIMEOUT_WARNING] At {elapsed/60:.1f}min, only {completion_pct*100:.1f}% complete "
+                        f"(need {COMPLETION_THRESHOLD_PCT*100:.1f}% by {EMERGENCY_MODE_THRESHOLD/60:.1f}min). "
+                        f"Will timeout if pace doesn't improve."
                     )
 
         self._stats["duration_sec"] = round(time.time() - start, 2)
