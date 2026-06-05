@@ -339,7 +339,7 @@ resource "aws_iam_role_policy" "api_lambda_cloudfront_secret" {
 
 # Data source to get the Lambda API execution role
 data "aws_iam_role" "lambda_api_role" {
-  name = "${var.project_name}-lambda-api-role-${var.environment}"
+  name = "${var.project_name}-lambda-api-${var.environment}"
 }
 
 module "security_monitoring" {
