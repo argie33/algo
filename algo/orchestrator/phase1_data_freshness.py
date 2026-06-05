@@ -795,10 +795,11 @@ def run(
 
             # RETRY LOGIC: If first attempt fails, try once more with 10s backoff
             # (allows recovery from transient ECS/network issues without giving up)
+            # poll_timeout_sec=90 allows ECS task provision to complete under cluster load
             failsafe_ok = False
             for attempt in range(1, 3):
                 try:
-                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=30)
+                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=90)
                     if failsafe_ok:
                         break
                     elif attempt < 2:
@@ -813,7 +814,7 @@ def run(
                 # Failsafe failed or timeout - loader may not have started.
                 # Data is 2-5 trading days old (within acceptable window per tolerance).
                 # Downstream phases (2-7) have circuit breakers to conservatively handle stale data.
-                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 30s. Proceeding with stale data (risky).")
+                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 90s. Proceeding with stale data (risky).")
                 logger.warning(f"  Stale items: {stale_items}")
                 logger.warning(f"  Data is within tolerance window (up to 5 calendar days old).")
                 logger.warning(f"  Circuit breakers in Phase 2 will halt if portfolio conditions warrant.")
