@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
+import { Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api";
 import { formatCurrency } from "../utils/formatters";
@@ -38,7 +38,8 @@ export default function PETrendChart({ sectorName, industryName }) {
           Avg Price Trend (1 Year)
         </Typography>
 
-        <ResponsiveContainer width="100%" height={300}>
+        <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} />
@@ -50,8 +51,9 @@ export default function PETrendChart({ sectorName, industryName }) {
               labelFormatter={(label) => label}
             />
             <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" />
-          </LineChart>
-        </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
+        </Box>
 
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
           Average price across {name} stocks over the past year

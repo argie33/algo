@@ -1021,7 +1021,7 @@ function SectorConcentration({ positions, totalValue }) {
                         margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                 <XAxis type="number" stroke="var(--text-3)" fontSize={11}
-                       tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                       tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
                 <YAxis type="category" dataKey="sector" stroke="var(--text-3)"
                        fontSize={11} width={110} />
                 <Tooltip contentStyle={TOOLTIP_STYLE}

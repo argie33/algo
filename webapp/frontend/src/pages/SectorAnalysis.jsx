@@ -337,7 +337,7 @@ function SectorRelativeChart({ sectors }) {
                  interval={Math.max(1, Math.floor(merged.length / 8))}
                  tickFormatter={formatXAxisDate} />
           <YAxis stroke="var(--text-3)" fontSize={11} width={48}
-                 tickFormatter={(v) => v.toFixed(0)} />
+                 tickFormatter={(v) => Number(v).toFixed(0)} />
           <Tooltip contentStyle={TT_STYLE}
             labelFormatter={(l) => formatXAxisDate(l)}
             formatter={(v) => [v, '']} />

@@ -892,7 +892,7 @@ function InternalsCard({ data, loading }) {
                 </defs>
                 <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
                 <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 10 }} tickFormatter={d => String(d).slice(5, 10)} />
-                <YAxis tick={{ fill: C.textFaint, fontSize: 10 }} width={60} tickFormatter={v => v.toLocaleString('en-US')} />
+                <YAxis tick={{ fill: C.textFaint, fontSize: 10 }} width={60} tickFormatter={v => Number(v).toLocaleString('en-US')} />
                 <ReferenceLine y={0} stroke={C.border2} />
                 <RTooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 8, fontSize: 11, color: C.text }} />
                 <Area type="monotone" dataKey="value" stroke={C.brand2} strokeWidth={1.5} fill="url(#mcGrad)" />
