@@ -123,22 +123,22 @@ export default function MarketsHealth() {
     () => api.get('/api/algo/markets'),
     { refetchInterval: 30000 }
   );
-  const { data: sentimentData, error: sentError } = useApiQuery(
+  const { data: sentimentData, loading: sentimentLoading, error: sentError } = useApiQuery(
     ['market-sentiment-30d'],
     () => api.get('/api/market/sentiment?range=30d'),
     { refetchInterval: 60000 }
   );
-  const { data: moversData, error: movError } = useApiQuery(
+  const { data: moversData, loading: moversLoading, error: movError } = useApiQuery(
     ['market-top-movers'],
     () => api.get('/api/market/top-movers'),
     { refetchInterval: 60000 }
   );
-  const { data: technicalsData, error: techError } = useApiQuery(
+  const { data: technicalsData, loading: technicalsLoading, error: techError } = useApiQuery(
     ['market-technicals'],
     () => api.get('/api/market/technicals'),
     { refetchInterval: 60000 }
   );
-  const { data: seasonalityData, error: seasError } = useApiQuery(
+  const { data: seasonalityData, loading: seasonalityLoading, error: seasError } = useApiQuery(
     ['market-seasonality'],
     () => api.get('/api/market/seasonality'),
     { refetchInterval: 1000 * 60 * 60 }
@@ -201,17 +201,17 @@ export default function MarketsHealth() {
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <SentimentCard markets={m} sentiment={sentimentData} />
+        <SentimentCard markets={m} sentiment={sentimentData} loading={sentimentLoading} />
         <VixCard markets={m} />
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <InternalsCard data={technicalsData} />
-        <TopMoversCard data={moversData} />
+        <InternalsCard data={technicalsData} loading={technicalsLoading} />
+        <TopMoversCard data={moversData} loading={moversLoading} />
       </div>
 
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <SeasonalityCard data={seasonalityData} />
+        <SeasonalityCard data={seasonalityData} loading={seasonalityLoading} />
       </div>
 
       {/* ──────────── 13. Sector Heat Map ──────────── */}
@@ -242,7 +242,7 @@ export default function MarketsHealth() {
 
       {/* ──────────── 18. Sentiment Composite (Fear & Greed + AAII spread) ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <SentimentCompositeCard markets={m} sentiment={sentimentData} />
+        <SentimentCompositeCard markets={m} sentiment={sentimentData} loading={sentimentLoading} />
       </div>
 
       {/* ──────────── 19. Economic Calendar ──────────── */}
@@ -736,10 +736,11 @@ function NewHighsLowsCard({ markets }) {
 // 8. SENTIMENT
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function SentimentCard({ markets, sentiment }) {
+function SentimentCard({ markets, sentiment, loading }) {
   const aaiiHistory = sentiment?.aaii?.history || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
   const naaim = sentiment?.naaim?.current ?? null;
   const fearGreed = sentiment?.fearGreed?.current?.value ?? null;
+  if (loading) return <Empty title="Investor Sentiment" desc="Loading…" wrap />;
   if (!aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
   const data = aaiiHistory.slice().reverse().map(s => ({
     date: s.date,
@@ -851,8 +852,8 @@ function VixCard({ markets }) {
 // 10. INTERNALS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function InternalsCard({ data }) {
-  if (!data) return <Empty title="Market Internals" desc="Loading" wrap />;
+function InternalsCard({ data, loading }) {
+  if (loading || !data) return <Empty title="Market Internals" desc={loading ? "Loading…" : "No data"} wrap />;
   const breadth = data.breadth || {};
   const advancing = parseInt(breadth.advancing) || 0;
   const declining = parseInt(breadth.declining) || 0;
@@ -907,8 +908,8 @@ function InternalsCard({ data }) {
 // 11. TOP MOVERS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function TopMoversCard({ data }) {
-  if (!data) return <Empty title="Top Movers" desc="Loading" wrap />;
+function TopMoversCard({ data, loading }) {
+  if (loading || !data) return <Empty title="Top Movers" desc={loading ? "Loading…" : "No data"} wrap />;
   const gainers = (data.gainers || []);
   const losers = (data.losers || []);
   return (
@@ -953,7 +954,8 @@ function Mover({ symbol, chg, dir }) {
 // 12. SEASONALITY
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function SeasonalityCard({ data }) {
+function SeasonalityCard({ data, loading }) {
+  if (loading) return <Empty title="Seasonality Context" desc="Loading…" wrap />;
   if (!data) return null;
   const bestMonth = data.summary?.best_month;
   const worstMonth = data.summary?.worst_month;
@@ -1602,8 +1604,8 @@ function DistributionDaysTimeline() {
 // 18. SENTIMENT COMPOSITE (Fear & Greed gauge + AAII spread mini-chart)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-function SentimentCompositeCard({ markets, sentiment }) {
-  const { data: fgData } = useApiQuery(
+function SentimentCompositeCard({ markets, sentiment, loading }) {
+  const { data: fgData, loading: fgLoading } = useApiQuery(
     ['fear-greed-30d'],
     () => api.get('/api/market/fear-greed?range=30d'),
     { refetchInterval: 1000 * 60 * 60 }
@@ -1621,6 +1623,8 @@ function SentimentCompositeCard({ markets, sentiment }) {
     spread: parseFloat(s.bullish || 0) - parseFloat(s.bearish || 0),
   }));
   const aaiiLatest = aaiiSeries[aaiiSeries.length - 1];
+
+  if (loading || fgLoading) return <Empty title="Sentiment Composite" desc="Loading…" wrap />;
 
   // Gauge segments for Fear & Greed
   const fgRegime = fgValue == null ? null

@@ -530,20 +530,10 @@ def run(
             logger.warning(f"  [WARN] Pipeline health check failed: {e}")
             # Don't fail-close on health check error, let other checks handle it
 
-        # Run ANALYZE on key tables to refresh PostgreSQL statistics. Stale statistics
-        # cause the query planner to choose sequential scans instead of index scans,
-        # making all downstream queries 30-100× slower. ANALYZE samples ~30k rows per
-        # column but can take longer on large tables under concurrent load.
-        try:
-            with DatabaseContext('write') as cur:
-                cur.execute("SET statement_timeout = 30000")  # 30s — allow time for large tables under load
-                cur.execute(
-                    "ANALYZE price_daily, market_health_daily, trend_template_data, "
-                    "technical_data_daily, buy_sell_daily, data_loader_status"
-                )
-                logger.info("Phase 1: ANALYZE complete — PostgreSQL statistics refreshed")
-        except Exception as e:
-            logger.warning(f"Phase 1: ANALYZE failed ({e}) — proceeding with stale stats")
+        # NOTE: ANALYZE moved to morning prep pipeline (4:30 AM ET) to run once daily instead of 4x.
+        # Previously: ANALYZE took ~7.8s and ran at 9:30 AM, 1 PM, 3 PM, 5:30 PM = 31.2s/day wasted
+        # Now: ANALYZE runs once in morning prep, statistics fresh for all 4 daily Phase 1 runs.
+        # If statistics become stale during day (unlikely), cached data_loader_status avoids slow scans.
 
         # Use data_loader_status (tiny, always fast) as primary source.
         # Scanning price_daily directly takes 130s+ when the EOD pipeline is writing
