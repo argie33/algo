@@ -442,7 +442,20 @@ All API errors return specific error types instead of generic "error" messages, 
 3. No code changes needed — system automatically uses updated calendar
 4. Verify NASDAQ/NYSE holiday calendar before adding (sometimes differs on observed dates)
 
+## Recent Fixes (2026-06-05)
+
+**DEPLOYED FIXES:**
+1. **Terraform import path** — loader_failure_handler Lambda is in module.services, not module.pipeline. Fixed import statements.
+2. **Morning prep parallelization** — Parallelized signal_quality_scores + swing_trader_scores execution. Reduces 6h pipeline to 4h45m, fits in 5h window (4:30-9:30 AM).
+3. **Stale data failsafe aggressive** — Halts if failsafe loader fails AND data is 2+ days old. Only proceeds if failsafe succeeded OR data is fresh (1 day old).
+4. **Rate limiting cascade** — Progressive batch size reduction instead of per-symbol fallback. Avoids 5000+ API calls with exponential backoff taking 6+ hours.
+5. **Data patrol staleness** — 3-hour freshness window instead of complex trading day logic. Prevents false halts from stale patrol results.
+6. **ECS scheduling timeout dynamic** — First attempt: 30s poll timeout. Retry: 120s. Accommodates cluster load variability.
+7. **Phase 1 logging** — Explicit staleness tolerance logging for debugging.
+
 ## Troubleshooting
+
+**Full dataset runs failing (stale data, rate limiting, timing):** All major blockers fixed (2026-06-05). If issues persist:
 
 **DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
 
