@@ -588,6 +588,7 @@ jobs:
           fi
 
           # Import loader_failure_handler Lambda and its permissions if they already exist in AWS
+          # Note: loader_failure_handler is defined in module.services (not module.pipeline)
           echo ""
           echo "Querying AWS for loader_failure_handler Lambda function..."
           LFH_FUNCTION=$(aws lambda get-function \
@@ -595,14 +596,14 @@ jobs:
             --query 'Configuration.FunctionArn' --output text --region $AWS_REGION 2>/dev/null || echo "")
           if [ -n "$LFH_FUNCTION" ] && [ "$LFH_FUNCTION" != "None" ]; then
             echo "Found loader_failure_handler Lambda: $LFH_FUNCTION"
-            import_if_missing "module.pipeline.aws_lambda_function.loader_failure_handler" "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}"
+            import_if_missing "module.services.aws_lambda_function.loader_failure_handler" "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}"
             # Import the Step Functions invoke permission if it exists
             LFH_PERM=$(aws lambda get-policy \
               --function-name "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}" \
               --region $AWS_REGION 2>/dev/null | python3 -c "import json,sys; p=json.load(sys.stdin); stmts=[s for s in json.loads(p['Policy'])['Statement'] if s['Sid']=='AllowStepFunctionsInvoke']; print('exists' if stmts else '')" 2>/dev/null || echo "")
             if [ "$LFH_PERM" = "exists" ]; then
               echo "Found AllowStepFunctionsInvoke permission — importing"
-              import_if_missing "module.pipeline.aws_lambda_permission.loader_failure_handler_step_functions" "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}/AllowStepFunctionsInvoke"
+              import_if_missing "module.services.aws_lambda_permission.loader_failure_handler_step_functions" "${PROJECT_NAME}-loader-failure-handler-${ENVIRONMENT}/AllowStepFunctionsInvoke"
             fi
           else
             echo "loader_failure_handler Lambda not found -- Terraform will create it"
