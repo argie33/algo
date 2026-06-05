@@ -227,8 +227,10 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
             import time as _time
             _phase5_start = _time.time()
             _phase5_budget_secs = 240
+            _tier_eval_times = []  # Track per-symbol evaluation times
 
             for symbol, signal_date, _signal in signals:
+                _sym_start = _time.time()
                 if _time.time() - _phase5_start > _phase5_budget_secs:
                     logger.warning(f"Phase 5 evaluation stopped after {_phase5_budget_secs}s "
                                    f"({len(passed_all_tiers)} candidates found so far)")
@@ -479,6 +481,12 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     except Exception:
                         pass
                     logger.debug(f"Signal evaluation persist failed for {result.get('symbol','?')}: {e_persist}")
+
+                # Track per-symbol timing for performance diagnostics
+                _sym_elapsed = _time.time() - _sym_start
+                _tier_eval_times.append((_sym_elapsed, symbol))
+                if _sym_elapsed > 1.0:  # Log signals taking >1s individually
+                    logger.debug(f"[TIMING] {symbol}: {_sym_elapsed:.2f}s evaluation")
 
             logger.info(f"\n{'='*70}")
             logger.info("FILTER REJECTION ANALYSIS:")

@@ -12,6 +12,7 @@
  */
 
 import React, { useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, TrendingUp, Activity, Shield,
@@ -1236,4 +1237,61 @@ function Empty({ title, desc }) {
     </div>
   );
 }
+
+// PropTypes for chart components
+CircuitBreakerPanel.propTypes = {
+  data: PropTypes.oneOfType([PropTypes.array, PropTypes.object]),
+  loading: PropTypes.bool,
+};
+
+EquityCurve.propTypes = {
+  series: PropTypes.array,
+  loading: PropTypes.bool,
+};
+
+DrawdownChart.propTypes = {
+  series: PropTypes.array,
+  loading: PropTypes.bool,
+};
+
+DailyReturnHistogram.propTypes = {
+  series: PropTypes.array,
+  loading: PropTypes.bool,
+};
+
+TradeDistribution.propTypes = {
+  trades: PropTypes.array,
+  loading: PropTypes.bool,
+};
+
+HoldingPeriodHistogram.propTypes = {
+  trades: PropTypes.array,
+};
+
+RLadderPanel.propTypes = {
+  positions: PropTypes.array,
+  loading: PropTypes.bool,
+  onSelect: PropTypes.func,
+};
+
+RiskAllocationPie.propTypes = {
+  positions: PropTypes.array,
+  totalValue: PropTypes.number,
+  onSelect: PropTypes.func,
+};
+
+SectorConcentration.propTypes = {
+  positions: PropTypes.array,
+  totalValue: PropTypes.number,
+};
+
+StagePhaseDonut.propTypes = {
+  positions: PropTypes.array,
+};
+
+PositionHealthTable.propTypes = {
+  positions: PropTypes.array,
+  loading: PropTypes.bool,
+  onSelect: PropTypes.func,
+};
 

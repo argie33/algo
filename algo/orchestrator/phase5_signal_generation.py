@@ -114,14 +114,21 @@ def run(
 
     try:
         from algo.algo_filter_pipeline import FilterPipeline
+        import time as _timing
 
         exposure_mult = 1.0
         if exposure_constraints:
             exposure_mult = exposure_constraints.get('risk_multiplier', 1.0)
 
         pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
+
+        # Timing instrumentation for Phase 5 performance diagnostics
+        _start = _timing.time()
         qualified = pipeline.evaluate_signals(None, max_date=run_date)  # Auto-detect latest date <= run_date
+        _elapsed = _timing.time() - _start
         eval_date = pipeline._snapshot_eval_date or run_date
+
+        logger.info(f"[TIMING] Phase 5 filter pipeline completed in {_elapsed:.1f}s for {len(qualified)} qualified trades")
 
         # Signal count waterfall report (for visibility on where signals die)
         try:

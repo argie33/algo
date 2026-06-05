@@ -28,6 +28,7 @@
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { useApiQuery } from '../hooks/useApiQuery';
 import {
@@ -1874,4 +1875,32 @@ function Empty({ title, desc, wrap }) {
   if (!wrap) return <div className="card">{inner}</div>;
   return <div className="card card-pad">{inner}</div>;
 }
+
+// PropTypes for market components
+SentimentCard.propTypes = {
+  markets: PropTypes.object,
+  sentiment: PropTypes.object,
+  loading: PropTypes.bool,
+};
+
+InternalsCard.propTypes = {
+  data: PropTypes.object,
+  loading: PropTypes.bool,
+};
+
+TopMoversCard.propTypes = {
+  data: PropTypes.object,
+  loading: PropTypes.bool,
+};
+
+SeasonalityCard.propTypes = {
+  data: PropTypes.object,
+  loading: PropTypes.bool,
+};
+
+SentimentCompositeCard.propTypes = {
+  markets: PropTypes.object,
+  sentiment: PropTypes.object,
+  loading: PropTypes.bool,
+};
 
