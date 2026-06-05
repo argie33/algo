@@ -299,7 +299,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Portfolio optimization: numpy layer deployed; Phase 7 weight optimization executes
 - Intraday pricing: RealtimePricingEngine fetches live prices (Alpaca → IEX → YFinance); falls back to daily prices
 - Loader monitoring: CloudWatch dashboard + SNS alerts on task failures
-- Stale data failsafe: ✓ ASYNC trigger (commit 619cf43c) — loader runs in parallel, orchestrator proceeds with caution while Phase 2+ circuit breakers handle uncertainty
+- Stale data failsafe: ✓ ASYNC trigger — loader runs in parallel, orchestrator proceeds with caution while Phase 2+ circuit breakers handle uncertainty
 
 **⚠️ Environment Naming:** `environment = "dev"` in terraform.tfvars (all AWS resources named `-dev`). Rename to `prod` if staging is provisioned in same account.
 
