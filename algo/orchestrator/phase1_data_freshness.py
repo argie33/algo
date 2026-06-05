@@ -292,15 +292,19 @@ def _check_failsafe_completion(state_table: Any, verbose: bool = False, timeout_
         logger.debug(f"[FAILSAFE_TIMEOUT] Could not check failsafe timeout: {err}")
         return None
 
-def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = 10) -> bool:
+def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = None) -> bool:
     """Detect if loader task has hung by checking heartbeat.
 
     Returns True if loader is marked RUNNING but hasn't updated heartbeat in > timeout_minutes.
     This allows Phase 1 to trigger a new loader when the old one is stuck.
 
+    Timeout is configurable via algo_config (heartbeat_hung_timeout_minutes), defaults to 5 minutes.
+    This is more responsive than the previous 10-minute default: if a task hangs at minute 4,
+    it will be detected by minute 9 instead of minute 14.
+
     Args:
         loader_name: Name of loader table (e.g., 'price_daily', 'technical_data_daily')
-        timeout_minutes: Consider task hung if no heartbeat for this many minutes (default: 10)
+        timeout_minutes: Override heartbeat timeout (reads from algo_config if not specified)
 
     Returns:
         True if task appears hung, False otherwise
@@ -308,6 +312,19 @@ def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = 10) -> boo
     try:
         from utils.database_context import DatabaseContext
         from datetime import datetime, timezone, timedelta
+
+        # Use provided timeout or load from algo_config, default to 5 minutes (reduced from 10)
+        if timeout_minutes is None:
+            try:
+                with DatabaseContext("read") as config_cur:
+                    config_cur.execute(
+                        "SELECT value FROM algo_config WHERE key = %s",
+                        ('heartbeat_hung_timeout_minutes',)
+                    )
+                    config_result = config_cur.fetchone()
+                    timeout_minutes = int(config_result[0]) if config_result else 5
+            except Exception:
+                timeout_minutes = 5  # Default to 5 minutes
 
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -344,7 +361,7 @@ def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = 10) -> boo
                 )
             else:
                 logger.debug(
-                    f"[HEARTBEAT] Loader {loader_name} healthy: last update {elapsed_minutes:.1f} min ago"
+                    f"[HEARTBEAT] Loader {loader_name} healthy: last update {elapsed_minutes:.1f} min ago (timeout {timeout_minutes}m)"
                 )
 
             return is_hung
