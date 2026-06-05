@@ -91,8 +91,9 @@ export default function EconomicDashboard() {
   const recession = useMemo(() => {
     const tiles = [];
     const unrate = ind('Unemployment Rate');
-    if (unrate?.history?.length >= 12) {
-      const hist = unrate.history.slice(-12).map(p => +p.value).filter(v => !isNaN(v));
+    const unrateHist = Array.isArray(unrate?.history) ? unrate.history : [];
+    if (unrateHist.length >= 12) {
+      const hist = unrateHist.slice(-12).map(p => +p.value).filter(v => !isNaN(v));
       if (hist.length >= 3) {
         const sahm = hist.slice(-3).reduce((s, v) => s + v, 0) / 3 - Math.min(...hist);
         tiles.push({
@@ -195,10 +196,10 @@ export default function EconomicDashboard() {
   // ── Financial conditions ──────────────────────────────────────────────────
   const fci = useMemo(() => {
     if (!yieldData?.credit?.history) return [];
-    const vixSeries  = yieldData.credit.history['VIXCLS'] || [];
-    const hySeries   = yieldData.credit.history['BAMLH0A0HYM2'] || [];
-    const igSeries   = yieldData.credit.history['BAMLH0A0IG'] || [];
-    const curveSeries = (yieldData.history?.T10Y2Y || []);
+    const vixSeries  = Array.isArray(yieldData.credit.history['VIXCLS']) ? yieldData.credit.history['VIXCLS'] : [];
+    const hySeries   = Array.isArray(yieldData.credit.history['BAMLH0A0HYM2']) ? yieldData.credit.history['BAMLH0A0HYM2'] : [];
+    const igSeries   = Array.isArray(yieldData.credit.history['BAMLH0A0IG']) ? yieldData.credit.history['BAMLH0A0IG'] : [];
+    const curveSeries = Array.isArray(yieldData.history?.T10Y2Y) ? yieldData.history.T10Y2Y : [];
     if (vixSeries.length < 10 || hySeries.length < 10) return [];
     const map = new Map();
     const addSeries = (series, key) => series.forEach(p => {
@@ -979,8 +980,9 @@ function MacroKpi({ label, ind, _unit, invertGood }) {
 }
 
 function IndHistory({ ind, title, sub, color }) {
-  if (!ind?.history?.length) return null;
-  const data = [...ind.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const history = Array.isArray(ind?.history) ? ind.history : [];
+  if (history.length === 0) return null;
+  const data = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
   return (
     <div className="card">
       <div className="card-head">
@@ -1092,7 +1094,7 @@ function NaaimPanel({ naaim }) {
   const zoneColor = zone === 'healthy' ? 'var(--success)' : zone === 'extended' ? 'var(--amber)' : 'var(--danger)';
   const zoneLabel = zone === 'healthy' ? 'Healthy Risk Appetite' : zone === 'extended' ? 'Extended — Watch for Reversion' : zone === 'defensive' ? 'Defensive Positioning' : 'Very Defensive — Capitulation Risk';
 
-  const history = naaim?.history || [];
+  const history = Array.isArray(naaim?.history) ? naaim.history : [];
   const chartData = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
 
   return (
@@ -1318,7 +1320,7 @@ function GrowthLaborBarometer({ indicators, phillyfed }) {
   // Convert Philly Fed diffusion index (centered at 0) to ISM-like scale (centered at 50)
   const ismVal = phillyRaw != null ? 50 + phillyRaw / 2 : 50;
   const claimsVal = claims?.rawValue ? +claims.rawValue : 250000;
-  const claimsHist = claims?.history || [];
+  const claimsHist = Array.isArray(claims?.history) ? claims.history : [];
 
   // Compute barometer: higher ISM + lower claims = expansion signal
   // Normalize: ISM 40-60 range, claims 150k-450k range
@@ -1447,8 +1449,9 @@ function LEIPanel({ indicators }) {
 
   // 6-month historical data from indicator histories (if available)
   const chartData = (() => {
-    if (!icsa?.history?.length) return [];
-    const hist = icsa.history.slice(-26).map(h => {
+    const history = Array.isArray(icsa?.history) ? icsa.history : [];
+    if (history.length === 0) return [];
+    const hist = history.slice(-26).map(h => {
       const u = unrate?.history?.find(uh => String(uh.date).slice(0, 10) === String(h.date).slice(0, 10));
       const h2 = houst?.history?.find(hh => String(hh.date).slice(0, 10) === String(h.date).slice(0, 10));
       const s = sp500?.history?.find(sh => String(sh.date).slice(0, 10) === String(h.date).slice(0, 10));
@@ -1549,8 +1552,8 @@ function LEIPanel({ indicators }) {
 }
 
 function TipsBreakevenPanel({ t5y, t10y, yieldData }) {
-  const t5hist = t5y?.history || yieldData?.breakevens?.history?.T5YIE || [];
-  const t10hist = t10y?.history || yieldData?.breakevens?.history?.T10YIE || [];
+  const t5hist = Array.isArray(t5y?.history) ? t5y.history : Array.isArray(yieldData?.breakevens?.history?.T5YIE) ? yieldData.breakevens.history.T5YIE : [];
+  const t10hist = Array.isArray(t10y?.history) ? t10y.history : Array.isArray(yieldData?.breakevens?.history?.T10YIE) ? yieldData.breakevens.history.T10YIE : [];
   const t5cur = t5y?.rawValue ?? yieldData?.breakevens?.current?.T5YIE;
   const t10cur = t10y?.rawValue ?? yieldData?.breakevens?.current?.T10YIE;
 
@@ -1657,8 +1660,8 @@ function InflationVsFedChart({ cpiHist, corePceHist, fedHist }) {
 }
 
 function FinancialStressPanel({ stlfsiInd, anfciInd, yieldData }) {
-  const stlfsiHist = stlfsiInd?.history || yieldData?.stress?.history?.STLFSI4 || [];
-  const anfciHist = anfciInd?.history || yieldData?.stress?.history?.ANFCI || [];
+  const stlfsiHist = Array.isArray(stlfsiInd?.history) ? stlfsiInd.history : Array.isArray(yieldData?.stress?.history?.STLFSI4) ? yieldData.stress.history.STLFSI4 : [];
+  const anfciHist = Array.isArray(anfciInd?.history) ? anfciInd.history : Array.isArray(yieldData?.stress?.history?.ANFCI) ? yieldData.stress.history.ANFCI : [];
 
   const combined = (() => {
     const map = new Map();

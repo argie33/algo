@@ -270,6 +270,66 @@ def _check_failsafe_completion(state_table: Any, verbose: bool = False, timeout_
         logger.debug(f"[FAILSAFE_TIMEOUT] Could not check failsafe timeout: {err}")
         return None
 
+def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = 10) -> bool:
+    """Detect if loader task has hung by checking heartbeat.
+
+    Returns True if loader is marked RUNNING but hasn't updated heartbeat in > timeout_minutes.
+    This allows Phase 1 to trigger a new loader when the old one is stuck.
+
+    Args:
+        loader_name: Name of loader table (e.g., 'price_daily', 'technical_data_daily')
+        timeout_minutes: Consider task hung if no heartbeat for this many minutes (default: 10)
+
+    Returns:
+        True if task appears hung, False otherwise
+    """
+    try:
+        from utils.database_context import DatabaseContext
+        from datetime import datetime, timezone, timedelta
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT status, last_updated FROM data_loader_status WHERE table_name = %s",
+                (loader_name,),
+            )
+            result = cur.fetchone()
+            if not result:
+                # No status record = task never started
+                return False
+
+            status, last_updated = result[0], result[1]
+
+            # Only check for hung if marked as RUNNING
+            if status != 'RUNNING':
+                return False
+
+            # Check if heartbeat is stale
+            if not last_updated:
+                # No last_updated timestamp = task just started, not stuck yet
+                return False
+
+            now = datetime.now(timezone.utc)
+            if last_updated.tzinfo is None:
+                last_updated = last_updated.replace(tzinfo=timezone.utc)
+
+            elapsed_minutes = (now - last_updated).total_seconds() / 60
+            is_hung = elapsed_minutes > timeout_minutes
+
+            if is_hung:
+                logger.warning(
+                    f"[HUNG_TASK] Loader {loader_name} marked RUNNING but no heartbeat for {elapsed_minutes:.0f} min (timeout: {timeout_minutes} min). "
+                    f"Considering task hung and triggering failsafe."
+                )
+            else:
+                logger.debug(
+                    f"[HEARTBEAT] Loader {loader_name} healthy: last update {elapsed_minutes:.1f} min ago"
+                )
+
+            return is_hung
+    except Exception as e:
+        logger.debug(f"[HUNG_TASK] Could not check loader heartbeat: {e}")
+        return False
+
 def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeout: int = 600) -> bool:
     """
     DEPRECATED: Use _trigger_loader_failsafe_with_verification instead.

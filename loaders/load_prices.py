@@ -279,9 +279,13 @@ class PriceLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch OHLCV from yfinance at specified interval."""
         from algo.algo_market_calendar import MarketCalendar
+        from datetime import datetime, timezone, timedelta as td
 
+        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
+        now_utc = datetime.now(timezone.utc)
+        now_et = now_utc.astimezone(timezone(td(hours=-5)))
         # yfinance end date is EXCLUSIVE: pass today+1 so today's trading data is always fetchable
-        end = date.today() + timedelta(days=1)
+        end = now_et.date() + timedelta(days=1)
 
         if since is None:
             # First run: load 100 days instead of 5 years for speed
@@ -311,10 +315,14 @@ class PriceLoader(OptimalLoader):
         Uses adaptive batch sizing based on recent success rates to reduce retries.
         """
         from algo.algo_market_calendar import MarketCalendar
+        from datetime import datetime, timezone, timedelta as td
 
+        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
+        now_utc = datetime.now(timezone.utc)
+        now_et = now_utc.astimezone(timezone(td(hours=-5)))
         # yfinance end date is EXCLUSIVE: to fetch May 29 data we must pass end=May 30.
         # Use today+1 so today's data (if it's a trading day) is always included.
-        end = date.today() + timedelta(days=1)
+        end = now_et.date() + timedelta(days=1)
 
         if since is None:
             start = end - timedelta(days=101)

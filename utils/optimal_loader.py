@@ -64,6 +64,10 @@ class OptimalLoader(ABC):
             "duration_sec": 0.0,
             "source_distribution": {},
         }
+        self._heartbeat_thread = None
+        self._heartbeat_running = False
+        self._heartbeat_lock = threading.Lock()
+        self._heartbeat_interval = 300  # 5 minutes between heartbeat updates
         self._setup_signal_handlers()
         self._validate_runtime_config()
 
@@ -79,6 +83,42 @@ class OptimalLoader(ABC):
                     )
 
         signal.signal(signal.SIGTERM, handle_shutdown)
+
+    def _start_heartbeat(self) -> None:
+        """Start a background thread that updates loader status every 5 minutes.
+
+        This heartbeat mechanism allows Phase 1 to detect hung/stalled loader tasks.
+        Phase 1 watches for last_updated > 10 minutes and declares task timeout.
+        """
+        with self._heartbeat_lock:
+            if self._heartbeat_running:
+                return
+            self._heartbeat_running = True
+
+        def heartbeat_worker():
+            while self._heartbeat_running:
+                try:
+                    time.sleep(self._heartbeat_interval)
+                    if self._heartbeat_running:
+                        # Update last_updated timestamp to signal loader is alive
+                        with DatabaseContext("write") as cur:
+                            cur.execute(
+                                "UPDATE data_loader_status SET last_updated = NOW() "
+                                "WHERE table_name = %s AND status = %s",
+                                (self.table_name, "RUNNING")
+                            )
+                except Exception as e:
+                    logger.debug(f"Heartbeat update failed: {e}")
+
+        self._heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+        self._heartbeat_thread.start()
+
+    def _stop_heartbeat(self) -> None:
+        """Stop the heartbeat background thread."""
+        with self._heartbeat_lock:
+            self._heartbeat_running = False
+        if self._heartbeat_thread:
+            self._heartbeat_thread.join(timeout=5)
 
     def _update_loader_status(self, status: str) -> None:
         """Update loader status in data_loader_status table.
@@ -701,6 +741,9 @@ class OptimalLoader(ABC):
             # Mark loader as RUNNING so Phase 1 knows it's in progress
             self._update_loader_status("RUNNING")
 
+            # Start heartbeat thread to signal loader is alive (for hung task detection)
+            self._start_heartbeat()
+
             start = time.time()
             symbols = list(symbols)
             mode = (
@@ -783,8 +826,13 @@ class OptimalLoader(ABC):
             # Mark loader as COMPLETED for Phase 1 grace period check
             self._update_loader_status("COMPLETED")
 
+            # Stop heartbeat thread before returning
+            self._stop_heartbeat()
+
             return self._stats
         finally:
+            # Ensure heartbeat stops even on error
+            self._stop_heartbeat()
             if lock_manager:
                 try:
                     lock_manager.release(lock_key=self.table_name)

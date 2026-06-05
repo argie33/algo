@@ -32,8 +32,13 @@ class SignalQualityScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
         from algo.algo_market_calendar import MarketCalendar
+        from datetime import datetime, timezone, timedelta as td
 
-        end = date.today()
+        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
+        now_utc = datetime.now(timezone.utc)
+        now_et = now_utc.astimezone(timezone(td(hours=-5)))
+        end = now_et.date()
+
         # If today is not a trading day, use yesterday instead
         # (prevents computing scores for non-trading days when no new signals exist)
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
