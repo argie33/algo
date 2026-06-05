@@ -81,7 +81,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
-                  <XAxis dataKey="snapshot_date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v?.slice(5)} interval="preserveStartEnd" />
+                  <XAxis dataKey="snapshot_date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => String(v).slice(5)} interval="preserveStartEnd" />
                   <YAxis tickFormatter={chartFmt} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={48} />
                   <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`$${v?.toLocaleString()}`, 'Portfolio']} labelFormatter={v => v} />
                   <Area type="monotone" dataKey="total_portfolio_value" stroke="var(--brand)" fill="url(#eqGrad)" strokeWidth={2} dot={false} />
@@ -108,7 +108,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
-                  <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v?.slice(5)} interval="preserveStartEnd" />
+                  <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => String(v).slice(5)} interval="preserveStartEnd" />
                   <YAxis tickFormatter={v => `${v}%`} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={40} />
                   <ReferenceLine y={0} stroke="var(--border)" />
                   <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}%`, 'Drawdown']} />
