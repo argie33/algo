@@ -282,8 +282,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 if row:
                     stage_number, volume, day_high, day_low, close, avg_vol_50d = row
 
-                    # A1: Stage 2 check (configurable bypass for force-testing end-to-end)
-                    require_stage_2 = not bool(self.config.get('bypass_stage_2_filter', False))
+                    # A1: Stage 2 check (per-stock Weinstein requirement)
+                    require_stage_2 = bool(self.config.get('require_stock_stage_2', True))
                     if require_stage_2 and stage_number != 2:
                         logger.info(f"  SKIP {symbol}: Stage {stage_number} (need Stage 2)")
                         pre_tier_rejections['stage_not_2'] += 1

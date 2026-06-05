@@ -57,8 +57,8 @@ class AlgoConfig:
         'min_avg_daily_dollar_volume': ('500000', 'float', 'Minimum daily dollar volume for liquidity gate'),
         'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
         'max_stop_distance_pct': ('12.0', 'float', 'Max stop distance % from entry'),
-        'max_positions_per_sector': ('5', 'int', 'Max concurrent positions in one sector'),
-        'max_positions_per_industry': ('3', 'int', 'Max concurrent positions in one industry'),
+        'max_positions_per_sector': ('8', 'int', 'Max concurrent positions in one sector'),
+        'max_positions_per_industry': ('5', 'int', 'Max concurrent positions in one industry'),
         'min_swing_score': ('55.0', 'float', 'Min swing trader score to enter (regime manager may raise this)'),
         'min_swing_grade': ('', 'string', 'Min swing grade override (empty=use exposure tier default; set to F for testing to bypass grade gate)'),
         'max_total_invested_pct': ('95.0', 'float', 'Max % of portfolio in open positions'),
@@ -78,7 +78,7 @@ class AlgoConfig:
 
         # Entry Quality Gates (Sprint 2)
         'max_signal_age_days': ('3', 'int', 'Reject BUY signals older than N days'),
-        'min_close_quality_pct': ('60.0', 'float', 'Close must be in upper N% of range'),
+        'min_close_quality_pct': ('40.0', 'float', 'Close must be in upper N% of range'),
         'min_breakout_volume_ratio': ('1.25', 'float', 'Volume must be N x 50-day average'),
         'require_weekly_stage_2': ('true', 'bool', 'Require weekly chart Stage 2'),
         'min_rs_line_slope_days': ('10', 'int', 'Days for RS line slope check'),

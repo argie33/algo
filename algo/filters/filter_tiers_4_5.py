@@ -66,8 +66,8 @@ class FilterTiers45Mixin:
                 sector_count, industry_count = self._count_sector_industry_overlap(
                     new_sector_info, existing_symbols, cur
                 )
-                max_per_sector = int(self.config.get('max_positions_per_sector', 3))
-                max_per_industry = int(self.config.get('max_positions_per_industry', 2))
+                max_per_sector = int(self.config.get('max_positions_per_sector', 8))
+                max_per_industry = int(self.config.get('max_positions_per_industry', 5))
                 if sector_count >= max_per_sector:
                     return {
                         'pass': False,
