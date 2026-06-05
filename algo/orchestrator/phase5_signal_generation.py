@@ -122,18 +122,39 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
             else:
                 logger.info(f"    {tier_name} rejected:          {count:4d}")
 
-        # Age-based rejections (count from filter_rejection_log where rejected_at_tier = 6)
+        # Age-based rejections (count from filter_rejection_log where is_age_driven_rejection = true)
+        # Show breakdown by data source (technical, buy_sell, trend)
         try:
+            # Total age-driven rejections
             cur.execute(
-                "SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = 6",
+                "SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND is_age_driven_rejection = TRUE",
                 (run_date,),
             )
             result = cur.fetchone()
-            age_rejected = result[0] if result else 0
-            if age_rejected > 0:
-                logger.info(f"    Data age rejected:         {age_rejected:4d}")
+            age_rejected_count = result[0] if result else 0
+
+            if age_rejected_count > 0:
+                logger.info(f"    Data age rejected:         {age_rejected_count:4d}")
+
+                # Show average ages of rejected signals
+                try:
+                    cur.execute("""
+                        SELECT
+                            AVG(COALESCE(technical_data_age_days, 0))::int as avg_tech_age,
+                            AVG(COALESCE(buy_sell_daily_age_days, 0))::int as avg_bs_age,
+                            AVG(COALESCE(trend_template_age_days, 0))::int as avg_trend_age,
+                            MAX(COALESCE(max_data_age_days, 0))::int as max_age
+                        FROM filter_rejection_log
+                        WHERE eval_date = %s AND is_age_driven_rejection = TRUE
+                    """, (run_date,))
+                    age_stats = cur.fetchone()
+                    if age_stats:
+                        avg_tech, avg_bs, avg_trend, max_age = age_stats
+                        logger.info(f"      Age breakdown (rejected): tech={avg_tech}d, bs={avg_bs}d, trend={avg_trend}d (max={max_age}d)")
+                except Exception as age_stats_err:
+                    logger.debug(f"Could not fetch age statistics: {age_stats_err}")
         except Exception:
-            pass  # Tier 6 column may not exist; skip gracefully
+            pass  # Age-driven rejection columns may not exist; skip gracefully
 
         # Per-filter rejection breakdown (most important filters first)
         if filter_rejections:
@@ -298,25 +319,55 @@ def run(
                     # Filter out aged symbols
                     qualified = [s for s in qualified if s not in age_rejected]
 
-                    # Log rejections to filter_rejection_log table
+                    # Log rejections to filter_rejection_log table with age tracking
                     if age_rejected:
                         try:
                             with DatabaseContext("write") as _log_cur:
+                                # Query source data ages for rejected symbols
                                 for symbol, details in age_rejected.items():
                                     rejection_reason = (
                                         f"Data age threshold exceeded: {details['source']} "
                                         f"({details['max_age']}d > {max_data_age_threshold}d)"
                                     )
+
+                                    # Get the actual ages from signal_quality_scores
+                                    bs_age = 0
+                                    tech_age = 0
+                                    trend_age = 0
+                                    try:
+                                        _log_cur.execute("""
+                                            SELECT buy_sell_daily_age_days, technical_data_age_days, trend_template_age_days
+                                            FROM signal_quality_scores
+                                            WHERE symbol = %s AND date = %s
+                                            ORDER BY date DESC LIMIT 1
+                                        """, (symbol, eval_date))
+                                        age_row = _log_cur.fetchone()
+                                        if age_row:
+                                            bs_age = age_row[0] or 0
+                                            tech_age = age_row[1] or 0
+                                            trend_age = age_row[2] or 0
+                                    except Exception as age_fetch_err:
+                                        logger.debug(f"Could not fetch ages for {symbol}: {age_fetch_err}")
+
+                                    max_age = max(bs_age, tech_age, trend_age)
+
                                     _log_cur.execute(
                                         """INSERT INTO filter_rejection_log
-                                           (eval_date, symbol, rejection_reason, rejected_at_tier)
-                                           VALUES (%s, %s, %s, %s)""",
+                                           (eval_date, symbol, rejection_reason, rejected_at_tier,
+                                            buy_sell_daily_age_days, technical_data_age_days, trend_template_age_days,
+                                            max_data_age_days, is_age_driven_rejection)
+                                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                                         (
                                             eval_date,
                                             symbol,
                                             rejection_reason,
-                                            6,
-                                        ),  # Tier 6: age filtering
+                                            6,  # Tier 6: age filtering
+                                            bs_age,
+                                            tech_age,
+                                            trend_age,
+                                            max_age,
+                                            True,  # This is an age-driven rejection
+                                        ),
                                     )
                                 _log_cur.connection.commit()
                         except Exception as _log_err:
