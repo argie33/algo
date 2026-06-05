@@ -720,25 +720,32 @@ def run(
         if not patrol_ok:
             return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
 
-        # Skip slow secondary checks in Lambda to preserve budget for trading phases.
-        # Under EOD pipeline load, COUNT(*) and health queries on large tables take
-        # 1-3 minutes each — Phase 1 would consume the entire 600s Lambda budget
-        # before reaching Phases 2-7. These are observability-only, not halt conditions.
+        # Quick secondary checks (fast index scans, not full table scans).
+        # Full COUNT(*) on large tables takes 1-3 minutes under load — expensive in Lambda.
+        # Instead, use fast queries: SELECT ... LIMIT 1 (milliseconds), sample recent data.
+        # These are observability-only, not halt conditions (swing_trader_scores is already halt).
+        try:
+            with DatabaseContext('read') as _sqs_cur:
+                _sqs_cur.execute("SET statement_timeout = 5000")  # 5s max for observability query
+                # Fast check: does table have ANY data? (index scan, not count)
+                _sqs_cur.execute("SELECT 1 FROM signal_quality_scores LIMIT 1")
+                has_data = _sqs_cur.fetchone() is not None
+
+                if not has_data:
+                    logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
+                    logger.warning("         Phase 5 will use trend-score fallback ranking")
+                    log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty')
+                elif verbose:
+                    # Get latest date (fast index scan)
+                    _sqs_cur.execute("SELECT MAX(date) FROM signal_quality_scores")
+                    latest = _sqs_cur.fetchone()[0] if _sqs_cur.fetchone() else None
+                    logger.info(f"  [OK] signal_quality_scores: has data, latest {latest}")
+        except Exception as e:
+            logger.warning(f"  [WARN] signal_quality_scores check failed: {e} (observe-only)")
+
+        # Margin check only outside Lambda (expensive PositionMonitor init)
         in_lambda = bool(os.getenv('AWS_LAMBDA_FUNCTION_NAME'))
         if not in_lambda:
-            # Observability: log signal_quality_scores row count — not a halt condition.
-            try:
-                with DatabaseContext('read') as _sqs_cur:
-                    _sqs_cur.execute("SELECT COUNT(*), MAX(date) FROM signal_quality_scores")
-                    sqs_row = _sqs_cur.fetchone()
-                    total_sqs, latest_sqs_date = (sqs_row[0], sqs_row[1]) if sqs_row else (0, None)
-                    if total_sqs == 0:
-                        logger.warning("  [WARN] signal_quality_scores table is empty (observe-only, not blocking)")
-                        log_phase_result_fn(1, 'signal_quality_scores', 'warn', 'Table empty, first run expected')
-                    elif verbose:
-                        logger.info(f"  [OK] signal_quality_scores: {total_sqs} rows, latest {latest_sqs_date}")
-            except Exception as e:
-                logger.warning(f"  [WARN] signal_quality_scores count check failed: {e} (observe-only)")
 
             # Margin health check
             try:
