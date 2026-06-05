@@ -161,8 +161,39 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                                 except Exception as alert_err:
                                     logger.debug(f"[FAILSAFE] Could not send scheduling delay alert: {alert_err}")
 
-                            poll_success = True
-                            break
+                            # SECONDARY HEALTH CHECK: Verify task is still running 5 seconds later
+                            # Catch tasks that immediately fail (out of memory, missing env vars, code errors)
+                            if verbose:
+                                logger.debug(f"[FAILSAFE] Performing secondary health check in 5s...")
+                            time.sleep(5)
+                            try:
+                                desc_follow = ecs_client.describe_tasks(cluster=cluster_arn, tasks=[task_arn])
+                                if desc_follow.get('tasks'):
+                                    task_follow = desc_follow['tasks'][0]
+                                    task_state_follow = task_follow.get('lastStatus', '')
+                                    if task_state_follow == 'RUNNING':
+                                        if verbose:
+                                            logger.debug(f"[FAILSAFE] ✓ Secondary check: Task {task_id} still RUNNING")
+                                        poll_success = True
+                                        break
+                                    elif task_state_follow in ('STOPPED', 'STOPPING'):
+                                        logger.critical(f"[FAILSAFE] FAILED: Task {task_id} stopped unexpectedly after reaching RUNNING. "
+                                                      f"Reason: {task_follow.get('stoppedReason', 'unknown')}")
+                                        if attempts < max_attempts:
+                                            logger.info(f"[FAILSAFE] Will retry in 10s...")
+                                            time.sleep(10)
+                                            continue
+                                        return False
+                                    else:
+                                        if verbose:
+                                            logger.debug(f"[FAILSAFE] Task {task_id} transitioned to: {task_state_follow}")
+                                        poll_success = True
+                                        break
+                            except Exception as follow_err:
+                                logger.debug(f"[FAILSAFE] Secondary health check failed: {follow_err}")
+                                # If we can't verify, assume OK (network issue)
+                                poll_success = True
+                                break
                         elif task_state in ('DEPROVISIONING', 'STOPPING', 'DEACTIVATING', 'STOPPED', 'DELETED'):
                             logger.warning(f"[FAILSAFE] Task {task_id} stopped prematurely: {task_state}")
                             if task.get('stoppedReason'):

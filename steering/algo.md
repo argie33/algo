@@ -168,10 +168,22 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 
 **Actions if morning prep exceeds 4 hours:**
 - Execution may still complete before 9:30 AM but with low margin for error
-- If exceeding 4 hours: check EOD pipeline from previous day (may still be running when morning prep starts)
-- Check yfinance rate limiting (stock_prices_daily step) — may need to reduce parallelism
-- Check RDS health (CPU, connections, disk I/O)
-- If consistently slow: increase ECS task CPU/memory for slow steps
+- **Critical: Monitor per-step durations** via CloudWatch Logs Insights (query below) to identify bottleneck
+- If exceeding 5 hours: check EOD pipeline from previous day (may still be running when morning prep starts, consuming RDS connections)
+- If stock_prices_daily exceeds 100 min: check yfinance API status and rate limiting; may need to reduce parallelism from 4→2
+- If technical_data_daily exceeds 110 min: check RDS query performance (CPU, slow log); may need to add indexes or increase RDS instance size
+- If consistently slow: increase ECS task CPU (currently 256/512) and memory (currently 512/1024) for stock_prices_daily and technical_data_daily
+- If margin consistently <30 min after fixes: consider further start time advance to 3:15 AM or parallel loader splits
+
+**Timing Validation Query (CloudWatch Logs Insights):**
+```
+fields @timestamp, @logStream, @duration
+| filter @logStream = /morning-prep-pipeline/
+| filter @message like /completed|completed|Completed/
+| stats max(@duration) as max_sec by @logStream
+| sort max_sec desc
+```
+Run this daily to track trends. Alert if any step consistently takes >80% of allocated timeout.
 
 **Implementation:**
 - Step Functions state machine `morning-prep-pipeline-dev` with fail-open error handling
