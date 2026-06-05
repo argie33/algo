@@ -2,9 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(aws *)",
-      "PowerShell(aws *)"
+      "PowerShell(aws *)",
+      "Bash(git *)",
+      "PowerShell(git *)",
+      "Bash(npm *)",
+      "Bash(node *)",
+      "Read",
+      "Glob",
+      "Grep"
     ]
   },
+  "todoFeatureEnabled": true,
   "hooks": {
     "SessionStart": [
       {

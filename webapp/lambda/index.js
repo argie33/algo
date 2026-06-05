@@ -435,14 +435,31 @@ app.use("/api/diagnostics", diagnosticsRoutes);
 app.use("/api/economic", cacheMiddleware(120), economicRoutes);
 app.use("/api/health", healthRoutes);
 
-// Database status endpoint - quick check for database connectivity
+// Database status endpoint - returns database statistics
 app.get("/api/database-status", async (req, res) => {
   try {
-    const result = await query("SELECT 1 as connected");
-    if (result && result.rows && result.rows.length > 0) {
-      return sendSuccess(res, { status: "connected", healthy: true });
-    }
-    return sendError(res, "Database query returned no results", 503);
+    const stats = {};
+
+    // Count active connections
+    const connResult = await query("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'");
+    stats.active_connections = parseInt(connResult.rows[0]?.count || 0);
+
+    // Get database size
+    const sizeResult = await query("SELECT pg_size_pretty(pg_database_size(current_database())) as total_size");
+    stats.total_database_size = sizeResult.rows[0]?.total_size || 'unknown';
+
+    // Count tables
+    const tableResult = await query(`
+      SELECT COUNT(*) as table_count FROM information_schema.tables
+      WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+    `);
+    stats.table_count = parseInt(tableResult.rows[0]?.table_count || 0);
+
+    stats.timestamp = new Date().toISOString();
+    stats.status = 'connected';
+    stats.healthy = true;
+
+    return sendSuccess(res, stats);
   } catch (error) {
     return sendError(res, "Database connection failed: " + error.message, 503);
   }
