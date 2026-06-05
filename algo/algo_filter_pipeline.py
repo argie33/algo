@@ -488,6 +488,21 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 if _sym_elapsed > 1.0:  # Log signals taking >1s individually
                     logger.debug(f"[TIMING] {symbol}: {_sym_elapsed:.2f}s evaluation")
 
+            # Timing statistics
+            _total_eval = _time.time() - _phase5_start
+            if _tier_eval_times:
+                _avg_time = sum(t[0] for t in _tier_eval_times) / len(_tier_eval_times)
+                _slowest_10 = sorted(_tier_eval_times, reverse=True)[:10]
+                logger.info(f"\n{'='*70}")
+                logger.info(f"PERFORMANCE TIMING (Phase 5 signal evaluation):")
+                logger.info(f"{'='*70}")
+                logger.info(f"  Total evaluation time: {_total_eval:.1f}s")
+                logger.info(f"  Symbols evaluated:    {len(_tier_eval_times)}")
+                logger.info(f"  Average per symbol:   {_avg_time:.3f}s")
+                logger.info(f"  Slowest 10 symbols:")
+                for elapsed, sym in _slowest_10:
+                    logger.info(f"    {sym:8s}: {elapsed:.2f}s")
+
             logger.info(f"\n{'='*70}")
             logger.info("FILTER REJECTION ANALYSIS:")
             logger.info(f"{'='*70}")
