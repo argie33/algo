@@ -63,6 +63,13 @@ If you need to rebuild the schema:
 - **Small loaders**: parallelism=1 to avoid rate limiting or because data size is small
 - **Justification**: When 9 core loaders run via Step Functions EOD pipeline concurrently at parallelism=4, they create 36 concurrent database connections, exhausting the RDS Proxy connection pool. Reduced parallelism = longer individual execution time but no connection contention, leading to faster overall pipeline completion.
 - **Enforcement**: Parallelism values are defined per-loader in `terraform/modules/loaders/main.tf` (loaders map, each key has `parallelism` field). ECS task definitions automatically receive correct LOADER_PARALLELISM env var. Do NOT override with global settings in task definition revisions.
+- **Monitoring RDS Connection Pool Health:**
+  - RDS instance: `algo-db` (t4g.small, ~100 max connections)
+  - CloudWatch metric: `DatabaseConnections` (AWS/RDS namespace)
+  - During EOD pipeline (4:05-5:30 PM ET): expect 25-50 concurrent connections (safe margin to 100)
+  - If peak >75: Connection contention risk. Check CloudWatch logs for slow queries, or reduce parallelism further.
+  - Morning prep (3:30-9:30 AM) should see <30 concurrent (only 2-3 loaders running, lower parallelism)
+  - Alert threshold: >80 concurrent connections → page on-call, investigate slow queries or excessive parallelism
 
 ## Infrastructure Constraints
 
