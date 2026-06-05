@@ -819,7 +819,35 @@ def run(
                 log_phase_result_fn(1, 'data_freshness', 'warn',
                                    f'Stale but failsafe triggered: {"; ".join(stale_items)}')
 
-        # Check swing_trader_scores freshness — FAIL-CLOSED if missing/stale.
+        # Check if this is a first-run (before any loaders have populated data).
+        # On first deployment: signal_quality_scores and buy_sell_daily both empty
+        # Don't halt, just log and skip to Phase 2+ (which will also be conservative)
+        first_run_state = False
+        try:
+            with DatabaseContext('read') as _check_cur:
+                _check_cur.execute("SET statement_timeout = 5000")
+                # Check if both signal_quality_scores and buy_sell_daily are empty
+                _check_cur.execute("SELECT COUNT(*) FROM signal_quality_scores LIMIT 1")
+                sqs_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
+
+                _check_cur.execute("SELECT COUNT(*) FROM buy_sell_daily LIMIT 1")
+                bsd_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
+
+                if sqs_count == 0 and bsd_count == 0:
+                    first_run_state = True
+                    logger.warning(
+                        "[FIRST_RUN] System has never run EOD pipeline. "
+                        "signal_quality_scores and buy_sell_daily are both empty. "
+                        "Waiting for EOD pipeline (4:05 PM) to populate data. "
+                        "Next orchestrator run (9:30 AM tomorrow) will generate signals."
+                    )
+                    log_phase_result_fn(1, 'data_freshness', 'info',
+                                       'First run detected: waiting for EOD pipeline to populate data')
+
+        except Exception as e:
+            logger.debug(f"Could not check first-run state: {e}")
+
+        # Check swing_trader_scores freshness — FAIL-CLOSED if missing/stale (unless first run).
         # When swing scores are missing, Phase 5 min_swing_score=55 gate kills ALL trades silently.
         # User sees "success" with 0 trades executed and no explanation. Halt explicitly instead.
         swing_scores_ok = True
@@ -832,17 +860,21 @@ def run(
                 sw_row = _sw_cur.fetchone()
                 sw_latest = sw_row[0] if sw_row else None
                 if sw_latest is None:
-                    logger.error("[SWING SCORES] HALT: swing_trader_scores table is empty")
-                    logger.error("  The EOD pipeline must run first to populate swing scores.")
-                    logger.error("  Check: Step Functions algo-eod-pipeline-dev execution status.")
-                    logger.error("  Or wait for the morning-prep-pipeline at 4:30 AM ET.")
-                    alerts.send_position_alert(
-                        'DATA', 'SWING_SCORES_MISSING',
-                        'HALTING: swing_trader_scores table is empty. Phase 5 cannot rank trades without swing scores. '
-                        'Check EOD pipeline Step Functions execution status.',
-                        {'swing_latest': None, 'expected': str(expected_date), 'action': 'HALT'}
-                    )
-                    swing_scores_ok = False
+                    if first_run_state:
+                        logger.info("[SWING SCORES] Empty (first run): waiting for EOD pipeline")
+                        swing_scores_ok = True  # Allow first-run with empty scores
+                    else:
+                        logger.error("[SWING SCORES] HALT: swing_trader_scores table is empty")
+                        logger.error("  The EOD pipeline must run first to populate swing scores.")
+                        logger.error("  Check: Step Functions algo-eod-pipeline-dev execution status.")
+                        logger.error("  Or wait for the morning-prep-pipeline at 4:30 AM ET.")
+                        alerts.send_position_alert(
+                            'DATA', 'SWING_SCORES_MISSING',
+                            'HALTING: swing_trader_scores table is empty. Phase 5 cannot rank trades without swing scores. '
+                            'Check EOD pipeline Step Functions execution status.',
+                            {'swing_latest': None, 'expected': str(expected_date), 'action': 'HALT', 'first_run': False}
+                        )
+                        swing_scores_ok = False
                 elif sw_latest < expected_date:
                     gap = (expected_date - sw_latest).days
                     logger.error(
