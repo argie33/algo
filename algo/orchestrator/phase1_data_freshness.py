@@ -37,11 +37,11 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
     import boto3
     from utils.database_context import DatabaseContext
 
-    # Map loader names to ECS task definitions
+    # Map loader names to ECS task definitions (constructed from Terraform naming: {project}-{loader_name}-loader)
     task_defs = {
-        'stock_prices_daily': 'algo-load-prices-daily',
-        'technical_data_daily': 'algo-load-technicals',
-        'market_health_daily': 'algo-load-market-health',
+        'stock_prices_daily': 'algo-stock_prices_daily-loader',
+        'technical_data_daily': 'algo-technical_data_daily-loader',
+        'market_health_daily': 'algo-market_health_daily-loader',
     }
 
     task_def = task_defs.get(loader_name)

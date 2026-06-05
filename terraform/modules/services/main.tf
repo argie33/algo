@@ -640,6 +640,11 @@ resource "aws_lambda_function" "algo" {
       ALERT_SMTP_USER     = var.alert_smtp_user
       ALERT_SMTP_PASSWORD = var.alert_smtp_password
       ALERT_SMTP_FROM     = var.alert_smtp_from
+      # ECS/Fargate configuration for failsafe loader trigger (Phase 1 stale data recovery)
+      AWS_REGION           = var.aws_region
+      ECS_CLUSTER_ARN      = var.ecs_cluster_arn
+      ECS_SUBNETS          = join(",", var.private_subnet_ids)
+      ECS_SECURITY_GROUPS  = var.ecs_tasks_sg_id
     }
   }
 
