@@ -901,6 +901,13 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
                 )
+                ON CONFLICT (loader_name, run_date) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    records_loaded = EXCLUDED.records_loaded,
+                    records_updated = EXCLUDED.records_updated,
+                    error_message = EXCLUDED.error_message,
+                    duration_seconds = EXCLUDED.duration_seconds,
+                    completed_at = NOW()
             """, (
                 loader_name,
                 table_name,

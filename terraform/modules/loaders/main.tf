@@ -155,7 +155,7 @@ resource "aws_iam_role_policy" "ecs_task_loader_status_access" {
   })
 }
 
-# Grant ECS tasks permission to access the lock table
+# Grant ECS tasks permission to access the lock tables
 resource "aws_iam_role_policy" "ecs_task_lock_access" {
   name = "${var.project_name}-ecs-lock-table-access"
   role = split("/", var.task_role_arn)[1]
@@ -174,6 +174,19 @@ resource "aws_iam_role_policy" "ecs_task_lock_access" {
           "dynamodb:Scan"
         ]
         Resource = aws_dynamodb_table.orchestrator_locks.arn
+      },
+      {
+        Sid    = "DynamoDBLoaderLocks"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = aws_dynamodb_table.loader_locks.arn
       }
     ]
   })
