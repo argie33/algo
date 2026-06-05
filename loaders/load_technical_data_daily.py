@@ -228,6 +228,15 @@ def main():
         return 1
 
     logger.info(f"Starting technical data loader with {len(symbols)} symbols, parallelism={args.parallelism}")
+
+    # VALIDATION: technical_data_daily is critical path; parallelism should be 2 per steering doc line 44-48
+    # If parallelism > 4, log warning as it may cause RDS connection pool exhaustion
+    if args.parallelism > 4:
+        logger.warning(
+            f"[PARALLELISM] technical_data_daily: parallelism={args.parallelism} exceeds recommended max (2-3). "
+            f"This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
+        )
+
     loader = TechnicalDataDailyLoader()
     try:
         result = loader.run(symbols, parallelism=args.parallelism)

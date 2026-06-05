@@ -348,6 +348,23 @@ class PriceLoader(OptimalLoader):
             final_validated.append(row)
             prior_close = row.get('close')
 
+        # Log data quality summary for this batch
+        if non_trading_filtered > 0 or parse_errors > 0:
+            total_input = len(rows)
+            filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100 if total_input > 0 else 0
+            symbol = rows[0].get('symbol', 'unknown') if rows else 'unknown'
+
+            if filtered_pct > 5:
+                logger.warning(
+                    f"[{symbol}] High rejection rate: {non_trading_filtered} non-trading-day + {parse_errors} parse errors "
+                    f"out of {total_input} rows ({filtered_pct:.1f}%). This may indicate bad data or API issues."
+                )
+            else:
+                logger.info(
+                    f"[{symbol}] Filtered {non_trading_filtered} non-trading-day + {parse_errors} parse errors "
+                    f"from {total_input} rows ({filtered_pct:.1f}%)"
+                )
+
         return final_validated
 
     def _validate_row(self, row: dict) -> bool:

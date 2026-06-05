@@ -99,11 +99,21 @@ def get_user_alpaca_credentials(cur, user_id: str, default_to_shared: bool = Tru
     Returns:
         {'key': api_key, 'secret': api_secret} or None if not found
     """
-    # NOTE: This requires integration with credential_manager.get_alpaca_credentials()
-    # For now, returns None - caller should use shared credentials
-    # TODO: Call credential_manager.get_alpaca_credentials(user_id=user_id)
-    logger.debug(f"[ALPACA] Attempting to load user-scoped credentials for {user_id}")
-    return None
+    try:
+        from config.credential_manager import get_alpaca_credentials
+        logger.debug(f"[ALPACA] Attempting to load user-scoped credentials for {user_id}")
+        return get_alpaca_credentials(user_id=user_id)
+    except Exception as e:
+        logger.warning(f"[ALPACA] Could not load user-scoped credentials for {user_id}: {e}")
+        if default_to_shared:
+            logger.debug("[ALPACA] Falling back to shared credentials")
+            try:
+                from config.credential_manager import get_alpaca_credentials
+                return get_alpaca_credentials(user_id=None)
+            except Exception as fallback_err:
+                logger.error(f"[ALPACA] Fallback to shared credentials also failed: {fallback_err}")
+                return None
+        return None
 
 
 def validate_user_resource_access(cur, user_id: str, resource_type: str, resource_id: str) -> bool:

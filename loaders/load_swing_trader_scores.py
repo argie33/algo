@@ -249,10 +249,21 @@ class SwingTraderScoresLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "8")), help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Concurrent workers")
     args = parser.parse_args()
 
     symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
+
+    logger.info(f"Starting swing_trader_scores loader with {len(symbols)} symbols, parallelism={args.parallelism}")
+
+    # VALIDATION: swing_trader_scores is critical path; parallelism should be 2 per steering doc line 44-48
+    # If parallelism > 4, log warning as it may cause RDS connection pool exhaustion
+    if args.parallelism > 4:
+        logger.warning(
+            f"[PARALLELISM] swing_trader_scores: parallelism={args.parallelism} exceeds recommended max (2). "
+            f"This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
+        )
+
     loader = SwingTraderScoresLoader()
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
