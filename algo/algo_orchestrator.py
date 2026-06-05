@@ -177,15 +177,35 @@ class Orchestrator:
                 self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
                 return True
         except Exception as e:
-            # CRITICAL: DynamoDB unavailable defeats emergency halt mechanism
-            logger.error(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}. Emergency halt is DISABLED.")
+            # CRITICAL SAFETY: DynamoDB unavailable means we cannot verify halt flag status
+            # MUST FAIL-CLOSED: Assume halt is set if we can't verify the flag
+            # Better to stop trading unnecessarily than to trade when halt was set
+            logger.critical(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}")
+            logger.critical("[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety")
+
+            # Emit alert to operations team
+            try:
+                from algo.algo_alerts import AlertManager
+                alerts = AlertManager()
+                alerts.send_position_alert(
+                    'DYNAMODB',
+                    'HALT_CHECK_UNAVAILABLE',
+                    f'DynamoDB halt flag check failed. Emergency halt mechanism DISABLED. Trading halted as fail-safe. '
+                    f'Error: {str(e)[:200]}',
+                    {'error': str(e)[:200], 'action': 'manual_intervention_required'}
+                )
+            except Exception as alert_err:
+                logger.warning(f"Could not send DynamoDB unavailability alert: {alert_err}")
+
+            # Emit metric for monitoring
             try:
                 from algo.algo_metrics import MetricsPublisher
                 MetricsPublisher().add_metric('DynamoDBHaltCheckFailure', 1, unit='Count')
             except Exception as metric_err:
                 logger.warning(f"Could not emit halt check failure metric: {metric_err}")
 
-        return False
+            # Return True (halt condition) to fail-closed
+            return True
 
     def _check_connection_pool_health(self) -> None:
         """Monitor RDS connection pool and alert if approaching limits."""

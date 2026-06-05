@@ -75,14 +75,60 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_refill_rate = 30 / 60  # 30 tokens per 60 seconds = 0.5 per second
 
         # Circuit breaker: track rate limit errors to detect persistent issues
+        # CRITICAL: 30-minute threshold was too long for EOD pipeline context
+        # If rate limiting starts at 4:05 PM ET, 30-min wait = 4:35 PM, consumes 1/4 of pipeline time
+        # FIXED: Reduced to 5 minutes (300s) — gives reasonable time for API recovery without cascade
         self._rate_limit_errors = 0
         self._rate_limit_error_start_time = None
-        self._rate_limit_circuit_break_threshold = 1800  # 30 minutes of errors = circuit break
+        self._rate_limit_circuit_break_threshold = 300  # 5 minutes of errors = circuit break (was 1800s/30min)
+
+        # Granular failure tracking for partial batch credit
+        # Instead of counting entire batch as 1 failure, track success ratio
+        self._batch_success_count = 0  # Symbols successfully fetched in current batch
+        self._batch_total_count = 0   # Total symbols in current batch
+        self._batch_failure_ratio = 0.0  # Success rate (0.0 = all failed, 1.0 = all succeeded)
 
         # Market close detection for EOD pipeline (4:05 PM ET start)
         # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
         # If running 1d interval at market close, wait for SPY close data before proceeding.
         self._market_close_detected = False
+
+    def _get_adaptive_batch_size(self) -> int:
+        """Calculate adaptive batch size based on recent success rates.
+
+        If recent batches have high success rate (>80%), keep batch size at 100.
+        If success rate moderate (50-80%), reduce to 50.
+        If success rate low (<50%), reduce to 20.
+
+        This reduces retry overhead when rate limiting is active.
+        """
+        if self._batch_total_count == 0:
+            return 100  # Default batch size on first run
+
+        success_rate = self._batch_success_count / self._batch_total_count
+
+        if success_rate > 0.8:
+            return 100  # High success: keep large batches
+        elif success_rate > 0.5:
+            return 50   # Moderate success: smaller batches
+        else:
+            return 20   # Low success: very small batches
+
+    def _record_batch_result(self, success_count: int, total_count: int):
+        """Record batch success/failure ratio for adaptive retry logic.
+
+        Allows tracking partial success without requiring per-symbol results.
+        """
+        self._batch_success_count = success_count
+        self._batch_total_count = total_count
+        self._batch_failure_ratio = 1.0 - (success_count / total_count) if total_count > 0 else 0.0
+
+        if success_count < total_count:
+            logger.info(
+                f"[BATCH RESULT] Partial success: {success_count}/{total_count} symbols ({success_count/total_count*100:.0f}%). "
+                f"Failure ratio: {self._batch_failure_ratio:.2f}. "
+                f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
+            )
 
     def _check_market_close_data_available(self, max_wait_sec: int = 600) -> bool:
         """Check if SPY close data is available (within 10 minutes after market close at 4 PM ET).
@@ -214,6 +260,8 @@ class PriceLoader(OptimalLoader):
 
         Fallback: If batch API fails, retry with smaller batch size. Only falls back
         to per-symbol for large rate-limiting errors.
+
+        Uses adaptive batch sizing based on recent success rates to reduce retries.
         """
         from algo.algo_market_calendar import MarketCalendar
 
@@ -229,8 +277,13 @@ class PriceLoader(OptimalLoader):
         if start >= end:
             return {s: None for s in symbols}
 
-        # Batch fetch with progressive fallback
-        return self._fetch_with_fallback(symbols, start, end, batch_size=len(symbols), attempt=0)
+        # Batch fetch with adaptive batch sizing based on recent success rates
+        # If recent batches had high success, use full batch. If rate limited recently, use smaller batches.
+        adaptive_batch_size = min(len(symbols), self._get_adaptive_batch_size())
+        logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size} "
+                    f"(based on {self._batch_total_count} recent batches, {self._batch_success_count} successful)")
+
+        return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
 
     def _fetch_with_fallback(self, symbols: List[str], start: date, end: date, batch_size: int, attempt: int = 0, max_attempts: int = 3):
         """Fetch with progressive batch size reduction and adaptive retry with jitter.
@@ -245,14 +298,28 @@ class PriceLoader(OptimalLoader):
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
             return {s: None for s in symbols}
 
-        # Check circuit breaker: if rate limiting has persisted for > 30 min, fail loudly
+        # Check circuit breaker: if rate limiting has persisted for > 5 min, fail loudly
         if self._rate_limit_error_start_time is not None:
             error_duration = time.time() - self._rate_limit_error_start_time
             if error_duration > self._rate_limit_circuit_break_threshold:
-                logger.error(
-                    f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration/60:.0f} minutes. "
-                    f"yfinance API may be experiencing degradation. Failing batch to prevent cascade."
+                logger.critical(
+                    f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration/60:.1f} minutes ({error_duration:.0f}s). "
+                    f"yfinance API experiencing degradation. Circuit break triggered at {self._rate_limit_circuit_break_threshold}s threshold. "
+                    f"Failing batch to prevent EOD pipeline cascade. yfinance API status should be checked."
                 )
+                # Emit alert
+                try:
+                    from algo.algo_alerts import AlertManager
+                    alerts = AlertManager()
+                    alerts.send_position_alert(
+                        'YFINANCE',
+                        'RATE_LIMIT_CIRCUIT_BREAK',
+                        f'yfinance rate limiting persisted {error_duration/60:.1f}min, circuit breaker triggered. '
+                        f'EOD pipeline may be impacted. {self._rate_limit_errors} rate limit errors detected.',
+                        {'duration_seconds': error_duration, 'error_count': self._rate_limit_errors}
+                    )
+                except Exception as alert_err:
+                    logger.debug(f"Could not send rate limit alert: {alert_err}")
                 return {s: None for s in symbols}
 
         try:
@@ -272,6 +339,24 @@ class PriceLoader(OptimalLoader):
                 self._rate_limit_errors += 1
                 if self._rate_limit_error_start_time is None:
                     self._rate_limit_error_start_time = time.time()
+                    logger.warning(
+                        f"[RATE_LIMIT] First rate limiting error detected (error #{self._rate_limit_errors}). "
+                        f"Circuit will break if persists >5 minutes. Monitoring yfinance API recovery."
+                    )
+
+                # Emit CloudWatch metric for rate limit occurrence
+                try:
+                    from algo.algo_metrics import MetricsPublisher
+                    metrics = MetricsPublisher()
+                    metrics.add_metric(
+                        'RateLimitErrors',
+                        1,
+                        unit='Count',
+                        dimensions={'Loader': 'stock_prices_daily'}
+                    )
+                    metrics.flush()
+                except Exception:
+                    pass
 
                 # Calculate adaptive backoff with jitter
                 base_wait = min(60, (2 ** attempt) * 5)  # Exponential: 5s, 10s, 20s, 40s, 80s (cap at 60s)
@@ -279,18 +364,29 @@ class PriceLoader(OptimalLoader):
                 wait_time = base_wait * jitter
 
                 new_batch_size = max(1, batch_size // 2)
+                error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
                 logger.warning(
-                    f"[BATCH FETCH] Rate limited (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}). "
+                    f"[BATCH FETCH] Rate limited (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}, "
+                    f"duration {error_duration:.0f}s). "
                     f"Batch {batch_size} → {new_batch_size}, waiting {wait_time:.1f}s (base {base_wait}s + jitter)..."
                 )
                 time.sleep(wait_time)
 
-                # Split batch and fetch recursively
+                # Split batch and fetch recursively, tracking partial success
                 results = {}
+                successful_chunks = 0
                 for i in range(0, len(symbols), new_batch_size):
                     chunk = symbols[i:i+new_batch_size]
                     chunk_results = self._fetch_with_fallback(chunk, start, end, new_batch_size, attempt + 1, max_attempts)
                     results.update(chunk_results)
+                    # Count chunk as successful if it returned non-None results for any symbols
+                    if any(v is not None for v in chunk_results.values()):
+                        successful_chunks += 1
+
+                # Record partial success for adaptive batch sizing
+                total_chunks = (len(symbols) + new_batch_size - 1) // new_batch_size
+                self._record_batch_result(successful_chunks, total_chunks)
+
                 return results
             else:
                 # Transient error (network, timeout): retry with same batch size
@@ -494,13 +590,33 @@ class PriceLoader(OptimalLoader):
 
         # Market close detection: For 1d interval near 4 PM ET, ensure yfinance has close data
         if self.interval == "1d":
-            if not self._check_market_close_data_available(max_wait_sec=600):
-                logger.warning(
-                    "[%s] yfinance close data not available yet (API lag). "
-                    "Proceeding with load but data may be incomplete. "
-                    "If all symbols return empty, failsafe will trigger retry.",
-                    self.table_name
-                )
+            market_close_available = self._check_market_close_data_available(max_wait_sec=600)
+            if not market_close_available:
+                from datetime import datetime, timezone, timedelta
+                now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+                market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
+                minutes_after_close = (now_et - market_close_et).total_seconds() / 60
+
+                # FAIL-CLOSED: If we're within 1 hour after market close (4 PM - 5 PM ET)
+                # and SPY close data unavailable, this is a CRITICAL blocker.
+                # The EOD pipeline must have complete close data before proceeding.
+                if 0 < minutes_after_close < 60:
+                    logger.critical(
+                        f"[MARKET_CLOSE] CRITICAL: Running at {minutes_after_close:.0f}min after market close (4 PM ET). "
+                        f"SPY close data NOT available from yfinance after 10-minute wait. "
+                        f"Cannot proceed with EOD pipeline - close prices are required for all 5000+ symbols. "
+                        f"Failing loudly to trigger failsafe retry. Check yfinance API status."
+                    )
+                    raise RuntimeError(
+                        f"Market close data unavailable after 10-minute wait at {minutes_after_close:.0f}min past close. "
+                        f"yfinance API lag or service degradation. Cannot load prices without close data."
+                    )
+                else:
+                    logger.warning(
+                        f"[MARKET_CLOSE] SPY close data not available (running at {minutes_after_close:.0f}min past close). "
+                        f"API lag detected but continuing - data may be incomplete. "
+                        f"If all symbols return empty, failsafe will trigger retry."
+                    )
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At 50% of timeout (12600s), if < 10% complete, trigger emergency mode

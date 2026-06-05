@@ -633,8 +633,7 @@ def require_auth(event: Dict, path: str) -> tuple:
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {
-        # NOTE: /health and /api/health (exact) are handled by early return in lambda_handler
-        # before require_auth is called, so they do NOT need to be listed here.
+        '/api/health',  # Basic health check (no auth required for uptime monitoring)
         # /api/health/detailed and /api/health/pipeline intentionally require authentication
         # (they expose DB table names, loader names, row counts, freshness ages).
         '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
@@ -767,14 +766,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if event.get('source') == 'warmup':
         return {'statusCode': 200, 'body': 'warm'}
 
-    # Health check returns immediately — even if imports failed (uptime monitors must always succeed)
-    if path in ['/health', '/api/health']:
-        cors_headers = get_cors_headers(event)
-        return {
-            'statusCode': 200,
-            'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
-        }
+    # Health checks are handled via api_router (routes/health.py) for consistent response format
+    # All health endpoints (basic, detailed, pipeline) now route through normal flow
+    # This ensures all API responses use the same {statusCode, data/items/error} structure
 
     # Import error check (after health so health always works despite missing modules)
     if IMPORT_ERROR:
@@ -832,83 +826,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Skip rate limiting for health check endpoints (required for uptime monitoring)
         is_health_check = path in RATE_LIMIT_EXEMPT_PATHS
 
-        # Detailed health check (authenticated only - exposes schema information)
-        if path in ['/health/detailed', '/api/health/detailed']:
-            if not is_authorized:
-                cors_headers = get_cors_headers(event)
-                return {
-                    'statusCode': 401,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
-                }
-            try:
-                with DatabaseContext('read') as cur:
-                    _HEALTH_TABLES = ('price_daily', 'buy_sell_daily', 'stock_scores', 'technical_data_daily')
-                    cur.execute("""
-                        SELECT relname, n_live_tup
-                        FROM pg_stat_user_tables
-                        WHERE relname = ANY(%s)
-                    """, (_HEALTH_TABLES,))
-                    table_counts = {row[0]: row[1] for row in cur.fetchall()}
-                    for t in _HEALTH_TABLES:
-                        table_counts.setdefault(t, 0)
-
-                    cors_headers = get_cors_headers(event)
-                    return {
-                        'statusCode': 200,
-                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts})
-                    }
-            except Exception as e:
-                cors_headers = get_cors_headers(event)
-                logger.error(f'[HEALTH_DETAILED_ERROR] {e}', exc_info=True)
-                return {
-                    'statusCode': 503,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'status': 'unhealthy', 'error': 'internal_error'})
-                }
-
-        # Pipeline health (authenticated only - exposes schema information)
-        if path in ['/health/pipeline', '/api/health/pipeline']:
-            if not is_authorized:
-                cors_headers = get_cors_headers(event)
-                return {
-                    'statusCode': 401,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
-                }
-            try:
-                with DatabaseContext('read') as cur:
-                    try:
-                        cur.execute("""
-                            SELECT table_name, row_count, last_updated,
-                                   EXTRACT(EPOCH FROM (NOW() - last_updated)) / 86400 AS age_days
-                            FROM data_loader_status ORDER BY table_name
-                        """)
-                        rows = cur.fetchall()
-                    except Exception as e:
-                        logger.warning(f"API exception: {e}")
-                        rows = []
-                    tables = []
-                    for row in rows:
-                        age = float(row['age_days']) if row.get('age_days') is not None else 999
-                        status = 'HEALTHY' if age <= 2 and (row.get('row_count') or 0) > 0 else ('STALE' if age <= 7 else 'CRITICAL')
-                        tables.append({'table_name': row['table_name'], 'row_count': row.get('row_count', 0), 'age_days': round(age, 1), 'status': status})
-                    healthy = sum(1 for t in tables if t['status'] == 'HEALTHY')
-                    cors_headers = get_cors_headers(event)
-                    return {
-                        'statusCode': 200,
-                        'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables})
-                    }
-            except Exception as e:
-                cors_headers = get_cors_headers(event)
-                logger.error(f'[HEALTH_PIPELINE_ERROR] {e}', exc_info=True)
-                return {
-                    'statusCode': 500,
-                    'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'status': 'error', 'error': 'internal_error'})
-                }
+        # Detailed and pipeline health checks are handled via api_router (routes/health.py)
+        # They verify authentication through the normal flow and provide consistent response format
 
         # Rate limiting enforced at API Gateway level (not per-Lambda)
         # All rate limiting is handled by API Gateway throttling, which is global across instances

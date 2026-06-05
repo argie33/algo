@@ -161,8 +161,39 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                                 except Exception as alert_err:
                                     logger.debug(f"[FAILSAFE] Could not send scheduling delay alert: {alert_err}")
 
-                            poll_success = True
-                            break
+                            # SECONDARY HEALTH CHECK: Verify task is still running 5 seconds later
+                            # Catch tasks that immediately fail (out of memory, missing env vars, code errors)
+                            if verbose:
+                                logger.debug(f"[FAILSAFE] Performing secondary health check in 5s...")
+                            time.sleep(5)
+                            try:
+                                desc_follow = ecs_client.describe_tasks(cluster=cluster_arn, tasks=[task_arn])
+                                if desc_follow.get('tasks'):
+                                    task_follow = desc_follow['tasks'][0]
+                                    task_state_follow = task_follow.get('lastStatus', '')
+                                    if task_state_follow == 'RUNNING':
+                                        if verbose:
+                                            logger.debug(f"[FAILSAFE] ✓ Secondary check: Task {task_id} still RUNNING")
+                                        poll_success = True
+                                        break
+                                    elif task_state_follow in ('STOPPED', 'STOPPING'):
+                                        logger.critical(f"[FAILSAFE] FAILED: Task {task_id} stopped unexpectedly after reaching RUNNING. "
+                                                      f"Reason: {task_follow.get('stoppedReason', 'unknown')}")
+                                        if attempts < max_attempts:
+                                            logger.info(f"[FAILSAFE] Will retry in 10s...")
+                                            time.sleep(10)
+                                            continue
+                                        return False
+                                    else:
+                                        if verbose:
+                                            logger.debug(f"[FAILSAFE] Task {task_id} transitioned to: {task_state_follow}")
+                                        poll_success = True
+                                        break
+                            except Exception as follow_err:
+                                logger.debug(f"[FAILSAFE] Secondary health check failed: {follow_err}")
+                                # If we can't verify, assume OK (network issue)
+                                poll_success = True
+                                break
                         elif task_state in ('DEPROVISIONING', 'STOPPING', 'DEACTIVATING', 'STOPPED', 'DELETED'):
                             logger.warning(f"[FAILSAFE] Task {task_id} stopped prematurely: {task_state}")
                             if task.get('stoppedReason'):
@@ -203,7 +234,40 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
     DEPRECATED: Use _trigger_loader_failsafe_with_verification instead.
     This function kept for backward compatibility only.
     """
-    return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=30)
+    return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=180)
+
+def _check_failsafe_grace_period(state_table: Any, verbose: bool = False) -> Optional[float]:
+    """Check if a previously-triggered failsafe is within grace period window.
+
+    Returns:
+        - Minutes since trigger if <2 hours ago (loader likely still running)
+        - None if >2 hours ago or no record exists (need fresh trigger)
+
+    This prevents redundant failsafe triggers when a loader is already running
+    asynchronously in the background. Assumes typical stock_prices_daily takes
+    90-120 minutes to complete.
+    """
+    try:
+        response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
+        if 'Item' not in response:
+            return None
+
+        triggered_at = response['Item'].get('triggered_at', 0)
+        current_time = time.time()
+        age_minutes = (current_time - triggered_at) / 60
+
+        # Grace period: 2 hours = typical max runtime for stock_prices_daily
+        if age_minutes < 120:
+            if verbose:
+                logger.debug(f"[FAILSAFE] Within grace period: triggered {age_minutes:.0f}m ago")
+            return age_minutes
+        else:
+            logger.info(f"[FAILSAFE] Grace period expired: triggered {age_minutes:.0f}m ago (>2h)")
+            return None
+
+    except Exception as err:
+        logger.debug(f"[FAILSAFE] Could not check grace period: {err}")
+        return None
 
 def _get_most_recent_trading_day(from_date: _date = None, trading_days_back: int = 1) -> _date:
     """Get the Nth most recent trading day from a given date.
@@ -267,7 +331,9 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
             )
 
             # Check if a patrol trigger was already attempted recently (within last 1 hour)
-            # to avoid redundant triggers and cascade failures
+            # CRITICAL FIX: Distinguish between "patrol running" vs "patrol failed"
+            # Only apply grace period if patrol COMPLETED successfully, not just if it was triggered
+            # ENHANCED: Graceful degradation if DynamoDB is unavailable
             patrol_trigger_already_attempted = False
             patrol_trigger_age_minutes = None
             try:
@@ -279,16 +345,58 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                 response = state_table.get_item(Key={'state_key': 'patrol_trigger_log'})
                 if 'Item' in response:
                     last_trigger_time = response['Item'].get('triggered_at', 0)
+                    last_success_time = response['Item'].get('last_success_at', 0)  # When patrol last COMPLETED
                     current_time = time.time()
                     patrol_trigger_age_minutes = (current_time - last_trigger_time) / 60
+                    patrol_success_age_minutes = (current_time - last_success_time) / 60 if last_success_time else float('inf')
 
-                    if patrol_trigger_age_minutes < 60:  # 1 hour
+                    # Only apply grace period if patrol COMPLETED successfully in last hour
+                    # If patrol was triggered but never completed, OR if last success was >1 hour ago, trigger fresh patrol
+                    if patrol_trigger_age_minutes < 60 and patrol_success_age_minutes < 60:
                         patrol_trigger_already_attempted = True
-                        logger.info(f"[PATROL] Grace period: Patrol trigger already attempted {patrol_trigger_age_minutes:.0f}m ago. "
+                        logger.info(f"[PATROL] Grace period: Patrol trigger already attempted {patrol_trigger_age_minutes:.0f}m ago "
+                                   f"and COMPLETED successfully {patrol_success_age_minutes:.0f}m ago. "
                                    f"Skipping redundant trigger, allowing in-flight patrol to complete.")
+                    elif patrol_success_age_minutes >= 60:
+                        logger.warning(f"[PATROL] Last successful patrol was {patrol_success_age_minutes:.0f}m ago (>1h). "
+                                      f"Triggering fresh patrol to ensure current data freshness.")
+                    else:
+                        logger.warning(f"[PATROL] Patrol was triggered {patrol_trigger_age_minutes:.0f}m ago but never completed successfully. "
+                                      f"Triggering fresh patrol.")
             except Exception as state_err:
-                logger.debug(f"[PATROL] Could not check patrol trigger log: {state_err}. "
-                            f"Will proceed with fresh trigger.")
+                logger.debug(f"[PATROL] DynamoDB unavailable: {state_err}. Falling back to database check...")
+                # Graceful degradation: if DynamoDB is down, check patrol timestamp directly from database
+                try:
+                    cur.execute("""
+                        SELECT MAX(created_at) FROM data_patrol_log
+                        LIMIT 1
+                    """)
+                    result = cur.fetchone()
+                    if result and result[0]:
+                        last_patrol_time = result[0]
+                        if isinstance(last_patrol_time, str):
+                            from datetime import datetime as dt
+                            last_patrol_time = dt.fromisoformat(last_patrol_time.replace('Z', '+00:00'))
+
+                        current_time = datetime.now(timezone.utc)
+                        if isinstance(last_patrol_time, str):
+                            last_patrol_time = datetime.fromisoformat(last_patrol_time.replace('Z', '+00:00'))
+                        else:
+                            # Convert naive datetime to aware
+                            if last_patrol_time.tzinfo is None:
+                                last_patrol_time = last_patrol_time.replace(tzinfo=timezone.utc)
+
+                        patrol_age = (current_time - last_patrol_time).total_seconds() / 60
+
+                        if patrol_age < 60:
+                            patrol_trigger_already_attempted = True
+                            logger.info(f"[PATROL] Grace period (DynamoDB fallback): Last patrol {patrol_age:.0f}m ago (<1h). "
+                                       f"Skipping redundant trigger. (DynamoDB unavailable, using DB as source)")
+                        else:
+                            logger.warning(f"[PATROL] Last patrol was {patrol_age:.0f}m ago (>1h, no DynamoDB). "
+                                          f"Triggering fresh patrol. (DynamoDB unavailable, using DB as source)")
+                except Exception as db_err:
+                    logger.debug(f"[PATROL] Database fallback also failed: {db_err}. Proceeding with fresh trigger.")
 
             # Trigger fresh patrol asynchronously if not already attempted recently
             if not patrol_trigger_already_attempted:
@@ -558,6 +666,176 @@ def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
     except Exception as e:
         logger.warning(f"Pipeline health check failed: {e}")
 
+def _validate_required_schema_columns(cur: Any, verbose: bool = False) -> bool:
+    """Pre-flight validation: ensure all required schema columns exist with correct types and indexes.
+
+    Checks:
+    1. Column existence (critical columns must exist)
+    2. Column types (must match expected data types)
+    3. Index existence (performance-critical indexes must exist)
+
+    If columns don't exist or have wrong types, migration may have failed or database is out of sync.
+
+    Returns: True if all validations pass, False if any issues found (fail-closed)
+    """
+    required_columns = {
+        'signal_quality_scores': [
+            ('buy_sell_daily_age_days', 'integer'),
+            ('technical_data_age_days', 'integer'),
+            ('trend_template_age_days', 'integer'),
+        ]
+    }
+
+    required_indexes = {
+        'signal_quality_scores': [
+            'idx_signal_quality_scores_symbol_date',  # Critical for Phase 5 lookups
+        ]
+    }
+
+    issues = []
+
+    # Check column existence and types
+    for table, columns in required_columns.items():
+        for col, expected_type in columns:
+            try:
+                # Check if column exists and get its data type
+                cur.execute(f"""
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = %s
+                """, (table, col))
+                result = cur.fetchone()
+
+                if not result:
+                    issues.append(f"MISSING_COLUMN: {table}.{col}")
+                else:
+                    actual_type = result[0].lower()
+                    # Allow numeric types to be flexible (int, bigint, smallint all OK for integer)
+                    if expected_type == 'integer' and actual_type not in ('integer', 'bigint', 'smallint', 'int2', 'int4', 'int8'):
+                        issues.append(f"WRONG_TYPE: {table}.{col} is {actual_type}, expected {expected_type}")
+                    elif expected_type == 'text' and actual_type not in ('text', 'character varying', 'varchar'):
+                        issues.append(f"WRONG_TYPE: {table}.{col} is {actual_type}, expected {expected_type}")
+
+                    if verbose:
+                        logger.debug(f"[SCHEMA] ✓ {table}.{col} exists ({actual_type})")
+
+            except Exception as e:
+                logger.warning(f"[SCHEMA] Could not verify column {table}.{col}: {e}")
+                issues.append(f"VERIFY_ERROR: {table}.{col} ({str(e)[:50]})")
+
+    # Check index existence (performance validation)
+    for table, indexes in required_indexes.items():
+        for index_name in indexes:
+            try:
+                cur.execute(f"""
+                    SELECT 1 FROM information_schema.statistics
+                    WHERE table_name = %s AND index_name = %s
+                    LIMIT 1
+                """)
+                result = cur.fetchone()
+
+                if not result:
+                    logger.warning(f"[SCHEMA] INDEX MISSING: {index_name} on {table}. "
+                                 f"Performance may degrade. Performance queries will be slower.")
+                    # Don't fail on missing indexes - they improve performance but aren't critical for correctness
+                else:
+                    if verbose:
+                        logger.debug(f"[SCHEMA] ✓ Index {index_name} exists")
+
+            except Exception as e:
+                logger.debug(f"[SCHEMA] Could not verify index {index_name}: {e}")
+                # Don't fail on index check errors - they're non-blocking
+
+    # Report all issues found
+    if issues:
+        critical_issues = [i for i in issues if i.startswith(('MISSING_COLUMN', 'WRONG_TYPE'))]
+        warning_issues = [i for i in issues if i.startswith('VERIFY_ERROR')]
+
+        if critical_issues:
+            logger.critical(f"[SCHEMA] Critical schema issues found:")
+            for issue in critical_issues:
+                logger.critical(f"  - {issue}")
+            logger.critical("[SCHEMA] Database schema migration may have failed. Check RDS for errors.")
+            return False
+
+        if warning_issues:
+            logger.warning(f"[SCHEMA] Schema verification warnings:")
+            for issue in warning_issues:
+                logger.warning(f"  - {issue}")
+
+    if verbose:
+        logger.info("[SCHEMA] ✓ All required columns present with correct types")
+    return True
+
+def _check_rds_connection_pool_health(cur: Any, verbose: bool = False) -> bool:
+    """Pre-flight validation: check RDS connection pool health.
+
+    Queries active connections and warns if pool is under heavy load.
+    Doesn't halt execution but emits metrics for monitoring.
+
+    Returns: True (always continues, just emits warnings)
+    """
+    try:
+        # Query active connections
+        cur.execute("""
+            SELECT count(*) as active_connections,
+                   max(EXTRACT(EPOCH FROM (now() - state_change))) as max_idle_seconds
+            FROM pg_stat_activity
+            WHERE state != 'idle'
+        """)
+        result = cur.fetchone()
+        if result:
+            active_conn, max_idle = result
+            active_conn = active_conn or 0
+            max_idle = max_idle or 0
+
+            if verbose:
+                logger.info(f"[RDS-POOL] Active connections: {active_conn}, Max idle: {max_idle:.0f}s")
+
+            # Emit metrics for CloudWatch monitoring
+            try:
+                from algo.algo_metrics import MetricsPublisher
+                metrics = MetricsPublisher()
+                metrics.add_metric(
+                    'RDSActiveConnections',
+                    active_conn,
+                    unit='Count',
+                    dimensions={'DBInstance': os.getenv('DB_HOST', 'algo-db')}
+                )
+                if max_idle > 0:
+                    metrics.add_metric(
+                        'RDSMaxIdleSeconds',
+                        max_idle,
+                        unit='Seconds',
+                        dimensions={'DBInstance': os.getenv('DB_HOST', 'algo-db')}
+                    )
+                metrics.flush()
+            except Exception as metric_err:
+                logger.debug(f"[RDS-POOL] Could not emit connection pool metrics: {metric_err}")
+
+            # Warn if pool is getting full
+            if active_conn >= 60:
+                logger.warning(f"[RDS-POOL] ⚠️ High connection load: {active_conn} active connections (pool 75% full)")
+                if active_conn >= 80:
+                    logger.critical(f"[RDS-POOL] ❌ CRITICAL: {active_conn} active connections (pool nearly exhausted)")
+                    try:
+                        alerts = AlertManager()
+                        alerts.send_position_alert(
+                            'RDS',
+                            'CONNECTION_POOL_EXHAUSTION',
+                            f'RDS connection pool critically high: {active_conn} active connections. '
+                            f'May cause cascade failures. Monitor query performance.',
+                            {'active_connections': active_conn, 'max_idle_seconds': max_idle}
+                        )
+                    except Exception as alert_err:
+                        logger.debug(f"[RDS-POOL] Could not send alert: {alert_err}")
+            elif active_conn >= 40:
+                logger.info(f"[RDS-POOL] Connection pool at 50% capacity ({active_conn} active). Monitor for growth.")
+
+    except Exception as e:
+        logger.debug(f"[RDS-POOL] Could not check connection pool health: {e}. Proceeding normally.")
+
+    return True  # Always continue, just emit warnings
+
 def run(
     config: Any,
     run_date: _date,
@@ -582,6 +860,29 @@ def run(
     logger.debug(f"Phase 1: Starting data freshness check for run_date={run_date}")
 
     try:
+        # Pre-flight: validate schema and RDS connection pool before proceeding
+        try:
+            with DatabaseContext('read') as cur:
+                if not _validate_required_schema_columns(cur, verbose):
+                    logger.critical("[SCHEMA] Pre-flight validation failed - halting orchestrator")
+                    log_phase_result_fn(1, 'schema_validation', 'halt',
+                                       'Required schema columns missing - database schema migration incomplete')
+                    return PhaseResult(1, 'schema_validation', 'halted', {}, True,
+                                     'Schema validation failed: missing required columns')
+
+                # Check RDS connection pool health (emits warnings, doesn't halt)
+                try:
+                    _check_rds_connection_pool_health(cur, verbose)
+                except Exception as pool_err:
+                    logger.debug(f"[RDS-POOL] Skipping connection pool check: {pool_err}")
+
+        except Exception as e:
+            logger.error(f"[SCHEMA] Pre-flight validation error: {e}")
+            log_phase_result_fn(1, 'schema_validation', 'halt',
+                               f'Schema validation error: {str(e)[:100]}')
+            return PhaseResult(1, 'schema_validation', 'halted', {}, True,
+                             f'Schema validation failed: {str(e)[:100]}')
+
         try:
             from algo.algo_pipeline_health import PipelineHealth
             health = PipelineHealth()
@@ -875,7 +1176,7 @@ def run(
             # GRACE PERIOD: Check if a failsafe was already triggered in the last 2 hours.
             # If yes, skip redundant trigger and allow current run to proceed with in-flight loader.
             # This prevents 20+ potential halts/week from 4 daily runs each independently
-            # triggering the same loader.
+            # triggering the same loader. Assumes stock_prices_daily takes 90-120 minutes.
             failsafe_already_triggered = False
             failsafe_age_minutes = None
 
@@ -885,18 +1186,14 @@ def run(
                 state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
                 state_table = dynamodb.Table(state_table_name)
 
-                response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
-                if 'Item' in response:
-                    last_trigger_time = response['Item'].get('triggered_at', 0)
-                    current_time = time.time()
-                    failsafe_age_minutes = (current_time - last_trigger_time) / 60
-
-                    if failsafe_age_minutes < 120:  # 2 hours
-                        failsafe_already_triggered = True
-                        logger.info(f"[FAILSAFE] Grace period: Failsafe already triggered {failsafe_age_minutes:.0f}m ago. "
-                                   f"Skipping redundant trigger, allowing in-flight loader to complete.")
+                # Enhanced: Check if trigger was recent (within 2-hour grace period)
+                failsafe_age_minutes = _check_failsafe_grace_period(state_table, verbose)
+                if failsafe_age_minutes is not None:
+                    failsafe_already_triggered = True
+                    logger.info(f"[FAILSAFE] Grace period: Failsafe was triggered {failsafe_age_minutes:.0f}m ago (<2h). "
+                               f"Skipping redundant trigger, allowing async loader to complete.")
             except Exception as state_err:
-                logger.debug(f"[FAILSAFE] Could not check failsafe trigger log: {state_err}. "
+                logger.debug(f"[FAILSAFE] Could not check failsafe grace period: {state_err}. "
                             f"Will proceed with fresh trigger.")
 
             if failsafe_already_triggered:

@@ -121,7 +121,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
         </Box>
 
         {chartData.length > 0 && (
-          <Box sx={{ width: "100%", height: 250, mt: 2 }}>
+          <Box sx={{ width: "100%", height: 250, mt: 2, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />

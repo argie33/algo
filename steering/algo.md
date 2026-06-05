@@ -63,6 +63,13 @@ If you need to rebuild the schema:
 - **Small loaders**: parallelism=1 to avoid rate limiting or because data size is small
 - **Justification**: When 9 core loaders run via Step Functions EOD pipeline concurrently at parallelism=4, they create 36 concurrent database connections, exhausting the RDS Proxy connection pool. Reduced parallelism = longer individual execution time but no connection contention, leading to faster overall pipeline completion.
 - **Enforcement**: Parallelism values are defined per-loader in `terraform/modules/loaders/main.tf` (loaders map, each key has `parallelism` field). ECS task definitions automatically receive correct LOADER_PARALLELISM env var. Do NOT override with global settings in task definition revisions.
+- **Monitoring RDS Connection Pool Health:**
+  - RDS instance: `algo-db` (t4g.small, ~100 max connections)
+  - CloudWatch metric: `DatabaseConnections` (AWS/RDS namespace)
+  - During EOD pipeline (4:05-5:30 PM ET): expect 25-50 concurrent connections (safe margin to 100)
+  - If peak >75: Connection contention risk. Check CloudWatch logs for slow queries, or reduce parallelism further.
+  - Morning prep (3:30-9:30 AM) should see <30 concurrent (only 2-3 loaders running, lower parallelism)
+  - Alert threshold: >80 concurrent connections → page on-call, investigate slow queries or excessive parallelism
 
 ## Infrastructure Constraints
 
@@ -125,10 +132,14 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 **Purpose:** The morning prep pipeline loads fresh prices and technicals before 9:30 AM market open, ensuring swing_trader_scores are computed for the orchestrator run.
 
 **Timing Constraints:**
-- Start: 4:30 AM ET (after EOD pipeline finishes at ~4:05 PM previous day)
-- Must complete before: 9:30 AM ET market open (5 hours available, 4h buffer recommended)
-- Critical path: stock_prices_daily (75 min) + technical_data_daily (90 min parallel with market_health 20 min) + buy_sell_daily (45 min) + signal_quality_scores + swing_trader_scores (45 min parallel) = ~255 min = 4.25 hours
-- Buffer with current timing: 5 hours - 4.25 hours = 35 minutes (tight margin)
+- Start: 3:30 AM ET (after EOD pipeline finishes at ~4:05 PM previous day)
+- Must complete before: 9:30 AM ET market open (6 hours available)
+- **Critical path (base execution)**: stock_prices_daily (75 min) + technical_data_daily (90 min) in parallel with market_health (20 min) + buy_sell_daily (45 min) + signal_quality_scores (30 min) + swing_trader_scores (30 min) = ~255 min = 4.25 hours
+- **Overhead (not in base calculation)**: ECS scheduling delays (~5-10 min per task × 5-6 tasks = 25-60 min), RDS cold start / first-run caching (~5-10 min), loader setup/teardown per instance (~5-10 min)
+- **Execution variance**: stock_prices_daily 75-120 min depending on yfinance latency, technical_data_daily 80-120 min depending on database query performance
+- **Estimated realistic path**: 4.25h base + 0.5-1h overhead + 0.25-0.75h variance = 5-6 hours
+- **Buffer with current 3:30 AM start**: 6 hours - 5.5 hours (midpoint estimate) = **30 min buffer (TIGHT but acceptable)**
+- **Monitoring critical**: If any step regularly exceeds 2 hours, buffer disappears. Monitor CloudWatch metrics closely.
 
 **Optimization Decision (Deployed 2026-06-05):**
 - Current margin of 35 minutes is insufficient for production safety (yfinance rate limits, RDS slow queries, ECS scheduling delays can easily exceed this)
@@ -164,10 +175,22 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 
 **Actions if morning prep exceeds 4 hours:**
 - Execution may still complete before 9:30 AM but with low margin for error
-- If exceeding 4 hours: check EOD pipeline from previous day (may still be running when morning prep starts)
-- Check yfinance rate limiting (stock_prices_daily step) — may need to reduce parallelism
-- Check RDS health (CPU, connections, disk I/O)
-- If consistently slow: increase ECS task CPU/memory for slow steps
+- **Critical: Monitor per-step durations** via CloudWatch Logs Insights (query below) to identify bottleneck
+- If exceeding 5 hours: check EOD pipeline from previous day (may still be running when morning prep starts, consuming RDS connections)
+- If stock_prices_daily exceeds 100 min: check yfinance API status and rate limiting; may need to reduce parallelism from 4→2
+- If technical_data_daily exceeds 110 min: check RDS query performance (CPU, slow log); may need to add indexes or increase RDS instance size
+- If consistently slow: increase ECS task CPU (currently 256/512) and memory (currently 512/1024) for stock_prices_daily and technical_data_daily
+- If margin consistently <30 min after fixes: consider further start time advance to 3:15 AM or parallel loader splits
+
+**Timing Validation Query (CloudWatch Logs Insights):**
+```
+fields @timestamp, @logStream, @duration
+| filter @logStream = /morning-prep-pipeline/
+| filter @message like /completed|completed|Completed/
+| stats max(@duration) as max_sec by @logStream
+| sort max_sec desc
+```
+Run this daily to track trends. Alert if any step consistently takes >80% of allocated timeout.
 
 **Implementation:**
 - Step Functions state machine `morning-prep-pipeline-dev` with fail-open error handling
@@ -180,6 +203,13 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 - Orchestrator (9:30 AM) allows yesterday's swing_trader_scores if morning prep hasn't finished
 - Phase 1 grace period: allows stale data at market open but HALTS if stale at intraday runs (1 PM, 3 PM, 5:30 PM)
 - If morning prep consistently misses the window: increase ECS task resources or split into parallel branches
+
+**Pipeline Isolation Constraint:**
+- EOD pipeline: 4:05 PM ET, normally completes by 5:30 PM (1.5 hours). Worst case: 6 hours if yfinance rate-limited or RDS slow.
+- Morning prep pipeline: 3:30 AM ET, requires ~5 hours to complete before 9:30 AM market open.
+- **No direct overlap** (4 PM finish → 3:30 AM start = 11.5 hours), but if EOD exceeds 7 hours, both pipelines compete for RDS connections during 9:30-10:30 AM window.
+- **Current safeguard:** None explicit. Assumes EOD finishes by ~5:30 PM.
+- **Risk mitigation:** Monitor CloudWatch RDS metrics (DatabaseConnections) during 9:30-10:30 AM window. If consistently >80 connections, either: (1) Reduce EOD parallelism further, (2) Advance morning prep start to 3:15 AM, or (3) Implement explicit guard to wait for EOD completion.
 
 ## Loader Execution Time Monitoring & Timeout Prevention
 
@@ -295,6 +325,38 @@ terraform destroy -var-file=terraform.staging.tfvars
 terraform workspace select default
 terraform workspace delete staging
 ```
+
+## Signal Generation Filters (Phase 5)
+
+**Position Limits (per-portfolio constraints):**
+- Sector position limit: 8 (max 8 concurrent positions in single sector, e.g., Technology)
+- Industry position limit: 5 (max 5 concurrent positions in single industry, e.g., Cloud Computing)
+- Chart pattern quality: Close must be in upper 40% of daily range (relaxed from 60% on 2026-06-04)
+
+**Configuration Location:** `algo_config` table, read by Phase 5 at 9:30 AM/1 PM/3 PM/5:30 PM runs.
+
+**Monitoring Filter Impact:**
+- Signal count should be 15-40 signals per day under normal market conditions
+- If signal count drops >50% or spikes >100% in a single day, check:
+  1. Recent filter changes in algo_config (verify thresholds haven't changed unexpectedly)
+  2. yfinance data quality (may be affecting close price freshness)
+  3. Market conditions (extreme volatility or flat markets produce fewer signals)
+- CloudWatch metric: `SignalCountDaily` in namespace `algo/Signals`
+
+**Phase 5 Signal Freshness Monitoring:**
+- At start of Phase 5, checks age of `swing_trader_scores` table (populated by morning prep pipeline)
+- If scores fresh (same day): logs info
+- If scores 1 day stale: logs info with date
+- If scores 2+ days stale: logs warning (signals lack freshness, may impact trade quality)
+- Emits CloudWatch metric `SignalFreshnessAge` (Days) for monitoring trends
+- Does NOT block signal generation (fail-open) — Phase 1 already failed-closed on stale data
+- This allows trades to proceed with slightly stale scores if morning prep pipeline delayed, while alerting operators
+
+**Known Constraints:**
+- Filters are applied per-day snapshot, not accounting for position age (older positions don't get priority)
+- Industry limits can be tight if positions cluster in high-beta sectors (fintech, semiconductors)
+- Close quality filter (40%) accepts "average" closes but rejects weak closes — may miss reversals on low-range days
+- Signal freshness warning is informational only; Phase 1 halt is the real safety mechanism
 
 ## Configuration
 
@@ -505,3 +567,5 @@ All API errors return specific error types instead of generic "error" messages, 
 **Loaders stuck:** If ECS loader running > 2 hours, it's stuck. Kill analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics) but keep stock_prices_daily and technical_data_daily running.
 
 **Halt flag stuck:** Use `python scripts/check_halt_flag.py` to check status. `--clear` flag resets it manually if needed. The auto-expiry logic should handle stale flags from prior trading days automatically.
+
+**Data patrol grace period & DynamoDB degradation:** Phase 1 uses a grace period to prevent redundant data patrol triggers when a patrol is already running. If DynamoDB is unavailable, the system gracefully falls back to checking the latest patrol timestamp directly from the database. This means data patrol monitoring continues even if DynamoDB is down, though with slightly less precision (uses database timestamps instead of DynamoDB tracking). Both mechanisms prevent rapid re-triggers within 60 minutes of the last successful patrol completion.

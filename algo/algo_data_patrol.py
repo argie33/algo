@@ -1248,6 +1248,32 @@ class DataPatrol:
         ready = counts.get(CRIT, 0) == 0 and counts.get(ERROR, 0) == 0
         logger.info(f"ALGO READY TO TRADE: {'YES' if ready else 'NO'}")
 
+        # Update DynamoDB with successful completion time for grace period tracking
+        # CRITICAL: Always update last_success_at when patrol COMPLETES (regardless of findings)
+        # Phase 1 checks this to distinguish between "patrol running" vs "patrol completed"
+        # If we only update on ready=True, Phase 1 can't tell if patrol with findings is "still running"
+        # This prevents false positives where failed patrol is treated as "in-flight"
+        try:
+            import boto3
+            dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+            state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            state_table = dynamodb.Table(state_table_name)
+
+            state_table.update_item(
+                Key={'state_key': 'patrol_trigger_log'},
+                UpdateExpression='SET last_success_at = :now, #ts = :ts, last_completion_status = :status',
+                ExpressionAttributeNames={'#ts': 'ttl'},
+                ExpressionAttributeValues={
+                    ':now': time.time(),
+                    ':ts': int(time.time()) + 3600,  # 1-hour TTL
+                    ':status': 'ready' if ready else f'completed_with_findings'
+                }
+            )
+            status = 'ready' if ready else 'completed_with_findings'
+            logger.info(f"[PATROL] ✓ Completed successfully. Updated DynamoDB for grace period tracking (status={status})")
+        except Exception as e:
+            logger.warning(f"[PATROL] Could not update completion status in DynamoDB: {e}")
+
         # Log performance metrics
         if elapsed_seconds:
             try:

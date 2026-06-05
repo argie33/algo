@@ -216,7 +216,51 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   tags = var.common_tags
 }
 
-# Alarm: RDS high number of connections
+# Alarm: RDS moderate connection warning (60 connections)
+resource "aws_cloudwatch_metric_alarm" "rds_connections_warning" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-rds-connections-warning-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "3"
+  metric_name         = "DatabaseConnections"
+  namespace           = "AWS/RDS"
+  period              = "300"
+  statistic           = "Maximum"
+  threshold           = "60" # Early warning: connection pool under load
+  alarm_description   = "Triggers when RDS peak connections exceed 60 (pool is 3/4 full, monitor for slowness)"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_identifier
+  }
+
+  tags = var.common_tags
+}
+
+# Alarm: RDS critical connection threshold (80 connections)
+resource "aws_cloudwatch_metric_alarm" "rds_connections_critical" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-rds-connections-critical-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "DatabaseConnections"
+  namespace           = "AWS/RDS"
+  period              = "300"
+  statistic           = "Maximum"
+  threshold           = "80" # Critical: connection pool nearly exhausted
+  alarm_description   = "Triggers when RDS peak connections exceed 80 (pool exhaustion risk, may cause cascade failures)"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_identifier
+  }
+
+  tags = var.common_tags
+}
+
+# Alarm: RDS high number of connections (legacy - kept for compatibility)
 resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
   count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${var.project_name}-rds-connections-high-${var.environment}"
@@ -227,7 +271,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
   period              = "300"
   statistic           = "Average"
   threshold           = "80" # Alert if approaching typical max connections
-  alarm_description   = "Triggers when RDS avg connections exceed 80 (may indicate pool exhaustion)"
+  alarm_description   = "LEGACY: Use rds-connections-critical instead. Triggers when RDS avg connections exceed 80 (may indicate pool exhaustion)"
   treat_missing_data  = "notBreaching"
   alarm_actions       = var.sns_alerts_enabled ? [var.sns_alerts_topic_arn] : []
 

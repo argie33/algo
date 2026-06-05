@@ -563,7 +563,10 @@ function SetupBreakdown({ rows }) {
                   <XAxis type="number" stroke="var(--text-3)" fontSize={11} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="type" stroke="var(--text-3)" fontSize={11}
                     tickLine={false} width={130}
-                    tickFormatter={(v) => v.length > 16 ? v.slice(0, 14) + '…' : v} />
+                    tickFormatter={(v) => {
+                      const s = String(v);
+                      return s.length > 16 ? s.slice(0, 14) + '…' : s;
+                    }} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--surface-2)' }} />
                   <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                     {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
