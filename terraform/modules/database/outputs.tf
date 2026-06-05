@@ -45,15 +45,15 @@ output "rds_arn" {
   value       = aws_db_instance.main.arn
 }
 
-# RDS Direct Endpoint (RDS Proxy temporarily disabled)
+# RDS Proxy Endpoint (Connection Pooling)
 output "rds_proxy_endpoint" {
-  description = "RDS endpoint for connections"
-  value       = aws_db_instance.main.endpoint
+  description = "RDS Proxy endpoint for multiplexed connections"
+  value       = aws_db_proxy.main.endpoint
 }
 
 output "rds_proxy_address" {
-  description = "RDS hostname only"
-  value       = aws_db_instance.main.address
+  description = "RDS Proxy hostname only"
+  value       = regex("^([^:]+)", aws_db_proxy.main.endpoint)
 }
 
 # Secrets
