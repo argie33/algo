@@ -66,9 +66,14 @@ If you need to rebuild the schema:
 
 **RDS Proxy (Connection Pooling - IMPLEMENTED 2026-06-05):**
 - **Architecture:** `aws_db_proxy` multiplexes client connections to RDS
-- **Configuration:** max_db_connections=500, max_idle_connections=100, connection_borrow_timeout=120s
+- **Configuration:** AWS defaults (max_connections=100, max_idle_connections=50, connection_borrow_timeout=120s)
+- **Re-enablement (Commit b5f25302):** 
+  - Uncommented aws_db_proxy and aws_db_proxy_target resources in terraform/modules/database/main.tf
+  - Fixed aws_db_proxy_target to use db_instance_identifier instead of target_arn
+  - Uncommented rds_proxy_endpoint and rds_proxy_address outputs for loaders/pipeline modules
 - **Benefits:** 
   - Reduces per-connection latency by 10-20ms (connection reuse vs. TCP handshake)
+  - Multiplexes 24 loaders (48-96 direct connections) to 20-30 persistent RDS connections
   - Allows higher parallelism without exhausting RDS connection pool
   - Prevents cascading failures when 9 core loaders run concurrently at 4:05 PM ET
 - **Monitoring RDS Connection Pool Health:**
@@ -564,9 +569,22 @@ All API errors return specific error types instead of generic "error" messages, 
 
 ## Troubleshooting
 
+**RDS Proxy Issues:**
+
+1. **"Too many connections" errors in loader logs:**
+   - Check if RDS Proxy is active: `aws rds describe-db-proxies --query 'DBProxies[?DBProxyName==\`algo-rds-proxy-dev\`].Status'`
+   - If status is "available", proxy is working
+   - If missing or failed: re-apply terraform: `terraform apply -var-file=terraform.tfvars`
+   - Monitor RDS connection peak: `aws cloudwatch get-metric-statistics --namespace AWS/RDS --metric-name DatabaseConnections --dimensions Name=DBInstanceIdentifier,Value=algo-db --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) --end-time $(date -u +%Y-%m-%dT%H:%M:%S) --period 300 --statistics Maximum`
+
+2. **RDS Proxy target group issues:**
+   - Verify target is registered: `aws rds describe-db-proxy-targets --db-proxy-name algo-rds-proxy-dev`
+   - Expected: One target with status "available" pointing to algo-db instance
+   - If missing: RDS instance may have been recreated; re-run terraform apply
+
 **Full dataset runs failing (stale data, rate limiting, timing):** System is designed to handle stale data, rate limiting, and timing constraints with multiple failsafes. If issues persist:
 
-**DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
+**DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (commit b5f25302) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
 
 **API Lambda 503 errors / protected endpoints returning 401 "Unable to fetch Cognito keys":** The API Lambda is in a private VPC subnet. Cognito IDP is public. The Lambda security group must allow HTTPS (port 443) egress to `0.0.0.0/0` for Cognito JWKS requests via NAT Gateway. If the SG only allows HTTPS to VPC CIDR (10.0.0.0/16), Cognito timeouts after 30s. Fix: add `egress { from_port=443, cidr_blocks=["0.0.0.0/0"] }` to api-lambda SG in `terraform/modules/vpc/main.tf` and apply.
 
