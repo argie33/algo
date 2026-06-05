@@ -110,49 +110,55 @@ class RealtimePricingEngine:
             return {}
 
     def _fetch_alpaca_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Fetch latest quotes from Alpaca Data API v2.
+        """Fetch latest quotes from Alpaca Data API (direct REST, not trading API).
 
-        Uses get_latest_quote() for real-time quotes.
-        Older get_barset() (v1 API) is deprecated and returns 404.
+        Uses the Alpaca Data API directly for more reliable real-time quotes.
+        The trading API get_latest_quote() may have permission or endpoint issues.
         """
         try:
-            import alpaca_trade_api as tradeapi
-            api = tradeapi.REST(key_id=os.getenv("APCA_API_KEY_ID"),
-                               secret_key=os.getenv("APCA_API_SECRET_KEY"),
-                               base_url=os.getenv("APCA_API_BASE_URL"))
+            import requests
+            from datetime import datetime, timezone
 
+            api_key = os.getenv("ALPACA_API_KEY")
+            if not api_key:
+                logger.debug("ALPACA_API_KEY not set")
+                return {}
+
+            # Alpaca Data API endpoint for latest quotes
+            base_url = "https://data.alpaca.markets/v2/stocks"
             quotes = {}
 
-            # Use v2 API: get_latest_quote() for real-time quotes
-            try:
-                for symbol in symbols:
-                    try:
-                        quote = api.get_latest_quote(symbol)
-                        if quote and quote.bid and quote.ask:
+            for symbol in symbols:
+                try:
+                    url = f"{base_url}/{symbol}/latest/quote"
+                    headers = {"APCA-API-KEY-ID": api_key}
+                    resp = requests.get(url, headers=headers, timeout=5)
+
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        quote = data.get('quote', {})
+                        if quote.get('bid') and quote.get('ask'):
                             # Use mid-price (average of bid/ask)
-                            quotes[symbol] = (quote.bid + quote.ask) / 2
-                    except Exception as sym_err:
-                        logger.debug(f"Alpaca quote failed for {symbol}: {sym_err}")
+                            quotes[symbol] = (quote['bid'] + quote['ask']) / 2
+                    elif resp.status_code == 401:
+                        logger.warning(f"Alpaca authentication failed - check API key: {resp.text}")
+                    elif resp.status_code == 404:
+                        logger.debug(f"Alpaca quote not found for {symbol}")
+                    else:
+                        logger.debug(f"Alpaca API returned {resp.status_code} for {symbol}: {resp.text[:100]}")
 
-                if quotes:
-                    return quotes
-
-            except Exception as e:
-                if '404' in str(e) or 'Not Found' in str(e):
-                    logger.debug(f"Alpaca v2 quotes endpoint unavailable (404): {e}")
-                    # May indicate deprecated/missing endpoint or permission issue
-                elif '401' in str(e) or 'Unauthorized' in str(e):
-                    logger.warning(f"Alpaca authentication failed - check API keys: {e}")
-                else:
-                    logger.debug(f"Alpaca v2 API failed: {e}")
+                except requests.Timeout:
+                    logger.debug(f"Alpaca timeout for {symbol}")
+                except Exception as sym_err:
+                    logger.debug(f"Alpaca quote failed for {symbol}: {sym_err}")
 
             return quotes
 
         except ImportError:
-            logger.debug("alpaca-trade-api not available")
+            logger.debug("requests not available for Alpaca API")
             return {}
         except Exception as e:
-            logger.debug(f"Alpaca API error: {e}")
+            logger.debug(f"Alpaca Data API error: {e}")
             return {}
 
     def _fetch_iex_prices(self, symbols: List[str]) -> Dict[str, float]:
