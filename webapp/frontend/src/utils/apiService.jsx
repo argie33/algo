@@ -157,17 +157,16 @@ export const apiCall = async (
       throw error;
     }
 
-    // Validate content-type before parsing JSON
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      logger.warn('API response has non-JSON content-type', {
+    // Validate content-type before parsing JSON (allow charset and other JSON variations)
+    const contentType = response.headers.get('content-type') || '';
+    const isJsonContentType = contentType.includes('application/json') || contentType.includes('application/json');
+    if (contentType && !isJsonContentType) {
+      // Log warning for non-JSON responses but still try to parse (some APIs omit content-type)
+      logger.warn('API response has non-JSON content-type, attempting to parse anyway', {
         contentType,
         url,
         status: response.status,
       });
-      throw new Error(
-        `Invalid response content-type: ${contentType || 'missing'}. Expected application/json`
-      );
     }
 
     let data;
