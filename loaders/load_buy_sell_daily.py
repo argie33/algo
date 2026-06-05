@@ -12,7 +12,7 @@ import argparse
 import logging
 import os
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
@@ -30,9 +30,15 @@ class SignalsDailyLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Generate signals from technical data."""
         from algo.algo_market_calendar import MarketCalendar
+        from datetime import datetime, timezone, timedelta as td
 
-        end = date.today()
-        # If today is not a trading day, use yesterday instead
+        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
+        # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
+        now_utc = datetime.now(timezone.utc)
+        now_et = now_utc.astimezone(timezone(td(hours=-5)))
+        end = now_et.date()
+
+        # If today (ET) is not a trading day, use yesterday instead
         # (prevents generating signals for non-trading days when no new data exists)
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
@@ -99,6 +105,27 @@ class SignalsDailyLoader(OptimalLoader):
 
         return signals
 
+    def _calculate_data_source_age_days(self, symbol: str, source_table: str) -> Optional[int]:
+        """Calculate age of most recent data in source table (in days).
+
+        Returns:
+            Days since most recent row in source table, or None if no data
+        """
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    f"SELECT MAX(date) FROM {source_table} WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                    age_days = (date.today() - max_date).days
+                    return age_days
+        except Exception as e:
+            logger.warning(f"Could not calculate {source_table} age for {symbol}: {e}")
+        return None
+
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> List[dict]:
         """Fetch technical and price data needed for signal generation."""
         try:
@@ -149,6 +176,9 @@ class SignalsDailyLoader(OptimalLoader):
         """
         if not rows:
             return []
+
+        # Precalculate source data age once per symbol (not per signal)
+        tech_data_age = self._calculate_data_source_age_days(symbol, "technical_data_daily")
 
         signals = []
 
@@ -345,6 +375,7 @@ class SignalsDailyLoader(OptimalLoader):
                     "profit_target_25pct": profit_target_25pct,
                     "exit_trigger_1_price": exit_trigger_1,
                     "exit_trigger_2_price": exit_trigger_2,
+                    "technical_data_age_days": tech_data_age,
                 })
 
         return signals

@@ -130,6 +130,30 @@ variable "enable_rds_proxy" {
   default     = true
 }
 
+variable "rds_proxy_max_connections" {
+  description = "Maximum DB connections the proxy can manage - should be >= RDS max_connections (500). Multiplexes 24 loaders (48-96 connections) to 20-30 persistent"
+  type        = number
+  default     = 500
+}
+
+variable "rds_proxy_max_idle_connections" {
+  description = "Maximum idle connections proxy maintains (default 50%, e.g., 250 for 500 max)"
+  type        = number
+  default     = 250
+}
+
+variable "rds_proxy_connection_borrow_timeout" {
+  description = "Timeout in seconds for borrowing a connection from pool (default 120)"
+  type        = number
+  default     = 120
+}
+
+variable "rds_proxy_init_query" {
+  description = "SQL query to run on new connections (empty for none)"
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Network Configuration
 # ============================================================

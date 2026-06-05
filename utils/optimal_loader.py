@@ -145,6 +145,88 @@ class OptimalLoader(ABC):
 
             # Log other critical environment variables for diagnostics
             aws_region = os.getenv("AWS_REGION", "not set")
+
+    def _get_rds_connection_count(self) -> Optional[int]:
+        """Get current RDS active connection count from CloudWatch metrics.
+
+        Returns:
+            Current active connections or None if unavailable.
+
+        This helps determine if RDS Proxy pool is approaching saturation.
+        Pool saturation = active_connections > 80% of max_db_connections (500).
+        """
+        try:
+            import boto3
+            from datetime import datetime, timedelta
+
+            cloudwatch = boto3.client("cloudwatch")
+            aws_region = os.getenv("AWS_REGION", "us-east-1")
+
+            response = cloudwatch.get_metric_statistics(
+                Namespace="AWS/RDS",
+                MetricName="DatabaseConnections",
+                Dimensions=[
+                    {"Name": "DBInstanceIdentifier", "Value": "algo-db"}
+                ],
+                StartTime=datetime.utcnow() - timedelta(minutes=5),
+                EndTime=datetime.utcnow(),
+                Period=60,
+                Statistics=["Average"]
+            )
+
+            if response["Datapoints"]:
+                # Get the most recent data point
+                latest = max(response["Datapoints"], key=lambda x: x["Timestamp"])
+                return int(latest["Average"])
+        except Exception as e:
+            logger.debug(f"Could not fetch RDS connection count: {e}")
+
+        return None
+
+    def _should_reduce_parallelism(self, parallelism: int) -> tuple:
+        """Check if RDS connection pool is saturated and reduce parallelism if needed.
+
+        Returns:
+            (adjusted_parallelism, was_reduced): boolean tuple indicating if adjustment happened
+
+        Logic:
+        - If RDS active connections > 400 (80% of 500 max): reduce parallelism by 50%
+        - If RDS active connections > 450 (90% of 500 max): reduce parallelism to 1 (serial)
+        - This prevents "too many connections" errors during peak EOD or morning prep loads
+        """
+        if parallelism <= 1:
+            return parallelism, False
+
+        try:
+            conn_count = self._get_rds_connection_count()
+            if conn_count is None:
+                # CloudWatch unavailable, proceed with requested parallelism
+                return parallelism, False
+
+            max_db_connections = 500  # RDS max_connections parameter
+            saturation_high = max_db_connections * 0.90  # 450
+            saturation_medium = max_db_connections * 0.80  # 400
+
+            if conn_count > saturation_high:
+                # Extreme saturation: go serial to minimize connection overhead
+                logger.warning(
+                    f"[{self.table_name}] RDS connection pool saturation HIGH ({conn_count}/{max_db_connections}). "
+                    f"Reducing parallelism {parallelism}→1 (serial mode)"
+                )
+                return 1, True
+            elif conn_count > saturation_medium:
+                # Moderate saturation: reduce parallelism by 50%
+                adjusted = max(1, parallelism // 2)
+                if adjusted < parallelism:
+                    logger.warning(
+                        f"[{self.table_name}] RDS connection pool saturation MEDIUM ({conn_count}/{max_db_connections}). "
+                        f"Reducing parallelism {parallelism}→{adjusted}"
+                    )
+                return adjusted, adjusted < parallelism
+        except Exception as e:
+            logger.debug(f"Parallelism adjustment check failed: {e}")
+
+        return parallelism, False
             db_name = os.getenv("DB_NAME", "not set")
             logger.debug(f"[CONFIG] AWS_REGION={aws_region}, DB_NAME={db_name}")
         except Exception as e:
@@ -624,11 +706,17 @@ class OptimalLoader(ABC):
             mode = (
                 f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
             )
+
+            # Check RDS connection pool health and adjust parallelism if needed
+            original_parallelism = parallelism
+            parallelism, was_adjusted = self._should_reduce_parallelism(parallelism)
+
             logger.info(
-                "[%s] Starting load: %d symbols (parallelism=%d)%s",
+                "[%s] Starting load: %d symbols (parallelism=%d%s)%s",
                 self.table_name,
                 len(symbols),
                 parallelism,
+                " (reduced from " + str(original_parallelism) + ")" if was_adjusted else "",
                 mode,
             )
 

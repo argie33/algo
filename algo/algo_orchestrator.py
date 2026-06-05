@@ -244,10 +244,16 @@ class Orchestrator:
                     try:
                         cur.execute(f"SELECT MAX(date) FROM {table} LIMIT 1")
                         row = cur.fetchone()
-                        latest_date = row[0] if row and row[0] else 'EMPTY'
-                        if latest_date != 'EMPTY':
-                            from datetime import datetime as dt
-                            age = (datetime.now(timezone.utc) - (latest_date if isinstance(latest_date, type(datetime.now(timezone.utc))) else dt.fromisoformat(str(latest_date)))).days
+                        latest_date = row[0] if row and row[0] else None
+                        if latest_date:
+                            from datetime import datetime as dt, date as date_type
+                            if isinstance(latest_date, date_type) and not isinstance(latest_date, datetime):
+                                latest_dt = dt.combine(latest_date, dt.min.time()).replace(tzinfo=timezone.utc)
+                            elif isinstance(latest_date, datetime) and latest_date.tzinfo is None:
+                                latest_dt = latest_date.replace(tzinfo=timezone.utc)
+                            else:
+                                latest_dt = latest_date if isinstance(latest_date, datetime) else dt.fromisoformat(str(latest_date)).replace(tzinfo=timezone.utc)
+                            age = (datetime.now(timezone.utc) - latest_dt).days
                             logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
                         else:
                             logger.info(f"    [EMPTY] {desc:20s}: no data")

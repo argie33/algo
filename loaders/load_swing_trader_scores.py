@@ -42,9 +42,15 @@ class SwingTraderScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Compute swing trader scores with 7-component breakdown."""
         from algo.algo_market_calendar import MarketCalendar
+        from datetime import datetime, timezone, timedelta as td
 
         try:
-            end = date.today()
+            # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
+            # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(timezone(td(hours=-5)))
+            end = now_et.date()
+
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
                 end = end - timedelta(days=1)
 

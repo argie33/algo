@@ -333,6 +333,7 @@ CREATE TABLE IF NOT EXISTS buy_sell_daily (
     market_stage VARCHAR(50),
     reason VARCHAR(255),
     strength DECIMAL(8, 4),
+    technical_data_age_days INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_buy_sell_daily_unique ON buy_sell_daily(symbol, timeframe, date);
