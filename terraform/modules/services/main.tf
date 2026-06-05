@@ -1063,25 +1063,9 @@ resource "aws_dynamodb_table" "orchestrator_state" {
   })
 }
 
-# Grant Orchestrator Lambda access to halt flag table
-resource "aws_iam_role_policy" "orchestrator_halt_access" {
-  name = "${var.project_name}-orchestrator-halt-access"
-  role = split("/", var.algo_lambda_role_arn)[1]
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "dynamodb:GetItem",
-        "dynamodb:PutItem"
-      ]
-      Resource = aws_dynamodb_table.orchestrator_state.arn
-    }]
-  })
-}
-
-# Circuit breaker Lambda already has DynamoDB access defined in monitoring/circuit-breaker.tf (line 80-85)
+# Orchestrator Lambda already has comprehensive DynamoDB access defined in iam/main.tf
+# (lambda_algo policy lines 982-1000). No redundant policy needed here.
+# Circuit breaker Lambda has its own DynamoDB access defined in monitoring/circuit-breaker.tf (line 80-85)
 
 # CRITICAL: DynamoDB Halt Check Failure Alarm
 # If the emergency halt mechanism cannot reach DynamoDB, trading continues unprotected
