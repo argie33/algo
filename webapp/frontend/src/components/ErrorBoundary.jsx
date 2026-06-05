@@ -121,16 +121,34 @@ class ErrorBoundary extends React.Component {
     if (!error) return 'An unexpected error occurred';
 
     const msg = error?.message || '';
-    if (msg.includes('Cannot read')) {
-      return 'Data structure error - the application received unexpected data format from the server';
+    if (msg.includes('Cannot read') || msg.includes('Cannot access')) {
+      return 'Data structure error - the application received unexpected data format. This may indicate incomplete data from the server.';
     } else if (msg.includes('is not a function')) {
       return 'Function error - the application tried to call a non-existent function';
     } else if (msg.includes('Network') || msg.includes('ECONNREFUSED')) {
       return 'Network error - unable to communicate with the server';
     } else if (msg.includes('timeout')) {
       return 'Request timeout - the server took too long to respond';
+    } else if (msg.includes('null')) {
+      return 'Missing data error - the application tried to process null or undefined data';
     }
     return msg || 'An unexpected error occurred';
+  };
+
+  static reportApiError = (errorInfo) => {
+    // Static method to allow components to report API errors
+    // Used by components that catch API errors from useApiQuery
+    const errorId = `ERR_API_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.error(`[API Error ${errorId}]`, errorInfo);
+
+    // Optionally: Create a global error event that a parent ErrorBoundary could catch
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('apiError', {
+        detail: { ...errorInfo, errorId }
+      }));
+    }
+
+    return errorId;
   };
 
   render() {

@@ -75,12 +75,13 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_refill_rate = 30 / 60  # 30 tokens per 60 seconds = 0.5 per second
 
         # Circuit breaker: track rate limit errors to detect persistent issues
-        # CRITICAL: 30-minute threshold was too long for EOD pipeline context
-        # If rate limiting starts at 4:05 PM ET, 30-min wait = 4:35 PM, consumes 1/4 of pipeline time
-        # FIXED: Reduced to 5 minutes (300s) — gives reasonable time for API recovery without cascade
+        # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
+        # EOD pipeline (4:05-5:30 PM, 85 min): Use aggressive threshold (180s) to fail fast
+        # Morning prep (3:30-9:30 AM, 6h): Use generous threshold (480s) for recovery time
         self._rate_limit_errors = 0
         self._rate_limit_error_start_time = None
-        self._rate_limit_circuit_break_threshold = 300  # 5 minutes of errors = circuit break (was 1800s/30min)
+        self._is_eod_pipeline = self._detect_eod_pipeline_context()
+        self._rate_limit_circuit_break_threshold = 180 if self._is_eod_pipeline else 480  # Dynamic threshold
 
         # Granular failure tracking for partial batch credit
         # Instead of counting entire batch as 1 failure, track success ratio
@@ -93,17 +94,52 @@ class PriceLoader(OptimalLoader):
         # If running 1d interval at market close, wait for SPY close data before proceeding.
         self._market_close_detected = False
 
-    def _get_adaptive_batch_size(self) -> int:
-        """Calculate adaptive batch size based on recent success rates.
+    def _detect_eod_pipeline_context(self) -> bool:
+        """Detect if running during EOD pipeline (4:05-5:30 PM ET) for timing-aware rate limiting.
 
-        If recent batches have high success rate (>80%), keep batch size at 100.
-        If success rate moderate (50-80%), reduce to 50.
-        If success rate low (<50%), reduce to 20.
-
-        This reduces retry overhead when rate limiting is active.
+        Returns True if current time is 4:05 PM ± 2 hours (accounts for slow yfinance lag).
+        EOD pipeline has tight deadline (85 min), so we use aggressive rate limiting strategy.
         """
+        from datetime import datetime, timezone, timedelta
+
+        now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+        eod_start_et = now_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
+
+        # Check if we're within 2 hours of EOD start (accounts for possible scheduler delays)
+        time_since_eod_start = (now_et - eod_start_et).total_seconds() / 60
+        if -10 < time_since_eod_start < 120:  # -10 min to +120 min relative to 4:05 PM
+            logger.info(f"[CONTEXT] Running during EOD pipeline ({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting")
+            return True
+
+        logger.debug(f"[CONTEXT] Running during morning/regular hours ({time_since_eod_start:.0f} min from 4:05 PM ET), using conservative rate limiting")
+        return False
+
+    def _get_adaptive_batch_size(self) -> int:
+        """Calculate adaptive batch size based on context and success rates.
+
+        PROACTIVE (EOD pipeline context):
+        - If in EOD pipeline and no errors yet: start with batch=50 (conservative to avoid rate limit)
+        - If in EOD pipeline with prior errors: use 20 (very conservative)
+
+        REACTIVE (based on recent success):
+        - High success rate (>80%): keep batch size at 100
+        - Moderate success (50-80%): reduce to 50
+        - Low success (<50%): reduce to 20
+
+        This reduces retry overhead when rate limiting is active while being proactive during EOD.
+        """
+        # Proactive: During EOD pipeline, start conservative to avoid rate limiting altogether
+        if self._is_eod_pipeline and self._batch_total_count == 0:
+            logger.debug("[BATCH_SIZE] EOD pipeline context, proactive sizing: starting with batch=50 (conservative)")
+            return 50  # Start conservative during EOD to avoid hitting rate limits
+
+        if self._is_eod_pipeline and self._rate_limit_errors > 0:
+            logger.debug(f"[BATCH_SIZE] EOD pipeline with {self._rate_limit_errors} prior errors, using batch=20 (very conservative)")
+            return 20  # Very conservative if we've already hit rate limits during EOD
+
+        # Reactive: Adjust based on recent success rate
         if self._batch_total_count == 0:
-            return 100  # Default batch size on first run
+            return 100  # Default batch size on first run (non-EOD)
 
         success_rate = self._batch_success_count / self._batch_total_count
 
