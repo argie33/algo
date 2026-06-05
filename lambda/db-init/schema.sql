@@ -1724,6 +1724,22 @@ CREATE TABLE IF NOT EXISTS data_remediation_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Loader failure trend tracking (for chronic failure detection)
+CREATE TABLE IF NOT EXISTS loader_failure_trend (
+    id SERIAL PRIMARY KEY,
+    loader_name VARCHAR(100) NOT NULL,
+    tracking_date DATE NOT NULL,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    failure_rate_7day NUMERIC(5, 2),
+    failure_rate_30day NUMERIC(5, 2),
+    last_error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(loader_name, tracking_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_loader_failure_trend_date ON loader_failure_trend(loader_name, tracking_date DESC);
+
 -- Market exposure daily snapshots
 CREATE TABLE IF NOT EXISTS market_exposure_daily (
     id SERIAL PRIMARY KEY,
