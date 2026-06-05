@@ -12,8 +12,8 @@ from routes import (algo, financials, earnings, signals, prices, stocks,
 
 logger = logging.getLogger(__name__)
 
-# Health endpoint (public, no auth) must be checked first
-PUBLIC_HANDLERS = {'/api/health': health}
+# Health endpoints (basic is public, detailed/pipeline are authenticated) must be checked first
+PUBLIC_HANDLERS = {'/api/health': health, '/health': health}
 
 HANDLERS = {
     '/api/algo/risk-dashboard': risk_dashboard,  # must come before /api/algo

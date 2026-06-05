@@ -773,7 +773,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return {
             'statusCode': 200,
             'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-            'body': json.dumps({'status': 'healthy', 'version': 'v2-2026-05-21'})
+            'body': json.dumps({'data': {'status': 'healthy', 'version': 'v2-2026-05-21'}})
         }
 
     # Import error check (after health so health always works despite missing modules)
@@ -839,7 +839,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return {
                     'statusCode': 401,
                     'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
+                    'body': json.dumps({'statusCode': 401, 'errorType': 'auth_error', 'message': 'Authentication required'})
                 }
             try:
                 with DatabaseContext('read') as cur:
@@ -857,7 +857,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     return {
                         'statusCode': 200,
                         'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts})
+                        'body': json.dumps({'data': {'status': 'healthy', 'dbStatus': 'connected', 'tables': table_counts}})
                     }
             except Exception as e:
                 cors_headers = get_cors_headers(event)
@@ -865,7 +865,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return {
                     'statusCode': 503,
                     'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'status': 'unhealthy', 'error': 'internal_error'})
+                    'body': json.dumps({'data': {'status': 'unhealthy', 'error': 'internal_error'}})
                 }
 
         # Pipeline health (authenticated only - exposes schema information)
@@ -875,7 +875,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return {
                     'statusCode': 401,
                     'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'error': 'unauthorized', 'message': 'Authentication required'})
+                    'body': json.dumps({'statusCode': 401, 'errorType': 'auth_error', 'message': 'Authentication required'})
                 }
             try:
                 with DatabaseContext('read') as cur:
@@ -899,7 +899,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     return {
                         'statusCode': 200,
                         'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                        'body': json.dumps({'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables})
+                        'body': json.dumps({'data': {'status': 'HEALTHY' if healthy == len(tables) and tables else 'DEGRADED', 'healthy_count': healthy, 'total_count': len(tables), 'tables': tables}})
                     }
             except Exception as e:
                 cors_headers = get_cors_headers(event)
@@ -907,7 +907,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return {
                     'statusCode': 500,
                     'headers': {'Content-Type': get_json_content_type(), **cors_headers, **get_security_headers()},
-                    'body': json.dumps({'status': 'error', 'error': 'internal_error'})
+                    'body': json.dumps({'data': {'status': 'error', 'error': 'internal_error'}})
                 }
 
         # Rate limiting enforced at API Gateway level (not per-Lambda)
