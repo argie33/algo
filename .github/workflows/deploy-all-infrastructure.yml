@@ -617,13 +617,13 @@ jobs:
           # Try to import algo/alpaca secret
           if aws secretsmanager describe-secret --secret-id "algo/alpaca" --region us-east-1 >/dev/null 2>&1; then
             echo "Importing algo/alpaca secret..."
-            terraform import -var-file=terraform.tfvars "module.secrets.aws_secretsmanager_secret.alpaca" "algo/alpaca" 2>&1 | grep -E "Import|Error|Successfully" || true
+            terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.alpaca_api_keys" "algo/alpaca" 2>&1 | grep -E "Import|Error|Successfully" || true
           fi
 
           # Try to import algo/fred secret
           if aws secretsmanager describe-secret --secret-id "algo/fred" --region us-east-1 >/dev/null 2>&1; then
             echo "Importing algo/fred secret..."
-            terraform import -var-file=terraform.tfvars "module.secrets.aws_secretsmanager_secret.fred" "algo/fred" 2>&1 | grep -E "Import|Error|Successfully" || true
+            terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.fred_api_key" "algo/fred" 2>&1 | grep -E "Import|Error|Successfully" || true
           fi
 
           # Try to import algo/database secret
