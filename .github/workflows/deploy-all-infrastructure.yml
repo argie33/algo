@@ -610,23 +610,27 @@ jobs:
           fi
 
           # Import Secrets Manager secrets if they exist
+          # Note: Terraform fails to create secrets that already exist, so we must import them first
           echo ""
-          echo "Querying AWS for Secrets Manager secrets..."
-          for secret_name in "algo/alpaca" "algo/fred" "algo/database"; do
-            SECRET_ARN=$(aws secretsmanager describe-secret \
-              --secret-id "$secret_name" \
-              --query 'ARN' --output text --region $AWS_REGION 2>/dev/null || echo "")
-            if [ -n "$SECRET_ARN" ] && [ "$SECRET_ARN" != "None" ]; then
-              echo "Found secret: $secret_name"
-              # Map secret names to Terraform resource names
-              case "$secret_name" in
-                "algo/alpaca") TF_RESOURCE="module.secrets.aws_secretsmanager_secret.alpaca" ;;
-                "algo/fred") TF_RESOURCE="module.secrets.aws_secretsmanager_secret.fred" ;;
-                "algo/database") TF_RESOURCE="module.database.aws_secretsmanager_secret.rds_password" ;;
-              esac
-              import_if_missing "$TF_RESOURCE" "$secret_name"
-            fi
-          done
+          echo "Importing existing Secrets Manager secrets..."
+
+          # Try to import algo/alpaca secret
+          if aws secretsmanager describe-secret --secret-id "algo/alpaca" --region us-east-1 >/dev/null 2>&1; then
+            echo "Importing algo/alpaca secret..."
+            terraform import -var-file=terraform.tfvars "module.secrets.aws_secretsmanager_secret.alpaca" "algo/alpaca" 2>&1 | grep -E "Import|Error|Successfully" || true
+          fi
+
+          # Try to import algo/fred secret
+          if aws secretsmanager describe-secret --secret-id "algo/fred" --region us-east-1 >/dev/null 2>&1; then
+            echo "Importing algo/fred secret..."
+            terraform import -var-file=terraform.tfvars "module.secrets.aws_secretsmanager_secret.fred" "algo/fred" 2>&1 | grep -E "Import|Error|Successfully" || true
+          fi
+
+          # Try to import algo/database secret
+          if aws secretsmanager describe-secret --secret-id "algo/database" --region us-east-1 >/dev/null 2>&1; then
+            echo "Importing algo/database secret..."
+            terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.rds_password" "algo/database" 2>&1 | grep -E "Import|Error|Successfully" || true
+          fi
 
           # Note: Cognito admin group is managed by a post-Terraform workflow step
           # (not by Terraform resources) to avoid IAM propagation race conditions.
