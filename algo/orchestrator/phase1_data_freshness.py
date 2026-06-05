@@ -205,6 +205,33 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
     """
     return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=30)
 
+def _get_most_recent_trading_day(from_date: _date = None, trading_days_back: int = 1) -> _date:
+    """Get the Nth most recent trading day from a given date.
+
+    Args:
+        from_date: Start date (default: today)
+        trading_days_back: How many trading days to go back (1 = most recent trading day)
+
+    Returns:
+        The most recent trading day N days back
+    """
+    from algo.algo_market_calendar import MarketCalendar
+
+    if from_date is None:
+        from_date = _date.today()
+
+    result = from_date
+    count = 0
+    max_iterations = 30  # prevent infinite loop
+
+    while count < trading_days_back and max_iterations > 0:
+        result -= timedelta(days=1)
+        if MarketCalendar.is_trading_day(result):
+            count += 1
+        max_iterations -= 1
+
+    return result if count == trading_days_back else from_date
+
 def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_result_fn: Callable) -> bool:
     """Check data patrol results. Fail-closed if critical/error findings.
 
@@ -728,7 +755,7 @@ def run(
                 min_acceptable_date -= timedelta(days=1)
 
             logger.info(f"[DATA FRESHNESS] Current run_date: {run_date}, Expected data date: {expected_date}, Min acceptable: {min_acceptable_date}")
-        logger.info(f"[DATA FRESHNESS] Staleness tolerance: {(expected_date - min_acceptable_date).days} trading days")
+            logger.info(f"[DATA FRESHNESS] Staleness tolerance: {(expected_date - min_acceptable_date).days} trading days")
 
         except Exception as cal_e:
             logger.debug(f"Schedule-based freshness check failed: {cal_e}, falling back to calendar logic")
@@ -874,27 +901,44 @@ def run(
         # Check if this is a first-run (before any loaders have populated data).
         # On first deployment: signal_quality_scores and buy_sell_daily both empty
         # Don't halt, just log and skip to Phase 2+ (which will also be conservative)
+        # CRITICAL: Verify that data actually exists before returning success.
+        # Previous bug: system declared success with 0 rows because timestamp was "fresh enough".
         first_run_state = False
         try:
             with DatabaseContext('read') as _check_cur:
                 _check_cur.execute("SET statement_timeout = 5000")
                 # Check if both signal_quality_scores and buy_sell_daily are empty
-                _check_cur.execute("SELECT COUNT(*) FROM signal_quality_scores LIMIT 1")
+                _check_cur.execute("SELECT COUNT(*) FROM signal_quality_scores")
                 sqs_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
 
-                _check_cur.execute("SELECT COUNT(*) FROM buy_sell_daily LIMIT 1")
+                _check_cur.execute("SELECT COUNT(*) FROM buy_sell_daily")
                 bsd_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
 
-                if sqs_count == 0 and bsd_count == 0:
+                # Also check critical price table
+                _check_cur.execute("SELECT COUNT(*) FROM price_daily WHERE symbol='SPY'")
+                price_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
+
+                if sqs_count == 0 and bsd_count == 0 and price_count == 0:
                     first_run_state = True
                     logger.warning(
                         "[FIRST_RUN] System has never run EOD pipeline. "
-                        "signal_quality_scores and buy_sell_daily are both empty. "
+                        "signal_quality_scores, buy_sell_daily, and price_daily are all empty. "
                         "Waiting for EOD pipeline (4:05 PM) to populate data. "
                         "Next orchestrator run (9:30 AM tomorrow) will generate signals."
                     )
                     log_phase_result_fn(1, 'data_freshness', 'info',
                                        'First run detected: waiting for EOD pipeline to populate data')
+                elif price_count == 0:
+                    # Price data exists as a prerequisite for everything else
+                    # If it's missing entirely, system cannot function
+                    logger.critical(
+                        "[HALT] price_daily table has no SPY data. "
+                        "Stock loader must run before any analysis is possible."
+                    )
+                    log_phase_result_fn(1, 'data_freshness', 'halt',
+                                       'price_daily table is empty - system not initialized')
+                    return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                     'price_daily table is empty — no price data available for trading')
 
         except Exception as e:
             logger.debug(f"Could not check first-run state: {e}")
@@ -912,25 +956,30 @@ def run(
         try:
             with DatabaseContext('read') as _sw_cur:
                 _sw_cur.execute("SET statement_timeout = 5000")
+                # CRITICAL: Check both that data exists AND is fresh
+                # Previous bug: system halted if data was stale, but succeeded if table was completely empty
                 _sw_cur.execute("""
-                    SELECT MAX(date) FROM swing_trader_scores
+                    SELECT MAX(date), COUNT(*) as row_count FROM swing_trader_scores
                 """)
                 sw_row = _sw_cur.fetchone()
                 sw_latest = sw_row[0] if sw_row else None
-                if sw_latest is None:
+                sw_row_count = sw_row[1] if sw_row and len(sw_row) > 1 else 0
+
+                if sw_latest is None or sw_row_count == 0:
                     if first_run_state:
                         logger.info("[SWING SCORES] Empty (first run): waiting for EOD pipeline")
                         swing_scores_ok = True  # Allow first-run with empty scores
                     else:
                         logger.error("[SWING SCORES] HALT: swing_trader_scores table is empty")
                         logger.error("  The EOD pipeline must run first to populate swing scores.")
+                        logger.error(f"  Table has {sw_row_count} rows. Expected thousands of symbols.")
                         logger.error("  Check: Step Functions algo-eod-pipeline-dev execution status.")
                         logger.error("  Or wait for the morning-prep-pipeline at 4:30 AM ET.")
                         alerts.send_position_alert(
                             'DATA', 'SWING_SCORES_MISSING',
-                            'HALTING: swing_trader_scores table is empty. Phase 5 cannot rank trades without swing scores. '
+                            f'HALTING: swing_trader_scores table is empty ({sw_row_count} rows). Phase 5 cannot rank trades without swing scores. '
                             'Check EOD pipeline Step Functions execution status.',
-                            {'swing_latest': None, 'expected': str(expected_date), 'action': 'HALT', 'first_run': False}
+                            {'swing_latest': None, 'row_count': sw_row_count, 'expected': str(expected_date), 'action': 'HALT', 'first_run': False}
                         )
                         swing_scores_ok = False
                 elif sw_latest < min_acceptable_swing_date:
