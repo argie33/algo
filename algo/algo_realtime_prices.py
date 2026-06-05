@@ -110,10 +110,10 @@ class RealtimePricingEngine:
             return {}
 
     def _fetch_alpaca_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Fetch latest quotes from Alpaca Data API.
+        """Fetch latest quotes from Alpaca Data API v2.
 
-        Note: Alpaca's free tier and some API versions have limited real-time data.
-        Falls back to IEX/YFinance if unavailable.
+        Uses get_latest_quote() for real-time quotes.
+        Older get_barset() (v1 API) is deprecated and returns 404.
         """
         try:
             import alpaca_trade_api as tradeapi
@@ -122,23 +122,29 @@ class RealtimePricingEngine:
                                base_url=os.getenv("APCA_API_BASE_URL"))
 
             quotes = {}
-            # Try get_barset first (standard method in v0.26)
+
+            # Use v2 API: get_latest_quote() for real-time quotes
             try:
-                barset = api.get_barset(symbols, "1Min", limit=1)
-                if barset:
-                    for symbol in symbols:
-                        if symbol in barset:
-                            bars = barset[symbol]
-                            if bars and len(bars) > 0:
-                                latest_bar = bars[-1]
-                                quotes[symbol] = (latest_bar.c + latest_bar.o) / 2
+                for symbol in symbols:
+                    try:
+                        quote = api.get_latest_quote(symbol)
+                        if quote and quote.bid and quote.ask:
+                            # Use mid-price (average of bid/ask)
+                            quotes[symbol] = (quote.bid + quote.ask) / 2
+                    except Exception as sym_err:
+                        logger.debug(f"Alpaca quote failed for {symbol}: {sym_err}")
+
                 if quotes:
                     return quotes
+
             except Exception as e:
                 if '404' in str(e) or 'Not Found' in str(e):
-                    logger.debug(f"Alpaca 1Min bars endpoint unavailable (404): {e}")
+                    logger.debug(f"Alpaca v2 quotes endpoint unavailable (404): {e}")
+                    # May indicate deprecated/missing endpoint or permission issue
+                elif '401' in str(e) or 'Unauthorized' in str(e):
+                    logger.warning(f"Alpaca authentication failed - check API keys: {e}")
                 else:
-                    logger.debug(f"Alpaca barset failed: {e}")
+                    logger.debug(f"Alpaca v2 API failed: {e}")
 
             return quotes
 
