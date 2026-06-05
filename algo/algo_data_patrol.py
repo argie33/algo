@@ -132,26 +132,32 @@ class DataPatrol:
             logger.error(f"Failed to log patrol result: {e}")
 
     def check_staleness(self, cur):
-        """P1. Latest data within expected window."""
+        """P1. Latest data within expected window. Uses parameterized thresholds from algo_config."""
+        config = self._load_configuration(cur)
+
+        # Map table names to config keys and severity levels
         sources = [
-            ('price_daily', 'date', 'daily', 7, CRIT),
-            ('technical_data_daily', 'date', 'daily', 7, CRIT),
-            ('buy_sell_daily', 'date', 'daily', 7, CRIT),
-            ('trend_template_data', 'date', 'daily', 7, CRIT),
-            ('signal_quality_scores', 'date', 'daily', 7, WARN),
-            ('market_health_daily', 'date', 'daily', 7, ERROR),
-            ('sector_ranking', 'date', 'daily', 10, WARN),
-            ('industry_ranking', 'date_recorded', 'daily', 10, WARN),
-            ('insider_transactions', 'trade_date', 'daily', 14, INFO),
-            ('analyst_upgrade_downgrade', 'action_date', 'daily', 14, INFO),  # Optional - no real API source
-            ('stock_scores', 'created_at', 'weekly', 14, WARN),
-            ('aaii_sentiment', 'date', 'weekly', 14, INFO),  # Optional enrichment
-            ('growth_metrics', 'created_at', 'monthly', 45, INFO),
-            ('earnings_history', 'earnings_date', 'quarterly', 120, INFO),  # Optional enrichment
+            ('price_daily', 'date', 'daily', 'patrol_staleness_price_daily', CRIT),
+            ('technical_data_daily', 'date', 'daily', 'patrol_staleness_technical_daily', CRIT),
+            ('buy_sell_daily', 'date', 'daily', 'patrol_staleness_buy_sell_daily', CRIT),
+            ('trend_template_data', 'date', 'daily', 'patrol_staleness_trend_data', CRIT),
+            ('signal_quality_scores', 'date', 'daily', 'patrol_staleness_signal_quality_scores', WARN),
+            ('market_health_daily', 'date', 'daily', 'patrol_staleness_market_health', ERROR),
+            ('sector_ranking', 'date', 'daily', 'patrol_staleness_sector_ranking', WARN),
+            ('industry_ranking', 'date_recorded', 'daily', 'patrol_staleness_industry_ranking', WARN),
+            ('insider_transactions', 'trade_date', 'daily', 'patrol_staleness_insider_transactions', INFO),
+            ('analyst_upgrade_downgrade', 'action_date', 'daily', 'patrol_staleness_analyst_upgrades', INFO),
+            ('stock_scores', 'created_at', 'weekly', 'patrol_staleness_stock_scores', WARN),
+            ('aaii_sentiment', 'date', 'weekly', 'patrol_staleness_aaii_sentiment', INFO),
+            ('growth_metrics', 'created_at', 'monthly', 'patrol_staleness_growth_metrics', INFO),
+            ('earnings_history', 'earnings_date', 'quarterly', 'patrol_staleness_earnings_history', INFO),
         ]
         today = _date.today()
-        for tbl, col, freq, max_days, sev_on_stale in sources:
+        for tbl, col, freq, config_key, sev_on_stale in sources:
             try:
+                # Get threshold from config (or hardcoded default if not found)
+                max_days = self._get_config_value(cur, config_key, 7)  # Default to 7 days
+
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_column(col)
                 count, latest_str = safe_select_count(cur, tbl_safe, date_column=col_safe)
@@ -176,19 +182,21 @@ class DataPatrol:
                 age = (today - latest).days
                 if age > max_days:
                     self.log(cur, 'staleness', sev_on_stale, tbl,
-                             f'{tbl} stale: {age}d > {max_days}d threshold',
-                             {'latest': str(latest), 'age_days': age, 'freq': freq})
+                             f'{tbl} stale: {age}d > {max_days}d threshold (configured via {config_key})',
+                             {'latest': str(latest), 'age_days': age, 'freq': freq, 'threshold_days': max_days})
                 else:
                     self.log(cur, 'staleness', INFO, tbl,
-                             f'{tbl} fresh ({age}d old)',
+                             f'{tbl} fresh ({age}d old, threshold {max_days}d)',
                              {'latest': str(latest), 'age_days': age})
             except Exception as e:
                 self.log(cur, 'staleness', ERROR, tbl, f'Check failed: {e}', None)
 
     def check_null_anomalies(self, cur):
-        """P2. Sudden spike in NULL values vs historical."""
-        # Sample most-recent day vs prior 30 days for price_daily
+        """P2. Sudden spike in NULL values vs historical. Uses patrol_max_null_pct_threshold."""
         try:
+            # Get threshold from config (default 5%)
+            max_null_pct = self._get_config_value(cur, 'patrol_max_null_pct_threshold', 5)
+
             cur.execute("""
                 SELECT
                     SUM(CASE WHEN close IS NULL THEN 1 ELSE 0 END) FILTER (
@@ -201,14 +209,14 @@ class DataPatrol:
             today_nulls = int(today_nulls or 0)
             today_total = int(today_total or 1)
             null_pct = today_nulls / today_total * 100 if today_total else 0
-            if null_pct > 5:
+            if null_pct > max_null_pct:
                 self.log(cur, 'null_anomaly', ERROR, 'price_daily',
-                         f'{null_pct:.1f}% NULL closes on latest date',
-                         {'today_nulls': today_nulls, 'today_total': today_total})
+                         f'{null_pct:.1f}% NULL closes on latest date (threshold {max_null_pct}%)',
+                         {'today_nulls': today_nulls, 'today_total': today_total, 'threshold_pct': max_null_pct})
             else:
                 self.log(cur, 'null_anomaly', INFO, 'price_daily',
-                         f'NULL rate {null_pct:.2f}% acceptable',
-                         {'today_nulls': today_nulls, 'today_total': today_total})
+                         f'NULL rate {null_pct:.2f}% acceptable (threshold {max_null_pct}%)',
+                         {'today_nulls': today_nulls, 'today_total': today_total, 'threshold_pct': max_null_pct})
         except Exception as e:
             self.log(cur, 'null_anomaly', ERROR, 'price_daily', f'Check failed: {e}', None)
 
@@ -218,8 +226,14 @@ class DataPatrol:
         Uses baseline anomaly detection to avoid false positives on penny stocks
         that legitimately don't trade every day. Detects NEW zero-volume symbols
         rather than flagging the same penny stocks repeatedly.
+        Uses parameterized thresholds: patrol_new_zero_symbols_error, patrol_new_zero_symbols_warn, patrol_identical_ohlc_threshold.
         """
         try:
+            # Get thresholds from config
+            new_zeros_error = self._get_config_value(cur, 'patrol_new_zero_symbols_error', 30)
+            new_zeros_warn = self._get_config_value(cur, 'patrol_new_zero_symbols_warn', 5)
+            ident_threshold = self._get_config_value(cur, 'patrol_identical_ohlc_threshold', 30)
+
             cur.execute("""
                 SELECT DISTINCT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -241,17 +255,17 @@ class DataPatrol:
             new_zeros = today_zero_symbols - yesterday_zero_symbols
             recurring_zeros = today_zero_symbols & yesterday_zero_symbols
 
-            if len(new_zeros) > 30:
+            if len(new_zeros) > new_zeros_error:
                 self.log(cur, 'zero_data', ERROR, 'price_daily',
-                         f'{len(new_zeros)} NEW symbols with zero OHLC/volume (loader regression)',
+                         f'{len(new_zeros)} NEW symbols with zero OHLC/volume (threshold {new_zeros_error})',
                          {'new_zeros': len(new_zeros), 'today_total': today_zero_count,
-                          'recurring': len(recurring_zeros),
+                          'recurring': len(recurring_zeros), 'threshold': new_zeros_error,
                           'sample_new': sorted(list(new_zeros))[:5]})
-            elif len(new_zeros) > 5:
+            elif len(new_zeros) > new_zeros_warn:
                 self.log(cur, 'zero_data', WARN, 'price_daily',
-                         f'{len(new_zeros)} new zero-volume symbols (watch for pattern)',
+                         f'{len(new_zeros)} new zero-volume symbols (warn threshold {new_zeros_warn})',
                          {'new_zeros': len(new_zeros), 'today_total': today_zero_count,
-                          'recurring': len(recurring_zeros)})
+                          'recurring': len(recurring_zeros), 'threshold': new_zeros_warn})
             else:
                 self.log(cur, 'zero_data', INFO, 'price_daily',
                          f'{today_zero_count} zero-volume symbols ({len(recurring_zeros)} recurring, {len(new_zeros)} new)',
@@ -267,13 +281,14 @@ class DataPatrol:
             """)
             result = cur.fetchone()
             ident_count = int(result[0] or 0) if result else 0
-            if ident_count > 30:
+            if ident_count > ident_threshold:
                 self.log(cur, 'identical_ohlc', WARN, 'price_daily',
-                         f'{ident_count} symbols with identical OHLC (suspicious)',
-                         {'count': ident_count})
+                         f'{ident_count} symbols with identical OHLC (threshold {ident_threshold})',
+                         {'count': ident_count, 'threshold': ident_threshold})
             else:
                 self.log(cur, 'identical_ohlc', INFO, 'price_daily',
-                         f'{ident_count} symbols with identical OHLC', None)
+                         f'{ident_count} symbols with identical OHLC (threshold {ident_threshold})',
+                         {'count': ident_count, 'threshold': ident_threshold})
         except Exception as e:
             self.log(cur, 'zero_data', ERROR, 'price_daily', f'Check failed: {e}', None)
 
