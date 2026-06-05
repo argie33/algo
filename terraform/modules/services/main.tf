@@ -641,7 +641,8 @@ resource "aws_lambda_function" "algo" {
       ALERT_SMTP_PASSWORD = var.alert_smtp_password
       ALERT_SMTP_FROM     = var.alert_smtp_from
       # ECS/Fargate configuration for failsafe loader trigger (Phase 1 stale data recovery)
-      AWS_REGION           = var.aws_region
+      # Note: AWS_REGION is a reserved Lambda environment variable (set automatically by runtime)
+      # Code reads it via os.getenv('AWS_REGION', 'us-east-1') — no need to set explicitly
       ECS_CLUSTER_ARN      = var.ecs_cluster_arn
       ECS_SUBNETS          = join(",", var.private_subnet_ids)
       ECS_SECURITY_GROUPS  = var.ecs_tasks_sg_id

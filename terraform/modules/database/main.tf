@@ -325,6 +325,10 @@ resource "aws_secretsmanager_secret" "fred_api_key" {
   description             = "FRED API key for economic data loaders"
   recovery_window_in_days = 7
 
+  lifecycle {
+    ignore_changes = [recovery_window_in_days]
+  }
+
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-fred-api-key"
   })
@@ -339,6 +343,10 @@ resource "aws_secretsmanager_secret" "alpaca_api_keys" {
   name                    = "${var.project_name}/alpaca"
   description             = "Alpaca API credentials for trading and data loaders"
   recovery_window_in_days = 7
+
+  lifecycle {
+    ignore_changes = [recovery_window_in_days]
+  }
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-alpaca-api-keys"
