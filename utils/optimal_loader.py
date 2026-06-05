@@ -4,6 +4,7 @@ import csv
 import io
 import logging
 import os
+import signal
 import threading
 import time
 import psycopg2
@@ -48,6 +49,8 @@ class OptimalLoader(ABC):
         self._schema_cols_cache: Optional[List[str]] = None  # cached column list for _bulk_insert
         self._constraint_checked = False  # track if we've verified/fixed constraint
         self._stats_lock = threading.Lock()
+        self._shutdown_requested = False
+        self._shutdown_lock = threading.Lock()
         self._stats = {
             "symbols_processed": 0,
             "symbols_skipped_by_watermark": 0,
@@ -59,6 +62,21 @@ class OptimalLoader(ABC):
             "duration_sec": 0.0,
             "source_distribution": {},
         }
+        self._setup_signal_handlers()
+
+    def _setup_signal_handlers(self) -> None:
+        """Register SIGTERM handler for graceful shutdown on ECS task termination."""
+        def handle_shutdown(signum, frame):
+            with self._shutdown_lock:
+                if not self._shutdown_requested:
+                    self._shutdown_requested = True
+                    logger.warning(f"[{self.table_name}] SIGTERM received - graceful shutdown requested")
+        signal.signal(signal.SIGTERM, handle_shutdown)
+
+    def _check_shutdown_requested(self) -> bool:
+        """Check if graceful shutdown was requested."""
+        with self._shutdown_lock:
+            return self._shutdown_requested
 
     # ---- Subclass interface ----
 
@@ -620,6 +638,10 @@ class OptimalLoader(ABC):
 
     def _run_serial(self, symbols: List[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
+            if self._check_shutdown_requested():
+                logger.warning(f"[{self.table_name}] Graceful shutdown - stopping after {i-1} symbols")
+                break
+
             # Keep connection alive by testing it periodically
             # Long-running loaders (30+ min) need to refresh the connection to avoid idle timeout
             if i % 50 == 0:
@@ -640,6 +662,12 @@ class OptimalLoader(ABC):
             done = 0
             last_health_check = time.time()
             for fut in as_completed(futures):
+                if self._check_shutdown_requested():
+                    logger.warning(f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks")
+                    for f in futures:
+                        f.cancel()
+                    break
+
                 done += 1
                 # Periodic health check to keep connection pool alive
                 now = time.time()

@@ -33,7 +33,7 @@ resource "aws_ses_email_identity" "admin_email" {
 # 3. Fill form:
 #    - Email: argeropolos@gmail.com
 #    - Use Case: Authentication and password reset emails for stock trading platform
-#    - Website: https://d2u93283nn45h2.cloudfront.net
+#    - Website: (Use the CloudFront domain discovered during deployment - see .github/workflows/deploy-all-infrastructure.yml)
 #    - Volume: 50,000 emails/day
 # 4. Submit → AWS approves in ~24 hours
 # 5. Sandbox mode automatically lifts

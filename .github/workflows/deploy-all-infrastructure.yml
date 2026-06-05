@@ -188,12 +188,13 @@ jobs:
             --output text 2>/dev/null || echo "")
 
           if [ -n "$CLOUDFRONT_DOMAIN" ] && [ "$CLOUDFRONT_DOMAIN" != "None" ]; then
-            # Pass the CloudFront domain to Terraform for both CORS and auth redirects
+            # Pass the CloudFront domain to Terraform for CORS, auth redirects, and Cognito callbacks
             HTTPS_DOMAIN="https://${CLOUDFRONT_DOMAIN}"
             # Include localhost for local development testing
             CORS_ORIGINS="[\"${HTTPS_DOMAIN}\", \"http://localhost:5173\", \"http://localhost:3000\"]"
             echo "TF_VAR_api_cors_allowed_origins=${CORS_ORIGINS}" >> $GITHUB_ENV
             echo "TF_VAR_frontend_origin=${HTTPS_DOMAIN}" >> $GITHUB_ENV
+            echo "TF_VAR_cloudfront_domain=${CLOUDFRONT_DOMAIN}" >> $GITHUB_ENV
             echo "[OK] Using CloudFront domain: ${CLOUDFRONT_DOMAIN}"
           else
             # If no CloudFront exists yet, use local development origins only
