@@ -2080,27 +2080,67 @@ def run(
         # ISSUE #8 FIX: CASCADING FAILURE DETECTION
         # Detect when incomplete data in one table cascades to dependent tables.
         # Example: technical_data_daily 80% → buy_sell_daily 75% → signal_quality_scores 70%
-        # This would result in incomplete signal generation even though all tables are "fresh".
         cascading_failures = []
         try:
-            from algo.algo_loader_validation import LoaderValidator
-            validator = LoaderValidator()
-            cascade_ok, cascade_issues = validator.detect_cascading_failures(run_date)
-            if not cascade_ok:
-                cascading_failures = cascade_issues
-                logger.warning(f"[CASCADING_FAILURE] Detected {len(cascade_issues)} data integrity issues:")
-                for issue in cascade_issues:
-                    logger.warning(f"  - {issue}")
-                alerts.send_position_alert(
-                    'DATA',
-                    'CASCADING_FAILURES',
-                    f'Detected {len(cascade_issues)} cascading data gaps. Coverage is degrading through the pipeline. '
-                    f'Details: {"; ".join(cascade_issues)}. '
-                    f'If coverage drops below 75%, phase 5 will have insufficient trading opportunities.',
-                    {'cascade_issues': cascade_issues}
-                )
-                log_phase_result_fn(1, 'cascading_failures', 'warn',
-                                   f'{len(cascade_issues)} cascading failure(s) detected')
+            with DatabaseContext('read') as cas_cur:
+                cas_cur.execute("SET statement_timeout = 10000")
+                expected_count = expected_symbols
+
+                # Get coverage for each level of the cascade
+                cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE updated_at >= %s", (expected_date,))
+                tech_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                tech_coverage = (tech_count / expected_count * 100) if expected_count > 0 else 0
+
+                cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE updated_at >= %s", (expected_date,))
+                buys_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                buys_coverage = (buys_count / expected_count * 100) if expected_count > 0 else 0
+
+                cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM signal_quality_scores WHERE updated_at >= %s", (expected_date,))
+                sqs_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                sqs_coverage = (sqs_count / expected_count * 100) if expected_count > 0 else 0
+
+                cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM swing_trader_scores WHERE date >= %s", (expected_date,))
+                swing_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                swing_coverage = (swing_count / expected_count * 100) if expected_count > 0 else 0
+
+                # Detect gaps in cascade
+                if tech_coverage >= 75 and buys_coverage < tech_coverage - 5:
+                    cascading_failures.append(
+                        f"buy_sell_daily coverage dropped {tech_coverage - buys_coverage:.1f}% below technical_data "
+                        f"({buys_coverage:.1f}% vs {tech_coverage:.1f}%)"
+                    )
+
+                if buys_coverage >= 75 and sqs_coverage < buys_coverage - 5:
+                    cascading_failures.append(
+                        f"signal_quality_scores coverage dropped {buys_coverage - sqs_coverage:.1f}% below buy_sell_daily "
+                        f"({sqs_coverage:.1f}% vs {buys_coverage:.1f}%)"
+                    )
+
+                if sqs_coverage >= 75 and swing_coverage < sqs_coverage - 5:
+                    cascading_failures.append(
+                        f"swing_trader_scores coverage dropped {sqs_coverage - swing_coverage:.1f}% below signal_quality_scores "
+                        f"({swing_coverage:.1f}% vs {sqs_coverage:.1f}%)"
+                    )
+
+                if cascading_failures:
+                    logger.warning(f"[CASCADING_FAILURE] Detected {len(cascading_failures)} data gaps:")
+                    for issue in cascading_failures:
+                        logger.warning(f"  - {issue}")
+                    alerts.send_position_alert(
+                        'DATA', 'CASCADING_FAILURES',
+                        f'Detected {len(cascading_failures)} cascading data gaps. '
+                        f'Coverage: TECH={tech_coverage:.0f}% → BUY={buys_coverage:.0f}% → SQ={sqs_coverage:.0f}% → SWING={swing_coverage:.0f}%. '
+                        f'If coverage drops below 75%, phase 5 will have insufficient trading opportunities.',
+                        {'coverage': {'tech': tech_coverage, 'buys': buys_coverage, 'sqs': sqs_coverage, 'swing': swing_coverage}}
+                    )
+                    log_phase_result_fn(1, 'cascading_failures', 'warn',
+                                       f'{len(cascading_failures)} cascading failure(s) detected')
+                else:
+                    logger.info(
+                        f"[CASCADING_FAILURE] Coverage healthy: TECH={tech_coverage:.0f}% → "
+                        f"BUY={buys_coverage:.0f}% → SQ={sqs_coverage:.0f}% → SWING={swing_coverage:.0f}%"
+                    )
+
         except Exception as cascade_err:
             logger.debug(f"[CASCADING_FAILURE] Detection unavailable: {cascade_err}")
 

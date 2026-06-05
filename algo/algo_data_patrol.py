@@ -486,6 +486,109 @@ class DataPatrol:
         except Exception as e:
             self.log(cur, 'score_freshness', ERROR, 'computed_scores', f'Check failed: {e}', None)
 
+    def check_loader_coverage(self, cur):
+        """FIX #6: P11. Verify symbol coverage >= threshold for critical loaders.
+
+        Catches partial loader failures (e.g. 4500/5000 symbols) that would be
+        invisible if only checking freshness (timestamps are still recent).
+        Uses parameterized thresholds from algo_config.
+        """
+        try:
+            coverage_error_pct = self._get_config_value(cur, 'patrol_coverage_error_threshold_pct', 95)
+            coverage_warn_pct = self._get_config_value(cur, 'patrol_coverage_warning_threshold_pct', 90)
+
+            # Get expected symbol count
+            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
+            expected_count = cur.fetchone()[0] or 1
+
+            critical_tables = [
+                'price_daily',
+                'technical_data_daily',
+                'buy_sell_daily',
+                'trend_template_data',
+                'signal_quality_scores',
+            ]
+
+            for table_name in critical_tables:
+                try:
+                    cur.execute(f"""
+                        SELECT COUNT(DISTINCT symbol) FROM {table_name}
+                        WHERE date = (SELECT MAX(date) FROM {table_name})
+                    """)
+                    result = cur.fetchone()
+                    table_count = result[0] if result and result[0] else 0
+                    coverage_pct = (table_count / expected_count * 100) if expected_count else 0
+
+                    if coverage_pct < coverage_error_pct:
+                        self.log(cur, 'coverage', ERROR, table_name,
+                                 f'{table_name} coverage {coverage_pct:.1f}% < {coverage_error_pct}% threshold '
+                                 f'({table_count}/{expected_count} symbols)',
+                                 {'coverage_pct': round(coverage_pct, 1), 'count': table_count,
+                                  'expected': expected_count, 'threshold': coverage_error_pct})
+                    elif coverage_pct < coverage_warn_pct:
+                        self.log(cur, 'coverage', WARN, table_name,
+                                 f'{table_name} coverage {coverage_pct:.1f}% < {coverage_warn_pct}% warn threshold',
+                                 {'coverage_pct': round(coverage_pct, 1), 'count': table_count,
+                                  'expected': expected_count})
+                    else:
+                        self.log(cur, 'coverage', INFO, table_name,
+                                 f'{table_name} coverage {coverage_pct:.1f}% OK',
+                                 {'coverage_pct': round(coverage_pct, 1), 'count': table_count})
+                except Exception as e:
+                    self.log(cur, 'coverage', ERROR, table_name, f'Check failed: {e}', None)
+        except Exception as e:
+            self.log(cur, 'coverage', ERROR, 'patrol_coverage', f'Check failed: {e}', None)
+
+    def check_signal_source_alignment(self, cur):
+        """FIX #7: P12. Cross-validate signal sources: are SQS and swing_trader_scores
+        aligned with their input tables (buy_sell_daily, technical_data_daily)?
+
+        Catches cascading failures from partial loader failures.
+        """
+        try:
+            cur.execute("SELECT MAX(date) FROM signal_quality_scores")
+            sqs_date = cur.fetchone()[0]
+            if not sqs_date:
+                self.log(cur, 'alignment', INFO, 'signal_quality_scores',
+                         'No signal_quality_scores data yet', None)
+                return
+
+            cur.execute("SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s", (sqs_date,))
+            buy_sell_date = cur.fetchone()[0]
+
+            if not buy_sell_date or buy_sell_date < sqs_date:
+                self.log(cur, 'alignment', WARN, 'buy_sell_daily',
+                         f'buy_sell_daily ({buy_sell_date}) older than signal_quality_scores ({sqs_date})',
+                         {'sqs_date': str(sqs_date), 'buy_sell_date': str(buy_sell_date)})
+                return
+
+            # Check symbol alignment
+            cur.execute("""
+                SELECT
+                    (SELECT COUNT(DISTINCT symbol) FROM signal_quality_scores
+                     WHERE date = %s) AS sqs_count,
+                    (SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily
+                     WHERE date = %s) AS buy_sell_count
+            """, (sqs_date, sqs_date))
+            sqs_count, buy_sell_count = cur.fetchone()
+
+            if buy_sell_count == 0:
+                self.log(cur, 'alignment', ERROR, 'buy_sell_daily',
+                         f'buy_sell_daily has 0 symbols on {sqs_date} (SQS has {sqs_count})',
+                         {'sqs_count': sqs_count, 'buy_sell_count': 0})
+            elif buy_sell_count < sqs_count:
+                coverage_pct = (buy_sell_count / sqs_count * 100) if sqs_count else 0
+                self.log(cur, 'alignment', WARN, 'buy_sell_daily',
+                         f'buy_sell_daily coverage {coverage_pct:.1f}% ({buy_sell_count}/{sqs_count} symbols)',
+                         {'buy_sell_count': buy_sell_count, 'sqs_count': sqs_count,
+                          'coverage_pct': round(coverage_pct, 1)})
+            else:
+                self.log(cur, 'alignment', INFO, 'signal_quality_scores',
+                         f'Sources aligned: {buy_sell_count} symbols in both tables',
+                         {'sqs_count': sqs_count, 'buy_sell_count': buy_sell_count})
+        except Exception as e:
+            self.log(cur, 'alignment', ERROR, 'signal_alignment', f'Check failed: {e}', None)
+
     def check_yahoo_cross_validate(self, top_n=10):
         """P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
 
