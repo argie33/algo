@@ -264,9 +264,9 @@ class SwingTraderScoresLoader(OptimalLoader):
         )
 
     def _validate_source_dependencies(self, symbol: str, end_date: date) -> Optional[List[str]]:
-        """FIX #5: Validate all 4 source tables have data for symbol on end_date.
+        """ISSUE #5 FIX: Validate all 4 source tables have data for symbol AND are complete (>95% coverage).
 
-        Returns: None if all sources OK, list of failure reasons if any source missing.
+        Returns: None if all sources OK, list of failure reasons if any source missing or incomplete.
         """
         failures = []
         source_tables = [
@@ -278,7 +278,13 @@ class SwingTraderScoresLoader(OptimalLoader):
 
         try:
             with DatabaseContext('read') as cur:
+                # Get expected symbol count for coverage checks
+                cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
+                expected_symbols = cur.fetchone()[0] if cur.fetchone() else 4500
+
+                # Check each source table for both existence AND completeness
                 for table_name, required_col in source_tables:
+                    # Check if this symbol has data in source table
                     cur.execute(
                         f"SELECT COUNT(*) FROM {table_name} WHERE symbol = %s AND date = %s",
                         (symbol, end_date)
@@ -286,6 +292,20 @@ class SwingTraderScoresLoader(OptimalLoader):
                     count = cur.fetchone()[0]
                     if count == 0:
                         failures.append(f"{table_name}_missing")
+                    else:
+                        # Source has data for this symbol, but check if source table is COMPLETE
+                        # If loader was incomplete (missed some symbols), swing_trader_scores becomes
+                        # incomplete too, causing cascading failures in Phase 5
+                        cur.execute(
+                            f"SELECT COUNT(DISTINCT symbol) FROM {table_name} WHERE date = %s",
+                            (end_date,)
+                        )
+                        actual_symbols = cur.fetchone()[0] if cur.fetchone() else 0
+                        coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+
+                        if coverage < 95:
+                            failures.append(f"{table_name}_incomplete_{coverage:.0f}pct")
+
         except Exception as e:
             logger.debug(f"Source validation failed for {symbol}: {e}")
             failures.append("validation_error")

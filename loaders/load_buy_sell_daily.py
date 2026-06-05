@@ -65,11 +65,13 @@ class SignalsDailyLoader(OptimalLoader):
             # This ensures we get overlap data for cross-checking and prevents gaps
             start = since - timedelta(days=1)
 
-        # FIX #4: Pre-flight validation of technical_data_daily completeness
-        # Check that technical data exists and is not incomplete (partial fetch from loader failure)
+        # ISSUE #7 FIX: Validate technical_data_daily COMPLETENESS, not just existence
+        # Check that technical_data_daily has been loaded for ALL active symbols, not just this one
+        # If loader completed but missed symbols, we'll generate signals only for covered symbols,
+        # creating inconsistent signal coverage which breaks Phase 5 filtering
         try:
             with DatabaseContext('read') as cur:
-                # Verify technical_data_daily has sufficient data for symbol on end date
+                # First, verify technical_data_daily has sufficient data for symbol on end date
                 cur.execute(
                     "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
                     (symbol, end)
@@ -91,11 +93,25 @@ class SignalsDailyLoader(OptimalLoader):
                         logger.warning(f"{symbol}: Technical data missing for {end} - signals cannot be generated")
                         return []
 
-                # Additional validation: ensure count is >0 (not partial/incomplete)
-                # If we have technical data, it means the loader completed successfully
-                if tech_count < 1:
-                    self._log_rejection_if_available(symbol, end, "technical_data_incomplete")
-                    logger.warning(f"{symbol}: Technical data incomplete (count={tech_count}) - signals cannot be generated")
+                # ISSUE #7 CRITICAL: Check if technical_data_daily loader completed successfully
+                # by validating coverage. If <95% of symbols have data, loader was incomplete.
+                cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
+                expected_symbols = cur.fetchone()[0] if cur.fetchone() else 4500
+
+                cur.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE date = %s",
+                    (end,)
+                )
+                actual_symbols = cur.fetchone()[0] if cur.fetchone() else 0
+                coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+
+                if coverage < 95:
+                    logger.warning(
+                        f"{symbol}: technical_data_daily incomplete for {end}: "
+                        f"{actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%). "
+                        f"buy_sell_daily must not run until loader completes. Rejecting all signals."
+                    )
+                    self._log_rejection_if_available(symbol, end, "technical_data_incomplete_coverage")
                     return []
         except Exception as e:
             logger.warning(f"{symbol}: Technical data check failed: {e}")

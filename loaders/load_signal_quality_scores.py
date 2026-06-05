@@ -71,6 +71,32 @@ class SignalQualityScoresLoader(OptimalLoader):
         else:
             start = since - timedelta(days=100)
 
+        # ISSUE #8 FIX: Validate buy_sell_daily COMPLETENESS before computing scores
+        # If buy_sell_daily loader was incomplete (missed symbols), signal quality becomes
+        # incomplete too, causing cascading failures in Phase 5 filtering
+        try:
+            with DatabaseContext('read') as cur:
+                # Check if buy_sell_daily has completed for end date
+                cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
+                expected_symbols = cur.fetchone()[0] if cur.fetchone() else 4500
+
+                cur.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
+                    (end,)
+                )
+                actual_symbols = cur.fetchone()[0] if cur.fetchone() else 0
+                coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+
+                if coverage < 95:
+                    logger.warning(
+                        f"{symbol}: buy_sell_daily incomplete for {end}: "
+                        f"{actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%). "
+                        f"signal_quality_scores cannot run until buy_sell_daily completes. Rejecting scores."
+                    )
+                    return []
+        except Exception as e:
+            logger.debug(f"Could not validate buy_sell_daily completeness: {e}")
+
         buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
         if not buy_sell_rows:
             return []

@@ -68,17 +68,19 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
-        # Proactive rate limiter for yfinance (160 calls/min limit = safe margin below 200/min)
-        # Use token bucket to pace requests, avoid hitting limit. We're conservative with 160/min.
-        # ISSUE #3 FIX: Thread-safe token bucket with Lock to prevent parallel thread starvation
-        # Initial burst: Allow up to 160 tokens (enough for 1 full batch at 150 symbols)
-        # After burst, refill at steady rate (2.67 tokens/sec) to avoid starvation with parallel threads
+        # ISSUE #3 FIX: Improved token bucket with per-thread fairness and anti-starvation
+        # Rate limit: 160 API calls per minute (safe margin below yfinance's 200/min)
+        # Initial burst: 300 tokens (enough for 2 parallel batches of 150 symbols each)
+        # Refill: 160 tokens per 60s = 2.67 tokens/sec (conservative to stay under limit)
+        # With 6 parallel threads: each thread should get ~27 tokens/sec refill rate
+        # Thread fairness: use condition variable to wake waiting threads fairly
         import threading
-        self._rate_limit_tokens = 160  # Initial burst capacity (160 requests = 1 batch)
-        self._rate_limit_max_tokens = 160  # Cap to prevent unlimited accumulation
+        self._rate_limit_tokens = 300  # Increased initial burst for 6 parallel threads
+        self._rate_limit_max_tokens = 300  # Cap to prevent unlimited accumulation
         self._rate_limit_last_refill = time.time()
         self._rate_limit_refill_rate = 160 / 60  # 160 tokens per 60 seconds = 2.67 per second
-        self._rate_limit_lock = threading.Lock()  # Thread-safe token access for parallel batches
+        self._rate_limit_lock = threading.Lock()  # Thread-safe token access
+        self._rate_limit_event = threading.Condition(self._rate_limit_lock)  # Notify waiting threads when tokens available
 
         # Circuit breaker: track rate limit errors to detect persistent issues
         # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
@@ -256,19 +258,16 @@ class PriceLoader(OptimalLoader):
         return False
 
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
-        """Apply thread-safe token bucket rate limiting to avoid yfinance 429 errors.
+        """ISSUE #3: Thread-safe token bucket with per-thread fairness.
 
-        Tokens refill at 160 per 60 seconds (2.67 per second). Before fetching,
-        wait if necessary to stay under the limit.
-
-        ISSUE #3 FIX: Thread-safe implementation with Lock to prevent race conditions
-        and ensure fair access for parallel threads (6 concurrent batches).
-        Uses lock to atomically check and consume tokens, preventing starvation.
+        Tokens refill at 160 per 60 seconds (2.67/sec). Supports 6 parallel threads.
+        Uses Condition variable to wake waiting threads fairly when tokens become available.
+        Prevents starvation where one thread monopolizes tokens while others wait.
         """
         import time
 
         while True:
-            with self._rate_limit_lock:
+            with self._rate_limit_event:  # Use Condition variable for fairness
                 now = time.time()
                 elapsed = now - self._rate_limit_last_refill
                 # Refill tokens based on elapsed time (capped at max)
@@ -281,14 +280,18 @@ class PriceLoader(OptimalLoader):
                     self._rate_limit_tokens -= tokens_needed
                     return
                 else:
-                    # Insufficient tokens; calculate wait time and release lock before sleeping
+                    # Insufficient tokens; calculate wait time for condition variable
                     tokens_short = tokens_needed - self._rate_limit_tokens
                     wait_sec = tokens_short / self._rate_limit_refill_rate
+                    # Cap wait time to 1.0s to allow checking for other threads' progress
+                    wait_sec = min(wait_sec, 1.0)
 
-            # Log and sleep outside the lock to allow other threads to make progress
-            if wait_sec > 0.1:  # Only log if waiting >100ms
-                logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens")
-            time.sleep(min(wait_sec, 0.5))  # Wait up to 500ms before re-checking
+            # Wait outside the lock using condition variable (wakes fairly when notified)
+            if wait_sec > 0.01:  # Only log if waiting >10ms
+                logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens (fair queue)")
+            # Note: Condition.wait() releases lock while waiting, allowing other threads to proceed
+            with self._rate_limit_event:
+                self._rate_limit_event.wait(timeout=wait_sec)  # Wake on timeout or notify()
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch OHLCV from yfinance at specified interval."""

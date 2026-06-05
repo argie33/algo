@@ -1287,6 +1287,7 @@ def run(
         sqs_date = dates.get('signal_quality_scores')
         buys_date = dates.get('buy_sell_daily')
         swing_date = dates.get('swing_trader_scores')
+        sector_date = dates.get('sector_ranking')
 
         # buy_sell_daily and signal_quality_scores are populated by the Step Functions morning
         # pipeline, which completes after the Lambda orchestrator fires at 9:30 AM ET. Halting on
@@ -1294,11 +1295,14 @@ def run(
         # They are logged for observability but excluded from the halt decision.
         # FIX #8: swing_trader_scores is DIFFERENT — it's populated DURING morning pipeline,
         # BEFORE 9:30 AM Phase 1. If missing/stale, Phase 5 cannot rank trades (no input data).
+        # FIX #10: sector_ranking is populated DURING morning pipeline. Phase 3 (position monitor)
+        # uses sector limits from fresh sector_ranking. If missing/stale, sector limits are invalid.
         halt_checks = {
             'SPY price data': spy_date,
             'Market health': mh_date,
             'Trend template': tt_date,
             'Swing trader scores': swing_date,  # FIX #8: Required for Phase 5 ranking
+            'Sector ranking': sector_date,  # FIX #10: Required for Phase 3 position limits
         }
         observe_checks = {
             'Signal quality scores': sqs_date,
@@ -1311,6 +1315,7 @@ def run(
             'Trend template': 'trend_template_data',
             'Signal quality scores': 'signal_quality_scores',
             'Buy/sell signals': 'buy_sell_daily',
+            'Sector ranking': 'sector_ranking',
         }
         stale_items = []
 
