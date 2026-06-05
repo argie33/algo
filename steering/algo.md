@@ -125,10 +125,14 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 **Purpose:** The morning prep pipeline loads fresh prices and technicals before 9:30 AM market open, ensuring swing_trader_scores are computed for the orchestrator run.
 
 **Timing Constraints:**
-- Start: 4:30 AM ET (after EOD pipeline finishes at ~4:05 PM previous day)
-- Must complete before: 9:30 AM ET market open (5 hours available, 4h buffer recommended)
-- Critical path: stock_prices_daily (75 min) + technical_data_daily (90 min parallel with market_health 20 min) + buy_sell_daily (45 min) + signal_quality_scores + swing_trader_scores (45 min parallel) = ~255 min = 4.25 hours
-- Buffer with current timing: 5 hours - 4.25 hours = 35 minutes (tight margin)
+- Start: 3:30 AM ET (after EOD pipeline finishes at ~4:05 PM previous day)
+- Must complete before: 9:30 AM ET market open (6 hours available)
+- **Critical path (base execution)**: stock_prices_daily (75 min) + technical_data_daily (90 min) in parallel with market_health (20 min) + buy_sell_daily (45 min) + signal_quality_scores (30 min) + swing_trader_scores (30 min) = ~255 min = 4.25 hours
+- **Overhead (not in base calculation)**: ECS scheduling delays (~5-10 min per task × 5-6 tasks = 25-60 min), RDS cold start / first-run caching (~5-10 min), loader setup/teardown per instance (~5-10 min)
+- **Execution variance**: stock_prices_daily 75-120 min depending on yfinance latency, technical_data_daily 80-120 min depending on database query performance
+- **Estimated realistic path**: 4.25h base + 0.5-1h overhead + 0.25-0.75h variance = 5-6 hours
+- **Buffer with current 3:30 AM start**: 6 hours - 5.5 hours (midpoint estimate) = **30 min buffer (TIGHT but acceptable)**
+- **Monitoring critical**: If any step regularly exceeds 2 hours, buffer disappears. Monitor CloudWatch metrics closely.
 
 **Optimization Decision (Deployed 2026-06-05):**
 - Current margin of 35 minutes is insufficient for production safety (yfinance rate limits, RDS slow queries, ECS scheduling delays can easily exceed this)
