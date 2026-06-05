@@ -1168,7 +1168,8 @@ function SectorRotationMap({ markets, onSelect }) {
 
   const RotTooltip = ({ active, payload }) => {
     if (!active || !payload?.[0]) return null;
-    const p = payload[0].payload;
+    const p = payload[0]?.payload;
+    if (!p) return null;
     return (
       <div style={TOOLTIP_STYLE}>
         <div style={{ fontWeight: 'var(--w-bold)', marginBottom: 4 }}>{p.name}</div>

@@ -503,7 +503,8 @@ function SignalHeatmap({ rows }) {
                     labelFormatter={() => ''}
                     content={({ active, payload }) => {
                       if (!active || !payload || !payload.length) return null;
-                      const p = payload[0].payload;
+                      const p = payload[0]?.payload;
+                      if (!p) return null;
                       return (
                         <div style={TOOLTIP_STYLE}>
                           <div style={{ fontWeight: 'var(--w-semibold)' }}>{p.symbol} <span style={{ color: p.sig === 'BUY' ? 'var(--success)' : 'var(--danger)' }}>{p.sig}</span></div>

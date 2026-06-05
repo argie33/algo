@@ -182,7 +182,8 @@ function MansfieldRotation({ sectors }) {
           <Tooltip contentStyle={TT_STYLE}
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
-              const p = payload[0].payload;
+              const p = payload[0]?.payload;
+              if (!p) return null;
               return (
                 <div style={TT_STYLE}>
                   <div className="strong">{p.name}</div>
