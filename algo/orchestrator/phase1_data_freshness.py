@@ -632,9 +632,10 @@ def run(
                 log_phase_result_fn(1, 'data_freshness', 'warn',
                                    f'Stale but failsafe triggered: {"; ".join(stale_items)}')
 
-        # Check swing_trader_scores freshness — not a halt condition but a critical warning.
-        # When swing scores are stale/missing, Phase 5 min_swing_score=55 gate kills all trades
-        # silently. Alert early so the issue is visible before the 9:30 AM run completes.
+        # Check swing_trader_scores freshness — FAIL-CLOSED if missing/stale.
+        # When swing scores are missing, Phase 5 min_swing_score=55 gate kills ALL trades silently.
+        # User sees "success" with 0 trades executed and no explanation. Halt explicitly instead.
+        swing_scores_ok = True
         try:
             with DatabaseContext('read') as _sw_cur:
                 _sw_cur.execute("SET statement_timeout = 5000")
@@ -644,28 +645,43 @@ def run(
                 sw_row = _sw_cur.fetchone()
                 sw_latest = sw_row[0] if sw_row else None
                 if sw_latest is None:
-                    logger.warning("[SWING SCORES] swing_trader_scores table is empty — Phase 5 will rank by trend score (no swing scores)")
+                    logger.error("[SWING SCORES] HALT: swing_trader_scores table is empty")
+                    logger.error("  The EOD pipeline must run first to populate swing scores.")
+                    logger.error("  Check: Step Functions algo-eod-pipeline-dev execution status.")
+                    logger.error("  Or wait for the morning-prep-pipeline at 4:30 AM ET.")
                     alerts.send_position_alert(
                         'DATA', 'SWING_SCORES_MISSING',
-                        'swing_trader_scores table is empty. Phase 5 will use trend-score fallback ranking.',
-                        {'swing_latest': None, 'expected': str(expected_date)}
+                        'HALTING: swing_trader_scores table is empty. Phase 5 cannot rank trades without swing scores. '
+                        'Check EOD pipeline Step Functions execution status.',
+                        {'swing_latest': None, 'expected': str(expected_date), 'action': 'HALT'}
                     )
+                    swing_scores_ok = False
                 elif sw_latest < expected_date:
                     gap = (expected_date - sw_latest).days
-                    logger.warning(
-                        f"[SWING SCORES] swing_trader_scores latest={sw_latest} is {gap}d stale "
-                        f"(expected {expected_date}). Phase 5 will use trend-score fallback ranking."
+                    logger.error(
+                        f"[SWING SCORES] HALT: swing_trader_scores is {gap}d stale "
+                        f"(latest={sw_latest}, expected {expected_date})"
                     )
+                    logger.error("  Check Step Functions pipeline execution status.")
+                    logger.error("  If EOD pipeline succeeded, data may be delayed from upstream loaders.")
                     alerts.send_position_alert(
                         'DATA', 'SWING_SCORES_STALE',
-                        f'swing_trader_scores is {gap} day(s) stale (latest={sw_latest}, expected={expected_date}). '
-                        f'Phase 5 will use trend-score fallback — check EOD pipeline Step Functions logs.',
-                        {'swing_latest': str(sw_latest), 'expected': str(expected_date), 'gap_days': gap}
+                        f'HALTING: swing_trader_scores is {gap} day(s) stale (latest={sw_latest}). '
+                        f'Phase 5 cannot rank trades. Check EOD pipeline Step Functions logs.',
+                        {'swing_latest': str(sw_latest), 'expected': str(expected_date), 'gap_days': gap, 'action': 'HALT'}
                     )
+                    swing_scores_ok = False
                 elif verbose:
                     logger.info(f"  [OK] swing_trader_scores: latest {sw_latest}")
         except Exception as _sw_err:
-            logger.warning(f"  [WARN] swing_trader_scores freshness check failed: {_sw_err} (observe-only)")
+            logger.error(f"  [SWING SCORES] HALT: Freshness check failed: {_sw_err}")
+            swing_scores_ok = False
+
+        if not swing_scores_ok:
+            log_phase_result_fn(1, 'swing_trader_scores', 'halt',
+                               'swing_trader_scores missing or stale — Phase 5 cannot execute')
+            return PhaseResult(1, 'swing_trader_scores', 'halted', {}, True,
+                             'swing_trader_scores missing or stale — Phase 5 cannot rank trades')
 
         # Read cached data patrol results only — do NOT run a new patrol in-line.
         # The in-line patrol (via ThreadPoolExecutor) always times out after 45s, but
