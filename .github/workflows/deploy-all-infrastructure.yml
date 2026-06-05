@@ -201,6 +201,7 @@ jobs:
             # (Terraform will create the distribution, but we can't know its domain in advance)
             CORS_ORIGINS="[\"http://localhost:5173\", \"http://localhost:3000\"]"
             echo "TF_VAR_api_cors_allowed_origins=${CORS_ORIGINS}" >> $GITHUB_ENV
+            echo "TF_VAR_frontend_origin=http://localhost:3000" >> $GITHUB_ENV
             echo "[WARN] No existing CloudFront found - will create new distribution"
           fi
 
