@@ -207,8 +207,8 @@ class PriceLoader(OptimalLoader):
 
         Returns: dict[symbol] -> rows or None
 
-        Fallback: If batch API fails, fall back to per-symbol fetching to ensure
-        we don't lose an entire batch of symbols to a transient API error.
+        Fallback: If batch API fails, retry with smaller batch size. Only falls back
+        to per-symbol for large rate-limiting errors.
         """
         from algo.algo_market_calendar import MarketCalendar
 
@@ -224,25 +224,52 @@ class PriceLoader(OptimalLoader):
         if start >= end:
             return {s: None for s in symbols}
 
-        # Batch fetch from router
+        # Batch fetch with progressive fallback
+        return self._fetch_with_fallback(symbols, start, end, batch_size=len(symbols), attempt=0)
+
+    def _fetch_with_fallback(self, symbols: List[str], start: date, end: date, batch_size: int, attempt: int = 0, max_attempts: int = 3):
+        """Fetch with progressive batch size reduction instead of per-symbol fallback.
+
+        Attempts: full batch → split in half → quarter size → give up.
+        Avoids cascading into 5000+ per-symbol API calls with backoff that takes hours.
+        """
+        import time
+
+        if batch_size <= 0 or attempt >= max_attempts:
+            # Give up: return Nones for all symbols
+            logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
+            return {s: None for s in symbols}
+
         try:
-            # Apply rate limiting before batch fetch (batch = 1 API call)
+            # Apply rate limiting before batch fetch
             self._rate_limit_wait(tokens_needed=1)
-            return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+            result = self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+            if result:
+                return result  # Success
         except Exception as e:
-            # Fallback: If batch fails, fetch per-symbol to avoid losing entire batch
-            logger.warning(f"Batch fetch failed ({len(symbols)} symbols): {e}. Falling back to per-symbol fetch.")
-            results = {}
-            for symbol in symbols:
-                try:
-                    # Rate limit each per-symbol fetch too
-                    self._rate_limit_wait(tokens_needed=1)
-                    rows = self._try_fetch(symbol, start, end)
-                    results[symbol] = rows
-                except Exception as sym_err:
-                    logger.warning(f"Per-symbol fallback for {symbol} also failed: {sym_err}")
-                    results[symbol] = None
-            return results
+            error_str = str(e).lower()
+            is_rate_limit = "rate" in error_str or "429" in error_str or "too many" in error_str
+
+            if is_rate_limit:
+                # Rate limit error: reduce batch size and retry
+                new_batch_size = max(1, batch_size // 2)
+                wait_time = min(30, (2 ** attempt) * 5)  # Cap backoff at 30s
+                logger.warning(f"[BATCH FETCH] Rate limited with batch_size={batch_size}. Reducing to {new_batch_size} and retrying in {wait_time}s...")
+                time.sleep(wait_time)
+
+                # Split batch and fetch recursively
+                results = {}
+                for i in range(0, len(symbols), new_batch_size):
+                    chunk = symbols[i:i+new_batch_size]
+                    chunk_results = self._fetch_with_fallback(chunk, start, end, new_batch_size, attempt + 1, max_attempts)
+                    results.update(chunk_results)
+                return results
+            else:
+                # Transient error (network, timeout): retry with same batch size
+                wait_time = min(30, 2 ** attempt)
+                logger.warning(f"[BATCH FETCH] Transient error with {len(symbols)} symbols: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts)
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
         """Try to fetch data from yfinance with retry logic for transient failures."""
