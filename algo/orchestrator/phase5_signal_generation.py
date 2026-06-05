@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) -> None:
-    """Log signal count at each filter tier for visibility on rejections."""
+    """Log signal count at each filter tier + per-filter rejection breakdown."""
     try:
         # Count total BUY signals for today
         cur.execute(
@@ -35,10 +35,12 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
 
         # Count rejections at each tier from filter_rejection_log (if table exists)
         tier_rejections = {}
+        tier_reasons = {}  # Track top rejection reason per tier
         try:
             for tier_num, tier_name in enumerate(
                 ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"], 1
             ):
+                # Count rejections at this tier
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
                     (run_date, tier_num),
@@ -46,31 +48,38 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
                 result = cur.fetchone()
                 rejected = result[0] if result else 0
                 tier_rejections[tier_name] = rejected
+
+                # Get top rejection reason for this tier
+                reason_col = f"tier_{tier_num}_reason"
+                try:
+                    cur.execute(
+                        f"SELECT {reason_col}, COUNT(*) as count FROM filter_rejection_log "
+                        f"WHERE eval_date = %s AND {reason_col} IS NOT NULL "
+                        f"GROUP BY {reason_col} ORDER BY count DESC LIMIT 1",
+                        (run_date,),
+                    )
+                    reason_result = cur.fetchone()
+                    if reason_result:
+                        tier_reasons[tier_name] = f"{reason_result[0]} ({reason_result[1]} signals)"
+                except Exception:
+                    pass  # Column may not exist
         except Exception as e:
-            logger.warning(f"Exception: {e}")
+            logger.warning(f"Exception reading filter rejection log: {e}")
             # Table may not exist or columns different; skip
             for tier_name in ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"]:
                 tier_rejections[tier_name] = 0
 
         # Always log waterfall to diagnose 'no trades' situations
-        logger.info(f"\n  [WATERFALL] Signal filtering on {run_date}:")
+        logger.info(f"\n  [FILTER REJECTION ANALYSIS] Signal filtering on {run_date}:")
         logger.info(f"    Total BUY signals:        {total_signals:4d}")
         logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
-        logger.info(
-            f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}"
-        )
-        logger.info(
-            f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}"
-        )
-        logger.info(
-            f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}"
-        )
-        logger.info(
-            f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}"
-        )
-        logger.info(
-            f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}"
-        )
+        for tier_name in ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"]:
+            count = tier_rejections.get(tier_name, 0)
+            reason = tier_reasons.get(tier_name, "")
+            if count > 0 and reason:
+                logger.info(f"    {tier_name} rejected:          {count:4d} — {reason}")
+            else:
+                logger.info(f"    {tier_name} rejected:          {count:4d}")
         logger.info(f"    Final qualified:          {final_count:4d}")
         interpretation = _interpret_waterfall(
             total_signals, stage2_count, tier_rejections, final_count

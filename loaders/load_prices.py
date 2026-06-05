@@ -130,16 +130,17 @@ class PriceLoader(OptimalLoader):
                 f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
             )
 
-    def _check_market_close_data_available(self, max_wait_sec: int = 600) -> bool:
-        """Check if SPY close data is available (within 10 minutes after market close at 4 PM ET).
+    def _check_market_close_data_available(self, max_wait_sec: int = 900) -> bool:
+        """Check if SPY close data is available (market close data freshness check).
 
-        EOD pipeline starts at 4:05 PM ET. yfinance API can lag 5-10 minutes. Verify SPY 1d
-        close data is available before spending 1-2 hours loading 5000+ symbols.
+        EOD pipeline starts at 4:05 PM ET. yfinance API can lag 5-15 minutes after market close (4 PM ET).
+        Uses exponential backoff (5s, 10s, 20s, 40s, ...) to avoid hammering the API while waiting for
+        data availability. Timeout: 900s (15 min) to account for yfinance slowness.
 
-        Args:
-            max_wait_sec: Max seconds to wait for data availability (default 10 min)
+        Returns: True if SPY close data available, False if timeout (data may be stale)
 
-        Returns: True if SPY close data available (or not near market close), False if timeout
+        NOTE: If False, the loader should be triggered via data patrol failsafe in Phase 1,
+        not proceed silently with a warning.
         """
         from datetime import datetime, timezone, timedelta
         from algo.algo_market_calendar import MarketCalendar
@@ -150,27 +151,27 @@ class PriceLoader(OptimalLoader):
             logger.info("[MARKET_CLOSE] Today is not a trading day, skipping close data check")
             return True
 
-        # Check if we're within 30 minutes after market close (4:00 PM ET ± 30 min = 3:30 PM - 4:30 PM)
+        # Check if we're within 45 minutes after market close (4:00 PM ET ± 45 min = 3:15 PM - 4:45 PM)
         now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
         market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
         minutes_after_close = (now_et - market_close_et).total_seconds() / 60
 
-        # If we're more than 30 minutes after market close, assume data is available
-        if minutes_after_close > 30:
-            logger.info(f"[MARKET_CLOSE] {minutes_after_close:.0f}min after market close, skipping check")
+        # If we're more than 45 minutes after market close, assume data is available (yfinance lag max 15 min)
+        if minutes_after_close > 45:
+            logger.info(f"[MARKET_CLOSE] {minutes_after_close:.0f}min after market close, data should be available")
             return True
 
         # If we're before market close, skip (early run or different time zone)
         if minutes_after_close < 0:
-            logger.info(f"[MARKET_CLOSE] Before market close ({minutes_after_close:.0f}min), data will be available soon")
+            logger.info(f"[MARKET_CLOSE] Before market close ({minutes_after_close:.0f}min), skipping check")
             return True
 
-        # We're 0-30 minutes after market close - verify SPY data
-        logger.info(f"[MARKET_CLOSE] {minutes_after_close:.1f}min after close, checking if SPY data available...")
+        # We're 0-45 minutes after market close - verify SPY data with exponential backoff
+        logger.info(f"[MARKET_CLOSE] {minutes_after_close:.1f}min after close at 4 PM ET, checking yfinance for SPY data...")
 
         start_time = time.time()
         attempt = 0
-        max_attempts = int(max_wait_sec / 5)  # Try every 5 seconds
+        backoff_sec = 5  # Start with 5s, then exponential: 10s, 20s, 40s, ...
 
         while time.time() - start_time < max_wait_sec:
             attempt += 1
@@ -181,24 +182,25 @@ class PriceLoader(OptimalLoader):
                     latest_row = spy_data[-1] if spy_data else None
                     if latest_row and latest_row.get('close'):
                         elapsed = time.time() - start_time
-                        logger.info(f"[MARKET_CLOSE] ✓ SPY close data available after {elapsed:.1f}s (attempt {attempt})")
+                        logger.info(f"[MARKET_CLOSE] ✓ Data available after {elapsed:.1f}s (attempt {attempt}, backoff {backoff_sec}s)")
                         return True
             except Exception as e:
-                logger.debug(f"[MARKET_CLOSE] Attempt {attempt}: SPY fetch failed ({e})")
+                logger.debug(f"[MARKET_CLOSE] Attempt {attempt}: fetch error: {type(e).__name__}")
 
-            # Wait 5 seconds before retrying
+            # Calculate exponential backoff wait time
             wait_remaining = max_wait_sec - (time.time() - start_time)
-            if wait_remaining > 0:
-                wait_time = min(5, wait_remaining)
-                if attempt < max_attempts:
-                    logger.debug(f"[MARKET_CLOSE] Waiting {wait_time:.1f}s before retry...")
-                    time.sleep(wait_time)
+            wait_time = min(backoff_sec, wait_remaining)
 
-        # Timeout - data not available
+            if wait_time > 0 and wait_remaining > 0:
+                logger.debug(f"[MARKET_CLOSE] Attempt {attempt} failed, waiting {wait_time:.0f}s before retry (exponential backoff)...")
+                time.sleep(wait_time)
+                backoff_sec = min(backoff_sec * 2, 60)  # Cap at 60s per retry
+
+        # Timeout - data not available (should trigger data patrol in Phase 1)
         elapsed = time.time() - start_time
-        logger.warning(
-            f"[MARKET_CLOSE] SPY close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
-            f"yfinance API lag may cause incomplete data. Proceeding with caution."
+        logger.error(
+            f"[MARKET_CLOSE] ✗ SPY close data NOT available after {elapsed:.0f}s ({attempt} attempts, final backoff {backoff_sec}s). "
+            f"CRITICAL: Loader cannot proceed safely. Data patrol should be triggered to retry when data available."
         )
         return False
 

@@ -520,8 +520,8 @@ function SetupsTab({ scores, evaluated, error }) {
                     <ScoreCell value={(s.components || {}).fundamentals} max={10} />
                     <ScoreCell value={(s.components || {}).sector} max={8} />
                     <ScoreCell value={(s.components || {}).multi_tf} max={5} />
-                    <td className="t-xs">{s.sector}</td>
-                    <td className="t-2xs muted">{s.industry}</td>
+                    <td className="t-xs">{s.sector || '—'}</td>
+                    <td className="t-2xs muted">{s.industry || '—'}</td>
                   </tr>
                   {expandedRow === s.symbol && (
                     <tr style={{ background: 'var(--bg)' }}>
@@ -553,7 +553,7 @@ function SetupsTab({ scores, evaluated, error }) {
                   <tr key={s.symbol}>
                     <td className="strong mono">{s.symbol}</td>
                     <td className="t-xs" style={{ color: 'var(--amber)' }}>{s.fail_reason}</td>
-                    <td className="t-xs muted">{s.sector}</td>
+                    <td className="t-xs muted">{s.sector || '—'}</td>
                   </tr>
                 ))}
               </tbody>

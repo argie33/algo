@@ -202,7 +202,7 @@ const DeepValueStocks = () => {
                 <span className="badge">{`Price: $${stock.current_price.toFixed(2)}`}</span>
               )}
             </div>
-            {stock.sector && <p style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>{stock.sector} • {stock.industry}</p>}
+            {stock.sector && <p style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>{stock.sector}{stock.industry ? ` • ${stock.industry}` : ''}</p>}
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
               <h3 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)', color: 'var(--text)' }}>Current Valuation</h3>

@@ -45,8 +45,14 @@ export const extractData = (response) => {
   // Priority order for extracting data:
   // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
   if (Array.isArray(data.items)) {
-    // Ensure items array is valid; filter out null/undefined entries
-    const filteredItems = data.items.filter(item => item !== null && item !== undefined);
+    // Ensure items array is valid; filter out null/undefined entries AND items with null critical fields
+    const filteredItems = data.items.filter(item => {
+      if (item === null || item === undefined) return false;
+      // Filter out items where critical fields are null (symbol, sector, industry, company_name)
+      // These fields are commonly used in components; missing them causes render errors
+      if (item.symbol === null || item.symbol === undefined) return false;
+      return true;
+    });
     // Use backend total if provided; otherwise use filtered count to match actual items
     const total = data.total || filteredItems.length;
     return {
