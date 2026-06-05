@@ -45,16 +45,16 @@ output "rds_arn" {
   value       = aws_db_instance.main.arn
 }
 
-# RDS Proxy Endpoint (Connection Pooling) - disabled pending Terraform updates
-# output "rds_proxy_endpoint" {
-#   description = "RDS Proxy endpoint for multiplexed connections"
-#   value       = aws_db_proxy.main.endpoint
-# }
-#
-# output "rds_proxy_address" {
-#   description = "RDS Proxy hostname only"
-#   value       = regex("^([^:]+)", aws_db_proxy.main.endpoint)
-# }
+# RDS Proxy Endpoint (Connection Pooling)
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint for multiplexed connections"
+  value       = aws_db_proxy.main.endpoint
+}
+
+output "rds_proxy_address" {
+  description = "RDS Proxy hostname only"
+  value       = regex("^([^:]+)", aws_db_proxy.main.endpoint)
+}
 
 # Secrets
 output "rds_credentials_secret_arn" {
