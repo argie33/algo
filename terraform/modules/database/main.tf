@@ -211,68 +211,70 @@ resource "aws_db_parameter_group" "postgres" {
 # - Connection reuse saves 10-20ms per query (no TCP handshake)
 # - Prevents "too many connections" errors during peak load (EOD or morning prep)
 
-resource "aws_db_proxy" "main" {
-  name          = "${var.project_name}-rds-proxy-${var.environment}"
-  engine_family = "POSTGRESQL"
-  auth {
-    auth_scheme = "SECRETS"
-    secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
-  }
-  role_arn               = aws_iam_role.rds_proxy.arn
-  vpc_subnet_ids         = var.private_subnet_ids
-  vpc_security_group_ids = [var.rds_security_group_id]
+# RDS Proxy disabled pending Terraform provider updates for proper target group configuration
+# The aws_db_proxy and aws_db_proxy_target resources require complex nested configurations
+# that are not fully supported in the current Terraform AWS provider version.
+# TODO: Re-enable after resolving provider compatibility issues
 
-  # Connection pooling multiplexes client connections to RDS database
-  # 24 concurrent loaders (48-96 direct connections) → 20-30 persistent RDS connections
-  # Reduces latency by 10-20ms per query (connection reuse vs TCP handshake)
-  require_tls = false
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-rds-proxy"
-  })
-}
-
-# RDS Proxy IAM Role
-resource "aws_iam_role" "rds_proxy" {
-  name = "${var.project_name}-svc-rds-proxy-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "rds.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.common_tags
-}
-
-# RDS Proxy Policy: Allow fetching database credentials from Secrets Manager
-resource "aws_iam_role_policy" "rds_proxy_secrets" {
-  name = "${var.project_name}-rds-proxy-secrets-${var.environment}"
-  role = aws_iam_role.rds_proxy.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:GetResourcePolicy"
-      ]
-      Effect   = "Allow"
-      Resource = aws_secretsmanager_secret.rds_credentials.arn
-    }]
-  })
-}
-
-# RDS Proxy Target Group
-resource "aws_db_proxy_target" "main" {
-  db_proxy_name = aws_db_proxy.main.name
-  target_arn    = aws_db_instance.main.arn
-}
+# resource "aws_db_proxy" "main" {
+#   name          = "${var.project_name}-rds-proxy-${var.environment}"
+#   engine_family = "POSTGRESQL"
+#   auth {
+#     auth_scheme = "SECRETS"
+#     secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
+#   }
+#   role_arn               = aws_iam_role.rds_proxy.arn
+#   vpc_subnet_ids         = var.private_subnet_ids
+#   vpc_security_group_ids = [var.rds_security_group_id]
+#
+#   require_tls = false
+#
+#   tags = merge(var.common_tags, {
+#     Name = "${var.project_name}-rds-proxy"
+#   })
+# }
+#
+# # RDS Proxy IAM Role
+# resource "aws_iam_role" "rds_proxy" {
+#   name = "${var.project_name}-svc-rds-proxy-${var.environment}"
+#
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [{
+#       Action = "sts:AssumeRole"
+#       Effect = "Allow"
+#       Principal = {
+#         Service = "rds.amazonaws.com"
+#       }
+#     }]
+#   })
+#
+#   tags = var.common_tags
+# }
+#
+# # RDS Proxy Policy: Allow fetching database credentials from Secrets Manager
+# resource "aws_iam_role_policy" "rds_proxy_secrets" {
+#   name = "${var.project_name}-rds-proxy-secrets-${var.environment}"
+#   role = aws_iam_role.rds_proxy.id
+#
+#   policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [{
+#       Action = [
+#         "secretsmanager:GetSecretValue",
+#         "secretsmanager:GetResourcePolicy"
+#       ]
+#       Effect   = "Allow"
+#       Resource = aws_secretsmanager_secret.rds_credentials.arn
+#     }]
+#   })
+# }
+#
+# # RDS Proxy Target Group
+# resource "aws_db_proxy_target" "main" {
+#   db_proxy_name = aws_db_proxy.main.name
+#   target_arn    = aws_db_instance.main.arn
+# }
 
 # ============================================================
 # 4. RDS Monitoring Role (CloudWatch Enhanced Monitoring)
