@@ -80,6 +80,40 @@ class OptimalLoader(ABC):
 
         signal.signal(signal.SIGTERM, handle_shutdown)
 
+    def _update_loader_status(self, status: str) -> None:
+        """Update loader status in data_loader_status table.
+
+        Status values: 'RUNNING' (loader started), 'COMPLETED' (loader finished).
+        Used by Phase 1 to detect if loader is in progress vs finished.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                if status == "RUNNING":
+                    # Mark loader as running, preserve prior stats if any
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() "
+                        "WHERE table_name = %s",
+                        (status, self.table_name)
+                    )
+                    if cur.rowcount == 0:
+                        # First run, insert entry
+                        cur.execute(
+                            "INSERT INTO data_loader_status (table_name, status, last_updated) "
+                            "VALUES (%s, %s, NOW())",
+                            (self.table_name, status)
+                        )
+                    logger.debug(f"[{self.table_name}] Status updated to RUNNING")
+                elif status == "COMPLETED":
+                    # Mark loader as completed with current timestamp
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() "
+                        "WHERE table_name = %s",
+                        (status, self.table_name)
+                    )
+                    logger.debug(f"[{self.table_name}] Status updated to COMPLETED")
+        except Exception as e:
+            logger.warning(f"[{self.table_name}] Failed to update status to {status}: {e}")
+
     def _validate_runtime_config(self) -> None:
         """Validate runtime configuration to detect infrastructure drift.
 
@@ -582,6 +616,9 @@ class OptimalLoader(ABC):
             if backfill_days is not None:
                 self._backfill_days = backfill_days
 
+            # Mark loader as RUNNING so Phase 1 knows it's in progress
+            self._update_loader_status("RUNNING")
+
             start = time.time()
             symbols = list(symbols)
             mode = (
@@ -646,14 +683,17 @@ class OptimalLoader(ABC):
                         (self.table_name,),
                     )
                     cur.execute(
-                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
-                        "VALUES (%s, %s, %s, NOW())",
-                        (self.table_name, total_rows, latest_date),
+                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated, status) "
+                        "VALUES (%s, %s, %s, NOW(), %s)",
+                        (self.table_name, total_rows, latest_date, 'COMPLETED'),
                     )
             except Exception as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
                 )
+
+            # Mark loader as COMPLETED for Phase 1 grace period check
+            self._update_loader_status("COMPLETED")
 
             return self._stats
         finally:
@@ -707,6 +747,9 @@ class OptimalLoader(ABC):
             lock_manager = None
 
         try:
+            # Mark loader as RUNNING so Phase 1 knows it's in progress
+            self._update_loader_status("RUNNING")
+
             start = time.time()
             logger.info("[%s] Starting global load", self.table_name)
 
@@ -761,14 +804,17 @@ class OptimalLoader(ABC):
                         (self.table_name,),
                     )
                     cur.execute(
-                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
-                        "VALUES (%s, %s, %s, NOW())",
-                        (self.table_name, total_rows, latest_date),
+                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated, status) "
+                        "VALUES (%s, %s, %s, NOW(), %s)",
+                        (self.table_name, total_rows, latest_date, 'COMPLETED'),
                     )
             except Exception as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
                 )
+
+            # Mark loader as COMPLETED for Phase 1 grace period check
+            self._update_loader_status("COMPLETED")
 
             return inserted
         finally:
