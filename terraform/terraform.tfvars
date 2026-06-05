@@ -34,9 +34,9 @@ enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM E
 enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
 cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
-cognito_test_user_email       = ""                          # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
+cognito_test_user_email       = "argeropolos@gmail.com"     # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
 cognito_custom_email_enabled  = true                        # Cognito custom message Lambda for professional emails via SES
-cognito_sender_email          = ""                          # SES sender email for password reset codes (must be verified in SES)
+cognito_sender_email          = "argeropolos@gmail.com"     # SES sender email for password reset codes (must be verified in SES)
 
 # Database configuration
 rds_instance_class = "db.t4g.small" # REQUIRED for loader parallelism: Graviton t4g.small (2 vCPU, 2GB, ~100 max_connections) supports concurrent loader execution. With tuned parallelism (2-3 for critical loaders), connection pool remains well below limit. Cost ~$25-30/month.
