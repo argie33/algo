@@ -69,8 +69,26 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         # Always log waterfall to diagnose 'no trades' situations
         logger.info(f"\n  [FILTER REJECTION ANALYSIS] Signal filtering on {run_date}:")
 
-        # Include source data ages in waterfall report (if available from Phase 5)
-        if 'signal_data_ages' in locals() and signal_data_ages:
+        # Include source data ages in waterfall report
+        signal_data_ages = {}
+        try:
+            with DatabaseContext("read") as db_cur:
+                db_cur.execute("""
+                    SELECT
+                        MAX(COALESCE(buy_sell_daily_age_days, 0)) as buy_sell_age,
+                        MAX(COALESCE(technical_data_age_days, 0)) as technical_age,
+                        MAX(COALESCE(trend_template_age_days, 0)) as trend_age
+                    FROM signal_quality_scores WHERE date = %s
+                """, (run_date,))
+                result = db_cur.fetchone()
+                if result:
+                    signal_data_ages['buy_sell_daily'] = result[0] or 0
+                    signal_data_ages['technical_data'] = result[1] or 0
+                    signal_data_ages['trend_template'] = result[2] or 0
+        except Exception as e:
+            logger.debug(f"Could not read signal data ages: {e}")
+
+        if signal_data_ages:
             max_age = max(signal_data_ages.values()) if signal_data_ages.values() else 0
             logger.info(f"    Source data ages (max):   {max_age:4d}d (buy_sell={signal_data_ages.get('buy_sell_daily', '?')}d, "
                        f"technical={signal_data_ages.get('technical_data', '?')}d, trend={signal_data_ages.get('trend_template', '?')}d)")
@@ -252,8 +270,17 @@ def run(
                         f"technical={technical_age}d, trend={trend_age}d (max={max_source_age}d, {signal_count} signals)"
                     )
 
-                    # Warn if source data is 2+ days old (reduced freshness)
-                    if max_source_age >= 2:
+                    # CRITICAL: Reject signals if source data is 5+ days old (stale)
+                    # Phase 1 should have caught this, but double-check here
+                    if max_source_age >= 5:
+                        logger.critical(
+                            f"[SIGNAL DATA AGE] CRITICAL: Source data {max_source_age} days old — far too stale! "
+                            f"Phase 1 should have halted. Rejecting all signals for safety. "
+                            f"Check Phase 1 data freshness checks and failsafe logic."
+                        )
+                        qualified = []  # Empty qualified trades if source data too stale
+                    # Warn if source data is 2-4 days old (reduced freshness)
+                    elif max_source_age >= 2:
                         logger.warning(
                             f"[SIGNAL DATA AGE] Source data {max_source_age} days old — signal quality may be reduced"
                         )
