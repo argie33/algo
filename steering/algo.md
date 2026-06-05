@@ -49,8 +49,9 @@ If you need to rebuild the schema:
 
 **Daily runs (Mon-Fri):**
 - 3:25 AM ET: stock_symbols (EventBridge)
-- 3:30 AM ET: sp500/russell constituents (EventBridge)
-- 4:30 AM ET: morning-prep-pipeline (Step Functions) — loads 1d prices (stock+etf), technicals, then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
+- 3:30 AM ET: sp500/russell constituents (EventBridge) AND morning-prep-pipeline (Step Functions, advanced timing)
+  - Morning pipeline: loads 1d prices (stock+etf), technicals, then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
+  - Advanced from 4:30 AM to 3:30 AM (2026-06-05) for timing safety: increases buffer from 35 min to 95 min
 - 4:05 PM ET: EOD pipeline (Step Functions, 9 core loaders) — loads all intervals (1d/1wk/1mo), signals, scores, orchestrator dry-run.
 - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
 
@@ -126,7 +127,14 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 **Timing Constraints:**
 - Start: 4:30 AM ET (after EOD pipeline finishes at ~4:05 PM previous day)
 - Must complete before: 9:30 AM ET market open (5 hours available, 4h buffer recommended)
-- Steps: stock_prices_daily (1d only) → technical_data_daily + market_health_daily → buy_sell_daily → signal_quality_scores → swing_trader_scores
+- Critical path: stock_prices_daily (75 min) + technical_data_daily (90 min parallel with market_health 20 min) + buy_sell_daily (45 min) + signal_quality_scores + swing_trader_scores (45 min parallel) = ~255 min = 4.25 hours
+- Buffer with current timing: 5 hours - 4.25 hours = 35 minutes (tight margin)
+
+**Optimization Decision (Deployed 2026-06-05):**
+- Current margin of 35 minutes is insufficient for production safety (yfinance rate limits, RDS slow queries, ECS scheduling delays can easily exceed this)
+- **Advance start time to 3:30 AM ET** - gain 1 additional hour, increasing margin from 35 min to 95 min (safe)
+- Terraform: Update EventBridge rule for morning-prep-pipeline trigger time to 3:30 AM (210 minutes = 03:30)
+- This change is retroactively safe: if morning prep finishes by 8:30 AM, Phase 1 at 9:30 AM will have fresh data
 
 **Monitoring (Copy-paste ready for CloudWatch Logs Insights):**
 
@@ -380,12 +388,20 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Eliminates guaranteed cold start from 5:30 PM → 9:30 AM gap
 
 **RDS (db.t4g.small, 2 GB RAM):**
-- Instance provides 2 vCPU, 2GB RAM, ~100 concurrent connections. With tuned parallelism (2-3 per critical loader), typical concurrent connections = 20-30, well below limit. No connection pooling proxy needed.
+- Instance provides 2 vCPU, 2GB RAM, ~100 concurrent connections. With tuned parallelism (2-3 per critical loader), typical concurrent connections = 20 during EOD pipeline (20% utilization), well below limit. No connection pooling proxy needed.
 - Performance Insights: ENABLED (7-day free retention)
 - `statement_timeout = 900000ms` (15 minutes) at parameter group level — supports batch loaders processing 5000+ symbols with complex joins
 - `work_mem = 16384` (16 MB per sort/hash operation)
 - `effective_cache_size = 786432` (768 MB = 75% of 2 GB RAM)
 - `random_page_cost = 1.1` (SSD-backed storage)
+
+**Connection Pool Tuning (EOD Pipeline):**
+- EOD pipeline concurrently runs 9 core loaders with parallelism settings: stock_prices_daily(4) + trend_template_data(4) + technical_data_daily(2) + buy_sell_daily(3) + signal_quality_scores(2) + swing_trader_scores(2) + market_health_daily(1) + algo_metrics_daily(1) + sector_ranking(1) = **20 total connections**
+- Target: 40-60 concurrent connections for optimal throughput without RDS saturation
+- Current utilization: 20% (headroom exists to increase parallelism)
+- If EOD pipeline becomes bottleneck (execution time >6 hours): Can increase buy_sell_daily from 3→4 or technical_data_daily from 2→3 to 25-26 total connections (25-26% utilization)
+- Monitor: CloudWatch RDS metric `DatabaseConnections` during EOD pipeline (check 4:05-5:30 PM ET window)
+- Escalation path: If connections exceed 60, check for cascading failures, then consider RDS instance upgrade to db.t4g.medium
 
 **CloudFront:**
 - Static assets: `Managed-CachingOptimized` (long TTL, compressed)

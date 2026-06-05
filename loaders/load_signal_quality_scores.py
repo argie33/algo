@@ -160,6 +160,11 @@ class SignalQualityScoresLoader(OptimalLoader):
             if not trend_df.empty:
                 trend_df["date"] = pd.to_datetime(trend_df["date"])
 
+            # Track max dates from each source for staleness computation
+            max_bs_date = bs_df["date"].max() if not bs_df.empty else None
+            max_tech_date = tech_df["date"].max() if not tech_df.empty else None
+            max_trend_date = trend_df["date"].max() if not trend_df.empty else None
+
             # Merge with left join to keep all buy/sell rows
             merged = bs_df
             if not tech_df.empty:
@@ -205,10 +210,20 @@ class SignalQualityScoresLoader(OptimalLoader):
                 date_val = row.get("date")
                 if date_val is not None:
                     date_str = date_val.date().isoformat() if hasattr(date_val, 'date') else str(date_val)
+                    signal_date = pd.Timestamp(date_str).date()
+
+                    # Compute staleness: how many days old is the underlying data?
+                    bs_age = (signal_date - max_bs_date.date()).days if max_bs_date is not None else None
+                    tech_age = (signal_date - max_tech_date.date()).days if max_tech_date is not None else None
+                    trend_age = (signal_date - max_trend_date.date()).days if max_trend_date is not None else None
+
                     results.append({
                         "symbol": symbol,
                         "date": date_str,
                         "composite_sqs": int(score),
+                        "buy_sell_daily_age_days": bs_age,
+                        "technical_data_age_days": tech_age,
+                        "trend_template_age_days": trend_age,
                     })
 
             return results

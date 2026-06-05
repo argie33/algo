@@ -297,7 +297,8 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                     ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
                     cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
                     logger.info("[PATROL] Triggering fresh data patrol via ECS...")
-                    ecs_client.run_task(
+
+                    response = ecs_client.run_task(
                         cluster=cluster_arn,
                         taskDefinition='algo-data-patrol',
                         launchType='FARGATE',
@@ -309,18 +310,41 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                             }
                         }
                     )
-                    logger.info("[PATROL] ✓ Fresh patrol task triggered async")
 
-                    # Log trigger timestamp for grace period check in future runs
-                    try:
-                        state_table.put_item(Item={
-                            'state_key': 'patrol_trigger_log',
-                            'triggered_at': time.time(),
-                            'ttl': int(time.time()) + 3600,  # 1-hour TTL
-                        })
-                        logger.debug("[PATROL] Logged patrol trigger timestamp for grace period")
-                    except Exception as log_err:
-                        logger.debug(f"[PATROL] Could not log trigger timestamp: {log_err}")
+                    if response.get('tasks'):
+                        task_arn = response['tasks'][0]['taskArn']
+                        task_id = task_arn.split('/')[-1]
+                        logger.info(f"[PATROL] ✓ Fresh patrol task triggered: {task_id}")
+
+                        # Verify task reaches RUNNING state (quick check, 5s timeout)
+                        poll_start = time.time()
+                        while time.time() - poll_start < 5:
+                            try:
+                                desc = ecs_client.describe_tasks(cluster=cluster_arn, tasks=[task_arn])
+                                if desc.get('tasks'):
+                                    task = desc['tasks'][0]
+                                    if task.get('lastStatus') in ('RUNNING', 'PROVISIONING', 'PENDING'):
+                                        logger.debug(f"[PATROL] Task {task_id} state: {task.get('lastStatus')}")
+                                        break
+                                    elif task.get('lastStatus') in ('STOPPED', 'STOPPING'):
+                                        logger.warning(f"[PATROL] Task {task_id} stopped: {task.get('stoppedReason', 'unknown')}")
+                                        break
+                            except Exception:
+                                pass
+                            time.sleep(0.5)
+
+                        # Log trigger timestamp for grace period check in future runs
+                        try:
+                            state_table.put_item(Item={
+                                'state_key': 'patrol_trigger_log',
+                                'triggered_at': time.time(),
+                                'ttl': int(time.time()) + 3600,  # 1-hour TTL
+                            })
+                            logger.debug("[PATROL] Logged patrol trigger timestamp for grace period")
+                        except Exception as log_err:
+                            logger.debug(f"[PATROL] Could not log trigger timestamp: {log_err}")
+                    else:
+                        logger.warning("[PATROL] ECS RunTask returned no tasks")
                 except Exception as patrol_trigger_err:
                     logger.warning(f"[PATROL] Could not trigger fresh patrol: {patrol_trigger_err}")
 

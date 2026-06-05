@@ -1205,8 +1205,8 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
 
 resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
   name                         = "${var.project_name}-morning-pipeline-${var.environment}"
-  description                  = "Morning data prep: load prices + technicals for market open (4:30 AM ET)"
-  schedule_expression          = "cron(30 4 ? * MON-FRI *)"
+  description                  = "Morning data prep: load prices + technicals for market open (3:30 AM ET, advanced for timing safety)"
+  schedule_expression          = "cron(30 3 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 

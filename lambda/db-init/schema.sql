@@ -1470,6 +1470,9 @@ CREATE TABLE IF NOT EXISTS signal_quality_scores (
     earnings_proximity_score INTEGER,
     composite_sqs INTEGER,
     rank_vs_all_signals INTEGER,
+    buy_sell_daily_age_days INTEGER,
+    technical_data_age_days INTEGER,
+    trend_template_age_days INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
