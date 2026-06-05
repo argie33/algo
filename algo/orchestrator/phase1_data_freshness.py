@@ -325,11 +325,19 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
         current_time = time.time()
         age_minutes = (current_time - triggered_at) / 60
 
-        # Dynamic grace period:
+        # Dynamic grace period (configurable via algo_config):
+        # Read from database if available, default to 150 minutes
         # - stock_prices_daily can take up to 2h with yfinance lag
-        # - Add 30-min safety margin for scheduler delays
+        # - Add 30-min safety margin for ECS scheduler delays
         # - Total: 150 minutes (2.5 hours) as hard limit
-        max_grace_period = 150
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT value FROM algo_config WHERE key = %s", ('failsafe_grace_period_minutes',))
+                result = cur.fetchone()
+                max_grace_period = int(result[0]) if result and result[0] else 150
+        except Exception as config_err:
+            logger.debug(f"[FAILSAFE] Could not read grace period config: {config_err}, using default 150m")
+            max_grace_period = 150
 
         if age_minutes < max_grace_period:
             if verbose:
