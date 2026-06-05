@@ -3,42 +3,54 @@ import { tokenManager } from "./tokenManager";
 import dataCache from "./dataCache";
 import { extractData } from "../utils/responseNormalizer";
 
-// Get API configuration
+// Get API configuration with explicit fallback chain
+// Order: (1) Runtime injection → (2) Build-time env var → (3) Dev proxy
 export const getApiConfig = () => {
-  // STRICT 3-LEVEL URL RESOLUTION - no hardcoded production URLs
-  // 1. Runtime injection (AWS deployment) - check if __CONFIG__ exists, not just if API_URL is truthy
-  // This allows empty string for localhost development
-  if (typeof window !== "undefined" && window.__CONFIG__ && 'API_URL' in window.__CONFIG__) {
-    const apiUrl = window.__CONFIG__.API_URL;
-    // Empty API_URL means local dev with Vite proxy — not serverless
-    if (!apiUrl) {
-      return { baseURL: "", apiUrl: "", isServerless: false, isDev: true, isDevelopment: true, isProduction: false };
-    }
-    return { baseURL: apiUrl, apiUrl, isServerless: !apiUrl.includes("localhost"), isDev: false, isDevelopment: false, isProduction: true };
-  }
-
-  // 2. Build-time env var
-  if (import.meta.env?.VITE_API_URL) {
-    const apiUrl = import.meta.env.VITE_API_URL;
-    return { baseURL: apiUrl, apiUrl, isServerless: !apiUrl.includes("localhost"), isDev: false, isDevelopment: true, isProduction: false };
-  }
-
-  // 3. Dev: relative path, Vite proxy handles it
   const isDev = import.meta.env?.DEV;
-  const apiUrl = "";
+  let apiUrl = "";
+  let source = "fallback";
+
+  // Level 1: Runtime injection (from config.js in production)
+  if (typeof window !== "undefined" && window.__CONFIG__ && 'API_URL' in window.__CONFIG__) {
+    apiUrl = window.__CONFIG__.API_URL;
+    source = "window.__CONFIG__";
+    if (!apiUrl && isDev) {
+      source = "window.__CONFIG__ (empty for Vite proxy)";
+    }
+  }
+  // Level 2: Build-time environment variable (from CI/CD)
+  else if (import.meta.env?.VITE_API_URL) {
+    apiUrl = import.meta.env.VITE_API_URL;
+    source = "VITE_API_URL env var";
+  }
+  // Level 3: Development fallback (relative path with Vite proxy)
+  else {
+    apiUrl = "";
+    source = isDev ? "Vite proxy (dev mode)" : "ERROR: No API URL configured";
+  }
 
   const config = {
     baseURL: apiUrl,
     apiUrl: apiUrl,
-    isServerless: false,
+    isServerless: !!(apiUrl && !apiUrl.includes("localhost")),
     isDev: isDev,
     isDevelopment: isDev,
-    isProduction: false,
+    isProduction: !isDev,
+    _source: source, // For debugging
   };
 
-  // Log if API URL is not available in production
+  // Log API configuration (helpful for debugging)
+  if (typeof window !== "undefined" && window.location?.hostname === "localhost") {
+    console.debug(`[API Config] Source: ${source}, baseURL: "${apiUrl || '(relative path)'}"`);
+  }
+
+  // Error tracking if API URL is not available in production
   if (!config.baseURL && !isDev) {
-    console.error('[API CONFIG ERROR] No API URL available. Check: window.__CONFIG__.API_URL, VITE_API_URL, or falling back to localhost');
+    const errorMsg = '[API CONFIG ERROR] No API URL available. The backend API is not configured. ' +
+      'Check: (1) window.__CONFIG__.API_URL via config.js, (2) VITE_API_URL env var, or (3) network connectivity. ' +
+      'The application will not function without a valid API endpoint.';
+    console.error(errorMsg);
+    config._configError = errorMsg;
   }
 
   return config;
@@ -57,39 +69,8 @@ export const initializeApiConfig = () => {
   }
 };
 
-// If window.__CONFIG__ gets set after module init (due to Vite script loading order),
-// reinitialize API config when config.js loads.
-// Polling duration matches main.jsx config wait timeout (10 seconds).
-if (typeof window !== "undefined") {
-  let initCheckCount = 0;
-  const CONFIG_POLL_TIMEOUT = 10000; // 10 seconds (matches main.jsx timeout)
-  const POLL_INTERVAL = 50; // 50ms polling
-  const MAX_CHECKS = Math.ceil(CONFIG_POLL_TIMEOUT / POLL_INTERVAL); // 200 checks
-
-  const checkConfigInit = setInterval(() => {
-    initCheckCount++;
-
-    // Check if config loaded and baseURL has changed
-    if (
-      typeof window !== "undefined" &&
-      window.__CONFIG__ &&
-      window.__CONFIG__.API_URL &&
-      currentConfig.baseURL !== window.__CONFIG__.API_URL
-    ) {
-      console.log(`[API] Config detected after module init, reinitializing baseURL`);
-      initializeApiConfig();
-      clearInterval(checkConfigInit);
-    }
-
-    // Stop checking after config load timeout (10 seconds)
-    if (initCheckCount >= MAX_CHECKS) {
-      clearInterval(checkConfigInit);
-      if (!currentConfig.baseURL && typeof window !== "undefined" && !import.meta.env?.DEV) {
-        console.warn('[API] Config polling timeout: baseURL still not available after 10s');
-      }
-    }
-  }, POLL_INTERVAL);
-}
+// Note: Config loading is handled by main.jsx which waits for config.js to load
+// before rendering the app. No need for redundant polling here.
 
 // Simple health check state
 let apiHealthy = true;
@@ -514,11 +495,26 @@ export const getDiagnosticInfo = () => {
       isDevelopment: currentConfig.isDevelopment,
       isProduction: currentConfig.isProduction,
       isServerless: currentConfig.isServerless,
+      configSource: currentConfig._source || 'unknown',
+      configError: currentConfig._configError || null,
     };
   } catch (error) {
     console.error("Error getting diagnostic info:", error);
     return {};
   }
+};
+
+// Check if API is properly configured for making requests
+export const isApiConfigured = () => {
+  return !!(currentConfig.baseURL || currentConfig.isDev);
+};
+
+// Get a user-friendly error message if API is not configured
+export const getApiConfigError = () => {
+  if (!isApiConfigured() && !currentConfig.isDev) {
+    return 'API Backend is not configured. Please check the server configuration or contact support.';
+  }
+  return null;
 };
 
 export const getCurrentBaseURL = () => {

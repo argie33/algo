@@ -23,30 +23,23 @@ const logger = createComponentLogger("Main");
 const _originalConsoleError = console.error;
 const _originalConsoleWarn = console.warn;
 
-// Filter out non-critical warnings and errors
-console.warn = function (...args) {
-  const msg = String(args[0] || '');
-  // Suppress recharts dimension warnings (non-critical, charts render fine)
-  if (msg.includes('width(-1)') || msg.includes('height(-1)')) {
-    return;
-  }
-  _originalConsoleWarn.apply(console, args);
-};
+// Console warning passthrough - show all warnings
+// Recharts dimension warnings (width(-1), height(-1)) are non-critical but useful for debugging.
+// If charts render incorrectly, these warnings will help diagnose the issue.
+console.warn = _originalConsoleWarn;
 
-// Show all CORS and network errors for debugging
-// Don't suppress these - they help identify real CORS misconfigurations
-// React Query will automatically retry transient failures, so suppression isn't needed
+// Suppress only non-actionable browser warnings that come from third-party libraries.
+// All application errors and CORS/network issues pass through for debugging.
 console.error = function (...args) {
   const msg = String(args[0] || '');
 
-  // Only suppress known non-actionable browser warnings:
-  // - ResizeObserver errors from third-party libraries (not our code)
-  // - Non-critical React DevTools messages
+  // Suppress ResizeObserver warnings from third-party libraries (not caused by our code)
+  // These are known benign warnings from resize observation in external libs
   if (msg.includes('ResizeObserver') && msg.includes('loop limit exceeded')) {
     return;
   }
 
-  // Show all CORS and network errors - they're important for debugging
+  // All other errors are shown (CORS, network, app errors, etc.)
   _originalConsoleError.apply(console, args);
 };
 
@@ -113,7 +106,8 @@ const checkAndClearStaleCache = async () => {
     if (storedVersion && storedVersion !== CURRENT_VERSION) {
       logger.info(`Cache version changed (${storedVersion} → ${CURRENT_VERSION}), clearing stale caches`);
 
-      // Only clear old caches on version change, not every load
+      // Phase 1: Clear caches BEFORE unregistering service workers
+      // This ensures old workers don't serve stale content during unregistration
       if ("caches" in window) {
         try {
           const cacheNames = await caches.keys();
@@ -122,36 +116,38 @@ const checkAndClearStaleCache = async () => {
             name.startsWith('api-') || name.includes('http') || name === 'v1'
           );
 
+          // Wait for all caches to be deleted before continuing
           await Promise.all(cacheNamesToDelete.map(name => caches.delete(name)));
           logger.info(`Cleared ${cacheNamesToDelete.length} stale cache stores`);
         } catch (error) {
           logger.warn("Failed to clear caches on version change", error);
         }
       }
-    }
 
-    // Update stored version
-    localStorage.setItem(CACHE_VERSION_KEY, CURRENT_VERSION);
-
-    // Unregister old service workers on deploy (one-time on version change)
-    if (storedVersion && storedVersion !== CURRENT_VERSION && "serviceWorker" in navigator) {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (let registration of registrations) {
-          // Unregister old service worker versions
-          await registration.unregister();
+      // Phase 2: Unregister old service workers (after caches are cleared)
+      // This prevents race condition where old worker serves stale assets
+      if ("serviceWorker" in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (let registration of registrations) {
+            await registration.unregister();
+          }
+          logger.info(`Unregistered ${registrations.length} old service worker(s)`);
+        } catch (error) {
+          logger.warn("Failed to unregister service workers", error);
         }
-        logger.info(`Unregistered ${registrations.length} old service worker(s)`);
-      } catch (error) {
-        logger.warn("Failed to unregister service workers", error);
       }
     }
+
+    // Update stored version (after cleanup complete)
+    localStorage.setItem(CACHE_VERSION_KEY, CURRENT_VERSION);
   } catch (error) {
     logger.warn("Cache version check failed (non-critical)", error);
   }
 };
 
 // Run cache check asynchronously (non-blocking)
+// Completes before app render, so first page load gets clean caches
 checkAndClearStaleCache().catch(() => {});
 
 

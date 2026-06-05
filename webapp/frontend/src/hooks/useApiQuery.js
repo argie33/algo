@@ -22,7 +22,7 @@ export const useApiQuery = (
   {
     staleTime = 30000,
     gcTime = 10 * 60 * 1000,
-    retry = 5,
+    retry = 3,
     enabled = true,
     ...restOptions
   } = {}
@@ -60,7 +60,7 @@ export const useApiQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors up to specified retry count (default 5)
+      // Retry on 5xx errors up to specified retry count (default 3 for faster failure feedback)
       // This handles transient failures during deployments/RDS restarts
       if (status >= 500) return failureCount < retry;
 
@@ -72,7 +72,7 @@ export const useApiQuery = (
       // Default: no retry for unknown errors
       return false;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 60000),
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
     enabled,
     ...restOptions,
   });
@@ -112,7 +112,7 @@ export const useApiPaginatedQuery = (
   {
     staleTime = 30000,
     gcTime = 10 * 60 * 1000,
-    retry = 5,
+    retry = 3,
     enabled = true,
     ...restOptions
   } = {}
@@ -150,7 +150,7 @@ export const useApiPaginatedQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors up to specified retry count (default 5)
+      // Retry on 5xx errors up to specified retry count (default 3 for faster failure feedback)
       // This handles transient failures during deployments/RDS restarts
       if (status >= 500) return failureCount < retry;
 
@@ -162,7 +162,7 @@ export const useApiPaginatedQuery = (
       // Default: no retry for unknown errors
       return false;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 60000),
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
     enabled,
     ...restOptions,
   });

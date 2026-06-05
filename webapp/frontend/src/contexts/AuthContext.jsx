@@ -167,7 +167,13 @@ export function AuthProvider({ children }) {
         return { success: false, error: "Cognito not configured" };
       }
 
-      const session = await fetchAuthSession({ forceRefresh: true });
+      // Add timeout to prevent hanging if Cognito is slow or unreachable
+      const session = await Promise.race([
+        fetchAuthSession({ forceRefresh: true }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Token refresh timed out after 10 seconds')), 10000)
+        ),
+      ]);
 
       if (session.tokens) {
         const tokens = {

@@ -8,12 +8,15 @@ import {
   Alert,
   Divider,
   Stack,
+  Tooltip,
 } from "@mui/material";
 import {
   ErrorOutline,
   Refresh,
   Home,
   ContactSupport,
+  ContentCopy,
+  CheckCircle,
 } from "@mui/icons-material";
 
 class ErrorBoundary extends React.Component {
@@ -24,6 +27,7 @@ class ErrorBoundary extends React.Component {
       error: null,
       errorInfo: null,
       errorId: null,
+      copiedToClipboard: false,
     };
   }
 
@@ -98,6 +102,35 @@ class ErrorBoundary extends React.Component {
 
   handleGoHome = () => {
     window.location.href = "/";
+  };
+
+  handleCopyErrorId = async () => {
+    try {
+      await navigator.clipboard.writeText(this.state.errorId);
+      this.setState({ copiedToClipboard: true });
+      setTimeout(() => {
+        this.setState({ copiedToClipboard: false });
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy error ID:", err);
+    }
+  };
+
+  getErrorSummary = () => {
+    const error = this.state.error;
+    if (!error) return 'An unexpected error occurred';
+
+    const msg = error?.message || '';
+    if (msg.includes('Cannot read')) {
+      return 'Data structure error - the application received unexpected data format from the server';
+    } else if (msg.includes('is not a function')) {
+      return 'Function error - the application tried to call a non-existent function';
+    } else if (msg.includes('Network') || msg.includes('ECONNREFUSED')) {
+      return 'Network error - unable to communicate with the server';
+    } else if (msg.includes('timeout')) {
+      return 'Request timeout - the server took too long to respond';
+    }
+    return msg || 'An unexpected error occurred';
   };
 
   render() {
@@ -177,16 +210,45 @@ class ErrorBoundary extends React.Component {
                   </Alert>
                 )}
 
-                {/* Error ID for Production */}
+                {/* Error Details for Production */}
                 {process.env.NODE_ENV === "production" && (
-                  <Alert severity="info" sx={{ width: "100%" }}>
-                    <Typography variant="body2">
-                      <strong>Error ID:</strong> {this.state.errorId}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Please provide this ID when contacting support for faster
-                      assistance.
-                    </Typography>
+                  <Alert severity="warning" sx={{ width: "100%" }}>
+                    <Stack spacing={1}>
+                      <Box>
+                        <Typography variant="body2" gutterBottom>
+                          <strong>Error Details:</strong>
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          {this.getErrorSummary()}
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            Error ID: <code>{this.state.errorId}</code>
+                          </Typography>
+                        </Box>
+                        <Tooltip title={this.state.copiedToClipboard ? "Copied!" : "Copy error ID"}>
+                          <Button
+                            size="small"
+                            onClick={this.handleCopyErrorId}
+                            variant="text"
+                            startIcon={
+                              this.state.copiedToClipboard ? (
+                                <CheckCircle sx={{ fontSize: 16 }} />
+                              ) : (
+                                <ContentCopy sx={{ fontSize: 16 }} />
+                              )
+                            }
+                          >
+                            {this.state.copiedToClipboard ? "Copied" : "Copy"}
+                          </Button>
+                        </Tooltip>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Please provide the error ID above when contacting support for faster assistance.
+                      </Typography>
+                    </Stack>
                   </Alert>
                 )}
 
