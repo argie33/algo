@@ -3,14 +3,14 @@
 import logging
 import traceback
 from datetime import date as _date
-from typing import Any, Callable, List, Dict
+from typing import Any, Callable, Dict
 
 from utils.database_context import DatabaseContext
 from algo.orchestrator.phase_result import PhaseResult
-from algo.algo_alerts import AlertManager
 from algo.algo_metrics import MetricsPublisher
 
 logger = logging.getLogger(__name__)
+
 
 def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) -> None:
     """Log signal count at each filter tier for visibility on rejections."""
@@ -18,7 +18,7 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         # Count total BUY signals for today
         cur.execute(
             "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
-            (run_date,)
+            (run_date,),
         )
         result = cur.fetchone()
         total_signals = result[0] if result else 0
@@ -28,7 +28,7 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         cur.execute(
             """SELECT COUNT(DISTINCT symbol) FROM trend_template_data
                WHERE date = %s AND weinstein_stage = 2""",
-            (run_date,)
+            (run_date,),
         )
         result = cur.fetchone()
         stage2_count = result[0] if result else 0
@@ -36,10 +36,12 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         # Count rejections at each tier from filter_rejection_log (if table exists)
         tier_rejections = {}
         try:
-            for tier_num, tier_name in enumerate(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'], 1):
+            for tier_num, tier_name in enumerate(
+                ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"], 1
+            ):
                 cur.execute(
-                    f"SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
-                    (run_date, tier_num)
+                    "SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
+                    (run_date, tier_num),
                 )
                 result = cur.fetchone()
                 rejected = result[0] if result else 0
@@ -47,26 +49,41 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         except Exception as e:
             logger.warning(f"Exception: {e}")
             # Table may not exist or columns different; skip
-            for tier_name in ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']:
+            for tier_name in ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"]:
                 tier_rejections[tier_name] = 0
 
         # Always log waterfall to diagnose 'no trades' situations
         logger.info(f"\n  [WATERFALL] Signal filtering on {run_date}:")
         logger.info(f"    Total BUY signals:        {total_signals:4d}")
         logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
-        logger.info(f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}")
-        logger.info(f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}")
-        logger.info(f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}")
-        logger.info(f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}")
-        logger.info(f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}")
+        logger.info(
+            f"    Tier 1 rejected:          {tier_rejections.get('Tier 1', 0):4d}"
+        )
+        logger.info(
+            f"    Tier 2 rejected:          {tier_rejections.get('Tier 2', 0):4d}"
+        )
+        logger.info(
+            f"    Tier 3 rejected:          {tier_rejections.get('Tier 3', 0):4d}"
+        )
+        logger.info(
+            f"    Tier 4 rejected:          {tier_rejections.get('Tier 4', 0):4d}"
+        )
+        logger.info(
+            f"    Tier 5 rejected:          {tier_rejections.get('Tier 5', 0):4d}"
+        )
         logger.info(f"    Final qualified:          {final_count:4d}")
-        interpretation = _interpret_waterfall(total_signals, stage2_count, tier_rejections, final_count)
+        interpretation = _interpret_waterfall(
+            total_signals, stage2_count, tier_rejections, final_count
+        )
         logger.info(f"  Interpretation: {interpretation}")
 
     except Exception as e:
         logger.warning(f"Signal waterfall report failed: {e}")
 
-def _interpret_waterfall(total: int, stage2: int, tier_rejections: Dict[str, int], final: int) -> str:
+
+def _interpret_waterfall(
+    total: int, stage2: int, tier_rejections: Dict[str, int], final: int
+) -> str:
     """Interpret the signal waterfall to help diagnose 'no trades' situations."""
     if total == 0:
         return "No BUY signals generated today. Check buy_sell_daily loader or market conditions."
@@ -76,9 +93,12 @@ def _interpret_waterfall(total: int, stage2: int, tier_rejections: Dict[str, int
         return f"[OK] {final} candidates qualified. Ready to execute."
 
     # Find the biggest rejection point
-    max_reject_tier = max(tier_rejections, key=tier_rejections.get) if tier_rejections else "Unknown"
+    max_reject_tier = (
+        max(tier_rejections, key=tier_rejections.get) if tier_rejections else "Unknown"
+    )
     max_reject_count = tier_rejections.get(max_reject_tier, 0)
     return f"Stage 2 signals exist but {max_reject_count} rejected at {max_reject_tier}. Review config thresholds."
+
 
 def run(
     run_date: _date,
@@ -102,13 +122,17 @@ def run(
         PhaseResult with status 'ok', data containing qualified trades
     """
     if check_halt_flag():
-        return PhaseResult(5, 'signal_generation', 'halted', {}, True, 'Halt flag detected')
+        return PhaseResult(
+            5, "signal_generation", "halted", {}, True, "Halt flag detected"
+        )
 
     logger.info(f"\n{'='*70}")
-    logger.info(f"PHASE 5: SIGNAL GENERATION & RANKING")
+    logger.info("PHASE 5: SIGNAL GENERATION & RANKING")
     logger.info(f"{'='*70}")
     if exposure_constraints:
-        logger.info(f"Exposure constraints: risk_mult={exposure_constraints.get('risk_multiplier', 1.0):.2f}x, tier='{exposure_constraints.get('tier_name', 'N/A')}'")
+        logger.info(
+            f"Exposure constraints: risk_mult={exposure_constraints.get('risk_multiplier', 1.0):.2f}x, tier='{exposure_constraints.get('tier_name', 'N/A')}'"
+        )
     else:
         logger.info("Exposure constraints: None (no tier active, using defaults)")
 
@@ -118,53 +142,69 @@ def run(
 
         exposure_mult = 1.0
         if exposure_constraints:
-            exposure_mult = exposure_constraints.get('risk_multiplier', 1.0)
+            exposure_mult = exposure_constraints.get("risk_multiplier", 1.0)
 
         pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
 
         # Timing instrumentation for Phase 5 performance diagnostics
         _start = _timing.time()
-        qualified = pipeline.evaluate_signals(None, max_date=run_date)  # Auto-detect latest date <= run_date
+        qualified = pipeline.evaluate_signals(
+            None, max_date=run_date
+        )  # Auto-detect latest date <= run_date
         _elapsed = _timing.time() - _start
         eval_date = pipeline._snapshot_eval_date or run_date
 
         # Track signal freshness: check age of swing_trader_scores (critical for signal quality)
         try:
-            with DatabaseContext('read') as _cur:
-                _cur.execute(
-                    "SELECT MAX(date) FROM swing_trader_scores"
-                )
+            with DatabaseContext("read") as _cur:
+                _cur.execute("SELECT MAX(date) FROM swing_trader_scores")
                 result = _cur.fetchone()
                 latest_scores_date = result[0] if result and result[0] else None
 
                 if latest_scores_date:
                     score_age = (run_date - latest_scores_date).days
                     if score_age <= 0:
-                        logger.info(f"[SIGNAL FRESHNESS] swing_trader_scores: fresh ({latest_scores_date}, same day)")
+                        logger.info(
+                            f"[SIGNAL FRESHNESS] swing_trader_scores: fresh ({latest_scores_date}, same day)"
+                        )
                     elif score_age == 1:
-                        logger.info(f"[SIGNAL FRESHNESS] swing_trader_scores: 1 day stale ({latest_scores_date})")
+                        logger.info(
+                            f"[SIGNAL FRESHNESS] swing_trader_scores: 1 day stale ({latest_scores_date})"
+                        )
                     else:
-                        logger.warning(f"[SIGNAL FRESHNESS] swing_trader_scores: {score_age} days stale ({latest_scores_date}) — signals may lack freshness")
+                        logger.warning(
+                            f"[SIGNAL FRESHNESS] swing_trader_scores: {score_age} days stale ({latest_scores_date}) — signals may lack freshness"
+                        )
 
                     # Emit metric for signal freshness tracking
                     try:
-                        from algo.algo_metrics import MetricsPublisher
                         with MetricsPublisher(dry_run=dry_run) as _m:
-                            _m.put_metric('SignalFreshnessAge', score_age, unit='Days', dimensions={
-                                'table': 'swing_trader_scores'
-                            })
+                            _m.put_metric(
+                                "SignalFreshnessAge",
+                                score_age,
+                                unit="Days",
+                                dimensions={"table": "swing_trader_scores"},
+                            )
                     except Exception as _metric_err:
-                        logger.debug(f"Could not emit signal freshness metric: {_metric_err}")
+                        logger.debug(
+                            f"Could not emit signal freshness metric: {_metric_err}"
+                        )
                 else:
-                    logger.warning("[SIGNAL FRESHNESS] swing_trader_scores: NO DATA FOUND — signals will have zero scores")
+                    logger.warning(
+                        "[SIGNAL FRESHNESS] swing_trader_scores: NO DATA FOUND — signals will have zero scores"
+                    )
         except Exception as _freshness_err:
-            logger.debug(f"Signal freshness check failed (non-blocking): {_freshness_err}")
+            logger.debug(
+                f"Signal freshness check failed (non-blocking): {_freshness_err}"
+            )
 
-        logger.info(f"[TIMING] Phase 5 filter pipeline completed in {_elapsed:.1f}s for {len(qualified)} qualified trades")
+        logger.info(
+            f"[TIMING] Phase 5 filter pipeline completed in {_elapsed:.1f}s for {len(qualified)} qualified trades"
+        )
 
         # Signal count waterfall report (for visibility on where signals die)
         try:
-            with DatabaseContext('read') as cur:
+            with DatabaseContext("read") as cur:
                 _report_signal_waterfall(cur, eval_date, len(qualified))
                 # When nothing qualifies, emit a clear diagnostic so we know exactly why
                 if len(qualified) == 0:
@@ -175,23 +215,23 @@ def run(
                     mh = cur.fetchone()
                     cur.execute(
                         "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
-                        (eval_date,)
+                        (eval_date,),
                     )
                     bsd_count = (cur.fetchone() or [0])[0]
                     cur.execute(
                         "SELECT COUNT(*) FROM trend_template_data WHERE date = %s AND weinstein_stage = 2",
-                        (eval_date,)
+                        (eval_date,),
                     )
                     stage2_stocks = (cur.fetchone() or [0])[0]
 
                     diag = {
-                        'eval_date': str(eval_date),
-                        'buy_signals': bsd_count,
-                        'stage2_stocks': stage2_stocks,
-                        'market_stage': mh[1] if mh else None,
-                        'market_trend': mh[2] if mh else None,
-                        'dist_days': mh[3] if mh else None,
-                        'vix': str(mh[4]) if mh else None,
+                        "eval_date": str(eval_date),
+                        "buy_signals": bsd_count,
+                        "stage2_stocks": stage2_stocks,
+                        "market_stage": mh[1] if mh else None,
+                        "market_trend": mh[2] if mh else None,
+                        "dist_days": mh[3] if mh else None,
+                        "vix": str(mh[4]) if mh else None,
                     }
 
                     if mh:
@@ -207,51 +247,66 @@ def run(
                                 f"Set require_stage_2_market=false in algo_config table to trade in other market stages."
                             )
                     else:
-                        logger.warning(f"[ZERO TRADES DIAGNOSIS] eval_date={eval_date} | market_health_daily: NO ROWS FOUND")
+                        logger.warning(
+                            f"[ZERO TRADES DIAGNOSIS] eval_date={eval_date} | market_health_daily: NO ROWS FOUND"
+                        )
 
                     # Alert: 0 qualified trades is never silent
                     # Suppress alert during dry_run to avoid noise from pipeline validation runs
                     if not dry_run:
                         try:
                             from algo.algo_alerts import AlertManager
+
                             AlertManager().send_position_alert(
-                                'SIGNAL', 'ZERO_QUALIFIED_TRADES',
-                                f'Phase 5 found 0 qualified trades on {eval_date}. '
-                                f'buy_signals={bsd_count}, stage2_stocks={stage2_stocks}, '
+                                "SIGNAL",
+                                "ZERO_QUALIFIED_TRADES",
+                                f"Phase 5 found 0 qualified trades on {eval_date}. "
+                                f"buy_signals={bsd_count}, stage2_stocks={stage2_stocks}, "
                                 f'market_stage={diag["market_stage"]}, vix={diag["vix"]}. '
-                                f'Check CloudWatch logs for filter rejection details.',
+                                f"Check CloudWatch logs for filter rejection details.",
                                 diag,
                             )
                         except Exception as _alert_err:
-                            logger.warning(f"Zero-trades alert failed (non-blocking): {_alert_err}")
+                            logger.warning(
+                                f"Zero-trades alert failed (non-blocking): {_alert_err}"
+                            )
         except Exception as e:
             logger.warning(f"Signal waterfall report failed (non-blocking): {e}")
 
         log_phase_result_fn(
-            5, 'signal_generation', 'success',
-            f'{len(qualified)} qualified trades after 5-tier filter + advanced scoring',
+            5,
+            "signal_generation",
+            "success",
+            f"{len(qualified)} qualified trades after 5-tier filter + advanced scoring",
         )
 
         return PhaseResult(
-            5, 'signal_generation', 'ok',
-            {'qualified_trades': qualified, 'count': len(qualified)},
-            False, None
+            5,
+            "signal_generation",
+            "ok",
+            {"qualified_trades": qualified, "count": len(qualified)},
+            False,
+            None,
         )
 
     except RuntimeError as e:
-        logger.critical(f"PHASE 5 HALT — portfolio value unavailable, no new entries: {e}")
+        logger.critical(
+            f"PHASE 5 HALT — portfolio value unavailable, no new entries: {e}"
+        )
         try:
             with MetricsPublisher(dry_run=dry_run) as _m:
-                _m.put_circuit_breaker('PortfolioValueUnavailable', fired=True)
+                _m.put_circuit_breaker("PortfolioValueUnavailable", fired=True)
         except Exception as e:
             logger.error(f"Unhandled exception: {e}")
 
-        log_phase_result_fn(5, 'signal_generation', 'halt', str(e))
-        return PhaseResult(5, 'signal_generation', 'halted', {}, True, str(e))
+        log_phase_result_fn(5, "signal_generation", "halt", str(e))
+        return PhaseResult(5, "signal_generation", "halted", {}, True, str(e))
 
     except Exception as e:
         traceback.print_exc()
-        log_phase_result_fn(5, 'signal_generation', 'error', str(e))
+        log_phase_result_fn(5, "signal_generation", "error", str(e))
         # Fail-open: log error but don't halt — Phase 6 gets empty qualified_trades
         # and will log "no qualified trades" rather than blocking exits/reconciliation.
-        return PhaseResult(5, 'signal_generation', 'error', {'qualified_trades': []}, False, str(e))
+        return PhaseResult(
+            5, "signal_generation", "error", {"qualified_trades": []}, False, str(e)
+        )
