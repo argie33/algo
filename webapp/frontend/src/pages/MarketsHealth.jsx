@@ -1405,15 +1405,24 @@ function YieldCurveCard() {
         <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
           <div className="stile">
             <div className="stile-label">3M</div>
-            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '3M')?.yield.toFixed(2) || '—'}%</div>
+            <div className="stile-value mono tnum">{(() => {
+              const item = curve.find(c => c.maturity === '3M');
+              return item?.yield != null ? Number(item.yield).toFixed(2) : '—';
+            })()}%</div>
           </div>
           <div className="stile">
             <div className="stile-label">10Y</div>
-            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '10Y')?.yield.toFixed(2) || '—'}%</div>
+            <div className="stile-value mono tnum">{(() => {
+              const item = curve.find(c => c.maturity === '10Y');
+              return item?.yield != null ? Number(item.yield).toFixed(2) : '—';
+            })()}%</div>
           </div>
           <div className="stile">
             <div className="stile-label">30Y</div>
-            <div className="stile-value mono tnum">{curve.find(c => c.maturity === '30Y')?.yield.toFixed(2) || '—'}%</div>
+            <div className="stile-value mono tnum">{(() => {
+              const item = curve.find(c => c.maturity === '30Y');
+              return item?.yield != null ? Number(item.yield).toFixed(2) : '—';
+            })()}%</div>
           </div>
         </div>
       </div>

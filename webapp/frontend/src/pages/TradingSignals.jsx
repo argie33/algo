@@ -508,7 +508,7 @@ function SignalHeatmap({ rows }) {
                         <div style={TOOLTIP_STYLE}>
                           <div style={{ fontWeight: 'var(--w-semibold)' }}>{p.symbol} <span style={{ color: p.sig === 'BUY' ? 'var(--success)' : 'var(--danger)' }}>{p.sig}</span></div>
                           <div className="muted t-2xs">{p.sector}</div>
-                          <div className="t-2xs">${p.close.toFixed(2)} · SQS {p.sqs.toFixed(1)} · {p.age}d</div>
+                          <div className="t-2xs">${Number(p.close).toFixed(2)} · SQS {Number(p.sqs).toFixed(1)} · {p.age}d</div>
                         </div>
                       );
                     }} />
