@@ -6,10 +6,10 @@ environment  = "dev"
 aws_region   = "us-east-1"
 project_name = "algo"
 # Frontend origin for authentication redirects
-# Dynamically set from deployment environment via TF_VAR_frontend_origin
+# Dynamically set from deployment environment via TF_VAR_frontend_origin environment variable
 # Terraform module uses this for Cognito redirect URIs and similar CORS configurations
-# If empty, defaults to the CloudFront domain discovered at deployment time
-frontend_origin = ""
+# Default value: http://localhost:3000 (for local dev); overridden by TF_VAR_frontend_origin in GitHub Actions
+# GitHub Actions workflow sets this to the CloudFront domain at deployment time
 # Frontend deployment
 cloudfront_enabled = true # Enable CloudFront for AWS deployment (CORS origins include base API Gateway)
 # API Gateway CORS configuration - Dynamically set from deployment environment
