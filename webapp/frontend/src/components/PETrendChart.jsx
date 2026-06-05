@@ -40,17 +40,17 @@ export default function PETrendChart({ sectorName, industryName }) {
 
         <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} />
-            <YAxis label={{ value: "Avg Price ($)", angle: -90, position: "insideLeft" }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid #666", borderRadius: 4 }}
-              labelStyle={{ color: "#fff" }}
-              formatter={(value) => formatCurrency(value)}
-              labelFormatter={(label) => label}
-            />
-            <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" />
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} />
+              <YAxis label={{ value: "Avg Price ($)", angle: -90, position: "insideLeft" }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid #666", borderRadius: 4 }}
+                labelStyle={{ color: "#fff" }}
+                formatter={(value) => formatCurrency(value)}
+                labelFormatter={(label) => label}
+              />
+              <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" />
             </LineChart>
           </ResponsiveContainer>
         </Box>

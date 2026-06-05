@@ -193,7 +193,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
               </Grid>
 
               {/* Breadth Chart */}
-              <Box sx={{ height: 300, width: "100%" }}>
+              <Box sx={{ height: 300, width: "100%", minWidth: 0 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={breadthChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -258,7 +258,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
                 Moving Average Analysis
               </Typography>
 
-              <Box sx={{ height: 300, width: "100%", mb: 2 }}>
+              <Box sx={{ height: 300, width: "100%", mb: 2, minWidth: 0 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={maChartData}>
                     <CartesianGrid strokeDasharray="3 3" />

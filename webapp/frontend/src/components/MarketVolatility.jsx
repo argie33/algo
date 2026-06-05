@@ -146,7 +146,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                 <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                   Volatility Metrics
                 </Typography>
-                <Box sx={{ height: 300, width: "100%" }}>
+                <Box sx={{ height: 300, width: "100%", minWidth: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />

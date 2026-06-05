@@ -71,7 +71,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
             </div>
           </div>
           <div className="card-body">
-            <div style={{ height: 220 }}>
+            <div style={{ height: 220, minWidth: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={equityCurve} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
                   <defs>
@@ -98,7 +98,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
             <div className="card-title">Drawdown From Peak</div>
           </div>
           <div className="card-body">
-            <div style={{ height: 140 }}>
+            <div style={{ height: 140, minWidth: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={drawdownData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
                   <defs>

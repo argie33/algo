@@ -100,7 +100,8 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
         <Typography variant="h6" gutterBottom>
           {symbol} - Price History ({days} days)
         </Typography>
-        <ResponsiveContainer width="100%" height={300}>
+        <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" />
@@ -127,8 +128,9 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
               name="Low"
               opacity={0.5}
             />
-          </LineChart>
-        </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
+        </Box>
       </Paper>
 
       {/* Volume Chart */}
@@ -136,15 +138,17 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
         <Typography variant="h6" gutterBottom>
           Trading Volume
         </Typography>
-        <ResponsiveContainer width="100%" height={200}>
+        <Box sx={{ width: "100%", height: 200, minWidth: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" />
             <YAxis />
             <Tooltip />
             <Bar dataKey="volume" fill="#8884d8" name="Volume" />
-          </BarChart>
-        </ResponsiveContainer>
+            </BarChart>
+          </ResponsiveContainer>
+        </Box>
       </Paper>
     </Box>
   );
