@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_symbols_etf ON stock_symbols(etf);
 CREATE TABLE IF NOT EXISTS price_daily (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
+    date TEXT NOT NULL,
     open DECIMAL(12, 4),
     high DECIMAL(12, 4),
     low DECIMAL(12, 4),
@@ -1381,7 +1381,8 @@ CREATE TABLE IF NOT EXISTS algo_config (
 -- Market health daily (market breadth, distribution days, trend)
 CREATE TABLE IF NOT EXISTS market_health_daily (
     id SERIAL PRIMARY KEY,
-    date DATE NOT NULL UNIQUE,
+    date TEXT NOT NULL UNIQUE,
+    spy_close DECIMAL(12, 4),
     market_trend VARCHAR(20),
     market_stage INTEGER,
     distribution_days_4w INTEGER,

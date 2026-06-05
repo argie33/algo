@@ -1,22 +1,37 @@
 /**
- * Pipeline Module - Step Functions EOD Data Loading Pipeline
+ * Pipeline Module - Step Functions EOD & Morning Data Loading Pipelines
  *
- * Replaces 13 individual EventBridge cron rules with a dependency-driven
- * Step Functions state machine. Guarantees the orchestrator only runs when
+ * Replaces 13 individual EventBridge cron rules with dependency-driven
+ * Step Functions state machines. Guarantees the orchestrator only runs when
  * all signal data is actually ready, not on a fixed timer.
  *
- * EOD PIPELINE (4:05 PM ET):
- *   stock_symbols (reference data)
- *     → stock_prices_daily (unified price loader for all intervals/assets)
- *       → [parallel] technical_data_daily + market_health_daily
- *         → [parallel] trend_template_data
- *           → [parallel] buy_sell_daily + signal_quality_scores
- *             → algo_metrics_daily
- *               → swing_trader_scores
- *                 → Invoke algo orchestrator ECS task
+ * EOD PIPELINE (4:05 PM ET, 6h max execution):
+ *   stock_symbols (10 min, 600s timeout)
+ *     → stock_prices_daily (1.5-2h expected, 6h timeout = 21600s)
+ *       → [parallel] technical_data_daily (90 min expected, 3h timeout = 10800s)
+ *                  + market_health_daily (20 min expected, 20 min timeout = 1200s)
+ *         → trend_template_data (30 min expected, 90 min timeout = 5400s)
+ *           → buy_sell_daily (30 min expected, 90 min timeout = 5400s)
+ *             → signal_quality_scores (15 min expected, 2h timeout = 7200s)
+ *               → algo_metrics_daily (12 min expected, 2h timeout = 7200s)
+ *                 → swing_trader_scores (30+ min expected, 2h timeout = 7200s)
+ *                   → sector_ranking (15 min expected, 15 min timeout = 900s)
+ *                     → algo_orchestrator dry-run (20 min expected, 20 min timeout = 1200s)
  *
- * Note: stock_prices_daily runs ~6h for all 5000+ symbols across all intervals (1d, 1wk, 1mo).
- * technicals_daily uses cached prices; runs in parallel with market_health_daily.
+ * MORNING PIPELINE (3:30 AM ET, 5.5h max execution):
+ *   stock_prices_daily (daily only, 15 min expected, 75 min timeout = 4500s)
+ *     → [parallel] technical_data_daily (90 min expected, 90 min timeout = 5400s)
+ *                + market_health_daily (20 min expected, 20 min timeout = 1200s)
+ *       → buy_sell_daily (30 min expected, 45 min timeout = 2700s)
+ *         → [parallel] signal_quality_scores (15 min expected, 45 min timeout = 2700s)
+ *                    + swing_trader_scores (30+ min expected, 45 min timeout = 2700s)
+ *           → sector_ranking (15 min expected, 15 min timeout = 900s)
+ *
+ * TIMEOUT STRATEGY: Expected + 2-3x safety margin to catch slow queries without being excessive.
+ * - Fail fast on real failures (RDS unavailable, API errors) within 2-3x expected time
+ * - Don't mask failures with 8-10h timeouts (previous anti-pattern)
+ * - Monitor CloudWatch alarms if pipelines approach >80% of timeout (slow queries)
+ * - If consistently slow, check: RDS CPU/connections, yfinance API status, network latency
  */
 
 locals {
@@ -217,12 +232,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
-      # parallelism=8, batch=100, cpu=2048: ~1.5h expected (4× optimization), 4h timeout for safety.
-      # Timeout hierarchy: ECS container timeout (25200=7h) < Step Functions state timeout (27000=7.5h)
+      # parallelism=4, batch=100, cpu=2048: ~1.5-2h expected, 6h timeout for safety.
+      # Timeout hierarchy: ECS container timeout (25200=7h) < Step Functions state timeout (21600=6h)
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 28800
+        TimeoutSeconds = 21600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -276,7 +291,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
               TechnicalDataDaily = {
                 Type           = "Task"
                 Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 36000
+                TimeoutSeconds = 10800
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
@@ -413,12 +428,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 5: Generate daily signals ──────────────────────────
-      # parallelism=4: ~8 min expected, 3h timeout for safety.
+      # parallelism=4: ~8 min expected, 1.5h timeout for safety.
       # FIXED Issue #4: Graceful degradation — if signals fail, continue with available data
       SignalGeneration = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 10800
+        TimeoutSeconds = 5400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -463,13 +478,13 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 6: Signal quality scores (depends on signals_daily populating buy_sell_daily) ──
-      # parallelism=8: ~15 min expected, 2.5h timeout ensures full dataset processing.
+      # parallelism=8: ~15 min expected, 2h timeout ensures full dataset processing.
       # FIXED Issue #4: Graceful degradation — if quality scoring fails, continue with available data
       # FIXED 2026-06-02: Increased parallelism 4→8, timeout 3600→7200 to handle full 10k+ symbol dataset
       SignalQualityScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 9000
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -570,7 +585,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       SwingScores = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 9000
+        TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
@@ -832,10 +847,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 # ============================================================
 # Morning Prep Pipeline - Separate State Machine
 # FIXED Issue #5: Split morning and EOD pipelines to prevent signal double-generation
-# Morning (4:30 AM ET): Load prices → technicals + market health → signals
+# Morning (3:30 AM ET): Load prices → technicals + market health → signals → sector ranking
 # FIXED Issue #13: Signals NOT generated here; orchestrator regenerates at 9:30 AM using fresh data
 # FIXED 2026-06-02: Added market_health_daily to morning pipeline (was only in EOD).
-# If EOD pipeline fails, market health data went stale; now refreshed daily at 4:30 AM.
+# If EOD pipeline fails, market health data went stale; now refreshed daily at 3:30 AM.
+# FIXED 2026-06-05: Added sector_ranking to morning pipeline to ensure Phase 3/5 have current sector data
 # ============================================================
 
 resource "aws_sfn_state_machine" "morning_prep_pipeline" {
@@ -1093,9 +1109,43 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         ResultPath = null
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "MorningSuccess"
+          Next        = "MorningSectorRanking"
           ResultPath  = "$.scoresError"
         }]
+        Next = "MorningSectorRanking"
+      }
+
+      # ── Morning sector ranking (depends on swing_trader_scores) ──────────
+      # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
+      # Timeout 900 seconds (15 minutes) — same as EOD pipeline sector ranking.
+      MorningSectorRanking = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 900
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["sector_ranking"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogMorningSectorRankingFailure"
+          ResultPath  = "$.sectorError"
+        }]
+        Next = "MorningSuccess"
+      }
+
+      LogMorningSectorRankingFailure = {
+        Type     = "Pass"
+        # Fail-open: if sector ranking fails, still complete morning prep
+        # Phase 1 and Phase 5 will use previously cached sector data
         Next = "MorningSuccess"
       }
 
@@ -1246,10 +1296,11 @@ resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
 }
 
 # ============================================================
-# CloudWatch Alarm: alert if pipeline execution fails
+# CloudWatch Alarms: Pipeline Execution & Timeout Monitoring
 # ============================================================
 
-resource "aws_cloudwatch_metric_alarm" "pipeline_failed" {
+# Alert if EOD pipeline execution fails
+resource "aws_cloudwatch_metric_alarm" "eod_pipeline_failed" {
   count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${var.project_name}-eod-pipeline-failed-${var.environment}"
   alarm_description   = "EOD data pipeline execution failed — orchestrator may not have run"
@@ -1261,6 +1312,42 @@ resource "aws_cloudwatch_metric_alarm" "pipeline_failed" {
   evaluation_periods  = 1
   threshold           = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"
+  alarm_actions       = [var.sns_alert_topic_arn]
+  treat_missing_data  = "notBreaching"
+  tags                = var.common_tags
+}
+
+# Alert if EOD pipeline takes >8 hours (approaching Step Functions timeout)
+resource "aws_cloudwatch_metric_alarm" "eod_pipeline_slow" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-eod-pipeline-slow-${var.environment}"
+  alarm_description   = "EOD pipeline running slow (>8h). May timeout or miss orchestrator window."
+  namespace           = "AWS/States"
+  metric_name         = "ExecutionTime"
+  dimensions          = { StateMachineArn = aws_sfn_state_machine.eod_pipeline.arn }
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 28800 # 8 hours
+  comparison_operator = "GreaterThanThreshold"
+  alarm_actions       = [var.sns_alert_topic_arn]
+  treat_missing_data  = "notBreaching"
+  tags                = var.common_tags
+}
+
+# Alert if morning pipeline takes >5 hours (approaching 9:30 AM orchestrator start)
+resource "aws_cloudwatch_metric_alarm" "morning_pipeline_slow" {
+  count               = var.sns_alerts_enabled ? 1 : 0
+  alarm_name          = "${var.project_name}-morning-pipeline-slow-${var.environment}"
+  alarm_description   = "Morning pipeline running slow (>5h). May not complete before 9:30 AM orchestrator."
+  namespace           = "AWS/States"
+  metric_name         = "ExecutionTime"
+  dimensions          = { StateMachineArn = aws_sfn_state_machine.morning_prep_pipeline.arn }
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 18000 # 5 hours
+  comparison_operator = "GreaterThanThreshold"
   alarm_actions       = [var.sns_alert_topic_arn]
   treat_missing_data  = "notBreaching"
   tags                = var.common_tags
