@@ -222,7 +222,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 27000
+        TimeoutSeconds = 28800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
