@@ -468,6 +468,28 @@ All API errors return specific error types instead of generic "error" messages, 
 3. No code changes needed — system automatically uses updated calendar
 4. Verify NASDAQ/NYSE holiday calendar before adding (sometimes differs on observed dates)
 
+## Release Notes & Verification (2026-06-05)
+
+**Deployed Changes:**
+- Signal staleness tracking (buy_sell_daily_age_days, technical_data_age_days, trend_template_age_days columns)
+- Data patrol trigger verification (confirm ECS task reaches RUNNING state)
+- Morning prep pipeline timing advanced: 4:30 AM → 3:30 AM ET (+60 min safety margin)
+- RDS connection pool tuning documented (20 connections currently, headroom to 40-60)
+- Security: 9 npm vulnerabilities fixed (1 critical, 8 high)
+- Infrastructure: IAM role name corrected (6c7a96b5)
+
+**Verification Checklist (First 5 Business Days):**
+- ✓ 2026-06-06 3:30 AM: Morning prep triggers at new time, completes by 9:30 AM
+- ✓ 2026-06-06 4:05 PM: Signal staleness columns populated in database (non-NULL values)
+- ✓ 2026-06-06 through 2026-06-11: Signal rejection count trends downward, qualified signals increase
+- ✓ Daily: Lambda logs show no 401/403 errors (IAM role fix verification)
+- ✓ Daily: Phase 5 "FILTER REJECTION ANALYSIS" visible in logs confirming filter changes deployed
+
+**If Deployment Fails:**
+- Revert via: `git revert HEAD` + push to trigger automatic rollback
+- Estimated rollback time: 10-15 minutes
+- All changes are safe-to-revert (no breaking migrations, backward-compatible)
+
 ## Troubleshooting
 
 **Full dataset runs failing (stale data, rate limiting, timing):** System is designed to handle stale data, rate limiting, and timing constraints with multiple failsafes. If issues persist:
