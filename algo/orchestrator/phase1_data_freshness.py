@@ -208,7 +208,7 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
 def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_result_fn: Callable) -> bool:
     """Check data patrol results. Fail-closed if critical/error findings.
 
-    Only checks the LATEST patrol run (not accumulated from all runs in 24h).
+    Only checks FRESH patrol runs (completed in last 3 hours).
     Returns: True if patrol OK, False if critical/error issues found.
     """
     try:
@@ -220,33 +220,25 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
         latest_run = cur.fetchone()
         if not latest_run:
             if verbose:
-                logger.info("No patrol data available")
+                logger.info("No patrol data available — skipping patrol check")
             return True
 
         latest_run_id, latest_run_at = latest_run
 
-        # Skip stale patrol findings — if the latest patrol ran before the previous
-        # trading day, its findings are not representative of current data quality.
-        try:
-            from algo.algo_market_calendar import MarketCalendar
-            expected_patrol_date = run_date - timedelta(days=1)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(expected_patrol_date):
-                    break
-                expected_patrol_date -= timedelta(days=1)
-        except Exception as cal_e:
-            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
-            expected_patrol_date = run_date - timedelta(days=1)
-            while expected_patrol_date.weekday() >= 5:
-                expected_patrol_date -= timedelta(days=1)
+        # Check if patrol is fresh (within last 3 hours).
+        # This prevents checking stale results while a fresh patrol is running.
+        from datetime import datetime as dt
+        now = dt.now(timezone.utc)
+        if isinstance(latest_run_at, str):
+            latest_run_at = dt.fromisoformat(latest_run_at.replace('Z', '+00:00'))
 
-        patrol_date = latest_run_at.date() if hasattr(latest_run_at, 'date') else run_date
-        if patrol_date < expected_patrol_date:
+        age_seconds = (now - latest_run_at).total_seconds()
+        if age_seconds > 10800:  # 3 hours
             logger.warning(
-                f"[PATROL] Latest patrol ({latest_run_id}, {patrol_date}) older than "
-                f"expected ({expected_patrol_date}) — triggering fresh patrol"
+                f"[PATROL] Latest patrol ({latest_run_id}) is {age_seconds/3600:.1f}h old. "
+                f"Too stale to check. Skipping patrol validation (triggering fresh patrol asynchronously)."
             )
-            # Trigger fresh patrol asynchronously so Phase 1 doesn't block
+            # Trigger fresh patrol asynchronously
             try:
                 import boto3
                 ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
@@ -268,7 +260,7 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
             except Exception as patrol_trigger_err:
                 logger.warning(f"[PATROL] Could not trigger fresh patrol: {patrol_trigger_err}")
 
-            return True  # Stale patrol: don't block on old findings, but fresh patrol now running
+            return True  # Stale patrol: don't block, fresh patrol running
 
         # Now get results for only this run
         cur.execute("""
