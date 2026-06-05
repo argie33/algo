@@ -116,6 +116,39 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                         if task_state == 'RUNNING':
                             elapsed = time.time() - poll_start
                             logger.info(f"[FAILSAFE] ✓ Loader task {task_id} confirmed RUNNING after {elapsed:.1f}s")
+
+                            # Emit CloudWatch metric for ECS scheduling delay (how long from trigger to RUNNING)
+                            try:
+                                from algo.algo_metrics import MetricsPublisher
+                                metrics = MetricsPublisher()
+                                metrics.add_metric(
+                                    'LoaderSchedulingDelaySeconds',
+                                    elapsed,
+                                    unit='Seconds',
+                                    dimensions={'LoaderName': loader_name}
+                                )
+                                metrics.flush()
+                                if verbose:
+                                    logger.debug(f"[FAILSAFE] Published scheduling delay metric: {elapsed:.1f}s for {loader_name}")
+                            except Exception as metric_err:
+                                logger.debug(f"[FAILSAFE] Could not emit scheduling delay metric: {metric_err}")
+
+                            # Alert if delay exceeds 5 minutes (indicates ECS queue backlog or provisioning issues)
+                            if elapsed > 300:
+                                logger.warning(f"[FAILSAFE] ECS scheduling delay EXCESSIVE for {loader_name}: {elapsed/60:.1f} minutes")
+                                try:
+                                    from algo.algo_alerts import AlertManager
+                                    alerts = AlertManager()
+                                    alerts.send_position_alert(
+                                        'ECS',
+                                        'LONG_SCHEDULING_DELAY',
+                                        f'ECS task {loader_name} took {elapsed/60:.1f} min to reach RUNNING state. '
+                                        f'This may indicate ECS cluster congestion or provisioning delays.',
+                                        {'loader': loader_name, 'delay_seconds': elapsed}
+                                    )
+                                except Exception as alert_err:
+                                    logger.debug(f"[FAILSAFE] Could not send scheduling delay alert: {alert_err}")
+
                             return True
                         elif task_state in ('DEPROVISIONING', 'STOPPING', 'DEACTIVATING', 'STOPPED', 'DELETED'):
                             logger.warning(f"[FAILSAFE] Task {task_id} stopped prematurely: {task_state}")
