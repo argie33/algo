@@ -63,6 +63,7 @@ class OptimalLoader(ABC):
             "source_distribution": {},
         }
         self._setup_signal_handlers()
+        self._validate_runtime_config()
 
     def _setup_signal_handlers(self) -> None:
         """Register SIGTERM handler for graceful shutdown on ECS task termination."""
@@ -72,6 +73,40 @@ class OptimalLoader(ABC):
                     self._shutdown_requested = True
                     logger.warning(f"[{self.table_name}] SIGTERM received - graceful shutdown requested")
         signal.signal(signal.SIGTERM, handle_shutdown)
+
+    def _validate_runtime_config(self) -> None:
+        """Validate runtime configuration to detect infrastructure drift.
+
+        Checks:
+        1. LOADER_PARALLELISM env var is set and has a reasonable value
+        2. Logs parallelism for operational visibility
+        Warnings if values seem wrong (but doesn't block execution)
+        """
+        try:
+            loader_parallelism = os.getenv("LOADER_PARALLELISM", "")
+            if loader_parallelism:
+                try:
+                    parallelism_value = int(loader_parallelism)
+                    if parallelism_value < 1 or parallelism_value > 32:
+                        logger.warning(
+                            f"[CONFIG] LOADER_PARALLELISM={parallelism_value} is outside normal range (1-32). "
+                            f"Check Terraform task definition (terraform/modules/loaders/main.tf)."
+                        )
+                    logger.info(f"[CONFIG] LOADER_PARALLELISM={parallelism_value}")
+                except ValueError:
+                    logger.warning(f"[CONFIG] LOADER_PARALLELISM='{loader_parallelism}' is not a valid integer")
+            else:
+                logger.warning(
+                    f"[CONFIG] LOADER_PARALLELISM not set in environment. "
+                    f"Using default. Check ECS task environment variables."
+                )
+
+            # Log other critical environment variables for diagnostics
+            aws_region = os.getenv("AWS_REGION", "not set")
+            db_name = os.getenv("DB_NAME", "not set")
+            logger.debug(f"[CONFIG] AWS_REGION={aws_region}, DB_NAME={db_name}")
+        except Exception as e:
+            logger.debug(f"[CONFIG] Runtime validation check failed: {e}")
 
     def _check_shutdown_requested(self) -> bool:
         """Check if graceful shutdown was requested."""
