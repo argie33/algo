@@ -1477,6 +1477,7 @@ CREATE TABLE IF NOT EXISTS signal_quality_scores (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
+CREATE INDEX IF NOT EXISTS idx_signal_quality_scores_symbol_date ON signal_quality_scores(symbol, date);
 
 -- Data completeness score per symbol
 CREATE TABLE IF NOT EXISTS data_completeness_scores (
