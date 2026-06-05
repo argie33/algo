@@ -633,8 +633,7 @@ def require_auth(event: Dict, path: str) -> tuple:
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {
-        # NOTE: /health and /api/health (exact) are handled by early return in lambda_handler
-        # before require_auth is called, so they do NOT need to be listed here.
+        '/api/health',  # Basic health check (no auth required for uptime monitoring)
         # /api/health/detailed and /api/health/pipeline intentionally require authentication
         # (they expose DB table names, loader names, row counts, freshness ages).
         '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
