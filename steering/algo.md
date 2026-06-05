@@ -204,6 +204,13 @@ Run this daily to track trends. Alert if any step consistently takes >80% of all
 - Phase 1 grace period: allows stale data at market open but HALTS if stale at intraday runs (1 PM, 3 PM, 5:30 PM)
 - If morning prep consistently misses the window: increase ECS task resources or split into parallel branches
 
+**Pipeline Isolation Constraint:**
+- EOD pipeline: 4:05 PM ET, normally completes by 5:30 PM (1.5 hours). Worst case: 6 hours if yfinance rate-limited or RDS slow.
+- Morning prep pipeline: 3:30 AM ET, requires ~5 hours to complete before 9:30 AM market open.
+- **No direct overlap** (4 PM finish → 3:30 AM start = 11.5 hours), but if EOD exceeds 7 hours, both pipelines compete for RDS connections during 9:30-10:30 AM window.
+- **Current safeguard:** None explicit. Assumes EOD finishes by ~5:30 PM.
+- **Risk mitigation:** Monitor CloudWatch RDS metrics (DatabaseConnections) during 9:30-10:30 AM window. If consistently >80 connections, either: (1) Reduce EOD parallelism further, (2) Advance morning prep start to 3:15 AM, or (3) Implement explicit guard to wait for EOD completion.
+
 ## Loader Execution Time Monitoring & Timeout Prevention
 
 **Current Design:**
