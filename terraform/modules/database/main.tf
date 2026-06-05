@@ -212,20 +212,18 @@ resource "aws_db_parameter_group" "postgres" {
 # - Prevents "too many connections" errors during peak load (EOD or morning prep)
 
 resource "aws_db_proxy" "main" {
-  name                   = "${var.project_name}-rds-proxy-${var.environment}"
-  engine_family          = "POSTGRESQL"
+  name                           = "${var.project_name}-rds-proxy-${var.environment}"
+  engine_family                  = "POSTGRESQL"
   auth {
     auth_scheme = "SECRETS"
     secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
   }
-  role_arn               = aws_iam_role.rds_proxy.arn
-  vpc_subnet_ids         = var.private_subnet_ids  # FIXED: was db_subnet_group_name
-  vpc_security_group_ids = [var.rds_security_group_id]
-  max_db_connections     = 500  # FIXED: was max_connections
-  max_idle_connections   = 100
-  session_pinning_filters = []
-  init_query             = ""
-  connection_borrow_timeout = 120
+  role_arn                       = aws_iam_role.rds_proxy.arn
+  vpc_subnet_ids                 = var.private_subnet_ids
+  vpc_security_group_ids         = [var.rds_security_group_id]
+  max_db_connection_percentage   = 100  # Use 100% of database connection limit
+  max_idle_connections_percent   = 50   # Keep 50% of connections idle for reuse
+  connection_borrow_timeout      = 120
 
   require_tls = false  # Set true in production for encrypted connections
 
@@ -272,9 +270,8 @@ resource "aws_iam_role_policy" "rds_proxy_secrets" {
 
 # RDS Proxy Target Group
 resource "aws_db_proxy_target" "main" {
-  db_proxy_name           = aws_db_proxy.main.name
-  target_arn              = aws_db_instance.main.arn
-  db_parameter_group_name = aws_db_parameter_group.postgres.name
+  db_proxy_name = aws_db_proxy.main.name
+  target_arn    = aws_db_instance.main.arn
 }
 
 # ============================================================
