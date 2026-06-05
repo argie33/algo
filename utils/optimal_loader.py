@@ -1,5 +1,3 @@
-
-
 import csv
 import io
 import logging
@@ -17,6 +15,7 @@ from typing import Any, Iterable, List, Optional, Sequence
 from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
+
 
 class OptimalLoader(ABC):
     """Base class for production-grade loaders.
@@ -38,7 +37,9 @@ class OptimalLoader(ABC):
     table_name: str = ""
     primary_key: Sequence[str] = ()
     watermark_field: str = "date"
-    chunk_size: int = 10_000  # Increased from 5_000 for faster bulk inserts (fewer round trips to DB)
+    chunk_size: int = (
+        10_000  # Increased from 5_000 for faster bulk inserts (fewer round trips to DB)
+    )
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
     def __init__(self, backfill_days: Optional[int] = None):
@@ -46,7 +47,9 @@ class OptimalLoader(ABC):
         self._watermark = None
         self._router = None
         self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
-        self._schema_cols_cache: Optional[List[str]] = None  # cached column list for _bulk_insert
+        self._schema_cols_cache: Optional[List[str]] = (
+            None  # cached column list for _bulk_insert
+        )
         self._constraint_checked = False  # track if we've verified/fixed constraint
         self._stats_lock = threading.Lock()
         self._shutdown_requested = False
@@ -67,11 +70,15 @@ class OptimalLoader(ABC):
 
     def _setup_signal_handlers(self) -> None:
         """Register SIGTERM handler for graceful shutdown on ECS task termination."""
+
         def handle_shutdown(signum, frame):
             with self._shutdown_lock:
                 if not self._shutdown_requested:
                     self._shutdown_requested = True
-                    logger.warning(f"[{self.table_name}] SIGTERM received - graceful shutdown requested")
+                    logger.warning(
+                        f"[{self.table_name}] SIGTERM received - graceful shutdown requested"
+                    )
+
         signal.signal(signal.SIGTERM, handle_shutdown)
 
     def _validate_runtime_config(self) -> None:
@@ -94,11 +101,13 @@ class OptimalLoader(ABC):
                         )
                     logger.info(f"[CONFIG] LOADER_PARALLELISM={parallelism_value}")
                 except ValueError:
-                    logger.warning(f"[CONFIG] LOADER_PARALLELISM='{loader_parallelism}' is not a valid integer")
+                    logger.warning(
+                        f"[CONFIG] LOADER_PARALLELISM='{loader_parallelism}' is not a valid integer"
+                    )
             else:
                 logger.warning(
-                    f"[CONFIG] LOADER_PARALLELISM not set in environment. "
-                    f"Using default. Check ECS task environment variables."
+                    "[CONFIG] LOADER_PARALLELISM not set in environment. "
+                    "Using default. Check ECS task environment variables."
                 )
 
             # Log other critical environment variables for diagnostics
@@ -115,9 +124,13 @@ class OptimalLoader(ABC):
 
     # ---- Subclass interface ----
 
-    def fetch_incremental(self, symbol: str, since: Optional[date]) -> Optional[List[dict]]:
+    def fetch_incremental(
+        self, symbol: str, since: Optional[date]
+    ) -> Optional[List[dict]]:
         """Return rows newer than `since` for the given symbol. Override for per-symbol loaders."""
-        raise NotImplementedError("Implement fetch_incremental (per-symbol) or fetch_global (market-wide)")
+        raise NotImplementedError(
+            "Implement fetch_incremental (per-symbol) or fetch_global (market-wide)"
+        )
 
     def fetch_global(self, since: Optional[date]) -> Optional[List[dict]]:
         """Return new rows for market-wide data (no symbol dimension). Override for global loaders."""
@@ -131,7 +144,9 @@ class OptimalLoader(ABC):
         """Derive new watermark from inserted rows. Default = max(watermark_field)."""
         if not rows:
             return None
-        values = [r.get(self.watermark_field) for r in rows if r.get(self.watermark_field)]
+        values = [
+            r.get(self.watermark_field) for r in rows if r.get(self.watermark_field)
+        ]
         return max(values) if values else None
 
     # ---- Lazy infrastructure ----
@@ -140,6 +155,7 @@ class OptimalLoader(ABC):
     def router(self):
         if self._router is None:
             from utils.data_source_router import DataSourceRouter
+
             self._router = DataSourceRouter()
         return self._router
 
@@ -180,12 +196,15 @@ class OptimalLoader(ABC):
         self._constraint_checked = True
         try:
             # Check if table exists
-            cur.execute("""
+            cur.execute(
+                """
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.tables
                 WHERE table_name = %s AND table_schema = 'public'
             )
-            """, (self.table_name,))
+            """,
+                (self.table_name,),
+            )
 
             row = cur.fetchone()
             if not row[0]:
@@ -193,49 +212,66 @@ class OptimalLoader(ABC):
                 return
 
             # Check if a UNIQUE constraint already exists on primary_key columns
-            pk_cols = ','.join(self.primary_key)
-            cur.execute("""
+            pk_cols = ",".join(self.primary_key)
+            cur.execute(
+                """
             SELECT constraint_name
             FROM information_schema.table_constraints
             WHERE table_name = %s
             AND constraint_type IN ('UNIQUE', 'PRIMARY KEY')
             AND table_schema = 'public'
-            """, (self.table_name,))
+            """,
+                (self.table_name,),
+            )
 
             existing_constraints = [r[0] for r in cur.fetchall()]
 
             # Check if any constraint covers all our primary_key columns
             for constraint in existing_constraints:
-                cur.execute("""
+                cur.execute(
+                    """
                 SELECT column_name
                 FROM information_schema.key_column_usage
                 WHERE constraint_name = %s AND table_schema = 'public'
                 ORDER BY ordinal_position
-                """, (constraint,))
+                """,
+                    (constraint,),
+                )
 
                 constraint_cols = [r[0] for r in cur.fetchall()]
                 if set(constraint_cols) == set(self.primary_key):
-                    logger.debug(f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})")
+                    logger.debug(
+                        f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})"
+                    )
                     return
 
             # Also check unique indexes created via CREATE UNIQUE INDEX — these don't appear
             # in information_schema.table_constraints but are valid for ON CONFLICT clauses.
-            cur.execute("""
+            cur.execute(
+                """
             SELECT indexname, indexdef FROM pg_indexes
             WHERE tablename = %s AND indexdef ILIKE '%%UNIQUE%%'
-            """, (self.table_name,))
+            """,
+                (self.table_name,),
+            )
             for idx_name, idx_def in cur.fetchall():
-                idx_cols_str = idx_def.split('(', 1)[-1].rstrip(')')
-                idx_cols = set(c.strip().strip('"').lower() for c in idx_cols_str.split(','))
+                idx_cols_str = idx_def.split("(", 1)[-1].rstrip(")")
+                idx_cols = set(
+                    c.strip().strip('"').lower() for c in idx_cols_str.split(",")
+                )
                 pk_col_set = set(c.lower() for c in self.primary_key)
                 if idx_cols == pk_col_set:
-                    logger.debug(f"Unique index {idx_name} already covers {self.table_name}({pk_cols})")
+                    logger.debug(
+                        f"Unique index {idx_name} already covers {self.table_name}({pk_cols})"
+                    )
                     return
 
             # No matching constraint or unique index found � create one
             constraint_name = f"{self.table_name}_{'_'.join(self.primary_key)}_unique"
             try:
-                logger.info(f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})")
+                logger.info(
+                    f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})"
+                )
                 cur.execute(f"""
                 ALTER TABLE {self.table_name}
                 ADD CONSTRAINT {constraint_name}
@@ -255,7 +291,13 @@ class OptimalLoader(ABC):
 
     # ---- Insert path: COPY for bulk + ON CONFLICT for safety ----
 
-    def _bulk_insert(self, rows: List[dict], symbol: Optional[str] = None, new_watermark: Optional[date] = None, watermark_mgr=None) -> int:
+    def _bulk_insert(
+        self,
+        rows: List[dict],
+        symbol: Optional[str] = None,
+        new_watermark: Optional[date] = None,
+        watermark_mgr=None,
+    ) -> int:
         """Bulk insert rows and atomically update watermark if provided.
 
         M4 FIX: Watermark is persisted in the same transaction as data to prevent
@@ -274,7 +316,7 @@ class OptimalLoader(ABC):
         import io
         import csv
 
-        with DatabaseContext('write') as cur:
+        with DatabaseContext("write") as cur:
             # Ensure the unique constraint exists (one-time per loader instance)
             self._ensure_unique_constraint(cur)
 
@@ -293,7 +335,11 @@ class OptimalLoader(ABC):
                 all_data_cols = list(rows[0].keys())
                 skipped = [c for c in all_data_cols if c not in existing_cols]
                 if skipped:
-                    logger.warning("Loader %s: skipping columns not in DB schema: %s", self.table_name, skipped)
+                    logger.warning(
+                        "Loader %s: skipping columns not in DB schema: %s",
+                        self.table_name,
+                        skipped,
+                    )
                 columns = [c for c in all_data_cols if c in existing_cols]
                 if not columns:
                     raise ValueError(f"No valid columns to write for {self.table_name}")
@@ -303,30 +349,38 @@ class OptimalLoader(ABC):
 
             # Use UUID for guaranteed uniqueness across concurrent executions
             # (avoids type name collisions in pg_type when millisecond-level timing aligns)
-            unique_id = str(uuid.uuid4()).replace('-', '')[:12]
+            unique_id = str(uuid.uuid4()).replace("-", "")[:12]
             staging = f"_stage_{self.table_name}_{unique_id}"
 
             try:
                 cur.execute(
-                    psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
+                    psycopg2.sql.SQL(
+                        "CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)"
+                    ).format(
                         psycopg2.sql.Identifier(staging),
-                        psycopg2.sql.Identifier(self.table_name)
+                        psycopg2.sql.Identifier(self.table_name),
                     )
                 )
             except psycopg2.Error as e:
                 if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
                     try:
-                        cur.execute(psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
-                            psycopg2.sql.Identifier(staging)
-                        ))
+                        cur.execute(
+                            psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
+                                psycopg2.sql.Identifier(staging)
+                            )
+                        )
                     except psycopg2.Error as drop_err:
-                        logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
-                    unique_id = str(uuid.uuid4()).replace('-', '')[:12]
+                        logger.warning(
+                            f"Failed to drop staging table {staging}: {drop_err}"
+                        )
+                    unique_id = str(uuid.uuid4()).replace("-", "")[:12]
                     staging = f"_stage_{self.table_name}_{unique_id}"
                     cur.execute(
-                        psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
+                        psycopg2.sql.SQL(
+                            "CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)"
+                        ).format(
                             psycopg2.sql.Identifier(staging),
-                            psycopg2.sql.Identifier(self.table_name)
+                            psycopg2.sql.Identifier(self.table_name),
                         )
                     )
                 else:
@@ -339,24 +393,29 @@ class OptimalLoader(ABC):
             buf.seek(0)
             col_ids = [psycopg2.sql.Identifier(c) for c in columns]
             cur.copy_expert(
-                psycopg2.sql.SQL("COPY {} ({}) FROM STDIN WITH (FORMAT CSV, NULL '')").format(
+                psycopg2.sql.SQL(
+                    "COPY {} ({}) FROM STDIN WITH (FORMAT CSV, NULL '')"
+                ).format(
                     psycopg2.sql.Identifier(staging),
-                    psycopg2.sql.SQL(",").join(col_ids)
+                    psycopg2.sql.SQL(",").join(col_ids),
                 ),
                 buf,
             )
 
             update_parts = [
                 psycopg2.sql.SQL("{} = EXCLUDED.{}").format(
-                    psycopg2.sql.Identifier(c),
-                    psycopg2.sql.Identifier(c)
-                ) for c in columns if c not in self.primary_key
+                    psycopg2.sql.Identifier(c), psycopg2.sql.Identifier(c)
+                )
+                for c in columns
+                if c not in self.primary_key
             ]
             if update_parts:
                 pk_ids = [psycopg2.sql.Identifier(pk) for pk in self.primary_key]
-                on_conflict = psycopg2.sql.SQL("ON CONFLICT ({}) DO UPDATE SET {}").format(
+                on_conflict = psycopg2.sql.SQL(
+                    "ON CONFLICT ({}) DO UPDATE SET {}"
+                ).format(
                     psycopg2.sql.SQL(",").join(pk_ids),
-                    psycopg2.sql.SQL(",").join(update_parts)
+                    psycopg2.sql.SQL(",").join(update_parts),
                 )
             else:
                 on_conflict = psycopg2.sql.SQL("ON CONFLICT DO NOTHING")
@@ -367,14 +426,16 @@ class OptimalLoader(ABC):
                     psycopg2.sql.SQL(",").join(col_ids),
                     psycopg2.sql.SQL(",").join(col_ids),
                     psycopg2.sql.Identifier(staging),
-                    on_conflict
+                    on_conflict,
                 )
             )
             inserted = cur.rowcount
 
-            cur.execute(psycopg2.sql.SQL("DROP TABLE {}").format(
-                psycopg2.sql.Identifier(staging)
-            ))
+            cur.execute(
+                psycopg2.sql.SQL("DROP TABLE {}").format(
+                    psycopg2.sql.Identifier(staging)
+                )
+            )
 
             if symbol and new_watermark:
                 if watermark_mgr:
@@ -383,7 +444,7 @@ class OptimalLoader(ABC):
                         new_watermark=new_watermark,
                         symbol=symbol,
                         rows_loaded=inserted,
-                        in_transaction=True  # Will commit with rest of transaction
+                        in_transaction=True,  # Will commit with rest of transaction
                     )
                 else:
                     # Fallback to in-memory store
@@ -401,7 +462,7 @@ class OptimalLoader(ABC):
 
         # If backfill window is set, use that instead of watermark
         if self._backfill_days > 0:
-            previous_date = (datetime.now().date() - timedelta(days=self._backfill_days))
+            previous_date = datetime.now().date() - timedelta(days=self._backfill_days)
         else:
             previous = wm_store.get(symbol) if wm_store else None
             previous_date = self._parse_watermark_date(previous)
@@ -440,11 +501,13 @@ class OptimalLoader(ABC):
         # Bulk insert in chunks, passing watermark for atomic persistence
         inserted = 0
         for i, chunk_start in enumerate(range(0, len(rows), self.chunk_size)):
-            chunk = rows[chunk_start:chunk_start + self.chunk_size]
+            chunk = rows[chunk_start : chunk_start + self.chunk_size]
             # Pass watermark only on last chunk to avoid overwriting with partial watermark
-            is_final_chunk = (chunk_start + self.chunk_size >= len(rows))
+            is_final_chunk = chunk_start + self.chunk_size >= len(rows)
             chunk_wm = new_wm if is_final_chunk else None
-            inserted += self._bulk_insert(chunk, symbol=symbol if is_final_chunk else None, new_watermark=chunk_wm)
+            inserted += self._bulk_insert(
+                chunk, symbol=symbol if is_final_chunk else None, new_watermark=chunk_wm
+            )
 
         if dedup and self.primary_key:
             for row in rows:
@@ -455,10 +518,7 @@ class OptimalLoader(ABC):
         return inserted
 
     def _dedup_filter(self, dedup, rows: List[dict]) -> List[dict]:
-        keys = [
-            ":".join(str(r.get(c, "")) for c in self.primary_key)
-            for r in rows
-        ]
+        keys = [":".join(str(r.get(c, "")) for c in self.primary_key) for r in rows]
         return [r for r, k in zip(rows, keys) if not dedup.exists(k)]
 
     def _validate_row(self, row: dict) -> bool:
@@ -478,7 +538,12 @@ class OptimalLoader(ABC):
 
     # ---- Top-level orchestration ----
 
-    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: Optional[int] = None) -> dict:
+    def run(
+        self,
+        symbols: Iterable[str],
+        parallelism: int = 1,
+        backfill_days: Optional[int] = None,
+    ) -> dict:
         """Execute load across symbols. Returns stats dict.
 
         Args:
@@ -491,8 +556,14 @@ class OptimalLoader(ABC):
         lock_manager = None
         try:
             from utils.dynamodb_lock_manager import DynamoDBLockManager
-            lock_table = os.getenv('LOADER_LOCKS_TABLE', f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}')
-            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
+
+            lock_table = os.getenv(
+                "LOADER_LOCKS_TABLE",
+                f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}',
+            )
+            lock_manager = DynamoDBLockManager(
+                table_name=lock_table, lock_duration_seconds=1800
+            )
             acquired = lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5)
             if not acquired:
                 logger.warning(
@@ -501,7 +572,11 @@ class OptimalLoader(ABC):
                 )
                 return self._stats
         except Exception as _lock_err:
-            logger.warning("[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)", self.table_name, _lock_err)
+            logger.warning(
+                "[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)",
+                self.table_name,
+                _lock_err,
+            )
             lock_manager = None
 
         try:
@@ -510,10 +585,15 @@ class OptimalLoader(ABC):
 
             start = time.time()
             symbols = list(symbols)
-            mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
+            mode = (
+                f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
+            )
             logger.info(
                 "[%s] Starting load: %d symbols (parallelism=%d)%s",
-                self.table_name, len(symbols), parallelism, mode,
+                self.table_name,
+                len(symbols),
+                parallelism,
+                mode,
             )
 
             if parallelism == 1:
@@ -539,13 +619,14 @@ class OptimalLoader(ABC):
 
             try:
                 from algo.algo_metrics import MetricsPublisher
+
                 with MetricsPublisher() as m:
                     m.put_loader_result(self.table_name, self._stats)
             except Exception as e:
                 logger.debug("metrics unavailable: %s", e)
 
             try:
-                with DatabaseContext('read') as cur:
+                with DatabaseContext("read") as cur:
                     if self.watermark_field:
                         cur.execute(
                             f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
@@ -555,23 +636,25 @@ class OptimalLoader(ABC):
                     result = cur.fetchone()
                     total_rows = result[0] if result else 0
                     latest_date = result[1] if result else None
-                    if hasattr(latest_date, 'date'):
+                    if hasattr(latest_date, "date"):
                         latest_date = latest_date.date()
 
-                with DatabaseContext('write') as cur:
+                with DatabaseContext("write") as cur:
                     # Use DELETE + INSERT for robustness — avoids ON CONFLICT constraint
                     # dependency (works even if PRIMARY KEY was added after initial creation)
                     cur.execute(
                         "DELETE FROM data_loader_status WHERE table_name = %s",
-                        (self.table_name,)
+                        (self.table_name,),
                     )
                     cur.execute(
                         "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
                         "VALUES (%s, %s, %s, NOW())",
-                        (self.table_name, total_rows, latest_date)
+                        (self.table_name, total_rows, latest_date),
                     )
             except Exception as e:
-                logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+                logger.warning(
+                    f"Failed to update data_loader_status for {self.table_name}: {e}"
+                )
 
             return self._stats
         finally:
@@ -601,8 +684,14 @@ class OptimalLoader(ABC):
         lock_manager = None
         try:
             from utils.dynamodb_lock_manager import DynamoDBLockManager
-            lock_table = os.getenv('LOADER_LOCKS_TABLE', f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}')
-            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
+
+            lock_table = os.getenv(
+                "LOADER_LOCKS_TABLE",
+                f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}',
+            )
+            lock_manager = DynamoDBLockManager(
+                table_name=lock_table, lock_duration_seconds=1800
+            )
             acquired = lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5)
             if not acquired:
                 logger.warning(
@@ -611,7 +700,11 @@ class OptimalLoader(ABC):
                 )
                 return 0
         except Exception as _lock_err:
-            logger.warning("[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)", self.table_name, _lock_err)
+            logger.warning(
+                "[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)",
+                self.table_name,
+                _lock_err,
+            )
             lock_manager = None
 
         try:
@@ -621,14 +714,20 @@ class OptimalLoader(ABC):
             # Get current watermark from DB so fetch_global can do incremental loads
             since = None
             try:
-                with DatabaseContext('read') as cur:
+                with DatabaseContext("read") as cur:
                     cur.execute(
                         f"SELECT MAX({self.watermark_field}) FROM {self.table_name}"
                     )
                     row = cur.fetchone()
-                    since = self._parse_watermark_date(row[0]) if row and row[0] else None
+                    since = (
+                        self._parse_watermark_date(row[0]) if row and row[0] else None
+                    )
             except Exception as e:
-                logger.warning("[%s] Could not read watermark: %s — doing full refresh", self.table_name, e)
+                logger.warning(
+                    "[%s] Could not read watermark: %s — doing full refresh",
+                    self.table_name,
+                    e,
+                )
 
             rows = self.fetch_global(since)
             if not rows:
@@ -639,29 +738,38 @@ class OptimalLoader(ABC):
             inserted = self._bulk_insert(rows)
 
             duration = round(time.time() - start, 2)
-            logger.info("[%s] load_global done: %d rows inserted in %.1fs", self.table_name, inserted, duration)
+            logger.info(
+                "[%s] load_global done: %d rows inserted in %.1fs",
+                self.table_name,
+                inserted,
+                duration,
+            )
 
             # Update data_loader_status
             try:
-                with DatabaseContext('read') as cur:
-                    cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+                    )
                     result = cur.fetchone()
                     total_rows = result[0] if result else 0
                     latest_date = result[1] if result else None
-                    if hasattr(latest_date, 'date'):
+                    if hasattr(latest_date, "date"):
                         latest_date = latest_date.date()
-                with DatabaseContext('write') as cur:
+                with DatabaseContext("write") as cur:
                     cur.execute(
                         "DELETE FROM data_loader_status WHERE table_name = %s",
-                        (self.table_name,)
+                        (self.table_name,),
                     )
                     cur.execute(
                         "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated) "
                         "VALUES (%s, %s, %s, NOW())",
-                        (self.table_name, total_rows, latest_date)
+                        (self.table_name, total_rows, latest_date),
                     )
             except Exception as e:
-                logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+                logger.warning(
+                    f"Failed to update data_loader_status for {self.table_name}: {e}"
+                )
 
             return inserted
         finally:
@@ -674,14 +782,16 @@ class OptimalLoader(ABC):
     def _run_serial(self, symbols: List[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
             if self._check_shutdown_requested():
-                logger.warning(f"[{self.table_name}] Graceful shutdown - stopping after {i-1} symbols")
+                logger.warning(
+                    f"[{self.table_name}] Graceful shutdown - stopping after {i-1} symbols"
+                )
                 break
 
             # Keep connection alive by testing it periodically
             # Long-running loaders (30+ min) need to refresh the connection to avoid idle timeout
             if i % 50 == 0:
                 try:
-                    with DatabaseContext('read') as cur:
+                    with DatabaseContext("read") as cur:
                         cur.execute("SELECT 1")
                 except Exception as e:
                     logger.debug(f"Connection health check failed: {e}. Reconnecting.")
@@ -692,13 +802,16 @@ class OptimalLoader(ABC):
 
     def _run_parallel(self, symbols: List[str], workers: int) -> None:
         from concurrent.futures import ThreadPoolExecutor, as_completed
+
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}
             done = 0
             last_health_check = time.time()
             for fut in as_completed(futures):
                 if self._check_shutdown_requested():
-                    logger.warning(f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks")
+                    logger.warning(
+                        f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks"
+                    )
                     for f in futures:
                         f.cancel()
                     break
@@ -708,10 +821,12 @@ class OptimalLoader(ABC):
                 now = time.time()
                 if now - last_health_check > 120:  # Every 2 minutes
                     try:
-                        with DatabaseContext('read') as cur:
+                        with DatabaseContext("read") as cur:
                             cur.execute("SELECT 1")
                     except Exception as e:
-                        logger.debug(f"Connection health check failed: {e}. Reconnecting.")
+                        logger.debug(
+                            f"Connection health check failed: {e}. Reconnecting."
+                        )
                     last_health_check = now
 
                 if done % 100 == 0:
@@ -724,4 +839,3 @@ class OptimalLoader(ABC):
         except Exception as e:
             self._stats["symbols_failed"] += 1
             logger.error("[%s] %s failed: %s", self.table_name, symbol, e)
-
