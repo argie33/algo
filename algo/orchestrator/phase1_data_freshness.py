@@ -1103,7 +1103,22 @@ def run(
     Returns:
         PhaseResult with status and data
     """
+    phase1_start = time.time()
     logger.debug(f"Phase 1: Starting data freshness check for run_date={run_date}")
+
+    # ISSUE #4 FIX: Log timing context for morning pipeline
+    from datetime import datetime as dt, timezone as tz, timedelta as td
+    now_et = dt.now(tz.utc).astimezone(tz(td(hours=-5)))
+    hour_et = now_et.hour
+    minute_et = now_et.minute
+
+    is_morning = 3 <= hour_et < 11  # 3:30 AM - 10:59 AM ET
+    if is_morning:
+        market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+        min_until_open = (market_open - now_et).total_seconds() / 60
+        logger.info(f"[TIMING] Morning pipeline: {now_et.strftime('%H:%M')} ET, "
+                   f"{min_until_open:.0f}min to market open. Est. {4.25*60:.0f}min needed (4.25h). "
+                   f"Buffer: {max(0, min_until_open - 255):.0f}min")
 
     try:
         # Pre-flight: validate schema and RDS connection pool before proceeding
@@ -1811,7 +1826,7 @@ def run(
         except Exception as sector_err:
             logger.debug(f"[SECTOR_RANKING] Check failed: {sector_err} (proceeding)")
 
-        # MORNING PREP VISIBILITY: Check if morning pipeline (3:30 AM) actually ran today
+        # MORNING PREP VISIBILITY: Check if morning pipeline (2:45 AM) actually ran today
         # If it's 9:30 AM+ and buy_sell_daily/signal_quality_scores haven't been updated since yesterday,
         # morning prep failed silently and we should halt or alert.
         try:
@@ -1820,11 +1835,11 @@ def run(
 
             if is_9am_or_later:
                 # At 9:30 AM or later, check if morning pipeline ran (should have updated signals)
-                morning_pipeline_cutoff = run_date.replace(hour=3, minute=30, second=0, microsecond=0)
+                morning_pipeline_cutoff = run_date.replace(hour=2, minute=45, second=0, microsecond=0)
                 with DatabaseContext('read') as _morning_cur:
                     _morning_cur.execute("SET statement_timeout = 5000")
 
-                    # Check if buy_sell_daily was updated since 3:30 AM this morning
+                    # Check if buy_sell_daily was updated since 2:45 AM this morning
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM buy_sell_daily
                         WHERE updated_at >= %s
@@ -1832,12 +1847,12 @@ def run(
                     buys_updated = _morning_cur.fetchone()[0]
 
                     if not buys_updated:
-                        logger.warning(f"[MORNING PREP] buy_sell_daily was NOT updated since 3:30 AM (morning prep may have failed)")
+                        logger.warning(f"[MORNING PREP] buy_sell_daily was NOT updated since 2:45 AM (morning prep may have failed)")
                         logger.warning(f"  Check Step Functions: algo-morning-prep-pipeline or scheduled EventBridge trigger")
                         alerts.send_position_alert(
                             'PIPELINE',
                             'MORNING_PREP_POTENTIAL_FAILURE',
-                            f'buy_sell_daily has not been refreshed since 3:30 AM. Morning prep pipeline may have failed. '
+                            f'buy_sell_daily has not been refreshed since 2:45 AM. Morning prep pipeline may have failed. '
                             f'Check Step Functions logs.',
                             {'last_update': str(buys_updated), 'cutoff': str(morning_pipeline_cutoff)}
                         )
@@ -2223,6 +2238,14 @@ def run(
 
         if verbose and in_lambda:
             logger.info("  [LAMBDA] Secondary checks completed (lightweight observability only)")
+
+        phase1_elapsed = time.time() - phase1_start
+        logger.info(f"[TIMING] Phase 1 completed in {phase1_elapsed:.1f}s")
+        if is_morning:
+            now_et = dt.now(tz.utc).astimezone(tz(td(hours=-5)))
+            market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+            min_until_open = (market_open - now_et).total_seconds() / 60
+            logger.info(f"[TIMING] {min_until_open:.0f}min remaining until market open (9:30 AM ET)")
 
         log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)

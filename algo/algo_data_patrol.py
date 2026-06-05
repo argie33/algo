@@ -1359,6 +1359,8 @@ class DataPatrol:
                 self.check_price_sanity(cur)
                 self.check_sequence_continuity(cur)
                 self.check_score_freshness(cur)
+                self.check_loader_coverage(cur)  # FIX #6: Coverage validation
+                self.check_signal_source_alignment(cur)  # FIX #7: Cross-validation
                 self.check_loader_contracts(cur)
                 self.check_signal_data_alignment(cur)
                 self.check_trade_price_alignment(cur)

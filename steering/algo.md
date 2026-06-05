@@ -48,10 +48,10 @@ If you need to rebuild the schema:
 ## Schedule
 
 **Daily runs (Mon-Fri):**
-- 3:25 AM ET: stock_symbols (EventBridge)
-- 3:30 AM ET: sp500/russell constituents (EventBridge) AND morning-prep-pipeline (Step Functions, advanced timing)
+- 2:40 AM ET: stock_symbols (EventBridge)
+- 2:45 AM ET: sp500/russell constituents (EventBridge) AND morning-prep-pipeline (Step Functions, advanced timing)
   - Morning pipeline: loads 1d prices (stock+etf), technicals, then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
-  - Advanced from 4:30 AM to 3:30 AM (2026-06-05) for timing safety: increases buffer from 35 min to 95 min
+  - Advanced from 4:30 AM to 2:45 AM (2026-06-05+) for timing margin: increases buffer from 35 min to 165 min
 - 4:05 PM ET: EOD pipeline (Step Functions, 9 core loaders) — loads all intervals (1d/1wk/1mo), signals, scores, orchestrator dry-run.
 - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
 
@@ -82,7 +82,7 @@ If you need to rebuild the schema:
   - CloudWatch metric: `DatabaseConnections` (AWS/RDS namespace)
   - During EOD pipeline (4:05-5:30 PM ET): expect 20-30 RDS connections (multiplexed from 48-96 loader connections), safe margin to 500
   - If peak >400: Connection contention risk. Check CloudWatch logs for slow queries, or check RDS CPU/disk queue depth.
-  - Morning prep (3:30-9:30 AM) should see <30 RDS connections (only 2-3 loaders running, lower parallelism)
+  - Morning prep (2:45-9:30 AM) should see <30 RDS connections (only 2-3 loaders running, lower parallelism)
   - Alert threshold: >80% of max_db_connections (400 out of 500) → investigate slow queries or RDS CPU saturation
   - Query to verify proxy is active: `aws rds describe-db-proxies --query 'DBProxies[?DBProxyName==\`algo-rds-proxy-dev\`].Status'` (expect: available)
 
@@ -95,7 +95,7 @@ If you need to rebuild the schema:
 2. **Simplified failsafe triggers:** If data is stale and loader not actively RUNNING, trigger immediately (no 2.5-hour grace period delays that cause false halts)
 3. **Removed grace periods:** If loader is RUNNING, proceed (grace period OK). Otherwise trigger NOW.
 4. **Explicit swing_trader_scores halt:** If missing or stale, Phase 1 halts with clear message "Phase 5 cannot rank trades"
-5. **Morning prep visibility:** Phase 1 now checks if buy_sell_daily was updated since 3:30 AM. If not, sends alert so we know morning prep failed.
+5. **Morning prep visibility:** Phase 1 now checks if buy_sell_daily was updated since 2:45 AM. If not, sends alert so we know morning prep failed.
 6. **Health check diagnostics:** Orchestrator startup logs table freshness, loader status, so we can see at a glance what's stale/broken.
 
 **Files changed:**
