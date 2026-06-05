@@ -643,7 +643,6 @@ def run(
                              f'Schema validation failed: {str(e)[:100]}')
 
         try:
-        try:
             from algo.algo_pipeline_health import PipelineHealth
             health = PipelineHealth()
             status = health.get_pipeline_status()

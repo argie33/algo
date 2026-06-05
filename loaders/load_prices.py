@@ -494,13 +494,33 @@ class PriceLoader(OptimalLoader):
 
         # Market close detection: For 1d interval near 4 PM ET, ensure yfinance has close data
         if self.interval == "1d":
-            if not self._check_market_close_data_available(max_wait_sec=600):
-                logger.warning(
-                    "[%s] yfinance close data not available yet (API lag). "
-                    "Proceeding with load but data may be incomplete. "
-                    "If all symbols return empty, failsafe will trigger retry.",
-                    self.table_name
-                )
+            market_close_available = self._check_market_close_data_available(max_wait_sec=600)
+            if not market_close_available:
+                from datetime import datetime, timezone, timedelta
+                now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+                market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
+                minutes_after_close = (now_et - market_close_et).total_seconds() / 60
+
+                # FAIL-CLOSED: If we're within 1 hour after market close (4 PM - 5 PM ET)
+                # and SPY close data unavailable, this is a CRITICAL blocker.
+                # The EOD pipeline must have complete close data before proceeding.
+                if 0 < minutes_after_close < 60:
+                    logger.critical(
+                        f"[MARKET_CLOSE] CRITICAL: Running at {minutes_after_close:.0f}min after market close (4 PM ET). "
+                        f"SPY close data NOT available from yfinance after 10-minute wait. "
+                        f"Cannot proceed with EOD pipeline - close prices are required for all 5000+ symbols. "
+                        f"Failing loudly to trigger failsafe retry. Check yfinance API status."
+                    )
+                    raise RuntimeError(
+                        f"Market close data unavailable after 10-minute wait at {minutes_after_close:.0f}min past close. "
+                        f"yfinance API lag or service degradation. Cannot load prices without close data."
+                    )
+                else:
+                    logger.warning(
+                        f"[MARKET_CLOSE] SPY close data not available (running at {minutes_after_close:.0f}min past close). "
+                        f"API lag detected but continuing - data may be incomplete. "
+                        f"If all symbols return empty, failsafe will trigger retry."
+                    )
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At 50% of timeout (12600s), if < 10% complete, trigger emergency mode
