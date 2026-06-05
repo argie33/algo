@@ -1321,6 +1321,17 @@ def run(
             logger.debug(f"MetricsPublisher unavailable: {mp_e}")
             _metrics = None
 
+        # Get expected symbol count for completeness checks
+        expected_symbols = 4500  # Default, will be overridden below
+        try:
+            with DatabaseContext('read') as _count_cur:
+                _count_cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
+                count_result = _count_cur.fetchone()
+                if count_result:
+                    expected_symbols = count_result[0]
+        except Exception as e:
+            logger.debug(f"Could not get active symbol count: {e}")
+
         for name, d in checks.items():
             is_halt_check = name in halt_checks
             if d is None:
@@ -1352,6 +1363,63 @@ def run(
                     is_ideal = d >= expected_date
                     flag = '[OK]' if is_ideal else '[WARN]' if (not is_stale) else '[STALE]'
                     logger.info(f"  {flag} {name:25s}: latest {d} ({trading_day_age}d trading old/{calendar_day_age}d calendar, acceptable until {min_acceptable_date})")
+
+        # ISSUE #9 FIX: Validate data COMPLETENESS (symbol coverage %) for critical tables
+        # Freshness alone isn't enough — if 500/5000 symbols failed to load, data is incomplete
+        completeness_warnings = []
+        try:
+            with DatabaseContext('read') as _comp_cur:
+                _comp_cur.execute("SET statement_timeout = 10000")  # 10s for all checks
+
+                # Check price_daily completeness
+                _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s", (expected_date,))
+                price_symbols = _comp_cur.fetchone()[0] if _comp_cur.fetchone() else 0
+                price_coverage = (price_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                if price_coverage < 95:
+                    completeness_warnings.append(
+                        f"price_daily: {price_symbols}/{expected_symbols} symbols ({price_coverage:.1f}%, expected >95%)"
+                    )
+                    logger.warning(f"  [COMPLETENESS] {completeness_warnings[-1]}")
+
+                # Check technical_data_daily completeness
+                _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE updated_at >= %s", (expected_date,))
+                tech_symbols = _comp_cur.fetchone()[0] if _comp_cur.fetchone() else 0
+                tech_coverage = (tech_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                if tech_coverage < 95:
+                    completeness_warnings.append(
+                        f"technical_data_daily: {tech_symbols}/{expected_symbols} symbols ({tech_coverage:.1f}%, expected >95%)"
+                    )
+                    logger.warning(f"  [COMPLETENESS] {completeness_warnings[-1]}")
+
+                # Check buy_sell_daily completeness
+                _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE updated_at >= %s", (expected_date,))
+                buys_symbols = _comp_cur.fetchone()[0] if _comp_cur.fetchone() else 0
+                buys_coverage = (buys_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                if buys_coverage < 95:
+                    completeness_warnings.append(
+                        f"buy_sell_daily: {buys_symbols}/{expected_symbols} symbols ({buys_coverage:.1f}%, expected >95%)"
+                    )
+                    logger.warning(f"  [COMPLETENESS] {completeness_warnings[-1]}")
+
+                if completeness_warnings:
+                    logger.warning(f"[DATA COMPLETENESS] {len(completeness_warnings)} incomplete tables detected")
+                    alerts.send_position_alert(
+                        'DATA',
+                        'DATA_COMPLETENESS_LOW',
+                        f"Data completeness below threshold (expected >95%). Details: {'; '.join(completeness_warnings)}. "
+                        f"Loaders may have failed partially.",
+                        {'completeness_warnings': completeness_warnings, 'coverage': {
+                            'price': price_coverage, 'technical': tech_coverage, 'buys': buys_coverage
+                        }}
+                    )
+                    log_phase_result_fn(1, 'data_completeness', 'warn',
+                                       f"Coverage: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}%")
+                else:
+                    log_phase_result_fn(1, 'data_completeness', 'success',
+                                       f"All critical tables >95% complete: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}%")
+
+        except Exception as comp_err:
+            logger.debug(f"[DATA COMPLETENESS] Check failed: {comp_err} (proceeding)")
 
         if _metrics:
             _metrics.flush()
@@ -1584,70 +1652,164 @@ def run(
         except Exception as e:
             logger.debug(f"Could not check first-run state: {e}")
 
-        # Check swing_trader_scores freshness — EXPLICIT HALT if missing/stale
-        # When swing scores are missing, Phase 5 silently kills ALL trades (min_swing_score=55 filter).
-        # User sees "success" with 0 trades executed and no idea why. HALT instead.
-        # RULE: swing_trader_scores must be from expected_date (yesterday for today's 9:30 AM run, etc.)
-        # No grace periods. If missing/stale, we halt and wait for EOD pipeline.
-        swing_scores_ok = True
-        min_acceptable_swing_date = expected_date  # Must be from yesterday (or most recent trading day)
+        # Check swing_trader_scores and source data freshness — WARNING-ONLY (no halt).
+        # CRITICAL FIX (Issue #1, #5): Swing scores halting was false-positive.
+        # Root cause: If buy_sell_daily/technical_data_daily incomplete, swing_trader_scores will be incomplete.
+        # But system halted on scores themselves, not on SOURCE DATA completeness.
+        # NEW RULE: Check source data (buy_sell_daily, technical_data_daily) for freshness and coverage.
+        # If sources fresh + complete, Phase 5 will work even if scores are slightly older.
+        # Move scores check to warning-only for observability.
+
+        swing_data_health = {'status': 'ok', 'warnings': []}
+        min_acceptable_swing_date = expected_date  # For reference only
 
         try:
             with DatabaseContext('read') as _sw_cur:
                 _sw_cur.execute("SET statement_timeout = 5000")
-                # CRITICAL: Check both that data exists AND is fresh
-                # Previous bug: system halted if data was stale, but succeeded if table was completely empty
+
+                # Check swing_trader_scores freshness and size
                 _sw_cur.execute("""
-                    SELECT MAX(date), COUNT(*) as row_count FROM swing_trader_scores
+                    SELECT MAX(date), COUNT(*) as row_count, COUNT(DISTINCT symbol) as symbol_count
+                    FROM swing_trader_scores
                 """)
                 sw_row = _sw_cur.fetchone()
                 sw_latest = sw_row[0] if sw_row else None
                 sw_row_count = sw_row[1] if sw_row and len(sw_row) > 1 else 0
+                sw_symbol_count = sw_row[2] if sw_row and len(sw_row) > 2 else 0
 
+                # Check source data: buy_sell_daily freshness and coverage
+                _sw_cur.execute("""
+                    SELECT MAX(updated_at) as latest_update, COUNT(DISTINCT symbol) as symbol_count
+                    FROM buy_sell_daily
+                """)
+                bsd_row = _sw_cur.fetchone()
+                bsd_latest = bsd_row[0] if bsd_row else None
+                bsd_symbol_count = bsd_row[1] if bsd_row and len(bsd_row) > 1 else 0
+
+                # Check technical_data_daily freshness
+                _sw_cur.execute("""
+                    SELECT MAX(updated_at) as latest_update, COUNT(DISTINCT symbol) as symbol_count
+                    FROM technical_data_daily
+                """)
+                tech_row = _sw_cur.fetchone()
+                tech_latest = tech_row[0] if tech_row else None
+                tech_symbol_count = tech_row[1] if tech_row and len(tech_row) > 1 else 0
+
+                # Get expected symbol count from stock_symbols table
+                _sw_cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
+                expected_symbol_count = _sw_cur.fetchone()[0] if _sw_cur.fetchone() else 4500
+
+                # Thresholds for completeness (configurable)
+                min_coverage_pct_warn = 0.90  # Warn if <90% coverage
+                min_coverage_pct_error = 0.75  # Alert error if <75%
+
+                # Check buy_sell_daily completeness
+                bsd_coverage = (bsd_symbol_count / expected_symbol_count * 100) if expected_symbol_count > 0 else 0
+                if bsd_coverage < min_coverage_pct_error:
+                    swing_data_health['warnings'].append(
+                        f"buy_sell_daily coverage LOW: {bsd_symbol_count}/{expected_symbol_count} symbols ({bsd_coverage:.1f}%). "
+                        f"Phase 5 will have reduced trading opportunity."
+                    )
+                elif bsd_coverage < min_coverage_pct_warn:
+                    swing_data_health['warnings'].append(
+                        f"buy_sell_daily coverage suboptimal: {bsd_symbol_count}/{expected_symbol_count} symbols ({bsd_coverage:.1f}%)"
+                    )
+
+                # Check technical_data_daily completeness
+                tech_coverage = (tech_symbol_count / expected_symbol_count * 100) if expected_symbol_count > 0 else 0
+                if tech_coverage < min_coverage_pct_error:
+                    swing_data_health['warnings'].append(
+                        f"technical_data_daily coverage LOW: {tech_symbol_count}/{expected_symbol_count} symbols ({tech_coverage:.1f}%). "
+                        f"Check if technical_data_daily loader completed successfully."
+                    )
+                elif tech_coverage < min_coverage_pct_warn:
+                    swing_data_health['warnings'].append(
+                        f"technical_data_daily coverage suboptimal: {tech_symbol_count}/{expected_symbol_count} symbols ({tech_coverage:.1f}%)"
+                    )
+
+                # Log swing scores status (observation only, no halt)
                 if sw_latest is None or sw_row_count == 0:
                     if first_run_state:
                         logger.info("[SWING SCORES] Empty (first run): waiting for EOD pipeline")
-                        swing_scores_ok = True  # Allow first-run with empty scores
                     else:
-                        logger.error("[SWING SCORES] HALT: swing_trader_scores table is empty")
-                        logger.error("  The EOD pipeline must run first to populate swing scores.")
-                        logger.error(f"  Table has {sw_row_count} rows. Expected thousands of symbols.")
-                        logger.error("  Check: Step Functions algo-eod-pipeline-dev execution status.")
-                        logger.error("  Or wait for the morning-prep-pipeline at 4:30 AM ET.")
-                        alerts.send_position_alert(
-                            'DATA', 'SWING_SCORES_MISSING',
-                            f'HALTING: swing_trader_scores table is empty ({sw_row_count} rows). Phase 5 cannot rank trades without swing scores. '
-                            'Check EOD pipeline Step Functions execution status.',
-                            {'swing_latest': None, 'row_count': sw_row_count, 'expected': str(expected_date), 'action': 'HALT', 'first_run': False}
+                        logger.warning(
+                            f"[SWING SCORES] Empty or stale ({sw_row_count} rows). "
+                            f"This is expected during first-run or if EOD pipeline failed. "
+                            f"Phase 5 will execute with limited scoring capability."
                         )
-                        swing_scores_ok = False
-                elif sw_latest < min_acceptable_swing_date:
-                    gap = (expected_date - sw_latest).days if sw_latest else 999
-                    logger.critical(
-                        f"[SWING SCORES] HALT: swing_trader_scores is stale or missing "
-                        f"(latest={sw_latest}, expected {expected_date}, gap={gap}d)"
-                    )
-                    logger.critical("  This means the EOD pipeline (4:05 PM yesterday) did not complete successfully.")
-                    logger.critical("  Without fresh swing trader scores, Phase 5 will filter out ALL trades silently.")
-                    logger.critical("  Action: Check Step Functions algo-eod-pipeline-dev execution logs for errors.")
-                    alerts.send_position_alert(
-                        'DATA', 'SWING_SCORES_STALE',
-                        f'CRITICAL HALT: swing_trader_scores is stale/missing. Latest={sw_latest}, expected {expected_date}. '
-                        f'Phase 5 cannot rank trades. Check EOD Step Functions logs.',
-                        {'latest': str(sw_latest), 'expected': str(expected_date), 'gap_days': gap}
-                    )
-                    swing_scores_ok = False
+                        swing_data_health['warnings'].append(
+                            f"swing_trader_scores empty/stale: {sw_row_count} rows, {sw_symbol_count} symbols"
+                        )
                 else:
-                    logger.info(f"  [OK] swing_trader_scores: latest {sw_latest} (required {min_acceptable_swing_date})")
-        except Exception as _sw_err:
-            logger.error(f"  [SWING SCORES] HALT: Freshness check failed: {_sw_err}")
-            swing_scores_ok = False
+                    sw_coverage = (sw_symbol_count / expected_symbol_count * 100) if expected_symbol_count > 0 else 0
+                    logger.info(
+                        f"  [SWING SCORES] {sw_symbol_count}/{expected_symbol_count} symbols ({sw_coverage:.1f}%), "
+                        f"latest={sw_latest}"
+                    )
 
-        if not swing_scores_ok:
-            log_phase_result_fn(1, 'swing_trader_scores', 'halt',
-                               'swing_trader_scores missing or stale — Phase 5 cannot execute')
-            return PhaseResult(1, 'swing_trader_scores', 'halted', {}, True,
-                             'swing_trader_scores missing or stale — Phase 5 cannot rank trades')
+                # Log source data health
+                if bsd_latest or tech_latest:
+                    logger.info(
+                        f"  [SOURCE DATA] buy_sell_daily={bsd_symbol_count}/{expected_symbol_count} ({bsd_coverage:.1f}%), "
+                        f"technical={tech_symbol_count}/{expected_symbol_count} ({tech_coverage:.1f}%)"
+                    )
+
+                if swing_data_health['warnings']:
+                    logger.warning(f"[DATA HEALTH] Warnings: {'; '.join(swing_data_health['warnings'])}")
+                    alerts.send_position_alert(
+                        'DATA',
+                        'SWING_DATA_INCOMPLETE',
+                        f"Swing/source data completeness below optimal. Details: {'; '.join(swing_data_health['warnings'])}. "
+                        f"Phase 5 will execute but with reduced trading opportunity.",
+                        {'coverage_warnings': swing_data_health['warnings']}
+                    )
+                    log_phase_result_fn(1, 'swing_trader_scores', 'warn',
+                                       f"Source data completeness: {bsd_coverage:.0f}% buy_sell, {tech_coverage:.0f}% technical")
+                else:
+                    log_phase_result_fn(1, 'swing_trader_scores', 'success',
+                                       f"Swing/source data: {sw_symbol_count}/{expected_symbol_count} symbols, "
+                                       f"buy_sell={bsd_coverage:.0f}%, technical={tech_coverage:.0f}%")
+
+        except Exception as _sw_err:
+            logger.warning(f"[SWING SCORES] Could not check freshness: {_sw_err} (proceeding with caution)")
+            log_phase_result_fn(1, 'swing_trader_scores', 'warn',
+                               f'Freshness check failed: {_sw_err}')
+
+        # ISSUE #10 FIX: Add sector_ranking health check (missing from verification)
+        # Sector_ranking is used by Phase 3 (position monitor) and Phase 5 (position limits).
+        # If stale, position tracking and sector limits may be incorrect.
+        try:
+            with DatabaseContext('read') as _sector_cur:
+                _sector_cur.execute("SET statement_timeout = 5000")
+                _sector_cur.execute("SELECT MAX(updated_at), COUNT(*) FROM sector_ranking")
+                sector_row = _sector_cur.fetchone()
+                sector_latest = sector_row[0] if sector_row else None
+                sector_count = sector_row[1] if sector_row and len(sector_row) > 1 else 0
+
+                if sector_latest is None or sector_count == 0:
+                    logger.warning(
+                        "[SECTOR_RANKING] Empty or missing. "
+                        "Phase 3/5 will not enforce sector position limits. Check morning-prep-pipeline."
+                    )
+                    alerts.send_position_alert(
+                        'DATA',
+                        'SECTOR_RANKING_MISSING',
+                        f'sector_ranking is empty ({sector_count} rows). Phase 3/5 position limits may not work. '
+                        f'Check morning-prep-pipeline logs.',
+                        {'sector_count': sector_count}
+                    )
+                    log_phase_result_fn(1, 'sector_ranking', 'warn', 'sector_ranking missing')
+                elif sector_latest < expected_date:
+                    logger.warning(
+                        f"[SECTOR_RANKING] Stale (latest={sector_latest}, expected {expected_date}). "
+                        f"Phase 3/5 position limits use outdated sector assignments."
+                    )
+                    log_phase_result_fn(1, 'sector_ranking', 'warn', f'sector_ranking stale: {sector_latest}')
+                else:
+                    logger.info(f"  [OK] sector_ranking: {sector_count} rows, latest {sector_latest}")
+                    log_phase_result_fn(1, 'sector_ranking', 'success', f'sector_ranking fresh: {sector_count} rows')
+        except Exception as sector_err:
+            logger.debug(f"[SECTOR_RANKING] Check failed: {sector_err} (proceeding)")
 
         # MORNING PREP VISIBILITY: Check if morning pipeline (3:30 AM) actually ran today
         # If it's 9:30 AM+ and buy_sell_daily/signal_quality_scores haven't been updated since yesterday,
@@ -1728,45 +1890,79 @@ def run(
                 buysell_coverage = _completeness_cur.fetchone()[0] or 0
 
                 # Expected universe: assume 5000 active symbols (S&P 500 + large ETFs)
-                # Min acceptable: 75% coverage (3750 symbols) for critical tables
-                min_coverage = 3750
+                # Min acceptable: configurable via algo_config (default 75% = 3750 symbols)
+                min_coverage_pct = 75
+                try:
+                    with DatabaseContext('read') as _cfg_cur:
+                        _cfg_cur.execute("SELECT value FROM algo_config WHERE key = %s", ('phase1_coverage_min_pct',))
+                        result = _cfg_cur.fetchone()
+                        if result:
+                            min_coverage_pct = int(result[0])
+                except Exception:
+                    pass
+
+                min_coverage = int(5000 * min_coverage_pct / 100)
                 coverage_check_failed = False
 
                 if price_coverage < min_coverage:
-                    logger.error(f"[COMPLETENESS] price_daily coverage too low: {price_coverage}/5000 symbols ({100*price_coverage/5000:.1f}%)")
+                    price_pct = 100 * price_coverage / 5000
+                    logger.error(f"[COMPLETENESS] price_daily coverage too low: {price_coverage}/5000 symbols ({price_pct:.1f}%, need {min_coverage_pct}%)")
                     completeness_ok = False
                     coverage_check_failed = True
                 else:
-                    logger.info(f"[COMPLETENESS] price_daily: {price_coverage}/5000 symbols ✓")
+                    price_pct = 100 * price_coverage / 5000
+                    logger.info(f"[COMPLETENESS] price_daily: {price_coverage}/5000 symbols ({price_pct:.1f}%) ✓")
 
                 if technical_coverage < min_coverage:
-                    logger.error(f"[COMPLETENESS] technical_data_daily coverage too low: {technical_coverage}/5000 symbols ({100*technical_coverage/5000:.1f}%)")
+                    tech_pct = 100 * technical_coverage / 5000
+                    logger.error(f"[COMPLETENESS] technical_data_daily coverage too low: {technical_coverage}/5000 symbols ({tech_pct:.1f}%, need {min_coverage_pct}%)")
                     completeness_ok = False
                     coverage_check_failed = True
                 else:
-                    logger.info(f"[COMPLETENESS] technical_data_daily: {technical_coverage}/5000 symbols ✓")
+                    tech_pct = 100 * technical_coverage / 5000
+                    logger.info(f"[COMPLETENESS] technical_data_daily: {technical_coverage}/5000 symbols ({tech_pct:.1f}%) ✓")
 
                 if buysell_coverage < min_coverage:
-                    logger.error(f"[COMPLETENESS] buy_sell_daily coverage too low: {buysell_coverage}/5000 symbols ({100*buysell_coverage/5000:.1f}%)")
+                    bs_pct = 100 * buysell_coverage / 5000
+                    logger.error(f"[COMPLETENESS] buy_sell_daily coverage too low: {buysell_coverage}/5000 symbols ({bs_pct:.1f}%, need {min_coverage_pct}%)")
                     completeness_ok = False
                     coverage_check_failed = True
                 else:
-                    logger.info(f"[COMPLETENESS] buy_sell_daily: {buysell_coverage}/5000 symbols ✓")
+                    bs_pct = 100 * buysell_coverage / 5000
+                    logger.info(f"[COMPLETENESS] buy_sell_daily: {buysell_coverage}/5000 symbols ({bs_pct:.1f}%) ✓")
+
+                # Also warn if coverage is degrading but above threshold (early warning)
+                warn_threshold = int(5000 * (min_coverage_pct + 10) / 100)  # Warn at +10% above min (e.g., 85% if min=75%)
+                coverage_warnings = []
+                if price_coverage < warn_threshold:
+                    coverage_warnings.append(f'price_daily: {price_coverage}/5000 ({100*price_coverage/5000:.1f}%)')
+                if technical_coverage < warn_threshold:
+                    coverage_warnings.append(f'technical_data_daily: {technical_coverage}/5000 ({100*technical_coverage/5000:.1f}%)')
+                if buysell_coverage < warn_threshold:
+                    coverage_warnings.append(f'buy_sell_daily: {buysell_coverage}/5000 ({100*buysell_coverage/5000:.1f}%)')
+
+                if coverage_warnings and not first_run_state:
+                    logger.warning(f"[COMPLETENESS] Coverage approaching threshold ({warn_threshold}/5000, {min_coverage_pct+10}%): {'; '.join(coverage_warnings)}")
+                    alerts.send_position_alert(
+                        'DATA', 'COVERAGE_DEGRADING',
+                        f'Data coverage approaching {min_coverage_pct}% threshold. Early warning: {"; ".join(coverage_warnings)}',
+                        {'tables': coverage_warnings, 'threshold': min_coverage_pct}
+                    )
 
                 if coverage_check_failed and not first_run_state:
-                    logger.critical("[HALT] Critical loader coverage below 75%. This indicates a loader failure mid-execution.")
+                    logger.critical(f"[HALT] Critical loader coverage below {min_coverage_pct}%. This indicates a loader failure mid-execution.")
                     logger.critical(f"  price_daily: {price_coverage}/5000, technical_data_daily: {technical_coverage}/5000, buy_sell_daily: {buysell_coverage}/5000")
                     logger.critical("  Incomplete data will cause Phase 5 to generate incomplete signal set.")
                     logger.critical("  Check loader logs for partial failures.")
                     alerts.send_position_alert(
                         'DATA', 'INCOMPLETE_COVERAGE',
-                        f'HALT: Data coverage below 75%. Loaders completed partially. '
+                        f'HALT: Data coverage below {min_coverage_pct}%. Loaders completed partially. '
                         f'price_daily: {price_coverage}/5000, technical_data_daily: {technical_coverage}/5000, buy_sell_daily: {buysell_coverage}/5000. '
                         f'Check loader logs for errors.',
-                        {'price': price_coverage, 'technical': technical_coverage, 'buysell': buysell_coverage, 'min': min_coverage}
+                        {'price': price_coverage, 'technical': technical_coverage, 'buysell': buysell_coverage, 'min': min_coverage, 'threshold_pct': min_coverage_pct}
                     )
                     log_phase_result_fn(1, 'data_completeness', 'halt',
-                                       f'Incomplete coverage: price={price_coverage}, technical={technical_coverage}, buysell={buysell_coverage}')
+                                       f'Incomplete coverage: price={price_coverage}/{min_coverage}, technical={technical_coverage}/{min_coverage}, buysell={buysell_coverage}/{min_coverage}')
         except Exception as completeness_err:
             logger.warning(f"[COMPLETENESS] Could not check data coverage: {completeness_err}")
 

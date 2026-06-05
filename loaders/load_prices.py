@@ -70,7 +70,11 @@ class PriceLoader(OptimalLoader):
 
         # Proactive rate limiter for yfinance (160 calls/min limit = safe margin below 200/min)
         # Use token bucket to pace requests, avoid hitting limit. We're conservative with 160/min.
-        self._rate_limit_tokens = 160  # Initial tokens (160 requests)
+        # ISSUE #3 FIX: Burst capacity handling
+        # Initial burst: Allow up to 160 tokens (enough for 1 full batch at 150 symbols)
+        # After burst, refill at steady rate (2.67 tokens/sec) to avoid starvation with parallel threads
+        self._rate_limit_tokens = 160  # Initial burst capacity (160 requests = 1 batch)
+        self._rate_limit_max_tokens = 160  # Cap to prevent unlimited accumulation
         self._rate_limit_last_refill = time.time()
         self._rate_limit_refill_rate = 160 / 60  # 160 tokens per 60 seconds = 2.67 per second
 
@@ -252,16 +256,21 @@ class PriceLoader(OptimalLoader):
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
         """Apply token bucket rate limiting to avoid yfinance 429 errors.
 
-        Tokens refill at 30 per minute (0.5 per second). Before fetching,
+        Tokens refill at 160 per 60 seconds (2.67 per second). Before fetching,
         wait if necessary to stay under the limit.
+
+        ISSUE #3 FIX: Capped at max_tokens to prevent burst unlimited growth.
+        Parallel threads (6 concurrent batches) need fair access without one thread
+        monopolizing the token bucket.
         """
         import time
 
         while True:
             now = time.time()
             elapsed = now - self._rate_limit_last_refill
-            # Refill tokens based on elapsed time
-            self._rate_limit_tokens += elapsed * self._rate_limit_refill_rate
+            # Refill tokens based on elapsed time (capped at max)
+            self._rate_limit_tokens = min(self._rate_limit_max_tokens,
+                                          self._rate_limit_tokens + elapsed * self._rate_limit_refill_rate)
             self._rate_limit_last_refill = now
 
             if self._rate_limit_tokens >= tokens_needed:
@@ -273,7 +282,7 @@ class PriceLoader(OptimalLoader):
                 tokens_short = tokens_needed - self._rate_limit_tokens
                 wait_sec = tokens_short / self._rate_limit_refill_rate
                 if wait_sec > 0.1:  # Only log if waiting >100ms
-                    logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens")
+                    logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens (have {self._rate_limit_tokens:.1f})")
                 time.sleep(min(wait_sec, 0.5))  # Wait up to 500ms before re-checking
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
