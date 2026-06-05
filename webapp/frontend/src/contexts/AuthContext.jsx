@@ -236,9 +236,41 @@ export function AuthProvider({ children }) {
       // Check if we're in a real production environment
       const isProductionBuild = import.meta.env.PROD;
       const cognitoConfigured = isCognitoConfigured();
-      const forceDevAuth = import.meta.env.VITE_FORCE_DEV_AUTH === "true";
+      const isDevelopment = !isProductionBuild;
 
-      // Strict AWS Cognito only - no development auth fallback
+      // DEVELOPMENT MODE: Auto-authenticate with dev token for local testing
+      if (isDevelopment && !cognitoConfigured) {
+        console.log('[AUTH] Development mode detected - auto-authenticating with dev token');
+        const devToken = localStorage.getItem('devToken') || 'dev-admin';
+        tokenManager.setTokens({
+          access: devToken,
+          id: `dev-id-token-${Date.now()}`,
+          refresh: `dev-refresh-${Date.now()}`
+        });
+
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: {
+              username: 'devuser',
+              userId: 'dev-user-local',
+              email: 'dev@localhost',
+              firstName: 'Dev',
+              lastName: 'User',
+              role: devToken === 'dev-admin' ? 'admin' : 'user',
+              groups: devToken === 'dev-admin' ? ['admin', 'user'] : ['user'],
+            },
+            tokens: {
+              accessToken: devToken,
+              idToken: `dev-id-token-${Date.now()}`,
+              refreshToken: `dev-refresh-${Date.now()}`,
+            },
+          },
+        });
+        return;
+      }
+
+      // AWS Cognito authentication (production or explicit config)
       if (cognitoConfigured) {
         try {
           // Race against 10s timeout — prevents infinite hang when tokens are stale

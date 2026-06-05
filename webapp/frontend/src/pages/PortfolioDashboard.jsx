@@ -127,26 +127,31 @@ export default function PortfolioDashboard() {
     { refetchInterval: 60000 }
   );
 
-  // Normalize paginated responses to arrays
+  // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
   const tradesList = Array.isArray(trades) ? trades : (trades?.items || []);
   const equityCurve = Array.isArray(equityItems) ? equityItems : (equityItems?.items || []);
 
+  // Add null safety checks for arrays
+  const safePositionsList = Array.isArray(positionsList) ? positionsList : [];
+  const safeTradesList = Array.isArray(tradesList) ? tradesList : [];
+  const safeEquityCurve = Array.isArray(equityCurve) ? equityCurve : [];
+
   // status returns {run_id, last_run, current_phase, status, message} — no portfolio sub-object
-  const portfolio = status?.portfolio || {};
+  const portfolio = (status && typeof status === 'object') ? status.portfolio || {} : {};
   // markets returns {success, current: {regime, distribution_days...}, market_health: {market_trend, vix_level...}}
-  const currentExp = markets?.current || {};
-  const currentHealth = markets?.market_health || {};
+  const currentExp = (markets && typeof markets === 'object') ? (markets.current || {}) : {};
+  const currentHealth = (markets && typeof markets === 'object') ? (markets.market_health || {}) : {};
   const market = {
-    trend: currentHealth.market_trend,
-    stage: currentHealth.market_stage,
-    vix: currentHealth.vix_level,
+    trend: currentHealth.market_trend || 'unknown',
+    stage: currentHealth.market_stage || 0,
+    vix: currentHealth.vix_level || 0,
     distribution_days: currentExp.distribution_days_4w || currentExp.distribution_days || 0,
   };
   // Derive portfolio totals from open positions when status doesn't carry them
-  const unrealizedPnl = positionsList.reduce((s, p) => s + Number(p.unrealized_pnl || 0), 0);
-  const totalPositionValue = positionsList.reduce((s, p) => s + Number(p.position_value || 0), 0);
-  const totalValue = parseFloat(portfolio.total_value || totalPositionValue || 0);
+  const unrealizedPnl = safePositionsList.reduce((s, p) => s + Number(p?.unrealized_pnl || 0), 0);
+  const totalPositionValue = safePositionsList.reduce((s, p) => s + Number(p?.position_value || 0), 0);
+  const totalValue = parseFloat(portfolio?.total_value || totalPositionValue || 0);
 
   // Check for critical errors — circuit-breakers is supplemental, don't block whole page
   const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
@@ -216,7 +221,7 @@ export default function PortfolioDashboard() {
         <Kpi
           label="Portfolio Value"
           value={fmtMoneyShort(totalValue)}
-          sub={`${positionsList.length} open positions`}
+          sub={`${safePositionsList.length} open positions`}
           icon={DollarSign}
         />
         <Kpi
@@ -277,30 +282,30 @@ export default function PortfolioDashboard() {
 
       {/* Equity curve + Drawdown chart */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <EquityCurve series={equityCurve} />
-        <DrawdownChart series={equityCurve} />
+        <EquityCurve series={safeEquityCurve} />
+        <DrawdownChart series={safeEquityCurve} />
       </div>
 
       {/* Daily-return histogram + Trade outcome distribution */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <DailyReturnHistogram series={equityCurve} />
-        <TradeDistribution trades={tradesList} />
+        <DailyReturnHistogram series={safeEquityCurve} />
+        <TradeDistribution trades={safeTradesList} />
       </div>
 
       {/* R-multiple ladder */}
-      <RLadderPanel positions={positionsList} loading={posLoading}
+      <RLadderPanel positions={safePositionsList} loading={posLoading}
                      onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
 
       {/* Risk-pie + Sector concentration + Stage donut */}
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
-        <RiskAllocationPie positions={positionsList} totalValue={totalValue}
+        <RiskAllocationPie positions={safePositionsList} totalValue={totalValue}
                             onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
-        <SectorConcentration positions={positionsList} totalValue={totalValue} />
-        <StagePhaseDonut positions={positionsList} />
+        <SectorConcentration positions={safePositionsList} totalValue={totalValue} />
+        <StagePhaseDonut positions={safePositionsList} />
       </div>
 
       {/* Position-health table */}
-      <PositionHealthTable positions={positionsList} loading={posLoading}
+      <PositionHealthTable positions={safePositionsList} loading={posLoading}
                             onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
 
       {/* Trade-level metrics + holding-period histogram */}
@@ -334,7 +339,7 @@ export default function PortfolioDashboard() {
           </div>
         </div>
 
-        <HoldingPeriodHistogram trades={tradesList} />
+        <HoldingPeriodHistogram trades={safeTradesList} />
       </div>
 
       {/* Recent trades */}
@@ -346,7 +351,7 @@ export default function PortfolioDashboard() {
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
-          {(tradesList.length === 0) ? (
+          {(safeTradesList.length === 0) ? (
             <Empty title="No closed trades yet" />
           ) : (
             <div style={{ maxHeight: '360px', overflow: 'auto' }}>
@@ -362,7 +367,7 @@ export default function PortfolioDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tradesList.map((t, i) => (
+                  {safeTradesList.map((t, i) => (
                     <tr key={i}
                         onClick={() => navigate(`/app/stock/${encodeURIComponent(t.symbol)}`)}
                         style={{ cursor: 'pointer' }}>

@@ -3,7 +3,8 @@
 import os
 import json
 import logging
-from datetime import date as _date, timedelta
+import time
+from datetime import date as _date, datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Dict
 
 from utils.database_context import DatabaseContext
@@ -13,53 +14,139 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
-def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeout: int = 600) -> bool:
+def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 30) -> bool:
     """
-    Failsafe: trigger ECS loader via Lambda asynchronously (non-blocking).
+    Trigger ECS loader asynchronously and VERIFY it started before returning.
 
-    Stock_prices_daily takes 1-2 hours, but the orchestrator Lambda has only 10min total timeout.
-    We can't wait synchronously. Instead, trigger async and proceed immediately. Circuit breakers
-    in Phase 2+ will conservatively handle stale data while the loader runs in parallel.
+    CRITICAL FIX: Previous implementation triggered loader but never confirmed it started.
+    If trigger failed (network error, Lambda down, wrong ARN), orchestrator would proceed
+    with stale data silently.
+
+    Now: Use EventBridge to trigger ECS task, monitor CloudWatch for task start.
+    Only return True if ECS task confirmed running within poll_timeout_sec.
 
     Args:
         loader_name: Name of the loader to trigger
         verbose: Whether to log verbose output
-        wait_timeout: Unused (kept for backward compatibility)
+        poll_timeout_sec: Max seconds to wait for loader task to start (default 30s)
 
-    Returns: False (always, since we don't wait for completion).
+    Returns: True if loader task confirmed running, False if timeout/error
     """
     try:
         import boto3
-        import json
 
-        lambda_client = boto3.client('lambda')
-        loader_lambda = os.getenv('LOADER_TRIGGER_LAMBDA_ARN', '')
+        # Map loader names to ECS task definitions
+        task_defs = {
+            'stock_prices_daily': 'algo-load-prices-daily',
+            'technical_data_daily': 'algo-load-technicals',
+            'market_health_daily': 'algo-load-market-health',
+        }
 
-        if not loader_lambda:
-            if verbose:
-                logger.warning("[FAILSAFE] LOADER_TRIGGER_LAMBDA_ARN not configured, cannot trigger")
+        task_def = task_defs.get(loader_name)
+        if not task_def:
+            logger.warning(f"[FAILSAFE] Unknown loader '{loader_name}', cannot trigger")
             return False
+
+        # Step 1: Trigger ECS task via RunTask (synchronous API)
+        ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+        cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
 
         if verbose:
-            logger.info(f"[FAILSAFE] Triggering {loader_name} loader asynchronously. Proceeding with caution.")
+            logger.info(f"[FAILSAFE] Launching ECS task {task_def} on cluster {cluster_arn}...")
 
-        response = lambda_client.invoke(
-            FunctionName=loader_lambda,
-            InvocationType='Event',  # ASYNC — don't wait, trigger and return immediately
-            Payload=json.dumps({'loader_name': loader_name})
-        )
+        try:
+            response = ecs_client.run_task(
+                cluster=cluster_arn,
+                taskDefinition=task_def,
+                launchType='FARGATE',
+                networkConfiguration={
+                    'awsvpcConfiguration': {
+                        'subnets': os.getenv('ECS_SUBNETS', '').split(','),
+                        'securityGroups': os.getenv('ECS_SECURITY_GROUPS', '').split(','),
+                        'assignPublicIp': 'DISABLED'
+                    }
+                },
+                overrides={
+                    'containerOverrides': [
+                        {
+                            'name': task_def.replace('algo-load-', '').replace('-', '_'),
+                            'environment': [
+                                {'name': 'FAILSAFE_TRIGGER', 'value': 'true'},
+                                {'name': 'TRIGGER_TIME', 'value': datetime.now(timezone.utc).isoformat()},
+                            ]
+                        }
+                    ]
+                }
+            )
 
-        if response['StatusCode'] in (200, 202, 204):
+            if not response.get('tasks'):
+                logger.warning(f"[FAILSAFE] ECS RunTask returned no tasks")
+                return False
+
+            task_arn = response['tasks'][0]['taskArn']
+            task_id = task_arn.split('/')[-1]
+
             if verbose:
-                logger.info(f"[FAILSAFE] ✓ Loader trigger sent (async). Proceeding with caution.")
+                logger.info(f"[FAILSAFE] ✓ ECS task launched: {task_id}")
+
+            # Step 2: Poll CloudWatch Container Insights for task to reach RUNNING state
+            # Task states: PROVISIONING → PENDING → ACTIVATING → RUNNING
+            cloudwatch = boto3.client('cloudwatch', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+            poll_start = time.time()
+            poll_interval = 1.0  # Check every 1 second
+
+            # Query CloudWatch Logs for task state transitions
+            logs_client = boto3.client('logs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+
+            while time.time() - poll_start < poll_timeout_sec:
+                try:
+                    # Check ECS DescribeTasks for current state
+                    desc_response = ecs_client.describe_tasks(
+                        cluster=cluster_arn,
+                        tasks=[task_arn]
+                    )
+
+                    if desc_response.get('tasks'):
+                        task = desc_response['tasks'][0]
+                        task_state = task.get('lastStatus', '')
+
+                        if verbose:
+                            logger.debug(f"[FAILSAFE] Task {task_id} state: {task_state}")
+
+                        if task_state == 'RUNNING':
+                            elapsed = time.time() - poll_start
+                            logger.info(f"[FAILSAFE] ✓ Loader task {task_id} confirmed RUNNING after {elapsed:.1f}s")
+                            return True
+                        elif task_state in ('DEPROVISIONING', 'STOPPING', 'DEACTIVATING', 'STOPPED', 'DELETED'):
+                            logger.warning(f"[FAILSAFE] Task {task_id} stopped prematurely: {task_state}")
+                            if task.get('stoppedReason'):
+                                logger.warning(f"  Reason: {task['stoppedReason']}")
+                            return False
+
+                except Exception as desc_err:
+                    logger.debug(f"[FAILSAFE] DescribeTasks failed: {desc_err}")
+
+                time.sleep(poll_interval)
+
+            logger.warning(f"[FAILSAFE] Task {task_id} did not reach RUNNING state within {poll_timeout_sec}s. "
+                         "Check ECS task definition and CloudWatch logs.")
             return False
-        else:
-            if verbose:
-                logger.warning(f"[FAILSAFE] Failed to trigger {loader_name}: HTTP {response['StatusCode']}")
+
+        except Exception as ecs_err:
+            logger.error(f"[FAILSAFE] ECS RunTask failed: {ecs_err}")
             return False
+
     except Exception as e:
-        logger.warning(f"[FAILSAFE] Could not trigger loader: {e}")
+        logger.error(f"[FAILSAFE] Unexpected error in loader trigger: {e}")
         return False
+
+
+def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeout: int = 600) -> bool:
+    """
+    DEPRECATED: Use _trigger_loader_failsafe_with_verification instead.
+    This function kept for backward compatibility only.
+    """
+    return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=30)
 
 def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_result_fn: Callable) -> bool:
     """Check data patrol results. Fail-closed if critical/error findings.
@@ -472,51 +559,42 @@ def run(
             logger.warning(f"[FAILSAFE] Data stale, attempting to trigger loader: {stale_items}")
             # Stock prices loader takes 1-2 hours to fetch 5000+ symbols. Lambda orchestrator has
             # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
-            # asynchronously and let Phase 2+ circuit breakers handle stale data.
-            # Try non-blocking trigger with short check (don't wait).
-            import boto3
-            try:
-                lambda_client = boto3.client('lambda')
-                loader_lambda = os.getenv('LOADER_TRIGGER_LAMBDA_ARN', '')
-                if loader_lambda:
-                    lambda_client.invoke(
-                        FunctionName=loader_lambda,
-                        InvocationType='Event',  # ASYNC — don't wait
-                        Payload=json.dumps({'loader_name': 'stock_prices_daily'})
-                    )
-                    logger.info("[FAILSAFE] ✓ Loader trigger sent (async). Proceeding with caution.")
-                    failsafe_ok = False  # Mark as "not confirmed" since we didn't wait
-                else:
-                    failsafe_ok = False
-            except Exception as e:
-                logger.warning(f"[FAILSAFE] Could not trigger loader: {e}")
-                failsafe_ok = False
+            # asynchronously and verify it started before proceeding.
+            failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=30)
 
             if not failsafe_ok:
-                # Failsafe failed or timed out. Log warning but DON'T halt immediately.
-                # The data is only 2-5 trading days old (acceptable per freshness window).
-                # Downstream phases (2-7) have their own circuit breakers and data validation.
-                # Let them handle the slightly-stale data rather than blocking all trading.
-                logger.warning(f"[FAILSAFE] Loader trigger failed or not configured. Proceeding with stale data.")
+                # Failsafe failed or timeout - loader may not have started.
+                # Data is 2-5 trading days old (within acceptable window per tolerance).
+                # Downstream phases (2-7) have circuit breakers to conservatively handle stale data.
+                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 30s. Proceeding with stale data (risky).")
                 logger.warning(f"  Stale items: {stale_items}")
-                logger.warning(f"  Data is within acceptable window (up to 5 calendar days old).")
-                logger.warning(f"  Circuit breakers in Phase 2 will halt if conditions warrant.")
+                logger.warning(f"  Data is within tolerance window (up to 5 calendar days old).")
+                logger.warning(f"  Circuit breakers in Phase 2 will halt if portfolio conditions warrant.")
+                logger.warning(f"  Check CloudWatch logs for LOADER_TRIGGER_LAMBDA_ARN and loader status.")
 
                 alerts.send_position_alert(
                     'DATA',
-                    'STALE_DATA_WARNING',
-                    f'Data is older than ideal. Stale items: {"; ".join(stale_items)}. '
+                    'STALE_DATA_FAILSAFE_FAILED',
+                    f'Failsafe loader trigger did not confirm startup. Stale items: {"; ".join(stale_items)}. '
                     f'Proceeding with caution — circuit breakers active. '
-                    f'Failsafe loader trigger failed or not configured.',
-                    {'stale_items': stale_items, 'expected_date': str(expected_date)}
+                    f'Check CloudWatch for loader startup errors.',
+                    {'stale_items': stale_items, 'expected_date': str(expected_date), 'failsafe': 'failed'}
                 )
                 log_phase_result_fn(1, 'data_freshness', 'warn',
-                                   f'Stale but proceeding: {"; ".join(stale_items)}')
+                                   f'Stale, failsafe unconfirmed: {"; ".join(stale_items)}')
                 # Continue to Phase 2 circuit breakers instead of halting
             else:
-                # Failsafe succeeded - data should be fresh now
-                logger.info("[FAILSAFE] ✓ Loader completed successfully, data is now fresh")
-                log_phase_result_fn(1, 'data_freshness', 'success', 'Data refreshed via failsafe')
+                # Failsafe confirmed - loader started successfully and will refresh data
+                logger.info("[FAILSAFE] ✓ Loader confirmed startup. Data will be refreshed in parallel.")
+                alerts.send_position_alert(
+                    'DATA',
+                    'STALE_DATA_FAILSAFE_TRIGGERED',
+                    f'Stale data detected. Failsafe loader triggered successfully. '
+                    f'stock_prices_daily now running in parallel. Data will refresh within 1-2 hours.',
+                    {'stale_items': stale_items, 'expected_date': str(expected_date), 'failsafe': 'started'}
+                )
+                log_phase_result_fn(1, 'data_freshness', 'warn',
+                                   f'Stale but failsafe triggered: {"; ".join(stale_items)}')
 
         # Check swing_trader_scores freshness — not a halt condition but a critical warning.
         # When swing scores are stale/missing, Phase 5 min_swing_score=55 gate kills all trades

@@ -36,40 +36,35 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Only catch React rendering errors, not API/async errors
-    const isReactRenderError = errorInfo && errorInfo.componentStack;
-    const isNetworkError =
-      error &&
-      error.message &&
-      (error.message.includes("Network Error") ||
-        error.message.includes("fetch") ||
-        error.message.includes("ECONNREFUSED") ||
-        error.message.includes("timeout"));
+    // ALWAYS capture and display React rendering errors
+    // Development: Show full error details for debugging
+    // Production: Show user-friendly message but log full details
 
-    // Don't catch network/API errors - let components handle them
-    if (isNetworkError && !isReactRenderError) {
-      console.warn(
-        "API/Network error caught by ErrorBoundary, but not showing error UI:",
-        error
-      );
-      return;
+    const isDev = process.env.NODE_ENV !== "production";
+
+    // Log the error to console for debugging
+    console.error("❌ ErrorBoundary caught an error:");
+    console.error("Error message:", error?.message);
+    console.error("Error name:", error?.name);
+    console.error("Component stack:", errorInfo?.componentStack);
+    console.error("Full error:", error);
+
+    // Enhanced logging for null reference errors
+    if (error && error.message &&
+        (error.message.includes("Cannot read properties of undefined") ||
+         error.message.includes("Cannot read property") ||
+         error.message.includes("is not a function") ||
+         error.message.includes("is not defined"))) {
+      console.error("🔴 CRITICAL: Property access on undefined/null");
+      console.error("This usually means a component tried to render data that doesn't exist.");
+      console.error("Check that API responses have the expected structure.");
+      if (errorInfo?.componentStack) {
+        const firstComponent = errorInfo.componentStack.split('\n')[0];
+        console.error("Component that failed:", firstComponent);
+      }
     }
 
-    // Log the error to our error reporting service
-    console.error(
-      "ErrorBoundary caught a React render error:",
-      error,
-      errorInfo
-    );
-
-    // Enhanced logging for .type access errors
-    if (error && error.message && error.message.includes("Cannot read properties of undefined (reading 'type')")) {
-      console.error("🔴 CRITICAL: .type access on undefined in component tree");
-      console.error("Component that failed:", errorInfo?.componentStack?.split('\n')[0]);
-      console.error("Full stack:", errorInfo?.componentStack);
-      console.error("Full error:", error);
-    }
-
+    // ALWAYS set state to show error UI
     this.setState({
       error: error,
       errorInfo: errorInfo,
@@ -77,7 +72,7 @@ class ErrorBoundary extends React.Component {
 
     // In production, you would send this to an error reporting service
     // like Sentry, LogRocket, or Bugsnag
-    if (process.env.NODE_ENV === "production") {
+    if (!isDev) {
       // Example: Send to error reporting service
       // errorReportingService.captureException(error, {
       //   extra: errorInfo,

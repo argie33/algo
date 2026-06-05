@@ -15,6 +15,7 @@ const authenticateToken = (req, res, next) => {
   const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
   const isProd = process.env.NODE_ENV === 'production' || isLambda;
   const isTest = process.env.NODE_ENV === 'test';
+  const isDev = process.env.NODE_ENV === 'development' && !isLambda;
 
   // CRITICAL: Reject test authentication in production
   if (isProd && isTest) {
@@ -26,14 +27,99 @@ const authenticateToken = (req, res, next) => {
     return sendError(res, 'Authentication service misconfigured', 500);
   }
 
-  // Path 1: Test environment (explicit test tokens)
+  // Path 1: Development environment (local dev with dev tokens)
+  if (isDev) {
+    return handleDevAuth(req, res, next);
+  }
+
+  // Path 2: Test environment (explicit test tokens)
   if (isTest && !isProd) {
     return handleTestAuth(req, res, next);
   }
 
-  // Path 2: Production (async validation with real Cognito JWT)
-  // This is the default for all other environments (development, staging, prod)
+  // Path 3: Production (async validation with real Cognito JWT)
+  // This is the default for all other environments (staging, prod)
   return authenticateTokenAsync(req, res, next);
+};
+
+// Development environment auth - allows easy local testing with dev tokens
+const handleDevAuth = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+
+  // If no auth header, create a default dev user (allows testing without explicit token)
+  if (!authHeader) {
+    req.user = {
+      sub: 'dev-user-local',
+      username: 'devuser',
+      email: 'dev@localhost',
+      role: 'admin',
+      groups: ['admin', 'user'],
+      sessionId: `dev-session-${Date.now()}`,
+    };
+    req.token = 'dev-token-no-auth-header';
+    console.log('[DEV AUTH] No auth header provided - using default dev user with admin role');
+    return next();
+  }
+
+  if (!authHeader.startsWith('Bearer ') && !authHeader.startsWith('bearer ')) {
+    // If invalid format but header exists, still allow dev user
+    req.user = {
+      sub: 'dev-user-local',
+      username: 'devuser',
+      email: 'dev@localhost',
+      role: 'admin',
+      groups: ['admin', 'user'],
+      sessionId: `dev-session-${Date.now()}`,
+    };
+    req.token = 'dev-token-invalid-format';
+    return next();
+  }
+
+  const tokenParts = authHeader.split(' ').filter((part) => part.length > 0);
+  const token = (tokenParts[1] || '').trim();
+
+  // Dev tokens: allow simple tokens for easy testing
+  const devTokens = {
+    'dev-token': { role: 'user', username: 'devuser' },
+    'dev-admin': { role: 'admin', username: 'devadmin' },
+    'dev-user': { role: 'user', username: 'devuser' },
+    'test-token': { role: 'user', username: 'testuser' },
+    'admin-token': { role: 'admin', username: 'adminuser' },
+    'mock-access-token': { role: 'user', username: 'mockuser' },
+  };
+
+  if (devTokens[token]) {
+    const tokenConfig = devTokens[token];
+    req.user = {
+      sub: `dev-${tokenConfig.username}-${Date.now()}`,
+      username: tokenConfig.username,
+      email: `${tokenConfig.username}@localhost`,
+      role: tokenConfig.role,
+      groups: tokenConfig.role === 'admin' ? ['admin', 'user'] : ['user'],
+      sessionId: `dev-session-${Date.now()}`,
+    };
+    req.token = token;
+    console.log(`[DEV AUTH] Authenticated as ${tokenConfig.role}: ${tokenConfig.username}`);
+    return next();
+  }
+
+  // If it's some other token, create a default user (permissive dev mode)
+  if (token) {
+    req.user = {
+      sub: 'dev-user-local',
+      username: 'devuser',
+      email: 'dev@localhost',
+      role: 'admin',
+      groups: ['admin', 'user'],
+      sessionId: `dev-session-${Date.now()}`,
+    };
+    req.token = token;
+    console.log('[DEV AUTH] Using provided token, created default admin user');
+    return next();
+  }
+
+  // Fallback
+  return sendError(res, 'Authentication required', 401, { code: 'MISSING_TOKEN' });
 };
 
 // Test environment JWT validation
