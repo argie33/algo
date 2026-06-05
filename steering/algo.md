@@ -408,6 +408,35 @@ All API errors return specific error types instead of generic "error" messages, 
 - Service Worker and API cache clearing now version-based (only on deploy) instead of every page load, improving performance.
 - Smart cache invalidation: clears only API-related caches, not static asset caches.
 
+## Market Calendar & Holiday Handling
+
+**US Market Holidays (2025-2027):** Defined in `algo/algo_market_calendar.py` with early closes (1 PM ET) for days before/after major holidays.
+
+**Edge Cases Handled:**
+- **Weekends:** No loaders trigger Sat-Sun. Orchestrator phase 1 checks `MarketCalendar.is_trading_day()` before expecting fresh data.
+- **Holidays:** System recognizes US market holidays. Phase 1 freshness checks account for multi-day gaps (e.g., Thanksgiving → Friday closed + Mon-Thu closed = no data for 4 days).
+- **Early closes (1 PM ET):** Day before Independence Day, day after Thanksgiving, Christmas Eve. Market health data collected but trading windows differ.
+- **Non-trading days in data:** yfinance occasionally returns weekend/holiday rows. `load_prices.py` validates and rejects via `MarketCalendar.is_trading_day()` in transform phase (line 222).
+
+**Phase 1 Staleness Thresholds (accounting for holidays):**
+- Working backward from today to find most recent trading day using `MarketCalendar.is_trading_day()`
+- Allows 1-3 calendar days of staleness depending on gate (price_daily vs market_health_daily)
+- Examples:
+  - Today is Monday → expects data from Friday (3 days)
+  - Today is Monday after Thanksgiving → expects data from Wednesday (4 days)
+  - Any Friday → expects data from Thursday (1 day)
+
+**Loaders Skip Non-Trading Days:**
+- Morning prep pipeline (4:30 AM) starts regardless of day, but checks `is_trading_day()` before processing
+- EOD pipeline (4:05 PM) only triggers M-F via EventBridge schedule; Step Functions state machine has no holiday check
+- FRED economic data loader (5 AM ET Mon) explicitly scheduled Monday-only
+
+**Future Calendar Updates (if adding 2028+):**
+1. Update `US_HOLIDAYS` dict in `algo_market_calendar.py` with new holidays
+2. Update `EARLY_CLOSES` dict if new early-close dates added
+3. No code changes needed — system automatically uses updated calendar
+4. Verify NASDAQ/NYSE holiday calendar before adding (sometimes differs on observed dates)
+
 ## Troubleshooting
 
 **DB timeout in Phase 1/3b:** RDS disk contention. Check `DiskQueueDepth` in CloudWatch. RDS Proxy is enabled (enable_rds_proxy = true) — if timeouts recur, verify proxy endpoint is active: `aws rds describe-db-proxies --region us-east-1`.
