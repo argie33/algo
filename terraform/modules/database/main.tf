@@ -212,8 +212,8 @@ resource "aws_db_parameter_group" "postgres" {
 # - Prevents "too many connections" errors during peak load (EOD or morning prep)
 
 resource "aws_db_proxy" "main" {
-  name                           = "${var.project_name}-rds-proxy-${var.environment}"
-  engine_family                  = "POSTGRESQL"
+  name          = "${var.project_name}-rds-proxy-${var.environment}"
+  engine_family = "POSTGRESQL"
   auth {
     auth_scheme = "SECRETS"
     secret_arn  = aws_secretsmanager_secret.rds_credentials.arn
@@ -222,6 +222,9 @@ resource "aws_db_proxy" "main" {
   vpc_subnet_ids         = var.private_subnet_ids
   vpc_security_group_ids = [var.rds_security_group_id]
 
+  # Connection pooling multiplexes client connections to RDS database
+  # 24 concurrent loaders (48-96 direct connections) → 20-30 persistent RDS connections
+  # Reduces latency by 10-20ms per query (connection reuse vs TCP handshake)
   require_tls = false
 
   tags = merge(var.common_tags, {
