@@ -119,4 +119,8 @@ rds_multi_az = false  # COST OPTIMIZED: Single-AZ. Saves ~$15/month.
 cloudwatch_log_retention_days = 7   # Increased from 1: 1 day was too short to debug why orchestrator wasn't trading; 7 days covers a full week of runs
 api_gateway_log_retention_days = 3  # Increased from 1: enough to debug API issues across a few days
 
+# ============================================================
+# RDS Proxy Configuration
+# ============================================================
+enable_rds_proxy = false  # Temporarily disabled due to Terraform validation errors. Will re-enable with corrected aws_db_proxy resource configuration.
 

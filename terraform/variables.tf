@@ -212,6 +212,12 @@ variable "db_deletion_protection" {
   default     = true
 }
 
+variable "enable_rds_proxy" {
+  description = "Enable RDS Proxy for connection pooling (temporarily disabled due to resource configuration errors)"
+  type        = bool
+  default     = false
+}
+
 variable "rds_log_retention_days" {
   description = "RDS log retention in days"
   type        = number
