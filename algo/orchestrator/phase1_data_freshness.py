@@ -409,23 +409,59 @@ def run(
         # Scanning price_daily directly takes 130s+ when the EOD pipeline is writing
         # millions of rows concurrently — data_loader_status is a single-row-per-table
         # lookup that returns in milliseconds regardless of write load.
+        # Cache results in DynamoDB to avoid repeated queries during same day (run at 9:30, 1, 3, 5:30 PM).
         dates = {}
+        cache_key = f"data_loader_status-{run_date.isoformat()}"
+
+        # Step 1: Try DynamoDB cache first (5-minute TTL)
         try:
-            with DatabaseContext('read') as cur:
-                cur.execute("SET statement_timeout = 15000")  # 15s — should be instant
-                cur.execute("""
-                    SELECT table_name, latest_date
-                    FROM data_loader_status
-                    WHERE table_name IN (
-                        'price_daily', 'etf_price_daily',
-                        'market_health_daily', 'trend_template_data',
-                        'signal_quality_scores', 'buy_sell_daily'
-                    )
-                """)
-                for r in cur.fetchall():
-                    dates[r['table_name']] = r['latest_date']
-        except Exception as e:
-            logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
+            import boto3
+            dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+            cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+            cache_table = dynamodb.Table(cache_table_name)
+
+            response = cache_table.get_item(Key={'cache_key': cache_key})
+            if 'Item' in response:
+                cached_dates = response['Item'].get('dates', {})
+                cache_age = datetime.now(timezone.utc).timestamp() - response['Item'].get('created_at', 0)
+                if cache_age < 300:  # 5-minute TTL
+                    dates = cached_dates
+                    logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s)")
+        except Exception as cache_err:
+            logger.debug(f"Phase 1: Cache lookup failed ({cache_err}), will try database")
+
+        # Step 2: If cache miss, query database
+        if not dates:
+            try:
+                with DatabaseContext('read') as cur:
+                    cur.execute("SET statement_timeout = 15000")  # 15s — should be instant
+                    cur.execute("""
+                        SELECT table_name, latest_date
+                        FROM data_loader_status
+                        WHERE table_name IN (
+                            'price_daily', 'etf_price_daily',
+                            'market_health_daily', 'trend_template_data',
+                            'signal_quality_scores', 'buy_sell_daily'
+                        )
+                    """)
+                    for r in cur.fetchall():
+                        dates[r['table_name']] = r['latest_date']
+
+                    # Cache the results for future runs today
+                    if dates:
+                        try:
+                            cache_table.put_item(Item={
+                                'cache_key': cache_key,
+                                'dates': dates,
+                                'created_at': datetime.now(timezone.utc).timestamp(),
+                                'ttl': int(time.time()) + 300,  # 5-minute TTL
+                            })
+                            logger.debug(f"Phase 1: Cached {len(dates)} table dates")
+                        except Exception as cache_write_err:
+                            logger.debug(f"Phase 1: Cache write failed ({cache_write_err}), continuing")
+
+            except Exception as e:
+                logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
 
         # Fall back to direct scan only for tables missing from data_loader_status.
         # Use ORDER BY date DESC LIMIT 1 instead of MAX(date) — forces an index scan
