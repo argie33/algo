@@ -277,9 +277,10 @@ resource "aws_secretsmanager_secret_version" "email_config" {
 }
 
 # ============================================================
-# 7. Secrets Manager - Algo Runtime Secrets (Alpaca)
+# 7. Secrets Manager - API Keys and Runtime Configuration
 # ============================================================
 
+# Main combined secret for runtime configuration (used by Lambda, orchestrator)
 resource "aws_secretsmanager_secret" "algo_secrets" {
   name                    = "${var.project_name}-algo-secrets-${var.environment}"
   description             = "Alpaca API credentials and algo runtime configuration"
@@ -299,6 +300,41 @@ resource "aws_secretsmanager_secret_version" "algo_secrets" {
     ALPACA_PAPER_TRADING = var.alpaca_paper_trading
     FRED_API_KEY         = var.fred_api_key
     JWT_SECRET           = var.jwt_secret
+  })
+}
+
+# Separate secrets for loaders - allows granular IAM permissions and independent key rotation
+resource "aws_secretsmanager_secret" "fred_api_key" {
+  name                    = "${var.project_name}/fred"
+  description             = "FRED API key for economic data loaders"
+  recovery_window_in_days = 7
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-fred-api-key"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "fred_api_key" {
+  secret_id     = aws_secretsmanager_secret.fred_api_key.id
+  secret_string = var.fred_api_key
+}
+
+resource "aws_secretsmanager_secret" "alpaca_api_keys" {
+  name                    = "${var.project_name}/alpaca"
+  description             = "Alpaca API credentials for trading and data loaders"
+  recovery_window_in_days = 7
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-alpaca-api-keys"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "alpaca_api_keys" {
+  secret_id = aws_secretsmanager_secret.alpaca_api_keys.id
+  secret_string = jsonencode({
+    APCA_API_KEY_ID     = var.alpaca_api_key_id
+    APCA_API_SECRET_KEY = var.alpaca_api_secret_key
+    APCA_API_BASE_URL   = var.alpaca_api_base_url
   })
 }
 
