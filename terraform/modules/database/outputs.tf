@@ -45,7 +45,7 @@ output "rds_arn" {
   value       = aws_db_instance.main.arn
 }
 
-# RDS Proxy Endpoint (Connection Pooling)
+# RDS Proxy Endpoint (Connection Pooling) - re-enabled with Terraform fixes
 output "rds_proxy_endpoint" {
   description = "RDS Proxy endpoint for multiplexed connections"
   value       = aws_db_proxy.main.endpoint
