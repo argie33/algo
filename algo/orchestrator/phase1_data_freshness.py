@@ -14,7 +14,7 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
-def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 30) -> bool:
+def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 30, retry_count: int = 1) -> bool:
     """
     Trigger ECS loader asynchronously and VERIFY it started before returning.
 
@@ -24,37 +24,45 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
 
     Now: Use EventBridge to trigger ECS task, monitor CloudWatch for task start.
     Only return True if ECS task confirmed running within poll_timeout_sec.
+    Retries once with 10s backoff if initial trigger fails.
 
     Args:
         loader_name: Name of the loader to trigger
         verbose: Whether to log verbose output
         poll_timeout_sec: Max seconds to wait for loader task to start (default 30s)
+        retry_count: Number of retry attempts after initial failure (default 1)
 
     Returns: True if loader task confirmed running, False if timeout/error
     """
-    try:
-        import boto3
+    import boto3
+    from utils.database_context import DatabaseContext
 
-        # Map loader names to ECS task definitions
-        task_defs = {
-            'stock_prices_daily': 'algo-load-prices-daily',
-            'technical_data_daily': 'algo-load-technicals',
-            'market_health_daily': 'algo-load-market-health',
-        }
+    # Map loader names to ECS task definitions
+    task_defs = {
+        'stock_prices_daily': 'algo-load-prices-daily',
+        'technical_data_daily': 'algo-load-technicals',
+        'market_health_daily': 'algo-load-market-health',
+    }
 
-        task_def = task_defs.get(loader_name)
-        if not task_def:
-            logger.warning(f"[FAILSAFE] Unknown loader '{loader_name}', cannot trigger")
-            return False
+    task_def = task_defs.get(loader_name)
+    if not task_def:
+        logger.warning(f"[FAILSAFE] Unknown loader '{loader_name}', cannot trigger")
+        return False
 
-        # Step 1: Trigger ECS task via RunTask (synchronous API)
-        ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-        cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+    ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+    cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
 
-        if verbose:
-            logger.info(f"[FAILSAFE] Launching ECS task {task_def} on cluster {cluster_arn}...")
+    # Retry loop: attempt trigger + polling up to retry_count + 1 times
+    attempts = 0
+    max_attempts = retry_count + 1
+
+    while attempts < max_attempts:
+        attempts += 1
 
         try:
+            if verbose:
+                logger.info(f"[FAILSAFE] Attempt {attempts}/{max_attempts}: Launching ECS task {task_def}...")
+
             response = ecs_client.run_task(
                 cluster=cluster_arn,
                 taskDefinition=task_def,
@@ -80,24 +88,28 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
             )
 
             if not response.get('tasks'):
-                logger.warning(f"[FAILSAFE] ECS RunTask returned no tasks")
+                logger.warning(f"[FAILSAFE] Attempt {attempts}: ECS RunTask returned no tasks")
+                if attempts < max_attempts:
+                    logger.info(f"[FAILSAFE] Waiting 10s before retry...")
+                    time.sleep(10)
+                    continue
                 return False
 
             task_arn = response['tasks'][0]['taskArn']
             task_id = task_arn.split('/')[-1]
 
             if verbose:
-                logger.info(f"[FAILSAFE] ✓ ECS task launched: {task_id}")
+                logger.info(f"[FAILSAFE] Attempt {attempts}: ✓ ECS task launched: {task_id}")
 
             # Step 2: Poll CloudWatch Container Insights for task to reach RUNNING state
             # Task states: PROVISIONING → PENDING → ACTIVATING → RUNNING
-            cloudwatch = boto3.client('cloudwatch', region_name=os.getenv('AWS_REGION', 'us-east-1'))
             poll_start = time.time()
             poll_interval = 1.0  # Check every 1 second
 
             # Query CloudWatch Logs for task state transitions
             logs_client = boto3.client('logs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
 
+            poll_success = False
             while time.time() - poll_start < poll_timeout_sec:
                 try:
                     # Check ECS DescribeTasks for current state
@@ -149,29 +161,41 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                                 except Exception as alert_err:
                                     logger.debug(f"[FAILSAFE] Could not send scheduling delay alert: {alert_err}")
 
-                            return True
+                            poll_success = True
+                            break
                         elif task_state in ('DEPROVISIONING', 'STOPPING', 'DEACTIVATING', 'STOPPED', 'DELETED'):
                             logger.warning(f"[FAILSAFE] Task {task_id} stopped prematurely: {task_state}")
                             if task.get('stoppedReason'):
                                 logger.warning(f"  Reason: {task['stoppedReason']}")
-                            return False
+                            break
 
                 except Exception as desc_err:
                     logger.debug(f"[FAILSAFE] DescribeTasks failed: {desc_err}")
 
                 time.sleep(poll_interval)
 
-            logger.warning(f"[FAILSAFE] Task {task_id} did not reach RUNNING state within {poll_timeout_sec}s. "
-                         "Check ECS task definition and CloudWatch logs.")
-            return False
+            if poll_success:
+                return True
+            elif attempts < max_attempts:
+                logger.warning(f"[FAILSAFE] Attempt {attempts}: Task did not reach RUNNING within {poll_timeout_sec}s. "
+                              f"Retrying in 10s...")
+                time.sleep(10)
+                continue
+            else:
+                logger.warning(f"[FAILSAFE] All {max_attempts} attempt(s) failed. "
+                              "Task did not reach RUNNING state. Check ECS task definition and CloudWatch logs.")
+                return False
 
         except Exception as ecs_err:
-            logger.error(f"[FAILSAFE] ECS RunTask failed: {ecs_err}")
-            return False
+            if attempts < max_attempts:
+                logger.warning(f"[FAILSAFE] Attempt {attempts} failed with error: {ecs_err}. Retrying in 10s...")
+                time.sleep(10)
+                continue
+            else:
+                logger.error(f"[FAILSAFE] All {max_attempts} attempt(s) failed. Last error: {ecs_err}")
+                return False
 
-    except Exception as e:
-        logger.error(f"[FAILSAFE] Unexpected error in loader trigger: {e}")
-        return False
+    return False
 
 
 def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeout: int = 600) -> bool:
@@ -847,10 +871,16 @@ def run(
         except Exception as e:
             logger.debug(f"Could not check first-run state: {e}")
 
-        # Check swing_trader_scores freshness — FAIL-CLOSED if missing/stale (unless first run).
+        # Check swing_trader_scores freshness — FAIL-CLOSED if missing/stale (unless first run or market-open grace period).
         # When swing scores are missing, Phase 5 min_swing_score=55 gate kills ALL trades silently.
         # User sees "success" with 0 trades executed and no explanation. Halt explicitly instead.
+        # Grace period: Allow yesterday's scores at 9:30 AM since morning prep (4:30 AM) should compute today's scores.
+        # For intraday runs (1 PM, 3 PM, 5:30 PM): Require today's scores.
         swing_scores_ok = True
+        now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+        is_market_open_run = (9 <= now_et.hour < 10)  # 9:XX AM ET market open
+        min_acceptable_swing_date = expected_date if not is_market_open_run else expected_date - timedelta(days=1)
+
         try:
             with DatabaseContext('read') as _sw_cur:
                 _sw_cur.execute("SET statement_timeout = 5000")
@@ -875,7 +905,7 @@ def run(
                             {'swing_latest': None, 'expected': str(expected_date), 'action': 'HALT', 'first_run': False}
                         )
                         swing_scores_ok = False
-                elif sw_latest < expected_date:
+                elif sw_latest < min_acceptable_swing_date:
                     gap = (expected_date - sw_latest).days
                     logger.error(
                         f"[SWING SCORES] HALT: swing_trader_scores is {gap}d stale "
@@ -890,6 +920,16 @@ def run(
                         {'swing_latest': str(sw_latest), 'expected': str(expected_date), 'gap_days': gap, 'action': 'HALT'}
                     )
                     swing_scores_ok = False
+                elif sw_latest < expected_date and is_market_open_run:
+                    gap = (expected_date - sw_latest).days
+                    logger.warning(
+                        f"[SWING SCORES] GRACE PERIOD: Using {gap}d old data at market open "
+                        f"(latest={sw_latest}, expected {expected_date}). "
+                        f"Morning prep pipeline (4:30 AM) should have computed today's scores. "
+                        f"Monitor Step Functions logs if this persists."
+                    )
+                    log_phase_result_fn(1, 'swing_trader_scores', 'warning',
+                                       'Grace period: Using prior-day scores at 9:30 AM market open')
                 elif verbose:
                     logger.info(f"  [OK] swing_trader_scores: latest {sw_latest}")
         except Exception as _sw_err:
