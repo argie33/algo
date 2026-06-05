@@ -1461,9 +1461,20 @@ def run(
                         except (IndexError, ValueError):
                             pass
 
-                # Decision: if data is 2+ trading days old and failsafe failed, HALT.
+                # Decision: if data is >= configured threshold and failsafe failed, HALT (Issue #1)
                 # This prevents silent failures in Phase 5 when signal gate kills trades.
-                if oldest_stale_trading_day_age is not None and oldest_stale_trading_day_age >= 2:
+                # Threshold is configurable via algo_config (default 2 trading days)
+                halt_threshold = 2  # Default
+                try:
+                    with DatabaseContext('read') as _cfg_cur:
+                        _cfg_cur.execute("SELECT value FROM algo_config WHERE key = %s", ('phase1_halt_stale_days_threshold',))
+                        result = _cfg_cur.fetchone()
+                        if result:
+                            halt_threshold = int(result[0])
+                except Exception:
+                    pass
+
+                if oldest_stale_trading_day_age is not None and oldest_stale_trading_day_age >= halt_threshold:
                     logger.critical(f"[HALT] Failsafe loader trigger failed AND data is {oldest_stale_trading_day_age}+ trading days stale. Too risky to proceed.")
                     logger.critical(f"  Stale items: {stale_items}")
                     logger.critical(f"  Loader failed to start. Halting orchestrator.")
@@ -1670,6 +1681,188 @@ def run(
 
         if not patrol_ok:
             return PhaseResult(1, 'data_patrol', 'halted', {}, True, 'Data patrol check failed')
+
+        # DATA COMPLETENESS CHECK: Verify critical tables have adequate symbol coverage
+        # If a loader runs but completes only 90% of symbols, freshness check passes but we're
+        # trading on incomplete data. This check catches that: verify price_daily, technical_data_daily,
+        # and buy_sell_daily cover at least 75% of expected universe (3750/5000 symbols).
+        completeness_ok = True
+        try:
+            with DatabaseContext('read') as _completeness_cur:
+                _completeness_cur.execute("SET statement_timeout = 10000")
+
+                # Get reference universe size (active S&P 500 + large-cap ETFs, ~5000 symbols)
+                _completeness_cur.execute("""
+                    SELECT COUNT(DISTINCT symbol) FROM price_daily
+                    WHERE date = (SELECT MAX(date) FROM price_daily)
+                """)
+                price_coverage = _completeness_cur.fetchone()[0] or 0
+
+                _completeness_cur.execute("""
+                    SELECT COUNT(DISTINCT symbol) FROM technical_data_daily
+                    WHERE date = (SELECT MAX(date) FROM technical_data_daily)
+                """)
+                technical_coverage = _completeness_cur.fetchone()[0] or 0
+
+                _completeness_cur.execute("""
+                    SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily
+                    WHERE date = (SELECT MAX(date) FROM buy_sell_daily)
+                """)
+                buysell_coverage = _completeness_cur.fetchone()[0] or 0
+
+                # Expected universe: assume 5000 active symbols (S&P 500 + large ETFs)
+                # Min acceptable: 75% coverage (3750 symbols) for critical tables
+                min_coverage = 3750
+                coverage_check_failed = False
+
+                if price_coverage < min_coverage:
+                    logger.error(f"[COMPLETENESS] price_daily coverage too low: {price_coverage}/5000 symbols ({100*price_coverage/5000:.1f}%)")
+                    completeness_ok = False
+                    coverage_check_failed = True
+                else:
+                    logger.info(f"[COMPLETENESS] price_daily: {price_coverage}/5000 symbols ✓")
+
+                if technical_coverage < min_coverage:
+                    logger.error(f"[COMPLETENESS] technical_data_daily coverage too low: {technical_coverage}/5000 symbols ({100*technical_coverage/5000:.1f}%)")
+                    completeness_ok = False
+                    coverage_check_failed = True
+                else:
+                    logger.info(f"[COMPLETENESS] technical_data_daily: {technical_coverage}/5000 symbols ✓")
+
+                if buysell_coverage < min_coverage:
+                    logger.error(f"[COMPLETENESS] buy_sell_daily coverage too low: {buysell_coverage}/5000 symbols ({100*buysell_coverage/5000:.1f}%)")
+                    completeness_ok = False
+                    coverage_check_failed = True
+                else:
+                    logger.info(f"[COMPLETENESS] buy_sell_daily: {buysell_coverage}/5000 symbols ✓")
+
+                if coverage_check_failed and not first_run_state:
+                    logger.critical("[HALT] Critical loader coverage below 75%. This indicates a loader failure mid-execution.")
+                    logger.critical(f"  price_daily: {price_coverage}/5000, technical_data_daily: {technical_coverage}/5000, buy_sell_daily: {buysell_coverage}/5000")
+                    logger.critical("  Incomplete data will cause Phase 5 to generate incomplete signal set.")
+                    logger.critical("  Check loader logs for partial failures.")
+                    alerts.send_position_alert(
+                        'DATA', 'INCOMPLETE_COVERAGE',
+                        f'HALT: Data coverage below 75%. Loaders completed partially. '
+                        f'price_daily: {price_coverage}/5000, technical_data_daily: {technical_coverage}/5000, buy_sell_daily: {buysell_coverage}/5000. '
+                        f'Check loader logs for errors.',
+                        {'price': price_coverage, 'technical': technical_coverage, 'buysell': buysell_coverage, 'min': min_coverage}
+                    )
+                    log_phase_result_fn(1, 'data_completeness', 'halt',
+                                       f'Incomplete coverage: price={price_coverage}, technical={technical_coverage}, buysell={buysell_coverage}')
+        except Exception as completeness_err:
+            logger.warning(f"[COMPLETENESS] Could not check data coverage: {completeness_err}")
+
+        if not completeness_ok and not first_run_state:
+            return PhaseResult(1, 'data_completeness', 'halted', {}, True,
+                             'Data coverage below acceptable threshold — loader may have failed partially')
+
+        # BUY_SELL_DAILY DEPENDENCY VALIDATION: Verify source data completeness
+        # buy_sell_daily depends on technical_data_daily. If technical data failed for 500+ symbols,
+        # buy_sell_daily will be incomplete (only 4500/5000 signals). Phase 5 will see "fresh" signals
+        # but generate an incomplete trade set. Check that technical_data_daily has adequate coverage.
+        if not first_run_state:
+            try:
+                with DatabaseContext('read') as _dep_cur:
+                    _dep_cur.execute("SET statement_timeout = 5000")
+
+                    # Get most recent date for technical_data_daily
+                    _dep_cur.execute("SELECT MAX(date) FROM technical_data_daily")
+                    tech_date = _dep_cur.fetchone()[0] if _dep_cur.fetchone() else None
+
+                    # Also verify buy_sell_daily's source (should match or be newer than tech_data)
+                    _dep_cur.execute("SELECT MAX(date) FROM buy_sell_daily")
+                    buysell_date = _dep_cur.fetchone()[0] if _dep_cur.fetchone() else None
+
+                    if tech_date and buysell_date and buysell_date > tech_date:
+                        logger.warning(f"[DEPENDENCY] buy_sell_daily ({buysell_date}) is newer than technical_data_daily ({tech_date})")
+                        logger.warning(f"  This is expected if technical data updates slower than buy_sell.")
+                    elif tech_date and buysell_date and buysell_date < tech_date:
+                        # This is a problem: buy_sell is older than its source data
+                        logger.error(f"[DEPENDENCY] buy_sell_daily ({buysell_date}) is OLDER than technical_data_daily ({tech_date})")
+                        logger.error(f"  Gap: {(tech_date - buysell_date).days} days. Signals may be based on stale technical data.")
+                        alerts.send_position_alert(
+                            'DATA', 'DEPENDENCY_AGE_MISMATCH',
+                            f'buy_sell_daily ({buysell_date}) is older than technical_data_daily ({tech_date}). '
+                            f'Signals may be based on stale technical indicators.',
+                            {'buysell_date': str(buysell_date), 'tech_date': str(tech_date), 'gap_days': (tech_date - buysell_date).days}
+                        )
+            except Exception as dep_err:
+                logger.debug(f"[DEPENDENCY] Could not validate buy_sell/technical relationship: {dep_err}")
+
+        # SWING TRADER SCORES SOURCE DATA VALIDATION: Verify that swing_trader_scores depends on fresh source data
+        # swing_trader_scores requires: buy_sell_daily (fresh), technical_data_daily (fresh), trend_template_data (fresh)
+        # If any source is stale, swing_trader_scores will be based on stale/incomplete data.
+        # Note: We already checked swing_trader_scores freshness above; this validates its dependencies.
+        if swing_scores_ok and not first_run_state:
+            try:
+                with DatabaseContext('read') as _sources_cur:
+                    _sources_cur.execute("SET statement_timeout = 5000")
+
+                    # Swing trader scores should not be older than 2 hours from expected_date
+                    # (it depends on buy_sell_daily + technical_data which are typically from expected_date)
+                    _sources_cur.execute("SELECT MAX(date) FROM buy_sell_daily")
+                    buysell_date = _sources_cur.fetchone()[0] if _sources_cur.fetchone() else None
+
+                    _sources_cur.execute("SELECT MAX(date) FROM technical_data_daily")
+                    tech_date = _sources_cur.fetchone()[0] if _sources_cur.fetchone() else None
+
+                    _sources_cur.execute("SELECT MAX(date) FROM trend_template_data")
+                    trend_date = _sources_cur.fetchone()[0] if _sources_cur.fetchone() else None
+
+                    # All three should be from expected_date (yesterday, most recent trading day)
+                    sources_ok = True
+                    for source_name, source_date in [('buy_sell_daily', buysell_date), ('technical_data_daily', tech_date), ('trend_template_data', trend_date)]:
+                        if source_date and source_date < expected_date:
+                            gap = (expected_date - source_date).days
+                            logger.warning(f"[SWING_SOURCES] {source_name} is {gap}d behind expected_date ({expected_date})")
+                            sources_ok = False
+                        elif source_date:
+                            logger.info(f"[SWING_SOURCES] {source_name}: {source_date} ✓")
+
+                    if not sources_ok:
+                        logger.warning(f"[SWING_SOURCES] swing_trader_scores may be based on stale source data. "
+                                      f"buy_sell={buysell_date}, technical={tech_date}, trend={trend_date}. "
+                                      f"Expected all from {expected_date}.")
+                        alerts.send_position_alert(
+                            'DATA', 'SWING_SOURCES_STALE',
+                            f'swing_trader_scores sources may be stale: buy_sell={buysell_date}, technical={tech_date}, trend={trend_date}. '
+                            f'Expected all from {expected_date}.',
+                            {'buysell': str(buysell_date), 'technical': str(tech_date), 'trend': str(trend_date), 'expected': str(expected_date)}
+                        )
+            except Exception as sources_err:
+                logger.debug(f"[SWING_SOURCES] Could not validate swing_trader_scores sources: {sources_err}")
+
+        # SECTOR RANKING HEALTH CHECK: Verify that sector_ranking is fresh and populated
+        # sector_ranking is used by Phase 3 (position monitor) to track sector exposure and limits.
+        # If sector_ranking fails silently during morning prep, Phase 3 uses stale sector assignments
+        # and Phase 5 may violate position limits (e.g., 8 positions per sector) unknowingly.
+        try:
+            with DatabaseContext('read') as _sector_cur:
+                _sector_cur.execute("SET statement_timeout = 5000")
+
+                _sector_cur.execute("""
+                    SELECT MAX(updated_at), COUNT(*) as row_count FROM sector_ranking
+                    WHERE updated_at >= %s
+                """, (expected_date,))
+                sector_row = _sector_cur.fetchone()
+                sector_updated = sector_row[0] if sector_row else None
+                sector_count = sector_row[1] if sector_row and len(sector_row) > 1 else 0
+
+                if sector_count == 0 or sector_updated is None:
+                    if not first_run_state:
+                        logger.warning(f"[SECTOR] sector_ranking not updated since {expected_date}. Using possibly stale sector assignments.")
+                        logger.warning(f"  Current row count: {sector_count}. Check morning-prep-pipeline logs if this is unexpected.")
+                        alerts.send_position_alert(
+                            'DATA', 'SECTOR_RANKING_STALE',
+                            f'sector_ranking not updated since {expected_date}. Phase 3/5 may use stale sector data. Row count: {sector_count}. '
+                            f'Check morning-prep-pipeline logs.',
+                            {'updated': str(sector_updated), 'row_count': sector_count, 'expected_date': str(expected_date)}
+                        )
+                else:
+                    logger.info(f"[SECTOR] sector_ranking: {sector_count} rows, updated {sector_updated} ✓")
+        except Exception as sector_err:
+            logger.debug(f"[SECTOR] Could not check sector_ranking health: {sector_err}")
 
         # Quick secondary checks (fast index scans, not full table scans).
         # Full COUNT(*) on large tables takes 1-3 minutes under load — expensive in Lambda.

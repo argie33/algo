@@ -408,6 +408,40 @@ def main():
             f"This may cause RDS connection pool exhaustion. Check ECS task definition and LOADER_PARALLELISM env var."
         )
 
+    # ISSUE #7: Validate dependency — technical_data_daily must be fresh and have good coverage
+    try:
+        with DatabaseContext('read') as cur:
+            cur.execute("SELECT MAX(date) FROM technical_data_daily")
+            result = cur.fetchone()
+            if not result or not result[0]:
+                logger.error("[DEPENDENCY] technical_data_daily is empty - cannot generate signals")
+                return 1
+
+            tech_data_date = result[0]
+            from datetime import date as _date
+            tech_data_age = (_date.today() - (tech_data_date if isinstance(tech_data_date, _date) else _date.fromisoformat(str(tech_data_date)))).days
+
+            if tech_data_age > 1:
+                logger.error(f"[DEPENDENCY] technical_data_daily is {tech_data_age}+ days old - too stale for signal generation")
+                return 1
+
+            # Check coverage: technical_data_daily must have at least 75% symbol coverage
+            cur.execute("""
+                SELECT COUNT(DISTINCT symbol) FROM technical_data_daily
+                WHERE date = (SELECT MAX(date) FROM technical_data_daily)
+            """)
+            tech_symbol_count = cur.fetchone()[0] if cur.fetchone() else 0
+
+            coverage_pct = round(100 * tech_symbol_count / len(symbols), 1) if symbols else 0
+            if coverage_pct < 75:
+                logger.error(f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% ({tech_symbol_count}/{len(symbols)} symbols) - below 75% threshold")
+                return 1
+
+            logger.info(f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d")
+    except Exception as dep_err:
+        logger.error(f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}")
+        return 1
+
     loader = SignalsDailyLoader()
     try:
         result = loader.run(symbols, parallelism=args.parallelism)

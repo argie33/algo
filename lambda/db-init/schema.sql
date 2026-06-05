@@ -3193,3 +3193,8 @@ INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_low_volume_threshold', '1000000', 'int', 'Low volume threshold (volume < this)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_high_volume_threshold', '100000000', 'int', 'High volume threshold (volume > this)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_new_low_volume_alert', '50', 'int', 'New low-volume symbols threshold for WARN alert', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+
+-- Phase 1 Freshness Configuration (parameterized halt thresholds - Issue #1)
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_halt_stale_days_threshold', '2', 'int', 'Days stale for HALT if failsafe fails (default 2 trading days)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('failsafe_grace_period_minutes', '150', 'int', 'Grace period for async failsafe loader (default 150 min)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('phase1_coverage_min_pct', '75', 'int', 'Min symbol coverage % for data tables (Issue #9)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
