@@ -86,6 +86,101 @@ If you need to rebuild the schema:
   - Alert threshold: >80% of max_db_connections (400 out of 500) → investigate slow queries or RDS CPU saturation
   - Query to verify proxy is active: `aws rds describe-db-proxies --query 'DBProxies[?DBProxyName==\`algo-rds-proxy-dev\`].Status'` (expect: available)
 
+## Phase 1 Simplification & Diagnostic Improvements (2026-06-05 Evening)
+
+**Goal:** Make data freshness checks reliable and debuggable. Removed complex schedule-based logic that was fragile and hard to diagnose.
+
+**Changes:**
+1. **Simplified data freshness rule:** Data must be ≤1 trading day old. No more schedule-based expected dates (which broke on edge cases like Friday 4 PM closes, holidays, etc.)
+2. **Simplified failsafe triggers:** If data is stale and loader not actively RUNNING, trigger immediately (no 2.5-hour grace period delays that cause false halts)
+3. **Removed grace periods:** If loader is RUNNING, proceed (grace period OK). Otherwise trigger NOW.
+4. **Explicit swing_trader_scores halt:** If missing or stale, Phase 1 halts with clear message "Phase 5 cannot rank trades"
+5. **Morning prep visibility:** Phase 1 now checks if buy_sell_daily was updated since 3:30 AM. If not, sends alert so we know morning prep failed.
+6. **Health check diagnostics:** Orchestrator startup logs table freshness, loader status, so we can see at a glance what's stale/broken.
+
+**Files changed:**
+- `algo/orchestrator/phase1_data_freshness.py` (lines 1177-1260 data freshness logic, lines 280-290 grace period, lines 1556-1631 swing scores)
+- `algo/algo_orchestrator.py` (added _health_check_diagnostics method, called before Phase 1)
+
+**Why:** Previous system had too many decision paths (schedule-based expected dates, multiple grace periods, market-open vs intraday rules). User reported "never succeeds fully with entire dataset" — system was halting on false positives (stale data checks triggered when data was actually OK). Simplified to just: "must be fresh, period."
+
+## Data Quality & Resilience Improvements (Verified 2026-06-05)
+
+**Summary:** System has been hardened with sophisticated failure detection, recovery, and data quality mechanisms across all critical paths.
+
+### yfinance Market Close Handling
+- **Market close timeout:** 1200s (20 minutes) for EOD pipeline context; 600s for other times
+- **Exponential backoff:** 5s → 10s → 20s → 40s → 60s max between retries (lines 217-241 in load_prices.py)
+- **Behavior:** FAILS LOUDLY with RuntimeError if critical (within 1 hour of market close); allows graceful degradation outside window
+- **File:** `loaders/load_prices.py` lines 169-249
+- **Impact:** Prevents incomplete price data loads when yfinance API lags after 4 PM close
+
+### yfinance Rate Limiting & Batch Sizing
+- **Circuit breaker:** Triggers after 180s (EOD) or 480s (other) of persistent rate limiting
+- **Exponential backoff:** 5s, 10s, 20s, 40s, 80s (capped 60s) with ±20% jitter
+- **Proactive batch sizing:** Starts conservative (batch=50) during EOD to avoid rate limits; reduces to 20 if limits hit
+- **Metrics:** Publishes RateLimitErrors to CloudWatch; tracks error count and duration
+- **File:** `loaders/load_prices.py` lines 73-90, 117-151, 340-419
+- **Impact:** Reduces cascade failures during yfinance rate limiting; maintains progress even under API pressure
+
+### Failsafe Completion Grace Period
+- **Duration:** 150 minutes (2.5 hours) base, configurable via `algo_config` table (`failsafe_grace_period_minutes`)
+- **Status-aware:** Checks loader RUNNING/COMPLETED status; extends grace if loader still running
+- **Fallback:** DynamoDB timestamp-based grace period if database unavailable
+- **File:** `algo/orchestrator/phase1_data_freshness.py` lines 280-352
+- **Impact:** Prevents redundant loader triggers while stock_prices_daily completes (2h+ with delays)
+
+### ECS Failsafe Verification with Adaptive Timeouts
+- **Adaptive polling:** 30s (normal load) → 120s (busy) → 180s (extreme load)
+- **Retry strategy:** Up to 3 attempts with increasing timeouts (lines 1421-1446 in phase1_data_freshness.py)
+- **Verification:** Confirms ECS task reaches RUNNING state before returning success
+- **File:** `algo/orchestrator/phase1_data_freshness.py` lines 17-220
+- **Impact:** Catches hung/failed tasks; accounts for Fargate startup variance (45-120s)
+
+### Data Freshness Validation with Configurable Staleness
+- **Staleness columns:** `buy_sell_daily_age_days`, `technical_data_age_days`, `trend_template_age_days` in signal_quality_scores table
+- **Phase 5 filtering:** Rejects signals if data older than threshold (default 2 days, configurable as `signal_max_data_age_days`)
+- **Phase 1 monitoring:** Detects stale data and triggers failsafe loader if threshold exceeded
+- **File:** `algo/orchestrator/phase5_signal_generation.py` lines 250-299 (filtering); `algo/orchestrator/phase1_data_freshness.py` (detection)
+- **Impact:** Prevents trading on stale fundamentals or technical data
+
+### Data Patrol with Parameterized Quality Thresholds
+- **Configuration location:** `algo_config` table (read at startup, all thresholds tunable without code changes)
+- **Configurable thresholds:**
+  - Staleness windows: `patrol_staleness_*` (7 days for daily, 14 days for weekly, 120 days for earnings)
+  - Coverage: `patrol_min_universe_pct` (default 75%), `patrol_min_coverage_ratio` (default 0.75)
+  - Data sanity: `patrol_max_daily_move_pct`, `patrol_low_volume_threshold`, `patrol_high_volume_threshold`
+  - Loader contracts: `patrol_price_daily_14d_min` (40,000 records), `patrol_buy_sell_daily_14d_min` (800)
+- **File:** `algo/algo_data_patrol.py` lines 44-98
+- **Impact:** Quality gates are tunable; can tighten/loosen without redeploy
+
+### Signal Waterfall with Per-Filter Rejection Tracking
+- **Filter breakdown:** Logs top 10 rejection reasons (tier + specific filter)
+- **CloudWatch metrics:** Publishes top 5 filters to CloudWatch for trending
+- **Tracking table:** `filter_rejection_log` stores rejection_reason and rejected_at_tier
+- **File:** `algo/orchestrator/phase5_signal_generation.py` lines 34-171
+- **Impact:** Can diagnose "why no signals" → market conditions vs overly-strict filters
+
+### Loader Execution Status Monitoring
+- **Status table:** `data_loader_status` tracks RUNNING/COMPLETED/FAILED per loader
+- **DynamoDB fallback:** Loader status cached in DynamoDB with 1-hour TTL for Phase 1 queries
+- **Used by:** Failsafe grace period logic (lines 300-315 in phase1_data_freshness.py)
+- **File:** `terraform/modules/loaders/main.tf` lines 108-133
+- **Impact:** Real-time loader state visible to Phase 1; enables smart grace period extension
+
+### ECS Scheduling Delay Compensation
+- **Adaptive polling:** Adaptive timeouts (30s → 120s → 180s) account for Fargate startup variance
+- **Metrics tracking:** ECS scheduling latency published to CloudWatch
+- **Grace period:** Dynamic grace period extends if loader status shows RUNNING
+- **File:** Phase 1 failsafe (phase1_data_freshness.py) and loader status monitoring
+- **Impact:** Works reliably even when ECS cluster has scheduling pressure
+
+### EOD Pipeline vs Morning Prep Coordination
+- **Status check:** Morning prep checks if EOD pipeline still running before proceeding
+- **Coordination:** If overlap detected, proceeds with warning (both pipelines can coexist but share RDS)
+- **File:** `algo/orchestrator/phase1_data_freshness.py` (pipeline overlap detection)
+- **Impact:** Prevents RDS connection saturation during overlap window
+
 ## Infrastructure Constraints
 
 **CloudFront Domain Management (PERMANENT FIX IMPLEMENTED):** CloudFront domain is now dynamically managed via AWS Secrets Manager, eliminating hardcoding and manual updates.

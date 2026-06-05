@@ -222,6 +222,55 @@ class Orchestrator:
         except Exception as e:
             logger.debug(f"Could not check connection pool health: {e}")
 
+    def _health_check_diagnostics(self) -> None:
+        """Log system health status: what's working, what's not, what's stale."""
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute("SET statement_timeout = 10000")  # 10s timeout
+
+                # Check key table freshness
+                tables_to_check = [
+                    ('price_daily', 'SPY prices'),
+                    ('market_health_daily', 'Market health'),
+                    ('technical_data_daily', 'Technicals'),
+                    ('buy_sell_daily', 'Buy/sell signals'),
+                    ('signal_quality_scores', 'Signal quality'),
+                    ('swing_trader_scores', 'Swing scores'),
+                    ('trend_template_data', 'Trend template'),
+                ]
+
+                logger.info("  Table Freshness Status:")
+                for table, desc in tables_to_check:
+                    try:
+                        cur.execute(f"SELECT MAX(date) FROM {table} LIMIT 1")
+                        row = cur.fetchone()
+                        latest_date = row[0] if row and row[0] else 'EMPTY'
+                        if latest_date != 'EMPTY':
+                            from datetime import datetime as dt
+                            age = (datetime.now(timezone.utc) - (latest_date if isinstance(latest_date, type(datetime.now(timezone.utc))) else dt.fromisoformat(str(latest_date)))).days
+                            logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
+                        else:
+                            logger.info(f"    [EMPTY] {desc:20s}: no data")
+                    except Exception as t_err:
+                        logger.warning(f"    [ERROR] {desc:20s}: {t_err}")
+
+                # Check loader status
+                try:
+                    cur.execute("""
+                        SELECT table_name, status, last_updated
+                        FROM data_loader_status
+                        WHERE table_name IN ('price_daily', 'swing_trader_scores', 'signal_quality_scores')
+                        ORDER BY table_name
+                    """)
+                    logger.info("  Loader Status:")
+                    for row in cur.fetchall():
+                        logger.info(f"    {row[0]:25s}: {row[1]:10s} (updated {row[2]})")
+                except Exception as loader_err:
+                    logger.debug(f"    Could not check loader status: {loader_err}")
+
+        except Exception as e:
+            logger.debug(f"  Health check failed: {e}")
+
     def _kill_long_running_loaders(self) -> None:
         """CRITICAL: Kill analytics loaders if approaching next orchestrator run.
 
@@ -620,6 +669,9 @@ class Orchestrator:
 
             logger.info("\n[CHECK] Killing long-running analytics loaders...")
             self._kill_long_running_loaders()
+
+            logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
+            self._health_check_diagnostics()
 
             if self.degraded_mode and self.dry_run:
                 logger.info("[DRY-RUN] Running in planning mode — skipping all trading phases.")

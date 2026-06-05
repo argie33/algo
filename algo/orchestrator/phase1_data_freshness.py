@@ -1182,89 +1182,24 @@ def run(
         }
         stale_items = []
 
-        # Compute expected data date based on orchestrator schedule, not reactive tolerance.
-        # SCHEDULE:
-        # - 4:05 PM ET (Mon-Fri): EOD pipeline completes (loads yesterday's + earlier data)
-        # - 4:30 AM ET (Mon-Fri): Morning pipeline completes (refreshes 1d technicals before 9:30 AM)
-        # - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: Orchestrator runs
-        #
-        # LOGIC:
-        # If run_time < 9:30 AM: expect EOD data from 2 trading days ago (previous day's 4 PM pipeline)
-        # If run_time >= 9:30 AM and < 4 PM: expect EOD data from yesterday (previous trading day)
-        # If run_time >= 4 PM and < 4:05 PM: EOD pipeline still running; accept yesterday's data
-        # If run_time >= 4:05 PM: expect today's data (just completed) or yesterday's if pipeline delayed
-        #
-        # Grace period: +30 min after expected completion. Beyond that, trigger failsafe.
+        # SIMPLIFIED DATA FRESHNESS LOGIC (2026-06-05 fix)
+        # RULE: Data must be no older than 1 trading day. Period.
+        # RATIONALE: Every run (9:30 AM, 1 PM, 3 PM, 5:30 PM) should have yesterday's EOD data.
+        # If missing, trigger failsafe immediately (no grace period delays).
+        # Exception: First run of system (no data ever loaded) — allow empty tables, log info only.
 
-        def _get_expected_data_date(current_time: datetime, current_date: _date) -> _date:
-            """Calculate expected data date based on orchestrator run time and pipeline schedule."""
-            try:
-                from algo.algo_market_calendar import MarketCalendar
+        from algo.algo_market_calendar import MarketCalendar
 
-                hour = current_time.hour
-                minute = current_time.minute
-                current_time_minutes = hour * 60 + minute
+        # Get most recent trading day before today
+        max_acceptable_age_days = 1
+        expected_date = run_date - timedelta(days=1)
+        while not MarketCalendar.is_trading_day(expected_date):
+            expected_date -= timedelta(days=1)
 
-                # Pipeline schedule (in minutes from midnight ET)
-                eod_pipeline_end_minutes = 16 * 60 + 5 + 30  # 4:05 PM + 30 min grace = 4:35 PM
-                morning_pipeline_end_minutes = 4 * 60 + 30 + 30  # 4:30 AM + 30 min grace = 5:00 AM
-                orchestrator_times_minutes = [
-                    9 * 60 + 30,  # 9:30 AM
-                    13 * 60,      # 1 PM
-                    15 * 60,      # 3 PM
-                    17 * 60 + 30, # 5:30 PM
-                ]
+        min_acceptable_date = expected_date  # No tolerance — must be from expected trading day
 
-                # Find the most recent orchestrator run time
-                most_recent_orchestrator = None
-                for orch_time in orchestrator_times_minutes:
-                    if current_time_minutes >= orch_time:
-                        most_recent_orchestrator = orch_time
-
-                # Determine expected data date
-                expected_data_date = current_date - timedelta(days=1)
-
-                # Back up to most recent trading day
-                while not MarketCalendar.is_trading_day(expected_data_date):
-                    expected_data_date -= timedelta(days=1)
-
-                # If we haven't reached 9:30 AM yet, expect data from 2 trading days ago
-                # (yesterday's EOD pipeline, which completes at 4 PM)
-                if current_time_minutes < orchestrator_times_minutes[0]:  # Before 9:30 AM
-                    expected_data_date -= timedelta(days=1)
-                    while not MarketCalendar.is_trading_day(expected_data_date):
-                        expected_data_date -= timedelta(days=1)
-
-                return expected_data_date
-            except Exception as e:
-                logger.debug(f"Schedule-based date calculation failed: {e}")
-                return current_date - timedelta(days=1)
-
-        try:
-            from algo.algo_market_calendar import MarketCalendar
-            from algo.algo_orchestrator import get_current_time_et  # Utility for ET time
-
-            # Get current time in ET (orchestrator always uses ET)
-            current_time_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))  # EST
-
-            expected_date = _get_expected_data_date(current_time_et, run_date)
-
-            # Minimum acceptable: 1 trading day before expected (allow previous day if today's pipeline delayed)
-            min_acceptable_date = expected_date - timedelta(days=1)
-            while not MarketCalendar.is_trading_day(min_acceptable_date):
-                min_acceptable_date -= timedelta(days=1)
-
-            logger.info(f"[DATA FRESHNESS] Current run_date: {run_date}, Expected data date: {expected_date}, Min acceptable: {min_acceptable_date}")
-            logger.info(f"[DATA FRESHNESS] Staleness tolerance: {(expected_date - min_acceptable_date).days} trading days")
-
-        except Exception as cal_e:
-            logger.debug(f"Schedule-based freshness check failed: {cal_e}, falling back to calendar logic")
-            expected_date = run_date - timedelta(days=1)
-            while expected_date.weekday() >= 5:
-                expected_date -= timedelta(days=1)
-            min_acceptable_date = expected_date - timedelta(days=1)
-            while min_acceptable_date.weekday() >= 5:
-                min_acceptable_date -= timedelta(days=1)
+        logger.info(f"[DATA FRESHNESS] Simplified rule: data must be from {expected_date} (today is {run_date}, most recent trading day)")
+        logger.info(f"[DATA FRESHNESS] Tolerance: {max_acceptable_age_days} trading day(s). Will trigger failsafe if older.")
 
         try:
             from algo.algo_metrics import MetricsPublisher
@@ -1309,51 +1244,44 @@ def run(
             _metrics.flush()
 
         if stale_items:
-            logger.warning(f"[FAILSAFE] Data stale, checking if failsafe already triggered recently: {stale_items}")
+            logger.warning(f"[FAILSAFE] Data stale detected, will trigger loader: {stale_items}")
 
-            # GRACE PERIOD: Check if a failsafe was already triggered in the last 2 hours.
-            # If yes, skip redundant trigger and allow current run to proceed with in-flight loader.
-            # This prevents 20+ potential halts/week from 4 daily runs each independently
-            # triggering the same loader. Assumes stock_prices_daily takes 90-120 minutes.
+            # SIMPLIFIED: Check if loader is currently RUNNING. If yes, use grace period.
+            # If not, trigger immediately (no time-based grace period delays).
+            # This prevents waiting 2.5 hours for a loader that already finished.
             failsafe_already_triggered = False
-            failsafe_age_minutes = None
+            loader_currently_running = False
 
             try:
-                import boto3
-                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-                state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
-                state_table = dynamodb.Table(state_table_name)
+                # Quick check: is stock_prices_daily actually RUNNING in database?
+                with DatabaseContext('read') as _status_cur:
+                    _status_cur.execute("SET statement_timeout = 3000")  # 3s max
+                    _status_cur.execute(
+                        "SELECT status FROM data_loader_status WHERE table_name = 'price_daily'"
+                    )
+                    result = _status_cur.fetchone()
+                    if result and result[0] == 'RUNNING':
+                        loader_currently_running = True
+                        logger.info(f"[FAILSAFE] Loader status: RUNNING in background. Using grace period, no re-trigger needed.")
+                        failsafe_already_triggered = True  # Skip trigger below
+            except Exception as status_err:
+                logger.debug(f"[FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
 
-                # Enhanced: Check if trigger was recent or loader is still running
-                # Now checks actual loader status (RUNNING/COMPLETED) + time-based fallback
-                failsafe_age_minutes = _check_failsafe_grace_period(state_table, verbose)
-                if failsafe_age_minutes is not None:
-                    failsafe_already_triggered = True
-                    logger.info(f"[FAILSAFE] Grace period: Failsafe was triggered {failsafe_age_minutes:.0f}m ago. "
-                               f"Loader still running or within grace window. Skipping redundant trigger.")
-            except Exception as state_err:
-                logger.debug(f"[FAILSAFE] Could not check failsafe grace period: {state_err}. "
-                            f"Will proceed with fresh trigger.")
-
-            if failsafe_already_triggered:
-                # Failsafe was already triggered recently. Allow current run to proceed
-                # knowing that loader is active in background.
-                failsafe_ok = True  # Mark as OK to skip re-triggering logic below
-                logger.info(f"[FAILSAFE] ✓ Using grace period from prior trigger ({failsafe_age_minutes:.0f}m ago). "
-                           f"Proceeding to Phase 2 with in-flight loader.")
+            if failsafe_already_triggered and loader_currently_running:
+                # Loader is actively running — let it finish
+                failsafe_ok = True
+                logger.info(f"[FAILSAFE] ✓ Loader actively RUNNING. Proceeding to Phase 2 with in-flight loader.")
                 alerts.send_position_alert(
                     'DATA',
-                    'STALE_DATA_GRACE_PERIOD',
-                    f'Stale data detected but failsafe loader was triggered {failsafe_age_minutes:.0f}m ago. '
-                    f'Using grace period. Data will refresh within 2-2.5 hours (stock_prices_daily + ECS delays).',
-                    {'stale_items': stale_items, 'grace_period_minutes': failsafe_age_minutes}
+                    'STALE_DATA_LOADER_ACTIVE',
+                    f'Stale data detected but loader is actively running. Proceeding with in-flight loader.',
+                    {'stale_items': stale_items, 'loader_status': 'RUNNING'}
                 )
                 log_phase_result_fn(1, 'data_freshness', 'warn',
-                                   f'Stale, but grace period active from prior failsafe ({failsafe_age_minutes:.0f}m ago)')
-                # Continue to Phase 2 without retriggering (failsafe_ok=True skips retry logic)
+                                   f'Stale, but loader actively running: {"; ".join(stale_items)}')
             else:
-                # No recent failsafe trigger, or check failed. Trigger fresh loader.
-                logger.warning(f"[FAILSAFE] No recent trigger in grace period window. Attempting to trigger loader: {stale_items}")
+                # Loader not running, or check failed. Trigger fresh loader NOW (no grace period).
+                logger.warning(f"[FAILSAFE] Loader not currently running. Attempting to trigger fresh loader: {stale_items}")
 
                 # CLUSTER HEALTH PRECHECK: Verify cluster has capacity before triggering
                 try:
@@ -1405,51 +1333,21 @@ def run(
                 # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
                 # asynchronously and verify it started before proceeding.
 
-                # RETRY LOGIC: Adaptive exponential backoff for ECS provisioning variability
-                # (allows recovery from transient ECS/network issues without giving up)
-                #
-                # Adaptive poll timeouts: 30s → 120s → 180s
-                # ECS task provision: 30-45s under normal load, 60-150s when cluster busy, 150-200s under extreme load
-                # RACE CONDITION MITIGATION: stock_prices_daily loader runs async (non-blocking).
-                # Phases 2-7 may execute while loader is writing new data.
-                # SAFE because:
-                # 1. price_daily is INSERT-only (EOD prices immutable, no UPDATEs)
-                # 2. PostgreSQL MVCC gives each phase a consistent snapshot
-                # 3. Circuit breakers re-check data freshness before trading
-                # 4. Loader only writes new dates; never overwrites existing dates
+                # SIMPLIFIED FAILSAFE: Single attempt with 90s poll timeout
+                # If it fails, halt only if data is VERY stale (2+ days). Otherwise proceed with warning.
+                # This prevents waiting through 3 timeout loops (30+120+180s = 330s) when failsafe is dead.
                 failsafe_ok = False
-                poll_timeouts = [30, 120, 180]  # Adaptive: normal, busy, extreme load
-                max_attempts = len(poll_timeouts)
+                poll_timeout = 90  # Wait up to 90s for ECS task to reach RUNNING state
 
-                for attempt, poll_timeout in enumerate(poll_timeouts, 1):
-                    try:
-                        logger.info(f"[FAILSAFE] Attempt {attempt}/{max_attempts}: launching loader with {poll_timeout}s poll timeout...")
-                        failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
-                        if failsafe_ok:
-                            # Log successful trigger for completion timeout check in future runs
-                            try:
-                                current_time = time.time()
-                                state_table.put_item(Item={
-                                    'state_key': 'failsafe_trigger_log',
-                                    'triggered_at': current_time,
-                                    'completed_at': None,  # Will be set when loader finishes
-                                    'loader': 'stock_prices_daily',
-                                    'ttl': int(current_time) + 7200,  # 2-hour TTL
-                                })
-                                logger.debug("[FAILSAFE] Logged trigger timestamp for completion timeout tracking")
-                            except Exception as log_err:
-                                logger.debug(f"[FAILSAFE] Could not log trigger timestamp: {log_err}")
-                            break
-                        elif attempt < max_attempts:
-                            backoff_wait = min(30, (2 ** (attempt - 1)) * 5)  # 5s, 10s, 20s backoff
-                            logger.warning(f"[FAILSAFE] Attempt {attempt}/{max_attempts} failed (timeout {poll_timeout}s). "
-                                         f"Retrying in {backoff_wait}s with higher timeout ({poll_timeouts[attempt]}s)...")
-                            time.sleep(backoff_wait)
-                    except Exception as retry_err:
-                        logger.warning(f"[FAILSAFE] Attempt {attempt}/{max_attempts} error: {retry_err}. Retrying...")
-                        if attempt < max_attempts:
-                            backoff_wait = min(30, (2 ** (attempt - 1)) * 5)
-                            time.sleep(backoff_wait)
+                try:
+                    logger.info(f"[FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")
+                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
+                    if failsafe_ok:
+                        logger.info(f"[FAILSAFE] ✓ Loader trigger confirmed. Task is running.")
+                    else:
+                        logger.warning(f"[FAILSAFE] ✗ Loader trigger did not confirm within {poll_timeout}s. Will check data staleness.")
+                except Exception as trigger_err:
+                    logger.warning(f"[FAILSAFE] Loader trigger failed: {trigger_err}")
 
             if not failsafe_ok:
                 # Failsafe failed or timeout - loader may not have started.
@@ -1562,15 +1460,13 @@ def run(
         except Exception as e:
             logger.debug(f"Could not check first-run state: {e}")
 
-        # Check swing_trader_scores freshness — FAIL-CLOSED if missing/stale (unless first run or market-open grace period).
-        # When swing scores are missing, Phase 5 min_swing_score=55 gate kills ALL trades silently.
-        # User sees "success" with 0 trades executed and no explanation. Halt explicitly instead.
-        # Grace period: Allow yesterday's scores at 9:30 AM since morning prep (4:30 AM) should compute today's scores.
-        # For intraday runs (1 PM, 3 PM, 5:30 PM): Require today's scores.
+        # Check swing_trader_scores freshness — EXPLICIT HALT if missing/stale
+        # When swing scores are missing, Phase 5 silently kills ALL trades (min_swing_score=55 filter).
+        # User sees "success" with 0 trades executed and no idea why. HALT instead.
+        # RULE: swing_trader_scores must be from expected_date (yesterday for today's 9:30 AM run, etc.)
+        # No grace periods. If missing/stale, we halt and wait for EOD pipeline.
         swing_scores_ok = True
-        now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
-        is_market_open_run = (9 <= now_et.hour < 10)  # 9:XX AM ET market open
-        min_acceptable_swing_date = expected_date if not is_market_open_run else expected_date - timedelta(days=1)
+        min_acceptable_swing_date = expected_date  # Must be from yesterday (or most recent trading day)
 
         try:
             with DatabaseContext('read') as _sw_cur:
@@ -1602,32 +1498,23 @@ def run(
                         )
                         swing_scores_ok = False
                 elif sw_latest < min_acceptable_swing_date:
-                    gap = (expected_date - sw_latest).days
-                    logger.error(
-                        f"[SWING SCORES] HALT: swing_trader_scores is {gap}d stale "
-                        f"(latest={sw_latest}, expected {expected_date})"
+                    gap = (expected_date - sw_latest).days if sw_latest else 999
+                    logger.critical(
+                        f"[SWING SCORES] HALT: swing_trader_scores is stale or missing "
+                        f"(latest={sw_latest}, expected {expected_date}, gap={gap}d)"
                     )
-                    logger.error("  Check Step Functions pipeline execution status.")
-                    logger.error("  If EOD pipeline succeeded, data may be delayed from upstream loaders.")
+                    logger.critical("  This means the EOD pipeline (4:05 PM yesterday) did not complete successfully.")
+                    logger.critical("  Without fresh swing trader scores, Phase 5 will filter out ALL trades silently.")
+                    logger.critical("  Action: Check Step Functions algo-eod-pipeline-dev execution logs for errors.")
                     alerts.send_position_alert(
                         'DATA', 'SWING_SCORES_STALE',
-                        f'HALTING: swing_trader_scores is {gap} day(s) stale (latest={sw_latest}). '
-                        f'Phase 5 cannot rank trades. Check EOD pipeline Step Functions logs.',
-                        {'swing_latest': str(sw_latest), 'expected': str(expected_date), 'gap_days': gap, 'action': 'HALT'}
+                        f'CRITICAL HALT: swing_trader_scores is stale/missing. Latest={sw_latest}, expected {expected_date}. '
+                        f'Phase 5 cannot rank trades. Check EOD Step Functions logs.',
+                        {'latest': str(sw_latest), 'expected': str(expected_date), 'gap_days': gap}
                     )
                     swing_scores_ok = False
-                elif sw_latest < expected_date and is_market_open_run:
-                    gap = (expected_date - sw_latest).days
-                    logger.warning(
-                        f"[SWING SCORES] GRACE PERIOD: Using {gap}d old data at market open "
-                        f"(latest={sw_latest}, expected {expected_date}). "
-                        f"Morning prep pipeline (4:30 AM) should have computed today's scores. "
-                        f"Monitor Step Functions logs if this persists."
-                    )
-                    log_phase_result_fn(1, 'swing_trader_scores', 'warning',
-                                       'Grace period: Using prior-day scores at 9:30 AM market open')
-                elif verbose:
-                    logger.info(f"  [OK] swing_trader_scores: latest {sw_latest}")
+                else:
+                    logger.info(f"  [OK] swing_trader_scores: latest {sw_latest} (required {min_acceptable_swing_date})")
         except Exception as _sw_err:
             logger.error(f"  [SWING SCORES] HALT: Freshness check failed: {_sw_err}")
             swing_scores_ok = False
@@ -1637,6 +1524,41 @@ def run(
                                'swing_trader_scores missing or stale — Phase 5 cannot execute')
             return PhaseResult(1, 'swing_trader_scores', 'halted', {}, True,
                              'swing_trader_scores missing or stale — Phase 5 cannot rank trades')
+
+        # MORNING PREP VISIBILITY: Check if morning pipeline (3:30 AM) actually ran today
+        # If it's 9:30 AM+ and buy_sell_daily/signal_quality_scores haven't been updated since yesterday,
+        # morning prep failed silently and we should halt or alert.
+        try:
+            now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+            is_9am_or_later = now_et.hour >= 9
+
+            if is_9am_or_later:
+                # At 9:30 AM or later, check if morning pipeline ran (should have updated signals)
+                morning_pipeline_cutoff = run_date.replace(hour=3, minute=30, second=0, microsecond=0)
+                with DatabaseContext('read') as _morning_cur:
+                    _morning_cur.execute("SET statement_timeout = 5000")
+
+                    # Check if buy_sell_daily was updated since 3:30 AM this morning
+                    _morning_cur.execute("""
+                        SELECT MAX(updated_at) FROM buy_sell_daily
+                        WHERE updated_at >= %s
+                    """, (morning_pipeline_cutoff,))
+                    buys_updated = _morning_cur.fetchone()[0]
+
+                    if not buys_updated:
+                        logger.warning(f"[MORNING PREP] buy_sell_daily was NOT updated since 3:30 AM (morning prep may have failed)")
+                        logger.warning(f"  Check Step Functions: algo-morning-prep-pipeline or scheduled EventBridge trigger")
+                        alerts.send_position_alert(
+                            'PIPELINE',
+                            'MORNING_PREP_POTENTIAL_FAILURE',
+                            f'buy_sell_daily has not been refreshed since 3:30 AM. Morning prep pipeline may have failed. '
+                            f'Check Step Functions logs.',
+                            {'last_update': str(buys_updated), 'cutoff': str(morning_pipeline_cutoff)}
+                        )
+                    else:
+                        logger.info(f"[MORNING PREP] ✓ buy_sell_daily updated at {buys_updated} (morning prep completed)")
+        except Exception as morning_check_err:
+            logger.debug(f"[MORNING PREP] Could not check morning pipeline status: {morning_check_err}")
 
         # Read cached data patrol results only — do NOT run a new patrol in-line.
         # The in-line patrol (via ThreadPoolExecutor) always times out after 45s, but
