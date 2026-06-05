@@ -3137,6 +3137,26 @@ INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_min_trend_score', '5', 'int', 'Swing score minimum Minervini trend score 0-8', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_min_industry_rank', '100', 'int', 'Swing score industry rank threshold', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_days_to_earnings_block', '5', 'int', 'Swing score block entries N days to earnings', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+
+-- Data patrol thresholds (configurable at runtime via algo_config)
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_staleness_price_daily', '7', 'int', 'Max days for price_daily staleness', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_staleness_technical_daily', '7', 'int', 'Max days for technical_data_daily staleness', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_staleness_buy_sell_daily', '7', 'int', 'Max days for buy_sell_daily staleness', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_staleness_signal_quality_scores', '7', 'int', 'Max days for signal_quality_scores staleness', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_staleness_stock_scores', '14', 'int', 'Max days for stock_scores staleness', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_staleness_earnings_history', '120', 'int', 'Max days for earnings_history staleness', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_min_universe_pct', '75', 'int', 'Minimum universe coverage pct', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_min_coverage_ratio', '0.75', 'float', 'Minimum coverage ratio for data patrol', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_max_daily_move_pct', '50', 'int', 'Max daily move pct for sanity check', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_max_daily_move_count', '10', 'int', 'Max count of extreme daily moves', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_low_volume_threshold', '1000000', 'int', 'Low volume threshold shares', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_high_volume_threshold', '100000000', 'int', 'High volume threshold shares', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_new_low_volume_alert', '50', 'int', 'Count of new low volume items to alert', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_price_daily_14d_min', '40000', 'int', 'Min 14d price_daily rows for patrol', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_buy_sell_daily_14d_min', '800', 'int', 'Min 14d buy_sell_daily rows for patrol', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('patrol_coverage_ratio_min', '0.80', 'float', 'Min coverage ratio for patrol', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('failsafe_grace_period_minutes', '150', 'int', 'Grace period for data failsafe trigger minutes', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('signal_max_data_age_days', '2', 'int', 'Max data age for signal generation days', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('execution_mode', 'auto', 'string', 'paper or dry or review or auto', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('alpaca_paper_trading', 'false', 'bool', 'Use Alpaca paper account', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('max_trades_per_day', '5', 'int', 'Max new trades per day', 'schema-seed') ON CONFLICT (key) DO NOTHING;
