@@ -46,6 +46,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 - **Analytics loaders**: company_profile (parallelism=2), analyst_sentiment (parallelism=2), stability_metrics (parallelism=2), value_metrics (parallelism=2), growth_metrics (parallelism=2), quality_metrics (parallelism=2)
 - **Small loaders**: parallelism=1 to avoid rate limiting or because data size is small
 - **Justification**: When 9 core loaders run via Step Functions EOD pipeline concurrently at parallelism=4, they create 36 concurrent database connections, exhausting the RDS Proxy connection pool. Reduced parallelism = longer individual execution time but no connection contention, leading to faster overall pipeline completion.
+- **Enforcement**: Parallelism values are defined per-loader in `terraform/modules/loaders/main.tf` (loaders map, each key has `parallelism` field). ECS task definitions automatically receive correct LOADER_PARALLELISM env var. Do NOT override with global settings in task definition revisions.
 
 ## Infrastructure Constraints
 
