@@ -1987,6 +1987,11 @@ CREATE TABLE IF NOT EXISTS filter_rejection_log (
     swing_score_min_reason VARCHAR(200),
     base_type VARCHAR(50),
     sqs INTEGER,
+    buy_sell_daily_age_days INTEGER,
+    technical_data_age_days INTEGER,
+    trend_template_age_days INTEGER,
+    max_data_age_days INTEGER,
+    is_age_driven_rejection BOOLEAN,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
