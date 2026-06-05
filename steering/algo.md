@@ -94,6 +94,60 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 **Alert flow:** Loader fails → EventBridge task state change → SNS → Email alert
 **Dashboard:** CloudWatch console → CloudWatch → Dashboards → algo-loader-monitoring-dev
 
+## Morning Prep Pipeline Monitoring (4:30 AM ET)
+
+**Purpose:** The morning prep pipeline loads fresh prices and technicals before 9:30 AM market open, ensuring swing_trader_scores are computed for the orchestrator run.
+
+**Timing Constraints:**
+- Start: 4:30 AM ET (after EOD pipeline finishes at ~4:05 PM previous day)
+- Must complete before: 9:30 AM ET market open (5 hours available, 4h buffer recommended)
+- Steps: stock_prices_daily (1d only) → technical_data_daily + market_health_daily → buy_sell_daily → signal_quality_scores → swing_trader_scores
+
+**Monitoring (Copy-paste ready for CloudWatch Logs Insights):**
+
+1. **Duration tracking:**
+   ```
+   fields @timestamp, @duration
+   | filter ispresent(@duration)
+   | stats max(@duration) as max_duration_sec by @logStream
+   | sort max_duration_sec desc
+   ```
+
+2. **Check for failures in last 24 hours:**
+   ```
+   fields @timestamp, @message
+   | filter @logStream = /morning-prep-pipeline/
+   | filter @message like /error|fail|stopped/i
+   | stats count() as failures by @message
+   ```
+
+3. **Execution timeline (see which step is slow):**
+   ```
+   fields @timestamp, @logStream, @message
+   | filter @logStream = /morning-prep-pipeline/
+   | filter @message like /starting|completed|failed/
+   | sort @timestamp asc
+   ```
+
+**Actions if morning prep exceeds 4 hours:**
+- Execution may still complete before 9:30 AM but with low margin for error
+- If exceeding 4 hours: check EOD pipeline from previous day (may still be running when morning prep starts)
+- Check yfinance rate limiting (stock_prices_daily step) — may need to reduce parallelism
+- Check RDS health (CPU, connections, disk I/O)
+- If consistently slow: increase ECS task CPU/memory for slow steps
+
+**Current Implementation (2026-06-04):**
+- Step Functions state machine `morning-prep-pipeline-dev` with fail-open error handling
+- stock_prices_daily: TimeoutSeconds=5400 (90 min) with LOADER_INTERVALS="1d" (only daily, not weekly/monthly)
+- technical_data_daily + market_health_daily: run in parallel, max 5400s each
+- buy_sell_daily + signal_quality_scores + swing_trader_scores: sequential, 3600s each, fail-open
+- All steps retry up to 2× on transient failures
+
+**Grace Period (Phase 1):**
+- Orchestrator (9:30 AM) allows yesterday's swing_trader_scores if morning prep hasn't finished
+- Phase 1 grace period: allows stale data at market open but HALTS if stale at intraday runs (1 PM, 3 PM, 5:30 PM)
+- If morning prep consistently misses the window: increase ECS task resources or split into parallel branches
+
 ## Loader Execution Time Monitoring & Timeout Prevention
 
 **Critical Issues (Fixed 2026-06-04):**
