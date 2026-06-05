@@ -74,6 +74,11 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_last_refill = time.time()
         self._rate_limit_refill_rate = 30 / 60  # 30 tokens per 60 seconds = 0.5 per second
 
+        # Circuit breaker: track rate limit errors to detect persistent issues
+        self._rate_limit_errors = 0
+        self._rate_limit_error_start_time = None
+        self._rate_limit_circuit_break_threshold = 1800  # 30 minutes of errors = circuit break
+
         # Market close detection for EOD pipeline (4:05 PM ET start)
         # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
         # If running 1d interval at market close, wait for SPY close data before proceeding.
@@ -228,33 +233,56 @@ class PriceLoader(OptimalLoader):
         return self._fetch_with_fallback(symbols, start, end, batch_size=len(symbols), attempt=0)
 
     def _fetch_with_fallback(self, symbols: List[str], start: date, end: date, batch_size: int, attempt: int = 0, max_attempts: int = 3):
-        """Fetch with progressive batch size reduction instead of per-symbol fallback.
+        """Fetch with progressive batch size reduction and adaptive retry with jitter.
 
         Attempts: full batch → split in half → quarter size → give up.
-        Avoids cascading into 5000+ per-symbol API calls with backoff that takes hours.
+        Includes randomized jitter to avoid thundering herd and circuit breaker for persistent errors.
         """
         import time
+        import random
 
         if batch_size <= 0 or attempt >= max_attempts:
-            # Give up: return Nones for all symbols
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
             return {s: None for s in symbols}
 
+        # Check circuit breaker: if rate limiting has persisted for > 30 min, fail loudly
+        if self._rate_limit_error_start_time is not None:
+            error_duration = time.time() - self._rate_limit_error_start_time
+            if error_duration > self._rate_limit_circuit_break_threshold:
+                logger.error(
+                    f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration/60:.0f} minutes. "
+                    f"yfinance API may be experiencing degradation. Failing batch to prevent cascade."
+                )
+                return {s: None for s in symbols}
+
         try:
-            # Apply rate limiting before batch fetch
             self._rate_limit_wait(tokens_needed=1)
             result = self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
             if result:
-                return result  # Success
+                # Success: reset rate limit error tracking
+                self._rate_limit_errors = 0
+                self._rate_limit_error_start_time = None
+                return result
         except Exception as e:
             error_str = str(e).lower()
             is_rate_limit = "rate" in error_str or "429" in error_str or "too many" in error_str
 
             if is_rate_limit:
-                # Rate limit error: reduce batch size and retry
+                # Track rate limit errors for circuit breaker
+                self._rate_limit_errors += 1
+                if self._rate_limit_error_start_time is None:
+                    self._rate_limit_error_start_time = time.time()
+
+                # Calculate adaptive backoff with jitter
+                base_wait = min(60, (2 ** attempt) * 5)  # Exponential: 5s, 10s, 20s, 40s, 80s (cap at 60s)
+                jitter = random.uniform(0.8, 1.2)  # ±20% jitter to avoid thundering herd
+                wait_time = base_wait * jitter
+
                 new_batch_size = max(1, batch_size // 2)
-                wait_time = min(30, (2 ** attempt) * 5)  # Cap backoff at 30s
-                logger.warning(f"[BATCH FETCH] Rate limited with batch_size={batch_size}. Reducing to {new_batch_size} and retrying in {wait_time}s...")
+                logger.warning(
+                    f"[BATCH FETCH] Rate limited (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}). "
+                    f"Batch {batch_size} → {new_batch_size}, waiting {wait_time:.1f}s (base {base_wait}s + jitter)..."
+                )
                 time.sleep(wait_time)
 
                 # Split batch and fetch recursively
@@ -266,33 +294,50 @@ class PriceLoader(OptimalLoader):
                 return results
             else:
                 # Transient error (network, timeout): retry with same batch size
-                wait_time = min(30, 2 ** attempt)
-                logger.warning(f"[BATCH FETCH] Transient error with {len(symbols)} symbols: {e}. Retrying in {wait_time}s...")
+                base_wait = min(30, 2 ** attempt)
+                jitter = random.uniform(0.9, 1.1)  # ±10% jitter
+                wait_time = base_wait * jitter
+                logger.warning(
+                    f"[BATCH FETCH] Transient error (attempt {attempt+1}/{max_attempts}): {e}. "
+                    f"Retrying {len(symbols)} symbols in {wait_time:.1f}s..."
+                )
                 time.sleep(wait_time)
                 return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts)
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
         """Try to fetch data from yfinance with retry logic for transient failures."""
         import time
+        import random
+
         for attempt in range(max_retries):
             try:
                 return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
             except Exception as e:
                 error_str = str(e).lower()
-                # Rate limit errors - retry with exponential backoff
+                # Rate limit errors - retry with exponential backoff + jitter
                 if "rate" in error_str or "429" in error_str or "too many" in error_str:
                     if attempt < max_retries - 1:
-                        wait_time = (2 ** attempt) * 5  # 5s, 10s, 20s, 40s, 80s
-                        logger.warning(f"[{symbol}] Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                        base_wait = min(120, (2 ** attempt) * 5)  # 5s, 10s, 20s, 40s, 80s, 120s
+                        jitter = random.uniform(0.9, 1.1)  # ±10% jitter
+                        wait_time = base_wait * jitter
+                        logger.warning(
+                            f"[{symbol}] Rate limited (attempt {attempt + 1}/{max_retries}), "
+                            f"retrying in {wait_time:.1f}s (base {base_wait}s)..."
+                        )
                         time.sleep(wait_time)
                         continue
                     logger.warning(f"[{symbol}] Rate limited after {max_retries} attempts, giving up")
                     return None
-                # Network/timeout errors - retry with backoff
+                # Network/timeout errors - retry with backoff + jitter
                 if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
                     if attempt < max_retries - 1:
-                        wait_time = 2 ** attempt
-                        logger.warning(f"[{symbol}] Transient error (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time}s...")
+                        base_wait = 2 ** attempt
+                        jitter = random.uniform(0.8, 1.2)  # ±20% jitter for network errors
+                        wait_time = base_wait * jitter
+                        logger.warning(
+                            f"[{symbol}] Transient error (attempt {attempt + 1}/{max_retries}): {e}, "
+                            f"retrying in {wait_time:.1f}s..."
+                        )
                         time.sleep(wait_time)
                         continue
                     logger.warning(f"[{symbol}] Transient error after {max_retries} attempts: {e}")
@@ -542,9 +587,18 @@ class PriceLoader(OptimalLoader):
                     )
 
         self._stats["duration_sec"] = round(time.time() - start, 2)
+
+        # Add rate limiting metrics
+        self._stats["rate_limit_errors"] = self._rate_limit_errors
+        if self._rate_limit_error_start_time:
+            error_duration_sec = time.time() - self._rate_limit_error_start_time
+            self._stats["rate_limit_error_duration_sec"] = round(error_duration_sec, 1)
+        else:
+            self._stats["rate_limit_error_duration_sec"] = 0
+
         logger.info(
             "[%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
-            "(processed=%d skipped_wm=%d failed=%d) %.1fs sources=%s",
+            "(processed=%d skipped_wm=%d failed=%d) %.1fs sources=%s rate_limit_errors=%d",
             self.table_name,
             self._stats["rows_fetched"],
             self._stats["rows_dedup_skipped"],
@@ -555,12 +609,25 @@ class PriceLoader(OptimalLoader):
             self._stats["symbols_failed"],
             self._stats["duration_sec"],
             self._stats["source_distribution"],
+            self._rate_limit_errors,
         )
 
         try:
             from algo.algo_metrics import MetricsPublisher
             with MetricsPublisher() as m:
                 m.put_loader_result(self.table_name, self._stats)
+                # Publish rate limiting metrics separately if there were errors
+                if self._rate_limit_errors > 0:
+                    m.put_metric('RateLimitErrors', self._rate_limit_errors, unit='Count', dimensions={
+                        'table': self.table_name,
+                        'interval': self.interval,
+                    })
+                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:
+                        m.put_metric('RateLimitErrorDuration', self._stats["rate_limit_error_duration_sec"],
+                                    unit='Seconds', dimensions={
+                                        'table': self.table_name,
+                                        'interval': self.interval,
+                                    })
         except Exception as e:
             logger.debug("metrics unavailable: %s", e)
 
