@@ -277,18 +277,46 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
     """
     return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=240)
 
-def _check_failsafe_grace_period(state_table: Any, verbose: bool = False) -> Optional[float]:
+def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader_name: str = 'stock_prices_daily') -> Optional[float]:
     """Check if a previously-triggered failsafe is within grace period window.
 
-    Returns:
-        - Minutes since trigger if <2 hours ago (loader likely still running)
-        - None if >2 hours ago or no record exists (need fresh trigger)
+    Now checks actual loader status (RUNNING/COMPLETED) instead of just timestamps.
+    If loader is still RUNNING in database, grace period extends dynamically.
+    If loader is COMPLETED, grace period is short-circuited (no redundant trigger needed).
 
-    This prevents redundant failsafe triggers when a loader is already running
-    asynchronously in the background. Assumes typical stock_prices_daily takes
-    90-120 minutes to complete.
+    Returns:
+        - Minutes since trigger if loader RUNNING or grace period not expired
+        - None if loader COMPLETED or grace period expired
+
+    Args:
+        state_table: DynamoDB state table for trigger logs
+        verbose: Whether to log verbose output
+        loader_name: Name of loader to check status for (default: stock_prices_daily)
     """
     try:
+        from utils.database_context import DatabaseContext
+
+        # First check: is the loader actually running or completed?
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT status, last_updated FROM data_loader_status WHERE table_name = %s",
+                    (loader_name.replace('_daily', ''),),  # Map loader name to table name
+                )
+                result = cur.fetchone()
+                if result:
+                    status, last_updated = result[0], result[1]
+                    if status == 'COMPLETED':
+                        logger.info(f"[FAILSAFE] Loader {loader_name} already COMPLETED, no need for failsafe trigger")
+                        return None  # No need to trigger failsafe, loader already done
+                    elif status == 'RUNNING':
+                        logger.debug(f"[FAILSAFE] Loader {loader_name} still RUNNING (updated {last_updated}), within grace period")
+                        # Extend grace period since loader is actively running
+                        return 0.5  # Mark as "in grace period" but near expiry for next check
+        except Exception as db_err:
+            logger.debug(f"[FAILSAFE] Could not check loader status: {db_err}, falling back to time-based grace period")
+
+        # Fallback: check DynamoDB timestamp-based grace period
         response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
         if 'Item' not in response:
             return None
@@ -297,13 +325,18 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False) -> Opt
         current_time = time.time()
         age_minutes = (current_time - triggered_at) / 60
 
-        # Grace period: 2 hours = typical max runtime for stock_prices_daily
-        if age_minutes < 120:
+        # Dynamic grace period:
+        # - stock_prices_daily can take up to 2h with yfinance lag
+        # - Add 30-min safety margin for scheduler delays
+        # - Total: 150 minutes (2.5 hours) as hard limit
+        max_grace_period = 150
+
+        if age_minutes < max_grace_period:
             if verbose:
-                logger.debug(f"[FAILSAFE] Within grace period: triggered {age_minutes:.0f}m ago")
+                logger.debug(f"[FAILSAFE] Within grace period: triggered {age_minutes:.0f}m ago (max {max_grace_period}m)")
             return age_minutes
         else:
-            logger.info(f"[FAILSAFE] Grace period expired: triggered {age_minutes:.0f}m ago (>2h)")
+            logger.info(f"[FAILSAFE] Grace period expired: triggered {age_minutes:.0f}m ago (>{max_grace_period}m)")
             return None
 
     except Exception as err:
@@ -1283,12 +1316,13 @@ def run(
                 state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
                 state_table = dynamodb.Table(state_table_name)
 
-                # Enhanced: Check if trigger was recent (within 2-hour grace period)
+                # Enhanced: Check if trigger was recent or loader is still running
+                # Now checks actual loader status (RUNNING/COMPLETED) + time-based fallback
                 failsafe_age_minutes = _check_failsafe_grace_period(state_table, verbose)
                 if failsafe_age_minutes is not None:
                     failsafe_already_triggered = True
-                    logger.info(f"[FAILSAFE] Grace period: Failsafe was triggered {failsafe_age_minutes:.0f}m ago (<2h). "
-                               f"Skipping redundant trigger, allowing async loader to complete.")
+                    logger.info(f"[FAILSAFE] Grace period: Failsafe was triggered {failsafe_age_minutes:.0f}m ago. "
+                               f"Loader still running or within grace window. Skipping redundant trigger.")
             except Exception as state_err:
                 logger.debug(f"[FAILSAFE] Could not check failsafe grace period: {state_err}. "
                             f"Will proceed with fresh trigger.")
@@ -1303,7 +1337,7 @@ def run(
                     'DATA',
                     'STALE_DATA_GRACE_PERIOD',
                     f'Stale data detected but failsafe loader was triggered {failsafe_age_minutes:.0f}m ago. '
-                    f'Using grace period. Data will refresh within 1-2 hours.',
+                    f'Using grace period. Data will refresh within 2-2.5 hours (stock_prices_daily + ECS delays).',
                     {'stale_items': stale_items, 'grace_period_minutes': failsafe_age_minutes}
                 )
                 log_phase_result_fn(1, 'data_freshness', 'warn',
