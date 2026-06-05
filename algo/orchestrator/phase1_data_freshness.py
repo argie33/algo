@@ -727,7 +727,8 @@ def run(
             while not MarketCalendar.is_trading_day(min_acceptable_date):
                 min_acceptable_date -= timedelta(days=1)
 
-            logger.info(f"[DATA FRESHNESS] Expected date: {expected_date}, Min acceptable: {min_acceptable_date}")
+            logger.info(f"[DATA FRESHNESS] Current run_date: {run_date}, Expected data date: {expected_date}, Min acceptable: {min_acceptable_date}")
+        logger.info(f"[DATA FRESHNESS] Staleness tolerance: {(expected_date - min_acceptable_date).days} trading days")
 
         except Exception as cal_e:
             logger.debug(f"Schedule-based freshness check failed: {cal_e}, falling back to calendar logic")
