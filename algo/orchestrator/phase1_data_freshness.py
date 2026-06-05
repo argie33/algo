@@ -298,9 +298,9 @@ def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = None) -> b
     Returns True if loader is marked RUNNING but hasn't updated heartbeat in > timeout_minutes.
     This allows Phase 1 to trigger a new loader when the old one is stuck.
 
-    Timeout is configurable via algo_config (heartbeat_hung_timeout_minutes), defaults to 5 minutes.
-    This is more responsive than the previous 10-minute default: if a task hangs at minute 4,
-    it will be detected by minute 9 instead of minute 14.
+    Timeout is configurable via algo_config (heartbeat_hung_timeout_minutes), defaults to 3 minutes.
+    This is more responsive than the previous 10-minute default: if a task hangs at minute 2,
+    it will be detected by minute 5 instead of minute 12.
 
     Args:
         loader_name: Name of loader table (e.g., 'price_daily', 'technical_data_daily')
@@ -313,7 +313,7 @@ def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = None) -> b
         from utils.database_context import DatabaseContext
         from datetime import datetime, timezone, timedelta
 
-        # Use provided timeout or load from algo_config, default to 5 minutes (reduced from 10)
+        # Use provided timeout or load from algo_config, default to 3 minutes (reduced from 10)
         if timeout_minutes is None:
             try:
                 with DatabaseContext("read") as config_cur:
@@ -322,9 +322,9 @@ def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = None) -> b
                         ('heartbeat_hung_timeout_minutes',)
                     )
                     config_result = config_cur.fetchone()
-                    timeout_minutes = int(config_result[0]) if config_result else 5
+                    timeout_minutes = int(config_result[0]) if config_result else 3
             except Exception:
-                timeout_minutes = 5  # Default to 5 minutes
+                timeout_minutes = 3  # Default to 3 minutes
 
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -2007,7 +2007,7 @@ def run(
         # swing_trader_scores requires: buy_sell_daily (fresh), technical_data_daily (fresh), trend_template_data (fresh)
         # If any source is stale, swing_trader_scores will be based on stale/incomplete data.
         # Note: We already checked swing_trader_scores freshness above; this validates its dependencies.
-        if swing_scores_ok and not first_run_state:
+        if not first_run_state and not swing_data_health.get('status') == 'critical':
             try:
                 with DatabaseContext('read') as _sources_cur:
                     _sources_cur.execute("SET statement_timeout = 5000")
@@ -2076,6 +2076,33 @@ def run(
                     logger.info(f"[SECTOR] sector_ranking: {sector_count} rows, updated {sector_updated} ✓")
         except Exception as sector_err:
             logger.debug(f"[SECTOR] Could not check sector_ranking health: {sector_err}")
+
+        # ISSUE #8 FIX: CASCADING FAILURE DETECTION
+        # Detect when incomplete data in one table cascades to dependent tables.
+        # Example: technical_data_daily 80% → buy_sell_daily 75% → signal_quality_scores 70%
+        # This would result in incomplete signal generation even though all tables are "fresh".
+        cascading_failures = []
+        try:
+            from algo.algo_loader_validation import LoaderValidator
+            validator = LoaderValidator()
+            cascade_ok, cascade_issues = validator.detect_cascading_failures(run_date)
+            if not cascade_ok:
+                cascading_failures = cascade_issues
+                logger.warning(f"[CASCADING_FAILURE] Detected {len(cascade_issues)} data integrity issues:")
+                for issue in cascade_issues:
+                    logger.warning(f"  - {issue}")
+                alerts.send_position_alert(
+                    'DATA',
+                    'CASCADING_FAILURES',
+                    f'Detected {len(cascade_issues)} cascading data gaps. Coverage is degrading through the pipeline. '
+                    f'Details: {"; ".join(cascade_issues)}. '
+                    f'If coverage drops below 75%, phase 5 will have insufficient trading opportunities.',
+                    {'cascade_issues': cascade_issues}
+                )
+                log_phase_result_fn(1, 'cascading_failures', 'warn',
+                                   f'{len(cascade_issues)} cascading failure(s) detected')
+        except Exception as cascade_err:
+            logger.debug(f"[CASCADING_FAILURE] Detection unavailable: {cascade_err}")
 
         # Quick secondary checks (fast index scans, not full table scans).
         # Full COUNT(*) on large tables takes 1-3 minutes under load — expensive in Lambda.

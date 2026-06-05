@@ -70,13 +70,15 @@ class PriceLoader(OptimalLoader):
 
         # Proactive rate limiter for yfinance (160 calls/min limit = safe margin below 200/min)
         # Use token bucket to pace requests, avoid hitting limit. We're conservative with 160/min.
-        # ISSUE #3 FIX: Burst capacity handling
+        # ISSUE #3 FIX: Thread-safe token bucket with Lock to prevent parallel thread starvation
         # Initial burst: Allow up to 160 tokens (enough for 1 full batch at 150 symbols)
         # After burst, refill at steady rate (2.67 tokens/sec) to avoid starvation with parallel threads
+        import threading
         self._rate_limit_tokens = 160  # Initial burst capacity (160 requests = 1 batch)
         self._rate_limit_max_tokens = 160  # Cap to prevent unlimited accumulation
         self._rate_limit_last_refill = time.time()
         self._rate_limit_refill_rate = 160 / 60  # 160 tokens per 60 seconds = 2.67 per second
+        self._rate_limit_lock = threading.Lock()  # Thread-safe token access for parallel batches
 
         # Circuit breaker: track rate limit errors to detect persistent issues
         # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
@@ -254,36 +256,39 @@ class PriceLoader(OptimalLoader):
         return False
 
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
-        """Apply token bucket rate limiting to avoid yfinance 429 errors.
+        """Apply thread-safe token bucket rate limiting to avoid yfinance 429 errors.
 
         Tokens refill at 160 per 60 seconds (2.67 per second). Before fetching,
         wait if necessary to stay under the limit.
 
-        ISSUE #3 FIX: Capped at max_tokens to prevent burst unlimited growth.
-        Parallel threads (6 concurrent batches) need fair access without one thread
-        monopolizing the token bucket.
+        ISSUE #3 FIX: Thread-safe implementation with Lock to prevent race conditions
+        and ensure fair access for parallel threads (6 concurrent batches).
+        Uses lock to atomically check and consume tokens, preventing starvation.
         """
         import time
 
         while True:
-            now = time.time()
-            elapsed = now - self._rate_limit_last_refill
-            # Refill tokens based on elapsed time (capped at max)
-            self._rate_limit_tokens = min(self._rate_limit_max_tokens,
-                                          self._rate_limit_tokens + elapsed * self._rate_limit_refill_rate)
-            self._rate_limit_last_refill = now
+            with self._rate_limit_lock:
+                now = time.time()
+                elapsed = now - self._rate_limit_last_refill
+                # Refill tokens based on elapsed time (capped at max)
+                self._rate_limit_tokens = min(self._rate_limit_max_tokens,
+                                              self._rate_limit_tokens + elapsed * self._rate_limit_refill_rate)
+                self._rate_limit_last_refill = now
 
-            if self._rate_limit_tokens >= tokens_needed:
-                # Sufficient tokens, consume and return
-                self._rate_limit_tokens -= tokens_needed
-                return
-            else:
-                # Wait for token refill (calculate how long to wait)
-                tokens_short = tokens_needed - self._rate_limit_tokens
-                wait_sec = tokens_short / self._rate_limit_refill_rate
-                if wait_sec > 0.1:  # Only log if waiting >100ms
-                    logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens (have {self._rate_limit_tokens:.1f})")
-                time.sleep(min(wait_sec, 0.5))  # Wait up to 500ms before re-checking
+                if self._rate_limit_tokens >= tokens_needed:
+                    # Sufficient tokens, consume and return
+                    self._rate_limit_tokens -= tokens_needed
+                    return
+                else:
+                    # Insufficient tokens; calculate wait time and release lock before sleeping
+                    tokens_short = tokens_needed - self._rate_limit_tokens
+                    wait_sec = tokens_short / self._rate_limit_refill_rate
+
+            # Log and sleep outside the lock to allow other threads to make progress
+            if wait_sec > 0.1:  # Only log if waiting >100ms
+                logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens")
+            time.sleep(min(wait_sec, 0.5))  # Wait up to 500ms before re-checking
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Fetch OHLCV from yfinance at specified interval."""
@@ -661,30 +666,42 @@ class PriceLoader(OptimalLoader):
                 now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
                 market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
                 minutes_after_close = (now_et - market_close_et).total_seconds() / 60
+                timeout_sec = 1200 if self._is_eod_pipeline else 600
 
-                # IMPROVED RESILIENCE: Instead of failing immediately on market close timeout,
-                # log a warning and reduce batch size to gracefully degrade.
-                # This allows partial load even when yfinance is slow, rather than total failure.
-                # If partial load is insufficient, data patrol will trigger failsafe for retry.
-                if 0 < minutes_after_close < 60:
-                    timeout_sec = 1200 if self._is_eod_pipeline else 600
-                    logger.warning(
-                        f"[MARKET_CLOSE] WARNING: Running at {minutes_after_close:.0f}min after market close (4 PM ET). "
-                        f"SPY close data NOT available from yfinance after {timeout_sec}s ({timeout_sec/60:.0f}-min) wait. "
-                        f"API may be lagging or experiencing degradation. "
-                        f"Reducing batch size for graceful degradation (partial load is better than total failure). "
-                        f"If coverage falls below 75%, data patrol failsafe will trigger retry."
+                # Determine if graceful degradation is acceptable
+                should_proceed = False
+                status_msg = ""
+
+                if self._is_eod_pipeline and 0 < minutes_after_close < 60:
+                    should_proceed = True
+                    status_msg = (
+                        f"Market close data unavailable after {timeout_sec}s wait (running {minutes_after_close:.0f}min after 4 PM ET close). "
+                        f"yfinance API lag detected. Batch size reduced, proceeding with graceful degradation. "
+                        f"If coverage falls below 75%, failsafe will trigger."
                     )
-                    # Reduce batch size aggressively to increase chances of completing with available data
-                    self.batch_size = max(20, self.batch_size // 3)  # Reduce by 3x, min 20
+                elif not self._is_eod_pipeline and minutes_after_close > 45:
+                    should_proceed = True
+                    status_msg = f"Data available {minutes_after_close:.0f}min after close, proceeding"
+
+                if should_proceed:
+                    logger.warning(f"[MARKET_CLOSE] {status_msg}")
+                    self.batch_size = max(20, self.batch_size // 3)
                     market_close_warning = True
-                    # Continue rather than raise — let partial load proceed
                 else:
-                    logger.warning(
-                        f"[MARKET_CLOSE] SPY close data not available (running at {minutes_after_close:.0f}min past close). "
-                        f"API lag detected but continuing - data may be incomplete. "
-                        f"If all symbols return empty, failsafe will trigger retry."
-                    )
+                    logger.error(f"[MARKET_CLOSE] Cannot safely proceed with price load. yfinance data unavailable after {timeout_sec}s.")
+                    try:
+                        from algo.algo_metrics import MetricsPublisher
+                        m = MetricsPublisher()
+                        m.put_metric('MarketCloseDataUnavailable', 1, unit='Count', dimensions={
+                            'table': self.table_name,
+                            'interval': self.interval,
+                            'minutes_after_close': f'{minutes_after_close:.0f}',
+                        })
+                        m.flush()
+                    except Exception as metric_err:
+                        logger.debug(f"Could not publish market close metric: {metric_err}")
+                    logger.warning(f"[MARKET_CLOSE] Returning empty results. Phase 1 should detect data staleness and trigger failsafe.")
+                    return {'loaded': 0, 'failed': len(symbols), 'empty': len(symbols), 'table': self.table_name}
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At 50% of timeout (12600s), if < 10% complete, trigger emergency mode

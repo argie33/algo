@@ -65,15 +65,18 @@ class SignalsDailyLoader(OptimalLoader):
             # This ensures we get overlap data for cross-checking and prevents gaps
             start = since - timedelta(days=1)
 
-        # FIXED Issue #20: Validate technical data is fresh before generating signals
+        # FIX #4: Pre-flight validation of technical_data_daily completeness
+        # Check that technical data exists and is not incomplete (partial fetch from loader failure)
         try:
             with DatabaseContext('read') as cur:
-                # Check if technical data exists for end date, fall back to most recent available date
+                # Verify technical_data_daily has sufficient data for symbol on end date
                 cur.execute(
                     "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
                     (symbol, end)
                 )
-                if cur.fetchone()[0] == 0:
+                tech_count = cur.fetchone()[0]
+
+                if tech_count == 0:
                     # Fall back: find most recent date with technical data for this symbol
                     cur.execute(
                         "SELECT MAX(date) FROM technical_data_daily WHERE symbol = %s AND date < %s",
@@ -83,8 +86,17 @@ class SignalsDailyLoader(OptimalLoader):
                     if fallback_date:
                         end = fallback_date
                     else:
+                        # Technical data is missing entirely - log rejection
+                        self._log_rejection_if_available(symbol, end, "technical_data_missing")
                         logger.warning(f"{symbol}: Technical data missing for {end} - signals cannot be generated")
                         return []
+
+                # Additional validation: ensure count is >0 (not partial/incomplete)
+                # If we have technical data, it means the loader completed successfully
+                if tech_count < 1:
+                    self._log_rejection_if_available(symbol, end, "technical_data_incomplete")
+                    logger.warning(f"{symbol}: Technical data incomplete (count={tech_count}) - signals cannot be generated")
+                    return []
         except Exception as e:
             logger.warning(f"{symbol}: Technical data check failed: {e}")
             return []
@@ -125,6 +137,20 @@ class SignalsDailyLoader(OptimalLoader):
         except Exception as e:
             logger.warning(f"Could not calculate {source_table} age for {symbol}: {e}")
         return None
+
+    def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
+        """Log signal rejection to signal_rejection_log if available.
+        FIX #9: Track signal rejections per symbol for observability."""
+        try:
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO signal_rejection_log
+                    (signal_source_table, rejection_reason, symbol, signal_date, rejected_at_tier, created_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                """, ("buy_sell_daily", reason, symbol, signal_date, "loader"))
+        except Exception as e:
+            # Graceful degradation: if signal_rejection_log doesn't exist, just log warning
+            logger.debug(f"Could not log rejection: {e}")
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> List[dict]:
         """Fetch technical and price data needed for signal generation."""

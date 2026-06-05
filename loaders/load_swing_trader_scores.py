@@ -40,7 +40,10 @@ class SwingTraderScoresLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Compute swing trader scores with 7-component breakdown."""
+        """Compute swing trader scores with 7-component breakdown.
+
+        FIX #5: Validates all 4 source tables before computing scores.
+        """
         from algo.algo_market_calendar import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
 
@@ -77,6 +80,14 @@ class SwingTraderScoresLoader(OptimalLoader):
                 start = since_date - timedelta(days=1)
 
             if start > end:
+                return None
+
+            # FIX #5: Pre-flight validation of all 4 source table dependencies
+            validation_failures = self._validate_source_dependencies(symbol, end)
+            if validation_failures:
+                for failure_reason in validation_failures:
+                    self._log_rejection_if_available(symbol, end, failure_reason)
+                logging.debug(f"{symbol}: Swing score skipped due to source data: {validation_failures}")
                 return None
 
             with DatabaseContext('read') as cur:
@@ -251,6 +262,47 @@ class SwingTraderScoresLoader(OptimalLoader):
             row.get('score') is not None and
             0 <= float(row.get('score', 0)) <= 100
         )
+
+    def _validate_source_dependencies(self, symbol: str, end_date: date) -> Optional[List[str]]:
+        """FIX #5: Validate all 4 source tables have data for symbol on end_date.
+
+        Returns: None if all sources OK, list of failure reasons if any source missing.
+        """
+        failures = []
+        source_tables = [
+            ("signal_quality_scores", "composite_sqs"),
+            ("buy_sell_daily", "signal"),
+            ("trend_template_data", "minervini_trend_score"),
+            ("technical_data_daily", "rsi"),
+        ]
+
+        try:
+            with DatabaseContext('read') as cur:
+                for table_name, required_col in source_tables:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table_name} WHERE symbol = %s AND date = %s",
+                        (symbol, end_date)
+                    )
+                    count = cur.fetchone()[0]
+                    if count == 0:
+                        failures.append(f"{table_name}_missing")
+        except Exception as e:
+            logger.debug(f"Source validation failed for {symbol}: {e}")
+            failures.append("validation_error")
+
+        return failures if failures else None
+
+    def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
+        """FIX #9: Log signal rejection to signal_rejection_log for observability."""
+        try:
+            with DatabaseContext('write') as cur:
+                cur.execute("""
+                    INSERT INTO signal_rejection_log
+                    (signal_source_table, rejection_reason, symbol, signal_date, rejected_at_tier, created_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                """, ("swing_trader_scores", reason, symbol, signal_date, "loader"))
+        except Exception as e:
+            logger.debug(f"Could not log rejection: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
