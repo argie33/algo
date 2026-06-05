@@ -649,7 +649,7 @@ function BreadthCard({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200 }}>
+        <div style={{ height: 200, minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={56}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -708,7 +708,7 @@ function NewHighsLowsCard({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200 }}>
+        <div style={{ height: 200, minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={64}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -760,7 +760,7 @@ function SentimentCard({ markets, sentiment, loading }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200 }}>
+        <div style={{ height: 200, minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -881,7 +881,7 @@ function InternalsCard({ data, loading }) {
           <div className="stile"><div className="stile-label">A/D Ratio</div><div className={`stile-value ${adRatio > 1 ? 'up' : 'down'}`}>{num(adRatio, 2)}</div><div className="stile-sub">{unchanged} unch.</div></div>
         </div>
         {mcclellan.length > 1 && (
-          <div style={{ height: 140 }}>
+          <div style={{ height: 140, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={mcclellan} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <defs>
@@ -998,7 +998,7 @@ function SeasonalityCard({ data, loading }) {
           </div>
         </div>
         {data.monthly?.length > 0 && (
-          <div style={{ marginTop: 'var(--space-4)', height: 80 }}>
+          <div style={{ marginTop: 'var(--space-4)', height: 80, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                 <XAxis dataKey="month_name" tick={{ fill: C.textFaint, fontSize: 9 }} tickFormatter={m => String(m).slice(0, 3)} />
@@ -1274,7 +1274,7 @@ function SectorRotationSignalCard() {
         </span>
       </div>
       <div className="card-body">
-        <div style={{ height: 200 }}>
+        <div style={{ height: 200, minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={items.map(d => ({
               date: fmtDate(d.date),
@@ -1484,7 +1484,7 @@ function VolTermStructureCard() {
         </span>
       </div>
       <div className="card-body">
-        <div style={{ height: 200 }}>
+        <div style={{ height: 200, minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
