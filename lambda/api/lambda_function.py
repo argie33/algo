@@ -28,6 +28,7 @@ _JWKS_CACHE = {}
 _JWKS_CACHE_TIME = None
 _ALLOWED_ORIGINS_CACHE = None
 _COGNITO_ENABLED = None  # Determined at module load
+_CLOUDFRONT_DOMAIN_CACHE = None  # CloudFront domain fetched from Secrets Manager
 
 try:
     import psycopg2

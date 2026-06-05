@@ -1099,12 +1099,6 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningSuccess"
       }
 
-      PipelineFailed = {
-        Type  = "Fail"
-        Error = "PipelineFailed"
-        Cause = "Morning prep pipeline failed — check CloudWatch logs and Step Functions console"
-      }
-
       MorningSuccess = {
         Type = "Succeed"
       }
