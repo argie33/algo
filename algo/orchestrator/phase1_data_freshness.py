@@ -796,6 +796,14 @@ def run(
             # RETRY LOGIC: If first attempt fails, try once more with 10s backoff
             # (allows recovery from transient ECS/network issues without giving up)
             # poll_timeout_sec=90 allows ECS task provision to complete under cluster load
+            #
+            # RACE CONDITION MITIGATION: stock_prices_daily loader runs async (non-blocking).
+            # Phases 2-7 may execute while loader is writing new data.
+            # SAFE because:
+            # 1. price_daily is INSERT-only (EOD prices immutable, no UPDATEs)
+            # 2. PostgreSQL MVCC gives each phase a consistent snapshot
+            # 3. Circuit breakers re-check data freshness before trading
+            # 4. Loader only writes new dates; never overwrites existing dates
             failsafe_ok = False
             for attempt in range(1, 3):
                 try:
