@@ -30,6 +30,21 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 **Staging (N+1):** Push to `staging` branch triggers deploy-staging.yml (dry-run, no schedules). Shares RDS with main, separate Lambda.
 
+**Database Initialization (db-init):** Managed exclusively by GitHub Actions workflow (build-db-init-lambda job in deploy-all-infrastructure.yml), NOT by Terraform. The workflow:
+1. Builds db-init Lambda from `lambda/db-init/`
+2. Invokes it to apply schema from `lambda/db-init/schema.sql`
+3. Removes Lambda after execution (ephemeral resource)
+
+Terraform does NOT create or manage the db-init Lambda. This separation avoids:
+- Race conditions (Terraform creating resource while workflow tries to invoke)
+- State conflicts (Terraform seeing the Lambda as "unmanaged")
+- Deployment churn (54 destroy + 53 add spins when db-init resources shift between tools)
+
+If you need to rebuild the schema:
+1. Ensure `lambda/db-init/schema.sql` is current
+2. Run GitHub Actions "Deploy All Infrastructure" workflow manually
+3. Workflow will automatically create, invoke, and clean up the db-init Lambda
+
 ## Schedule
 
 **Daily runs (Mon-Fri):**
