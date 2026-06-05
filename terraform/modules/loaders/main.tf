@@ -261,6 +261,24 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 # - 5:00pm ET (10pm UTC): trading signals (5 parallel)
 # - 5:15pm ET (10:15pm UTC): algo metrics (after signals)
 
+# ============================================================
+# LOADER PARALLELISM ENFORCEMENT (CRITICAL)
+# ============================================================
+# Each loader in the loaders map MUST have a parallelism value to prevent RDS connection pool exhaustion.
+# LOADER_PARALLELISM is injected into ECS task definitions as an environment variable.
+# All loaders (load_*.py) MUST read and respect this environment variable in their run() method.
+#
+# DO NOT override LOADER_PARALLELISM in ECS task definition revisions — it breaks per-loader tuning.
+# DO NOT set a global default parallelism for all loaders — causes connection pool exhaustion.
+# DO NOT ignore this environment variable in loader code — parallelism tuning won't work.
+#
+# Critical path loaders (technical_data_daily, buy_sell_daily, signal_quality_scores, swing_trader_scores):
+#   parallelism = 2-3 (reduces DB connection peak to 20-30 total across all 9 concurrent loaders in EOD pipeline)
+# Analytics loaders (company_profile, analyst_sentiment, value_metrics, stability_metrics, growth_metrics, quality_metrics):
+#   parallelism = 2 (prevents rate-limiting cascades and database connection pool exhaustion)
+# Small/reference loaders (stock_symbols, sp500_constituents, earnings_history):
+#   parallelism = 1 (minimal data volume, no parallelism benefit)
+
 locals {
   # Maps each Terraform loader key to the actual Python script filename.
   # This maps to the 33 actual loaders in loaders/ directory.
