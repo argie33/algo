@@ -65,21 +65,31 @@ If you need to rebuild the schema:
 
 ## Infrastructure Constraints
 
-**CloudFront Domain Hardcoding (Mitigated, Permanent Fix TBD):** `d2u93283nn45h2.cloudfront.net` is hardcoded in `terraform.tfvars` (frontend_origin line 9, api_cors_allowed_origins line 19) due to circular dependency: API Gateway CORS references CF domain, but CF origin references API Gateway. Terraform cannot resolve this automatically.
+**CloudFront Domain Management (PERMANENT FIX IMPLEMENTED):** CloudFront domain is now dynamically managed via AWS Secrets Manager, eliminating hardcoding and manual updates.
 
-**Current Mitigation (Verified Workaround):** 
-- GitHub Actions workflow `verify-cloudfront.yml` runs daily (10 AM UTC / 5 AM ET) + on-demand dispatch
-- Workflow fetches actual CF domain from AWS and compares against hardcoded values
-- **If mismatch detected:** Alerts with instructions to update `terraform.tfvars` (lines 9, 19), commit, and push (triggers automatic redeploy)
-- Local verification: `./scripts/verify-cloudfront-domain.ps1` (requires AWS CLI + credentials)
+**Implementation:**
+- Terraform creates `algo/cloudfront-domain` secret and updates it with actual CloudFront domain when created/recreated
+- Lambda `fetch_cloudfront_domain_from_secrets()` function fetches domain at cold-start and caches it
+- Domain automatically propagates when CloudFront is recreated without manual intervention
+- Graceful fallback to FRONTEND_URL environment variable if secret unavailable (works on first deploy)
 
-**Recommended Permanent Fix (Not Yet Implemented):** Option 1: Secrets Manager (3-4 hour effort)
-1. Store CloudFront domain in Secrets Manager: `aws secretsmanager create-secret --name algo/cloudfront-domain --secret-string 'd2u93283nn45h2.cloudfront.net'`
-2. Modify `lambda/api/lambda_function.py`: Fetch domain at Lambda startup or on each request (with caching) instead of checking hardcoded terraform.tfvars
-3. Remove hardcoded values from terraform.tfvars lines 9, 19 and API Gateway CORS config
-4. Result: If CloudFront recreated, domain in Secrets Manager auto-propagates to API without manual terraform.tfvars changes
+**How it works:**
+1. Terraform applies and creates CloudFront distribution
+2. Terraform writes CloudFront domain to `algo/cloudfront-domain` secret in Secrets Manager
+3. Lambda starts and fetches domain from secret (via `fetch_cloudfront_domain_from_secrets()`)
+4. Lambda uses domain for CORS validation and sets FRONTEND_URL automatically
+5. No manual terraform.tfvars updates needed if CloudFront recreated
 
-**Current Action if Mismatch Detected (Until Option 1 Implemented):** Update `terraform.tfvars` with new domain, commit, and push (triggers redeploy).
+**Verification:**
+- Check Lambda logs: "[CloudFront] Fetched domain from Secrets Manager: d2u93283nn45h2.cloudfront.net"
+- Verify secret contents: `aws secretsmanager get-secret-value --secret-id algo/cloudfront-domain`
+- Monitor for fallback logs: "[CloudFront] Secret not found" means secret hasn't been created yet (OK on first deploy)
+
+**Old Mitigation (No Longer Needed):**
+- GitHub Actions `verify-cloudfront.yml` workflow (daily comparison)
+- Manual terraform.tfvars updates (now automatic via secret)
+
+This solves the circular dependency: API Gateway no longer needs hardcoded CF domain; Lambda fetches it dynamically.
 
 ## Known Limitations
 
