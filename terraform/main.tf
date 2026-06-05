@@ -124,7 +124,6 @@ module "database" {
   notification_email_from         = var.notification_email_from
   secrets_rotation_days           = var.secrets_rotation_days
   postgres_major_version          = var.postgres_major_version
-  db_init_code_file               = var.db_init_code_file
   ecs_tasks_security_group_id     = module.vpc.ecs_tasks_security_group_id
   common_tags                     = local.common_tags
 }
