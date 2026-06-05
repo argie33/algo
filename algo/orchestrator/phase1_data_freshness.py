@@ -846,15 +846,39 @@ def run(
             else:
                 # No recent failsafe trigger, or check failed. Trigger fresh loader.
                 logger.warning(f"[FAILSAFE] No recent trigger in grace period window. Attempting to trigger loader: {stale_items}")
+
+                # CLUSTER HEALTH PRECHECK: Verify cluster has capacity before triggering
+                try:
+                    import boto3
+                    ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                    cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+
+                    cluster_response = ecs_client.describe_clusters(clusters=[cluster_arn])
+                    if cluster_response and cluster_response.get('clusters'):
+                        cluster_info = cluster_response['clusters'][0]
+                        registered_container_instances = cluster_info.get('registeredContainerInstancesCount', 0)
+                        running_tasks = cluster_info.get('runningCount', 0)
+                        pending_tasks = cluster_info.get('pendingCount', 0)
+
+                        logger.info(f"[CLUSTER HEALTH] Instances: {registered_container_instances}, "
+                                   f"Running: {running_tasks}, Pending: {pending_tasks}")
+
+                        # If more than 10 tasks are pending or cluster is oversubscribed, warn
+                        if pending_tasks > 10 or running_tasks > registered_container_instances * 2:
+                            logger.warning(f"[CLUSTER HEALTH] High cluster load detected. "
+                                         f"Pending tasks: {pending_tasks}, may experience higher provisioning latency.")
+                except Exception as cluster_check_err:
+                    logger.debug(f"[CLUSTER HEALTH] Could not check cluster capacity: {cluster_check_err}")
+
                 # Stock prices loader takes 1-2 hours to fetch 5000+ symbols. Lambda orchestrator has
                 # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
                 # asynchronously and verify it started before proceeding.
 
-                # RETRY LOGIC: If first attempt fails, try once more with 10s backoff
+                # RETRY LOGIC: Adaptive exponential backoff for ECS provisioning variability
                 # (allows recovery from transient ECS/network issues without giving up)
                 #
-                # Dynamic poll timeout: start at 30s, extend to 120s if under heavy load.
-                # ECS task provision can take 30-45s under normal load, 60-120s when busy.
+                # Adaptive poll timeouts: 30s → 120s → 180s
+                # ECS task provision: 30-45s under normal load, 60-150s when cluster busy, 150-200s under extreme load
                 # RACE CONDITION MITIGATION: stock_prices_daily loader runs async (non-blocking).
                 # Phases 2-7 may execute while loader is writing new data.
                 # SAFE because:
@@ -863,11 +887,12 @@ def run(
                 # 3. Circuit breakers re-check data freshness before trading
                 # 4. Loader only writes new dates; never overwrites existing dates
                 failsafe_ok = False
-                for attempt in range(1, 3):
+                poll_timeouts = [30, 120, 180]  # Adaptive: normal, busy, extreme load
+                max_attempts = len(poll_timeouts)
+
+                for attempt, poll_timeout in enumerate(poll_timeouts, 1):
                     try:
-                        # Increase poll timeout on retry (30s first attempt, 120s second)
-                        poll_timeout = 30 if attempt == 1 else 120
-                        logger.info(f"[FAILSAFE] Attempt {attempt}/2: launching loader with {poll_timeout}s poll timeout...")
+                        logger.info(f"[FAILSAFE] Attempt {attempt}/{max_attempts}: launching loader with {poll_timeout}s poll timeout...")
                         failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
                         if failsafe_ok:
                             # Log successful trigger for grace period check in future runs
@@ -882,13 +907,16 @@ def run(
                             except Exception as log_err:
                                 logger.debug(f"[FAILSAFE] Could not log trigger timestamp: {log_err}")
                             break
-                        elif attempt < 2:
-                            logger.warning(f"[FAILSAFE] Attempt {attempt}/2 failed. Retrying in 10s...")
-                            time.sleep(10)
+                        elif attempt < max_attempts:
+                            backoff_wait = min(30, (2 ** (attempt - 1)) * 5)  # 5s, 10s, 20s backoff
+                            logger.warning(f"[FAILSAFE] Attempt {attempt}/{max_attempts} failed (timeout {poll_timeout}s). "
+                                         f"Retrying in {backoff_wait}s with higher timeout ({poll_timeouts[attempt]}s)...")
+                            time.sleep(backoff_wait)
                     except Exception as retry_err:
-                        logger.warning(f"[FAILSAFE] Attempt {attempt}/2 error: {retry_err}. Retrying...")
-                        if attempt < 2:
-                            time.sleep(10)
+                        logger.warning(f"[FAILSAFE] Attempt {attempt}/{max_attempts} error: {retry_err}. Retrying...")
+                        if attempt < max_attempts:
+                            backoff_wait = min(30, (2 ** (attempt - 1)) * 5)
+                            time.sleep(backoff_wait)
 
             if not failsafe_ok:
                 # Failsafe failed or timeout - loader may not have started.
