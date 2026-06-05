@@ -225,6 +225,7 @@ resource "aws_db_proxy" "main" {
   # Connection pooling multiplexes client connections to RDS database
   # 24 concurrent loaders (48-96 direct connections) → 20-30 persistent RDS connections
   # Reduces latency by 10-20ms per query (connection reuse vs TCP handshake)
+  # AWS defaults: max_connections=100, max_idle_connections=50, connection_borrow_timeout=120s
   require_tls = false
 
   tags = merge(var.common_tags, {
