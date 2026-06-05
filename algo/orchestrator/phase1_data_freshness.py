@@ -798,39 +798,97 @@ def run(
             _metrics.flush()
 
         if stale_items:
-            logger.warning(f"[FAILSAFE] Data stale, attempting to trigger loader: {stale_items}")
-            # Stock prices loader takes 1-2 hours to fetch 5000+ symbols. Lambda orchestrator has
-            # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
-            # asynchronously and verify it started before proceeding.
+            logger.warning(f"[FAILSAFE] Data stale, checking if failsafe already triggered recently: {stale_items}")
 
-            # RETRY LOGIC: If first attempt fails, try once more with 10s backoff
-            # (allows recovery from transient ECS/network issues without giving up)
-            #
-            # Dynamic poll timeout: start at 30s, extend to 120s if under heavy load.
-            # ECS task provision can take 30-45s under normal load, 60-120s when busy.
-            # RACE CONDITION MITIGATION: stock_prices_daily loader runs async (non-blocking).
-            # Phases 2-7 may execute while loader is writing new data.
-            # SAFE because:
-            # 1. price_daily is INSERT-only (EOD prices immutable, no UPDATEs)
-            # 2. PostgreSQL MVCC gives each phase a consistent snapshot
-            # 3. Circuit breakers re-check data freshness before trading
-            # 4. Loader only writes new dates; never overwrites existing dates
-            failsafe_ok = False
-            for attempt in range(1, 3):
-                try:
-                    # Increase poll timeout on retry (30s first attempt, 120s second)
-                    poll_timeout = 30 if attempt == 1 else 120
-                    logger.info(f"[FAILSAFE] Attempt {attempt}/2: launching loader with {poll_timeout}s poll timeout...")
-                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
-                    if failsafe_ok:
-                        break
-                    elif attempt < 2:
-                        logger.warning(f"[FAILSAFE] Attempt {attempt}/2 failed. Retrying in 10s...")
-                        time.sleep(10)
-                except Exception as retry_err:
-                    logger.warning(f"[FAILSAFE] Attempt {attempt}/2 error: {retry_err}. Retrying...")
-                    if attempt < 2:
-                        time.sleep(10)
+            # GRACE PERIOD: Check if a failsafe was already triggered in the last 2 hours.
+            # If yes, skip redundant trigger and allow current run to proceed with in-flight loader.
+            # This prevents 20+ potential halts/week from 4 daily runs each independently
+            # triggering the same loader.
+            failsafe_already_triggered = False
+            failsafe_age_minutes = None
+
+            try:
+                import boto3
+                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+                state_table = dynamodb.Table(state_table_name)
+
+                response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
+                if 'Item' in response:
+                    last_trigger_time = response['Item'].get('triggered_at', 0)
+                    current_time = time.time()
+                    failsafe_age_minutes = (current_time - last_trigger_time) / 60
+
+                    if failsafe_age_minutes < 120:  # 2 hours
+                        failsafe_already_triggered = True
+                        logger.info(f"[FAILSAFE] Grace period: Failsafe already triggered {failsafe_age_minutes:.0f}m ago. "
+                                   f"Skipping redundant trigger, allowing in-flight loader to complete.")
+            except Exception as state_err:
+                logger.debug(f"[FAILSAFE] Could not check failsafe trigger log: {state_err}. "
+                            f"Will proceed with fresh trigger.")
+
+            if failsafe_already_triggered:
+                # Failsafe was already triggered recently. Allow current run to proceed
+                # knowing that loader is active in background.
+                failsafe_ok = True  # Mark as OK to skip re-triggering logic below
+                logger.info(f"[FAILSAFE] ✓ Using grace period from prior trigger ({failsafe_age_minutes:.0f}m ago). "
+                           f"Proceeding to Phase 2 with in-flight loader.")
+                alerts.send_position_alert(
+                    'DATA',
+                    'STALE_DATA_GRACE_PERIOD',
+                    f'Stale data detected but failsafe loader was triggered {failsafe_age_minutes:.0f}m ago. '
+                    f'Using grace period. Data will refresh within 1-2 hours.',
+                    {'stale_items': stale_items, 'grace_period_minutes': failsafe_age_minutes}
+                )
+                log_phase_result_fn(1, 'data_freshness', 'warn',
+                                   f'Stale, but grace period active from prior failsafe ({failsafe_age_minutes:.0f}m ago)')
+                # Continue to Phase 2 without retriggering (failsafe_ok=True skips retry logic)
+            else:
+                # No recent failsafe trigger, or check failed. Trigger fresh loader.
+                logger.warning(f"[FAILSAFE] No recent trigger in grace period window. Attempting to trigger loader: {stale_items}")
+                # Stock prices loader takes 1-2 hours to fetch 5000+ symbols. Lambda orchestrator has
+                # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
+                # asynchronously and verify it started before proceeding.
+
+                # RETRY LOGIC: If first attempt fails, try once more with 10s backoff
+                # (allows recovery from transient ECS/network issues without giving up)
+                #
+                # Dynamic poll timeout: start at 30s, extend to 120s if under heavy load.
+                # ECS task provision can take 30-45s under normal load, 60-120s when busy.
+                # RACE CONDITION MITIGATION: stock_prices_daily loader runs async (non-blocking).
+                # Phases 2-7 may execute while loader is writing new data.
+                # SAFE because:
+                # 1. price_daily is INSERT-only (EOD prices immutable, no UPDATEs)
+                # 2. PostgreSQL MVCC gives each phase a consistent snapshot
+                # 3. Circuit breakers re-check data freshness before trading
+                # 4. Loader only writes new dates; never overwrites existing dates
+                failsafe_ok = False
+                for attempt in range(1, 3):
+                    try:
+                        # Increase poll timeout on retry (30s first attempt, 120s second)
+                        poll_timeout = 30 if attempt == 1 else 120
+                        logger.info(f"[FAILSAFE] Attempt {attempt}/2: launching loader with {poll_timeout}s poll timeout...")
+                        failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
+                        if failsafe_ok:
+                            # Log successful trigger for grace period check in future runs
+                            try:
+                                state_table.put_item(Item={
+                                    'state_key': 'failsafe_trigger_log',
+                                    'triggered_at': time.time(),
+                                    'loader': 'stock_prices_daily',
+                                    'ttl': int(time.time()) + 7200,  # 2-hour TTL
+                                })
+                                logger.debug("[FAILSAFE] Logged trigger timestamp for grace period")
+                            except Exception as log_err:
+                                logger.debug(f"[FAILSAFE] Could not log trigger timestamp: {log_err}")
+                            break
+                        elif attempt < 2:
+                            logger.warning(f"[FAILSAFE] Attempt {attempt}/2 failed. Retrying in 10s...")
+                            time.sleep(10)
+                    except Exception as retry_err:
+                        logger.warning(f"[FAILSAFE] Attempt {attempt}/2 error: {retry_err}. Retrying...")
+                        if attempt < 2:
+                            time.sleep(10)
 
             if not failsafe_ok:
                 # Failsafe failed or timeout - loader may not have started.

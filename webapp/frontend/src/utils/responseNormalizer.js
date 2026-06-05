@@ -47,10 +47,12 @@ export const extractData = (response) => {
   if (Array.isArray(data.items)) {
     // Ensure items array is valid; filter out null/undefined entries
     const filteredItems = data.items.filter(item => item !== null && item !== undefined);
+    // Use backend total if provided; otherwise use filtered count to match actual items
+    const total = data.total || filteredItems.length;
     return {
       ...data,
       items: filteredItems,
-      total: data.total || data.items.length,
+      total,
     };
   }
 
