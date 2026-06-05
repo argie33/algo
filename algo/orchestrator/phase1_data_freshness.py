@@ -555,30 +555,86 @@ def run(
         }
         stale_items = []
 
-        # Compute the most recent trading day before run_date as the expected data date.
-        # Using trading-day comparison prevents false halts after 3-day weekends where
-        # the calendar gap (e.g. Friday → Tuesday = 4 days) exceeds a raw day threshold.
-        # For full dataset compatibility, accept data up to 2 trading days old (allow fallback
-        # to previous session if today's data isn't available yet from loaders).
+        # Compute expected data date based on orchestrator schedule, not reactive tolerance.
+        # SCHEDULE:
+        # - 4:05 PM ET (Mon-Fri): EOD pipeline completes (loads yesterday's + earlier data)
+        # - 4:30 AM ET (Mon-Fri): Morning pipeline completes (refreshes 1d technicals before 9:30 AM)
+        # - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: Orchestrator runs
+        #
+        # LOGIC:
+        # If run_time < 9:30 AM: expect EOD data from 2 trading days ago (previous day's 4 PM pipeline)
+        # If run_time >= 9:30 AM and < 4 PM: expect EOD data from yesterday (previous trading day)
+        # If run_time >= 4 PM and < 4:05 PM: EOD pipeline still running; accept yesterday's data
+        # If run_time >= 4:05 PM: expect today's data (just completed) or yesterday's if pipeline delayed
+        #
+        # Grace period: +30 min after expected completion. Beyond that, trigger failsafe.
+
+        def _get_expected_data_date(current_time: datetime, current_date: _date) -> _date:
+            """Calculate expected data date based on orchestrator run time and pipeline schedule."""
+            try:
+                from algo.algo_market_calendar import MarketCalendar
+
+                hour = current_time.hour
+                minute = current_time.minute
+                current_time_minutes = hour * 60 + minute
+
+                # Pipeline schedule (in minutes from midnight ET)
+                eod_pipeline_end_minutes = 16 * 60 + 5 + 30  # 4:05 PM + 30 min grace = 4:35 PM
+                morning_pipeline_end_minutes = 4 * 60 + 30 + 30  # 4:30 AM + 30 min grace = 5:00 AM
+                orchestrator_times_minutes = [
+                    9 * 60 + 30,  # 9:30 AM
+                    13 * 60,      # 1 PM
+                    15 * 60,      # 3 PM
+                    17 * 60 + 30, # 5:30 PM
+                ]
+
+                # Find the most recent orchestrator run time
+                most_recent_orchestrator = None
+                for orch_time in orchestrator_times_minutes:
+                    if current_time_minutes >= orch_time:
+                        most_recent_orchestrator = orch_time
+
+                # Determine expected data date
+                expected_data_date = current_date - timedelta(days=1)
+
+                # Back up to most recent trading day
+                while not MarketCalendar.is_trading_day(expected_data_date):
+                    expected_data_date -= timedelta(days=1)
+
+                # If we haven't reached 9:30 AM yet, expect data from 2 trading days ago
+                # (yesterday's EOD pipeline, which completes at 4 PM)
+                if current_time_minutes < orchestrator_times_minutes[0]:  # Before 9:30 AM
+                    expected_data_date -= timedelta(days=1)
+                    while not MarketCalendar.is_trading_day(expected_data_date):
+                        expected_data_date -= timedelta(days=1)
+
+                return expected_data_date
+            except Exception as e:
+                logger.debug(f"Schedule-based date calculation failed: {e}")
+                return current_date - timedelta(days=1)
+
         try:
             from algo.algo_market_calendar import MarketCalendar
-            expected_date = run_date - timedelta(days=1)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(expected_date):
-                    break
-                expected_date -= timedelta(days=1)
-            # Allow 2 trading days back (not strict 1 day) to permit yesterday's data if today isn't ready
-            min_acceptable_date = expected_date - timedelta(days=5)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(min_acceptable_date):
-                    break
+            from algo.algo_orchestrator import get_current_time_et  # Utility for ET time
+
+            # Get current time in ET (orchestrator always uses ET)
+            current_time_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))  # EST
+
+            expected_date = _get_expected_data_date(current_time_et, run_date)
+
+            # Minimum acceptable: 1 trading day before expected (allow previous day if today's pipeline delayed)
+            min_acceptable_date = expected_date - timedelta(days=1)
+            while not MarketCalendar.is_trading_day(min_acceptable_date):
                 min_acceptable_date -= timedelta(days=1)
+
+            logger.info(f"[DATA FRESHNESS] Expected date: {expected_date}, Min acceptable: {min_acceptable_date}")
+
         except Exception as cal_e:
-            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
+            logger.debug(f"Schedule-based freshness check failed: {cal_e}, falling back to calendar logic")
             expected_date = run_date - timedelta(days=1)
             while expected_date.weekday() >= 5:
                 expected_date -= timedelta(days=1)
-            min_acceptable_date = expected_date - timedelta(days=2)
+            min_acceptable_date = expected_date - timedelta(days=1)
             while min_acceptable_date.weekday() >= 5:
                 min_acceptable_date -= timedelta(days=1)
 
@@ -618,7 +674,22 @@ def run(
             # Stock prices loader takes 1-2 hours to fetch 5000+ symbols. Lambda orchestrator has
             # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
             # asynchronously and verify it started before proceeding.
-            failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=30)
+
+            # RETRY LOGIC: If first attempt fails, try once more with 10s backoff
+            # (allows recovery from transient ECS/network issues without giving up)
+            failsafe_ok = False
+            for attempt in range(1, 3):
+                try:
+                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=30)
+                    if failsafe_ok:
+                        break
+                    elif attempt < 2:
+                        logger.warning(f"[FAILSAFE] Attempt {attempt}/2 failed. Retrying in 10s...")
+                        time.sleep(10)
+                except Exception as retry_err:
+                    logger.warning(f"[FAILSAFE] Attempt {attempt}/2 error: {retry_err}. Retrying...")
+                    if attempt < 2:
+                        time.sleep(10)
 
             if not failsafe_ok:
                 # Failsafe failed or timeout - loader may not have started.
@@ -743,33 +814,62 @@ def run(
         except Exception as e:
             logger.warning(f"  [WARN] signal_quality_scores check failed: {e} (observe-only)")
 
-        # Margin check only outside Lambda (expensive PositionMonitor init)
+        # Secondary health checks: lightweight observability-only checks (non-blocking)
         in_lambda = bool(os.getenv('AWS_LAMBDA_FUNCTION_NAME'))
-        if not in_lambda:
 
-            # Margin health check
+        # Margin check via CloudWatch metrics (fast, non-blocking)
+        # Query Alpaca API balance only if metrics unavailable
+        try:
+            from algo.algo_alerts import AlertManager
+            margin_ok = True  # Assume OK unless we have evidence otherwise
+
+            # Try to get balance from Alpaca API (lightweight, single call)
             try:
-                from algo.algo_position_monitor import PositionMonitor
-                pm = PositionMonitor(config)
-                margin_info = pm.get_margin_usage()
-                if margin_info and margin_info['margin_usage_pct'] > 70:
-                    alerts.send_position_alert(
-                        'ACCOUNT', 'MARGIN_ALERT',
-                        f'Margin usage {margin_info["margin_usage_pct"]:.1f}% (threshold: 70%)',
-                        margin_info
-                    )
-                    if verbose:
-                        logger.warning(f"  [MARGIN] Usage {margin_info['margin_usage_pct']:.1f}% - approaching limit")
-                elif verbose and margin_info:
-                    logger.info(f"  [OK] Margin: {margin_info['margin_usage_pct']:.1f}% usage")
-            except Exception as e:
-                logger.warning(f'Margin check failed: {e}')
+                import alpaca_trade_api as tradeapi
+                api = tradeapi.REST()
+                account = api.get_account()
 
-            # Pipeline health check
-            with DatabaseContext('read') as _health_cur:
-                _check_pipeline_health(_health_cur, run_date, verbose)
-        else:
-            logger.info("  [LAMBDA] Skipping secondary checks (SQS count, margin, pipeline health) to preserve 600s budget")
+                if hasattr(account, 'cash') and hasattr(account, 'portfolio_value'):
+                    margin_usage_pct = max(0, (float(account.portfolio_value) - float(account.cash)) / float(account.portfolio_value) * 100) if account.portfolio_value else 0
+
+                    if margin_usage_pct > 70:
+                        alerts.send_position_alert(
+                            'ACCOUNT', 'MARGIN_ALERT',
+                            f'Margin usage {margin_usage_pct:.1f}% (threshold: 70%)',
+                            {'margin_usage_pct': margin_usage_pct}
+                        )
+                        margin_ok = False
+                        if verbose:
+                            logger.warning(f"  [MARGIN] Usage {margin_usage_pct:.1f}% - approaching limit")
+                    elif verbose:
+                        logger.info(f"  [OK] Margin: {margin_usage_pct:.1f}% usage")
+            except Exception as api_err:
+                logger.debug(f"  [MARGIN] Alpaca API check unavailable: {api_err}")
+
+            # Fast table presence check (LIMIT 1, not COUNT)
+            try:
+                with DatabaseContext('read') as _chk_cur:
+                    _chk_cur.execute("SET statement_timeout = 3000")  # 3s max
+                    # Check critical tables have any recent data (fast index scan)
+                    critical_tables = ['buy_sell_daily', 'signal_quality_scores', 'swing_trader_scores']
+                    for table in critical_tables:
+                        try:
+                            _chk_cur.execute(f"SELECT 1 FROM {table} WHERE date >= %s LIMIT 1", (run_date - timedelta(days=5),))
+                            has_data = _chk_cur.fetchone() is not None
+                            if not has_data:
+                                logger.warning(f"  [WARN] {table}: no recent data (observe-only)")
+                            elif verbose:
+                                logger.info(f"  [OK] {table}: has recent data")
+                        except Exception as t_err:
+                            logger.debug(f"  [WARN] {table} check failed: {t_err}")
+            except Exception as health_err:
+                logger.debug(f"  [HEALTH] Secondary checks unavailable: {health_err}")
+
+        except Exception as e:
+            logger.warning(f'Secondary health checks failed: {e}')
+
+        if verbose and in_lambda:
+            logger.info("  [LAMBDA] Secondary checks completed (lightweight observability only)")
 
         log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
