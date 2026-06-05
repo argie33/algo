@@ -74,6 +74,83 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_last_refill = time.time()
         self._rate_limit_refill_rate = 30 / 60  # 30 tokens per 60 seconds = 0.5 per second
 
+        # Market close detection for EOD pipeline (4:05 PM ET start)
+        # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
+        # If running 1d interval at market close, wait for SPY close data before proceeding.
+        self._market_close_detected = False
+
+    def _check_market_close_data_available(self, max_wait_sec: int = 600) -> bool:
+        """Check if SPY close data is available (within 10 minutes after market close at 4 PM ET).
+
+        EOD pipeline starts at 4:05 PM ET. yfinance API can lag 5-10 minutes. Verify SPY 1d
+        close data is available before spending 1-2 hours loading 5000+ symbols.
+
+        Args:
+            max_wait_sec: Max seconds to wait for data availability (default 10 min)
+
+        Returns: True if SPY close data available (or not near market close), False if timeout
+        """
+        from datetime import datetime, timezone, timedelta
+        from algo.algo_market_calendar import MarketCalendar
+        today = date.today()
+
+        # Check if today is a trading day
+        if not MarketCalendar.is_trading_day(today):
+            logger.info("[MARKET_CLOSE] Today is not a trading day, skipping close data check")
+            return True
+
+        # Check if we're within 30 minutes after market close (4:00 PM ET ± 30 min = 3:30 PM - 4:30 PM)
+        now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+        market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
+        minutes_after_close = (now_et - market_close_et).total_seconds() / 60
+
+        # If we're more than 30 minutes after market close, assume data is available
+        if minutes_after_close > 30:
+            logger.info(f"[MARKET_CLOSE] {minutes_after_close:.0f}min after market close, skipping check")
+            return True
+
+        # If we're before market close, skip (early run or different time zone)
+        if minutes_after_close < 0:
+            logger.info(f"[MARKET_CLOSE] Before market close ({minutes_after_close:.0f}min), data will be available soon")
+            return True
+
+        # We're 0-30 minutes after market close - verify SPY data
+        logger.info(f"[MARKET_CLOSE] {minutes_after_close:.1f}min after close, checking if SPY data available...")
+
+        start_time = time.time()
+        attempt = 0
+        max_attempts = int(max_wait_sec / 5)  # Try every 5 seconds
+
+        while time.time() - start_time < max_wait_sec:
+            attempt += 1
+            try:
+                # Try to fetch SPY 1d data from yfinance
+                spy_data = self.router.fetch_ohlcv_interval('SPY', today, today + timedelta(days=1), '1d')
+                if spy_data:
+                    latest_row = spy_data[-1] if spy_data else None
+                    if latest_row and latest_row.get('close'):
+                        elapsed = time.time() - start_time
+                        logger.info(f"[MARKET_CLOSE] ✓ SPY close data available after {elapsed:.1f}s (attempt {attempt})")
+                        return True
+            except Exception as e:
+                logger.debug(f"[MARKET_CLOSE] Attempt {attempt}: SPY fetch failed ({e})")
+
+            # Wait 5 seconds before retrying
+            wait_remaining = max_wait_sec - (time.time() - start_time)
+            if wait_remaining > 0:
+                wait_time = min(5, wait_remaining)
+                if attempt < max_attempts:
+                    logger.debug(f"[MARKET_CLOSE] Waiting {wait_time:.1f}s before retry...")
+                    time.sleep(wait_time)
+
+        # Timeout - data not available
+        elapsed = time.time() - start_time
+        logger.warning(
+            f"[MARKET_CLOSE] SPY close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
+            f"yfinance API lag may cause incomplete data. Proceeding with caution."
+        )
+        return False
+
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
         """Apply token bucket rate limiting to avoid yfinance 429 errors.
 
@@ -321,6 +398,16 @@ class PriceLoader(OptimalLoader):
             "[%s] Starting batch load: %d symbols (batch_size=%d, concurrency=%d)%s",
             self.table_name, len(symbols), self.batch_size, parallelism, mode,
         )
+
+        # Market close detection: For 1d interval near 4 PM ET, ensure yfinance has close data
+        if self.interval == "1d":
+            if not self._check_market_close_data_available(max_wait_sec=600):
+                logger.warning(
+                    "[%s] yfinance close data not available yet (API lag). "
+                    "Proceeding with load but data may be incomplete. "
+                    "If all symbols return empty, failsafe will trigger retry.",
+                    self.table_name
+                )
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At 50% of timeout (12600s), if < 10% complete, trigger emergency mode
