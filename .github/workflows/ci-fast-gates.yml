@@ -68,6 +68,8 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+      - name: Upgrade pip to fix PYSEC-2026-196 vulnerability
+        run: pip install --upgrade 'pip>=26.1.2'
       - name: Install pip-audit
         run: pip install -q pip-audit
       - name: Audit Python dependencies for vulnerabilities
