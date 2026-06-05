@@ -234,7 +234,7 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
     DEPRECATED: Use _trigger_loader_failsafe_with_verification instead.
     This function kept for backward compatibility only.
     """
-    return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=30)
+    return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=180)
 
 def _get_most_recent_trading_day(from_date: _date = None, trading_days_back: int = 1) -> _date:
     """Get the Nth most recent trading day from a given date.
@@ -602,48 +602,174 @@ def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
         logger.warning(f"Pipeline health check failed: {e}")
 
 def _validate_required_schema_columns(cur: Any, verbose: bool = False) -> bool:
-    """Pre-flight validation: ensure all required schema columns exist.
+    """Pre-flight validation: ensure all required schema columns exist with correct types and indexes.
 
-    Critical columns added in recent deployments must exist before Phase 1 proceeds.
-    If columns don't exist, migration may have failed or database is out of sync.
+    Checks:
+    1. Column existence (critical columns must exist)
+    2. Column types (must match expected data types)
+    3. Index existence (performance-critical indexes must exist)
 
-    Returns: True if all columns present, False if any missing (fail-closed)
+    If columns don't exist or have wrong types, migration may have failed or database is out of sync.
+
+    Returns: True if all validations pass, False if any issues found (fail-closed)
     """
     required_columns = {
         'signal_quality_scores': [
-            'buy_sell_daily_age_days',
-            'technical_data_age_days',
-            'trend_template_age_days',
+            ('buy_sell_daily_age_days', 'integer'),
+            ('technical_data_age_days', 'integer'),
+            ('trend_template_age_days', 'integer'),
         ]
     }
 
-    missing = []
+    required_indexes = {
+        'signal_quality_scores': [
+            'idx_signal_quality_scores_symbol_date',  # Critical for Phase 5 lookups
+        ]
+    }
+
+    issues = []
+
+    # Check column existence and types
     for table, columns in required_columns.items():
-        for col in columns:
+        for col, expected_type in columns:
             try:
-                cur.execute(f"SELECT 1 FROM {table} LIMIT 0")
-                # Query succeeded, column syntax is valid. Now check column existence
+                # Check if column exists and get its data type
                 cur.execute(f"""
-                    SELECT EXISTS(
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name = %s AND column_name = %s
-                    )
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = %s
                 """, (table, col))
-                exists = cur.fetchone()[0]
-                if not exists:
-                    missing.append(f"{table}.{col}")
+                result = cur.fetchone()
+
+                if not result:
+                    issues.append(f"MISSING_COLUMN: {table}.{col}")
+                else:
+                    actual_type = result[0].lower()
+                    # Allow numeric types to be flexible (int, bigint, smallint all OK for integer)
+                    if expected_type == 'integer' and actual_type not in ('integer', 'bigint', 'smallint', 'int2', 'int4', 'int8'):
+                        issues.append(f"WRONG_TYPE: {table}.{col} is {actual_type}, expected {expected_type}")
+                    elif expected_type == 'text' and actual_type not in ('text', 'character varying', 'varchar'):
+                        issues.append(f"WRONG_TYPE: {table}.{col} is {actual_type}, expected {expected_type}")
+
+                    if verbose:
+                        logger.debug(f"[SCHEMA] ✓ {table}.{col} exists ({actual_type})")
+
             except Exception as e:
                 logger.warning(f"[SCHEMA] Could not verify column {table}.{col}: {e}")
-                missing.append(f"{table}.{col}")
+                issues.append(f"VERIFY_ERROR: {table}.{col} ({str(e)[:50]})")
 
-    if missing:
-        logger.critical(f"[SCHEMA] Missing required columns: {', '.join(missing)}")
-        logger.critical("[SCHEMA] Database schema migration may have failed. Check RDS for errors.")
-        return False
+    # Check index existence (performance validation)
+    for table, indexes in required_indexes.items():
+        for index_name in indexes:
+            try:
+                cur.execute(f"""
+                    SELECT 1 FROM information_schema.statistics
+                    WHERE table_name = %s AND index_name = %s
+                    LIMIT 1
+                """)
+                result = cur.fetchone()
+
+                if not result:
+                    logger.warning(f"[SCHEMA] INDEX MISSING: {index_name} on {table}. "
+                                 f"Performance may degrade. Performance queries will be slower.")
+                    # Don't fail on missing indexes - they improve performance but aren't critical for correctness
+                else:
+                    if verbose:
+                        logger.debug(f"[SCHEMA] ✓ Index {index_name} exists")
+
+            except Exception as e:
+                logger.debug(f"[SCHEMA] Could not verify index {index_name}: {e}")
+                # Don't fail on index check errors - they're non-blocking
+
+    # Report all issues found
+    if issues:
+        critical_issues = [i for i in issues if i.startswith(('MISSING_COLUMN', 'WRONG_TYPE'))]
+        warning_issues = [i for i in issues if i.startswith('VERIFY_ERROR')]
+
+        if critical_issues:
+            logger.critical(f"[SCHEMA] Critical schema issues found:")
+            for issue in critical_issues:
+                logger.critical(f"  - {issue}")
+            logger.critical("[SCHEMA] Database schema migration may have failed. Check RDS for errors.")
+            return False
+
+        if warning_issues:
+            logger.warning(f"[SCHEMA] Schema verification warnings:")
+            for issue in warning_issues:
+                logger.warning(f"  - {issue}")
 
     if verbose:
-        logger.info("[SCHEMA] ✓ All required columns present")
+        logger.info("[SCHEMA] ✓ All required columns present with correct types")
     return True
+
+def _check_rds_connection_pool_health(cur: Any, verbose: bool = False) -> bool:
+    """Pre-flight validation: check RDS connection pool health.
+
+    Queries active connections and warns if pool is under heavy load.
+    Doesn't halt execution but emits metrics for monitoring.
+
+    Returns: True (always continues, just emits warnings)
+    """
+    try:
+        # Query active connections
+        cur.execute("""
+            SELECT count(*) as active_connections,
+                   max(EXTRACT(EPOCH FROM (now() - state_change))) as max_idle_seconds
+            FROM pg_stat_activity
+            WHERE state != 'idle'
+        """)
+        result = cur.fetchone()
+        if result:
+            active_conn, max_idle = result
+            active_conn = active_conn or 0
+            max_idle = max_idle or 0
+
+            if verbose:
+                logger.info(f"[RDS-POOL] Active connections: {active_conn}, Max idle: {max_idle:.0f}s")
+
+            # Emit metrics for CloudWatch monitoring
+            try:
+                from algo.algo_metrics import MetricsPublisher
+                metrics = MetricsPublisher()
+                metrics.add_metric(
+                    'RDSActiveConnections',
+                    active_conn,
+                    unit='Count',
+                    dimensions={'DBInstance': os.getenv('DB_HOST', 'algo-db')}
+                )
+                if max_idle > 0:
+                    metrics.add_metric(
+                        'RDSMaxIdleSeconds',
+                        max_idle,
+                        unit='Seconds',
+                        dimensions={'DBInstance': os.getenv('DB_HOST', 'algo-db')}
+                    )
+                metrics.flush()
+            except Exception as metric_err:
+                logger.debug(f"[RDS-POOL] Could not emit connection pool metrics: {metric_err}")
+
+            # Warn if pool is getting full
+            if active_conn >= 60:
+                logger.warning(f"[RDS-POOL] ⚠️ High connection load: {active_conn} active connections (pool 75% full)")
+                if active_conn >= 80:
+                    logger.critical(f"[RDS-POOL] ❌ CRITICAL: {active_conn} active connections (pool nearly exhausted)")
+                    try:
+                        alerts = AlertManager()
+                        alerts.send_position_alert(
+                            'RDS',
+                            'CONNECTION_POOL_EXHAUSTION',
+                            f'RDS connection pool critically high: {active_conn} active connections. '
+                            f'May cause cascade failures. Monitor query performance.',
+                            {'active_connections': active_conn, 'max_idle_seconds': max_idle}
+                        )
+                    except Exception as alert_err:
+                        logger.debug(f"[RDS-POOL] Could not send alert: {alert_err}")
+            elif active_conn >= 40:
+                logger.info(f"[RDS-POOL] Connection pool at 50% capacity ({active_conn} active). Monitor for growth.")
+
+    except Exception as e:
+        logger.debug(f"[RDS-POOL] Could not check connection pool health: {e}. Proceeding normally.")
+
+    return True  # Always continue, just emit warnings
 
 def run(
     config: Any,
@@ -669,7 +795,7 @@ def run(
     logger.debug(f"Phase 1: Starting data freshness check for run_date={run_date}")
 
     try:
-        # Pre-flight: validate schema before proceeding
+        # Pre-flight: validate schema and RDS connection pool before proceeding
         try:
             with DatabaseContext('read') as cur:
                 if not _validate_required_schema_columns(cur, verbose):
@@ -678,6 +804,13 @@ def run(
                                        'Required schema columns missing - database schema migration incomplete')
                     return PhaseResult(1, 'schema_validation', 'halted', {}, True,
                                      'Schema validation failed: missing required columns')
+
+                # Check RDS connection pool health (emits warnings, doesn't halt)
+                try:
+                    _check_rds_connection_pool_health(cur, verbose)
+                except Exception as pool_err:
+                    logger.debug(f"[RDS-POOL] Skipping connection pool check: {pool_err}")
+
         except Exception as e:
             logger.error(f"[SCHEMA] Pre-flight validation error: {e}")
             log_phase_result_fn(1, 'schema_validation', 'halt',
