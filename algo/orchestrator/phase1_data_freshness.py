@@ -783,16 +783,27 @@ def run(
                 if _metrics:
                     _metrics.put_data_freshness(table_keys[name], 999)
             elif d is not None:
-                age = (run_date - d).days
+                # Calculate TRADING day age, not calendar day age
+                # This correctly handles long weekends/holidays (Friday after Thanksgiving is still 1 trading day old on Monday)
+                from algo.algo_market_calendar import MarketCalendar
+                trading_day_age = 0
+                check_date = run_date - timedelta(days=1)
+                while check_date >= d and trading_day_age < 30:  # Stop at 30 to prevent infinite loops
+                    if MarketCalendar.is_trading_day(check_date):
+                        trading_day_age += 1
+                    check_date -= timedelta(days=1)
+
+                calendar_day_age = (run_date - d).days
                 if _metrics:
-                    _metrics.put_data_freshness(table_keys[name], age)
+                    _metrics.put_data_freshness(table_keys[name], trading_day_age)
+
                 is_stale = d < min_acceptable_date
                 if is_stale and is_halt_check:
-                    stale_items.append(f"{name}: {age}d old (need within {expected_date} to {min_acceptable_date})")
+                    stale_items.append(f"{name}: {trading_day_age}d stale ({calendar_day_age}cal, need within {expected_date} to {min_acceptable_date})")
                 if verbose:
                     is_ideal = d >= expected_date
                     flag = '[OK]' if is_ideal else '[WARN]' if (not is_stale) else '[STALE]'
-                    logger.info(f"  {flag} {name:25s}: latest {d} ({age}d ago, acceptable until {min_acceptable_date})")
+                    logger.info(f"  {flag} {name:25s}: latest {d} ({trading_day_age}d trading old/{calendar_day_age}d calendar, acceptable until {min_acceptable_date})")
 
         if _metrics:
             _metrics.flush()
@@ -922,21 +933,21 @@ def run(
                 # Failsafe failed or timeout - loader may not have started.
                 # Check how stale the data actually is. If VERY stale (2+ trading days),
                 # HALT instead of proceeding with risky old data.
-                oldest_stale_age = None
+                oldest_stale_trading_day_age = None
                 for item in stale_items:
-                    # Parse "name: 5d old (need...)" to extract age
-                    if 'd old' in item:
+                    # Parse "name: 5d stale (3cal, need...)" to extract TRADING day age (first number)
+                    if 'd stale' in item:
                         try:
-                            age_str = item.split(': ')[1].split('d old')[0]
+                            age_str = item.split(': ')[1].split('d stale')[0]
                             age = int(age_str)
-                            if oldest_stale_age is None or age > oldest_stale_age:
-                                oldest_stale_age = age
+                            if oldest_stale_trading_day_age is None or age > oldest_stale_trading_day_age:
+                                oldest_stale_trading_day_age = age
                         except (IndexError, ValueError):
                             pass
 
                 # Decision: if data is 2+ trading days old and failsafe failed, HALT.
                 # This prevents silent failures in Phase 5 when signal gate kills trades.
-                if oldest_stale_age is not None and oldest_stale_age >= 2:
+                if oldest_stale_trading_day_age is not None and oldest_stale_trading_day_age >= 2:
                     logger.critical(f"[HALT] Failsafe loader trigger failed AND data is {oldest_stale_age}+ days stale. Too risky to proceed.")
                     logger.critical(f"  Stale items: {stale_items}")
                     logger.critical(f"  Loader failed to start. Halting orchestrator.")
