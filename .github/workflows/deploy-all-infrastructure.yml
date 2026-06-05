@@ -751,6 +751,14 @@ jobs:
           echo "cognito_user_pool_client_id=${CLIENT_ID}" >> $GITHUB_OUTPUT
           echo "cognito_domain_url=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
 
+          # Diagnostic: Log what was exported for debugging config.js generation
+          echo "=== Terraform Outputs Summary ==="
+          echo "website_url: ${WEBSITE_URL:-(empty)}"
+          echo "cognito_user_pool_id: ${POOL_ID:-(empty)}"
+          echo "cognito_user_pool_client_id: ${CLIENT_ID:-(empty)}"
+          echo "cognito_domain_url: ${COGNITO_DOMAIN:-(empty)}"
+          echo "cloudfront_id: ${CF:-(empty)}"
+
       - name: Setup Cognito Admin Group
         run: |
           POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
@@ -1055,23 +1063,33 @@ jobs:
           # Always use CloudFront URL for API_URL in config.js
           if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
             API_URL="$WEBSITE_URL"
-            echo "Using CloudFront URL: $API_URL"
+            echo "[OK] Using Terraform website_url: $API_URL"
           else
+            echo "[WARN] Terraform website_url is empty/null, attempting CloudFront discovery..."
             API_URL=$(aws cloudfront list-distributions \
               --query 'DistributionList.Items[0].DomainName' \
               --output text 2>/dev/null || echo "")
             if [ -n "$API_URL" ] && [ "$API_URL" != "None" ]; then
               API_URL="https://${API_URL}"
-              echo "Discovered CloudFront URL: $API_URL"
+              echo "[OK] Discovered CloudFront URL: $API_URL"
             else
               API_URL=""
-              echo "No CloudFront URL found - using relative paths (API_URL='')"
+              echo "[ERROR] CloudFront discovery failed - API_URL will be empty"
             fi
           fi
+
           POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
           CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
           COGNITO_DOMAIN="${{ needs.terraform.outputs.cognito_domain_url }}"
           REGION="us-east-1"
+
+          # VALIDATION: Check for required Cognito values
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
+            echo "[WARN] POOL_ID is empty (Terraform output missing or Cognito not created)"
+          fi
+          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ] || [ "$CLIENT_ID" = "None" ]; then
+            echo "[WARN] CLIENT_ID is empty (Terraform output missing or Cognito not created)"
+          fi
 
           mkdir -p webapp/frontend/dist
 
@@ -1082,7 +1100,7 @@ jobs:
           export REGION="$REGION"
 
           python3 << 'PYEOF'
-          import os, json
+          import os, json, sys
           pool_id = os.environ.get('POOL_ID', '')
           client_id = os.environ.get('CLIENT_ID', '')
           cognito_domain = os.environ.get('COGNITO_DOMAIN', '')
@@ -1091,6 +1109,7 @@ jobs:
           pool_id = pool_id if pool_id not in ['', 'None', 'null'] else ''
           client_id = client_id if client_id not in ['', 'None', 'null'] else ''
           cognito_domain = cognito_domain if cognito_domain not in ['', 'None', 'null'] else f'https://algo-dev.auth.{region}.amazoncognito.com'
+
           # SECURITY L-NEW-02: json.dumps() ensures special chars in Terraform outputs
           # cannot produce malformed or injected JavaScript in the browser config.
           config = {
@@ -1109,13 +1128,30 @@ jobs:
           print(config_js)
           PYEOF
 
+          # Validate config.js was generated and has required values
+          if [ ! -f "webapp/frontend/dist/config.js" ]; then
+            echo "[ERROR] config.js file not created!"
+            exit 1
+          fi
+
+          # Check if config contains empty critical values
+          CONFIG_CONTENT=$(cat webapp/frontend/dist/config.js)
+          echo "[OK] config.js generated successfully"
+          echo "Generated config.js:"
+          echo "$CONFIG_CONTENT"
+
+          # Validate that config is not just empty braces
+          if echo "$CONFIG_CONTENT" | grep -q '"API_URL": ""' && echo "$CONFIG_CONTENT" | grep -q '"USER_POOL_ID": ""'; then
+            echo "[WARN] config.js has BOTH API_URL and USER_POOL_ID empty - this will cause production failures"
+            echo "[WARN] Verify: Terraform outputs (website_url, cognito_user_pool_id) are populated"
+            echo "[WARN] Verify: AWS CloudFront distribution exists and is deployed"
+          fi
+
           # Add cache-busting timestamp to config.js script tag in index.html
           BUILD_TS=$(date +%s)
           if [ -f "webapp/frontend/dist/index.html" ]; then
             sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
           fi
-          echo "[OK] config.js generated with API_URL=$API_URL"
-          cat webapp/frontend/dist/config.js
 
       - name: Sync to S3
         run: |
