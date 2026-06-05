@@ -136,7 +136,7 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 - Check RDS health (CPU, connections, disk I/O)
 - If consistently slow: increase ECS task CPU/memory for slow steps
 
-**Current Implementation (2026-06-04):**
+**Implementation:**
 - Step Functions state machine `morning-prep-pipeline-dev` with fail-open error handling
 - stock_prices_daily: TimeoutSeconds=5400 (90 min) with LOADER_INTERVALS="1d" (only daily, not weekly/monthly)
 - technical_data_daily + market_health_daily: run in parallel, max 5400s each
@@ -150,21 +150,11 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 
 ## Loader Execution Time Monitoring & Timeout Prevention
 
-**Critical Issues (Fixed 2026-06-04):**
-
-**Issue 1: Stale Data Failsafe Was Synchronous (Commit 619cf43c)**
-- Phase 1 triggered stock_prices_daily via failsafe but WAITED up to 600 seconds for completion
-- stock_prices_daily takes 1-2 hours (5000+ symbols × 3 intervals)
-- Orchestrator Lambda has only 10min total timeout — synchronous waits always timed out
-- Result: Failsafe always failed, orchestrator proceeded with stale data
-- **Fix (619cf43c)**: Changed to async (Event) invocation. Trigger and proceed immediately. Circuit breakers in Phase 2+ conservatively handle stale data while loader runs in parallel.
-
-**Issue 2: stock_prices_daily Timeout Risk (Commit 13cc6b96)**
+**Current Design:**
+- Stale data failsafe uses async (Event) invocation: trigger loader and proceed immediately. Circuit breakers in Phase 2+ conservatively handle stale data while loader runs in parallel.
 - stock_prices_daily loads 5000+ symbols across 3 intervals (1d, 1wk, 1mo) and 2 asset classes = 30,000+ API requests
-- Batch fetching (batch_size=100) reduces to 300 API calls, but rate-limit retries add exponential backoff
-- Actual execution time: 1.5-2 hours with parallelism=8 (up from 6+ hours with parallelism=2)
-- Previous timeout: 4 hours — **INSUFFICIENT** for worst-case scenarios
-- **Solution**: Step Functions timeout 14400s → 27000s (7.5h), ECS timeout 21600s → 25200s (7h)
+- Batch fetching (batch_size=100) reduces API calls 50x. Actual execution time: 1.5-2 hours with parallelism=8
+- Step Functions timeout: 27000s (7.5h), ECS timeout: 25200s (7h)
 
 **Execution Time Monitoring:**
 
@@ -365,7 +355,7 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Eliminates guaranteed cold start from 5:30 PM → 9:30 AM gap
 
 **RDS (db.t4g.small, 2 GB RAM):**
-- UPGRADED from t4g.micro (2026-06-03): provides 2 vCPU, 2GB RAM, ~100 concurrent connections. With tuned parallelism (2-3 per critical loader), typical concurrent connections = 20-30, well below limit. No connection pooling proxy needed.
+- Instance provides 2 vCPU, 2GB RAM, ~100 concurrent connections. With tuned parallelism (2-3 per critical loader), typical concurrent connections = 20-30, well below limit. No connection pooling proxy needed.
 - Performance Insights: ENABLED (7-day free retention)
 - `statement_timeout = 900000ms` (15 minutes) at parameter group level — supports batch loaders processing 5000+ symbols with complex joins
 - `work_mem = 16384` (16 MB per sort/hash operation)
