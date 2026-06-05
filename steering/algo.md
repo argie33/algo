@@ -312,6 +312,38 @@ terraform workspace select default
 terraform workspace delete staging
 ```
 
+## Signal Generation Filters (Phase 5)
+
+**Position Limits (per-portfolio constraints):**
+- Sector position limit: 8 (max 8 concurrent positions in single sector, e.g., Technology)
+- Industry position limit: 5 (max 5 concurrent positions in single industry, e.g., Cloud Computing)
+- Chart pattern quality: Close must be in upper 40% of daily range (relaxed from 60% on 2026-06-04)
+
+**Configuration Location:** `algo_config` table, read by Phase 5 at 9:30 AM/1 PM/3 PM/5:30 PM runs.
+
+**Monitoring Filter Impact:**
+- Signal count should be 15-40 signals per day under normal market conditions
+- If signal count drops >50% or spikes >100% in a single day, check:
+  1. Recent filter changes in algo_config (verify thresholds haven't changed unexpectedly)
+  2. yfinance data quality (may be affecting close price freshness)
+  3. Market conditions (extreme volatility or flat markets produce fewer signals)
+- CloudWatch metric: `SignalCountDaily` in namespace `algo/Signals`
+
+**Phase 5 Signal Freshness Monitoring:**
+- At start of Phase 5, checks age of `swing_trader_scores` table (populated by morning prep pipeline)
+- If scores fresh (same day): logs info
+- If scores 1 day stale: logs info with date
+- If scores 2+ days stale: logs warning (signals lack freshness, may impact trade quality)
+- Emits CloudWatch metric `SignalFreshnessAge` (Days) for monitoring trends
+- Does NOT block signal generation (fail-open) — Phase 1 already failed-closed on stale data
+- This allows trades to proceed with slightly stale scores if morning prep pipeline delayed, while alerting operators
+
+**Known Constraints:**
+- Filters are applied per-day snapshot, not accounting for position age (older positions don't get priority)
+- Industry limits can be tight if positions cluster in high-beta sectors (fintech, semiconductors)
+- Close quality filter (40%) accepts "average" closes but rejects weak closes — may miss reversals on low-range days
+- Signal freshness warning is informational only; Phase 1 halt is the real safety mechanism
+
 ## Configuration
 
 All trading parameters in `algo_config` database table. Changes take effect on next Lambda invocation (max 3 hours). No code deploy needed. Infrastructure parameters (execution_mode, dry_run, paper_trading) require deployment via Terraform.
