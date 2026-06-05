@@ -12,6 +12,24 @@ from utils.database_context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+def _get_config_value(cur: Any, key: str, default: Any) -> Any:
+    """Read configuration value from algo_config table, fall back to default."""
+    try:
+        cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+        result = cur.fetchone()
+        if result and result[0]:
+            try:
+                if '.' in str(result[0]):
+                    return float(result[0])
+                else:
+                    return int(result[0])
+            except (ValueError, TypeError):
+                return result[0]
+        return default
+    except Exception:
+        return default
+
+
 def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) -> None:
     """Log signal count at each filter tier + detailed per-filter rejection breakdown."""
     try:
@@ -103,6 +121,19 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
                 logger.info(f"    {tier_name} rejected:          {count:4d}")
             else:
                 logger.info(f"    {tier_name} rejected:          {count:4d}")
+
+        # Age-based rejections (count from filter_rejection_log where rejected_at_tier = 6)
+        try:
+            cur.execute(
+                "SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = 6",
+                (run_date,),
+            )
+            result = cur.fetchone()
+            age_rejected = result[0] if result else 0
+            if age_rejected > 0:
+                logger.info(f"    Data age rejected:         {age_rejected:4d}")
+        except Exception:
+            pass  # Tier 6 column may not exist; skip gracefully
 
         # Per-filter rejection breakdown (most important filters first)
         if filter_rejections:
@@ -216,6 +247,114 @@ def run(
         )  # Auto-detect latest date <= run_date
         _elapsed = _timing.time() - _start
         eval_date = pipeline._snapshot_eval_date or run_date
+
+        # Age-based signal filtering: reject signals with stale source data
+        age_rejected = {}  # Track rejections by symbol and reason
+        try:
+            with DatabaseContext("read") as _age_cur:
+                # Read max_data_age_days threshold from algo_config (default 2 days)
+                max_data_age_threshold = _get_config_value(
+                    _age_cur, "signal_max_data_age_days", 2
+                )
+
+                # Only process if we have qualified symbols
+                if qualified:
+                    # Query signal_quality_scores for all qualified symbols
+                    placeholders = ",".join(["%s"] * len(qualified))
+                    _age_cur.execute(
+                        f"""SELECT symbol,
+                                   COALESCE(buy_sell_daily_age_days, 0) as buy_sell_age,
+                                   COALESCE(technical_data_age_days, 0) as technical_age,
+                                   COALESCE(trend_template_age_days, 0) as trend_age
+                            FROM signal_quality_scores
+                            WHERE date = %s AND symbol IN ({placeholders})""",
+                        [eval_date] + qualified,
+                    )
+
+                    age_checked = set()
+                    for row in _age_cur.fetchall():
+                        symbol, buy_sell_age, technical_age, trend_age = row
+                        age_checked.add(symbol)
+                        max_age = max(buy_sell_age, technical_age, trend_age)
+
+                        # Reject if max age exceeds threshold
+                        if max_age > max_data_age_threshold:
+                            # Determine which source caused rejection
+                            if buy_sell_age == max_age:
+                                rejection_source = "buy_sell_daily"
+                            elif technical_age == max_age:
+                                rejection_source = "technical_data"
+                            else:
+                                rejection_source = "trend_template"
+
+                            age_rejected[symbol] = {
+                                "max_age": max_age,
+                                "source": rejection_source,
+                                "buy_sell_age": buy_sell_age,
+                                "technical_age": technical_age,
+                                "trend_age": trend_age,
+                            }
+
+                    # Filter out aged symbols
+                    qualified = [s for s in qualified if s not in age_rejected]
+
+                    # Log rejections to filter_rejection_log table
+                    if age_rejected:
+                        try:
+                            with DatabaseContext("write") as _log_cur:
+                                for symbol, details in age_rejected.items():
+                                    rejection_reason = (
+                                        f"Data age threshold exceeded: {details['source']} "
+                                        f"({details['max_age']}d > {max_data_age_threshold}d)"
+                                    )
+                                    _log_cur.execute(
+                                        """INSERT INTO filter_rejection_log
+                                           (eval_date, symbol, rejection_reason, rejected_at_tier)
+                                           VALUES (%s, %s, %s, %s)""",
+                                        (
+                                            eval_date,
+                                            symbol,
+                                            rejection_reason,
+                                            6,
+                                        ),  # Tier 6: age filtering
+                                    )
+                                _log_cur.connection.commit()
+                        except Exception as _log_err:
+                            logger.debug(f"Could not log age-based rejections: {_log_err}")
+
+                    # Publish metrics for age-based rejections
+                    if age_rejected:
+                        try:
+                            with MetricsPublisher(dry_run=dry_run) as _m:
+                                _m.put_metric(
+                                    "SignalsRejectedByDataAge",
+                                    len(age_rejected),
+                                    unit="Count",
+                                )
+
+                                # Track by rejection source
+                                source_counts = {}
+                                for details in age_rejected.values():
+                                    source = details["source"]
+                                    source_counts[source] = source_counts.get(source, 0) + 1
+
+                                for source, count in source_counts.items():
+                                    _m.put_metric(
+                                        f"SignalsRejectedByDataAge_{source}",
+                                        count,
+                                        unit="Count",
+                                        dimensions={"data_source": source},
+                                    )
+                        except Exception as _metric_err:
+                            logger.debug(f"Could not publish age rejection metrics: {_metric_err}")
+
+                    if age_rejected:
+                        logger.info(
+                            f"[DATA AGE FILTERING] Rejected {len(age_rejected)} signal(s) for stale source data "
+                            f"(threshold: {max_data_age_threshold}d)"
+                        )
+        except Exception as _age_err:
+            logger.debug(f"Age-based filtering failed (non-blocking): {_age_err}")
 
         # Track signal freshness: check age of source data components
         signal_data_ages = {}
