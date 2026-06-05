@@ -1466,9 +1466,14 @@ def run(
                     )
                     result = _status_cur.fetchone()
                     if result and result[0] == 'RUNNING':
-                        loader_currently_running = True
-                        logger.info(f"[FAILSAFE] Loader status: RUNNING in background. Using grace period, no re-trigger needed.")
-                        failsafe_already_triggered = True  # Skip trigger below
+                        # ISSUE #12: Check if loader has hung before relying on grace period
+                        # If heartbeat is stale (>3 min), loader is stuck, trigger failsafe
+                        if not _detect_hung_loader_task('price_daily'):
+                            loader_currently_running = True
+                            logger.info(f"[FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period, no re-trigger needed.")
+                            failsafe_already_triggered = True  # Skip trigger below
+                        else:
+                            logger.warning(f"[FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will trigger fresh loader.")
             except Exception as status_err:
                 logger.debug(f"[FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
 
