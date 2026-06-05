@@ -435,9 +435,10 @@ class CircuitBreaker:
         # Use trading-day-aware staleness check (same pattern as _check_data_freshness and Phase 1).
         # Hardcoded calendar-day thresholds cause false halts after 3-day holiday weekends when
         # the market_health_daily record is from Friday but current_date is Tuesday (4 days gap).
-        # Allow up to 2 trading days of staleness to handle RDS Proxy replication lag and ECS scheduling delays.
+        # Root causes for stale data now fixed: RDS Proxy removed (cfb3f01f), failsafe verification in place (a2a8a654).
+        # Revert to 1 trading day of staleness tolerance for tighter data freshness.
         expected_date = current_date - timedelta(days=1)
-        min_acceptable_date = current_date - timedelta(days=3)  # 2 trading days back
+        min_acceptable_date = current_date - timedelta(days=2)  # 1 trading day back
         try:
             from algo.algo_market_calendar import MarketCalendar
             for _ in range(10):
@@ -517,7 +518,7 @@ class CircuitBreaker:
         # fixed threshold even though the data is from the last trading day.
         from datetime import timedelta
         expected = current_date - timedelta(days=1)
-        min_acceptable = current_date - timedelta(days=3)  # 2 trading days back
+        min_acceptable = current_date - timedelta(days=2)  # 1 trading day back
         try:
             from algo.algo_market_calendar import MarketCalendar
             for _ in range(10):
