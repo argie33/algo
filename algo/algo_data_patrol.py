@@ -293,19 +293,19 @@ class DataPatrol:
             self.log(cur, 'zero_data', ERROR, 'price_daily', f'Check failed: {e}', None)
 
     def check_volume_sanity(self, cur):
-        “””P5. Volume within realistic range â€” catches zero-volume and halted symbols.
+        """P5. Volume within realistic range - catches zero-volume and halted symbols.
 
         Penny stocks legitimately have low volume; halted symbols have zero volume.
         This check flags UNUSUAL patterns using parameterized thresholds:
         patrol_low_volume_threshold, patrol_high_volume_threshold, patrol_new_low_volume_alert.
-        “””
+        """
         try:
             # Get thresholds from config
             low_vol_threshold = self._get_config_value(cur, 'patrol_low_volume_threshold', 1000000)
             high_vol_threshold = self._get_config_value(cur, 'patrol_high_volume_threshold', 100000000)
             new_low_alert = self._get_config_value(cur, 'patrol_new_low_volume_alert', 50)
 
-            cur.execute(“””
+            cur.execute("""
                 SELECT
                     SUM(CASE WHEN volume < %s THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -316,7 +316,7 @@ class DataPatrol:
                     ) AS high_volume,
                     COUNT(*) FILTER (WHERE date = (SELECT MAX(date) FROM price_daily)) AS total
                 FROM price_daily
-            “””, (low_vol_threshold, low_vol_threshold, high_vol_threshold))
+            """, (low_vol_threshold, low_vol_threshold, high_vol_threshold))
             low_new, high_vol, total = cur.fetchone()
             low_new = int(low_new or 0)
             high_vol = int(high_vol or 0)
