@@ -887,14 +887,25 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
             }]
           }
         }
-        Retry = [{
-          ErrorEquals     = ["States.TaskStateAbortedError", "States.TaskStateTimedOut"]
-          IntervalSeconds = 60
-          MaxAttempts     = 1
-          BackoffRate     = 1.0
-        }]
+        Retry = [
+          {
+            # Retry 1: Immediate (network/transient issues)
+            ErrorEquals     = ["States.TaskStateAbortedError", "States.TaskStateTimedOut", "States.TaskFailed"]
+            IntervalSeconds = 30
+            MaxAttempts     = 1
+            BackoffRate     = 1.0
+          },
+          {
+            # Retry 2: Exponential backoff (rate limiting, cluster overload)
+            ErrorEquals     = ["States.ALL"]
+            IntervalSeconds = 90
+            MaxAttempts     = 1
+            BackoffRate     = 2.0
+          }
+        ]
         Catch = [{
           ErrorEquals = ["States.ALL"]
+          # Fail-open: If prices fail after retries, use yesterday's prices and continue
           Next        = "MorningFallback"
           ResultPath  = "$.priceError"
         }]
@@ -990,10 +1001,12 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
           TaskDefinition       = var.loader_task_definition_arns["buy_sell_daily"]
           NetworkConfiguration = local.network_config
         }
+        # Enhanced retry: 2 attempts with exponential backoff for resilience
+        # Critical for signal generation: if it fails, all signals are stale
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 1
+          IntervalSeconds = 90
+          MaxAttempts     = 2
           BackoffRate     = 2.0
         }]
         Catch = [{
@@ -1023,10 +1036,11 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   TaskDefinition       = var.loader_task_definition_arns["signal_quality_scores"]
                   NetworkConfiguration = local.network_config
                 }
+                # Enhanced retry: 2 attempts for critical signal scoring
                 Retry = [{
                   ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
+                  IntervalSeconds = 90
+                  MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
@@ -1055,10 +1069,11 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
                   NetworkConfiguration = local.network_config
                 }
+                # Enhanced retry: 2 attempts for critical signal ranking
                 Retry = [{
                   ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 1
+                  IntervalSeconds = 90
+                  MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
