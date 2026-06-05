@@ -232,6 +232,44 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
     return False
 
 
+def _check_failsafe_completion(state_table: Any, verbose: bool = False, timeout_sec: int = 7200) -> Optional[Dict[str, Any]]:
+    """Check if a previous failsafe trigger has completed or timed out.
+
+    Returns:
+        None: No failsafe trigger in progress
+        {'status': 'running', 'age_minutes': X}: Failsafe still running (age from trigger)
+        {'status': 'timed_out', 'age_minutes': X}: Failsafe timed out (exceeded timeout_sec)
+    """
+    try:
+        response = state_table.get_item(Key={'state_key': 'failsafe_trigger_log'})
+        if 'Item' not in response:
+            return None
+
+        triggered_at = response['Item'].get('triggered_at', 0)
+        completed_at = response['Item'].get('completed_at')
+        current_time = time.time()
+        age_minutes = (current_time - triggered_at) / 60
+
+        # If completed_at is set, failsafe finished successfully
+        if completed_at:
+            if verbose:
+                logger.debug(f"[FAILSAFE_TIMEOUT] Previous failsafe completed {(current_time - completed_at) / 60:.1f}m ago")
+            return None
+
+        # If timeout_sec exceeded and not completed, failsafe timed out
+        if age_minutes > timeout_sec / 60:
+            logger.warning(f"[FAILSAFE_TIMEOUT] Previous failsafe triggered {age_minutes:.1f}m ago ({timeout_sec/60:.0f}m timeout) but NOT COMPLETED")
+            return {'status': 'timed_out', 'age_minutes': age_minutes}
+
+        # Still within timeout window - failsafe still running
+        if verbose:
+            logger.debug(f"[FAILSAFE_TIMEOUT] Previous failsafe running {age_minutes:.1f}m ({timeout_sec/60:.0f}m timeout)")
+        return {'status': 'running', 'age_minutes': age_minutes}
+
+    except Exception as err:
+        logger.debug(f"[FAILSAFE_TIMEOUT] Could not check failsafe timeout: {err}")
+        return None
+
 def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeout: int = 600) -> bool:
     """
     DEPRECATED: Use _trigger_loader_failsafe_with_verification instead.
@@ -1298,6 +1336,29 @@ def run(
                 except Exception as cluster_check_err:
                     logger.debug(f"[CLUSTER HEALTH] Could not check cluster capacity: {cluster_check_err}")
 
+                # Check if a previous failsafe timed out (is still running after 2 hours)
+                # This would indicate a hung loader, cascading failures risk
+                try:
+                    failsafe_status = _check_failsafe_completion(state_table, verbose=verbose, timeout_sec=7200)
+                    if failsafe_status and failsafe_status.get('status') == 'timed_out':
+                        logger.critical(
+                            f"[FAILSAFE_TIMEOUT] Previous failsafe triggered {failsafe_status.get('age_minutes', 0):.1f}m ago but never completed. "
+                            f"Data is still {oldest_stale_trading_day_age}+ trading days old with no fresh load in progress. HALTING."
+                        )
+                        alerts.send_position_alert(
+                            'DATA',
+                            'FAILSAFE_TIMEOUT',
+                            f'Previous async failsafe loader timed out ({failsafe_status.get("age_minutes", 0):.0f}m ago with 2h timeout). '
+                            f'Data stale for {oldest_stale_trading_day_age}+ trading days. Cannot safely retry.',
+                            {'failsafe_age_minutes': failsafe_status.get('age_minutes'), 'halt': True}
+                        )
+                        log_phase_result_fn(1, 'data_freshness', 'halt',
+                                           f'CRITICAL: Previous failsafe timeout - async loader did not complete in 2 hours')
+                        return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                         f'Failsafe loader timeout — loader hung >2 hours, data stale {oldest_stale_trading_day_age}+ days')
+                except Exception as timeout_check_err:
+                    logger.debug(f"[FAILSAFE_TIMEOUT] Could not check failsafe timeout: {timeout_check_err}")
+
                 # Stock prices loader takes 1-2 hours to fetch 5000+ symbols. Lambda orchestrator has
                 # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
                 # asynchronously and verify it started before proceeding.
@@ -1323,15 +1384,17 @@ def run(
                         logger.info(f"[FAILSAFE] Attempt {attempt}/{max_attempts}: launching loader with {poll_timeout}s poll timeout...")
                         failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
                         if failsafe_ok:
-                            # Log successful trigger for grace period check in future runs
+                            # Log successful trigger for completion timeout check in future runs
                             try:
+                                current_time = time.time()
                                 state_table.put_item(Item={
                                     'state_key': 'failsafe_trigger_log',
-                                    'triggered_at': time.time(),
+                                    'triggered_at': current_time,
+                                    'completed_at': None,  # Will be set when loader finishes
                                     'loader': 'stock_prices_daily',
-                                    'ttl': int(time.time()) + 7200,  # 2-hour TTL
+                                    'ttl': int(current_time) + 7200,  # 2-hour TTL
                                 })
-                                logger.debug("[FAILSAFE] Logged trigger timestamp for grace period")
+                                logger.debug("[FAILSAFE] Logged trigger timestamp for completion timeout tracking")
                             except Exception as log_err:
                                 logger.debug(f"[FAILSAFE] Could not log trigger timestamp: {log_err}")
                             break
