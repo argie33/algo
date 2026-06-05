@@ -948,25 +948,25 @@ def run(
                 # Decision: if data is 2+ trading days old and failsafe failed, HALT.
                 # This prevents silent failures in Phase 5 when signal gate kills trades.
                 if oldest_stale_trading_day_age is not None and oldest_stale_trading_day_age >= 2:
-                    logger.critical(f"[HALT] Failsafe loader trigger failed AND data is {oldest_stale_age}+ days stale. Too risky to proceed.")
+                    logger.critical(f"[HALT] Failsafe loader trigger failed AND data is {oldest_stale_trading_day_age}+ trading days stale. Too risky to proceed.")
                     logger.critical(f"  Stale items: {stale_items}")
                     logger.critical(f"  Loader failed to start. Halting orchestrator.")
 
                     alerts.send_position_alert(
                         'DATA',
                         'STALE_DATA_FAILSAFE_CRITICAL',
-                        f'HALT: Failsafe loader trigger failed AND data is {oldest_stale_age}+ days stale. '
+                        f'HALT: Failsafe loader trigger failed AND data is {oldest_stale_trading_day_age}+ trading days stale. '
                         f'Cannot safely proceed with this old data. Check loader ECS logs for startup errors. '
                         f'Stale items: {"; ".join(stale_items)}',
-                        {'stale_items': stale_items, 'failsafe': 'failed', 'oldest_age': oldest_stale_age, 'halt': True}
+                        {'stale_items': stale_items, 'failsafe': 'failed', 'oldest_age': oldest_stale_trading_day_age, 'halt': True}
                     )
                     log_phase_result_fn(1, 'data_freshness', 'halt',
-                                       f'CRITICAL: Failsafe failed and data is {oldest_stale_age}+ days stale')
+                                       f'CRITICAL: Failsafe failed and data is {oldest_stale_trading_day_age}+ trading days stale')
                     return PhaseResult(1, 'data_freshness', 'halted', {}, True,
-                                     f'Failsafe failed with {oldest_stale_age}+ day stale data — too risky to trade')
+                                     f'Failsafe failed with {oldest_stale_trading_day_age}+ trading day stale data — too risky to trade')
 
                 # Failsafe failed but data is recent enough (1 trading day old) - proceed with caution
-                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 90s. Data is {oldest_stale_age}d old (acceptable window).")
+                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 90s. Data is {oldest_stale_trading_day_age}d trading days old (acceptable window).")
                 logger.warning(f"  Stale items: {stale_items}")
                 logger.warning(f"  Proceeding to Phase 2 circuit breakers for additional safety checks.")
                 logger.warning(f"  Check CloudWatch logs for ECS loader startup errors.")
@@ -974,13 +974,13 @@ def run(
                 alerts.send_position_alert(
                     'DATA',
                     'STALE_DATA_FAILSAFE_FAILED',
-                    f'Failsafe loader trigger did not confirm startup but data is recent ({oldest_stale_age}d). '
+                    f'Failsafe loader trigger did not confirm startup but data is recent ({oldest_stale_trading_day_age}d trading days old). '
                     f'Proceeding with caution — circuit breakers active. '
                     f'Stale items: {"; ".join(stale_items)}. Check CloudWatch for errors.',
-                    {'stale_items': stale_items, 'expected_date': str(expected_date), 'failsafe': 'failed', 'age': oldest_stale_age}
+                    {'stale_items': stale_items, 'expected_date': str(expected_date), 'failsafe': 'failed', 'age': oldest_stale_trading_day_age}
                 )
                 log_phase_result_fn(1, 'data_freshness', 'warn',
-                                   f'Stale, failsafe unconfirmed ({oldest_stale_age}d): {"; ".join(stale_items)}')
+                                   f'Stale, failsafe unconfirmed ({oldest_stale_trading_day_age}d trading days): {"; ".join(stale_items)}')
                 # Continue to Phase 2 circuit breakers
             else:
                 # Failsafe confirmed - loader started successfully and will refresh data
