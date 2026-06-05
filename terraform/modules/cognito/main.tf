@@ -132,7 +132,7 @@ resource "aws_cognito_user_pool_domain" "main" {
 #   terraform import module.cognito.aws_cognito_user.test_user[0] 'us-east-1_XJpLb9SKX/edgebrookecapital@gmail.com'
 
 resource "aws_cognito_user" "test_user" {
-  count              = 0  # Disabled - managed by workflow step (deploy-all-infrastructure.yml)
+  count              = 0 # Disabled - managed by workflow step (deploy-all-infrastructure.yml)
   user_pool_id       = aws_cognito_user_pool.stocks_trading.id
   username           = var.cognito_test_user_email
   temporary_password = var.test_user_password

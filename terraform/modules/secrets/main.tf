@@ -83,11 +83,11 @@ resource "aws_secretsmanager_secret" "orchestrator" {
 }
 
 resource "aws_secretsmanager_secret_version" "orchestrator" {
-  secret_id      = aws_secretsmanager_secret.orchestrator.id
+  secret_id = aws_secretsmanager_secret.orchestrator.id
   secret_string = jsonencode({
     orchestrator_dry_run = false,
-    halt_reason         = "",
-    last_updated        = "bootstrap"
+    halt_reason          = "",
+    last_updated         = "bootstrap"
   })
 }
 

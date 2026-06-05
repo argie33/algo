@@ -86,7 +86,7 @@ resource "aws_cloudwatch_metric_alarm" "supporting_loader_failures" {
   evaluation_periods  = "1"
   metric_name         = "LoaderFailureCount"
   namespace           = "${var.project_name}/Loaders"
-  period              = "300"  # 5 minutes
+  period              = "300" # 5 minutes
   statistic           = "Sum"
   threshold           = "1"
   alarm_description   = "One or more supporting loaders failed — investigate in CloudWatch Logs"
@@ -102,9 +102,9 @@ resource "aws_cloudwatch_metric_alarm" "supporting_loader_failures" {
 # ============================================================
 
 resource "aws_sns_topic" "loader_alerts" {
-  count         = var.ecs_log_group_name != "" ? 1 : 0
-  name          = "${var.project_name}-loader-alerts-${var.environment}"
-  display_name  = "Loader Failure Alerts"
+  count             = var.ecs_log_group_name != "" ? 1 : 0
+  name              = "${var.project_name}-loader-alerts-${var.environment}"
+  display_name      = "Loader Failure Alerts"
   kms_master_key_id = "alias/aws/sns"
 
   tags = var.common_tags
@@ -153,9 +153,9 @@ resource "aws_cloudwatch_dashboard" "loader_monitoring" {
         width  = 24
         height = 10
         properties = {
-          query   = "fields @timestamp, @message, @logStream | filter @message like /FAILED|CRITICAL|Exception|Error/ | stats count() as failure_count by @logStream"
-          region  = var.aws_region
-          title   = "Recent Loader Errors (Last 1 hour)"
+          query  = "fields @timestamp, @message, @logStream | filter @message like /FAILED|CRITICAL|Exception|Error/ | stats count() as failure_count by @logStream"
+          region = var.aws_region
+          title  = "Recent Loader Errors (Last 1 hour)"
         }
       },
       {
@@ -165,9 +165,9 @@ resource "aws_cloudwatch_dashboard" "loader_monitoring" {
         width  = 24
         height = 6
         properties = {
-          query   = "fields @timestamp, @logStream, @message | filter @message like /completed|finished|success/ | stats count() as success_count by @logStream | sort success_count desc"
-          region  = var.aws_region
-          title   = "Successful Loader Runs (Last 24 hours)"
+          query  = "fields @timestamp, @logStream, @message | filter @message like /completed|finished|success/ | stats count() as success_count by @logStream | sort success_count desc"
+          region = var.aws_region
+          title  = "Successful Loader Runs (Last 24 hours)"
         }
       }
     ]
@@ -180,16 +180,16 @@ resource "aws_cloudwatch_dashboard" "loader_monitoring" {
 # Complement the log-based alarms with direct ECS event capture
 
 resource "aws_cloudwatch_event_rule" "loader_task_failure" {
-  count         = var.ecs_log_group_name != "" ? 1 : 0
-  name          = "${var.project_name}-loader-task-failure-${var.environment}"
-  description   = "Capture ECS task failures for loaders"
+  count       = var.ecs_log_group_name != "" ? 1 : 0
+  name        = "${var.project_name}-loader-task-failure-${var.environment}"
+  description = "Capture ECS task failures for loaders"
 
   event_pattern = jsonencode({
     source      = ["aws.ecs"]
     detail-type = ["ECS Task State Change"]
     detail = {
-      clusterArn = [var.ecs_cluster_arn]
-      lastStatus = ["STOPPED", "FAILED"]
+      clusterArn        = [var.ecs_cluster_arn]
+      lastStatus        = ["STOPPED", "FAILED"]
       taskDefinitionArn = ["*algo-loader*"]
     }
   })
@@ -221,8 +221,8 @@ resource "aws_cloudwatch_event_target" "loader_task_failure_sns" {
 }
 
 resource "aws_sns_topic_policy" "loader_alerts_eventbridge" {
-  count  = var.ecs_log_group_name != "" ? 1 : 0
-  arn    = aws_sns_topic.loader_alerts[0].arn
+  count = var.ecs_log_group_name != "" ? 1 : 0
+  arn   = aws_sns_topic.loader_alerts[0].arn
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{

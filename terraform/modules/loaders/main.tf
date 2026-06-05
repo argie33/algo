@@ -600,7 +600,7 @@ locals {
     # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Signal processing — compute signal themes
-    "signal_themes"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     # signal_quality_scores: reduced from parallelism=4 to 2 to prevent statement timeouts during concurrent loader runs
     "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 2 }
 

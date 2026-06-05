@@ -1049,9 +1049,9 @@ resource "aws_cloudwatch_metric_alarm" "loader_failures_accumulating" {
 # Both orchestrator and circuit breaker Lambda reference this table.
 
 resource "aws_dynamodb_table" "orchestrator_state" {
-  name           = "algo_orchestrator_state"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "key"
+  name         = "algo_orchestrator_state"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "key"
 
   attribute {
     name = "key"
@@ -1098,9 +1098,9 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
 # ============================================================
 
 resource "aws_dynamodb_table" "contact_rate_limit" {
-  name           = "${var.project_name}-contact-rate-limit-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "email"
+  name         = "${var.project_name}-contact-rate-limit-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "email"
 
   attribute {
     name = "email"
@@ -1150,9 +1150,9 @@ resource "aws_iam_role_policy" "api_contact_rate_limit" {
 # Used by POST /api/logout to revoke tokens immediately.
 
 resource "aws_dynamodb_table" "token_blocklist" {
-  name             = "${var.project_name}-token-blocklist-${var.environment}"
-  billing_mode     = "PAY_PER_REQUEST"
-  hash_key         = "jti"
+  name         = "${var.project_name}-token-blocklist-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "jti"
 
   attribute {
     name = "jti"

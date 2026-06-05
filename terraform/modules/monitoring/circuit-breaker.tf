@@ -113,8 +113,8 @@ resource "aws_iam_role_policy" "circuit_breaker_policy" {
         ]
       },
       {
-        Effect = "Allow"
-        Action = ["rds-db:connect"]
+        Effect   = "Allow"
+        Action   = ["rds-db:connect"]
         Resource = "*"
       },
       {
@@ -164,13 +164,13 @@ resource "aws_cloudwatch_log_group" "circuit_breaker" {
 # ============================================================
 
 resource "aws_lambda_function" "circuit_breaker" {
-  filename      = "${path.root}/lambda/circuit_breaker.zip"
-  function_name = "${var.project_name}-circuit-breaker-${var.environment}"
-  role          = aws_iam_role.circuit_breaker.arn
-  handler       = "lambda_function.lambda_handler"
-  timeout       = 60
-  memory_size   = 512
-  runtime       = "python3.11"
+  filename         = "${path.root}/lambda/circuit_breaker.zip"
+  function_name    = "${var.project_name}-circuit-breaker-${var.environment}"
+  role             = aws_iam_role.circuit_breaker.arn
+  handler          = "lambda_function.lambda_handler"
+  timeout          = 60
+  memory_size      = 512
+  runtime          = "python3.11"
   source_code_hash = fileexists("${path.root}/lambda/circuit_breaker.zip") ? filebase64sha256("${path.root}/lambda/circuit_breaker.zip") : ""
 
   vpc_config {

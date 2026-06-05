@@ -53,13 +53,13 @@ resource "aws_ses_email_identity" "admin_email" {
 output "ses_identities" {
   description = "SES verified email identities"
   value = var.cognito_custom_email_enabled ? {
-    sender     = try(aws_ses_email_identity.cognito_sender[0].email, null)
-    noreply    = try(aws_ses_email_identity.noreply[0].email, null)
-    admin      = try(aws_ses_email_identity.admin_email[0].email, null)
+    sender  = try(aws_ses_email_identity.cognito_sender[0].email, null)
+    noreply = try(aws_ses_email_identity.noreply[0].email, null)
+    admin   = try(aws_ses_email_identity.admin_email[0].email, null)
   } : null
 }
 
 output "ses_production_access_status" {
   description = "Status of SES production access"
-  value = var.cognito_custom_email_enabled ? "REQUIRES MANUAL AWS CONSOLE ACTION: Request production access at https://console.aws.amazon.com/ses/home?region=us-east-1#account-provisioning" : "SES email not enabled"
+  value       = var.cognito_custom_email_enabled ? "REQUIRES MANUAL AWS CONSOLE ACTION: Request production access at https://console.aws.amazon.com/ses/home?region=us-east-1#account-provisioning" : "SES email not enabled"
 }

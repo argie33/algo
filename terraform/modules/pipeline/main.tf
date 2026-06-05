@@ -953,8 +953,8 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
           ErrorEquals = ["States.ALL"]
           # Fail-open: if technicals or market health fail, still regenerate signals
           # using prior data rather than hard-failing the entire morning prep.
-          Next        = "MorningSignals"
-          ResultPath  = "$.technicalError"
+          Next       = "MorningSignals"
+          ResultPath = "$.technicalError"
         }]
         Next = "MorningSignals"
       }
@@ -1062,7 +1062,7 @@ resource "aws_cloudwatch_metric_alarm" "morning_pipeline_timeout_risk" {
   namespace           = "AWS/States"
   period              = 60
   statistic           = "Maximum"
-  threshold           = 16200  # 4.5 hours (270 min) — alert if running >270 min at 9:00 AM
+  threshold           = 16200 # 4.5 hours (270 min) — alert if running >270 min at 9:00 AM
   alarm_description   = "Morning pipeline running >4.5h (started 4:30 AM ET). May not complete before 9:30 AM orchestrator run."
   alarm_actions       = var.sns_alerts_enabled ? [var.sns_alert_topic_arn] : []
 

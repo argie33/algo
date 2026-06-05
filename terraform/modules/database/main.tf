@@ -101,9 +101,9 @@ resource "aws_db_instance" "main" {
   iam_database_authentication_enabled = true
 
   # Monitoring & Logs
-  enabled_cloudwatch_logs_exports       = ["postgresql"] # Query logs to CloudWatch
-  monitoring_interval                   = 60
-  monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
+  enabled_cloudwatch_logs_exports = ["postgresql"] # Query logs to CloudWatch
+  monitoring_interval             = 60
+  monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
   # Always enable Performance Insights: free for 7-day retention, essential for slow-query diagnosis.
   # Cannot be gated on environment == "prod" because this environment is named "dev" but runs live capital.
   performance_insights_enabled          = true

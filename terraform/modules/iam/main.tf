@@ -29,7 +29,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [
+      values = [
         "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main",
       ]
     }
@@ -1052,7 +1052,7 @@ data "aws_iam_policy_document" "lambda_algo" {
     condition {
       test     = "StringLike"
       variable = "ecs:cluster"
-      values   = [
+      values = [
         "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:cluster/${var.project_name}-cluster",
         "${var.project_name}-cluster"
       ]

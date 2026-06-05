@@ -31,7 +31,7 @@ environment  = "staging"
 aws_region   = "us-east-1"
 project_name = "algo"
 
-frontend_origin = "http://localhost:3000"
+frontend_origin    = "http://localhost:3000"
 cloudfront_enabled = false
 
 api_cors_allowed_origins = [
@@ -57,8 +57,8 @@ dev_mode             = "true"
 orchestrator_log_level = "debug"
 
 # ---- TRADING: PAPER ONLY ----
-alpaca_paper_trading  = true
-alpaca_api_base_url   = "https://paper-api.alpaca.markets"
+alpaca_paper_trading = true
+alpaca_api_base_url  = "https://paper-api.alpaca.markets"
 
 # ---- DATABASE: SAME SIZE AS DEV ----
 rds_instance_class          = "db.t4g.micro"
