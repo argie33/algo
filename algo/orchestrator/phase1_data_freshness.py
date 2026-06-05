@@ -265,27 +265,64 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                 f"[PATROL] Latest patrol ({latest_run_id}) is {age_seconds/3600:.1f}h old. "
                 f"Too stale to check. Skipping patrol validation (triggering fresh patrol asynchronously)."
             )
-            # Trigger fresh patrol asynchronously
+
+            # Check if a patrol trigger was already attempted recently (within last 1 hour)
+            # to avoid redundant triggers and cascade failures
+            patrol_trigger_already_attempted = False
+            patrol_trigger_age_minutes = None
             try:
                 import boto3
-                ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-                cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
-                logger.info("[PATROL] Triggering fresh data patrol via ECS...")
-                ecs_client.run_task(
-                    cluster=cluster_arn,
-                    taskDefinition='algo-data-patrol',
-                    launchType='FARGATE',
-                    networkConfiguration={
-                        'awsvpcConfiguration': {
-                            'subnets': os.getenv('ECS_SUBNETS', '').split(','),
-                            'securityGroups': os.getenv('ECS_SECURITY_GROUPS', '').split(','),
-                            'assignPublicIp': 'DISABLED'
+                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+                state_table = dynamodb.Table(state_table_name)
+
+                response = state_table.get_item(Key={'state_key': 'patrol_trigger_log'})
+                if 'Item' in response:
+                    last_trigger_time = response['Item'].get('triggered_at', 0)
+                    current_time = time.time()
+                    patrol_trigger_age_minutes = (current_time - last_trigger_time) / 60
+
+                    if patrol_trigger_age_minutes < 60:  # 1 hour
+                        patrol_trigger_already_attempted = True
+                        logger.info(f"[PATROL] Grace period: Patrol trigger already attempted {patrol_trigger_age_minutes:.0f}m ago. "
+                                   f"Skipping redundant trigger, allowing in-flight patrol to complete.")
+            except Exception as state_err:
+                logger.debug(f"[PATROL] Could not check patrol trigger log: {state_err}. "
+                            f"Will proceed with fresh trigger.")
+
+            # Trigger fresh patrol asynchronously if not already attempted recently
+            if not patrol_trigger_already_attempted:
+                try:
+                    import boto3
+                    ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                    cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+                    logger.info("[PATROL] Triggering fresh data patrol via ECS...")
+                    ecs_client.run_task(
+                        cluster=cluster_arn,
+                        taskDefinition='algo-data-patrol',
+                        launchType='FARGATE',
+                        networkConfiguration={
+                            'awsvpcConfiguration': {
+                                'subnets': os.getenv('ECS_SUBNETS', '').split(','),
+                                'securityGroups': os.getenv('ECS_SECURITY_GROUPS', '').split(','),
+                                'assignPublicIp': 'DISABLED'
+                            }
                         }
-                    }
-                )
-                logger.info("[PATROL] ✓ Fresh patrol task triggered async")
-            except Exception as patrol_trigger_err:
-                logger.warning(f"[PATROL] Could not trigger fresh patrol: {patrol_trigger_err}")
+                    )
+                    logger.info("[PATROL] ✓ Fresh patrol task triggered async")
+
+                    # Log trigger timestamp for grace period check in future runs
+                    try:
+                        state_table.put_item(Item={
+                            'state_key': 'patrol_trigger_log',
+                            'triggered_at': time.time(),
+                            'ttl': int(time.time()) + 3600,  # 1-hour TTL
+                        })
+                        logger.debug("[PATROL] Logged patrol trigger timestamp for grace period")
+                    except Exception as log_err:
+                        logger.debug(f"[PATROL] Could not log trigger timestamp: {log_err}")
+                except Exception as patrol_trigger_err:
+                    logger.warning(f"[PATROL] Could not trigger fresh patrol: {patrol_trigger_err}")
 
             return True  # Stale patrol: don't block, fresh patrol running
 
