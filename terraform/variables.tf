@@ -424,6 +424,16 @@ variable "algo_lambda_code_file" {
   }
 }
 
+variable "db_init_code_file" {
+  description = "Path to db-init Lambda deployment package (ZIP file)"
+  type        = string
+  default     = "lambda_artifacts/db-init.zip"
+  validation {
+    condition     = endswith(var.db_init_code_file, ".zip")
+    error_message = "Lambda code file must be a ZIP file"
+  }
+}
+
 # ============================================================
 # API Gateway Configuration
 # ============================================================
