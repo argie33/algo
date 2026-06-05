@@ -224,6 +224,7 @@ CREATE TABLE IF NOT EXISTS technical_data_daily (
     plus_di DECIMAL(8, 4),
     minus_di DECIMAL(8, 4),
     mansfield_rs DECIMAL(8, 4),
+    price_data_age_days INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_technical_data_daily_unique ON technical_data_daily(symbol, date);

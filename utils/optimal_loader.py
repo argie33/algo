@@ -185,6 +185,10 @@ class OptimalLoader(ABC):
 
             # Log other critical environment variables for diagnostics
             aws_region = os.getenv("AWS_REGION", "not set")
+            db_name = os.getenv("DB_NAME", "not set")
+            logger.debug(f"[CONFIG] AWS_REGION={aws_region}, DB_NAME={db_name}")
+        except Exception as e:
+            logger.debug(f"[CONFIG] Runtime validation check failed: {e}")
 
     def _get_rds_connection_count(self) -> Optional[int]:
         """Get current RDS active connection count from CloudWatch metrics.
@@ -267,10 +271,6 @@ class OptimalLoader(ABC):
             logger.debug(f"Parallelism adjustment check failed: {e}")
 
         return parallelism, False
-            db_name = os.getenv("DB_NAME", "not set")
-            logger.debug(f"[CONFIG] AWS_REGION={aws_region}, DB_NAME={db_name}")
-        except Exception as e:
-            logger.debug(f"[CONFIG] Runtime validation check failed: {e}")
 
     def _check_shutdown_requested(self) -> bool:
         """Check if graceful shutdown was requested."""

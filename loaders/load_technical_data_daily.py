@@ -117,9 +117,42 @@ class TechnicalDataDailyLoader(OptimalLoader):
             logger.error(f"Failed to fetch price data for {symbol}: {e}")
             return []
 
+    def _calculate_data_source_age_days(self, symbol: str, source_table: str) -> int:
+        """Calculate age of most recent data in source table (in trading days).
+
+        Returns:
+            Trading days since most recent row in source table. Returns 999 if no data found.
+        """
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    f"SELECT MAX(date) FROM {source_table} WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
+                    from algo.algo_market_calendar import MarketCalendar
+
+                    # Count trading days from max_date to today
+                    trading_days = 0
+                    check_date = date.today() - timedelta(days=1)
+                    while check_date > max_date and trading_days < 999:
+                        if MarketCalendar.is_trading_day(check_date):
+                            trading_days += 1
+                        check_date -= timedelta(days=1)
+
+                    return trading_days
+        except Exception as e:
+            logger.warning(f"Could not calculate {source_table} age for {symbol}: {e}")
+        return 999
+
     def _compute_all_indicators(self, symbol: str, rows: List[dict], spy_rows: List[dict] = None) -> List[dict]:
         if not rows or len(rows) < 50:
             return []
+
+        # Precalculate source data age once per symbol (not per indicator row)
+        price_data_age = self._calculate_data_source_age_days(symbol, "price_daily")
 
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
@@ -184,12 +217,13 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         df["volume_ma_50"] = compute_volume_ma(df["volume"], 50)
         df["symbol"] = symbol
+        df["price_data_age_days"] = price_data_age
 
         columns = ["symbol", "date", "rsi", "rsi_14", "macd", "macd_signal", "macd_hist", "macd_histogram",
                    "mom", "roc", "roc_10d", "roc_20d", "roc_60d", "roc_120d", "roc_252d",
                    "sma_20", "sma_50", "sma_150", "sma_200", "ema_12", "ema_21", "ema_26",
                    "atr", "atr_14", "bb_upper", "bb_middle", "bb_lower", "volume_ma_50",
-                   "adx", "plus_di", "minus_di", "mansfield_rs", "close"]
+                   "adx", "plus_di", "minus_di", "mansfield_rs", "price_data_age_days", "close"]
 
         df["date"] = df["date"].dt.date.astype(str)
 
@@ -197,17 +231,23 @@ class TechnicalDataDailyLoader(OptimalLoader):
             return float(v) if pd.notna(v) else None
 
         for col in columns[2:]:
-            df[col] = df[col].apply(safe_float)
+            if col not in ("price_data_age_days",):
+                df[col] = df[col].apply(safe_float)
 
         records = df[columns].to_dict("records")
 
         # pandas converts int+None Series to float64 (e.g. 6887014 → 6887014.0).
-        # volume_ma_50 is bigint in the schema — fix after to_dict to ensure Python int.
+        # volume_ma_50 and price_data_age_days are integers in the schema — fix after to_dict.
         import math
         for r in records:
             vma = r.get("volume_ma_50")
             if isinstance(vma, float):
                 r["volume_ma_50"] = int(round(vma)) if not math.isnan(vma) else None
+
+            # price_data_age_days is already an integer (set once per symbol)
+            age = r.get("price_data_age_days")
+            if age is not None and not isinstance(age, int):
+                r["price_data_age_days"] = int(age) if isinstance(age, float) else age
 
         return records
 
