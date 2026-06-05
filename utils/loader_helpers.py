@@ -6,12 +6,59 @@ Functions that were defined identically in 19+ loader files, now centralized her
 """
 
 import os
+import logging
 from utils.database_context import DatabaseContext
 from typing import List
 import time
 import threading
 
-# Load .env for local development
+logger = logging.getLogger(__name__)
+
+def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
+    """Fetch API key from AWS Secrets Manager with fallback to environment variable.
+
+    Supports seamless Secrets Manager migration: tries Secrets Manager first,
+    falls back to environment variable, then optional default.
+
+    Args:
+        secret_name: Name of secret in AWS Secrets Manager (e.g., 'algo-alpaca-key')
+        env_var: Environment variable name for fallback (e.g., 'ALPACA_API_KEY')
+        default: Default value if both Secrets Manager and env var are missing
+
+    Returns:
+        API key string, or None if not found
+    """
+    try:
+        import boto3
+        is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
+        region = os.environ.get('AWS_REGION', 'us-east-1')
+
+        if is_lambda:
+            try:
+                client = boto3.client('secretsmanager', region_name=region)
+                response = client.get_secret_value(SecretId=secret_name)
+                key = response.get('SecretString')
+                if key:
+                    logger.debug(f"Fetched {secret_name} from Secrets Manager")
+                    return key
+            except Exception as sm_err:
+                logger.debug(f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var")
+    except ImportError:
+        logger.debug("boto3 not available, using env var fallback")
+
+    # Fallback: environment variable
+    key = os.environ.get(env_var)
+    if key:
+        logger.debug(f"Using {env_var} from environment")
+        return key
+
+    # Final fallback: default value
+    if default:
+        logger.debug(f"Using default value for {secret_name}")
+        return default
+
+    logger.warning(f"Could not find {secret_name} in Secrets Manager or {env_var} in environment")
+    return None
 
 # Cache for active symbols to reduce database load under parallelism
 _symbols_cache = {}

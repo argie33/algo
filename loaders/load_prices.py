@@ -289,6 +289,8 @@ class PriceLoader(OptimalLoader):
         # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
         prior_close = None
+        non_trading_filtered = 0
+        parse_errors = 0
 
         for row in rows:
             # CRITICAL: Filter out weekend/holiday data before any other validation
@@ -304,9 +306,11 @@ class PriceLoader(OptimalLoader):
                             error_message=f'Data for non-trading day (weekend/holiday)',
                             resolution='rejected',
                         )
+                    non_trading_filtered += 1
                     logger.debug(f"[{row.get('symbol')}] {row_date}: Non-trading day, rejecting")
                     continue
             except (ValueError, TypeError) as e:
+                parse_errors += 1
                 logger.warning(f"[{row.get('symbol')}] Could not parse date {row_date_str}: {e}")
                 continue
 
