@@ -294,27 +294,88 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                 flagged
             )
 
+        # Graduated alerting thresholds for data quality issues
+        # CRITICAL: 3+ errors or 1+ critical → halt trading
+        # MEDIUM: 2+ errors or 10+ warnings → alert but continue (observable)
+        # INFO: 5+ warnings → warn but continue (background degradation)
+
+        alerts = AlertManager()
+
         # FAIL-CLOSED: critical findings always block
-        if critical_count > 0:
-            logger.info(f"[HALT] Data patrol found {critical_count} CRITICAL issues - BLOCKING ORCHESTRATOR")
+        if critical_count >= 1:
+            logger.critical(f"[HALT] Data patrol found {critical_count} CRITICAL issue(s) - BLOCKING ORCHESTRATOR")
             if verbose:
-                logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
+                logger.info(f"  [HALT] Data patrol found {critical_count} CRITICAL issue(s)")
             log_phase_result_fn(1, 'data_patrol', 'halt',
-                               f'Critical data quality issues: {critical_count} critical findings')
+                               f'Critical data quality issues: {critical_count} critical finding(s)')
+            try:
+                alerts.send_position_alert(
+                    'DATA_QUALITY',
+                    'PATROL_CRITICAL',
+                    f'Data patrol found {critical_count} CRITICAL issue(s). Orchestrator halted. '
+                    f'Recent findings: {", ".join([f["check"] for f in flagged[:3]])}',
+                    {'critical_count': critical_count, 'findings': flagged}
+                )
+            except Exception as alert_err:
+                logger.debug(f"Could not send critical alert: {alert_err}")
             return False
 
-        # FAIL-CLOSED: too many errors block in auto mode
-        if error_count > 2:
+        # FAIL-CLOSED: too many errors block
+        if error_count >= 3:
+            logger.error(f"[HALT] Data patrol found {error_count} ERROR issues - BLOCKING ORCHESTRATOR")
             if verbose:
-                logger.error(f"  [HALT] Data patrol found {error_count} ERROR issues")
+                logger.error(f"  [HALT] Data patrol found {error_count} error(s)")
             log_phase_result_fn(1, 'data_patrol', 'halt',
-                               f'Data quality errors: {error_count} findings')
+                               f'Data quality errors: {error_count} finding(s) — too many to continue safely')
+            try:
+                alerts.send_position_alert(
+                    'DATA_QUALITY',
+                    'PATROL_ERRORS',
+                    f'Data patrol found {error_count} ERROR issue(s). Orchestrator halted to prevent bad trades. '
+                    f'Recent errors: {", ".join([f["check"] for f in flagged[:3]])}',
+                    {'error_count': error_count, 'findings': flagged}
+                )
+            except Exception as alert_err:
+                logger.debug(f"Could not send error alert: {alert_err}")
             return False
 
-        # Warnings are just logged, not blocking
-        if error_count == 1 or error_count == 2:
-            if verbose:
-                logger.error(f"  [WARN] Data patrol found {error_count} error(s)")
+        # MEDIUM: 2+ errors or 10+ warnings → observable issue, alert but continue
+        if error_count >= 2 or warn_count >= 10:
+            logger.warning(
+                f"[MEDIUM] Data patrol found {error_count} errors, {warn_count} warnings. "
+                f"Issues detected but continuing with caution."
+            )
+            log_phase_result_fn(1, 'data_patrol', 'warn',
+                               f'Data quality issues: {error_count} error(s), {warn_count} warning(s) — continuing with caution')
+            try:
+                alerts.send_position_alert(
+                    'DATA_QUALITY',
+                    'PATROL_MEDIUM',
+                    f'Data patrol found {error_count} ERROR(s) and {warn_count} WARNING(s). '
+                    f'Continuing but monitor closely. Examples: {", ".join([f["check"] for f in flagged[:3]])}',
+                    {'error_count': error_count, 'warn_count': warn_count}
+                )
+            except Exception as alert_err:
+                logger.debug(f"Could not send medium alert: {alert_err}")
+
+        # INFO: 5+ warnings → background degradation, just warn
+        elif warn_count >= 5:
+            logger.warning(f"[INFO] Data patrol found {warn_count} warnings (early degradation signs)")
+            log_phase_result_fn(1, 'data_patrol', 'info',
+                               f'Data quality warnings: {warn_count} warning(s) — watch for trends')
+
+        # Emit CloudWatch metrics for patrol findings
+        try:
+            from algo.algo_metrics import MetricsPublisher
+            metrics = MetricsPublisher()
+            metrics.add_metric('PatrolCriticalFindings', critical_count, unit='Count')
+            metrics.add_metric('PatrolErrorFindings', error_count, unit='Count')
+            metrics.add_metric('PatrolWarningFindings', warn_count, unit='Count')
+            metrics.add_metric('PatrolInfoFindings', info_count, unit='Count')
+            metrics.add_metric('PatrolTotalFindings', total_findings, unit='Count')
+            metrics.flush()
+        except Exception as metric_err:
+            logger.debug(f"Could not emit patrol metrics: {metric_err}")
 
         return True
 
