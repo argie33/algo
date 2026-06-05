@@ -14,7 +14,7 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
-def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 30, retry_count: int = 1) -> bool:
+def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 120, retry_count: int = 1) -> bool:
     """
     Trigger ECS loader asynchronously and VERIFY it started before returning.
 
@@ -26,10 +26,13 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
     Only return True if ECS task confirmed running within poll_timeout_sec.
     Retries once with 10s backoff if initial trigger fails.
 
+    ECS TIMING: Fargate tasks can take 45-120s to reach RUNNING state under load.
+    Default 120s timeout allows for normal scheduling delays while catching hung tasks.
+
     Args:
         loader_name: Name of the loader to trigger
         verbose: Whether to log verbose output
-        poll_timeout_sec: Max seconds to wait for loader task to start (default 30s)
+        poll_timeout_sec: Max seconds to wait for loader task to start (default 120s)
         retry_count: Number of retry attempts after initial failure (default 1)
 
     Returns: True if loader task confirmed running, False if timeout/error
@@ -234,7 +237,7 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
     DEPRECATED: Use _trigger_loader_failsafe_with_verification instead.
     This function kept for backward compatibility only.
     """
-    return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=180)
+    return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=240)
 
 def _check_failsafe_grace_period(state_table: Any, verbose: bool = False) -> Optional[float]:
     """Check if a previously-triggered failsafe is within grace period window.
@@ -442,11 +445,15 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                             time.sleep(0.5)
 
                         # Log trigger timestamp for grace period check in future runs
+                        # CRITICAL: Initialize last_success_at = triggered_at so grace period logic works
+                        # If we only set triggered_at, next run sees last_success_at=0 (default) and triggers redundant patrol
                         try:
+                            now = time.time()
                             state_table.put_item(Item={
                                 'state_key': 'patrol_trigger_log',
-                                'triggered_at': time.time(),
-                                'ttl': int(time.time()) + 3600,  # 1-hour TTL
+                                'triggered_at': now,
+                                'last_success_at': now,  # Initialize to trigger time; will update when patrol completes
+                                'ttl': int(now) + 3600,  # 1-hour TTL
                             })
                             logger.debug("[PATROL] Logged patrol trigger timestamp for grace period")
                         except Exception as log_err:
