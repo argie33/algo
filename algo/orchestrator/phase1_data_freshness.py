@@ -558,6 +558,50 @@ def _check_pipeline_health(cur: Any, run_date: _date, verbose: bool) -> None:
     except Exception as e:
         logger.warning(f"Pipeline health check failed: {e}")
 
+def _validate_required_schema_columns(cur: Any, verbose: bool = False) -> bool:
+    """Pre-flight validation: ensure all required schema columns exist.
+
+    Critical columns added in recent deployments must exist before Phase 1 proceeds.
+    If columns don't exist, migration may have failed or database is out of sync.
+
+    Returns: True if all columns present, False if any missing (fail-closed)
+    """
+    required_columns = {
+        'signal_quality_scores': [
+            'buy_sell_daily_age_days',
+            'technical_data_age_days',
+            'trend_template_age_days',
+        ]
+    }
+
+    missing = []
+    for table, columns in required_columns.items():
+        for col in columns:
+            try:
+                cur.execute(f"SELECT 1 FROM {table} LIMIT 0")
+                # Query succeeded, column syntax is valid. Now check column existence
+                cur.execute(f"""
+                    SELECT EXISTS(
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = %s AND column_name = %s
+                    )
+                """, (table, col))
+                exists = cur.fetchone()[0]
+                if not exists:
+                    missing.append(f"{table}.{col}")
+            except Exception as e:
+                logger.warning(f"[SCHEMA] Could not verify column {table}.{col}: {e}")
+                missing.append(f"{table}.{col}")
+
+    if missing:
+        logger.critical(f"[SCHEMA] Missing required columns: {', '.join(missing)}")
+        logger.critical("[SCHEMA] Database schema migration may have failed. Check RDS for errors.")
+        return False
+
+    if verbose:
+        logger.info("[SCHEMA] ✓ All required columns present")
+    return True
+
 def run(
     config: Any,
     run_date: _date,
@@ -582,6 +626,23 @@ def run(
     logger.debug(f"Phase 1: Starting data freshness check for run_date={run_date}")
 
     try:
+        # Pre-flight: validate schema before proceeding
+        try:
+            with DatabaseContext('read') as cur:
+                if not _validate_required_schema_columns(cur, verbose):
+                    logger.critical("[SCHEMA] Pre-flight validation failed - halting orchestrator")
+                    log_phase_result_fn(1, 'schema_validation', 'halt',
+                                       'Required schema columns missing - database schema migration incomplete')
+                    return PhaseResult(1, 'schema_validation', 'halted', {}, True,
+                                     'Schema validation failed: missing required columns')
+        except Exception as e:
+            logger.error(f"[SCHEMA] Pre-flight validation error: {e}")
+            log_phase_result_fn(1, 'schema_validation', 'halt',
+                               f'Schema validation error: {str(e)[:100]}')
+            return PhaseResult(1, 'schema_validation', 'halted', {}, True,
+                             f'Schema validation failed: {str(e)[:100]}')
+
+        try:
         try:
             from algo.algo_pipeline_health import PipelineHealth
             health = PipelineHealth()
