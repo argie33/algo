@@ -178,7 +178,7 @@ app.use((req, res, next) => {
   res.setHeader(
     "Permissions-Policy",
     "geolocation=(), microphone=(), camera=(), payment=(), usb=(), " +
-      "screen-wake-lock=(), web-share=(), gyroscope=(), magnetometer=()"
+      "screen-wake-lock=(), gyroscope=(), magnetometer=()"
   );
 
   // Cache control - ABSOLUTELY NO CACHING
