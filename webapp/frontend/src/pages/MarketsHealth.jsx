@@ -404,7 +404,7 @@ function IndexCell({ idx, prices = [] }) {
         </div>
       )}
       {series.length >= 2 && (
-        <div style={{ marginTop: 8, height: 30, width: '100%' }}>
+        <div style={{ marginTop: 8, height: 30, width: '100%', minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={series}>
               <defs>
@@ -602,7 +602,7 @@ function ExposureHistory({ markets }) {
         </div>
       </div>
       <div className="card-body" style={{ padding: 'var(--space-4)' }}>
-        <div style={{ height: 320 }}>
+        <div style={{ height: 320, minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
