@@ -553,10 +553,11 @@ locals {
     "russell2000_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Unified Price Loader — handles all intervals (1d,1wk,1mo) + asset classes (stock,etf)
-    # I/O bound, 5000+ symbols; REDUCED from parallelism=8→4 to respect yfinance rate limits (~400-600 calls/min)
-    # parallelism=4 keeps API load <200 calls/min even with batch_size=100, avoiding exponential backoff
-    # Expected runtime: 1.5-2h (slightly slower but no rate-limit cascades), timeout=5400s (1.5h) for morning prep
-    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }
+    # I/O bound, 5000+ symbols; INCREASED to parallelism=6 with higher rate limit (160/min) and batch_size=150
+    # With 160/min rate limit and batch=150: 6 threads × 150 symbols = 900 symbols/batch with parallelism
+    # This allows ~33 API calls to fetch 5000 symbols = ~12 seconds of API time with 6x parallelism
+    # Expected runtime: 30-45 min (3-4x faster than parallelism=4), timeout=7200s (2h) for safety margin
+    "stock_prices_daily" = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 6 }
 
     # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }

@@ -43,7 +43,7 @@ class PriceLoader(OptimalLoader):
 
         self.interval = interval
         self.asset_class = asset_class
-        self.batch_size = 100  # Batch 100 symbols per API call: 5000 symbols = 50 calls (2x faster)
+        self.batch_size = 150  # Batch 150 symbols per API call: 5000 symbols = 33-34 calls (3x faster than 50)
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
@@ -68,11 +68,11 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
-        # Proactive rate limiter for yfinance (global 30 calls/min limit)
-        # Use token bucket to pace requests, avoid hitting limit
-        self._rate_limit_tokens = 30  # Initial tokens (30 requests)
+        # Proactive rate limiter for yfinance (160 calls/min limit = safe margin below 200/min)
+        # Use token bucket to pace requests, avoid hitting limit. We're conservative with 160/min.
+        self._rate_limit_tokens = 160  # Initial tokens (160 requests)
         self._rate_limit_last_refill = time.time()
-        self._rate_limit_refill_rate = 30 / 60  # 30 tokens per 60 seconds = 0.5 per second
+        self._rate_limit_refill_rate = 160 / 60  # 160 tokens per 60 seconds = 2.67 per second
 
         # Circuit breaker: track rate limit errors to detect persistent issues
         # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
@@ -128,14 +128,15 @@ class PriceLoader(OptimalLoader):
 
         This reduces retry overhead when rate limiting is active while being proactive during EOD.
         """
-        # Proactive: During EOD pipeline, start conservative to avoid rate limiting altogether
+        # Proactive: During EOD pipeline, start AGGRESSIVE with high rate limit (160/min)
+        # With 160/min capacity and batch=150, we can fetch 5000 symbols in ~33 API calls = ~12 seconds
         if self._is_eod_pipeline and self._batch_total_count == 0:
-            logger.debug("[BATCH_SIZE] EOD pipeline context, proactive sizing: starting with batch=50 (conservative)")
-            return 50  # Start conservative during EOD to avoid hitting rate limits
+            logger.debug("[BATCH_SIZE] EOD pipeline context, proactive sizing: starting with batch=150 (aggressive with 160/min rate limit)")
+            return 150  # Start aggressive during EOD (160/min rate limit gives us headroom)
 
         if self._is_eod_pipeline and self._rate_limit_errors > 0:
-            logger.debug(f"[BATCH_SIZE] EOD pipeline with {self._rate_limit_errors} prior errors, using batch=20 (very conservative)")
-            return 20  # Very conservative if we've already hit rate limits during EOD
+            logger.debug(f"[BATCH_SIZE] EOD pipeline with {self._rate_limit_errors} prior errors, using batch=50 (conservative fallback)")
+            return 50  # Conservative if we've already hit rate limits during EOD
 
         # Reactive: Adjust based on recent success rate
         if self._batch_total_count == 0:
