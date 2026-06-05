@@ -567,3 +567,5 @@ All API errors return specific error types instead of generic "error" messages, 
 **Loaders stuck:** If ECS loader running > 2 hours, it's stuck. Kill analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics) but keep stock_prices_daily and technical_data_daily running.
 
 **Halt flag stuck:** Use `python scripts/check_halt_flag.py` to check status. `--clear` flag resets it manually if needed. The auto-expiry logic should handle stale flags from prior trading days automatically.
+
+**Data patrol grace period & DynamoDB degradation:** Phase 1 uses a grace period to prevent redundant data patrol triggers when a patrol is already running. If DynamoDB is unavailable, the system gracefully falls back to checking the latest patrol timestamp directly from the database. This means data patrol monitoring continues even if DynamoDB is down, though with slightly less precision (uses database timestamps instead of DynamoDB tracking). Both mechanisms prevent rapid re-triggers within 60 minutes of the last successful patrol completion.

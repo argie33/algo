@@ -333,6 +333,7 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
             # Check if a patrol trigger was already attempted recently (within last 1 hour)
             # CRITICAL FIX: Distinguish between "patrol running" vs "patrol failed"
             # Only apply grace period if patrol COMPLETED successfully, not just if it was triggered
+            # ENHANCED: Graceful degradation if DynamoDB is unavailable
             patrol_trigger_already_attempted = False
             patrol_trigger_age_minutes = None
             try:
@@ -363,8 +364,39 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                         logger.warning(f"[PATROL] Patrol was triggered {patrol_trigger_age_minutes:.0f}m ago but never completed successfully. "
                                       f"Triggering fresh patrol.")
             except Exception as state_err:
-                logger.debug(f"[PATROL] Could not check patrol trigger log: {state_err}. "
-                            f"Will proceed with fresh trigger.")
+                logger.debug(f"[PATROL] DynamoDB unavailable: {state_err}. Falling back to database check...")
+                # Graceful degradation: if DynamoDB is down, check patrol timestamp directly from database
+                try:
+                    cur.execute("""
+                        SELECT MAX(created_at) FROM data_patrol_log
+                        LIMIT 1
+                    """)
+                    result = cur.fetchone()
+                    if result and result[0]:
+                        last_patrol_time = result[0]
+                        if isinstance(last_patrol_time, str):
+                            from datetime import datetime as dt
+                            last_patrol_time = dt.fromisoformat(last_patrol_time.replace('Z', '+00:00'))
+
+                        current_time = datetime.now(timezone.utc)
+                        if isinstance(last_patrol_time, str):
+                            last_patrol_time = datetime.fromisoformat(last_patrol_time.replace('Z', '+00:00'))
+                        else:
+                            # Convert naive datetime to aware
+                            if last_patrol_time.tzinfo is None:
+                                last_patrol_time = last_patrol_time.replace(tzinfo=timezone.utc)
+
+                        patrol_age = (current_time - last_patrol_time).total_seconds() / 60
+
+                        if patrol_age < 60:
+                            patrol_trigger_already_attempted = True
+                            logger.info(f"[PATROL] Grace period (DynamoDB fallback): Last patrol {patrol_age:.0f}m ago (<1h). "
+                                       f"Skipping redundant trigger. (DynamoDB unavailable, using DB as source)")
+                        else:
+                            logger.warning(f"[PATROL] Last patrol was {patrol_age:.0f}m ago (>1h, no DynamoDB). "
+                                          f"Triggering fresh patrol. (DynamoDB unavailable, using DB as source)")
+                except Exception as db_err:
+                    logger.debug(f"[PATROL] Database fallback also failed: {db_err}. Proceeding with fresh trigger.")
 
             # Trigger fresh patrol asynchronously if not already attempted recently
             if not patrol_trigger_already_attempted:
