@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) -> None:
-    """Log signal count at each filter tier + per-filter rejection breakdown."""
+    """Log signal count at each filter tier + detailed per-filter rejection breakdown."""
     try:
         # Count total BUY signals for today
         cur.execute(
@@ -33,14 +33,26 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
         result = cur.fetchone()
         stage2_count = result[0] if result else 0
 
-        # Count rejections at each tier from filter_rejection_log (if table exists)
+        # Count rejections at each tier + get per-filter breakdown
         tier_rejections = {}
-        tier_reasons = {}  # Track top rejection reason per tier
+        filter_rejections = {}  # Track rejections by filter name
         try:
+            # Collect all rejection reasons to understand filter impacts
+            cur.execute(
+                "SELECT rejection_reason, COUNT(DISTINCT symbol) as count "
+                "FROM filter_rejection_log WHERE eval_date = %s AND rejection_reason IS NOT NULL "
+                "GROUP BY rejection_reason ORDER BY count DESC",
+                (run_date,),
+            )
+            for row in cur.fetchall():
+                reason, count = row[0], row[1]
+                if reason:
+                    filter_rejections[reason] = count
+
+            # Get tier-level rejection counts for summary
             for tier_num, tier_name in enumerate(
                 ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"], 1
             ):
-                # Count rejections at this tier
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM filter_rejection_log WHERE eval_date = %s AND rejected_at_tier = %s",
                     (run_date, tier_num),
@@ -48,21 +60,6 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
                 result = cur.fetchone()
                 rejected = result[0] if result else 0
                 tier_rejections[tier_name] = rejected
-
-                # Get top rejection reason for this tier
-                reason_col = f"tier_{tier_num}_reason"
-                try:
-                    cur.execute(
-                        f"SELECT {reason_col}, COUNT(*) as count FROM filter_rejection_log "
-                        f"WHERE eval_date = %s AND {reason_col} IS NOT NULL "
-                        f"GROUP BY {reason_col} ORDER BY count DESC LIMIT 1",
-                        (run_date,),
-                    )
-                    reason_result = cur.fetchone()
-                    if reason_result:
-                        tier_reasons[tier_name] = f"{reason_result[0]} ({reason_result[1]} signals)"
-                except Exception:
-                    pass  # Column may not exist
         except Exception as e:
             logger.warning(f"Exception reading filter rejection log: {e}")
             # Table may not exist or columns different; skip
@@ -80,18 +77,49 @@ def _report_signal_waterfall(cur: Any, run_date: _date, final_count: int = 0) ->
 
         logger.info(f"    Total BUY signals:        {total_signals:4d}")
         logger.info(f"    Stage 2 (pre-pipeline):   {stage2_count:4d}")
+
+        # Tier-level summary
         for tier_name in ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"]:
             count = tier_rejections.get(tier_name, 0)
-            reason = tier_reasons.get(tier_name, "")
-            if count > 0 and reason:
-                logger.info(f"    {tier_name} rejected:          {count:4d} — {reason}")
+            if count > 0:
+                logger.info(f"    {tier_name} rejected:          {count:4d}")
             else:
                 logger.info(f"    {tier_name} rejected:          {count:4d}")
+
+        # Per-filter rejection breakdown (most important filters first)
+        if filter_rejections:
+            logger.info(f"    [Per-Filter Breakdown] (top rejection reasons):")
+            sorted_filters = sorted(filter_rejections.items(), key=lambda x: x[1], reverse=True)
+            for reason, count in sorted_filters[:10]:  # Top 10 rejection reasons
+                logger.info(f"      - {reason:40s} {count:4d} signals")
+
         logger.info(f"    Final qualified:          {final_count:4d}")
         interpretation = _interpret_waterfall(
             total_signals, stage2_count, tier_rejections, final_count
         )
         logger.info(f"  Interpretation: {interpretation}")
+
+        # Publish per-filter rejection metrics to CloudWatch
+        try:
+            with MetricsPublisher() as m:
+                # Overall counts
+                m.add_metric("TotalSignalsGenerated", total_signals, unit="Count")
+                m.add_metric("Stage2CandidatesAvailable", stage2_count, unit="Count")
+                m.add_metric("QualifiedTradesAfterFilters", final_count, unit="Count")
+
+                # Per-filter rejections (top 5 to avoid CloudWatch metric spam)
+                for i, (reason, count) in enumerate(sorted(filter_rejections.items(), key=lambda x: x[1], reverse=True)[:5]):
+                    sanitized_reason = reason.replace(" ", "_").replace("/", "_")[:50]  # Safe metric name
+                    m.add_metric(
+                        f"FilterRejection_{sanitized_reason}",
+                        count,
+                        unit="Count",
+                        dimensions={"RejectionType": reason[:100]}
+                    )
+
+                m.flush()
+        except Exception as metric_err:
+            logger.debug(f"Could not publish per-filter metrics: {metric_err}")
 
     except Exception as e:
         logger.warning(f"Signal waterfall report failed: {e}")
