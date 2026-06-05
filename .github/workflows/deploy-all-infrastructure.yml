@@ -759,6 +759,34 @@ jobs:
           echo "cognito_domain_url: ${COGNITO_DOMAIN:-(empty)}"
           echo "cloudfront_id: ${CF:-(empty)}"
 
+          # Diagnostic: Check if critical AWS resources exist (helps debug missing infrastructure)
+          echo ""
+          echo "=== AWS Resource Diagnostics ==="
+          COGNITO_EXISTS=$(aws cognito-idp list-user-pools --max-results 60 --region us-east-1 2>/dev/null | jq '.UserPools | length' || echo "0")
+          CF_EXISTS=$(aws cloudfront list-distributions --region us-east-1 2>/dev/null | jq '.DistributionList.Items | length' || echo "0")
+          echo "Cognito user pools found: $COGNITO_EXISTS"
+          echo "CloudFront distributions found: $CF_EXISTS"
+
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "None" ]; then
+            if [ "$COGNITO_EXISTS" -eq 0 ]; then
+              echo "[ERROR] terraform output cognito_user_pool_id is empty AND no Cognito pools exist in AWS"
+              echo "[ERROR] This suggests the Cognito module was never deployed or resources were deleted"
+            else
+              echo "[ERROR] terraform output cognito_user_pool_id is empty BUT Cognito pools exist in AWS"
+              echo "[ERROR] This suggests terraform state is out of sync with AWS"
+            fi
+          fi
+
+          if [ -z "$WEBSITE_URL" ] || [ "$WEBSITE_URL" = "None" ]; then
+            if [ "$CF_EXISTS" -eq 0 ]; then
+              echo "[ERROR] terraform output website_url is empty AND no CloudFront distributions exist in AWS"
+              echo "[ERROR] This suggests the Services module (CloudFront) was never deployed"
+            else
+              echo "[ERROR] terraform output website_url is empty BUT CloudFront distributions exist in AWS"
+              echo "[ERROR] This suggests terraform state is out of sync with AWS"
+            fi
+          fi
+
       - name: Setup Cognito Admin Group
         run: |
           POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
@@ -1140,11 +1168,20 @@ jobs:
           echo "Generated config.js:"
           echo "$CONFIG_CONTENT"
 
-          # Validate that config is not just empty braces
-          if echo "$CONFIG_CONTENT" | grep -q '"API_URL": ""' && echo "$CONFIG_CONTENT" | grep -q '"USER_POOL_ID": ""'; then
-            echo "[WARN] config.js has BOTH API_URL and USER_POOL_ID empty - this will cause production failures"
-            echo "[WARN] Verify: Terraform outputs (website_url, cognito_user_pool_id) are populated"
-            echo "[WARN] Verify: AWS CloudFront distribution exists and is deployed"
+          # Validate that config has required critical values
+          if echo "$CONFIG_CONTENT" | grep -q '"API_URL": ""'; then
+            echo "[ERROR] API_URL is empty - frontend cannot reach the API"
+            echo "[ERROR] This happens when:"
+            echo "  - Terraform outputs website_url is null/missing"
+            echo "  - AWS CloudFront discovery failed"
+            echo "  - Cognito/Services modules didn't deploy"
+            exit 1
+          fi
+
+          if echo "$CONFIG_CONTENT" | grep -q '"USER_POOL_ID": ""'; then
+            echo "[ERROR] USER_POOL_ID is empty - authentication will be broken"
+            echo "[ERROR] Verify terraform outputs cognito_user_pool_id is populated"
+            exit 1
           fi
 
           # Add cache-busting timestamp to config.js script tag in index.html
