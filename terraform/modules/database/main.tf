@@ -221,9 +221,8 @@ resource "aws_db_proxy" "main" {
   role_arn                       = aws_iam_role.rds_proxy.arn
   vpc_subnet_ids                 = var.private_subnet_ids
   vpc_security_group_ids         = [var.rds_security_group_id]
-  max_db_connection_percentage   = 100  # Use 100% of database connection limit
+  max_db_connection_percentage   = 100  # Use 100% of database connection limit (500)
   max_idle_connections_percent   = 50   # Keep 50% of connections idle for reuse
-  connection_borrow_timeout      = 120
 
   require_tls = false  # Set true in production for encrypted connections
 
