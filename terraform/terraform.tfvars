@@ -96,9 +96,9 @@ developer_key_rotation_date = "2026-05-29"
 #   Custom SMTP: Your email provider's SMTP hostname and port
 #
 sns_alerts_enabled = true                    # Enable SNS topic for infrastructure alerts (Step Functions, RDS, CloudWatch)
-sns_alert_email    = "" # SNS email subscription for infrastructure alerts
-alert_email_address = "" # Email for circuit breaker alerts (SNS topic subscription)
-alert_email_to     = "" # Email recipients for direct SMTP alerts from orchestrator
+sns_alert_email    = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
+alert_email_address = "argeropolos@gmail.com" # Email for circuit breaker alerts (SNS topic subscription)
+alert_email_to     = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
 alert_webhook_url  = ""  # Leave blank (using email alerts)
 # SMTP configuration for email alerts (set all)
 alert_smtp_host     = ""  # SMTP hostname for Gmail
