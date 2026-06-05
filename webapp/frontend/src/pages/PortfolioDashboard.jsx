@@ -91,7 +91,7 @@ const formatErrorDetail = (err, context) => {
 export default function PortfolioDashboard() {
   const navigate = useNavigate();
 
-  const { data: status, error: statusError, refetch: refetchStatus } = useApiQuery(
+  const { data: status, loading: statusLoading, error: statusError, refetch: refetchStatus } = useApiQuery(
     ['algo-status'],
     () => api.get('/api/algo/status'),
     { refetchInterval: 60000 }
@@ -101,27 +101,27 @@ export default function PortfolioDashboard() {
     () => api.get('/api/algo/positions'),
     { refetchInterval: 60000 }
   );
-  const { data: perf, error: perfError, refetch: refetchPerf } = useApiQuery(
+  const { data: perf, loading: perfLoading, error: perfError, refetch: refetchPerf } = useApiQuery(
     ['algo-performance'],
     () => api.get('/api/algo/performance'),
     { refetchInterval: 60000 }
   );
-  const { data: trades, error: tradesError, refetch: refetchTrades } = useApiQuery(
+  const { data: trades, loading: tradesLoading, error: tradesError, refetch: refetchTrades } = useApiQuery(
     ['algo-trades-recent'],
     () => api.get('/api/algo/trades?limit=200'),
     { refetchInterval: 60000 }
   );
-  const { data: markets, error: marketsError, refetch: refetchMarkets } = useApiQuery(
+  const { data: markets, loading: marketsLoading, error: marketsError, refetch: refetchMarkets } = useApiQuery(
     ['algo-markets'],
     () => api.get('/api/algo/markets'),
     { refetchInterval: 60000 }
   );
-  const { data: equityItems, error: equityError, refetch: refetchEquity } = useApiQuery(
+  const { data: equityItems, loading: equityLoading, error: equityError, refetch: refetchEquity } = useApiQuery(
     ['algo-equity-curve'],
     () => api.get('/api/algo/equity-curve?limit=180'),
     { refetchInterval: 60000 }
   );
-  const { data: breakers, error: breakersError, refetch: refetchBreakers } = useApiQuery(
+  const { data: breakers, loading: breakersLoading, error: breakersError, refetch: refetchBreakers } = useApiQuery(
     ['algo-circuit-breakers'],
     () => api.get('/api/algo/circuit-breakers'),
     { refetchInterval: 60000 }
@@ -278,18 +278,18 @@ export default function PortfolioDashboard() {
       </div>
 
       {/* Circuit breakers */}
-      <CircuitBreakerPanel data={breakers} />
+      <CircuitBreakerPanel data={breakers} loading={breakersLoading} />
 
       {/* Equity curve + Drawdown chart */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <EquityCurve series={safeEquityCurve} />
-        <DrawdownChart series={safeEquityCurve} />
+        <EquityCurve series={safeEquityCurve} loading={equityLoading} />
+        <DrawdownChart series={safeEquityCurve} loading={equityLoading} />
       </div>
 
       {/* Daily-return histogram + Trade outcome distribution */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <DailyReturnHistogram series={safeEquityCurve} />
-        <TradeDistribution trades={safeTradesList} />
+        <DailyReturnHistogram series={safeEquityCurve} loading={equityLoading} />
+        <TradeDistribution trades={safeTradesList} loading={tradesLoading} />
       </div>
 
       {/* R-multiple ladder */}
@@ -428,9 +428,9 @@ export default function PortfolioDashboard() {
 }
 
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
-function CircuitBreakerPanel({ data }) {
+function CircuitBreakerPanel({ data, loading }) {
   const breakers = Array.isArray(data) ? data : data?.breakers || [];
-  if (breakers.length === 0) {
+  if (loading) {
     return (
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-head">
@@ -441,6 +441,21 @@ function CircuitBreakerPanel({ data }) {
         </div>
         <div className="card-body">
           <Empty title="Loading circuit breaker state…" />
+        </div>
+      </div>
+    );
+  }
+  if (breakers.length === 0) {
+    return (
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Circuit Breakers</div>
+            <div className="card-sub">Pre-trade kill-switch state</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <Empty title="No circuit breaker data" />
         </div>
       </div>
     );
@@ -505,7 +520,7 @@ function CircuitBreakerPanel({ data }) {
 }
 
 // ─── Equity curve ──────────────────────────────────────────────────────────
-function EquityCurve({ series }) {
+function EquityCurve({ series, loading }) {
   const data = useMemo(() => {
     if (!series || series.length === 0) return [];
     return series.map(s => ({
@@ -523,7 +538,9 @@ function EquityCurve({ series }) {
         </div>
       </div>
       <div className="card-body">
-        {data.length < 2 ? (
+        {loading ? (
+          <Empty title="Loading equity curve…" />
+        ) : data.length < 2 ? (
           <Empty title="Equity curve building" desc={`${data.length} snapshot${data.length === 1 ? '' : 's'} — need 2+ for a curve.`} />
         ) : (
           <div style={{ height: 220 }}>
@@ -552,7 +569,7 @@ function EquityCurve({ series }) {
 }
 
 // ─── Drawdown chart ────────────────────────────────────────────────────────
-function DrawdownChart({ series }) {
+function DrawdownChart({ series, loading }) {
   const data = useMemo(() => {
     if (!series || series.length === 0) return [];
     let peak = 0;
@@ -574,7 +591,9 @@ function DrawdownChart({ series }) {
         </div>
       </div>
       <div className="card-body">
-        {data.length < 2 ? (
+        {loading ? (
+          <Empty title="Loading drawdown…" />
+        ) : data.length < 2 ? (
           <Empty title="Drawdown building" desc="Need 2+ snapshots to compute drawdown." />
         ) : (
           <div style={{ height: 220 }}>
@@ -604,7 +623,7 @@ function DrawdownChart({ series }) {
 }
 
 // ─── Daily-return histogram (bell-curve overlay style) ─────────────────────
-function DailyReturnHistogram({ series }) {
+function DailyReturnHistogram({ series, loading }) {
   const { buckets, stats } = useMemo(() => {
     if (!series || series.length === 0) return { buckets: [], stats: null };
     const last90 = series.slice(-90);
@@ -646,7 +665,9 @@ function DailyReturnHistogram({ series }) {
         </div>
       </div>
       <div className="card-body">
-        {buckets.length === 0 ? (
+        {loading ? (
+          <Empty title="Loading return data…" />
+        ) : buckets.length === 0 ? (
           <Empty title="No daily-return data yet" />
         ) : (
           <div style={{ height: 220 }}>
@@ -675,7 +696,7 @@ function DailyReturnHistogram({ series }) {
 }
 
 // ─── Trade outcome distribution ────────────────────────────────────────────
-function TradeDistribution({ trades }) {
+function TradeDistribution({ trades, loading }) {
   const buckets = useMemo(() => {
     if (!trades || trades.length === 0) return [];
     const bins = [
@@ -705,7 +726,9 @@ function TradeDistribution({ trades }) {
         </div>
       </div>
       <div className="card-body">
-        {buckets.length === 0 ? (
+        {loading ? (
+          <Empty title="Loading trade data…" />
+        ) : buckets.length === 0 ? (
           <Empty title="No closed trades yet" />
         ) : (
           <div style={{ height: 220 }}>
