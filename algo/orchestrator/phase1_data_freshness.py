@@ -187,9 +187,31 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
         if patrol_date < expected_patrol_date:
             logger.warning(
                 f"[PATROL] Latest patrol ({latest_run_id}, {patrol_date}) older than "
-                f"expected ({expected_patrol_date}) — skipping stale findings"
+                f"expected ({expected_patrol_date}) — triggering fresh patrol"
             )
-            return True  # Stale patrol: don't block on old findings
+            # Trigger fresh patrol asynchronously so Phase 1 doesn't block
+            try:
+                import boto3
+                ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+                logger.info("[PATROL] Triggering fresh data patrol via ECS...")
+                ecs_client.run_task(
+                    cluster=cluster_arn,
+                    taskDefinition='algo-data-patrol',
+                    launchType='FARGATE',
+                    networkConfiguration={
+                        'awsvpcConfiguration': {
+                            'subnets': os.getenv('ECS_SUBNETS', '').split(','),
+                            'securityGroups': os.getenv('ECS_SECURITY_GROUPS', '').split(','),
+                            'assignPublicIp': 'DISABLED'
+                        }
+                    }
+                )
+                logger.info("[PATROL] ✓ Fresh patrol task triggered async")
+            except Exception as patrol_trigger_err:
+                logger.warning(f"[PATROL] Could not trigger fresh patrol: {patrol_trigger_err}")
+
+            return True  # Stale patrol: don't block on old findings, but fresh patrol now running
 
         # Now get results for only this run
         cur.execute("""
