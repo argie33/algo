@@ -3,12 +3,13 @@ import os
 import signal
 import threading
 import time
-import psycopg2
-import psycopg2.sql
 import uuid
 from abc import ABC
 from datetime import date, datetime, timedelta
 from typing import Iterable, List, Optional, Sequence
+
+import psycopg2
+import psycopg2.sql
 
 from utils.database_context import DatabaseContext
 
@@ -311,8 +312,8 @@ class OptimalLoader(ABC):
         """
         if not rows:
             return 0
-        import io
         import csv
+        import io
 
         with DatabaseContext("write") as cur:
             # Ensure the unique constraint exists (one-time per loader instance)

@@ -5,9 +5,9 @@ import traceback
 from datetime import date as _date
 from typing import Any, Callable, Dict
 
-from utils.database_context import DatabaseContext
-from algo.orchestrator.phase_result import PhaseResult
 from algo.algo_metrics import MetricsPublisher
+from algo.orchestrator.phase_result import PhaseResult
+from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +137,9 @@ def run(
         logger.info("Exposure constraints: None (no tier active, using defaults)")
 
     try:
-        from algo.algo_filter_pipeline import FilterPipeline
         import time as _timing
+
+        from algo.algo_filter_pipeline import FilterPipeline
 
         exposure_mult = 1.0
         if exposure_constraints:
