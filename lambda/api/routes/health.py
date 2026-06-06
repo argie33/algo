@@ -65,37 +65,28 @@ def _handle_basic(cur) -> Dict:
             logger.warning(f"Failed to get connection pool status: {str(e)[:80]}")
             health['rds_connection_pool'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch pool stats'}
 
-        # Get data freshness summary - use most recent row from price_daily
+        # Get data freshness summary - minimal check for table data
+        # Expensive freshness age calculations deferred to authenticated /health/pipeline endpoint
         try:
-            # Ultra-simple query: just fetch most recent timestamp without aggregation
-            # This avoids expensive MAX() scan on large tables
             freshness = execute_with_timeout(cur, """
-                SELECT EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 as age_days
-                FROM price_daily
-                WHERE created_at IS NOT NULL
-                ORDER BY created_at DESC
-                LIMIT 1
-            """, timeout_sec=3)
+                SELECT COUNT(*) as row_count FROM price_daily LIMIT 1
+            """, timeout_sec=2)
 
             if freshness and len(freshness) > 0:
                 row = dict(freshness[0])
-                age = float(row.get('age_days', 999)) if row.get('age_days') is not None else 999
+                row_count = int(row.get('row_count', 0)) or 0
                 health['freshness'] = {
-                    'newest_data_age_days': round(age, 2),
-                    'status': 'HEALTHY' if age <= 1 else ('WARNING' if age <= 3 else 'STALE')
+                    'data_loaded': row_count > 0,
+                    'status': 'HEALTHY' if row_count > 0 else 'NO_DATA'
                 }
             else:
-                # No data in price_daily yet (morning, before first load)
-                health['freshness'] = {
-                    'status': 'NO_DATA'
-                }
+                health['freshness'] = {'status': 'UNKNOWN'}
         except Exception as e:
             error_msg = str(e)[:100]
             logger.warning(f"Failed to get freshness status: {error_msg}")
-            # If we can't fetch freshness, assume data is stale (conservative fail-safe)
             health['freshness'] = {
                 'status': 'UNKNOWN',
-                'error': f'Query error: {error_msg[:60]}'
+                'error': f'Query error: {error_msg[:40]}'
             }
 
         # Overall system status based on component health
