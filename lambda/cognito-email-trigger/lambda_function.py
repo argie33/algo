@@ -20,7 +20,14 @@ from typing import Any
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-ses_client = boto3.client('ses', region_name='us-east-1')
+_ses_client = None
+
+def get_ses_client():
+	"""Lazy-load SES client to avoid credential loading during imports."""
+	global _ses_client
+	if _ses_client is None:
+		_ses_client = boto3.client('ses', region_name='us-east-1')
+	return _ses_client
 
 # Configuration
 SENDER_EMAIL = "argeropolos@gmail.com"
@@ -88,7 +95,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
 def send_email(recipient: str, subject: str, html_body: str) -> None:
     """Send email via AWS SES."""
-    ses_client.send_email(
+    get_ses_client().send_email(
         Source=f"{SENDER_NAME} <{SENDER_EMAIL}>",
         Destination={'ToAddresses': [recipient]},
         Message={
