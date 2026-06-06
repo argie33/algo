@@ -62,6 +62,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Combine all economic data
                 return _get_leading_indicators(cur)
             return error_response(404, 'not_found', f'No economic handler for {path}')
+        except psycopg2.errors.QueryCanceled as e:
+            logger.error(f'Query timeout in economic route {path}: {e}')
+            return error_response(504, 'timeout', 'Economic data query exceeded timeout')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f"Schema error in economic route {path}: {str(e)}")
             return json_response(200, {'indicators': []})

@@ -2899,19 +2899,6 @@ def run(
                     logger.critical(f"[FAILSAFE_FAILED] Loader failsafe trigger did not confirm startup within {poll_timeout}s. "
                                   f"Cannot safely proceed — data will only get staler while no loader runs. HALTING.")
 
-                # Parse current data age for reporting
-                oldest_stale_trading_day_age = None
-                for item in stale_items:
-                    # Parse "name: 5d stale (3cal, need...)" to extract TRADING day age (first number)
-                    if 'd stale' in item:
-                        try:
-                            age_str = item.split(': ')[1].split('d stale')[0]
-                            age = int(age_str)
-                            if oldest_stale_trading_day_age is None or age > oldest_stale_trading_day_age:
-                                oldest_stale_trading_day_age = age
-                        except (IndexError, ValueError):
-                            pass
-
                     # Parse current data age for reporting
                     oldest_stale_trading_day_age = None
                     for item in stale_items:
@@ -2925,7 +2912,8 @@ def run(
                             except (IndexError, ValueError):
                                 pass
 
-                    logger.critical(f"[FAILSAFE_FAILED] Current data is {oldest_stale_trading_day_age}d trading days old. ")
+                    logger.critical(f"[FAILSAFE_FAILED] Current data is {oldest_stale_trading_day_age}d trading days old. "
+                                   f"System cannot proceed safely without fresh data loader running.")
                     return PhaseResult(1, 'data_freshness', 'halted', {}, True,
                                      f'Failsafe failed and no usable data available.')
                 else:
