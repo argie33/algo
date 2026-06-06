@@ -15,15 +15,10 @@ export class DevAuthHelper {
       createdAt: Date.now(),
     };
 
-    try {
-      const stored = localStorage.getItem('dev_users');
-      const users = stored ? JSON.parse(stored) : {};
-      users.testuser = user;
-      localStorage.setItem('dev_users', JSON.stringify(users));
-    } catch (error) {
-      // Re-throw if JSON is invalid
-      throw error;
-    }
+    const stored = localStorage.getItem('dev_users');
+    const users = stored ? JSON.parse(stored) : {};
+    users.testuser = user;
+    localStorage.setItem('dev_users', JSON.stringify(users));
 
     return user;
   }

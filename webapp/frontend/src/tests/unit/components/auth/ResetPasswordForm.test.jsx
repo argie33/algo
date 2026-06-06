@@ -1,4 +1,4 @@
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, render } from "@testing-library/react";
 import { renderWithProviders } from '../../setup/test-wrapper';
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import ResetPasswordForm from "../../../../components/auth/ResetPasswordForm";

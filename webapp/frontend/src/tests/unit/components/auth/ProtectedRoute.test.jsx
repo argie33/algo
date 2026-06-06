@@ -239,8 +239,7 @@ describe("ProtectedRoute", () => {
               Content
             </div>
           </ProtectedRoute>
-          </AuthProvider>
-        </MemoryRouter>
+        </AuthProvider>
       );
 
       const childElement = container.querySelector("#test-id");

@@ -1,4 +1,4 @@
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, render } from "@testing-library/react";
 import { renderWithProviders } from '../../setup/test-wrapper';
 import { vi } from "vitest";
 import ConfirmationForm from "../../../../components/auth/ConfirmationForm";
