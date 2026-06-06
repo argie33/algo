@@ -1246,6 +1246,56 @@ def _validate_required_schema_columns(cur: Any, verbose: bool = False) -> bool:
         logger.info("[SCHEMA] ✓ All required columns present with correct types")
     return True
 
+def _check_dynamodb_health(verbose: bool = False, timeout_sec: int = 5) -> bool:
+    """ISSUE #14 FIX: Pre-flight validation for DynamoDB cache availability.
+
+    DynamoDB is used as cache fallback when database is down. If DynamoDB is also
+    degraded/slow, Phase 1 could timeout. This check verifies DynamoDB is responsive.
+
+    Args:
+        verbose: Whether to log verbose output
+        timeout_sec: Max seconds to wait for DynamoDB response (default 5)
+
+    Returns: True if DynamoDB OK, False if unavailable/timeout
+    """
+    try:
+        import boto3
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+        cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+
+        # Quick health check: try to get item metadata (doesn't require actual item to exist)
+        table = dynamodb.Table(cache_table_name)
+
+        # Use a short timeout for the check
+        start = time.time()
+        try:
+            # Describe table to verify it exists and is accessible
+            response = table.meta.client.describe_table(TableName=cache_table_name)
+            elapsed = time.time() - start
+
+            if elapsed > timeout_sec:
+                logger.warning(f"[DYNAMODB] Health check took {elapsed:.1f}s (threshold {timeout_sec}s) - may be degraded")
+                return False
+
+            table_status = response.get('Table', {}).get('TableStatus')
+            if table_status != 'ACTIVE':
+                logger.warning(f"[DYNAMODB] Table {cache_table_name} status={table_status}, not ACTIVE")
+                return False
+
+            if verbose:
+                logger.info(f"[DYNAMODB] ✓ Cache table healthy (response time {elapsed:.2f}s)")
+            return True
+
+        except (BotoCoreError, ClientError) as ddb_err:
+            logger.warning(f"[DYNAMODB] Health check failed: {type(ddb_err).__name__} - {str(ddb_err)[:100]}")
+            return False
+
+    except Exception as e:
+        logger.debug(f"[DYNAMODB] Could not check health: {e}")
+        return False  # Assume unhealthy on any error
+
 def _check_rds_connection_pool_health(cur: Any, verbose: bool = False, fail_closed_at: int = 80) -> bool:
     """Pre-flight validation: check RDS connection pool health.
 
@@ -1438,6 +1488,15 @@ def run(
                                          'RDS connection pool circuit breaker triggered: >80 active connections')
                 except Exception as pool_err:
                     logger.debug(f"[RDS-POOL] Skipping connection pool check: {pool_err}")
+
+                # ISSUE #14 FIX: Check DynamoDB cache health before proceeding
+                # If DynamoDB is degraded, Phase 1 cache fallback may timeout
+                try:
+                    ddb_ok = _check_dynamodb_health(verbose=verbose, timeout_sec=5)
+                    if not ddb_ok:
+                        logger.warning("[DYNAMODB] Cache layer unavailable - Phase 1 will skip cache and use database directly")
+                except Exception as ddb_err:
+                    logger.debug(f"[DYNAMODB] Could not check health: {ddb_err}, proceeding without cache")
 
         except Exception as e:
             logger.error(f"[SCHEMA] Pre-flight validation error: {e}")
@@ -1655,7 +1714,7 @@ def run(
         # This prevents race conditions where price_daily is fresh at t=0 but technical_data_daily becomes stale at t=5
         # Use ORDER BY date DESC LIMIT 1 instead of MAX(date) — forces an index scan
         # regardless of stale PostgreSQL statistics (avoids sequential scan on t4g.micro).
-        missing = [t for t in ('price_daily', 'market_health_daily', 'trend_template_data') if t not in dates]
+        missing = [t for t in ('price_daily', 'market_health_daily', 'trend_template_data', 'technical_data_daily', 'buy_sell_daily') if t not in dates]
         if missing:
             try:
                 with DatabaseContext('read') as cur:
@@ -1676,13 +1735,16 @@ def run(
                                             "SELECT date FROM etf_price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
                                         )
                                         row = cur.fetchone()
+                                elif table in ('technical_data_daily', 'buy_sell_daily'):
+                                    cur.execute(f"SELECT MAX(date) FROM {table}")
+                                    row = cur.fetchone()
                                 else:
                                     cur.execute(f"SELECT date FROM {table} ORDER BY date DESC LIMIT 1")
                                     row = cur.fetchone()
                                 cur.execute("RELEASE SAVEPOINT scan")
-                                if row:
+                                if row and row[0]:
                                     dates[table] = row[0]
-                                    logger.info(f"Phase 1: direct scan found {table} latest={row[0]} (atomic transaction)")
+                                    logger.info(f"[{_phase1_correlation_id}] Phase 1: direct scan found {table} latest={row[0]} (atomic transaction)")
                             except Exception as e:
                                 try:
                                     cur.execute("ROLLBACK TO SAVEPOINT scan")
@@ -3010,6 +3072,40 @@ def run(
                     logger.debug(f"[{_phase1_correlation_id}] [CACHE_PREWARM] Could not pre-warm cache: {prewarm_err}")
 
             logger.info(f"[{_phase1_correlation_id}] [TIMING] {min_until_open:.0f}min remaining until market open (9:30 AM ET)")
+
+        # ISSUE #12 FIX: Final atomic re-check of critical tables before returning success
+        # Prevents race condition where data becomes stale between initial check and Phase 2 execution
+        try:
+            with DatabaseContext('read') as final_check_cur:
+                final_check_cur.execute("SET statement_timeout = 5000")
+
+                # Quick re-check: are halt-critical tables still fresh?
+                critical_tables_recheck = [
+                    ('price_daily', 'price_daily'),
+                    ('market_health_daily', 'market_health_daily'),
+                    ('trend_template_data', 'trend_template_data'),
+                ]
+                stale_on_recheck = []
+                for table_label, table_name in critical_tables_recheck:
+                    try:
+                        final_check_cur.execute(f"SELECT MAX(date) FROM {table_name} WHERE date >= %s", (expected_date,))
+                        row = final_check_cur.fetchone()
+                        latest_date = row[0] if row else None
+                        if latest_date is None:
+                            stale_on_recheck.append(f"{table_label} (no data >= {expected_date})")
+                    except Exception:
+                        pass  # Table may not exist yet, skip
+
+                if stale_on_recheck:
+                    logger.error(f"[{_phase1_correlation_id}] [RACE_CONDITION] Final re-check detected stale/missing data: {', '.join(stale_on_recheck)}")
+                    logger.error(f"[{_phase1_correlation_id}] Data became stale during Phase 1 execution. Halting to prevent inconsistent state.")
+                    log_phase_result_fn(1, 'data_freshness', 'halt', f'Race condition: data became stale during checks')
+                    return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                     f'Data freshness race condition detected: {", ".join(stale_on_recheck)}. Loaders may have failed during Phase 1.')
+                else:
+                    logger.debug(f"[{_phase1_correlation_id}] [RACE_CONDITION_CHECK] ✓ Final re-check confirmed critical tables still fresh")
+        except Exception as recheck_err:
+            logger.debug(f"[{_phase1_correlation_id}] Final re-check skipped ({recheck_err}), proceeding")
 
         log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
