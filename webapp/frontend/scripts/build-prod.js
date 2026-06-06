@@ -70,7 +70,7 @@ try {
     VITE_COGNITO_DOMAIN: cognitoDomain,
   };
 
-  execSync("vite build", {
+  execSync("npx vite build", {
     cwd: projectRoot,
     stdio: "inherit",
     env,
