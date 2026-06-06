@@ -196,10 +196,12 @@ class PriceLoader(OptimalLoader):
         - Morning prep (3:30-9:30 AM): 600s (10 min) — market just opened, data should be fresh
         - Other times: 300s (5 min) — should rarely block
 
-        Returns: True if SPY close data available, False if timeout (data may be stale)
+        ISSUE #11 FIX: Returns False if timeout and raises RuntimeError to halt loader.
+        This prevents the loader from silently proceeding with stale data.
+        Phase 1 will catch this failure and trigger failsafe.
 
-        NOTE: If False, the loader should be triggered via data patrol failsafe in Phase 1,
-        not proceed silently with a warning.
+        Returns: True if SPY close data available
+        Raises: RuntimeError if data cannot be verified (loader should abort)
         """
         if max_wait_sec is None:
             # ISSUE #1 FIX: Read timeout from algo_config, use context-aware defaults
@@ -284,13 +286,15 @@ class PriceLoader(OptimalLoader):
                 time.sleep(wait_time)
                 backoff_sec = min(backoff_sec * 2, 60)  # Cap at 60s per retry
 
-        # Timeout - data not available (should trigger data patrol in Phase 1)
+        # Timeout - data not available, HALT loader with explicit error (ISSUE #11 FIX)
         elapsed = time.time() - start_time
-        logger.error(
-            f"[MARKET_CLOSE] ✗ SPY close data NOT available after {elapsed:.0f}s ({attempt} attempts, final backoff {backoff_sec}s). "
-            f"CRITICAL: Loader cannot proceed safely. Data patrol should be triggered to retry when data available."
+        error_msg = (
+            f"Market close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
+            f"yfinance API appears to be lagging or down. Cannot load prices without market close data. "
+            f"Aborting to avoid stale price data. Phase 1 will trigger failsafe when data becomes available."
         )
-        return False
+        logger.error(f"[MARKET_CLOSE] ✗ {error_msg}")
+        raise RuntimeError(error_msg)
 
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
         """ISSUE #3: Thread-safe token bucket with per-thread fairness.
