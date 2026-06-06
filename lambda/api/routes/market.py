@@ -1,56 +1,11 @@
 """Route: market"""
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
-import logging, re, time
+import logging, re
 from datetime import datetime, timedelta, date, timezone
 from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
 
 logger = logging.getLogger(__name__)
-
-def _execute_with_retry(cur, timeout_sec: int, query: str, max_attempts: int = 2, backoff_multiplier: float = 1.5):
-    """Execute a query with retry logic and exponential backoff on timeout.
-
-    Args:
-        cur: Database cursor
-        timeout_sec: Initial timeout in seconds
-        query: SQL query to execute
-        max_attempts: Number of retry attempts (default 2 = 1 retry)
-        backoff_multiplier: Multiplier for timeout on each retry (default 1.5)
-
-    Returns: Query result (list of rows) or empty list on failure
-    """
-    current_timeout = timeout_sec
-    last_error = None
-
-    for attempt in range(max_attempts):
-        try:
-            cur.execute(f"SET LOCAL statement_timeout = '{int(current_timeout * 1000)}ms'")
-            cur.execute(query)
-            return cur.fetchall()
-        except psycopg2.errors.QueryCanceled as e:
-            last_error = e
-            if attempt < max_attempts - 1:
-                current_timeout *= backoff_multiplier
-                logger.warning(
-                    f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout"
-                )
-                try:
-                    cur.connection.rollback()
-                except Exception:
-                    pass
-                time.sleep(0.1)
-            else:
-                logger.warning(f"Query timeout after {max_attempts} attempts")
-        except Exception as e:
-            last_error = e
-            logger.warning(f"Query failed ({type(e).__name__}): {str(e)}")
-            try:
-                cur.connection.rollback()
-            except Exception:
-                pass
-            break
-
-    return []
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/market/* endpoints."""
@@ -111,7 +66,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """
 
                 # Execute with retry: start at 8s, retry at 12s if timeout
-                breadth = _execute_with_retry(cur, timeout_sec=8, query=breadth_query, max_attempts=2, backoff_multiplier=1.5)
+                breadth = execute_with_timeout(cur, breadth_query, timeout_sec=8, max_attempts=2, backoff_multiplier=1.5)
 
                 if breadth:
                     # Only fetch freshness if query succeeded
