@@ -1758,9 +1758,17 @@ def run(
         except Exception as incomp_err:
             logger.debug(f"[INCOMPLETE] Check failed: {incomp_err} (proceeding)")
 
-        # ISSUE #9 FIX: Validate data COMPLETENESS (symbol coverage %) for critical tables
+        # ISSUE #7 FIX: Validate data COMPLETENESS (symbol coverage %) for critical tables
         # Freshness alone isn't enough — if 500/5000 symbols failed to load, data is incomplete
+        # CRITICAL FIX: Must HALT if any table <95%, not just warn. Incomplete data causes:
+        # - Partial buy/sell signals (missing symbols)
+        # - Phase 5 positions with reduced symbol coverage
+        # - Lower portfolio performance from opportunity loss
         completeness_warnings = []
+        price_coverage = 0
+        tech_coverage = 0
+        buys_coverage = 0
+
         try:
             with DatabaseContext('read') as _comp_cur:
                 _comp_cur.execute("SET statement_timeout = 10000")  # 10s for all checks
@@ -1773,7 +1781,7 @@ def run(
                     completeness_warnings.append(
                         f"price_daily: {price_symbols}/{expected_symbols} symbols ({price_coverage:.1f}%, expected >95%)"
                     )
-                    logger.warning(f"  [COMPLETENESS] {completeness_warnings[-1]}")
+                    logger.error(f"  [COMPLETENESS] CRITICAL: {completeness_warnings[-1]}")
 
                 # Check technical_data_daily completeness
                 _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE updated_at >= %s", (expected_date,))
@@ -1783,7 +1791,7 @@ def run(
                     completeness_warnings.append(
                         f"technical_data_daily: {tech_symbols}/{expected_symbols} symbols ({tech_coverage:.1f}%, expected >95%)"
                     )
-                    logger.warning(f"  [COMPLETENESS] {completeness_warnings[-1]}")
+                    logger.error(f"  [COMPLETENESS] CRITICAL: {completeness_warnings[-1]}")
 
                 # Check buy_sell_daily completeness
                 _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE updated_at >= %s", (expected_date,))
@@ -1793,21 +1801,26 @@ def run(
                     completeness_warnings.append(
                         f"buy_sell_daily: {buys_symbols}/{expected_symbols} symbols ({buys_coverage:.1f}%, expected >95%)"
                     )
-                    logger.warning(f"  [COMPLETENESS] {completeness_warnings[-1]}")
+                    logger.error(f"  [COMPLETENESS] CRITICAL: {completeness_warnings[-1]}")
 
+                # ISSUE #7 FIX: HALT if any critical table is incomplete
+                # Incomplete data cascades: partial loaders → partial signals → incomplete positions → portfolio risk
                 if completeness_warnings:
-                    logger.warning(f"[DATA COMPLETENESS] {len(completeness_warnings)} incomplete tables detected")
+                    logger.critical(f"[DATA COMPLETENESS] HALT: {len(completeness_warnings)} tables below 95% threshold")
                     alerts.send_position_alert(
                         'DATA',
-                        'DATA_COMPLETENESS_LOW',
-                        f"Data completeness below threshold (expected >95%). Details: {'; '.join(completeness_warnings)}. "
-                        f"Loaders may have failed partially.",
+                        'DATA_COMPLETENESS_CRITICAL',
+                        f"HALT: Data completeness critical. Incomplete tables would generate partial signals and positions. "
+                        f"Details: {'; '.join(completeness_warnings)}. Loaders may have failed partially.",
                         {'completeness_warnings': completeness_warnings, 'coverage': {
                             'price': price_coverage, 'technical': tech_coverage, 'buys': buys_coverage
-                        }}
+                        }, 'halt': True}
                     )
-                    log_phase_result_fn(1, 'data_completeness', 'warn',
-                                       f"Coverage: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}%")
+                    log_phase_result_fn(1, 'data_completeness', 'halt',
+                                       f"HALT: Incomplete data — price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}% (all require >95%)")
+                    return PhaseResult(1, 'data_completeness', 'halted', {}, True,
+                                     f'Data completeness critical: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}% — all require >95%. '
+                                     f'Incomplete data would cause partial signal generation and portfolio positions with reduced symbol coverage.')
                 else:
                     log_phase_result_fn(1, 'data_completeness', 'success',
                                        f"All critical tables >95% complete: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}%")
@@ -1822,12 +1835,15 @@ def run(
             logger.warning(f"[{_phase1_correlation_id}] Data stale detected, will trigger loader: {stale_items}")
 
             # ISSUE #11 FIX: Pipeline Overlap Detection
-            # Check if EOD loaders are still running from yesterday
+            # ISSUE #4 FIX: Pipeline Overlap Detection with RDS Connection Pool Monitoring
+            # Check if EOD loaders are still running when morning prep needs to run.
+            # Morning prep (2:45 AM): stock_prices_daily → technical_data_daily → buy_sell_daily
+            # If EOD loaders still running: both pipelines compete for RDS Proxy connections
             try:
                 with DatabaseContext('read') as _overlap_cur:
                     _overlap_cur.execute("""
                         SELECT COUNT(*), MAX(last_updated) FROM data_loader_status
-                        WHERE status = 'RUNNING' AND table_name IN ('price_daily', 'technical_data_daily')
+                        WHERE status = 'RUNNING' AND table_name IN ('price_daily', 'technical_data_daily', 'market_health_daily')
                     """)
                     overlap_result = _overlap_cur.fetchone()
                     running_count = overlap_result[0] if overlap_result else 0
@@ -1835,10 +1851,26 @@ def run(
 
                     if running_count > 0 and last_update:
                         elapsed_minutes = (datetime.now(timezone.utc) - last_update).total_seconds() / 60
-                        if elapsed_minutes > 90:
-                            logger.warning(f"[{_phase1_correlation_id}] [OVERLAP] {running_count} loaders running {elapsed_minutes:.0f}min - RDS pool risk (EOD overlap)")
+                        logger.warning(
+                            f"[{_phase1_correlation_id}] [PIPELINE_OVERLAP] {running_count} core loaders still RUNNING (updated {elapsed_minutes:.0f}min ago). "
+                            f"Morning prep now starting with failsafe. RDS Proxy risk: "
+                            f"6 parallel loaders × 2-4 parallelism = 48+ connection requests vs 30 pooled connections."
+                        )
+                        if elapsed_minutes > 60:
+                            logger.critical(
+                                f"[{_phase1_correlation_id}] [PIPELINE_OVERLAP] CRITICAL: EOD loaders running >60min when morning prep triggered. "
+                                f"Both pipelines competing for RDS Proxy. May exceed 120s borrow timeout → connection errors → cascading failures."
+                            )
+                            alerts.send_position_alert(
+                                'SYSTEM',
+                                'PIPELINE_OVERLAP_RDS_RISK',
+                                f'Pipeline overlap: {running_count} EOD loaders running {elapsed_minutes:.0f}min. '
+                                f'Morning prep starting now — RDS Proxy connection pool at risk (30 pooled vs 48+ requested). '
+                                f'Monitor CloudWatch RDS DatabaseConnections metric. May exceed 120s borrow timeout.',
+                                {'running_loaders': running_count, 'elapsed_minutes': elapsed_minutes}
+                            )
             except Exception as e:
-                logger.debug(f"[{_phase1_correlation_id}] [OVERLAP] Check failed: {e}")
+                logger.debug(f"[{_phase1_correlation_id}] [PIPELINE_OVERLAP] Check failed: {e} (continuing)")
 
             # ISSUE #15 FIX: Data Age Blocking
             # Check if source data is too old and block trading if so
