@@ -700,7 +700,6 @@ resource "aws_lambda_function" "loader_failure_handler" {
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
   timeout          = 60
-  source_code_hash = filebase64(filesha256("lambda/loader_failure_handler.zip"))
 
   environment {
     variables = {
