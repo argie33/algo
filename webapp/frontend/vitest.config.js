@@ -26,6 +26,8 @@ export default defineConfig({
       "@": resolve(__dirname, "src"),
       "aws-amplify": resolve(__dirname, "src/aws-amplify-mock"),
       "aws-amplify/auth": resolve(__dirname, "src/aws-amplify-mock/auth"),
+      "@mui/material/styles": resolve(__dirname, "node_modules/@mui/material/styles/index.js"),
     },
+    conditions: ["import", "require", "default"],
   },
 });

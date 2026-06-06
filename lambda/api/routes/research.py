@@ -13,6 +13,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             if path == '/api/research/backtests' or path.startswith('/api/research/backtests?'):
                 limit_str = params.get('limit', [None])[0] if params else None
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
+                cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 cur.execute("""
                     SELECT run_id, strategy_name, start_date AS date_start, end_date AS date_end,
                            total_return AS total_return_pct, sharpe_ratio AS sharpe,
@@ -31,6 +32,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 except ValueError:
                     return error_response(400, 'bad_request', 'Run ID must be numeric')
 
+                cur.execute("SET LOCAL statement_timeout = '8000ms'")
                 cur.execute("""
                     SELECT run_id, strategy_name, start_date AS date_start, end_date AS date_end,
                            total_return AS total_return_pct, sharpe_ratio AS sharpe_annualized,
@@ -51,6 +53,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 limit = safe_limit(limit_str, max_val=50000, default=50000)
                 offset = safe_offset(offset_str)
 
+                cur.execute("SET LOCAL statement_timeout = '6000ms'")
                 cur.execute("""
                     SELECT trade_id, symbol, NULL AS signal_date, entry_date, entry_price,
                            quantity AS entry_quantity, exit_date, exit_price,
@@ -63,6 +66,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """, (run_id_int, limit, offset))
                 trades = cur.fetchall()
 
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute("""
                     SELECT COUNT(*) FROM backtest_trades WHERE run_id = %s
                 """, (run_id_int,))

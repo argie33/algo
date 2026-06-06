@@ -89,6 +89,7 @@ def _get_loader_status(cur) -> Dict:
         with the table's current row count and latest watermark date.
         """
         try:
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")
             cur.execute("""
                 SELECT
                     table_name,
@@ -156,6 +157,7 @@ def _get_system_health(cur) -> Dict:
         """Get overall system health status."""
         try:
             health_data = {'status': 'healthy', 'components': {}}
+            cur.execute("SET LOCAL statement_timeout = '3000ms'")
 
             try:
                 cur.execute("SELECT 1")
@@ -215,6 +217,7 @@ def _get_database_stats(cur) -> Dict:
         """Get database statistics (schema-safe version - no table name exposure)."""
         try:
             stats = {}
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")
 
             # Count active connections without exposing table structure
             cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'")
@@ -244,6 +247,7 @@ def _get_data_quality(cur) -> Dict:
         """Get data quality metrics."""
         try:
             quality = {'timestamp': datetime.now(timezone.utc).isoformat(), 'checks': {}}
+            cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
             cur.execute("""
                 SELECT COUNT(*) FROM price_daily

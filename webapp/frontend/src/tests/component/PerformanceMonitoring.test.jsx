@@ -559,7 +559,7 @@ describe("Performance Monitoring Tests", () => {
             {apiMetrics.map((metric, index) => (
               <div key={index} data-testid={`api-metric-${index}`}>
                 {metric.endpoint}: {metric.responseTime}ms
-                {metric.success ? " ✓" : " ✗"}
+                {metric.success ? " [OK]" : " [FAIL]"}
               </div>
             ))}
           </div>

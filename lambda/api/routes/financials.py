@@ -20,6 +20,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=40, default=8)
 
         if endpoint == 'key-metrics':
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")
             cur.execute("""
                 SELECT
                     vm.symbol,
@@ -52,6 +53,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
 
         if endpoint == 'income-statement':
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")
             if period == 'quarterly':
                 cur.execute(psycopg2.sql.SQL("""
                     SELECT * FROM quarterly_income_statement
@@ -66,6 +68,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'balance-sheet':
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")
             if period == 'quarterly':
                 cur.execute(psycopg2.sql.SQL("""
                     SELECT * FROM quarterly_balance_sheet

@@ -50,6 +50,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     args.append(status_filter)
                 query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
                 args.extend([limit, offset])
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute(query, args)
                 trades = cur.fetchall()
                 # Count total trades
@@ -58,6 +59,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 if status_filter:
                     count_query += " AND status = %s"
                     count_args.append(status_filter)
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute(count_query, count_args)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
                 freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
@@ -65,6 +67,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             elif path == '/api/trades/summary':
                 if not _check_admin_access(jwt_claims):
                     return error_response(403, 'forbidden', 'Admin access required')
+                cur.execute("SET LOCAL statement_timeout = '4000ms'")
                 cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
