@@ -33,6 +33,29 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
+// Mock localStorage and sessionStorage
+const storageMock = () => {
+  const store = {};
+  return {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => { store[key] = value.toString(); },
+    removeItem: (key) => { delete store[key]; },
+    clear: () => { Object.keys(store).forEach(key => delete store[key]); },
+    key: (index) => Object.keys(store)[index] || null,
+    get length() { return Object.keys(store).length; },
+  };
+};
+
+Object.defineProperty(window, 'localStorage', {
+  value: storageMock(),
+  writable: true,
+});
+
+Object.defineProperty(window, 'sessionStorage', {
+  value: storageMock(),
+  writable: true,
+});
+
 // Mock environment variables
 process.env.VITE_API_URL = "http://localhost:3001";
 process.env.NODE_ENV = "test";
