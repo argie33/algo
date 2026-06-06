@@ -95,7 +95,7 @@ export default defineConfig(({ mode }) => {
         "prop-types",
         "hoist-non-react-statics"
       ],
-      exclude: ["@aws-amplify/auth", "aws-amplify"],
+      exclude: ["@aws-amplify/auth", "aws-amplify", "lucide-react"],
       esbuildOptions: {
         loader: {
           ".js": "jsx",
