@@ -93,20 +93,28 @@ def _handle_basic(cur) -> Dict:
         # Overall system status based on component health
         has_critical = False
         has_warning = False
+        degradation_reasons = []
 
         if health.get('rds_connection_pool', {}).get('status') == 'CRITICAL':
             has_critical = True
+            degradation_reasons.append(f"RDS pool at {health['rds_connection_pool'].get('utilization_percent', 0)}%")
         elif health.get('rds_connection_pool', {}).get('status') == 'WARNING':
             has_warning = True
 
         if health.get('freshness', {}).get('status') == 'STALE':
             has_critical = True
+            degradation_reasons.append(f"Data {health['freshness'].get('oldest_data_age_days', 0):.1f}d stale")
         elif health.get('freshness', {}).get('status') == 'WARNING':
             has_warning = True
 
         if has_critical:
             health['status'] = 'degraded'
-        elif has_warning:
+            health['degraded_mode_active'] = True
+            health['degradation_reason'] = ' | '.join(degradation_reasons) if degradation_reasons else 'System degraded'
+        else:
+            health['degraded_mode_active'] = False
+
+        if has_warning and not has_critical:
             health['status'] = 'warning'
 
         return success_response(health)
