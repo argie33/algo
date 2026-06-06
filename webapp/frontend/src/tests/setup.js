@@ -113,11 +113,15 @@ vi.mock("../services/tokenManager", () => ({
 // Mock sessionManager
 vi.mock("../services/sessionManager", () => ({
   default: {
-    startWarningTimer: vi.fn(),
-    stopWarningTimer: vi.fn(),
+    initialize: vi.fn(),
+    setCallbacks: vi.fn(),
+    startSession: vi.fn(),
+    endSession: vi.fn(),
+    startTokenRefreshTimer: vi.fn(),
+    scheduleWarningAfterRefreshFailure: vi.fn(),
     extendSession: vi.fn(),
-    onSessionWarning: vi.fn((cb) => cb),
-    onSessionExpired: vi.fn((cb) => cb),
+    clearAllTimers: vi.fn(),
+    getSessionInfo: vi.fn(),
   },
 }));
 

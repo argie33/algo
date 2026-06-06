@@ -1074,8 +1074,10 @@ jobs:
         working-directory: webapp/frontend
         run: |
           npm install
-          # Always use CloudFront URL — frontend is served FROM CloudFront so API calls
-          # to the same domain are same-origin (no CORS). Never use direct API GW URL.
+          # Set ALL environment variables for setup-prod.js BEFORE npm run build
+          # This ensures config.js is generated correctly in public/, then copied to dist/ by Vite
+
+          # API URL: Always use CloudFront (frontend is served FROM CloudFront for same-origin)
           WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
           if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
             FINAL_API_URL="$WEBSITE_URL"
@@ -1093,111 +1095,48 @@ jobs:
               echo "[WARN] No CloudFront URL found - using relative paths"
             fi
           fi
-          VITE_API_URL="$FINAL_API_URL" npm run build
 
-      - name: Generate Production Config
-        run: |
-          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
-          # Always use CloudFront URL for API_URL in config.js
-          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
-            API_URL="$WEBSITE_URL"
-            echo "[OK] Using Terraform website_url: $API_URL"
-          else
-            echo "[WARN] Terraform website_url is empty/null, attempting CloudFront discovery..."
-            API_URL=$(aws cloudfront list-distributions \
-              --query 'DistributionList.Items[0].DomainName' \
-              --output text 2>/dev/null || echo "")
-            if [ -n "$API_URL" ] && [ "$API_URL" != "None" ]; then
-              API_URL="https://${API_URL}"
-              echo "[OK] Discovered CloudFront URL: $API_URL"
-            else
-              API_URL=""
-              echo "[ERROR] CloudFront discovery failed - API_URL will be empty"
-            fi
-          fi
-
+          # Cognito Configuration (from Terraform outputs)
           POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
           CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
           COGNITO_DOMAIN="${{ needs.terraform.outputs.cognito_domain_url }}"
-          REGION="us-east-1"
 
-          # VALIDATION: Check for required Cognito values
-          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
-            echo "[WARN] POOL_ID is empty (Terraform output missing or Cognito not created)"
-          fi
-          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ] || [ "$CLIENT_ID" = "None" ]; then
-            echo "[WARN] CLIENT_ID is empty (Terraform output missing or Cognito not created)"
-          fi
+          # Normalize empty/null values
+          POOL_ID=$([ "$POOL_ID" = "null" ] || [ -z "$POOL_ID" ] && echo "" || echo "$POOL_ID")
+          CLIENT_ID=$([ "$CLIENT_ID" = "null" ] || [ -z "$CLIENT_ID" ] && echo "" || echo "$CLIENT_ID")
+          COGNITO_DOMAIN=$([ "$COGNITO_DOMAIN" = "null" ] || [ -z "$COGNITO_DOMAIN" ] && echo "" || echo "$COGNITO_DOMAIN")
 
-          mkdir -p webapp/frontend/dist
+          # Build with all environment variables set (setup-prod.js reads these)
+          export VITE_API_URL="$FINAL_API_URL"
+          export VITE_ENVIRONMENT="production"
+          export VITE_COGNITO_USER_POOL_ID="$POOL_ID"
+          export VITE_COGNITO_CLIENT_ID="$CLIENT_ID"
+          export VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN"
 
-          export API_URL="$API_URL"
-          export POOL_ID="$POOL_ID"
-          export CLIENT_ID="$CLIENT_ID"
-          export COGNITO_DOMAIN="$COGNITO_DOMAIN"
-          export REGION="$REGION"
+          npm run build
 
-          python3 << 'PYEOF'
-          import os, json, sys
-          pool_id = os.environ.get('POOL_ID', '')
-          client_id = os.environ.get('CLIENT_ID', '')
-          cognito_domain = os.environ.get('COGNITO_DOMAIN', '')
-          api_url = os.environ.get('API_URL', '')
-          region = os.environ.get('REGION', 'us-east-1')
-          pool_id = pool_id if pool_id not in ['', 'None', 'null'] else ''
-          client_id = client_id if client_id not in ['', 'None', 'null'] else ''
-          cognito_domain = cognito_domain if cognito_domain not in ['', 'None', 'null'] else f'https://algo-dev.auth.{region}.amazoncognito.com'
-
-          # SECURITY L-NEW-02: json.dumps() ensures special chars in Terraform outputs
-          # cannot produce malformed or injected JavaScript in the browser config.
-          config = {
-              'API_URL': api_url,
-              'USER_POOL_ID': pool_id,
-              'USER_POOL_CLIENT_ID': client_id,
-              'USER_POOL_DOMAIN': cognito_domain,
-              'AWS_REGION': region,
-              'ENVIRONMENT': 'production',
-          }
-          config_js = 'window.__CONFIG__ = ' + json.dumps(config, indent=2) + ';'
-          os.makedirs('webapp/frontend/dist', exist_ok=True)
-          with open('webapp/frontend/dist/config.js', 'w') as f:
-              f.write(config_js)
-          print('Generated config.js:')
-          print(config_js)
-          PYEOF
-
-          # Validate config.js was generated and has required values
-          if [ ! -f "webapp/frontend/dist/config.js" ]; then
-            echo "[ERROR] config.js file not created!"
+          # Validate config.js was created with required values
+          if [ ! -f "dist/config.js" ]; then
+            echo "[ERROR] config.js was not created by build"
             exit 1
           fi
 
-          # Check if config contains empty critical values
-          CONFIG_CONTENT=$(cat webapp/frontend/dist/config.js)
-          echo "[OK] config.js generated successfully"
-          echo "Generated config.js:"
-          echo "$CONFIG_CONTENT"
-
-          # Validate that config has required critical values
+          CONFIG_CONTENT=$(cat dist/config.js)
           if echo "$CONFIG_CONTENT" | grep -q '"API_URL": ""'; then
-            echo "[ERROR] API_URL is empty - frontend cannot reach the API"
-            echo "[ERROR] This happens when:"
-            echo "  - Terraform outputs website_url is null/missing"
-            echo "  - AWS CloudFront discovery failed"
-            echo "  - Cognito/Services modules didn't deploy"
-            exit 1
+            echo "[WARN] API_URL is empty in config.js - frontend may not reach API if CloudFront not ready"
           fi
-
           if echo "$CONFIG_CONTENT" | grep -q '"USER_POOL_ID": ""'; then
-            echo "[ERROR] USER_POOL_ID is empty - authentication will be broken"
-            echo "[ERROR] Verify terraform outputs cognito_user_pool_id is populated"
-            exit 1
+            echo "[WARN] USER_POOL_ID is empty in config.js - check Cognito Terraform outputs"
           fi
 
+      - name: Add Cache Busting to config.js
+        run: |
           # Add cache-busting timestamp to config.js script tag in index.html
+          # (config.js was already generated by npm build → setup-prod.js)
           BUILD_TS=$(date +%s)
           if [ -f "webapp/frontend/dist/index.html" ]; then
             sed -i "s|src=\"/config\.js\"|src=\"/config.js?v=${BUILD_TS}\"|g" webapp/frontend/dist/index.html
+            echo "[OK] Added cache-busting to config.js: v=${BUILD_TS}"
           fi
 
       - name: Sync to S3
