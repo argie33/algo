@@ -225,14 +225,7 @@ resource "aws_db_proxy" "main" {
   # Connection pooling multiplexes client connections to RDS database
   # 24 concurrent loaders (48-96 direct connections) → 20-30 persistent RDS connections
   # Reduces latency by 10-20ms per query (connection reuse vs TCP handshake)
-  max_connections           = var.rds_proxy_max_connections           # 500 (matches RDS max)
-  max_idle_connections      = var.rds_proxy_max_idle_connections      # 250 (50% of max)
-  connection_borrow_timeout = var.rds_proxy_connection_borrow_timeout # 120s
-  session_pinning_filters   = ["EXCLUDE_VARIABLE_SETS"]               # Allow statement caching/reuse
-  require_tls               = false
-
-  # Optional init query to track connections
-  init_query = var.rds_proxy_init_query != "" ? var.rds_proxy_init_query : null
+  require_tls = false
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-rds-proxy"
