@@ -462,10 +462,11 @@ resource "aws_cloudfront_distribution" "frontend" {
     viewer_protocol_policy = "redirect-to-https"
   }
 
-  # SPA error responses — redirect 403/404 to index.html for client-side routing.
+  # SPA error responses — redirect 403/404 to index.html for client-side routing (S3 origin only).
   # error_caching_min_ttl = 300: CloudFront caches the rewritten 200+index.html for 5 minutes
   # so hard reloads to /dashboard, /signals etc. hit the edge cache instead of re-fetching
   # from S3 origin (which returns 403 for every non-root SPA path).
+  # NOTE: These only apply to S3Frontend requests (non-/api/* paths). API Gateway errors pass through.
   custom_error_response {
     error_code            = 403
     response_code         = 200
