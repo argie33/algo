@@ -8,23 +8,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 
-// Get parameters from command line - NO HARDCODED DEFAULTS
-const apiUrl = process.argv[2];
+// Get parameters from command line (preferred) or environment variables (CI/CD friendly)
+const apiUrl = process.argv[2] || process.env.VITE_API_URL || "";
 if (!apiUrl) {
   console.error("❌ Error: API URL is required");
   console.error(
     "Usage: node setup-prod.js <API_URL> [environment] [userPoolId] [clientId] [cognitoDomain] [cloudfrontUrl]"
   );
+  console.error("Or set environment variables: VITE_API_URL, VITE_ENVIRONMENT, VITE_COGNITO_USER_POOL_ID, etc.");
   console.error(
     "Example: node setup-prod.js https://your-api-id.execute-api.us-east-1.amazonaws.com/dev production"
   );
   process.exit(1);
 }
-const environment = process.argv[3] || "production";
-const userPoolId = process.argv[4] || "";
-const clientId = process.argv[5] || "";
-const cognitoDomain = process.argv[6] || "";
-const cloudfrontUrl = process.argv[7] || "";
+const environment = process.argv[3] || process.env.VITE_ENVIRONMENT || "production";
+const userPoolId = process.argv[4] || process.env.VITE_COGNITO_USER_POOL_ID || "";
+const clientId = process.argv[5] || process.env.VITE_COGNITO_CLIENT_ID || "";
+const cognitoDomain = process.argv[6] || process.env.VITE_COGNITO_DOMAIN || "";
+const cloudfrontUrl = process.argv[7] || process.env.VITE_CLOUDFRONT_DOMAIN || "";
 
 // Create environment configuration
 const prodConfig = {
