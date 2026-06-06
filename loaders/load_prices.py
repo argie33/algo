@@ -342,7 +342,7 @@ class PriceLoader(OptimalLoader):
             f"Aborting to avoid stale price data. Phase 1 will trigger failsafe when data becomes available. "
             f"Check yfinance API status and RDS connection pool health."
         )
-        logger.error(f"[MARKET_CLOSE] ✗ {error_msg}")
+        logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] ✗ {error_msg}")
         raise RuntimeError(error_msg)
 
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
@@ -837,8 +837,8 @@ class PriceLoader(OptimalLoader):
         symbols = list(symbols)
         mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
         logger.info(
-            "[%s] Starting batch load: %d symbols (batch_size=%d, concurrency=%d)%s",
-            self.table_name, len(symbols), self.batch_size, parallelism, mode,
+            "[%s] [%s] Starting batch load: %d symbols (batch_size=%d, concurrency=%d)%s",
+            self._correlation_id, self.table_name, len(symbols), self.batch_size, parallelism, mode,
         )
 
         # Market close detection: For 1d interval near 4 PM ET, ensure yfinance has close data
@@ -853,7 +853,7 @@ class PriceLoader(OptimalLoader):
                 logger.debug("[MARKET_CLOSE] ✓ Market close data available, proceeding with load")
             except RuntimeError as market_close_err:
                 # Market close check timed out - log failure and return empty
-                logger.error(f"[MARKET_CLOSE] Loader aborting: {str(market_close_err)}")
+                logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] Loader aborting: {str(market_close_err)}")
                 try:
                     from algo.algo_metrics import MetricsPublisher
                     m = MetricsPublisher()
@@ -1009,9 +1009,9 @@ class PriceLoader(OptimalLoader):
             self._stats["rate_limit_error_duration_sec"] = 0
 
         logger.info(
-            "[%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
+            "[%s] [%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
             "(processed=%d skipped_wm=%d failed=%d) %.1fs sources=%s rate_limit_errors=%d",
-            self.table_name,
+            self._correlation_id, self.table_name,
             self._stats["rows_fetched"],
             self._stats["rows_dedup_skipped"],
             self._stats["rows_quality_dropped"],

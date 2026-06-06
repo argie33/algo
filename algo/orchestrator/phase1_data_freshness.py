@@ -1543,6 +1543,7 @@ def run(
         # ISSUE #10 FIX: Before using cache, verify database is truly unreachable
         # This prevents using stale cache after database comes back online
         database_available = False
+        database_recovered = False  # ISSUE #10 FIX: Track if database just came back online
         try:
             # Quick connectivity check: single fast query to see if database is responsive
             # Use very short timeout (2s) to fail fast if DB is still down
@@ -1550,6 +1551,23 @@ def run(
                 db_check_cur.execute("SET statement_timeout = 2000")  # 2s max
                 db_check_cur.execute("SELECT 1")
                 database_available = True
+
+                # Check if we had cached data from when database was down (database recovery detection)
+                # If cache exists and database just came back, cache may be stale/poisoned
+                cache_created_when_db_was_down = False
+                try:
+                    # If cache has 'database_was_down_when_created' flag, it's from outage
+                    import boto3
+                    dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                    cache_table = dynamodb.Table(os.getenv('CACHE_TABLE', 'algo_phase1_cache'))
+                    cache_check = cache_table.get_item(Key={'cache_key': cache_key})
+                    if 'Item' in cache_check and cache_check['Item'].get('database_was_down_when_created'):
+                        cache_created_when_db_was_down = True
+                        logger.warning(f"[DATABASE RECOVERY] Database came back online! Cache was written during outage. Forcing refresh.")
+                        database_recovered = True
+                except Exception:
+                    pass
+
                 logger.debug("[DATABASE CHECK] ✓ Database is responsive")
         except Exception as db_check_err:
             logger.debug(f"[DATABASE CHECK] Database unreachable ({db_check_err}), may use cache fallback")
