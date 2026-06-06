@@ -16,7 +16,7 @@ import json
 import logging
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, Any
-from .utils import error_response, execute_with_timeout
+from .utils import error_response, execute_with_timeout, success_response, json_response
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else 0
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else 0
 
-        return {
+        return success_response({
             'total_symbols': total_symbols,
             'sp500_target': sp500_total,
             'coverage_pct': round(total_symbols / sp500_total * 100, 1) if sp500_total else 0,
@@ -56,7 +56,7 @@ def get_price_coverage(cur) -> Dict[str, Any]:
                 'zero_volume_pct': round(zero_vol_pct, 2),
                 'invalid_price_pct': round(invalid_pct, 2)
             }
-        }
+        })
     except Exception as e:
         return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
@@ -85,7 +85,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
 
         min_coverage = min(rsi_cov, ema_cov, atr_cov) if None not in (rsi_cov, ema_cov, atr_cov) else 0
 
-        return {
+        return success_response({
             'symbols_with_technicals': symbols,
             'latest_date': str(latest_date),
             'indicator_coverage': {
@@ -96,7 +96,7 @@ def get_technical_coverage(cur) -> Dict[str, Any]:
             },
             'incomplete_rows': incomplete,
             'status': 'complete' if min_coverage >= 0.95 else 'incomplete'
-        }
+        })
     except Exception as e:
         return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
@@ -124,7 +124,7 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
 
         econ_date, econ_count = cur.fetchone()
 
-        return {
+        return success_response({
             'market_health': {
                 'latest_date': str(mh_date),
                 'days_stale': (_date.today() - mh_date).days if mh_date else 999,
@@ -136,7 +136,7 @@ def get_market_data_coverage(cur) -> Dict[str, Any]:
                 'indicators_tracked': econ_count,
                 'status': 'available' if econ_count > 0 else 'missing'
             }
-        }
+        })
     except Exception as e:
         return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
 
@@ -162,12 +162,12 @@ def get_loader_health(cur) -> Dict[str, Any]:
             stale_loaders = [
                 row[0] for row in rows if row[1] in ('stale', 'error') or row[1] is None
             ]
-            return {
+            return success_response({
                 'total_tracked': len(rows),
                 'stale_loaders': list(set(stale_loaders)),
                 'stale_count': len(set(stale_loaders)),
                 'status': 'healthy' if not stale_loaders else 'degraded'
-            }
+            })
 
         # Fallback: if patrol data is missing/stale, check key tables directly
         tables_to_check = [
@@ -198,13 +198,13 @@ def get_loader_health(cur) -> Dict[str, Any]:
                 pass
 
         stale_loaders = [t[0] for t in table_health if t[1] == 'stale']
-        return {
+        return success_response({
             'total_tracked': len(table_health),
             'stale_loaders': stale_loaders,
             'stale_count': len(stale_loaders),
             'status': 'healthy' if not stale_loaders else 'degraded',
             'source': 'patrol' if rows else 'table_check'
-        }
+        })
     except Exception as e:
         raise Exception(f'Failed to retrieve loader health: {e}')
 
@@ -285,10 +285,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
     try:
         summary = get_overall_coverage_summary(cur)
         # Return data wrapped in standard response format
-        return {
-            'statusCode': 200,
-            'data': summary
-        }
+        return json_response(200, summary)
     except Exception as e:
         logger.error(f"Data coverage check error: {e}", exc_info=True)
         return error_response(500, 'data_coverage_error', 'Data coverage check failed')
