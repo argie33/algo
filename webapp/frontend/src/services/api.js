@@ -401,15 +401,16 @@ export const getMarketTechnicals = async () => {
 };
 
 export const getMarketSentimentData = async (range = "1d") => {
+  const cacheKey = `market_sentiment_${range}`;
   try {
     const response = await api.get(`/api/market/sentiment?range=${range}`);
     const normalized = extractData(response);
     if (normalized && normalized.statusCode !== 400) {
-      dataCache.set("market_sentiment", normalized, { ttl: 10 * 60 * 1000 });
+      dataCache.set(cacheKey, normalized, { ttl: 10 * 60 * 1000 });
     }
     return normalized;
   } catch (error) {
-    return handleApiError(error, "market_sentiment", { data: { sentiment: 0.5 } }, "fetch market sentiment");
+    return handleApiError(error, cacheKey, { data: { sentiment: 0.5 } }, "fetch market sentiment");
   }
 };
 
@@ -424,10 +425,15 @@ export const getMarketSeasonalityData = async () => {
 };
 
 export const getMarketCorrelation = async (symbols = null) => {
+  const cacheKey = symbols ? `market_correlation_${symbols}` : "market_correlation";
   try {
     const params = symbols ? `?symbols=${symbols}` : "";
     const response = await api.get(`/api/market/correlation${params}`);
-    return extractData(response);
+    const normalized = extractData(response);
+    if (normalized && normalized.statusCode !== 400) {
+      dataCache.set(cacheKey, normalized, { ttl: 10 * 60 * 1000 });
+    }
+    return normalized;
   } catch (error) {
     console.error("Error fetching market correlation:", error);
     return { statusCode: 400, data: {}, error: error.message };
@@ -471,6 +477,7 @@ export const getMarketCapDistribution = async () => {
 export const getStocks = async (params = {}) => {
   try {
     const queryStr = new URLSearchParams(params).toString();
+    const cacheKey = queryStr ? `stocks_${queryStr}` : "stocks";
     const url = queryStr ? `/api/stocks?${queryStr}` : "/api/stocks";
     const response = await api.get(url);
     // Normalize response envelope to consistent structure
@@ -489,11 +496,13 @@ export const getStocks = async (params = {}) => {
 
     // Cache normalized, transformed data
     if (transformedData.items?.length > 0) {
-      dataCache.set("stocks", transformedData, { ttl: 5 * 60 * 1000 });
+      dataCache.set(cacheKey, transformedData, { ttl: 5 * 60 * 1000 });
     }
     return transformedData;
   } catch (error) {
-    const cached = await dataCache.get("stocks");
+    const queryStr = new URLSearchParams(params).toString();
+    const cacheKey = queryStr ? `stocks_${queryStr}` : "stocks";
+    const cached = await dataCache.get(cacheKey);
     if (cached) {
       console.debug("[API] Using cached stocks data due to error");
       return { statusCode: 200, ...cached, fromCache: true, error: error.message };
