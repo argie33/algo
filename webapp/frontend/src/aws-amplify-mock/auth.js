@@ -11,40 +11,40 @@ export const fetchAuthSession = async () => ({
   userSub: 'mock-user-sub',
 });
 
-export const signIn = async ({ username, password }) => ({
+export const signIn = async ({ _username, _password }) => ({
   isSignedIn: true,
   nextStep: { signInStep: 'DONE' },
 });
 
-export const signUp = async (params) => ({
+export const signUp = async (_params) => ({
   isSignUpComplete: false,
   userId: 'mock-user-id',
   nextStep: { signUpStep: 'CONFIRM_SIGN_UP', codeDeliveryDetails: {} },
 });
 
-export const confirmSignUp = async (params) => ({
+export const confirmSignUp = async (_params) => ({
   isSignUpComplete: true,
   nextStep: { signUpStep: 'DONE' },
 });
 
-export const resendSignUpCode = async (params) => ({
-  destination: params.username,
+export const resendSignUpCode = async (_params) => ({
+  destination: _params.username,
   deliveryMedium: 'EMAIL',
   attributeName: 'email',
 });
 
 export const signOut = async () => {};
 
-export const resetPassword = async (params) => ({
+export const resetPassword = async (_params) => ({
   isPasswordReset: false,
   nextStep: { resetPasswordStep: 'CONFIRM_RESET_PASSWORD_WITH_CODE', codeDeliveryDetails: {} },
 });
 
-export const confirmResetPassword = async (params) => {};
+export const confirmResetPassword = async (_params) => {};
 
 export const getCurrentUser = async () => mockUser;
 
-export const confirmSignIn = async (params) => ({
+export const confirmSignIn = async (_params) => ({
   isSignedIn: true,
   nextStep: { signInStep: 'DONE' },
 });

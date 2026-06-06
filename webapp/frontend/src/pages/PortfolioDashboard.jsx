@@ -93,7 +93,7 @@ const formatErrorDetail = (err, context) => {
 function PortfolioDashboardPage() {
   const navigate = useNavigate();
 
-  const { data: status, loading: statusLoading, error: statusError, refetch: refetchStatus } = useApiQuery(
+  const { data: status, loading: _statusLoading, error: statusError, refetch: refetchStatus } = useApiQuery(
     ['algo-status'],
     () => api.get('/api/algo/status'),
     { refetchInterval: 60000 }
@@ -103,7 +103,7 @@ function PortfolioDashboardPage() {
     () => api.get('/api/algo/positions'),
     { refetchInterval: 60000 }
   );
-  const { data: perf, loading: perfLoading, error: perfError, refetch: refetchPerf } = useApiQuery(
+  const { data: perf, loading: _perfLoading, error: perfError, refetch: refetchPerf } = useApiQuery(
     ['algo-performance'],
     () => api.get('/api/algo/performance'),
     { refetchInterval: 60000 }
@@ -113,7 +113,7 @@ function PortfolioDashboardPage() {
     () => api.get('/api/algo/trades?limit=200'),
     { refetchInterval: 60000 }
   );
-  const { data: markets, loading: marketsLoading, error: marketsError, refetch: refetchMarkets } = useApiQuery(
+  const { data: markets, loading: _marketsLoading, error: marketsError, refetch: refetchMarkets } = useApiQuery(
     ['algo-markets'],
     () => api.get('/api/algo/markets'),
     { refetchInterval: 60000 }

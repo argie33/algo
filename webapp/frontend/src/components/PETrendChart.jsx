@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
+import { _Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api";
 import { formatCurrency } from "../utils/formatters";

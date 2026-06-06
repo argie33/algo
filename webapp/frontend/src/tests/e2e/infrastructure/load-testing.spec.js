@@ -309,7 +309,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
           if (memory) {
             memoryReadings.push(memory);
             console.log(
-              `ðŸ§  Memory after ${route} (cycle ${cycle + 1}): ${memory.used}MB`
+              `[MEMORY] Memory after ${route} (cycle ${cycle + 1}): ${memory.used}MB`
             );
           }
         }

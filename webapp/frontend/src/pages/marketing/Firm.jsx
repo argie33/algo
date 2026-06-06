@@ -10,7 +10,7 @@ import {
   Lightbulb as LightbulbIcon,
   Groups as GroupsIcon,
   TrendingUp as TrendingUpIcon,
-  Handshake as HandshakeIcon,
+  Handshake as _HandshakeIcon,
 } from '@mui/icons-material';
 
 const Firm = () => {

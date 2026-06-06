@@ -16,8 +16,8 @@ import {
   Menu, Settings, LogOut, LogIn, X, Sun, Moon,
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, GitBranch,
-  HeartPulse, Zap, Crosshair, BarChart2,
-  Bot, Bell, FileText, Map, Cpu,
+  HeartPulse, Zap, Crosshair, _BarChart2,
+  Bot, Bell, FileText, Map, _Cpu,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';

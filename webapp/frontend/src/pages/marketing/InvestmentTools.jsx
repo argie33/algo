@@ -8,7 +8,7 @@ import {
   TrendingUp as TrendingUpIcon,
   Equalizer as EqualizerIcon,
   Event as EventIcon,
-  Business as BusinessIcon,
+  Business as _BusinessIcon,
   Psychology as PsychologyIcon,
   Timeline as TimelineIcon,
   Calculate as CalculateIcon,
