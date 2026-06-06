@@ -126,6 +126,38 @@ def _handle_basic(cur) -> Dict:
         elif health.get('freshness', {}).get('status') == 'WARNING':
             has_warning = True
 
+        # Check orchestrator halt flag (from DynamoDB)
+        try:
+            import boto3
+            import os
+            dynamodb = boto3.resource('dynamodb')
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+
+            response = table.get_item(Key={'key': 'orchestrator_halt'})
+            halt_flag_active = response.get('Item', {}).get('halt_flag', False) is True
+            health['orchestrator_halt_flag'] = halt_flag_active
+        except Exception as e:
+            logger.debug(f"Failed to check halt flag: {str(e)[:60]}")
+            health['orchestrator_halt_flag'] = None  # Unknown if DynamoDB unavailable
+
+        # Check last successful load time
+        try:
+            loader_status = execute_with_timeout(cur, """
+                SELECT MAX(last_updated) as latest_load_time
+                FROM data_loader_status
+                WHERE table_name IN ('stock_prices_daily', 'buy_sell_daily', 'signal_quality_scores')
+                AND status = 'success'
+            """, timeout_sec=3)
+
+            if loader_status and len(loader_status) > 0:
+                row = dict(loader_status[0])
+                last_load = row.get('latest_load_time')
+                if last_load:
+                    health['last_successful_load_time'] = last_load.isoformat() if hasattr(last_load, 'isoformat') else str(last_load)
+        except Exception as e:
+            logger.debug(f"Failed to get last load time: {str(e)[:60]}")
+
         if has_critical:
             health['status'] = 'degraded'
             health['degraded_mode_active'] = True
