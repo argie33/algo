@@ -52,6 +52,13 @@ If you need to rebuild the schema:
 - 2:45 AM ET: sp500/russell constituents (EventBridge) AND morning-prep-pipeline (Step Functions, advanced timing)
   - Morning pipeline: loads 1d prices (stock+etf), technicals, then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
   - Advanced from 4:30 AM to 2:45 AM (2026-06-05+) for timing margin: increases buffer from 35 min to 165 min
+  - **CRITICAL TIMING CONSTRAINT:** 2:45 AM start → 9:30 AM deadline = 6:45 (405 min) available
+    - **Loader execution time** (sequential at parallelism=1): stock_prices_daily (15 min) + technical_data_daily (90 min) + buy_sell_daily (30 min) + signal_quality_scores (30 min) + swing_trader_scores (30 min) = **195 min (3.25 h)**
+    - **Overhead** (ECS cold-start, RDS cache warm-up, per-task setup): ~35-60 min
+    - **Total realistic time**: 230-255 min (3.8-4.25 h)
+    - **Safety buffer**: 405 - 255 = 150 min (2.5 h) — adequate, but margin tight if any loader slows >50%
+    - **Early warning:** If any loader takes >2h, Phase 1 will not complete by 9:30 AM. Check ECS CPU metrics and RDS slow queries.
+    - **Remediation:** If morning pipeline lags >1h behind schedule (running past 5 AM), early 9:30 AM run will find stale data and trigger failsafe. Monitor CloudWatch logs for slowness patterns.
 - 4:05 PM ET: EOD pipeline (Step Functions, 9 core loaders) — loads all intervals (1d/1wk/1mo), signals, scores, orchestrator dry-run.
 - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
 
