@@ -1883,13 +1883,17 @@ def run(
             # CRITICAL FIX: If database is down AND cache is expired, HALT instead of hanging
             # Trying to query a down database will timeout and waste time. Better to fail fast.
             if not database_available:
-                logger.critical("[CACHE_DATABASE_BOTH_DOWN] Database unavailable AND cache expired/poisoned. "
-                              "Cannot proceed - both data sources offline. Halting.")
+                logger.critical(
+                    "[CACHE_DATABASE_BOTH_DOWN] CRITICAL: Both data sources unavailable. "
+                    "Database is offline (or very slow >5s timeout) AND cache is empty/poisoned. "
+                    "Cannot proceed - no way to check loader status. Must halt."
+                )
                 alerts.send_position_alert(
                     'DATA',
                     'CACHE_DATABASE_OFFLINE',
-                    'CRITICAL: Both DynamoDB cache and database unavailable. Cannot load loader status. Escalate for manual intervention.',
-                    {}
+                    'CRITICAL: Both DynamoDB cache and PostgreSQL database unavailable/unreachable. '
+                    'Cannot load loader status for any table. Cannot safely proceed. Manual intervention required.',
+                    {'data_sources': 'all offline', 'cache_available': False, 'database_available': False}
                 )
                 log_phase_result_fn(1, 'cache_database_offline', 'halt', 'Both cache and database unavailable')
                 return PhaseResult(1, 'cache_database_offline', 'halted', {}, True, 'Cannot load data - both cache and database offline')
@@ -2509,8 +2513,8 @@ def run(
 
             # ISSUE #15 FIX: Data Age Blocking
             # Check if source data is too old and block trading if so
-            if price_date and (run_date - price_date).days > 2:  # max_age_days from config
-                logger.error(f"[{_phase1_correlation_id}] [DATA_AGE] Source data {(run_date - price_date).days}d old (max 2d)")
+            if spy_date and (run_date - spy_date).days > 2:  # max_age_days from config
+                logger.error(f"[{_phase1_correlation_id}] [DATA_AGE] Source data {(run_date - spy_date).days}d old (max 2d)")
                 log_phase_result_fn(1, 'data_age_blocking', 'halt', 'Source data exceeds age threshold')
                 return PhaseResult(1, 'data_age_blocking', 'halted', {}, True, 'Source data exceeds age threshold')
 

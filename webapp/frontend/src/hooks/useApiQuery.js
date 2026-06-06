@@ -60,20 +60,26 @@ export const useApiQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors with generous retries for deployments/RDS restarts
-      // Allow up to 3 retries (4 total attempts) to handle 30+ second backend recovery times
-      if (status >= 500) return failureCount < 3;
+      // Retry on 5xx errors with GENEROUS retries for deployments/RDS restarts
+      // Allow up to 4 retries (5 total attempts) to handle 60+ second backend recovery during deployments
+      if (status >= 500) return failureCount < 4;
 
-      // Retry on network errors and timeouts (transient issues) with more attempts
-      // These often indicate backend is recovering, give it more chances
-      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
-        return failureCount < 4;
+      // Retry on network errors and timeouts (transient issues) with maximum attempts
+      // These often indicate backend is recovering, give it many chances before giving up
+      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
+        return failureCount < 5;
       }
 
       // Default: no retry for unknown errors
       return false;
     },
-    retryDelay: (attemptIndex) => Math.min(500 * Math.pow(2, attemptIndex), 5000),
+    retryDelay: (attemptIndex) => {
+      // Exponential backoff with max cap: 1s, 2s, 4s, 8s, 16s capped at 10s
+      // Total wait time: 1+2+4+8+16 = 31s for 5 retries (reasonable for deployment windows)
+      const baseWait = 1000 * Math.pow(2, attemptIndex);
+      const cappedWait = Math.min(baseWait, 10000);
+      return cappedWait;
+    },
     enabled,
     ...restOptions,
   });
@@ -151,20 +157,26 @@ export const useApiPaginatedQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors with generous retries for deployments/RDS restarts
-      // Allow up to 3 retries (4 total attempts) to handle 30+ second backend recovery times
-      if (status >= 500) return failureCount < 3;
+      // Retry on 5xx errors with GENEROUS retries for deployments/RDS restarts
+      // Allow up to 4 retries (5 total attempts) to handle 60+ second backend recovery during deployments
+      if (status >= 500) return failureCount < 4;
 
-      // Retry on network errors and timeouts (transient issues) with more attempts
-      // These often indicate backend is recovering, give it more chances
-      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
-        return failureCount < 4;
+      // Retry on network errors and timeouts (transient issues) with maximum attempts
+      // These often indicate backend is recovering, give it many chances before giving up
+      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
+        return failureCount < 5;
       }
 
       // Default: no retry for unknown errors
       return false;
     },
-    retryDelay: (attemptIndex) => Math.min(500 * Math.pow(2, attemptIndex), 5000),
+    retryDelay: (attemptIndex) => {
+      // Exponential backoff with max cap: 1s, 2s, 4s, 8s, 16s capped at 10s
+      // Total wait time: 1+2+4+8+16 = 31s for 5 retries (reasonable for deployment windows)
+      const baseWait = 1000 * Math.pow(2, attemptIndex);
+      const cappedWait = Math.min(baseWait, 10000);
+      return cappedWait;
+    },
     enabled,
     ...restOptions,
   });

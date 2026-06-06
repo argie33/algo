@@ -80,7 +80,7 @@ const CircuitBreaker = {
   lastFailureTime: 0,
   FAILURE_THRESHOLD: 15, // Open circuit after 15 failures (allows Lambda cold start + RDS recovery time)
   SUCCESS_THRESHOLD: 5, // Close circuit after 5 successes in half-open state
-  RECOVERY_TIMEOUT: 120000, // 120 seconds (2 min) before attempting recovery - matches RDS restart time
+  RECOVERY_TIMEOUT: 180000, // 180 seconds (3 min) before attempting recovery - matches typical RDS/Lambda restart time on deployments
 };
 
 const checkCircuitBreaker = () => {
@@ -180,14 +180,22 @@ if (typeof window !== "undefined" && !import.meta.env?.DEV) {
       clearInterval(configCheckInterval);
     }
   }, 50);  // Check every 50ms for faster response
-  // Wait up to 10 seconds (10000ms) for config.js to load before giving up
-  // main.jsx already handles config loading with proper timeout
+  // Wait up to 15 seconds (15000ms) for config.js to load before giving up
+  // Matches main.jsx config timeout for consistency. Longer timeout handles slow networks.
   setTimeout(() => {
     clearInterval(configCheckInterval);
     if (!currentConfig.baseURL || currentConfig.baseURL === '') {
-      console.error('[API Config] Config.js did not set API_URL. API will not function without valid baseURL. Check config.js exists and is loaded.');
+      const criticalError = '[CRITICAL] API Config not loaded after 15s. config.js may not have deployed or failed to execute. Check: (1) Network tab for config.js 404, (2) Browser console for syntax errors, (3) Browser DevTools → Application → Cache Storage for stale files';
+      console.error(criticalError);
+      // Warn about silent failures
+      if (typeof window !== "undefined" && window.location) {
+        // Log to a persistent location so we can see this in production
+        try {
+          sessionStorage.setItem('API_CONFIG_ERROR', criticalError);
+        } catch (e) {}
+      }
     }
-  }, 10000);  // 10 seconds timeout
+  }, 15000);  // 15 seconds timeout (increased from 10s)
 }
 
 // Token refresh management
