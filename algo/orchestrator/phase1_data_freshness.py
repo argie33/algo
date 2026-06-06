@@ -1772,6 +1772,25 @@ def run(
             logger.warning(f"Phase 1: Cache lookup failed ({cache_err}), will query fresh database instead of using cache")
 
         # Step 2: If cache miss, query database
+        # ISSUE #2 FIX: Before querying database, check if cache invalidation previously failed
+        # If cache is poisoned (invalidation_failed=true) and database is unavailable, HALT
+        # This prevents proceeding with stale data when the loader failed and cache is unreliable
+        cache_is_poisoned_and_db_down = False
+        if cache_invalidation_failure_flag and not database_available:
+            logger.critical("[CACHE_POISONED_DATABASE_DOWN] Cache invalidation previously FAILED (cache marked poisoned) "
+                          "AND database is unavailable. Cannot safely proceed - both data sources are unreliable. Halting.")
+            cache_is_poisoned_and_db_down = True
+            alerts.send_position_alert(
+                'DATA',
+                'CACHE_POISONED_DATABASE_OFFLINE',
+                'CRITICAL: Cache invalidation failed (cache may contain stale data) AND database unavailable. '
+                'Cannot load fresh loader status. Cannot safely proceed. Escalate for manual intervention.',
+                {'cache_poisoned': True, 'database_available': False}
+            )
+            log_phase_result_fn(1, 'cache_poisoned_database_offline', 'halt', 'Cache poisoned and database unavailable')
+            return PhaseResult(1, 'cache_poisoned_database_offline', 'halted', {}, True,
+                             'Cache invalidation previously failed (poisoned) AND database unavailable. Cannot proceed safely.')
+
         if not dates:
             # CRITICAL FIX: If database is down AND cache is expired, HALT instead of hanging
             # Trying to query a down database will timeout and waste time. Better to fail fast.
@@ -1834,55 +1853,57 @@ def run(
                 logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
 
         # Fall back to direct scan only for tables missing from data_loader_status.
-        # CRITICAL FIX: Use SERIALIZABLE isolation to ensure all table reads are at same point in time
+        # CRITICAL FIX: Use true SERIALIZABLE snapshot isolation to ensure all table reads are at the SAME point in time
         # This prevents race conditions where price_daily is fresh at t=0 but technical_data_daily becomes stale at t=5
-        # SERIALIZABLE = snapshot isolation + conflict detection = consistent view across all tables
+        # SERIALIZABLE REPEATABLE READ = true snapshot isolation (PostgreSQL: deferrable transactions)
         missing = [t for t in ('price_daily', 'market_health_daily', 'trend_template_data', 'technical_data_daily', 'buy_sell_daily') if t not in dates]
         if missing:
             atomic_query_failed = False
             try:
                 with DatabaseContext('read') as cur:
                     cur.execute("SET statement_timeout = 30000")  # 30s max for all queries
-                    # Use SERIALIZABLE isolation for true atomicity (not READ COMMITTED which is per-query)
-                    cur.execute("BEGIN ISOLATION LEVEL SERIALIZABLE")
+                    # ISSUE #1 & #6 FIX: Use true SERIALIZABLE REPEATABLE READ for snapshot isolation
+                    # This ensures all queries see the database as it was at transaction start time
+                    # PostgreSQL deferrable=true for read-only: optimal for consistency without deadlock
+                    cur.execute("BEGIN ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE")
+                    atomic_transaction_started = True
                     try:
+                        table_results = {}
                         for table in missing:
-                            try:
-                                cur.execute("SAVEPOINT scan")
-                                if table == 'price_daily':
+                            if table == 'price_daily':
+                                cur.execute(
+                                    "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
+                                )
+                                row = cur.fetchone()
+                                if not row:
                                     cur.execute(
-                                        "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
+                                        "SELECT date FROM etf_price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
                                     )
                                     row = cur.fetchone()
-                                    if not row:
-                                        cur.execute(
-                                            "SELECT date FROM etf_price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
-                                        )
-                                        row = cur.fetchone()
-                                elif table in ('technical_data_daily', 'buy_sell_daily'):
-                                    cur.execute(f"SELECT MAX(date) FROM {table}")
-                                    row = cur.fetchone()
-                                else:
-                                    cur.execute(f"SELECT date FROM {table} ORDER BY date DESC LIMIT 1")
-                                    row = cur.fetchone()
-                                cur.execute("RELEASE SAVEPOINT scan")
-                                if row and row[0]:
-                                    dates[table] = row[0]
-                                    logger.info(f"[{_phase1_correlation_id}] Phase 1: direct scan found {table} latest={row[0]} (serializable atomic)")
-                            except Exception as e:
-                                try:
-                                    cur.execute("ROLLBACK TO SAVEPOINT scan")
-                                    cur.execute("RELEASE SAVEPOINT scan")
-                                except Exception:
-                                    pass
-                                logger.warning(f"Phase 1: direct scan for {table} failed ({e})")
+                            elif table in ('technical_data_daily', 'buy_sell_daily'):
+                                cur.execute(f"SELECT MAX(date) FROM {table}")
+                                row = cur.fetchone()
+                            else:
+                                cur.execute(f"SELECT date FROM {table} ORDER BY date DESC LIMIT 1")
+                                row = cur.fetchone()
+
+                            if row and row[0]:
+                                table_results[table] = row[0]
+                                logger.info(f"[{_phase1_correlation_id}] Phase 1: direct scan found {table} latest={row[0]} (SERIALIZABLE REPEATABLE READ snapshot)")
+                            else:
+                                logger.warning(f"Phase 1: direct scan for {table} found no data")
+
                         cur.execute("COMMIT")
+                        # CRITICAL: Only use results if transaction committed successfully (all queries at same snapshot)
+                        dates.update(table_results)
+                        logger.info(f"[{_phase1_correlation_id}] [ATOMIC] ✓ SERIALIZABLE transaction committed successfully - all {len(missing)} tables queried at same snapshot time")
                     except Exception as txn_err:
-                        try:
-                            cur.execute("ROLLBACK")
-                        except Exception:
-                            pass
-                        logger.critical(f"Phase 1: SERIALIZABLE atomic transaction failed ({txn_err}) - HALTING to prevent race-condition data corruption")
+                        if atomic_transaction_started:
+                            try:
+                                cur.execute("ROLLBACK")
+                            except Exception:
+                                pass
+                        logger.critical(f"Phase 1: SERIALIZABLE REPEATABLE READ atomic transaction failed ({txn_err}) - results may be inconsistent. HALTING to prevent race-condition data corruption")
                         atomic_query_failed = True
             except Exception as e:
                 logger.critical(f"Phase 1: SERIALIZABLE transaction connection failed ({e}) - HALTING to prevent data corruption")
@@ -1891,7 +1912,7 @@ def run(
             # CRITICAL: If atomic query failed, HALT instead of proceeding with potentially corrupted data
             if atomic_query_failed:
                 log_phase_result_fn(1, 'atomic_query_failure', 'halt', 'Database atomic query failed - cannot guarantee data consistency')
-                return PhaseResult(1, 'atomic_query_failure', 'halted', {}, True, 'Atomic database query failed - cannot proceed with potentially corrupted data')
+                return PhaseResult(1, 'atomic_query_failure', 'halted', {}, True, 'Atomic database query failed - all tables must be checked at same snapshot. Cannot proceed with potentially inconsistent data')
 
         spy_date = dates.get('price_daily') or dates.get('etf_price_daily')
         mh_date = dates.get('market_health_daily')

@@ -1188,7 +1188,8 @@ def _invalidate_phase1_cache():
 
     Called on loader failure to ensure Phase 1 doesn't use stale cached data.
     CRITICAL: If invalidation fails, marks cache with 'invalidation_failed' flag
-    so Phase 1 knows not to use it (better than silent failure).
+    so Phase 1 knows not to use it. If that also fails, raises RuntimeError to
+    halt the loader and prevent silent stale-data use.
     """
     try:
         from datetime import datetime
@@ -1205,8 +1206,9 @@ def _invalidate_phase1_cache():
         cache_table.delete_item(Key={'cache_key': cache_key})
         logger.info(f"[CACHE INVALIDATION] ✓ Invalidated Phase 1 cache on loader failure for {cache_key}")
     except Exception as cache_err:
-        # CRITICAL FIX: On failure, mark cache with 'invalidation_failed' flag so Phase 1 skips it
+        # CRITICAL FIX: On deletion failure, try to mark cache with 'invalidation_failed' flag
         logger.error(f"[CACHE INVALIDATION] ✗ FAILED to delete cache (will mark as poisoned): {type(cache_err).__name__}: {cache_err}")
+        poisoned_ok = False
         try:
             from datetime import datetime
             from zoneinfo import ZoneInfo
@@ -1223,9 +1225,14 @@ def _invalidate_phase1_cache():
                 ExpressionAttributeValues={':true': True}
             )
             logger.warning(f"[CACHE INVALIDATION] Marked cache as poisoned (invalidation_failed=true) - Phase 1 will skip it")
+            poisoned_ok = True
         except Exception as mark_err:
-            logger.error(f"[CACHE INVALIDATION] CRITICAL: Could not mark cache as poisoned either: {mark_err}. "
-                        f"Cache may be silently used with stale data. Phase 1 may not detect this failure.")
+            logger.error(f"[CACHE INVALIDATION] CRITICAL: Could not mark cache as poisoned either: {mark_err}")
+
+        # If we couldn't poison the cache, HALT to prevent silent stale-data use
+        if not poisoned_ok:
+            logger.critical(f"[CACHE INVALIDATION] Both deletion and poisoning failed - HALTING loader to prevent silent data corruption")
+            raise RuntimeError(f"CRITICAL: Cache invalidation completely failed (cannot delete or poison). Halting to prevent silent stale-data use.")
 
 def log_loader_execution(loader_name, table_name, status, records_loaded=0, records_updated=0, error_msg=None, duration_seconds=0):
     """Log loader execution to data_loader_runs table for monitoring."""
