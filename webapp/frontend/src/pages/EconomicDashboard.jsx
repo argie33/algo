@@ -60,7 +60,7 @@ function deriveRegime(indicators, yieldData, recessionProb) {
   return { label: 'Uncertain', color: 'var(--text-muted)', desc: 'Mixed signals — maintain balanced positioning.' };
 }
 
-export default function EconomicDashboard() {
+function EconomicDashboardPage() {
   const [tab, setTab] = useState('overview');
 
   // Trigger resize after mount to force charts to remeasure
@@ -1726,6 +1726,14 @@ function FinancialStressPanel({ stlfsiInd, anfciInd, yieldData }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function EconomicDashboard() {
+  return (
+    <ErrorBoundary>
+      <EconomicDashboardPage />
+    </ErrorBoundary>
   );
 }
 

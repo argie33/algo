@@ -1838,11 +1838,12 @@ def run(
         if stale_items:
             logger.warning(f"[{_phase1_correlation_id}] Data stale detected, will trigger loader: {stale_items}")
 
-            # ISSUE #11 FIX: Pipeline Overlap Detection
+            # ISSUE #11 FIX: Pipeline Overlap Detection with Enforcement
             # ISSUE #4 FIX: Pipeline Overlap Detection with RDS Connection Pool Monitoring
             # Check if EOD loaders are still running when morning prep needs to run.
             # Morning prep (2:45 AM): stock_prices_daily → technical_data_daily → buy_sell_daily
             # If EOD loaders still running: both pipelines compete for RDS Proxy connections
+            # ENFORCEMENT: Fail if EOD overran by >11.5 hours (should finish by ~5:30 PM)
             try:
                 with DatabaseContext('read') as _overlap_cur:
                     _overlap_cur.execute("""
@@ -1860,9 +1861,30 @@ def run(
                             f"Morning prep now starting with failsafe. RDS Proxy risk: "
                             f"6 parallel loaders × 2-4 parallelism = 48+ connection requests vs 30 pooled connections."
                         )
+                        # ENFORCEMENT: If EOD overran >11.5 hours, fail immediately
+                        # EOD starts 4:05 PM, should finish by 5:30 PM = 85 min
+                        # If still running at 2:45 AM (10h 40m later), EOD massively overran
+                        eod_max_duration = 690  # 11.5 hours in minutes (4 PM + 11.5h = 3:30 AM)
+                        if elapsed_minutes > eod_max_duration:
+                            error_msg = (
+                                f"[PIPELINE_OVERLAP] FATAL: EOD pipeline overran by {elapsed_minutes - eod_max_duration:.0f}min "
+                                f"(should finish by ~5:30 PM, now {elapsed_minutes/60:.1f}h later at 2:45 AM morning prep). "
+                                f"RDS Proxy connection pool (30 connections) cannot support both pipelines. "
+                                f"Aborting morning prep to prevent cascading failure. Escalating for manual intervention."
+                            )
+                            logger.error(f"[{_phase1_correlation_id}] {error_msg}")
+                            alerts.send_position_alert(
+                                'SYSTEM',
+                                'EOD_PIPELINE_OVERRAN',
+                                error_msg,
+                                {'running_loaders': running_count, 'elapsed_minutes': elapsed_minutes}
+                            )
+                            log_phase_result_fn(1, 'pipeline_overlap', 'halt', error_msg)
+                            return PhaseResult(1, 'pipeline_overlap', 'halted', {}, True, error_msg)
+
                         if elapsed_minutes > 60:
                             logger.critical(
-                                f"[{_phase1_correlation_id}] [PIPELINE_OVERLAP] CRITICAL: EOD loaders running >60min when morning prep triggered. "
+                                f"[{_phase1_correlation_id}] [PIPELINE_OVERLAP] CRITICAL: EOD loaders running {elapsed_minutes:.0f}min when morning prep triggered. "
                                 f"Both pipelines competing for RDS Proxy. May exceed 120s borrow timeout → connection errors → cascading failures."
                             )
                             alerts.send_position_alert(

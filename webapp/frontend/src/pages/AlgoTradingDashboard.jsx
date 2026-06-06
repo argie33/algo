@@ -15,6 +15,7 @@ import {
 import { api } from '../services/api';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import { QuerySection } from '../components/QueryErrorBoundary';
+import ErrorBoundary from '../components/ErrorBoundary';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartTooltip, ResponsiveContainer,
@@ -113,7 +114,7 @@ function LastRunSummary({ lastRun }) {
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-function AlgoTradingDashboard() {
+function AlgoTradingDashboardPage() {
   const [tab, setTab] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
@@ -1035,4 +1036,10 @@ function ConfigTab({ config }) {
   );
 }
 
-export default AlgoTradingDashboard;
+export default function AlgoTradingDashboard() {
+  return (
+    <ErrorBoundary>
+      <AlgoTradingDashboardPage />
+    </ErrorBoundary>
+  );
+}
