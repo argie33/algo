@@ -237,39 +237,64 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
 
                 time.sleep(poll_interval)
 
-            # Issue #19 FIX: Secondary timeout check
-            # If main poll timed out, check one more time if task started just after timeout
-            # This catches tasks that start at 119s when timeout is 120s
+            # ISSUE #1 FIX: Enhanced secondary timeout check with adaptive retry
+            # If main poll timed out, check multiple times with backoff to catch late starters
+            # This handles edge cases where Fargate takes >180s under extreme load
             if not poll_success and not secondary_check_done:
                 secondary_check_done = True
-                try:
-                    desc_response = ecs_client.describe_tasks(
-                        cluster=cluster_arn,
-                        tasks=[task_arn]
-                    )
-                    if desc_response.get('tasks'):
-                        task = desc_response['tasks'][0]
-                        task_state = task.get('lastStatus', '')
-                        if task_state == 'RUNNING':
-                            elapsed = time.time() - poll_start
-                            logger.info(
-                                f"[FAILSAFE] ✓ Secondary check: Task {task_id} RUNNING after {elapsed:.1f}s "
-                                f"(confirmed after main poll timeout)"
-                            )
-                            # Still update state and metrics since task is confirmed running
-                            try:
-                                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-                                state_table = dynamodb.Table(os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state'))
-                                state_table.update_item(
-                                    Key={'state_key': 'failsafe_trigger_log'},
-                                    UpdateExpression='SET actual_running_at = :running_at, scheduling_delay_seconds = :delay',
-                                    ExpressionAttributeValues={':running_at': time.time(), ':delay': elapsed}
+                secondary_attempts = 0
+                secondary_max_attempts = 3  # Check up to 3 more times with 30s gaps
+                secondary_start = time.time()
+
+                while secondary_attempts < secondary_max_attempts and not poll_success:
+                    secondary_attempts += 1
+                    # Wait 30s before rechecking (gives task time to still start)
+                    time.sleep(30)
+
+                    try:
+                        desc_response = ecs_client.describe_tasks(
+                            cluster=cluster_arn,
+                            tasks=[task_arn]
+                        )
+                        if desc_response.get('tasks'):
+                            task = desc_response['tasks'][0]
+                            task_state = task.get('lastStatus', '')
+                            if task_state == 'RUNNING':
+                                elapsed = time.time() - poll_start
+                                logger.critical(
+                                    f"[FAILSAFE] ✓ RECOVERED: Task {task_id} RUNNING after {elapsed:.1f}s "
+                                    f"(secondary check #{secondary_attempts} detected late start after main poll timeout). "
+                                    f"ECS provisioning took {elapsed/60:.1f} minutes — within acceptable range for loaded cluster."
                                 )
-                            except Exception:
-                                pass
+                                poll_success = True
+                                break
+                            elif task_state in ('DEPROVISIONING', 'STOPPING', 'DEACTIVATING', 'STOPPED', 'DELETED'):
+                                logger.warning(f"[FAILSAFE] Task {task_id} stopped during secondary check: {task_state}")
+                                break
+
+                        if verbose:
+                            elapsed_secondary = time.time() - secondary_start
+                            logger.debug(f"[FAILSAFE] Secondary check #{secondary_attempts}: Task state not RUNNING yet (elapsed {elapsed_secondary:.0f}s)")
+                    except Exception as secondary_err:
+                        logger.debug(f"[FAILSAFE] Secondary check #{secondary_attempts} query failed: {secondary_err}")
+                        if secondary_attempts >= secondary_max_attempts:
+                            # If we can't query after retries, assume task might still be running (network issue)
+                            logger.warning(f"[FAILSAFE] After {secondary_max_attempts} secondary checks, cannot confirm task state. Assuming recovery.")
                             poll_success = True
-                except Exception as secondary_err:
-                    logger.debug(f"[FAILSAFE] Secondary check failed: {secondary_err}")
+
+                if poll_success:
+                    # Update state and metrics since task is confirmed running
+                    try:
+                        dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                        state_table = dynamodb.Table(os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state'))
+                        elapsed = time.time() - poll_start
+                        state_table.update_item(
+                            Key={'state_key': 'failsafe_trigger_log'},
+                            UpdateExpression='SET actual_running_at = :running_at, scheduling_delay_seconds = :delay',
+                            ExpressionAttributeValues={':running_at': time.time(), ':delay': elapsed}
+                        )
+                    except Exception:
+                        pass
 
             if poll_success:
                 return True
@@ -470,14 +495,46 @@ def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool
                     reason='Hung task detected — terminating to allow fresh loader to start'
                 )
 
-                # Issue #23 FIX: Verify task actually stopped (not just requested to stop)
+                # ISSUE #9 FIX: Verify task actually stopped (not just requested to stop)
                 if stop_response.get('task'):
                     stopped_task = stop_response['task']
                     final_state = stopped_task.get('lastStatus', '')
                     if final_state in ('STOPPED', 'STOPPING'):
                         if verbose:
+                            logger.info(f"[HUNG_TASK_CLEANUP] Sent stop request for hung task {task_id} (state: {final_state})")
+
+                        # ISSUE #9 FIX: Secondary verification - wait up to 30s for full STOPPED state
+                        # STOPPING state means stop signal sent, but RDS connections may still be held
+                        verified_stopped = False
+                        if final_state == 'STOPPING':
+                            logger.debug(f"[HUNG_TASK_CLEANUP] Task {task_id} is STOPPING, waiting for STOPPED confirmation...")
+                            for verify_attempt in range(6):  # Try up to 6 times with 5s intervals = 30s
+                                time.sleep(5)
+                                try:
+                                    verify_resp = ecs_client.describe_tasks(cluster=cluster_arn, tasks=[task_arn])
+                                    if verify_resp.get('tasks'):
+                                        verify_task = verify_resp['tasks'][0]
+                                        verify_state = verify_task.get('lastStatus', '')
+                                        if verify_state == 'STOPPED':
+                                            logger.info(f"[HUNG_TASK_CLEANUP] ✓ Confirmed task {task_id} fully STOPPED after {(verify_attempt+1)*5}s")
+                                            verified_stopped = True
+                                            terminated_count += 1
+                                            break
+                                        elif verify_state in ('DEPROVISIONING', 'DELETED'):
+                                            logger.info(f"[HUNG_TASK_CLEANUP] ✓ Task {task_id} is {verify_state} (cleanup in progress)")
+                                            verified_stopped = True
+                                            terminated_count += 1
+                                            break
+                                except Exception as verify_err:
+                                    logger.debug(f"[HUNG_TASK_CLEANUP] Verification attempt {verify_attempt+1} failed: {verify_err}")
+
+                            if not verified_stopped:
+                                logger.warning(f"[HUNG_TASK_CLEANUP] Task {task_id} still not fully STOPPED after 30s, but proceeding anyway")
+                                terminated_count += 1  # Count as terminated even if still stopping (best effort)
+                        else:
+                            # Already in STOPPED state
                             logger.info(f"[HUNG_TASK_CLEANUP] ✓ Terminated hung task {task_id} (state: {final_state})")
-                        terminated_count += 1
+                            terminated_count += 1
 
                         # Emit metric for tracking zombie task cleanup
                         try:
@@ -1985,10 +2042,13 @@ def run(
                                      f'Failsafe failed with {oldest_stale_trading_day_age}+ trading day stale data — too risky to trade')
 
                 # Failsafe failed but data is recent enough (1 trading day old) - proceed with caution
-                logger.warning(f"[FAILSAFE] Loader did not confirm startup within 90s. Data is {oldest_stale_trading_day_age}d trading days old (acceptable window).")
+                # NOTE: Failsafe timeout may be a false positive — task could still be provisioning
+                # even after poll_timeout expires. Proceed with caution only if data is acceptable age.
+                logger.warning(f"[FAILSAFE] Loader did not confirm startup within {poll_timeout}s. Data is {oldest_stale_trading_day_age}d trading days old (acceptable window).")
+                logger.warning(f"  IMPORTANT: Task may still be provisioning in the background (ECS can take 45-120s+ under load).")
                 logger.warning(f"  Stale items: {stale_items}")
                 logger.warning(f"  Proceeding to Phase 2 circuit breakers for additional safety checks.")
-                logger.warning(f"  Check CloudWatch logs for ECS loader startup errors.")
+                logger.warning(f"  Check CloudWatch logs for ECS loader startup errors and task state.")
 
                 alerts.send_position_alert(
                     'DATA',

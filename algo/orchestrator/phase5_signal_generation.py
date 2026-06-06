@@ -280,6 +280,33 @@ def run(
 
                 # Only process if we have qualified symbols
                 if qualified:
+                    # ISSUE #8 FIX: Check if signal_quality_scores exists for eval_date
+                    # Morning prep pipeline should populate today's scores, but if it hasn't,
+                    # we'll proceed without age filtering (fail-open) but with warning
+                    _age_cur.execute(
+                        f"""SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s""",
+                        (eval_date,),
+                    )
+                    scores_count = _age_cur.fetchone()[0] if _age_cur.fetchone() else 0
+                    if scores_count == 0:
+                        logger.warning(
+                            f"[ISSUE #8] signal_quality_scores MISSING for {eval_date}. "
+                            f"Morning prep pipeline may not have completed. "
+                            f"Proceeding without age-based filtering (fail-open). "
+                            f"Check that load_signal_quality_scores completed in morning pipeline."
+                        )
+                        # Emit metric to track missing scores
+                        try:
+                            from algo.algo_metrics import MetricsPublisher
+                            m = MetricsPublisher()
+                            m.put_metric('SignalQualityScoresMissing', 1, unit='Count', dimensions={
+                                'date': str(eval_date),
+                                'phase': 'Phase5'
+                            })
+                            m.flush()
+                        except Exception:
+                            pass
+
                     # Query signal_quality_scores for all qualified symbols
                     placeholders = ",".join(["%s"] * len(qualified))
                     _age_cur.execute(
