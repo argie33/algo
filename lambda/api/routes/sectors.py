@@ -21,6 +21,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 sectors = [s.strip() for s in sectors_str.split(',') if s.strip()]
                 result = {s: [] for s in sectors}
 
+                # Set timeout for batch trends query (15s for complex aggregations)
+                cur.execute("SET LOCAL statement_timeout = '15000ms'")
+
                 if sectors:
                     placeholders = ','.join(['%s'] * len(sectors))
                     cur.execute("""
@@ -48,6 +51,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 if path.endswith('/trend') or path.endswith('/trend/'):
                     days_str = params.get('days', [None])[0] if params else None
                     days = safe_days(days_str, max_val=365, default=90)
+                    # Set timeout for trend query (12s for window function aggregations)
+                    cur.execute("SET LOCAL statement_timeout = '12000ms'")
                     # All camelCase aliases double-quoted so psycopg2 preserves case
                     cur.execute("""
                         WITH sector_daily_avg AS (
