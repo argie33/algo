@@ -871,6 +871,8 @@ class PriceLoader(OptimalLoader):
                     logger.debug(f"[MARKET_CLOSE] Could not record failure in DynamoDB: {ddb_err}")
 
                 # ISSUE #22 FIX: Invalidate cache on market close failure so Phase 1 doesn't use stale data
+                # ISSUE #24 FIX: Handle cache invalidation failures gracefully
+                cache_invalidation_ok = False
                 try:
                     from datetime import datetime
                     import boto3
@@ -880,9 +882,22 @@ class PriceLoader(OptimalLoader):
                     dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
                     cache_table = dynamodb.Table(cache_table_name)
                     cache_table.delete_item(Key={'cache_key': cache_key})
-                    logger.debug(f"[CACHE INVALIDATION] Invalidated Phase 1 cache due to market close failure for {cache_key}")
+                    logger.info(f"[CACHE INVALIDATION] ✓ Invalidated Phase 1 cache due to market close failure for {cache_key}")
+                    cache_invalidation_ok = True
                 except Exception as cache_err:
-                    logger.debug(f"[CACHE INVALIDATION] Could not invalidate cache on market close failure: {cache_err}")
+                    logger.error(f"[CACHE INVALIDATION] ✗ FAILED to invalidate cache on market close failure: {type(cache_err).__name__}: {cache_err}. "
+                               f"Cache may contain stale data. Phase 1 should skip cache and force fresh database check.")
+                    # Emit metric to alert that cache invalidation failed
+                    try:
+                        from algo.algo_metrics import MetricsPublisher
+                        m = MetricsPublisher()
+                        m.put_metric('CacheInvalidationFailure', 1, unit='Count', dimensions={
+                            'reason': 'market_close_failure',
+                            'error_type': type(cache_err).__name__
+                        })
+                        m.flush()
+                    except Exception:
+                        pass
 
                 # Return empty results - Phase 1 will detect stale data and trigger failsafe
                 logger.warning(f"[MARKET_CLOSE] Loader aborting with empty results. Phase 1 will trigger failsafe.")

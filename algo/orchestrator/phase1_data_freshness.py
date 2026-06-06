@@ -619,9 +619,25 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
                         logger.info(f"[FAILSAFE] Loader {loader_name} already COMPLETED, no need for failsafe trigger")
                         return None  # No need to trigger failsafe, loader already done
                     elif status == 'RUNNING':
-                        logger.debug(f"[FAILSAFE] Loader {loader_name} still RUNNING (updated {last_updated}), within grace period")
-                        # Extend grace period since loader is actively running
-                        return 0.5  # Mark as "in grace period" but near expiry for next check
+                        # ISSUE #5 FIX: Verify loader is actually making progress, not stuck
+                        # If last_updated is stale (>30 min), treat as hung even though marked RUNNING
+                        from datetime import datetime as dt_module
+                        now = dt_module.now(timezone.utc)
+                        if last_updated and hasattr(last_updated, 'replace'):
+                            if last_updated.tzinfo is None:
+                                last_updated = last_updated.replace(tzinfo=timezone.utc)
+                            stale_mins = (now - last_updated).total_seconds() / 60
+                        else:
+                            stale_mins = 0
+
+                        if stale_mins > 30:
+                            logger.warning(
+                                f"[FAILSAFE] Loader {loader_name} marked RUNNING but not updated {stale_mins:.0f}min. "
+                                f"Loader appears hung. Grace period will not extend."
+                            )
+                        else:
+                            logger.debug(f"[FAILSAFE] Loader {loader_name} RUNNING and active (updated {stale_mins:.1f}min ago)")
+                            return 0.5  # Grace period - loader making progress
         except Exception as db_err:
             logger.debug(f"[FAILSAFE] Could not check loader status: {db_err}, falling back to time-based grace period")
 
