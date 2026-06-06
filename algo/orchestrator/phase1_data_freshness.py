@@ -2222,23 +2222,76 @@ def run(
                         f"swing_trader_scores: {swing_symbols}/{expected_symbols} symbols ({swing_coverage:.1f}%, need >95%)"
                     )
 
-                # CRITICAL: If data is incomplete NOW, HALT instead of triggering failsafe
-                # Repeatedly triggering failing loaders wastes time and resources
-                if early_completeness_warnings:
-                    logger.critical(f"[EARLY_COMPLETENESS_CHECK] Data INCOMPLETE ({len(early_completeness_warnings)} tables <95%) - "
-                                  f"halting instead of failsafe (loader failing to achieve coverage). Escalate for ops investigation.")
+                # ISSUE #14 FIX: Symbol coverage tracking and adaptive failsafe triggering
+                # - If coverage 80-95%: Trigger failsafe to retry (likely transient)
+                # - If coverage <80%: Halt immediately (loader fundamentally failing)
+                coverage_issues = []
+                for warning in early_completeness_warnings:
+                    # Parse coverage percentage from warning (e.g., "table: X/Y symbols (Z.Z%)")
+                    try:
+                        pct_start = warning.rfind('(')
+                        pct_end = warning.rfind('%')
+                        if pct_start > 0 and pct_end > pct_start:
+                            cov_pct = float(warning[pct_start+1:pct_end])
+                            coverage_issues.append((warning, cov_pct))
+                    except:
+                        coverage_issues.append((warning, 0))
+
+                # Separate by severity
+                partial_coverage = [w for w, cov in coverage_issues if 80 <= cov < 95]
+                critical_coverage = [w for w, cov in coverage_issues if cov < 80]
+
+                # Emit metrics for symbol coverage
+                try:
+                    from algo.algo_metrics import MetricsPublisher
+                    metrics = MetricsPublisher()
+                    for warning, cov_pct in coverage_issues:
+                        table_name = warning.split(':')[0] if ':' in warning else 'unknown'
+                        metrics.add_metric(
+                            'SymbolCoveragePercent',
+                            cov_pct,
+                            unit='Percent',
+                            dimensions={'Table': table_name, 'Phase': '1'}
+                        )
+                    metrics.flush()
+                except:
+                    pass
+
+                if critical_coverage:
+                    # Critical: <80% coverage, don't retry
+                    logger.critical(f"[COMPLETENESS_CRITICAL] Data critically incomplete (<80%): {'; '.join(critical_coverage)}")
                     alerts.send_position_alert(
                         'DATA',
-                        'DATA_COMPLETENESS_BLOCKS_FAILSAFE',
-                        f"HALT: Data incomplete ({'; '.join(early_completeness_warnings)}). "
-                        f"Loaders failing to achieve 95% coverage. Failsafe won't help. Escalate for manual investigation.",
-                        {'completeness_issues': early_completeness_warnings}
+                        'DATA_COMPLETENESS_CRITICAL',
+                        f"HALT: Critical data incompleteness: {'; '.join(critical_coverage)}. "
+                        f"Loaders failing fundamentally. Escalate for investigation.",
+                        {'completeness_issues': critical_coverage}
                     )
                     log_phase_result_fn(1, 'data_completeness_early', 'halt',
-                                       f"Early halt - data incomplete: {'; '.join(early_completeness_warnings)}")
+                                       f"Critical halt - data <80% complete: {'; '.join(critical_coverage)}")
                     return PhaseResult(1, 'data_completeness_early', 'halted', {}, True,
-                                     f'Data incomplete before failsafe: {"; ".join(early_completeness_warnings)}. '
-                                     f'Loaders failing to achieve 95% coverage. Escalate for ops.')
+                                     f'Data critically incomplete: {"; ".join(critical_coverage)}. Escalate for ops.')
+                elif partial_coverage:
+                    # Partial: 80-95%, trigger failsafe
+                    logger.warning(f"[COMPLETENESS_PARTIAL] Data partially incomplete (80-95%): {'; '.join(partial_coverage)}. "
+                                 f"Triggering failsafe to retry...")
+                    alerts.send_position_alert(
+                        'DATA',
+                        'DATA_COMPLETENESS_PARTIAL',
+                        f"WARNING: Partial data incompleteness: {'; '.join(partial_coverage)}. "
+                        f"Triggering failsafe to retry. May resolve on next attempt.",
+                        {'completeness_issues': partial_coverage}
+                    )
+                    # ISSUE #14: Trigger failsafe for slow/incomplete loaders
+                    try:
+                        for loader_name in ['stock_prices_daily', 'technical_data_daily', 'buy_sell_daily']:
+                            try:
+                                _trigger_loader_failsafe_with_verification(loader_name, verbose=False, poll_timeout_sec=60, retry_count=1)
+                            except:
+                                pass
+                    except:
+                        pass
+                    # Continue with Phase 1 (don't halt on partial coverage)
         except Exception as early_comp_err:
             logger.debug(f"[EARLY_COMPLETENESS_CHECK] Check failed: {early_comp_err} (proceeding)")
 
