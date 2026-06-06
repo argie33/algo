@@ -1302,11 +1302,11 @@ def run(
             'Market health': mh_date,
             'Trend template': tt_date,
             'Swing trader scores': swing_date,  # FIX #8: Required for Phase 5 ranking
-            'Sector ranking': sector_date,  # FIX #10: Required for Phase 3 position limits
         }
         observe_checks = {
             'Signal quality scores': sqs_date,
             'Buy/sell signals': buys_date,
+            'Sector ranking': sector_date,  # FIX #10: Warn-only; Phase 3 uses cached data as fallback
         }
         checks = {**halt_checks, **observe_checks}
         table_keys = {
@@ -1782,6 +1782,28 @@ def run(
                         f"  [SOURCE DATA] buy_sell_daily={bsd_symbol_count}/{expected_symbol_count} ({bsd_coverage:.1f}%), "
                         f"technical={tech_symbol_count}/{expected_symbol_count} ({tech_coverage:.1f}%)"
                     )
+
+                # Check sector_ranking freshness (warn-only, doesn't halt)
+                # Sector ranking is populated during morning pipeline and used by Phase 3 for position limits
+                # If missing/stale, Phase 3 falls back to cached sector assignments with a warning
+                sector_warnings = []
+                if sector_date is None:
+                    logger.info("[SECTOR_RANKING] Not populated yet (expected during morning pipeline)")
+                    log_phase_result_fn(1, 'sector_ranking', 'info', 'Not yet populated (expected during morning pipeline)')
+                elif sector_date < expected_date:
+                    from algo.algo_market_calendar import MarketCalendar
+                    sector_trading_age = 0
+                    check_date = run_date - timedelta(days=1)
+                    while check_date >= sector_date and sector_trading_age < 30:
+                        if MarketCalendar.is_trading_day(check_date):
+                            sector_trading_age += 1
+                        check_date -= timedelta(days=1)
+                    sector_warnings.append(f"sector_ranking {sector_trading_age}d stale")
+                    logger.warning(f"[SECTOR_RANKING] Stale ({sector_trading_age}d trading old). Phase 3 will use cached sector data.")
+                    log_phase_result_fn(1, 'sector_ranking', 'warn', f'{sector_trading_age}d stale - cached fallback active')
+                else:
+                    logger.info(f"[SECTOR_RANKING] Fresh as of {sector_date}")
+                    log_phase_result_fn(1, 'sector_ranking', 'success', f'Fresh as of {sector_date}')
 
                 if swing_data_health['warnings']:
                     logger.warning(f"[DATA HEALTH] Warnings: {'; '.join(swing_data_health['warnings'])}")
