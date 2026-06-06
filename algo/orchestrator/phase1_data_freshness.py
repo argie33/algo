@@ -169,7 +169,6 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                                             last_updated = hb_result[0]
                                             # Check if heartbeat was updated AFTER task was triggered
                                             if isinstance(last_updated, str):
-                                                from datetime import datetime
                                                 last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
                                             if hasattr(last_updated, 'timestamp'):
                                                 last_updated_ts = last_updated.timestamp()

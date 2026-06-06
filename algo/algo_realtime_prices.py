@@ -117,7 +117,6 @@ class RealtimePricingEngine:
         """
         try:
             import requests
-            from datetime import datetime, timezone
 
             api_key = os.getenv("ALPACA_API_KEY")
             if not api_key:
