@@ -106,6 +106,16 @@ class PriceLoader(OptimalLoader):
         # If running 1d interval at market close, wait for SPY close data before proceeding.
         self._market_close_detected = False
 
+        # ISSUE #14-15 FIX: Differentiate failure causes for targeted remediation
+        # Track root cause of failures to apply appropriate fixes:
+        # - Market close unavailability: wait and retry (data will become available)
+        # - Rate limiting (429): reduce batch size, apply backoff
+        # - API lag/timeout: increase timeout, reduce parallelism
+        # - Other errors: log and fail
+        self._failure_cause = None  # 'market_close', 'rate_limit_429', 'api_lag', 'other'
+        self._api_lag_timeouts = 0  # Count of timeout errors (not rate limiting)
+        self._api_lag_error_start_time = None  # When API lag started
+
     def _detect_eod_pipeline_context(self) -> bool:
         """Detect if running during EOD pipeline (4:05-5:30 PM ET) for timing-aware rate limiting.
 
