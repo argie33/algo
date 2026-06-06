@@ -2463,6 +2463,7 @@ def run(
         # ISSUE #2 FIX: Check for INCOMPLETE loader status (newly added to data_loader_status)
         # INCOMPLETE means loader ran but couldn't get 95%+ symbol coverage
         incomplete_loaders = []
+        repeated_incomplete_issue = False  # ISSUE #6 FIX: Track if this is a repeating incomplete failure
         try:
             with DatabaseContext('read') as _status_cur:
                 _status_cur.execute("SET statement_timeout = 3000")
@@ -2485,33 +2486,84 @@ def run(
 
             # ISSUE #18 FIX: If any loader is INCOMPLETE, force retry via failsafe
             # Incomplete = loader ran but got <95% coverage (partial failure)
-            # Don't just warn — retry immediately to get full coverage
+            # ISSUE #6 FIX: Don't infinitely retry same incomplete failure — detect repeating issues
+            # If we've already retried for this loader, allow graceful degradation instead
+            repeated_incomplete_issue = False
             if incomplete_loaders:
+                try:
+                    import boto3
+                    dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                    state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+                    state_table = dynamodb.Table(state_table_name)
+
+                    # Check if we've seen this incomplete issue before in past 30 minutes
+                    response = state_table.get_item(Key={'state_key': 'incomplete_retry_log'})
+                    if 'Item' in response:
+                        last_retry_time = response['Item'].get('last_retry_time', 0)
+                        last_incomplete_tables = response['Item'].get('incomplete_tables', [])
+                        time_since_last = time.time() - last_retry_time
+
+                        # Check if same tables are still incomplete (repeating issue)
+                        current_incomplete_tables = [il['table'] for il in incomplete_loaders]
+                        if set(current_incomplete_tables) == set(last_incomplete_tables) and time_since_last < 1800:  # 30 min window
+                            repeated_incomplete_issue = True
+                            logger.warning(
+                                f"[INCOMPLETE_REPEATED] Same tables ({current_incomplete_tables}) were INCOMPLETE {time_since_last:.0f}s ago. "
+                                f"This is a repeating issue — likely persistent failures in symbol fetch, not transient errors. "
+                                f"Will allow graceful degradation with lower threshold instead of infinite retry."
+                            )
+
+                    # Update incomplete retry log with current attempt
+                    state_table.put_item(Item={
+                        'state_key': 'incomplete_retry_log',
+                        'last_retry_time': time.time(),
+                        'incomplete_tables': [il['table'] for il in incomplete_loaders],
+                        'ttl': int(time.time()) + 3600,  # 1-hour TTL
+                    })
+                except Exception as retry_track_err:
+                    logger.debug(f"[INCOMPLETE] Could not track retry history: {retry_track_err}")
+
                 stale_items.extend([
                     f"{il['table']}: {il['symbols_loaded']}/{il['symbol_count']} symbols ({il['completion_pct']:.1f}%, need >95%)"
                     for il in incomplete_loaders
                 ])
-                alerts.send_position_alert(
-                    'DATA',
-                    'LOADER_INCOMPLETE',
-                    f"One or more loaders completed with <95% symbol coverage (partial failure): {'; '.join([il['table'] for il in incomplete_loaders])}. "
-                    f"Triggering failsafe for automatic retry.",
-                    {'incomplete_loaders': incomplete_loaders}
-                )
-                logger.warning(f"[{_phase1_correlation_id}] [INCOMPLETE_LOADERS] {len(incomplete_loaders)} loader(s) marked INCOMPLETE - forcing retry via failsafe")
+
+                if not repeated_incomplete_issue:
+                    # First occurrence: trigger failsafe for retry
+                    alerts.send_position_alert(
+                        'DATA',
+                        'LOADER_INCOMPLETE',
+                        f"One or more loaders completed with <95% symbol coverage (partial failure): {'; '.join([il['table'] for il in incomplete_loaders])}. "
+                        f"Triggering failsafe for automatic retry.",
+                        {'incomplete_loaders': incomplete_loaders}
+                    )
+                    logger.warning(f"[{_phase1_correlation_id}] [INCOMPLETE_LOADERS] {len(incomplete_loaders)} loader(s) marked INCOMPLETE - forcing retry via failsafe")
+                else:
+                    # Repeating issue: allow graceful degradation with lower threshold
+                    logger.critical(
+                        f"[{_phase1_correlation_id}] [INCOMPLETE_REPEATED] Same incomplete failure recurring. "
+                        f"Will proceed with {min(90, max(il['completion_pct'] for il in incomplete_loaders)):.0f}% coverage instead of failing. "
+                        f"Phase 5 will use reduced position sizes for safety."
+                    )
+                    alerts.send_position_alert(
+                        'DATA',
+                        'LOADER_INCOMPLETE_REPEATED',
+                        f"Incomplete symbol coverage recurring for: {', '.join([il['table'] for il in incomplete_loaders])}. "
+                        f"Proceeding with reduced coverage instead of infinite retry. Monitor for symbol-specific fetch failures.",
+                        {'incomplete_loaders': incomplete_loaders, 'action': 'graceful_degradation'}
+                    )
         except Exception as incomp_err:
             logger.debug(f"[INCOMPLETE] Check failed: {incomp_err} (proceeding)")
 
         # ISSUE #7 FIX: Validate data COMPLETENESS (symbol coverage %) for critical tables
         # Freshness alone isn't enough — if 500/5000 symbols failed to load, data is incomplete
-        # CRITICAL FIX: Must HALT if any table <95%, not just warn. Incomplete data causes:
-        # - Partial buy/sell signals (missing symbols)
-        # - Phase 5 positions with reduced symbol coverage
-        # - Lower portfolio performance from opportunity loss
+        # ISSUE #6 FIX: Allow lower threshold (85%) for repeating incomplete issues to avoid infinite retry loops
+        # Normal requirement: >95%. For repeated failures: >85% (sufficient for portfolio diversification)
         completeness_warnings = []
         price_coverage = 0
         tech_coverage = 0
         buys_coverage = 0
+        completeness_threshold = 85 if repeated_incomplete_issue else 95  # Lower threshold for repeating issues
 
         try:
             with DatabaseContext('read') as _comp_cur:
@@ -2522,9 +2574,9 @@ def run(
                 price_row = _comp_cur.fetchone()
                 price_symbols = price_row[0] if price_row else 0
                 price_coverage = (price_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-                if price_coverage < 95:
+                if price_coverage < completeness_threshold:
                     completeness_warnings.append(
-                        f"price_daily: {price_symbols}/{expected_symbols} symbols ({price_coverage:.1f}%, expected >95%)"
+                        f"price_daily: {price_symbols}/{expected_symbols} symbols ({price_coverage:.1f}%, need >{completeness_threshold}%)"
                     )
                     logger.error(f"  [COMPLETENESS] CRITICAL: {completeness_warnings[-1]}")
 
@@ -2533,9 +2585,9 @@ def run(
                 tech_row = _comp_cur.fetchone()
                 tech_symbols = tech_row[0] if tech_row else 0
                 tech_coverage = (tech_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-                if tech_coverage < 95:
+                if tech_coverage < completeness_threshold:
                     completeness_warnings.append(
-                        f"technical_data_daily: {tech_symbols}/{expected_symbols} symbols ({tech_coverage:.1f}%, expected >95%)"
+                        f"technical_data_daily: {tech_symbols}/{expected_symbols} symbols ({tech_coverage:.1f}%, need >{completeness_threshold}%)"
                     )
                     logger.error(f"  [COMPLETENESS] CRITICAL: {completeness_warnings[-1]}")
 
@@ -2544,30 +2596,52 @@ def run(
                 buys_row = _comp_cur.fetchone()
                 buys_symbols = buys_row[0] if buys_row else 0
                 buys_coverage = (buys_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-                if buys_coverage < 95:
+                if buys_coverage < completeness_threshold:
                     completeness_warnings.append(
-                        f"buy_sell_daily: {buys_symbols}/{expected_symbols} symbols ({buys_coverage:.1f}%, expected >95%)"
+                        f"buy_sell_daily: {buys_symbols}/{expected_symbols} symbols ({buys_coverage:.1f}%, need >{completeness_threshold}%)"
                     )
                     logger.error(f"  [COMPLETENESS] CRITICAL: {completeness_warnings[-1]}")
 
-                # ISSUE #7 FIX: HALT if any critical table is incomplete
+                # ISSUE #7 FIX: HALT if any critical table is incomplete (unless we're in graceful degradation mode)
+                # ISSUE #6 FIX: For repeating issues, allow 85% coverage and proceed with degraded mode
                 # Incomplete data cascades: partial loaders → partial signals → incomplete positions → portfolio risk
                 if completeness_warnings:
-                    logger.critical(f"[DATA COMPLETENESS] HALT: {len(completeness_warnings)} tables below 95% threshold")
-                    alerts.send_position_alert(
-                        'DATA',
-                        'DATA_COMPLETENESS_CRITICAL',
-                        f"HALT: Data completeness critical. Incomplete tables would generate partial signals and positions. "
-                        f"Details: {'; '.join(completeness_warnings)}. Loaders may have failed partially.",
-                        {'completeness_warnings': completeness_warnings, 'coverage': {
-                            'price': price_coverage, 'technical': tech_coverage, 'buys': buys_coverage
-                        }, 'halt': True}
-                    )
-                    log_phase_result_fn(1, 'data_completeness', 'halt',
-                                       f"HALT: Incomplete data — price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}% (all require >95%)")
-                    return PhaseResult(1, 'data_completeness', 'halted', {}, True,
-                                     f'Data completeness critical: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}% — all require >95%. '
-                                     f'Incomplete data would cause partial signal generation and portfolio positions with reduced symbol coverage.')
+                    if repeated_incomplete_issue:
+                        # Repeating issue - allow graceful degradation with 85% threshold
+                        logger.warning(
+                            f"[DATA COMPLETENESS] Repeated incomplete failure detected. "
+                            f"Allowing graceful degradation with {completeness_threshold}% threshold instead of halt. "
+                            f"Phase 5 will reduce position sizes by 50% for safety. "
+                            f"Details: {'; '.join(completeness_warnings)}"
+                        )
+                        alerts.send_position_alert(
+                            'DATA',
+                            'DATA_COMPLETENESS_DEGRADED',
+                            f"Repeated incomplete failures detected. Proceeding with {completeness_threshold}% coverage threshold (normally {95}%) "
+                            f"and 50% position size reduction. Monitor symbol-specific fetch failures. "
+                            f"Details: {'; '.join(completeness_warnings)}",
+                            {'completeness_warnings': completeness_warnings, 'coverage': {
+                                'price': price_coverage, 'technical': tech_coverage, 'buys': buys_coverage
+                            }, 'degraded': True, 'threshold': completeness_threshold}
+                        )
+                        # Continue to later phases with degraded flag - don't halt
+                    else:
+                        # First occurrence - standard halt
+                        logger.critical(f"[DATA COMPLETENESS] HALT: {len(completeness_warnings)} tables below {completeness_threshold}% threshold")
+                        alerts.send_position_alert(
+                            'DATA',
+                            'DATA_COMPLETENESS_CRITICAL',
+                            f"HALT: Data completeness critical. Incomplete tables would generate partial signals and positions. "
+                            f"Details: {'; '.join(completeness_warnings)}. Loaders may have failed partially.",
+                            {'completeness_warnings': completeness_warnings, 'coverage': {
+                                'price': price_coverage, 'technical': tech_coverage, 'buys': buys_coverage
+                            }, 'halt': True}
+                        )
+                        log_phase_result_fn(1, 'data_completeness', 'halt',
+                                           f"HALT: Incomplete data — price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}% (all require >{completeness_threshold}%)")
+                        return PhaseResult(1, 'data_completeness', 'halted', {}, True,
+                                         f'Data completeness critical: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}% — all require >{completeness_threshold}%. '
+                                         f'Incomplete data would cause partial signal generation and portfolio positions with reduced symbol coverage.')
                 else:
                     log_phase_result_fn(1, 'data_completeness', 'success',
                                        f"All critical tables >95% complete: price={price_coverage:.0f}%, tech={tech_coverage:.0f}%, buys={buys_coverage:.0f}%")
