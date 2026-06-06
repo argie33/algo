@@ -78,9 +78,9 @@ const CircuitBreaker = {
   failureCount: 0,
   successCount: 0,
   lastFailureTime: 0,
-  FAILURE_THRESHOLD: 10, // Open circuit after 10 failures (allows cold start recovery)
-  SUCCESS_THRESHOLD: 3, // Close circuit after 3 successes in half-open state
-  RECOVERY_TIMEOUT: 60000, // 60 seconds before attempting recovery
+  FAILURE_THRESHOLD: 15, // Open circuit after 15 failures (allows Lambda cold start + RDS recovery time)
+  SUCCESS_THRESHOLD: 5, // Close circuit after 5 successes in half-open state
+  RECOVERY_TIMEOUT: 120000, // 120 seconds (2 min) before attempting recovery - matches RDS restart time
 };
 
 const checkCircuitBreaker = () => {
@@ -179,8 +179,15 @@ if (typeof window !== "undefined" && !import.meta.env?.DEV) {
       console.info(`[API Config Updated] baseURL now set to: ${newConfig.baseURL}`);
       clearInterval(configCheckInterval);
     }
-  }, 100);  // Check every 100ms for up to 60 seconds (600 checks total)
-  setTimeout(() => clearInterval(configCheckInterval), 60000);
+  }, 100);  // Check every 100ms
+  // Wait up to 10 minutes (600000ms) for config.js to load before giving up
+  // Accounts for slow production deployments and CloudFront CDN lag
+  setTimeout(() => {
+    clearInterval(configCheckInterval);
+    if (!currentConfig.baseURL || currentConfig.baseURL === '') {
+      console.error('[API Config] CRITICAL: Config.js never loaded after 10 minutes. API will not function without valid baseURL.');
+    }
+  }, 600000);  // 10 minutes timeout
 }
 
 // Token refresh management

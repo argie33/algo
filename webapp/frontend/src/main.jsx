@@ -164,6 +164,20 @@ const waitForConfig = async () => {
     return;
   }
 
+  // Check if config.js failed to load
+  if (window.__CONFIG_ERROR__) {
+    const error = new Error(
+      'Configuration file (config.js) failed to load. ' +
+      'This usually means: (1) 404 - config.js not deployed, (2) syntax error in config.js, or (3) server returned error. ' +
+      'Check browser DevTools → Network tab for config.js load status and error details.'
+    );
+    logger.error("ConfigLoadFailed", error, {
+      errorFlag: window.__CONFIG_ERROR__,
+      configExists: !!window.__CONFIG__,
+    });
+    throw error;
+  }
+
   // Otherwise, wait for config script to execute with validation
   return new Promise((resolve, reject) => {
     const CONFIG_TIMEOUT = 10000; // 10 seconds (increased from 5s for slow networks)
@@ -181,6 +195,7 @@ const waitForConfig = async () => {
           configExists: !!window.__CONFIG__,
           configType: typeof window.__CONFIG__,
           configKeys: window.__CONFIG__ ? Object.keys(window.__CONFIG__) : [],
+          errorFlag: window.__CONFIG_ERROR__,
         });
         reject(error);
       }

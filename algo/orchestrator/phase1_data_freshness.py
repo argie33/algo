@@ -1865,7 +1865,8 @@ def run(
                     # ISSUE #1 & #6 FIX: Use true SERIALIZABLE REPEATABLE READ for snapshot isolation
                     # This ensures all queries see the database as it was at transaction start time
                     # PostgreSQL deferrable=true for read-only: optimal for consistency without deadlock
-                    cur.execute("BEGIN ISOLATION LEVEL SERIALIZABLE, READ ONLY, DEFERRABLE")
+                    # Correct PostgreSQL syntax: spaces not commas between transaction modes
+                    cur.execute("BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY DEFERRABLE")
                     atomic_transaction_started = True
                     try:
                         table_results = {}
@@ -2120,9 +2121,10 @@ def run(
                     flag = '[OK]' if is_ideal else '[WARN]' if (not is_stale) else '[STALE]'
                     logger.info(f"  {flag} {name:25s}: latest {d} ({trading_day_age}d trading old/{calendar_day_age}d calendar, acceptable until {min_acceptable_date})")
 
-        # CRITICAL FIX: Monitor morning prep timing to detect bottlenecks and deadline violations
+        # ISSUE #10 FIX: Monitor morning prep timing to detect bottlenecks and deadline violations with 80% threshold
         # Morning prep: 2:45 AM start → 9:30 AM deadline (405 min available)
         # Expected: 230-255 min execution time, leaving 150 min buffer
+        # 80% threshold: alert when 324+ min elapsed (81 min remaining)
         try:
             with DatabaseContext('read') as _timing_cur:
                 _timing_cur.execute("SET statement_timeout = 5000")
@@ -2137,30 +2139,60 @@ def run(
                 if morning_start and morning_start[0]:
                     elapsed_since_start = (datetime.now(timezone.utc) - morning_start[0]).total_seconds() / 60
                     remaining_to_deadline = 405 - elapsed_since_start  # 9:30 AM deadline = 405 min from 2:45 AM
+                    elapsed_pct = (elapsed_since_start / 405) * 100
 
-                    if remaining_to_deadline < 60:
-                        # Less than 1 hour to deadline
+                    # ISSUE #10 FIX: 80% threshold = 324 minutes elapsed, 81 minutes remaining
+                    if elapsed_pct >= 95:
+                        # 95%+ of time used (< 20 min to deadline)
+                        logger.critical(
+                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] 🚨 CRITICAL: {elapsed_pct:.0f}% of time used! Only {remaining_to_deadline:.0f}min to 9:30 AM deadline! "
+                            f"Morning prep started {elapsed_since_start:.0f}min ago. WILL NOT COMPLETE IN TIME without immediate action."
+                        )
+                        alerts.send_position_alert(
+                            'TIMING',
+                            'MORNING_PREP_DEADLINE_CRITICAL',
+                            f'CRITICAL: {elapsed_pct:.0f}% of time used. Only {remaining_to_deadline:.0f}min to deadline. Started {elapsed_since_start:.0f}min ago. '
+                            f'Morning prep will exceed 9:30 AM deadline unless accelerated immediately.',
+                            {'elapsed_minutes': elapsed_since_start, 'remaining_minutes': remaining_to_deadline, 'elapsed_pct': elapsed_pct}
+                        )
+                    elif elapsed_pct >= 80:
+                        # 80%+ of time used (threshold alert)
+                        logger.warning(
+                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ⚠️  WARNING: {elapsed_pct:.0f}% of time used (80% threshold)! {remaining_to_deadline:.0f}min to deadline. "
+                            f"Morning prep running {elapsed_since_start:.0f}min. May not complete by 9:30 AM. Monitor closely for delays."
+                        )
+                        alerts.send_position_alert(
+                            'TIMING',
+                            'MORNING_PREP_80PCT_THRESHOLD',
+                            f'Morning prep at 80% of available time budget. {elapsed_pct:.0f}% elapsed, {remaining_to_deadline:.0f}min remaining to 9:30 AM deadline. '
+                            f'Started {elapsed_since_start:.0f}min ago. Monitor for further delays.',
+                            {'elapsed_minutes': elapsed_since_start, 'remaining_minutes': remaining_to_deadline, 'elapsed_pct': elapsed_pct}
+                        )
+                    elif remaining_to_deadline < 60:
+                        # Less than 1 hour to deadline (safeguard)
                         logger.critical(
                             f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ⚠️  CRITICAL: Only {remaining_to_deadline:.0f}min to 9:30 AM deadline! "
-                            f"Morning prep started {elapsed_since_start:.0f}min ago. May not complete in time."
+                            f"Morning prep started {elapsed_since_start:.0f}min ago ({elapsed_pct:.0f}% of budget). May not complete in time."
                         )
                         alerts.send_position_alert(
                             'TIMING',
                             'MORNING_PREP_DEADLINE_RISK',
-                            f'Morning prep only {remaining_to_deadline:.0f}min to 9:30 AM deadline. '
-                            f'Started {elapsed_since_start:.0f}min ago. At risk of exceeding deadline.',
-                            {'elapsed_minutes': elapsed_since_start, 'remaining_minutes': remaining_to_deadline}
+                            f'Morning prep only {remaining_to_deadline:.0f}min to deadline ({elapsed_pct:.0f}% time used). '
+                            f'Started {elapsed_since_start:.0f}min ago. At risk of exceeding 9:30 AM deadline.',
+                            {'elapsed_minutes': elapsed_since_start, 'remaining_minutes': remaining_to_deadline, 'elapsed_pct': elapsed_pct}
                         )
                     elif remaining_to_deadline < 120:
                         # Less than 2 hours to deadline
                         logger.warning(
-                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ⚠️  WARNING: Only {remaining_to_deadline:.0f}min to deadline. "
-                            f"Morning prep running {elapsed_since_start:.0f}min. Monitor progress."
+                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ⚠️  WARNING: Only {remaining_to_deadline:.0f}min to deadline ({elapsed_pct:.0f}% time used). "
+                            f"Morning prep running {elapsed_since_start:.0f}min. Monitor progress for additional delays."
                         )
                     else:
+                        # On track: ≤ 60% time used, > 150 min remaining
                         logger.info(
-                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ✓ On track: {remaining_to_deadline:.0f}min remaining to deadline, "
-                            f"elapsed {elapsed_since_start:.0f}min so far"
+                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ✓ On track: {elapsed_pct:.0f}% time used, "
+                            f"{remaining_to_deadline:.0f}min remaining to 9:30 AM deadline. "
+                            f"Elapsed {elapsed_since_start:.0f}min so far."
                         )
         except Exception as timing_err:
             logger.debug(f"[MORNING_PREP_TIMING] Could not check timing: {timing_err}")
@@ -2540,9 +2572,14 @@ def run(
                     logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] Loader trigger failed: {trigger_err}")
 
             if not failsafe_ok:
-                # Failsafe failed or timeout - loader may not have started.
-                # Check how stale the data actually is. If VERY stale (2+ trading days),
-                # HALT instead of proceeding with risky old data.
+                # ISSUE #3 FIX: Failsafe failed or timeout - loader may not have started
+                # CRITICAL: Cannot safely proceed if failsafe didn't start, regardless of current data age
+                # Reason: Data age will only INCREASE while no loader is running (e.g., 1d stale at 2:45 AM
+                # becomes 2d stale by 9:30 AM if no loader runs). Proceeding is a bet that won't pay off.
+                logger.critical(f"[FAILSAFE_FAILED] Loader failsafe trigger did not confirm startup within {poll_timeout}s. "
+                              f"Cannot safely proceed — data will only get staler while no loader runs. HALTING.")
+
+                # Parse current data age for reporting
                 oldest_stale_trading_day_age = None
                 for item in stale_items:
                     # Parse "name: 5d stale (3cal, need...)" to extract TRADING day age (first number)
@@ -2555,51 +2592,28 @@ def run(
                         except (IndexError, ValueError):
                             pass
 
-                # Decision: if data is >= configured threshold and failsafe failed, HALT (Issue #1, #10)
-                # This prevents silent failures in Phase 5 when signal gate kills trades.
-                # Threshold is configurable via algo_config (default 2 trading days)
-                # Note: halt_threshold was already loaded and logged at Phase 1 startup above
-
-                if oldest_stale_trading_day_age is not None and oldest_stale_trading_day_age >= halt_threshold:
-                    logger.critical(f"[HALT] Data age ({oldest_stale_trading_day_age}d) >= halt threshold ({halt_threshold}d). Too risky to proceed.")
-                    logger.critical(f"[HALT] Failsafe loader trigger failed, and data is too old.")
-                    logger.critical(f"  Stale items: {stale_items}")
-                    logger.critical(f"  Threshold: {halt_threshold}d trading days (configurable via phase1_halt_stale_days_threshold in algo_config)")
-                    logger.critical(f"  Loader failed to start. Halting orchestrator.")
-
-                    alerts.send_position_alert(
-                        'DATA',
-                        'STALE_DATA_FAILSAFE_CRITICAL',
-                        f'HALT: Failsafe loader trigger failed AND data is {oldest_stale_trading_day_age}+ trading days stale. '
-                        f'Cannot safely proceed with this old data. Check loader ECS logs for startup errors. '
-                        f'Stale items: {"; ".join(stale_items)}',
-                        {'stale_items': stale_items, 'failsafe': 'failed', 'oldest_age': oldest_stale_trading_day_age, 'halt': True}
-                    )
-                    log_phase_result_fn(1, 'data_freshness', 'halt',
-                                       f'CRITICAL: Failsafe failed and data is {oldest_stale_trading_day_age}+ trading days stale')
-                    return PhaseResult(1, 'data_freshness', 'halted', {}, True,
-                                     f'Failsafe failed with {oldest_stale_trading_day_age}+ trading day stale data — too risky to trade')
-
-                # Failsafe failed but data is recent enough (1 trading day old) - proceed with caution
-                # NOTE: Failsafe timeout may be a false positive — task could still be provisioning
-                # even after poll_timeout expires. Proceed with caution only if data is acceptable age.
-                logger.warning(f"[FAILSAFE] Loader did not confirm startup within {poll_timeout}s. Data is {oldest_stale_trading_day_age}d trading days old (acceptable window).")
-                logger.warning(f"  IMPORTANT: Task may still be provisioning in the background (ECS can take 45-120s+ under load).")
-                logger.warning(f"  Stale items: {stale_items}")
-                logger.warning(f"  Proceeding to Phase 2 circuit breakers for additional safety checks.")
-                logger.warning(f"  Check CloudWatch logs for ECS loader startup errors and task state.")
+                logger.critical(f"[FAILSAFE_FAILED] Current data is {oldest_stale_trading_day_age}d trading days old. "
+                              f"Without a running loader, this will exceed halt threshold ({halt_threshold}d) within hours. "
+                              f"Manual intervention required.")
+                logger.critical(f"  Stale items: {stale_items}")
+                logger.critical(f"  Action: Check CloudWatch logs for ECS loader task startup errors")
+                logger.critical(f"  Action: Verify ECS cluster capacity, task definition, and networking")
+                logger.critical(f"  Action: Manually trigger loader or restart orchestrator once issues are resolved")
 
                 alerts.send_position_alert(
                     'DATA',
-                    'STALE_DATA_FAILSAFE_FAILED',
-                    f'Failsafe loader trigger did not confirm startup but data is recent ({oldest_stale_trading_day_age}d trading days old). '
-                    f'Proceeding with caution — circuit breakers active. '
-                    f'Stale items: {"; ".join(stale_items)}. Check CloudWatch for errors.',
-                    {'stale_items': stale_items, 'expected_date': str(expected_date), 'failsafe': 'failed', 'age': oldest_stale_trading_day_age}
+                    'FAILSAFE_TRIGGER_FAILED',
+                    f'CRITICAL HALT: Failsafe loader trigger FAILED to start within {poll_timeout}s. '
+                    f'Data currently {oldest_stale_trading_day_age}d trading days old and will become stale. '
+                    f'Cannot proceed without running loader. Check ECS logs for startup errors. Manual intervention required.',
+                    {'stale_items': stale_items, 'failsafe': 'failed', 'current_age': oldest_stale_trading_day_age,
+                     'halt': True, 'poll_timeout_sec': poll_timeout}
                 )
-                log_phase_result_fn(1, 'data_freshness', 'warn',
-                                   f'Stale, failsafe unconfirmed ({oldest_stale_trading_day_age}d trading days): {"; ".join(stale_items)}')
-                # Continue to Phase 2 circuit breakers
+                log_phase_result_fn(1, 'data_freshness', 'halt',
+                                   f'CRITICAL: Failsafe loader trigger FAILED — did not start within {poll_timeout}s. Data age: {oldest_stale_trading_day_age}d trading days')
+                return PhaseResult(1, 'data_freshness', 'halted', {}, True,
+                                 f'Failsafe loader trigger FAILED within {poll_timeout}s. Data {oldest_stale_trading_day_age}d old and getting staler. '
+                                 f'Check ECS logs for errors. Manual intervention required.')
             else:
                 # Failsafe confirmed - loader started successfully and will refresh data
                 logger.info("[FAILSAFE] ✓ Loader confirmed startup. Data will be refreshed in parallel.")

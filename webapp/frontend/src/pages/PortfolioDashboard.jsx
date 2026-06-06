@@ -145,15 +145,26 @@ function PortfolioDashboardPage() {
   const currentExp = (markets && typeof markets === 'object' && markets.current) ? markets.current : {};
   const currentHealth = (markets && typeof markets === 'object' && markets.market_health) ? markets.market_health : {};
   const market = {
-    trend: currentHealth.market_trend || 'unknown',
-    stage: currentHealth.market_stage || 0,
-    vix: currentHealth.vix_level || 0,
-    distribution_days: currentExp.distribution_days_4w || currentExp.distribution_days || 0,
+    trend: currentHealth?.market_trend || 'unknown',
+    stage: currentHealth?.market_stage ?? 0,
+    vix: currentHealth?.vix_level ?? 0,
+    distribution_days: currentExp?.distribution_days_4w ?? currentExp?.distribution_days ?? 0,
   };
   // Derive portfolio totals from open positions when status doesn't carry them
-  const unrealizedPnl = safePositionsList.reduce((s, p) => s + Number(p?.unrealized_pnl || 0), 0);
-  const totalPositionValue = safePositionsList.reduce((s, p) => s + Number(p?.position_value || 0), 0);
-  const totalValue = (portfolio?.total_value != null && !isNaN(portfolio.total_value)) ? parseFloat(portfolio.total_value) : (totalPositionValue || 0);
+  // Use nullish coalescing and strict null checks to prevent NaN propagation
+  const unrealizedPnl = safePositionsList.reduce((s, p) => {
+    const pnl = p?.unrealized_pnl ?? 0;
+    const numPnl = Number(pnl);
+    return s + (isNaN(numPnl) ? 0 : numPnl);
+  }, 0);
+  const totalPositionValue = safePositionsList.reduce((s, p) => {
+    const val = p?.position_value ?? 0;
+    const numVal = Number(val);
+    return s + (isNaN(numVal) ? 0 : numVal);
+  }, 0);
+  const totalValue = (portfolio?.total_value != null && !isNaN(Number(portfolio.total_value)))
+    ? parseFloat(portfolio.total_value)
+    : (totalPositionValue || 0);
 
   // Check for critical errors — circuit-breakers is supplemental, don't block whole page
   const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
