@@ -10,6 +10,7 @@ Provides helper functions to:
 import logging
 from typing import Optional, Dict, Any
 from functools import wraps
+from .utils import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -185,11 +186,7 @@ def requires_auth(handler_func):
             # Pass user_id as additional parameter to handler
             return handler_func(cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id)
         except ValueError as e:
-            return {
-                "statusCode": 401,
-                "errorType": "unauthorized",
-                "message": str(e)
-            }
+            return error_response(401, 'unauthorized', str(e))
     return wrapper
 
 

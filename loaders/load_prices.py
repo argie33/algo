@@ -662,11 +662,14 @@ class PriceLoader(OptimalLoader):
 
         # Market close detection: For 1d interval near 4 PM ET, ensure yfinance has close data
         market_close_warning = False
+        fallback_to_prior_day = False
         if self.interval == "1d":
             market_close_available = self._check_market_close_data_available()  # Uses dynamic timeout
             if not market_close_available:
-                from datetime import datetime, timezone, timedelta
-                now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+                from datetime import datetime, timezone, timedelta as td
+                from algo.algo_market_calendar import MarketCalendar
+
+                now_et = datetime.now(timezone.utc).astimezone(timezone(td(hours=-5)))
                 market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
                 minutes_after_close = (now_et - market_close_et).total_seconds() / 60
                 timeout_sec = 1200 if self._is_eod_pipeline else 600
@@ -677,10 +680,20 @@ class PriceLoader(OptimalLoader):
 
                 if self._is_eod_pipeline and 0 < minutes_after_close < 60:
                     should_proceed = True
+                    fallback_to_prior_day = True
+                    # Use prior trading day as fallback
+                    prior_trading_day = date.today()
+                    count = 0
+                    while count < 5:  # Try up to 5 days back
+                        prior_trading_day -= td(days=1)
+                        if MarketCalendar.is_trading_day(prior_trading_day):
+                            break
+                        count += 1
+
                     status_msg = (
-                        f"Market close data unavailable after {timeout_sec}s wait (running {minutes_after_close:.0f}min after 4 PM ET close). "
-                        f"yfinance API lag detected. Batch size reduced, proceeding with graceful degradation. "
-                        f"If coverage falls below 75%, failsafe will trigger."
+                        f"Market close data unavailable for {now_et.date()} after {timeout_sec}s wait. "
+                        f"yfinance API lag detected (running {minutes_after_close:.0f}min after 4 PM ET close). "
+                        f"FALLBACK: Loading {prior_trading_day} data instead. Phase 1 will detect temporal offset."
                     )
                 elif not self._is_eod_pipeline and minutes_after_close > 45:
                     should_proceed = True
@@ -688,7 +701,11 @@ class PriceLoader(OptimalLoader):
 
                 if should_proceed:
                     logger.warning(f"[MARKET_CLOSE] {status_msg}")
-                    self.batch_size = max(20, self.batch_size // 3)
+                    if fallback_to_prior_day:
+                        # Reduce batch size due to API lag, even on fallback
+                        self.batch_size = max(20, self.batch_size // 3)
+                        # Update watermark to trigger fallback fetch of prior day
+                        self._backfill_days = 1
                     market_close_warning = True
                 else:
                     logger.error(f"[MARKET_CLOSE] Cannot safely proceed with price load. yfinance data unavailable after {timeout_sec}s.")
@@ -703,8 +720,28 @@ class PriceLoader(OptimalLoader):
                         m.flush()
                     except Exception as metric_err:
                         logger.debug(f"Could not publish market close metric: {metric_err}")
-                    logger.warning(f"[MARKET_CLOSE] Returning empty results. Phase 1 should detect data staleness and trigger failsafe.")
-                    return {'loaded': 0, 'failed': len(symbols), 'empty': len(symbols), 'table': self.table_name}
+
+                    # ISSUE #1 FIX: Alert Phase 1 about market close failure with timestamp
+                    try:
+                        import boto3
+                        from utils.database_context import DatabaseContext
+                        dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                        state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+                        state_table = dynamodb.Table(state_table_name)
+                        state_table.update_item(
+                            Key={'state_key': 'market_close_failure'},
+                            UpdateExpression='SET failure_time = :now, reason = :reason, loader = :loader',
+                            ExpressionAttributeValues={
+                                ':now': time.time(),
+                                ':reason': f'yfinance unavailable after {timeout_sec}s at {minutes_after_close:.0f}min post-close',
+                                ':loader': 'stock_prices_daily'
+                            }
+                        )
+                    except Exception as ddb_err:
+                        logger.debug(f"[MARKET_CLOSE] Could not record failure in DynamoDB: {ddb_err}")
+
+                    logger.warning(f"[MARKET_CLOSE] Returning empty results. Phase 1 will detect and trigger failsafe with market_close_failure flag.")
+                    return {'loaded': 0, 'failed': len(symbols), 'empty': len(symbols), 'table': self.table_name, 'market_close_failure': True}
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At 50% of timeout (12600s), if < 10% complete, trigger emergency mode

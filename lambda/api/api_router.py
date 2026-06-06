@@ -46,7 +46,9 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
                 return _format_handler_error(e)
-    return {"statusCode": 404, "errorType": "not_found", "message": "No handler"}
+    # No handler found - return properly formatted 404
+    logger.warning(f"No handler found for path: {path}")
+    return {"statusCode": 404, "errorType": "not_found", "message": "Endpoint not found"}
 
 
 def _format_handler_error(e):

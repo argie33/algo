@@ -276,27 +276,15 @@ def get_overall_coverage_summary(cur) -> Dict[str, Any]:
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
     """Handle GET /api/data-coverage request."""
     if method != 'GET':
-        return {
-            'statusCode': 405,
-            'body': json.dumps({'error': 'Method not allowed', 'allowed': ['GET']}),
-            'headers': {'Content-Type': 'application/json'}
-        }
+        return error_response(405, 'method_not_allowed', 'Method not allowed. Only GET is supported.')
 
     try:
         summary = get_overall_coverage_summary(cur)
+        # Return data wrapped in standard response format
         return {
             'statusCode': 200,
-            'body': json.dumps(summary),
-            'headers': {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'}
+            'data': summary
         }
     except Exception as e:
         logger.error(f"Data coverage check error: {e}", exc_info=True)
-        return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'error': 'Data coverage check failed',
-                'message': str(e)[:200],
-                'timestamp': datetime.utcnow().isoformat()
-            }),
-            'headers': {'Content-Type': 'application/json'}
-        }
+        return error_response(500, 'data_coverage_error', 'Data coverage check failed')

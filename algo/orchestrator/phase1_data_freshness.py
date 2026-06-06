@@ -1177,6 +1177,41 @@ def run(
             logger.warning(f"  [WARN] Pipeline health check failed: {e}")
             # Don't fail-close on health check error, let other checks handle it
 
+        # ISSUE #1 FIX: Check for market close data failure from previous loader run
+        try:
+            import boto3
+            dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+            state_table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            state_table = dynamodb.Table(state_table_name)
+
+            response = state_table.get_item(Key={'state_key': 'market_close_failure'})
+            if 'Item' in response:
+                failure_item = response['Item']
+                failure_time = failure_item.get('failure_time', 0)
+                age_minutes = (time.time() - failure_time) / 60 if failure_time else 999
+                reason = failure_item.get('reason', 'unknown')
+                loader = failure_item.get('loader', 'stock_prices_daily')
+
+                # If market close failure is recent (<5 minutes), it may still be recoverable
+                if age_minutes < 5:
+                    logger.error(f"[MARKET_CLOSE] Recent failure detected in {loader}: {reason}")
+                    alerts.send_position_alert(
+                        'MARKET_CLOSE',
+                        'RECENT_YFINANCE_LAG',
+                        f"yfinance data unavailable during previous {loader} load attempt. "
+                        f"Triggering failsafe to retry with fallback. Reason: {reason}",
+                        {'loader': loader, 'age_minutes': age_minutes, 'reason': reason}
+                    )
+                    log_phase_result_fn(1, 'market_close_failure', 'warn',
+                                       f"yfinance lag detected in {loader}, failsafe triggered for retry")
+                    # Clear the failure flag after logging
+                    try:
+                        state_table.delete_item(Key={'state_key': 'market_close_failure'})
+                    except Exception:
+                        pass
+        except Exception as mc_err:
+            logger.debug(f"[MARKET_CLOSE] Could not check failure status: {mc_err}")
+
         # NOTE: ANALYZE moved to morning prep pipeline (4:30 AM ET) to run once daily instead of 4x.
         # Previously: ANALYZE took ~7.8s and ran at 9:30 AM, 1 PM, 3 PM, 5:30 PM = 31.2s/day wasted
         # Now: ANALYZE runs once in morning prep, statistics fresh for all 4 daily Phase 1 runs.
@@ -1543,11 +1578,12 @@ def run(
                 # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
                 # asynchronously and verify it started before proceeding.
 
-                # SIMPLIFIED FAILSAFE: Single attempt with 90s poll timeout
+                # SIMPLIFIED FAILSAFE: Single attempt with 120s poll timeout
+                # Fargate tasks can take 45-120s to reach RUNNING under load (Issue #13)
                 # If it fails, halt only if data is VERY stale (2+ days). Otherwise proceed with warning.
                 # This prevents waiting through 3 timeout loops (30+120+180s = 330s) when failsafe is dead.
                 failsafe_ok = False
-                poll_timeout = 90  # Wait up to 90s for ECS task to reach RUNNING state
+                poll_timeout = 120  # Wait up to 120s for ECS task to reach RUNNING state (accounts for Fargate provisioning delays)
 
                 try:
                     logger.info(f"[FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")

@@ -48,10 +48,18 @@ export const extractData = (response) => {
     // Ensure items array is valid; filter out null/undefined entries AND items with null critical fields
     const filteredItems = data.items.filter(item => {
       if (item === null || item === undefined) return false;
-      // Filter out items where critical fields are null (symbol, sector, industry, company_name)
-      // These fields are commonly used in components; missing them causes render errors
-      if (item.symbol === null || item.symbol === undefined) return false;
-      return true;
+      // Filter out items where ANY critical field is null/undefined.
+      // Critical fields commonly used in components: symbol, sector, industry, company_name, name
+      // Missing these fields causes render errors or blank displays.
+      // Check each field; if ALL are missing, exclude the item
+      const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
+      const hasSector = item.sector !== null && item.sector !== undefined && item.sector !== '';
+      const hasIndustry = item.industry !== null && item.industry !== undefined && item.industry !== '';
+      const hasCompanyName = (item.company_name !== null && item.company_name !== undefined && item.company_name !== '') ||
+                             (item.name !== null && item.name !== undefined && item.name !== '');
+      // Require symbol AND at least one other critical field to be present
+      // This prevents blank rows from rendering but allows rows with partial data
+      return hasSymbol && (hasSector || hasIndustry || hasCompanyName);
     });
     // Use backend total if provided; otherwise use filtered count to match actual items
     const total = data.total || filteredItems.length;
@@ -121,8 +129,18 @@ export const extractPaginatedData = (response) => {
     throw new Error(data.message || data.errorType || `API error: ${httpStatus}`);
   }
 
-  // Extract items (should be array, not full envelope) — filter out null/undefined entries, default to empty array for safety
-  const items = Array.isArray(data.items) ? data.items.filter(item => item !== null && item !== undefined) : [];
+  // Extract items (should be array, not full envelope) — filter out null/undefined entries and items missing critical fields
+  const items = Array.isArray(data.items) ? data.items.filter(item => {
+    if (item === null || item === undefined) return false;
+    // Filter items with missing critical fields (symbol, sector, industry, company_name)
+    const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
+    const hasSector = item.sector !== null && item.sector !== undefined && item.sector !== '';
+    const hasIndustry = item.industry !== null && item.industry !== undefined && item.industry !== '';
+    const hasCompanyName = (item.company_name !== null && item.company_name !== undefined && item.company_name !== '') ||
+                           (item.name !== null && item.name !== undefined && item.name !== '');
+    // Require symbol AND at least one other critical field to be present
+    return hasSymbol && (hasSector || hasIndustry || hasCompanyName);
+  }) : [];
 
   return {
     items,
