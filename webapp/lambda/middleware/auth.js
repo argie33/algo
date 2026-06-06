@@ -13,9 +13,10 @@ const authenticateToken = (req, res, next) => {
   // SECURITY ENFORCEMENT: Detect if production env accidentally set to test mode
   // This prevents critical auth bypass if NODE_ENV is misconfigured
   const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
-  const isProd = process.env.NODE_ENV === 'production' || isLambda;
-  const isTest = process.env.NODE_ENV === 'test';
-  const isDev = process.env.NODE_ENV === 'development' && !isLambda;
+  const nodeEnv = process.env.NODE_ENV || (isLambda ? 'production' : 'development');
+  const isProd = nodeEnv === 'production' || isLambda;
+  const isTest = nodeEnv === 'test';
+  const isDev = nodeEnv === 'development' && !isLambda;
 
   // CRITICAL: Reject test authentication in production
   if (isProd && isTest) {
