@@ -1257,11 +1257,32 @@ data "aws_iam_policy_document" "developer" {
     actions = [
       "states:StartExecution",
       "states:DescribeExecution",
-      "states:GetExecutionHistory"
+      "states:GetExecutionHistory",
+      "states:ListExecutions",
+      "states:ListStateMachines",
+      "states:DescribeStateMachine"
     ]
 
     resources = [
-      "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-*"
+      "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-*",
+      "arn:aws:states:${var.aws_region}:${var.aws_account_id}:execution:${var.project_name}-*:*"
+    ]
+  }
+
+  # EventBridge Scheduler (read-only access to list and describe schedules)
+  statement {
+    sid    = "SchedulerReadOnly"
+    effect = "Allow"
+
+    actions = [
+      "scheduler:GetSchedule",
+      "scheduler:ListSchedules",
+      "scheduler:ListScheduleGroups"
+    ]
+
+    resources = [
+      "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/${var.project_name}*",
+      "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule-group/*"
     ]
   }
 
