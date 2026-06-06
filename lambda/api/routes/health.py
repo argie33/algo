@@ -35,6 +35,10 @@ def _handle_basic(cur) -> Dict:
         "timestamp": datetime.now().isoformat(),
     }
 
+    has_critical = False
+    has_warning = False
+    degradation_reasons = []
+
     try:
         # Verify DB is responsive with a simple query (3 second timeout)
         result = execute_with_timeout(cur, "SELECT 1", timeout_sec=3)
@@ -65,15 +69,43 @@ def _handle_basic(cur) -> Dict:
             logger.warning(f"Failed to get connection pool status: {str(e)[:80]}")
             health['rds_connection_pool'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch pool stats'}
 
-        # Data freshness check deferred to authenticated /health/pipeline endpoint
-        # Basic health endpoint skips this to stay responsive (<1s)
-        health['freshness'] = {'status': 'UNKNOWN', 'message': 'Use /health/pipeline for detailed freshness'}
+        # ISSUE #13 FIX: Include signal freshness in basic endpoint for frontend visibility
+        # Query signal freshness with short timeout to keep endpoint responsive
+        try:
+            signal_freshness = execute_with_timeout(cur, """
+                SELECT
+                    MAX(EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600.0) as max_age_hours
+                FROM signal_quality_scores
+                WHERE created_at >= NOW() - INTERVAL '7 days'
+            """, timeout_sec=2)
+
+            if signal_freshness and len(signal_freshness) > 0:
+                row = dict(signal_freshness[0])
+                age_hours = float(row.get('max_age_hours')) if row.get('max_age_hours') is not None else 999
+                if age_hours <= 1:  # Fresh (within 1 hour)
+                    signal_status = 'FRESH'
+                elif age_hours <= 24:  # Acceptable (within 1 day)
+                    signal_status = 'OK'
+                    if age_hours > 12:
+                        degradation_reasons.append(f"Signals {age_hours:.1f}h old (waiting for fresh data)")
+                        has_warning = True
+                else:  # Stale (>1 day)
+                    signal_status = 'STALE'
+                    degradation_reasons.append(f"Signals {age_hours:.1f}h old (use with caution)")
+                    has_critical = True
+
+                health['freshness'] = {
+                    'status': signal_status,
+                    'signal_age_hours': round(age_hours, 1),
+                    'message': f'Signals based on data from {age_hours:.1f} hours ago'
+                }
+            else:
+                health['freshness'] = {'status': 'UNKNOWN', 'message': 'No signal data available'}
+        except Exception as e:
+            logger.debug(f"Failed to get signal freshness: {str(e)[:60]}")
+            health['freshness'] = {'status': 'UNKNOWN', 'message': 'Signal freshness check unavailable'}
 
         # Overall system status based on component health
-        has_critical = False
-        has_warning = False
-        degradation_reasons = []
-
         if health.get('rds_connection_pool', {}).get('status') == 'CRITICAL':
             has_critical = True
             degradation_reasons.append(f"RDS pool at {health['rds_connection_pool'].get('utilization_percent', 0)}%")
