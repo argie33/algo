@@ -816,12 +816,17 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
         # Read from database if available, default to 150 minutes
         # - stock_prices_daily can take up to 2h with yfinance lag
         # - Grace period starts from actual_running_at, so no need to add ECS delay anymore
-        # - Total: 150 minutes (2.5 hours) as hard limit
+        # - Default: 150 minutes (2.5 hours)
+        # - Hard cap: 240 minutes (4 hours) — if grace period stalls, we don't wait indefinitely
+        HARD_MAX_GRACE_PERIOD = 240  # Absolute maximum to prevent infinite waits if heartbeat stalls
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT value FROM algo_config WHERE key = %s", ('failsafe_grace_period_minutes',))
                 result = cur.fetchone()
-                max_grace_period = int(result[0]) if result and result[0] else 150
+                configured_grace = int(result[0]) if result and result[0] else 150
+                max_grace_period = min(configured_grace, HARD_MAX_GRACE_PERIOD)
+                if configured_grace > HARD_MAX_GRACE_PERIOD:
+                    logger.warning(f"[FAILSAFE] Grace period configured to {configured_grace}m exceeds hard cap {HARD_MAX_GRACE_PERIOD}m — capping at {HARD_MAX_GRACE_PERIOD}m")
         except Exception as config_err:
             logger.debug(f"[FAILSAFE] Could not read grace period config: {config_err}, using default 150m")
             max_grace_period = 150
