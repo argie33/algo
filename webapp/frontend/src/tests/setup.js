@@ -87,6 +87,17 @@ vi.mock("../config/amplify", () => ({
   default: vi.fn(() => ({ Auth: { Cognito: {} } })),
 }));
 
+// Mock ApiKeyProvider globally
+vi.mock("../components/ApiKeyProvider", () => ({
+  ApiKeyProvider: ({ children }) => children,
+  useApiKey: vi.fn(() => ({
+    apiKeys: [],
+    addApiKey: vi.fn(),
+    deleteApiKey: vi.fn(),
+  })),
+  default: ({ children }) => children,
+}));
+
 // Mock console methods to reduce test noise
 const originalConsole = { ...console };
 console.error = (...args) => {
