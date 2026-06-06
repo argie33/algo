@@ -52,12 +52,17 @@ def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
 
     try:
         _HEALTH_TABLES = ('price_daily', 'buy_sell_daily', 'stock_scores', 'technical_data_daily')
-        cur.execute("""
+        rows = execute_with_timeout(
+            cur,
+            """
             SELECT relname, n_live_tup
             FROM pg_stat_user_tables
             WHERE relname = ANY(%s)
-        """, (_HEALTH_TABLES,))
-        table_counts = {row[0]: row[1] for row in cur.fetchall()}
+            """,
+            params=(_HEALTH_TABLES,),
+            timeout_sec=5
+        )
+        table_counts = {row[0]: row[1] for row in rows}
         for t in _HEALTH_TABLES:
             table_counts.setdefault(t, 0)
 
@@ -68,7 +73,8 @@ def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
         })
     except Exception as e:
         logger.error(f'[HEALTH_DETAILED_ERROR] {e}', exc_info=True)
-        return error_response(503, 'query_error', 'Unable to fetch table status')
+        code, error_type, message = handle_db_error(e, "detailed health check")
+        return error_response(code, error_type, message)
 
 def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
     """Pipeline health check - AUTHENTICATED. Data freshness of critical loaders."""
@@ -76,7 +82,7 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
         return error_response(401, 'unauthorized', 'Authentication required')
 
     try:
-        # Query freshness of critical data loaders
+        # Query freshness of critical data loaders (15 second timeout for this larger query)
         query = """
             SELECT
                 'price_daily' as table_name,
@@ -102,12 +108,12 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
                 EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0
             FROM signal_quality_scores
         """
-        cur.execute(query)
-        rows = [dict(row) for row in cur.fetchall()]
+        rows = execute_with_timeout(cur, query, timeout_sec=15)
+        rows = [dict(row) for row in rows]
 
         tables = []
         for row in rows:
-            age = float(row['age_days']) if row.get('age_days') is not None else 999
+            age = float(row.get('age_days')) if row.get('age_days') is not None else 999
             status = 'HEALTHY' if age <= 2 and (row.get('row_count') or 0) > 0 else ('STALE' if age <= 7 else 'CRITICAL')
             tables.append({
                 'table_name': row['table_name'],
@@ -125,4 +131,5 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
         })
     except Exception as e:
         logger.error(f'[HEALTH_PIPELINE_ERROR] {e}', exc_info=True)
-        return error_response(500, 'query_error', 'Unable to fetch pipeline status')
+        code, error_type, message = handle_db_error(e, "pipeline health check")
+        return error_response(code, error_type, message)

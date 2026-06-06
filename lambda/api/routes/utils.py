@@ -264,67 +264,31 @@ def json_response(code, data):
         # For non-200 codes, data should have 'errorType' and 'message'
         return {"statusCode": code, **data}
 
-def handle_db_error(e, context="database operation"):
-    """Handle database errors with standardized response.
-
-    Converts exception to appropriate HTTP error response.
-    Returns: (statusCode, errorType, message)
-    """
-    error_type = type(e).__name__
-    error_msg = str(e)
-
-    # Timeout errors
-    if 'QueryCanceled' in error_type or 'timeout' in error_msg.lower():
-        return 504, 'timeout', 'Database query exceeded timeout'
-    # Connection errors
-    elif 'OperationalError' in error_type or 'Connection' in error_type:
-        return 503, 'connection_error', 'Database connection failed'
-    # Constraint/integrity errors
-    elif 'IntegrityError' in error_type:
-        return 400, 'integrity_error', 'Data constraint violation'
-    # Schema errors
-    elif 'UndefinedTable' in error_type or 'UndefinedColumn' in error_type:
-        return 503, 'schema_error', 'Database schema mismatch'
-    # Query syntax errors
-    elif 'ProgrammingError' in error_type:
-        return 400, 'query_error', 'Invalid query executed'
-    # Generic database errors
-    else:
-        return 500, 'database_error', f'Error during {context}'
-
-def handle_db_error(error, logger, operation):
+def handle_db_error(error, context="database operation"):
     """Unified database error handler for all route handlers.
 
     Args:
         error: The exception caught
-        logger: Logger instance
-        operation: Operation name for logging context
+        context: Operation name for logging context (string, not logger instance)
 
     Returns:
-        Appropriate error_response tuple based on error type
-        Note: Returns specific error types to client for diagnostics (never exposes DB details)
+        Tuple of (statusCode, errorType, message) for standardized error responses
     """
     import psycopg2
-
-    # Log full details server-side for debugging
     error_type = type(error).__name__
     error_str = str(error)
 
+    logger.error(f'[DB_ERROR] {error_type} in {context}: {error_str}')
+
     if isinstance(error, psycopg2.errors.UndefinedTable):
-        logger.error(f'[DB_SCHEMA_ERROR] Table not found in {operation}: {error_str}')
-        # Return specific error code for schema issues — clients can distinguish from connection errors
-        return error_response(503, 'schema_error', 'Database schema issue')
+        return 503, 'schema_error', 'Database schema issue'
     elif isinstance(error, psycopg2.errors.UndefinedColumn):
-        logger.error(f'[DB_SCHEMA_ERROR] Column not found in {operation}: {error_str}')
-        return error_response(503, 'schema_error', 'Database schema issue')
+        return 503, 'schema_error', 'Database schema issue'
     elif isinstance(error, psycopg2.OperationalError):
-        logger.error(f'[DB_CONNECTION_ERROR] Connection failed in {operation}: {error_str}')
-        # Return specific error code for connection issues
-        return error_response(503, 'connection_error', 'Database connection failed')
+        return 503, 'connection_error', 'Database connection failed'
+    elif isinstance(error, psycopg2.errors.QueryCanceled):
+        return 504, 'timeout', 'Database query exceeded timeout'
     elif isinstance(error, psycopg2.DatabaseError):
-        logger.error(f'[DB_ERROR] Query failed in {operation}: {error_str}')
-        # Return specific error code for query execution issues
-        return error_response(503, 'query_error', 'Database query failed')
+        return 503, 'query_error', 'Database query failed'
     else:
-        logger.error(f'[UNEXPECTED_ERROR] {error_type} in {operation}: {error_str}')
-        return error_response(500, 'internal_error', 'Internal server error')
+        return 500, 'database_error', f'Error during {context}'
