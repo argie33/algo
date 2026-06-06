@@ -72,7 +72,7 @@ module "secrets" {
   db_name           = var.rds_db_name
   db_user           = var.rds_username
   db_password       = module.database.rds_password
-  jwt_secret        = var.jwt_secret != "" ? var.jwt_secret : random_password.jwt_secret[0].result
+  jwt_secret        = sensitive(var.jwt_secret != "" ? var.jwt_secret : random_password.jwt_secret[0].result)
   common_tags       = local.common_tags
 
   depends_on = [module.database]
