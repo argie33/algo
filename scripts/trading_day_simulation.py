@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Full Trading Day Simulation — Test algo end-to-end with AWS data and Alpaca trading.
+Full Trading Day Simulation - Test algo end-to-end with AWS data and Alpaca trading.
 
 Simulates a complete trading day:
 1. Loads price/technical data from AWS (S3/DynamoDB)
 2. Initializes fresh database state
-3. Runs 7 orchestrator phases (signal gen → circuit breakers → position monitor → exits → entries → reconciliation)
+3. Runs 7 orchestrator phases (signal gen -> circuit breakers -> position monitor -> exits -> entries -> reconciliation)
 4. Executes trades via Alpaca paper or dry-run mode
 5. Reports trade execution queue, P&L, and system health
 
@@ -24,10 +24,8 @@ import logging
 import argparse
 import traceback
 
-# Setup path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Setup logging early
 logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] [%(name)s] %(levelname)s: %(message)s',
@@ -36,13 +34,8 @@ logger = logging.getLogger(__name__)
 
 def setup_environment(mode: str, verbose: bool = False):
     """Configure environment for simulation mode."""
-    # Set execution mode for orchestrator
     os.environ['ORCHESTRATOR_EXECUTION_MODE'] = 'auto'
-
-    # Force paper trading for simulation
     os.environ['ALPACA_PAPER_TRADING'] = 'true'
-
-    # Use paper API endpoint
     os.environ['APCA_API_BASE_URL'] = 'https://paper-api.alpaca.markets'
 
     if verbose:
@@ -85,8 +78,6 @@ def load_aws_data(run_date: _date):
     """Preload AWS datasets (S3 price history, DynamoDB cache, etc.)."""
     logger.info(f"[DATA] Loading AWS datasets for {run_date}...")
     try:
-        # Loaders will fetch their own AWS data during orchestrator run
-        # This is just a verification step
         logger.info("[DATA] AWS data preload check passed (loaders will fetch live data)")
         return True
     except Exception as e:
@@ -98,14 +89,12 @@ def initialize_test_state(run_date: _date):
     from utils.database_context import DatabaseContext
     try:
         with DatabaseContext('write') as cur:
-            # Verify algo_config table exists and has defaults
             cur.execute("""
                 SELECT COUNT(*) as config_count FROM algo_config
             """)
             config_count = cur.fetchone()[0]
             logger.info(f"[STATE] Config parameters loaded: {config_count} entries")
 
-            # Check for any existing open positions
             cur.execute("""
                 SELECT COUNT(*) as open_positions FROM positions
                 WHERE status = 'open' AND symbol NOT LIKE 'TEST_%'
@@ -133,16 +122,16 @@ def run_orchestrator(run_date: _date, dry_run: bool = False, verbose: bool = Fal
             verbose=verbose,
         )
 
-        logger.info("[ORCHESTRATOR] ├─ Phase 0: Data freshness checks")
-        logger.info("[ORCHESTRATOR] ├─ Phase 1a: Circuit breaker checks")
-        logger.info("[ORCHESTRATOR] ├─ Phase 1b: Market health monitoring")
-        logger.info("[ORCHESTRATOR] ├─ Phase 2: Position reconciliation")
-        logger.info("[ORCHESTRATOR] ├─ Phase 3: Exposure policy enforcement")
-        logger.info("[ORCHESTRATOR] ├─ Phase 4: Exit execution (profit-takes + stop-losses)")
-        logger.info("[ORCHESTRATOR] ├─ Phase 5: Entry execution (new trades)")
-        logger.info("[ORCHESTRATOR] ├─ Phase 6: Pyramid adds")
-        logger.info("[ORCHESTRATOR] ├─ Phase 7: Daily reconciliation")
-        logger.info("[ORCHESTRATOR] └─ Alarm propagation")
+        logger.info("[ORCHESTRATOR] Phase 0: Data freshness checks")
+        logger.info("[ORCHESTRATOR] Phase 1a: Circuit breaker checks")
+        logger.info("[ORCHESTRATOR] Phase 1b: Market health monitoring")
+        logger.info("[ORCHESTRATOR] Phase 2: Position reconciliation")
+        logger.info("[ORCHESTRATOR] Phase 3: Exposure policy enforcement")
+        logger.info("[ORCHESTRATOR] Phase 4: Exit execution (profit-takes + stop-losses)")
+        logger.info("[ORCHESTRATOR] Phase 5: Entry execution (new trades)")
+        logger.info("[ORCHESTRATOR] Phase 6: Pyramid adds")
+        logger.info("[ORCHESTRATOR] Phase 7: Daily reconciliation")
+        logger.info("[ORCHESTRATOR] Alarm propagation")
 
         result = orchestrator.run()
 
@@ -170,69 +159,58 @@ def report_trade_execution(run_date: _date) -> dict:
 
     try:
         with DatabaseContext('read') as cur:
-            # Count new trades today
+            # Count BUY trades (entries) today
             cur.execute("""
                 SELECT COUNT(*) as new_trades,
-                       SUM(quantity) as total_shares_entered
+                       COALESCE(SUM(quantity), 0) as total_shares
                 FROM trades
-                WHERE DATE(created_at AT TIME ZONE 'America/New_York') = %s
-                  AND trade_type = 'entry'
+                WHERE DATE(trade_date) = %s
+                  AND side = 'BUY'
             """, (run_date,))
             entry_row = cur.fetchone()
-            new_trades = entry_row[0] if entry_row else 0
-            total_shares = entry_row[1] if entry_row else 0
+            new_trades = int(entry_row[0]) if entry_row else 0
+            total_shares = int(entry_row[1]) if entry_row else 0
 
-            # Count exits (profit-takes + stops)
+            # Count SELL trades (exits) today
             cur.execute("""
-                SELECT COUNT(*) as exits,
-                       COUNT(CASE WHEN exit_reason = 'profit_take' THEN 1 END) as profit_takes,
-                       COUNT(CASE WHEN exit_reason = 'stop_loss' THEN 1 END) as stops,
-                       ROUND(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END)::numeric, 2) as wins,
-                       ROUND(SUM(CASE WHEN pnl < 0 THEN pnl ELSE 0 END)::numeric, 2) as losses
+                SELECT COUNT(*) as exits
                 FROM trades
-                WHERE DATE(created_at AT TIME ZONE 'America/New_York') = %s
-                  AND trade_type = 'exit'
+                WHERE DATE(trade_date) = %s
+                  AND side = 'SELL'
             """, (run_date,))
             exit_row = cur.fetchone()
-            exits = exit_row[0] if exit_row else 0
-            profit_takes = exit_row[1] if exit_row else 0
-            stops = exit_row[2] if exit_row else 0
-            wins_total = float(exit_row[3]) if exit_row and exit_row[3] else 0.0
-            losses_total = float(exit_row[4]) if exit_row and exit_row[4] else 0.0
+            exits = int(exit_row[0]) if exit_row else 0
 
-            # Portfolio P&L
-            daily_pnl = wins_total + losses_total  # losses are negative
-
-            # Open positions
+            # Open positions and P&L
             cur.execute("""
                 SELECT COUNT(*) as open_positions,
-                       ROUND(SUM(market_value)::numeric, 2) as total_market_value,
-                       ROUND(SUM(unrealized_pnl)::numeric, 2) as unrealized_pnl
+                       COALESCE(ROUND(SUM(position_value)::numeric, 2), 0) as total_market_value,
+                       COALESCE(ROUND(SUM(unrealized_pnl)::numeric, 2), 0) as unrealized_pnl,
+                       COALESCE(ROUND(SUM(profit_loss_dollars)::numeric, 2), 0) as realized_pnl
                 FROM positions
                 WHERE status = 'open'
-                  AND DATE(opened_at AT TIME ZONE 'America/New_York') <= %s
-            """, (run_date,))
+            """)
             pos_row = cur.fetchone()
-            open_positions = pos_row[0] if pos_row else 0
+            open_positions = int(pos_row[0]) if pos_row else 0
             market_value = float(pos_row[1]) if pos_row and pos_row[1] else 0.0
             unrealized_pnl = float(pos_row[2]) if pos_row and pos_row[2] else 0.0
+            realized_pnl = float(pos_row[3]) if pos_row and pos_row[3] else 0.0
 
-        logger.info(f"[TRADES] New entries: {new_trades}, Exits: {exits} (PT:{profit_takes} SL:{stops})")
-        logger.info(f"[TRADES] Daily P&L: ${daily_pnl:.2f} (Wins: ${wins_total:.2f}, Losses: ${losses_total:.2f})")
+            daily_pnl = realized_pnl
+
+        logger.info(f"[TRADES] New BUY entries: {new_trades}, SELL exits: {exits}")
+        logger.info(f"[TRADES] Daily P&L: ${daily_pnl:.2f} (Realized: ${realized_pnl:.2f})")
         logger.info(f"[TRADES] Open positions: {open_positions}, Market value: ${market_value:.2f}, Unrealized P&L: ${unrealized_pnl:.2f}")
 
         return {
             'new_entries': new_trades,
             'total_shares_entered': total_shares,
             'exits': exits,
-            'profit_takes': profit_takes,
-            'stops': stops,
             'daily_pnl': daily_pnl,
-            'wins': wins_total,
-            'losses': losses_total,
             'open_positions': open_positions,
             'market_value': market_value,
             'unrealized_pnl': unrealized_pnl,
+            'realized_pnl': realized_pnl,
         }
     except Exception as e:
         logger.error(f"[TRADES] Query failed: {e}")
@@ -303,7 +281,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Parse date
     if args.date:
         try:
             run_date = _date.fromisoformat(args.date)
@@ -313,20 +290,19 @@ def main():
     else:
         run_date = datetime.now(ZoneInfo("America/New_York")).date()
 
-    print(f"""
-╔════════════════════════════════════════════════════════════════╗
-║             FULL TRADING DAY SIMULATION                        ║
-║─────────────────────────────────────────────────────────────────║
-║ Date:              {run_date.strftime('%A, %B %d, %Y')} (ET)
-║ Mode:              {args.mode.upper()}
-║ Verbose:           {'YES' if args.verbose else 'NO'}
-║ Alpaca Verify:     {'SKIP' if args.skip_alpaca_verify else 'ENABLED'}
-╚════════════════════════════════════════════════════════════════╝
-    """)
+    print("")
+    print("=" * 60)
+    print("FULL TRADING DAY SIMULATION")
+    print("=" * 60)
+    print(f"Date:              {run_date.strftime('%A, %B %d, %Y')} (ET)")
+    print(f"Mode:              {args.mode.upper()}")
+    print(f"Verbose:           {'YES' if args.verbose else 'NO'}")
+    print(f"Alpaca Verify:     {'SKIP' if args.skip_alpaca_verify else 'ENABLED'}")
+    print("=" * 60)
+    print("")
 
     setup_environment(args.mode, args.verbose)
 
-    # Pre-flight checks
     checks = [
         ("Credentials", validate_credentials()),
         ("Database", ensure_database_ready()),
@@ -338,10 +314,9 @@ def main():
         logger.error("[PRE-FLIGHT] Some checks failed. Aborting simulation.")
         sys.exit(1)
 
-    logger.info("[PRE-FLIGHT] All checks passed ✓")
+    logger.info("[PRE-FLIGHT] All checks passed")
     print("")
 
-    # Run orchestrator
     dry_run = (args.mode == 'dry-run')
     result = run_orchestrator(run_date, dry_run=dry_run, verbose=args.verbose)
 
@@ -350,49 +325,44 @@ def main():
         sys.exit(1)
 
     print("")
-    logger.info("═" * 60)
+    logger.info("-" * 60)
     logger.info("TRADE EXECUTION RESULTS")
-    logger.info("═" * 60)
+    logger.info("-" * 60)
 
     trades = report_trade_execution(run_date)
 
     if not trades:
         logger.error("[RESULTS] Could not retrieve trade execution data")
     else:
-        print(f"""
-Entry Execution:
-  New trades:        {trades.get('new_entries', 0)}
-  Shares entered:    {int(trades.get('total_shares_entered', 0))}
+        print("")
+        print("Entry Execution:")
+        print(f"  New trades:        {trades.get('new_entries', 0)}")
+        print(f"  Shares entered:    {int(trades.get('total_shares_entered', 0))}")
+        print("")
+        print("Exit Execution:")
+        print(f"  Total exits:       {trades.get('exits', 0)}")
+        print("")
+        print("P&L:")
+        print(f"  Daily P&L:         ${trades.get('daily_pnl', 0):.2f}")
+        print(f"  Realized P&L:      ${trades.get('realized_pnl', 0):.2f}")
+        print("")
+        print("Position Status:")
+        print(f"  Open positions:    {trades.get('open_positions', 0)}")
+        print(f"  Market value:      ${trades.get('market_value', 0):.2f}")
+        print(f"  Unrealized P&L:    ${trades.get('unrealized_pnl', 0):.2f}")
+        print("")
 
-Exit Execution:
-  Total exits:       {trades.get('exits', 0)}
-  ├─ Profit takes:   {trades.get('profit_takes', 0)}
-  └─ Stop losses:    {trades.get('stops', 0)}
-
-P&L:
-  Daily P&L:         ${trades.get('daily_pnl', 0):.2f}
-  ├─ Winning trades: ${trades.get('wins', 0):.2f}
-  └─ Losing trades:  ${trades.get('losses', 0):.2f}
-
-Position Status:
-  Open positions:    {trades.get('open_positions', 0)}
-  Market value:      ${trades.get('market_value', 0):.2f}
-  Unrealized P&L:    ${trades.get('unrealized_pnl', 0):.2f}
-        """)
-
-    # Verify Alpaca sync
     if not args.skip_alpaca_verify:
         print("")
-        logger.info("═" * 60)
+        logger.info("-" * 60)
         logger.info("ALPACA INTEGRATION")
-        logger.info("═" * 60)
+        logger.info("-" * 60)
         verify_alpaca_sync(run_date)
 
-    # Summary
     print("")
-    logger.info("═" * 60)
+    logger.info("-" * 60)
     logger.info(f"SIMULATION COMPLETE - Run ID: {result.get('run_id', 'unknown')}")
-    logger.info("═" * 60)
+    logger.info("-" * 60)
     print("")
 
     return 0
