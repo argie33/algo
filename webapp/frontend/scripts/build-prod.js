@@ -17,10 +17,10 @@ const projectRoot = path.join(__dirname, "..");
 // Extract environment variables with command-line arg fallbacks
 const apiUrl = process.argv[2] || process.env.VITE_API_URL || "";
 const environment = process.argv[3] || process.env.VITE_ENVIRONMENT || "production";
-const userPoolId = process.env.VITE_COGNITO_USER_POOL_ID || "";
-const clientId = process.env.VITE_COGNITO_CLIENT_ID || "";
-const cognitoDomain = process.env.VITE_COGNITO_DOMAIN || "";
-const cloudfrontUrl = process.env.VITE_CLOUDFRONT_DOMAIN || "";
+const userPoolId = process.argv[4] || process.env.VITE_COGNITO_USER_POOL_ID || "";
+const clientId = process.argv[5] || process.env.VITE_COGNITO_CLIENT_ID || "";
+const cognitoDomain = process.argv[6] || process.env.VITE_COGNITO_DOMAIN || "";
+const cloudfrontUrl = process.argv[7] || process.env.VITE_CLOUDFRONT_DOMAIN || "";
 
 // Validate critical variables before build
 if (!apiUrl) {
