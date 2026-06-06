@@ -295,7 +295,7 @@ function SectorRelativeChart({ sectors }) {
       if (top.length === 0) return [];
       const sectorsList = top.map(encodeURIComponent).join(',');
       const batchData = await api.get(`/api/sectors/trends-batch?sectors=${sectorsList}&days=90`)
-        .then(r => r.data)
+        .then(r => r.data.data || r.data)
         .catch(() => ({}));
 
       const all = {};
