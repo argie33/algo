@@ -140,10 +140,10 @@ function PortfolioDashboardPage() {
   const safeEquityCurve = Array.isArray(equityCurve) ? equityCurve : [];
 
   // status returns {run_id, last_run, current_phase, status, message} — no portfolio sub-object
-  const portfolio = (status && typeof status === 'object') ? status.portfolio || {} : {};
+  const portfolio = (status && typeof status === 'object' && status.portfolio) ? status.portfolio : {};
   // markets returns {success, current: {regime, distribution_days...}, market_health: {market_trend, vix_level...}}
-  const currentExp = (markets && typeof markets === 'object') ? (markets.current || {}) : {};
-  const currentHealth = (markets && typeof markets === 'object') ? (markets.market_health || {}) : {};
+  const currentExp = (markets && typeof markets === 'object' && markets.current) ? markets.current : {};
+  const currentHealth = (markets && typeof markets === 'object' && markets.market_health) ? markets.market_health : {};
   const market = {
     trend: currentHealth.market_trend || 'unknown',
     stage: currentHealth.market_stage || 0,
@@ -153,7 +153,7 @@ function PortfolioDashboardPage() {
   // Derive portfolio totals from open positions when status doesn't carry them
   const unrealizedPnl = safePositionsList.reduce((s, p) => s + Number(p?.unrealized_pnl || 0), 0);
   const totalPositionValue = safePositionsList.reduce((s, p) => s + Number(p?.position_value || 0), 0);
-  const totalValue = parseFloat(portfolio?.total_value || totalPositionValue || 0);
+  const totalValue = (portfolio?.total_value != null && !isNaN(portfolio.total_value)) ? parseFloat(portfolio.total_value) : (totalPositionValue || 0);
 
   // Check for critical errors — circuit-breakers is supplemental, don't block whole page
   const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
@@ -284,14 +284,22 @@ function PortfolioDashboardPage() {
 
       {/* Equity curve + Drawdown chart */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <EquityCurve series={safeEquityCurve} loading={equityLoading} />
-        <DrawdownChart series={safeEquityCurve} loading={equityLoading} />
+        <ErrorBoundary>
+          <EquityCurve series={safeEquityCurve} loading={equityLoading} />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <DrawdownChart series={safeEquityCurve} loading={equityLoading} />
+        </ErrorBoundary>
       </div>
 
       {/* Daily-return histogram + Trade outcome distribution */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <DailyReturnHistogram series={safeEquityCurve} loading={equityLoading} />
-        <TradeDistribution trades={safeTradesList} loading={tradesLoading} />
+        <ErrorBoundary>
+          <DailyReturnHistogram series={safeEquityCurve} loading={equityLoading} />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <TradeDistribution trades={safeTradesList} loading={tradesLoading} />
+        </ErrorBoundary>
       </div>
 
       {/* R-multiple ladder */}
@@ -341,7 +349,9 @@ function PortfolioDashboardPage() {
           </div>
         </div>
 
-        <HoldingPeriodHistogram trades={safeTradesList} />
+        <ErrorBoundary>
+          <HoldingPeriodHistogram trades={safeTradesList} />
+        </ErrorBoundary>
       </div>
 
       {/* Recent trades */}

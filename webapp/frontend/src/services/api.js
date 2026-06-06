@@ -78,9 +78,9 @@ const CircuitBreaker = {
   failureCount: 0,
   successCount: 0,
   lastFailureTime: 0,
-  FAILURE_THRESHOLD: 5, // Open circuit after 5 failures
-  SUCCESS_THRESHOLD: 2, // Close circuit after 2 successes in half-open state
-  RECOVERY_TIMEOUT: 30000, // 30 seconds before attempting recovery
+  FAILURE_THRESHOLD: 10, // Open circuit after 10 failures (allows cold start recovery)
+  SUCCESS_THRESHOLD: 3, // Close circuit after 3 successes in half-open state
+  RECOVERY_TIMEOUT: 60000, // 60 seconds before attempting recovery
 };
 
 const checkCircuitBreaker = () => {
@@ -162,7 +162,7 @@ if (typeof window !== "undefined" && window.location?.hostname === "localhost") 
 // In production, use currentConfig which already checks window.__CONFIG__ as fallback (line 14-20)
 let api = axios.create({
   baseURL: currentConfig.baseURL,
-  timeout: currentConfig.isServerless ? 45000 : 30000,
+  timeout: 35000, // Match Vite proxy timeout (30s Lambda + 5s buffer)
   headers: {
     "Content-Type": "application/json",
   },
@@ -179,8 +179,8 @@ if (typeof window !== "undefined" && !import.meta.env?.DEV) {
       console.info(`[API Config Updated] baseURL now set to: ${newConfig.baseURL}`);
       clearInterval(configCheckInterval);
     }
-  }, 100);  // Check every 100ms for up to 5 seconds (50 checks total)
-  setTimeout(() => clearInterval(configCheckInterval), 5000);
+  }, 100);  // Check every 100ms for up to 60 seconds (600 checks total)
+  setTimeout(() => clearInterval(configCheckInterval), 60000);
 }
 
 // Token refresh management

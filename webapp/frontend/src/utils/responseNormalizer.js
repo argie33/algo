@@ -45,21 +45,15 @@ export const extractData = (response) => {
   // Priority order for extracting data:
   // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
   if (Array.isArray(data.items)) {
-    // Ensure items array is valid; filter out null/undefined entries AND items with null critical fields
+    // Ensure items array is valid; filter out null/undefined entries
     const filteredItems = data.items.filter(item => {
       if (item === null || item === undefined) return false;
-      // Filter out items where ANY critical field is null/undefined.
-      // Critical fields commonly used in components: symbol, sector, industry, company_name, name
-      // Missing these fields causes render errors or blank displays.
-      // Check each field; if ALL are missing, exclude the item
+      // Only filter out items that have no usable data at all.
+      // For positions/trades: require symbol (common to all these endpoints).
+      // For market data: allow items even if some fields are missing (sector, industry optional).
       const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
-      const hasSector = item.sector !== null && item.sector !== undefined && item.sector !== '';
-      const hasIndustry = item.industry !== null && item.industry !== undefined && item.industry !== '';
-      const hasCompanyName = (item.company_name !== null && item.company_name !== undefined && item.company_name !== '') ||
-                             (item.name !== null && item.name !== undefined && item.name !== '');
-      // Require symbol AND at least one other critical field to be present
-      // This prevents blank rows from rendering but allows rows with partial data
-      return hasSymbol && (hasSector || hasIndustry || hasCompanyName);
+      // If there's a symbol or any other non-empty field, keep the item
+      return hasSymbol || Object.values(item).some(v => v !== null && v !== undefined && v !== '');
     });
     // Use backend total if provided; otherwise use filtered count to match actual items
     const total = data.total || filteredItems.length;
@@ -74,17 +68,12 @@ export const extractData = (response) => {
   if (data.data !== null && data.data !== undefined) {
     // Check if data.data has items (double-nested)
     if (Array.isArray(data.data.items)) {
-      // Filter out null/undefined items AND items with missing critical fields (same as above)
+      // Filter out null/undefined items only; accept items with partial data
       const filteredItems = data.data.items.filter(item => {
         if (item === null || item === undefined) return false;
-        // Filter items with missing critical fields
-        const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
-        const hasSector = item.sector !== null && item.sector !== undefined && item.sector !== '';
-        const hasIndustry = item.industry !== null && item.industry !== undefined && item.industry !== '';
-        const hasCompanyName = (item.company_name !== null && item.company_name !== undefined && item.company_name !== '') ||
-                               (item.name !== null && item.name !== undefined && item.name !== '');
-        // Require symbol AND at least one other critical field to be present
-        return hasSymbol && (hasSector || hasIndustry || hasCompanyName);
+        // Accept any non-null/non-undefined item; allow partial data
+        // Components handle missing fields with fallback display
+        return true;
       });
       // Extract all properties from data.data, filtering nulls in the wrapper
       const result = {};
@@ -148,17 +137,12 @@ export const extractPaginatedData = (response) => {
     itemsToFilter = data.data.items;
   }
 
-  // Extract items (should be array, not full envelope) — filter out null/undefined entries and items missing critical fields
+  // Extract items (should be array, not full envelope) — filter out null/undefined entries
   const items = itemsToFilter.filter(item => {
     if (item === null || item === undefined) return false;
-    // Filter items with missing critical fields (symbol, sector, industry, company_name)
+    // Only filter out items with no usable data. Keep items even with partial fields.
     const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
-    const hasSector = item.sector !== null && item.sector !== undefined && item.sector !== '';
-    const hasIndustry = item.industry !== null && item.industry !== undefined && item.industry !== '';
-    const hasCompanyName = (item.company_name !== null && item.company_name !== undefined && item.company_name !== '') ||
-                           (item.name !== null && item.name !== undefined && item.name !== '');
-    // Require symbol AND at least one other critical field to be present
-    return hasSymbol && (hasSector || hasIndustry || hasCompanyName);
+    return hasSymbol || Object.values(item).some(v => v !== null && v !== undefined && v !== '');
   });
 
   return {

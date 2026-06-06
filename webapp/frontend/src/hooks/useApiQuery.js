@@ -60,19 +60,19 @@ export const useApiQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors up to specified retry count (default 3 for faster failure feedback)
-      // This handles transient failures during deployments/RDS restarts
-      if (status >= 500) return failureCount < retry;
+      // Retry on 5xx errors up to specified retry count (default 2 for faster failure feedback)
+      // This handles transient failures during deployments/RDS restarts without long user wait
+      if (status >= 500) return failureCount < Math.min(retry, 2);
 
       // Retry on network errors and timeouts (transient issues)
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
-        return failureCount < retry;
+        return failureCount < Math.min(retry, 2);
       }
 
       // Default: no retry for unknown errors
       return false;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
+    retryDelay: (attemptIndex) => Math.min(500 * Math.pow(2, attemptIndex), 5000),
     enabled,
     ...restOptions,
   });
@@ -150,19 +150,19 @@ export const useApiPaginatedQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors up to specified retry count (default 3 for faster failure feedback)
-      // This handles transient failures during deployments/RDS restarts
-      if (status >= 500) return failureCount < retry;
+      // Retry on 5xx errors up to specified retry count (default 2 for faster failure feedback)
+      // This handles transient failures during deployments/RDS restarts without long user wait
+      if (status >= 500) return failureCount < Math.min(retry, 2);
 
       // Retry on network errors and timeouts (transient issues)
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
-        return failureCount < retry;
+        return failureCount < Math.min(retry, 2);
       }
 
       // Default: no retry for unknown errors
       return false;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000),
+    retryDelay: (attemptIndex) => Math.min(500 * Math.pow(2, attemptIndex), 5000),
     enabled,
     ...restOptions,
   });

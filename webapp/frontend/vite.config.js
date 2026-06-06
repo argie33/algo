@@ -55,7 +55,7 @@ export default defineConfig(({ mode }) => {
             "/api": {
               target: proxyTarget,
               changeOrigin: true,
-              timeout: 45000, // Longer timeout for Lambda cold starts in development
+              timeout: 35000, // 35s to match Lambda's 30s statement timeout + 5s buffer for network/serialization
               configure: (proxy, options) => {
               },
             },
