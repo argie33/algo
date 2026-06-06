@@ -58,7 +58,7 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
         return json_response(200, {'data': dict(_DEFAULTS)})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, 'get settings')
-            return error_response(code, error_type, message)
+        return error_response(code, error_type, message)
 
 def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
     """Persist user settings (theme, notifications, other preferences)."""

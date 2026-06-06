@@ -96,4 +96,4 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, 'handle financials')
-            return error_response(code, error_type, message)
+        return error_response(code, error_type, message)
