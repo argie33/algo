@@ -113,31 +113,5 @@ afterAll(() => {
   console.error = originalConsole.error;
 });
 
-// Auto-wrap render calls with MemoryRouter to provide Router context
-// This allows tests that render components with Navigate/useNavigate to work properly
-const originalRender = RTL.render;
-RTL.render = function(ui, options = {}) {
-  const Wrapper = ({ children }) => (
-    <MemoryRouter
-      initialEntries={options.initialRoutes || ["/"]}
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      {children}
-    </MemoryRouter>
-  );
-
-  return originalRender(ui, {
-    ...options,
-    wrapper: options.wrapper
-      ? ({ children }) => <Wrapper><options.wrapper>{children}</options.wrapper></Wrapper>
-      : Wrapper,
-  });
-};
-
-// Also override global.render if it exists
-if (typeof global !== 'undefined' && global.render) {
-  global.render = RTL.render;
-}
+// Note: RTL.render is read-only and cannot be overridden.
+// Tests that need Router context should wrap components manually or use a custom render function.
