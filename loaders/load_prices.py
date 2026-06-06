@@ -217,31 +217,54 @@ class PriceLoader(OptimalLoader):
         Raises: RuntimeError if data cannot be verified (loader should abort)
         """
         if max_wait_sec is None:
-            # ISSUE #1 FIX: Read timeout from algo_config, use context-aware defaults
+            # CRITICAL FIX: Read timeout from algo_config with strict validation
+            # Use context-aware defaults: EOD (1200s/20min) vs Morning (600s/10min)
             default_timeout_sec = 1200 if self._is_eod_pipeline else 600
+            config_key = 'yfinance_market_close_timeout_eod_sec' if self._is_eod_pipeline \
+                else 'yfinance_market_close_timeout_morning_sec'
+            config_used = 'default'
+
             try:
                 from utils.database_context import DatabaseContext
                 with DatabaseContext("read") as config_cur:
-                    config_key = 'yfinance_market_close_timeout_eod_sec' if self._is_eod_pipeline \
-                        else 'yfinance_market_close_timeout_morning_sec'
                     config_cur.execute(
                         "SELECT value FROM algo_config WHERE key = %s",
                         (config_key,)
                     )
                     config_result = config_cur.fetchone()
                     if config_result:
-                        max_wait_sec = int(config_result[0])
-                        # Cap at 1800s (30 min) to prevent runaway timeouts
-                        max_wait_sec = min(max_wait_sec, 1800)
-                        logger.info(f"[MARKET_CLOSE] Using configured timeout: {max_wait_sec}s (from {config_key})")
+                        try:
+                            config_value = int(config_result[0])
+                            # CRITICAL: Validate timeout is reasonable (1s-1800s)
+                            if config_value < 1 or config_value > 1800:
+                                logger.warning(
+                                    f"[MARKET_CLOSE] ⚠️  Config {config_key}={config_value}s is out of bounds (1-1800s). "
+                                    f"Using default {default_timeout_sec}s instead."
+                                )
+                                max_wait_sec = default_timeout_sec
+                                config_used = 'default (config out of bounds)'
+                            else:
+                                max_wait_sec = config_value
+                                logger.info(f"[MARKET_CLOSE] Using configured timeout: {max_wait_sec}s (from {config_key})")
+                                config_used = 'configured'
+                        except (ValueError, TypeError) as parse_err:
+                            logger.warning(
+                                f"[MARKET_CLOSE] ⚠️  Config {config_key}={config_result[0]} is not a valid integer. "
+                                f"Using default {default_timeout_sec}s instead. Error: {parse_err}"
+                            )
+                            max_wait_sec = default_timeout_sec
+                            config_used = 'default (config invalid)'
                     else:
                         max_wait_sec = default_timeout_sec
-                        logger.debug(f"[MARKET_CLOSE] Using default timeout: {max_wait_sec}s")
+                        logger.debug(f"[MARKET_CLOSE] Config key {config_key} not found, using default timeout: {max_wait_sec}s")
+                        config_used = 'default (key missing)'
             except Exception as config_err:
+                logger.warning(f"[MARKET_CLOSE] Could not read config ({config_err}), using default timeout: {default_timeout_sec}s")
                 max_wait_sec = default_timeout_sec
-                logger.debug(f"[MARKET_CLOSE] Could not read config, using default timeout: {max_wait_sec}s ({config_err})")
+                config_used = 'default (read error)'
 
-            logger.info(f"[MARKET_CLOSE] yfinance market close check timeout: {max_wait_sec}s")
+            logger.info(f"[MARKET_CLOSE] Using {config_used} timeout: {max_wait_sec}s "
+                       f"(pipeline={'EOD' if self._is_eod_pipeline else 'morning'})")
         else:
             logger.debug(f"[MARKET_CLOSE] Using override timeout: {max_wait_sec}s")
 
