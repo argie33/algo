@@ -2305,6 +2305,26 @@ def run(
         except Exception as e:
             logger.debug(f"Could not get active symbol count: {e}")
 
+        # ISSUE #14 FIX: Validate morning prep completion BEFORE any other checks
+        # This ensures all 5 morning prep steps completed successfully before proceeding
+        if 2 <= datetime.now(ZoneInfo("America/New_York")).hour < 11:  # Morning window: 2 AM - 10:59 AM ET
+            try:
+                with DatabaseContext('read') as mp_cur:
+                    morning_prep_ok, morning_prep_issues = _validate_morning_prep_completion(mp_cur, run_date, verbose=verbose)
+                    if not morning_prep_ok:
+                        logger.critical(f"[MORNING_PREP_VALIDATION] HALT: Morning prep incomplete. Issues: {'; '.join(morning_prep_issues)}")
+                        log_phase_result_fn(1, 'morning_prep_incomplete', 'halt', f"Morning prep validation failed: {'; '.join(morning_prep_issues)}")
+                        alerts.send_position_alert(
+                            'MORNING_PREP',
+                            'MORNING_PREP_INCOMPLETE',
+                            f"HALT: Morning prep validation failed. Steps may not have completed: {'; '.join(morning_prep_issues)}",
+                            {'issues': morning_prep_issues}
+                        )
+                        return PhaseResult(1, 'morning_prep_incomplete', 'halted', {}, True,
+                                         f'Morning prep validation failed: {"; ".join(morning_prep_issues)}')
+            except Exception as mp_check_err:
+                logger.warning(f"[MORNING_PREP_VALIDATION] Could not validate morning prep: {mp_check_err} (proceeding with caution)")
+
         # CRITICAL FIX: Check data completeness EARLY before any failsafe triggering
         # If current data is incomplete (<95%), triggering failsafe won't help (loader itself failing)
         # Better to HALT and alert ops than to repeatedly trigger failing loaders
