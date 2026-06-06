@@ -887,45 +887,9 @@ class PriceLoader(OptimalLoader):
                 except Exception as ddb_err:
                     logger.debug(f"[MARKET_CLOSE] Could not record failure in DynamoDB: {ddb_err}")
 
-                # ISSUE #22 & #2 FIX: Invalidate cache on market close failure with BLOCKING error on cache failure
-                # If cache invalidation fails, the loader must HALT to prevent Phase 1 from using stale cached data
-                try:
-                    from datetime import datetime
-                    from zoneinfo import ZoneInfo
-                    import boto3
-                    # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-                    cache_date = datetime.now(ZoneInfo("America/New_York")).date()
-                    cache_key = f"data_loader_status-{cache_date.isoformat()}"
-                    cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
-                    dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-                    cache_table = dynamodb.Table(cache_table_name)
-                    cache_table.delete_item(Key={'cache_key': cache_key})
-                    logger.info(f"[CACHE INVALIDATION] ✓ Invalidated Phase 1 cache due to market close failure for {cache_key}")
-                except Exception as cache_err:
-                    # ISSUE #2 FIX: Cache invalidation failure is CRITICAL - must halt loader to prevent silent data corruption
-                    # If we can't invalidate cache, Phase 1 might use stale data. Rather than proceeding and silently
-                    # corrupting the dataset, we MUST fail loudly and let Phase 1 see the loader failure
-                    logger.critical(
-                        f"[CACHE INVALIDATION] ✗ CRITICAL: Failed to invalidate Phase 1 cache on market close failure. "
-                        f"Error: {type(cache_err).__name__}: {cache_err}. "
-                        f"Cannot safely proceed - Phase 1 might use stale cached data. Halting loader."
-                    )
-                    # Emit critical metric
-                    try:
-                        from algo.algo_metrics import MetricsPublisher
-                        m = MetricsPublisher()
-                        m.put_metric('CacheInvalidationCritical', 1, unit='Count', dimensions={
-                            'reason': 'market_close_failure',
-                            'error_type': type(cache_err).__name__
-                        })
-                        m.flush()
-                    except Exception:
-                        pass
-                    # HALT: Raise exception to force loader failure (Phase 1 will detect and trigger failsafe)
-                    raise RuntimeError(
-                        f"Loader aborting: Market close data unavailable AND cache invalidation failed. "
-                        f"This prevents silent data corruption. Cache error: {cache_err}"
-                    )
+                # ISSUE #2 & #8 FIX: Use centralized cache invalidation which marks cache as poisoned on failure
+                # This ensures Phase 1 skips cache even if invalidation fails (via invalidation_failed flag)
+                _invalidate_phase1_cache()
 
                 # Return empty results - Phase 1 will detect stale data and trigger failsafe
                 logger.warning(f"[MARKET_CLOSE] Loader aborting with empty results. Phase 1 will trigger failsafe.")

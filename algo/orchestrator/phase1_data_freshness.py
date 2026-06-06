@@ -1774,6 +1774,20 @@ def run(
 
         # Step 2: If cache miss, query database
         if not dates:
+            # CRITICAL FIX: If database is down AND cache is expired, HALT instead of hanging
+            # Trying to query a down database will timeout and waste time. Better to fail fast.
+            if not database_available:
+                logger.critical("[CACHE_DATABASE_BOTH_DOWN] Database unavailable AND cache expired/poisoned. "
+                              "Cannot proceed - both data sources offline. Halting.")
+                alerts.send_position_alert(
+                    'DATA',
+                    'CACHE_DATABASE_OFFLINE',
+                    'CRITICAL: Both DynamoDB cache and database unavailable. Cannot load loader status. Escalate for manual intervention.',
+                    {}
+                )
+                log_phase_result_fn(1, 'cache_database_offline', 'halt', 'Both cache and database unavailable')
+                return PhaseResult(1, 'cache_database_offline', 'halted', {}, True, 'Cannot load data - both cache and database offline')
+
             try:
                 with DatabaseContext('read') as cur:
                     cur.execute("SET statement_timeout = 15000")  # 15s — should be instant
@@ -1979,6 +1993,64 @@ def run(
         except Exception as e:
             logger.debug(f"Could not get active symbol count: {e}")
 
+        # CRITICAL FIX: Check data completeness EARLY before any failsafe triggering
+        # If current data is incomplete (<95%), triggering failsafe won't help (loader itself failing)
+        # Better to HALT and alert ops than to repeatedly trigger failing loaders
+        try:
+            with DatabaseContext('read') as _early_comp_cur:
+                _early_comp_cur.execute("SET statement_timeout = 10000")
+                early_completeness_warnings = []
+
+                # Check price_daily completeness
+                _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s", (expected_date,))
+                price_row = _early_comp_cur.fetchone()
+                price_symbols = price_row[0] if price_row else 0
+                price_coverage = (price_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                if price_coverage < 95:
+                    early_completeness_warnings.append(
+                        f"price_daily: {price_symbols}/{expected_symbols} symbols ({price_coverage:.1f}%, need >95%)"
+                    )
+
+                # Check technical_data_daily completeness
+                _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE updated_at >= %s", (expected_date,))
+                tech_row = _early_comp_cur.fetchone()
+                tech_symbols = tech_row[0] if tech_row else 0
+                tech_coverage = (tech_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                if tech_coverage < 95:
+                    early_completeness_warnings.append(
+                        f"technical_data_daily: {tech_symbols}/{expected_symbols} symbols ({tech_coverage:.1f}%, need >95%)"
+                    )
+
+                # Check buy_sell_daily completeness
+                _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE updated_at >= %s", (expected_date,))
+                buys_row = _early_comp_cur.fetchone()
+                buys_symbols = buys_row[0] if buys_row else 0
+                buys_coverage = (buys_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                if buys_coverage < 95:
+                    early_completeness_warnings.append(
+                        f"buy_sell_daily: {buys_symbols}/{expected_symbols} symbols ({buys_coverage:.1f}%, need >95%)"
+                    )
+
+                # CRITICAL: If data is incomplete NOW, HALT instead of triggering failsafe
+                # Repeatedly triggering failing loaders wastes time and resources
+                if early_completeness_warnings:
+                    logger.critical(f"[EARLY_COMPLETENESS_CHECK] Data INCOMPLETE ({len(early_completeness_warnings)} tables <95%) - "
+                                  f"halting instead of failsafe (loader failing to achieve coverage). Escalate for ops investigation.")
+                    alerts.send_position_alert(
+                        'DATA',
+                        'DATA_COMPLETENESS_BLOCKS_FAILSAFE',
+                        f"HALT: Data incomplete ({'; '.join(early_completeness_warnings)}). "
+                        f"Loaders failing to achieve 95% coverage. Failsafe won't help. Escalate for manual investigation.",
+                        {'completeness_issues': early_completeness_warnings}
+                    )
+                    log_phase_result_fn(1, 'data_completeness_early', 'halt',
+                                       f"Early halt - data incomplete: {'; '.join(early_completeness_warnings)}")
+                    return PhaseResult(1, 'data_completeness_early', 'halted', {}, True,
+                                     f'Data incomplete before failsafe: {"; ".join(early_completeness_warnings)}. '
+                                     f'Loaders failing to achieve 95% coverage. Escalate for ops.')
+        except Exception as early_comp_err:
+            logger.debug(f"[EARLY_COMPLETENESS_CHECK] Check failed: {early_comp_err} (proceeding)")
+
         for name, d in checks.items():
             is_halt_check = name in halt_checks
             if d is None:
@@ -2027,6 +2099,51 @@ def run(
                     is_ideal = d >= expected_date
                     flag = '[OK]' if is_ideal else '[WARN]' if (not is_stale) else '[STALE]'
                     logger.info(f"  {flag} {name:25s}: latest {d} ({trading_day_age}d trading old/{calendar_day_age}d calendar, acceptable until {min_acceptable_date})")
+
+        # CRITICAL FIX: Monitor morning prep timing to detect bottlenecks and deadline violations
+        # Morning prep: 2:45 AM start → 9:30 AM deadline (405 min available)
+        # Expected: 230-255 min execution time, leaving 150 min buffer
+        try:
+            with DatabaseContext('read') as _timing_cur:
+                _timing_cur.execute("SET statement_timeout = 5000")
+                # Check when morning prep pipeline started (look at loader start times)
+                _timing_cur.execute(
+                    "SELECT MIN(started_at) FROM data_loader_runs WHERE run_date = %s "
+                    "AND table_name IN ('price_daily', 'technical_data_daily', 'buy_sell_daily') "
+                    "AND started_at > NOW() - INTERVAL '5 hours'",  # Morning prep starts ~2:45 AM, look back 5h
+                    (run_date,)
+                )
+                morning_start = _timing_cur.fetchone()
+                if morning_start and morning_start[0]:
+                    elapsed_since_start = (datetime.now(timezone.utc) - morning_start[0]).total_seconds() / 60
+                    remaining_to_deadline = 405 - elapsed_since_start  # 9:30 AM deadline = 405 min from 2:45 AM
+
+                    if remaining_to_deadline < 60:
+                        # Less than 1 hour to deadline
+                        logger.critical(
+                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ⚠️  CRITICAL: Only {remaining_to_deadline:.0f}min to 9:30 AM deadline! "
+                            f"Morning prep started {elapsed_since_start:.0f}min ago. May not complete in time."
+                        )
+                        alerts.send_position_alert(
+                            'TIMING',
+                            'MORNING_PREP_DEADLINE_RISK',
+                            f'Morning prep only {remaining_to_deadline:.0f}min to 9:30 AM deadline. '
+                            f'Started {elapsed_since_start:.0f}min ago. At risk of exceeding deadline.',
+                            {'elapsed_minutes': elapsed_since_start, 'remaining_minutes': remaining_to_deadline}
+                        )
+                    elif remaining_to_deadline < 120:
+                        # Less than 2 hours to deadline
+                        logger.warning(
+                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ⚠️  WARNING: Only {remaining_to_deadline:.0f}min to deadline. "
+                            f"Morning prep running {elapsed_since_start:.0f}min. Monitor progress."
+                        )
+                    else:
+                        logger.info(
+                            f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] ✓ On track: {remaining_to_deadline:.0f}min remaining to deadline, "
+                            f"elapsed {elapsed_since_start:.0f}min so far"
+                        )
+        except Exception as timing_err:
+            logger.debug(f"[MORNING_PREP_TIMING] Could not check timing: {timing_err}")
 
         # ISSUE #2 FIX: Check for INCOMPLETE loader status (newly added to data_loader_status)
         # INCOMPLETE means loader ran but couldn't get 95%+ symbol coverage
