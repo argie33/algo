@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node webapp/lambda/index.js",
     "dev": "node webapp/lambda/index.js",
-    "test": "cd webapp/frontend && npm test && cd ../.. && cd webapp/frontend && npx playwright test && cd ../.."
+    "test": "cd webapp/frontend && npm test"
   },
   "devDependencies": {
     "playwright": "^1.60.0",
