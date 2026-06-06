@@ -179,15 +179,15 @@ if (typeof window !== "undefined" && !import.meta.env?.DEV) {
       console.info(`[API Config Updated] baseURL now set to: ${newConfig.baseURL}`);
       clearInterval(configCheckInterval);
     }
-  }, 100);  // Check every 100ms
-  // Wait up to 10 minutes (600000ms) for config.js to load before giving up
-  // Accounts for slow production deployments and CloudFront CDN lag
+  }, 50);  // Check every 50ms for faster response
+  // Wait up to 10 seconds (10000ms) for config.js to load before giving up
+  // main.jsx already handles config loading with proper timeout
   setTimeout(() => {
     clearInterval(configCheckInterval);
     if (!currentConfig.baseURL || currentConfig.baseURL === '') {
-      console.error('[API Config] CRITICAL: Config.js never loaded after 10 minutes. API will not function without valid baseURL.');
+      console.error('[API Config] Config.js did not set API_URL. API will not function without valid baseURL. Check config.js exists and is loaded.');
     }
-  }, 600000);  // 10 minutes timeout
+  }, 10000);  // 10 seconds timeout
 }
 
 // Token refresh management

@@ -45,16 +45,9 @@ export const extractData = (response) => {
   // Priority order for extracting data:
   // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
   if (Array.isArray(data.items)) {
-    // Ensure items array is valid; filter out null/undefined entries
-    const filteredItems = data.items.filter(item => {
-      if (item === null || item === undefined) return false;
-      // Only filter out items that have no usable data at all.
-      // For positions/trades: require symbol (common to all these endpoints).
-      // For market data: allow items even if some fields are missing (sector, industry optional).
-      const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
-      // If there's a symbol or any other non-empty field, keep the item
-      return hasSymbol || Object.values(item).some(v => v !== null && v !== undefined && v !== '');
-    });
+    // Ensure items array is valid; filter out null/undefined entries only
+    // Do NOT filter out items with missing fields — let components handle incomplete data
+    const filteredItems = data.items.filter(item => item !== null && item !== undefined);
     // Use backend total if provided; otherwise use filtered count to match actual items
     const total = data.total || filteredItems.length;
     return {
@@ -69,12 +62,7 @@ export const extractData = (response) => {
     // Check if data.data has items (double-nested)
     if (Array.isArray(data.data.items)) {
       // Filter out null/undefined items only; accept items with partial data
-      const filteredItems = data.data.items.filter(item => {
-        if (item === null || item === undefined) return false;
-        // Accept any non-null/non-undefined item; allow partial data
-        // Components handle missing fields with fallback display
-        return true;
-      });
+      const filteredItems = data.data.items.filter(item => item !== null && item !== undefined);
       // Extract all properties from data.data, filtering nulls in the wrapper
       const result = {};
       Object.entries(data.data).forEach(([key, value]) => {
@@ -137,13 +125,8 @@ export const extractPaginatedData = (response) => {
     itemsToFilter = data.data.items;
   }
 
-  // Extract items (should be array, not full envelope) — filter out null/undefined entries
-  const items = itemsToFilter.filter(item => {
-    if (item === null || item === undefined) return false;
-    // Only filter out items with no usable data. Keep items even with partial fields.
-    const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
-    return hasSymbol || Object.values(item).some(v => v !== null && v !== undefined && v !== '');
-  });
+  // Extract items (should be array, not full envelope) — filter out null/undefined entries only
+  const items = itemsToFilter.filter(item => item !== null && item !== undefined);
 
   return {
     items,
@@ -167,7 +150,9 @@ export const extractPaginatedData = (response) => {
  */
 export const validateItems = (items, requiredFields = []) => {
   if (!Array.isArray(items)) {
-    return { valid: true, invalidItems: [], missingFields: new Set() };
+    const msg = `[validateItems] Expected array but got ${typeof items}`;
+    console.error(msg);
+    return { valid: false, invalidItems: [], missingFields: new Set() };
   }
 
   if (requiredFields.length === 0) {
@@ -177,6 +162,9 @@ export const validateItems = (items, requiredFields = []) => {
   const missingFields = new Set();
   const invalidItems = items
     .map((item, idx) => {
+      if (!item || typeof item !== 'object') {
+        return idx;
+      }
       const missing = requiredFields.filter(field => {
         const value = item?.[field];
         return value === null || value === undefined || value === '';
