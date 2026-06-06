@@ -93,15 +93,22 @@ export default function AppLayout({ children }) {
 
   const toggleTheme = () => theme.toggleTheme();
 
-  // Poll status every 30s — only when authenticated
+  // Poll status every 30s — only when authenticated and user is loaded
   useEffect(() => {
-    if (!isAuthenticated) return;
+    // Ensure we have both authenticated status AND a loaded user before fetching
+    if (!isAuthenticated || !user) return;
     let cancelled = false;
     const fetchStatus = async () => {
       try {
         const [e, n] = await Promise.all([
-          api.get('/api/algo/markets').catch(() => null),
-          api.get('/api/algo/notifications').catch(() => null),
+          api.get('/api/algo/markets').catch((err) => {
+            console.debug('[AppLayout] Market fetch error:', err?.response?.status);
+            return null;
+          }),
+          api.get('/api/algo/notifications').catch((err) => {
+            console.debug('[AppLayout] Notifications fetch error:', err?.response?.status);
+            return null;
+          }),
         ]);
         if (cancelled) return;
         setExposure(e?.data?.current || null);
@@ -111,7 +118,7 @@ export default function AppLayout({ children }) {
     fetchStatus();
     const id = setInterval(fetchStatus, 30000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   // Close drawer on route change
   useEffect(() => { setDrawerOpen(false); setUserMenuOpen(false); }, [location.pathname]);
