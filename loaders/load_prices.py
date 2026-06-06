@@ -1008,6 +1008,50 @@ class PriceLoader(OptimalLoader):
                         f"Will timeout if pace doesn't improve."
                     )
 
+                # ISSUE #3 FIX: Circuit breaker for rate limit cascade
+                # If batch size has been reduced due to rate limiting AND execution time is getting long,
+                # halt early instead of continuing to retry indefinitely.
+                # This prevents the scenario: batch 150→20 at 7 AM → execution time becomes 80min→400min → misses 9:30 AM deadline
+                current_batch_size = self._get_adaptive_batch_size()
+                # Context-aware threshold: EOD (85 min total) needs to fail fast (~30 min), morning (450 min total) can wait (~2 hours)
+                circuit_break_threshold_sec = 30 * 60 if self._is_eod_pipeline else 120 * 60
+                if current_batch_size < 100 and elapsed > circuit_break_threshold_sec:  # Batch reduced AND threshold exceeded
+                    pipeline_context = "EOD (85-min window)" if self._is_eod_pipeline else "Morning prep (450-min window)"
+                    projected_total_sec = (elapsed / completion_pct) if completion_pct > 0 else 0
+                    logger.critical(
+                        f"[CIRCUIT_BREAKER] {pipeline_context}: Rate limit cascade detected! "
+                        f"Batch size reduced to {current_batch_size} (from 150) after {elapsed/60:.0f}min. "
+                        f"Only {completion_pct*100:.0f}% complete. "
+                        f"Projected total execution: {projected_total_sec/60:.0f}min (would exceed deadline). "
+                        f"HALTING to trigger failsafe."
+                    )
+                    try:
+                        from algo.algo_metrics import MetricsPublisher
+                        m = MetricsPublisher()
+                        m.put_metric('RateLimitCircuitBreaker', 1, unit='Count', dimensions={
+                            'table': self.table_name,
+                            'batch_size': str(current_batch_size),
+                            'elapsed_min': str(int(elapsed / 60)),
+                            'completion_pct': f'{completion_pct*100:.0f}',
+                        })
+                        m.flush()
+                    except Exception as metric_err:
+                        logger.debug(f"Could not publish circuit breaker metric: {metric_err}")
+
+                    # Return with partial data - Phase 1 will detect incomplete load and trigger failsafe
+                    logger.warning(f"[CIRCUIT_BREAKER] Returning with {processed}/{len(symbols)} symbols loaded. "
+                                 f"Phase 1 will detect incomplete load and trigger failsafe.")
+                    self._stats["duration_sec"] = round(time.time() - start, 2)
+                    self._stats["rate_limit_errors"] = self._rate_limit_errors
+                    return {
+                        'loaded': processed,
+                        'failed': len(symbols) - processed,
+                        'table': self.table_name,
+                        'circuit_breaker_triggered': True,
+                        'batch_size_reduced': current_batch_size,
+                        'elapsed_min': int(elapsed / 60),
+                    }
+
         self._stats["duration_sec"] = round(time.time() - start, 2)
 
         # Add rate limiting metrics
