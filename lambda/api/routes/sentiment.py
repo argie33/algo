@@ -186,9 +186,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     })
                 return json_response(200, {})
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle sentiment')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.warning(f"Schema not available for sentiment {path}: {str(e)}")
+            return json_response(200, {})
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f"Database error in sentiment {path}: {str(e)}")
+            return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
+        except Exception as e:
+            logger.error(f"Unexpected error in sentiment {path}: {str(e)}")
+            return json_response(200, {})
 
 def _get_vix_data(cur) -> Dict:
         """Get latest VIX data and historical trend."""
@@ -213,6 +219,12 @@ def _get_vix_data(cur) -> Dict:
                 'history': history,
                 'signal': 'fear' if latest and latest.get('vix_level', 0) > 25 else 'neutral' if latest and latest.get('vix_level', 0) > 15 else 'greed'
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get vix data')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.warning(f"Schema not available for VIX data: {str(e)}")
+            return json_response(200, {'latest': None, 'history': [], 'signal': 'neutral'})
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f"Database error in VIX data: {str(e)}")
+            return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
+        except Exception as e:
+            logger.error(f"Unexpected error in VIX data: {str(e)}")
+            return json_response(200, {'latest': None, 'history': [], 'signal': 'neutral'})
