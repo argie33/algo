@@ -523,7 +523,7 @@ def _get_algo_performance(cur) -> Dict:
                         sortino = (mean_r / dv * math.sqrt(252)) if dv > 0 else 0.0
                         max_dd = _cumprod_max_dd(returns)
                     # True compounded portfolio return: (end / start - 1) * 100
-                    if vals[0] > 0 and vals[-1] > 0:
+                    if len(vals) > 0 and vals[0] > 0 and vals[-1] > 0:
                         total_return_pct = round((vals[-1] / vals[0] - 1) * 100, 2)
                         # CAGR for Calmar: (end/start)^(365/calendar_days) - 1
                         n_days = (dates[-1] - dates[0]).days if len(dates) > 1 else 0

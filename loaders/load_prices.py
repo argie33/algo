@@ -406,22 +406,38 @@ class PriceLoader(OptimalLoader):
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
             return {s: None for s in symbols}
 
-        if batch_size == 1 and self._rate_limit_errors > 5:
-            logger.critical(
-                f"[BATCH FETCH ABORT] Batch size at minimum (1 symbol) with {self._rate_limit_errors} rate limit errors. "
-                f"yfinance API severely degraded. Failing fast to prevent timeout cascade."
-            )
-            try:
-                from algo.algo_metrics import MetricsPublisher
-                m = MetricsPublisher()
-                m.put_metric('BatchFetchMinimumSizeReached', 1, unit='Count', dimensions={
-                    'table': self.table_name,
-                    'error_count': str(self._rate_limit_errors)
-                })
-                m.flush()
-            except Exception:
-                pass
-            return {s: None for s in symbols}
+        # Issue #20 FIX: At batch=1, try longer wait before giving up
+        if batch_size == 1 and self._rate_limit_errors > 3:
+            # Try with exponential backoff + longer wait times (up to 10 min) at batch=1
+            max_batch1_wait = 600  # 10 minutes for batch=1 final attempts
+            if error_duration := (time.time() - self._rate_limit_error_start_time) if self._rate_limit_error_start_time else 0:
+                remaining_wait = max(0, max_batch1_wait - error_duration)
+                if remaining_wait > 60:  # Only if we have >1 min left
+                    logger.warning(
+                        f"[BATCH=1 BACKOFF] Batch size at minimum with {self._rate_limit_errors} errors. "
+                        f"Attempting longer exponential backoff ({remaining_wait:.0f}s remaining) before final failure."
+                    )
+                    # Don't return yet - let the normal retry loop below handle the backoff
+                elif remaining_wait > 0:
+                    logger.warning(f"[BATCH=1] Rate limiting at batch=1. Last chance with {remaining_wait:.0f}s remaining before timeout.")
+
+            # If we've exhausted backoff time, fail
+            if error_duration and error_duration > max_batch1_wait:
+                logger.critical(
+                    f"[BATCH FETCH ABORT] Batch size at minimum (1 symbol) with {self._rate_limit_errors} rate limit errors "
+                    f"persisting for {error_duration/60:.1f}min. yfinance API severely degraded. Failing to prevent timeout."
+                )
+                try:
+                    from algo.algo_metrics import MetricsPublisher
+                    m = MetricsPublisher()
+                    m.put_metric('BatchFetchMinimumSizeReached', 1, unit='Count', dimensions={
+                        'table': self.table_name,
+                        'error_count': str(self._rate_limit_errors)
+                    })
+                    m.flush()
+                except Exception:
+                    pass
+                return {s: None for s in symbols}
 
         # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
         # Issue #6: Instead of failing completely, reduce batch size to avoid timeout

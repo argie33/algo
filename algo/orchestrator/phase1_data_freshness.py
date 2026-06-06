@@ -118,6 +118,8 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
             logs_client = boto3.client('logs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
 
             poll_success = False
+            secondary_check_done = False
+
             while time.time() - poll_start < poll_timeout_sec:
                 try:
                     # Check ECS DescribeTasks for current state
@@ -234,6 +236,40 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                     logger.debug(f"[FAILSAFE] DescribeTasks failed: {desc_err}")
 
                 time.sleep(poll_interval)
+
+            # Issue #19 FIX: Secondary timeout check
+            # If main poll timed out, check one more time if task started just after timeout
+            # This catches tasks that start at 119s when timeout is 120s
+            if not poll_success and not secondary_check_done:
+                secondary_check_done = True
+                try:
+                    desc_response = ecs_client.describe_tasks(
+                        cluster=cluster_arn,
+                        tasks=[task_arn]
+                    )
+                    if desc_response.get('tasks'):
+                        task = desc_response['tasks'][0]
+                        task_state = task.get('lastStatus', '')
+                        if task_state == 'RUNNING':
+                            elapsed = time.time() - poll_start
+                            logger.info(
+                                f"[FAILSAFE] ✓ Secondary check: Task {task_id} RUNNING after {elapsed:.1f}s "
+                                f"(confirmed after main poll timeout)"
+                            )
+                            # Still update state and metrics since task is confirmed running
+                            try:
+                                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                                state_table = dynamodb.Table(os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state'))
+                                state_table.update_item(
+                                    Key={'state_key': 'failsafe_trigger_log'},
+                                    UpdateExpression='SET actual_running_at = :running_at, scheduling_delay_seconds = :delay',
+                                    ExpressionAttributeValues={':running_at': time.time(), ':delay': elapsed}
+                                )
+                            except Exception:
+                                pass
+                            poll_success = True
+                except Exception as secondary_err:
+                    logger.debug(f"[FAILSAFE] Secondary check failed: {secondary_err}")
 
             if poll_success:
                 return True
@@ -482,11 +518,47 @@ def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool
                     reason='Hung task detected — terminating to allow fresh loader to start'
                 )
 
-                if verbose:
-                    logger.info(f"[HUNG_TASK_CLEANUP] ✓ Terminated hung task {task_id}")
-                terminated_count += 1
+                # Issue #23 FIX: Verify task actually stopped (not just requested to stop)
+                if stop_response.get('task'):
+                    stopped_task = stop_response['task']
+                    final_state = stopped_task.get('lastStatus', '')
+                    if final_state in ('STOPPED', 'STOPPING'):
+                        if verbose:
+                            logger.info(f"[HUNG_TASK_CLEANUP] ✓ Terminated hung task {task_id} (state: {final_state})")
+                        terminated_count += 1
+
+                        # Emit metric for tracking zombie task cleanup
+                        try:
+                            from algo.algo_metrics import MetricsPublisher
+                            metrics = MetricsPublisher()
+                            metrics.add_metric(
+                                'HungTasksTerminated',
+                                1,
+                                unit='Count',
+                                dimensions={'LoaderName': loader_name}
+                            )
+                            metrics.flush()
+                        except Exception:
+                            pass
+                    else:
+                        logger.warning(f"[HUNG_TASK_CLEANUP] Task {task_id} not in stopped state: {final_state}")
+                else:
+                    logger.warning(f"[HUNG_TASK_CLEANUP] No task returned in stop response for {task_id}")
             except Exception as stop_err:
                 logger.warning(f"[HUNG_TASK_CLEANUP] Failed to terminate task {task_id}: {stop_err}")
+                # Issue #23 FIX: Escalate if termination fails
+                try:
+                    from algo.algo_alerts import AlertManager
+                    alerts = AlertManager()
+                    alerts.send_position_alert(
+                        'SYSTEM',
+                        'HUNG_TASK_TERMINATION_FAILED',
+                        f'Failed to terminate hung ECS task {task_id} for {loader_name}. '
+                        f'Task may be consuming resources. Error: {str(stop_err)}',
+                        {'task_id': task_id, 'loader': loader_name, 'error': str(stop_err)}
+                    )
+                except Exception as alert_err:
+                    logger.debug(f"Could not send escalation alert: {alert_err}")
 
         return terminated_count > 0 or not list_response.get('taskArns')
 
@@ -1435,30 +1507,42 @@ def run(
             try:
                 with DatabaseContext('read') as cur:
                     cur.execute("SET statement_timeout = 15000")  # 15s — should be instant
-                    cur.execute("""
-                        SELECT table_name, latest_date
-                        FROM data_loader_status
-                        WHERE table_name IN (
+                    # Issue #22 FIX: Check for INCOMPLETE loaders and invalidate cache if found
+                    cur.execute("SELECT COUNT(*) FROM data_loader_status WHERE status = 'INCOMPLETE'")
+                    incomplete_count = cur.fetchone()[0] if cur.fetchone() else 0
+
+                    if incomplete_count > 0:
+                        logger.warning(
+                            f"[CACHE] {incomplete_count} loader(s) marked INCOMPLETE - cache will NOT be used. "
+                            f"Next Phase 1 run will query fresh data_loader_status."
+                        )
+                        # Skip caching when incomplete loaders detected — force fresh query next time
+                    else:
+                        # Only cache if all loaders are COMPLETED or RUNNING (not INCOMPLETE)
+                        cur.execute("""
+                            SELECT table_name, latest_date
+                            FROM data_loader_status
+                            WHERE table_name IN (
                             'price_daily', 'etf_price_daily',
                             'market_health_daily', 'trend_template_data',
                             'signal_quality_scores', 'buy_sell_daily', 'swing_trader_scores'
                         )
                     """)
-                    for r in cur.fetchall():
-                        dates[r['table_name']] = r['latest_date']
+                        for r in cur.fetchall():
+                            dates[r['table_name']] = r['latest_date']
 
-                    # Cache the results for future runs today (ISSUE #7 FIX: use configurable TTL)
-                    if dates:
-                        try:
-                            cache_table.put_item(Item={
-                                'cache_key': cache_key,
-                                'dates': dates,
-                                'created_at': datetime.now(timezone.utc).timestamp(),
-                                'ttl': int(time.time()) + cache_ttl_sec,  # Configurable TTL (default 2 hours)
-                            })
-                            logger.debug(f"Phase 1: Cached {len(dates)} table dates (ttl={cache_ttl_sec}s)")
-                        except Exception as cache_write_err:
-                            logger.debug(f"Phase 1: Cache write failed ({cache_write_err}), continuing")
+                        # Cache the results for future runs today (ISSUE #7 FIX: use configurable TTL)
+                        if dates:
+                            try:
+                                cache_table.put_item(Item={
+                                    'cache_key': cache_key,
+                                    'dates': dates,
+                                    'created_at': datetime.now(timezone.utc).timestamp(),
+                                    'ttl': int(time.time()) + cache_ttl_sec,  # Configurable TTL (default 2 hours)
+                                })
+                                logger.debug(f"Phase 1: Cached {len(dates)} table dates (ttl={cache_ttl_sec}s)")
+                            except Exception as cache_write_err:
+                                logger.debug(f"Phase 1: Cache write failed ({cache_write_err}), continuing")
 
             except Exception as e:
                 logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
