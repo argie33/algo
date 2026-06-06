@@ -207,33 +207,38 @@ def get_loader_health(cur) -> Dict[str, Any]:
             'source': 'patrol' if rows else 'table_check'
         }
     except Exception as e:
-        return error_response(500, 'data_processing_error', 'Failed to retrieve data coverage')
+        raise Exception(f'Failed to retrieve loader health: {e}')
 
 def _safe_call(cur, fn) -> Dict[str, Any]:
     """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.
 
-    Each sub-function already has its own try/except, but a failed psycopg2 query
-    marks the whole connection transaction as aborted. The SAVEPOINT lets us roll back
-    to the pre-call state so subsequent sub-functions can still query.
+    Each sub-function raises exceptions on errors, which are caught here.
+    Returns error dict if fn fails, or normal dict if successful.
     """
     try:
         cur.execute("SAVEPOINT coverage_check")
     except Exception:
         pass
 
-    result = fn(cur)
-
-    # fn handles its own exceptions, but if its internal query failed, the postgres
-    # transaction is now aborted. Attempt RELEASE; if that fails, ROLLBACK clears state.
     try:
-        cur.execute("RELEASE SAVEPOINT coverage_check")
-    except Exception:
+        result = fn(cur)
+        # fn succeeded - release the savepoint
+        try:
+            cur.execute("RELEASE SAVEPOINT coverage_check")
+        except Exception:
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
+            except Exception:
+                pass
+        return result
+    except Exception as e:
+        # fn failed - rollback the savepoint and return error dict
         try:
             cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
         except Exception:
             pass
-
-    return result
+        logger.warning(f"Coverage check function failed: {e}")
+        return error_response(500, 'data_processing_error', str(e))
 
 def get_overall_coverage_summary(cur) -> Dict[str, Any]:
     """Get overall data coverage summary."""

@@ -202,7 +202,7 @@ export default function ScoresDashboard() {
     : null;
 
   if (dataError) {
-    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dataError}</div>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{dataError?.message || 'Failed to load data'}</div>;
   }
 
   return (

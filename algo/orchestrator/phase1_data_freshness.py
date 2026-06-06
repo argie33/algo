@@ -14,7 +14,7 @@ from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
-def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 120, retry_count: int = 1) -> bool:
+def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 150, retry_count: int = 1) -> bool:
     """
     Trigger ECS loader asynchronously and VERIFY it started before returning.
 
@@ -27,7 +27,8 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
     Retries once with 10s backoff if initial trigger fails.
 
     ECS TIMING: Fargate tasks can take 45-120s to reach RUNNING state under load.
-    Default 120s timeout allows for normal scheduling delays while catching hung tasks.
+    ISSUE #4 FIX: Increased default timeout from 120s to 150s to accommodate worst-case
+    Fargate provisioning delays under cluster load. Prevents false timeout failures.
 
     Args:
         loader_name: Name of the loader to trigger
@@ -549,14 +550,58 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
 
         current_time = time.time()
 
-        # Use actual_running_at for grace period if available (more accurate)
-        # Otherwise fall back to triggered_at (for triggers that haven't reached RUNNING yet)
+        # ISSUE #4 FIX: Use actual_running_at if available, otherwise query ECS state again
+        # Don't just use triggered_at without verifying current ECS task status
         if actual_running_at:
             age_minutes = (current_time - actual_running_at) / 60
             age_source = f"running_at (delay {scheduling_delay:.0f}s)"
         else:
-            age_minutes = (current_time - triggered_at) / 60
-            age_source = "triggered_at (no RUNNING confirmation yet)"
+            # Polling might have timed out earlier. Query ECS now to check if task finally reached RUNNING.
+            try:
+                import boto3
+                ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+
+                # Try to find running task for this loader
+                list_resp = ecs_client.list_tasks(
+                    cluster=cluster_arn,
+                    desiredStatus='RUNNING',
+                    family=f'algo-{loader_name}-loader' if not loader_name.startswith('algo-') else loader_name
+                )
+
+                if list_resp.get('taskArns'):
+                    # Task found and running, update actual_running_at now
+                    desc_resp = ecs_client.describe_tasks(cluster=cluster_arn, tasks=list_resp['taskArns'][:1])
+                    if desc_resp.get('tasks'):
+                        task = desc_resp['tasks'][0]
+                        if task.get('lastStatus') == 'RUNNING':
+                            # Store this for future checks
+                            try:
+                                state_table.update_item(
+                                    Key={'state_key': 'failsafe_trigger_log'},
+                                    UpdateExpression='SET actual_running_at = :running_at',
+                                    ExpressionAttributeValues={':running_at': current_time}
+                                )
+                                logger.info(f"[FAILSAFE] Updated actual_running_at after re-check")
+                            except Exception:
+                                pass
+                            age_minutes = (current_time - current_time) / 60  # Task just confirmed RUNNING
+                            age_source = "running_at (re-verified from ECS)"
+                        else:
+                            age_minutes = (current_time - triggered_at) / 60
+                            age_source = f"triggered_at (task in {task.get('lastStatus')})"
+                    else:
+                        age_minutes = (current_time - triggered_at) / 60
+                        age_source = "triggered_at (could not describe task)"
+                else:
+                    # No task found - use triggered_at with note
+                    age_minutes = (current_time - triggered_at) / 60
+                    age_source = "triggered_at (no task found in ECS, may have already stopped)"
+            except Exception as ecs_err:
+                # If ECS check fails, fall back to triggered_at
+                logger.debug(f"[FAILSAFE] ECS re-check failed: {ecs_err}, using triggered_at")
+                age_minutes = (current_time - triggered_at) / 60
+                age_source = "triggered_at (ECS check failed)"
 
         # Dynamic grace period (configurable via algo_config):
         # Read from database if available, default to 150 minutes
