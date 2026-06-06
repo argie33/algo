@@ -74,6 +74,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         # ISSUE #8 FIX: Validate buy_sell_daily COMPLETENESS before computing scores
         # If buy_sell_daily loader was incomplete (missed symbols), signal quality becomes
         # incomplete too, causing cascading failures in Phase 5 filtering
+        # ENHANCED: Log why scores are skipped to improve morning pipeline observability
         try:
             with DatabaseContext('read') as cur:
                 # Check if buy_sell_daily has completed for end date
@@ -88,11 +89,23 @@ class SignalQualityScoresLoader(OptimalLoader):
                 coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
                 if coverage < 95:
-                    logger.warning(
-                        f"{symbol}: buy_sell_daily incomplete for {end}: "
-                        f"{actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%). "
-                        f"signal_quality_scores cannot run until buy_sell_daily completes. Rejecting scores."
+                    logger.critical(
+                        f"[SIGNAL_QUALITY_SKIPPED] {symbol}: buy_sell_daily INCOMPLETE for {end}: "
+                        f"{actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%, REQUIRE >95%). "
+                        f"signal_quality_scores cannot run until buy_sell_daily is >95% complete. Rejecting scores."
                     )
+                    # Emit metric for morning pipeline observability
+                    try:
+                        from algo.algo_metrics import MetricsPublisher
+                        m = MetricsPublisher()
+                        m.put_metric('SignalQualityScoresSkipped', 1, unit='Count', dimensions={
+                            'symbol': symbol,
+                            'date': str(end),
+                            'buy_sell_coverage_pct': f'{coverage:.0f}'
+                        })
+                        m.flush()
+                    except Exception:
+                        pass
                     return []
         except Exception as e:
             logger.debug(f"Could not validate buy_sell_daily completeness: {e}")

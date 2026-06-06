@@ -58,6 +58,7 @@ export function configureAmplify() {
   try {
     const config = getAmplifyConfig();
     const currentPoolId = config.Auth.Cognito.userPoolId;
+    const isConfigured = isCognitoConfigured();
 
     // Only reconfigure if pool ID changed (new config loaded)
     // Prevents redundant Amplify.configure() calls
@@ -68,11 +69,12 @@ export function configureAmplify() {
     lastConfiguredPoolId = currentPoolId;
     Amplify.configure(config);
 
-    const isConfigured = isCognitoConfigured();
     if (isConfigured) {
       console.log("[AMPLIFY] Configured with Cognito:", currentPoolId.substring(0, 12) + "...");
     } else {
-      console.warn("[AMPLIFY] Configured with fallback values - real config may load later");
+      // In development mode without Cognito, this is expected behavior
+      // The AuthContext will use dev auto-authentication instead
+      console.debug("[AMPLIFY] Cognito not configured - AuthContext will use dev authentication");
     }
   } catch (error) {
     console.error("Failed to configure Amplify:", error);
