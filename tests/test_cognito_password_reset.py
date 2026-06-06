@@ -47,7 +47,9 @@ def test_cognito_trigger_lambda():
     context = MagicMock()
 
     # Mock SES to verify it's called correctly
-    with patch('lambda_function.ses_client') as mock_ses:
+    with patch('lambda_function.get_ses_client') as mock_get_ses:
+        mock_ses = MagicMock()
+        mock_get_ses.return_value = mock_ses
         mock_ses.send_email.return_value = {"MessageId": "test-message-id"}
 
         # Call the Lambda handler
@@ -99,7 +101,9 @@ def test_full_password_reset_flow():
 
     context = MagicMock()
 
-    with patch('lambda_function.ses_client') as mock_ses:
+    with patch('lambda_function.get_ses_client') as mock_get_ses:
+        mock_ses = MagicMock()
+        mock_get_ses.return_value = mock_ses
         mock_ses.send_email.return_value = {"MessageId": "test-msg-12345"}
 
         # Step 1: Cognito triggers Lambda

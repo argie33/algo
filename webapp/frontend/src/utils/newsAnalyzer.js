@@ -84,12 +84,23 @@ class NewsAnalyzer {
           `${article.title || article.headline || ""} ${article.summary || article.description || ""}`.toLowerCase();
       } else {
         return {
-          sentiment: null,
-          score: null,
+          sentiment: 'neutral',
+          score: 0,
           confidence: 0,
           keywords: [],
         };
       }
+
+      // Handle empty text
+      if (!text || text.trim().length === 0) {
+        return {
+          sentiment: 'neutral',
+          score: 0,
+          confidence: 0,
+          keywords: [],
+        };
+      }
+
       const words = text.split(/\s+/);
 
       let positiveScore = 0;
@@ -123,8 +134,8 @@ class NewsAnalyzer {
 
       // Calculate sentiment
       const totalSentimentWords = positiveScore + negativeScore;
-      let sentiment = null;
-      let score = null;
+      let sentiment = 'neutral';
+      let score = 0;
 
       if (totalSentimentWords > 0) {
         if (positiveScore > negativeScore) {
@@ -132,10 +143,10 @@ class NewsAnalyzer {
           score = positiveScore / totalSentimentWords;
         } else if (negativeScore > positiveScore) {
           sentiment = "negative";
-          score = 1 - (negativeScore / totalSentimentWords);
+          score = -(negativeScore / totalSentimentWords);
         } else {
           sentiment = "neutral";
-          score = 0.5;
+          score = 0;
         }
       }
 
@@ -152,8 +163,8 @@ class NewsAnalyzer {
     } catch (error) {
       console.error("NewsAnalyzer: Sentiment analysis failed:", error);
       return {
-        sentiment: null,
-        score: null,
+        sentiment: 'neutral',
+        score: 0,
         confidence: 0,
         error: error.message,
       };
@@ -161,17 +172,154 @@ class NewsAnalyzer {
   }
 
   /**
+   * Extract keywords from text
+   * @param {string} text - Text to extract keywords from
+   * @returns {Array} Array of keywords
+   */
+  extractKeywords(text = '') {
+    try {
+      if (!text || typeof text !== 'string') {
+        return [];
+      }
+
+      const commonStopwords = new Set([
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+        'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
+        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+        'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these',
+        'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'what', 'which',
+        'who', 'when', 'where', 'why', 'how', 'as', 'if', 'because', 'while',
+        'after', 'before', 'during', 'between', 'through', 'about', 'over',
+        'under', 'above', 'below', 'up', 'down', 'out', 'in', 'off', 'into',
+        'onto', 'etc', 'am', 'pm'
+      ]);
+
+      const financialKeywords = new Set([
+        'earnings', 'revenue', 'profit', 'loss', 'margin', 'growth', 'decline',
+        'beat', 'miss', 'guidance', 'forecast', 'analyst', 'upgrade', 'downgrade',
+        'buyback', 'dividend', 'acquisition', 'merger', 'ipo', 'stock', 'shares',
+        'trading', 'sector', 'market', 'price', 'volume', 'volatility', 'bullish',
+        'bearish', 'support', 'resistance', 'breakout', 'momentum', 'technical',
+        'fundamental', 'valuation', 'pe', 'eps', 'roe', 'fcf', 'cash', 'debt'
+      ]);
+
+      const words = text.toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter(word => word.length > 0);
+
+      const keywords = [];
+      const seen = new Set();
+
+      words.forEach(word => {
+        if (!seen.has(word) &&
+            !commonStopwords.has(word) &&
+            word.length > 2 &&
+            financialKeywords.has(word)) {
+          keywords.push(word);
+          seen.add(word);
+        }
+      });
+
+      return keywords;
+    } catch (error) {
+      console.error("NewsAnalyzer: Keyword extraction failed:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Extract stock symbols from text
+   * @param {string} text - Text to extract symbols from
+   * @returns {Array} Array of stock symbols
+   */
+  extractSymbols(text = '') {
+    try {
+      if (!text || typeof text !== 'string') {
+        return [];
+      }
+
+      const symbolPattern = /\b([A-Z]{1,5})\b/g;
+      const symbols = [];
+      const seen = new Set();
+      let match;
+
+      while ((match = symbolPattern.exec(text)) !== null) {
+        const symbol = match[1].toUpperCase();
+        if (!seen.has(symbol) && symbol.length >= 1 && symbol.length <= 5) {
+          symbols.push(symbol);
+          seen.add(symbol);
+        }
+      }
+
+      return symbols;
+    } catch (error) {
+      console.error("NewsAnalyzer: Symbol extraction failed:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Categorize article by type
+   * @param {string} text - Article text
+   * @returns {string} Category: 'earnings', 'analysis', 'general'
+   */
+  categorizeArticle(text = '') {
+    try {
+      if (!text || typeof text !== 'string') {
+        return 'general';
+      }
+
+      const textLower = text.toLowerCase();
+
+      const earningsKeywords = ['earnings', 'revenue', 'profit', 'loss', 'quarterly', 'quarter'];
+      const analysisKeywords = ['technical', 'analysis', 'breakout', 'pattern', 'support', 'resistance', 'moving average', 'rsi', 'macd'];
+
+      const hasEarnings = earningsKeywords.some(keyword => textLower.includes(keyword));
+      const hasAnalysis = analysisKeywords.some(keyword => textLower.includes(keyword));
+
+      if (hasEarnings) return 'earnings';
+      if (hasAnalysis) return 'analysis';
+      return 'general';
+    } catch (error) {
+      console.error("NewsAnalyzer: Article categorization failed:", error);
+      return 'general';
+    }
+  }
+
+  /**
    * Calculate news impact score
-   * @param {Object} article - News article
-   * @returns {Object} Impact score result
+   * @param {string|Object} article - News article or text
+   * @returns {number|Object} Impact score result
    */
   calculateImpact(article) {
     try {
       if (!article) {
-        return { impact: null, score: null };
+        return 0;
       }
 
-      let score = null; // No default - will be calculated from real data
+      // Handle string input - use text length as impact
+      if (typeof article === 'string') {
+        const text = article.trim();
+        const length = text.length;
+
+        // Calculate impact based on text length and keywords
+        const majorEventKeywords = ['announces', 'breakthrough', 'record', 'surge', 'crash', 'plunge', 'stock split', 'beats', 'misses'];
+        const hasMajorEvent = majorEventKeywords.some(keyword => text.toLowerCase().includes(keyword));
+
+        let score = 0;
+        if (length > 500) score = 0.8;
+        else if (length > 200) score = 0.6;
+        else if (length > 50) score = 0.4;
+        else if (length > 0) score = 0.2;
+
+        if (hasMajorEvent) score += 0.2;
+
+        return Math.min(score, 1);
+      }
+
+      // Handle object input
+      let score = 0;
 
       // Source credibility
       const credibleSources = [
@@ -187,8 +335,6 @@ class NewsAnalyzer {
         "associated press",
         "ap news",
       ];
-
-      score = 0; // Initialize as 0, will accumulate from real factors
 
       if (article.source) {
         const sourceLower = article.source.toLowerCase();
@@ -238,11 +384,7 @@ class NewsAnalyzer {
       };
     } catch (error) {
       console.error("NewsAnalyzer: Impact calculation failed:", error);
-      return {
-        impact: null,
-        score: null,
-        error: error.message,
-      };
+      return 0;
     }
   }
 
