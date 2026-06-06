@@ -941,8 +941,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if 'body' in response:
                 body = response['body'] if isinstance(response['body'], str) else json.dumps(response['body'], default=_json_default)
             else:
-                # Route handlers return data dicts directly (no body key) — wrap them
-                body = json.dumps({k: v for k, v in response.items() if k != 'statusCode'}, default=_json_default)
+                # Route handlers return data dicts directly (no body key) — include statusCode in body
+                body = json.dumps(response, default=_json_default)
 
             # Log successful requests (2xx, 3xx)
             if status < 400:
