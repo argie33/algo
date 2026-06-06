@@ -94,14 +94,14 @@ class TestIssue9MorningPrepTiming(unittest.TestCase):
 
     def test_morning_prep_timing_windows(self):
         """Verify morning prep timing is properly monitored with correct time windows."""
-        # Expected windows:
-        # - Start: 2:45 AM ET
+        # Expected windows (Session 14 fix):
+        # - Start: 2:00 AM ET (moved from 2:45 AM to increase safety buffer)
         # - Deadline: 9:30 AM ET
-        # - Available: 405 minutes
-        # - Expected execution: 230-255 minutes (with 150 min safety buffer)
+        # - Available: 450 minutes (7.5 hours)
+        # - Expected execution: 230-255 minutes (with 195 min safety buffer)
 
         # Test that the code calculates timing correctly
-        start_hour, start_min = 2, 45
+        start_hour, start_min = 2, 0
         deadline_hour, deadline_min = 9, 30
 
         # Simulate timing calculation
@@ -115,20 +115,20 @@ class TestIssue9MorningPrepTiming(unittest.TestCase):
         available_minutes = (deadline_time - start_time).total_seconds() / 60
 
         # Verify correct timing window
-        self.assertEqual(available_minutes, 405, "Morning prep window should be 405 minutes")
+        self.assertEqual(available_minutes, 450, "Morning prep window should be 450 minutes (7.5 hours)")
 
         print(f"✓ Morning prep timing window verified: {available_minutes} minutes available")
 
     def test_morning_prep_alerting_tiers(self):
-        """Verify 3-tier alerting system for morning prep timing."""
-        # Expected tiers:
+        """Verify 3-tier alerting system for morning prep timing (Session 14 update)."""
+        # Expected tiers (with 2:00 AM start):
         # 1. CRITICAL: < 20 min remaining (halt orchestrator immediately)
-        # 2. WARNING: < 81 min remaining after 324 min elapsed (80% threshold)
+        # 2. WARNING: < 90 min remaining after 360 min elapsed (80% threshold of 450 min window)
         # 3. Base monitoring: > 120 min remaining
 
         expected_thresholds = {
             "CRITICAL": 20,  # minutes remaining
-            "WARNING": 81,   # minutes remaining (after 324 min elapsed = 80% done)
+            "WARNING": 90,   # minutes remaining (after 360 min elapsed = 80% of 450 min done)
             "BASE_MONITORING": 120,  # minutes remaining
         }
 
@@ -136,8 +136,8 @@ class TestIssue9MorningPrepTiming(unittest.TestCase):
         source = open(os.path.join(os.path.dirname(__file__), "..", "algo", "orchestrator",
                                    "phase1_data_freshness.py"), encoding='utf-8').read()
 
-        # Check for the thresholds in code
-        assert "81" in source and "remaining" in source, "80% warning threshold (81 min) not found"
+        # Check for the thresholds in code (80% of 450 min = 360 min, leaving 90 min)
+        assert "90" in source and "remaining" in source, "80% warning threshold (90 min) not found"
         assert "20" in source and "CRITICAL" in source, "Critical threshold (20 min) not found"
         assert "[MORNING_PREP_TIMING]" in source, "Morning prep timing log prefix not found"
 
