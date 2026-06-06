@@ -159,13 +159,13 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     """)
     row = cur.fetchone()
     if not row or not row['peak'] or not row['current']:
-        return {'statusCode': 200, 'data': {'current_drawdown_pct': 0, 'status': 'no_history'}}
+        return {'current_drawdown_pct': 0, 'status': 'no_history'}
 
     peak = float(row['peak'])
     current = float(row['current'])
     drawdown_pct = ((peak - current) / peak) * 100 if peak > 0 else 0
 
-    return {'statusCode': 200, 'data': {
+    return {
         'current_drawdown_pct': max(0, drawdown_pct),
         'peak_portfolio_value': peak,
         'current_portfolio_value': current,
@@ -182,7 +182,7 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
             'at_minus_20': 0.0,
         },
         'status': _get_drawdown_status(drawdown_pct),
-    }}
+    }
 
 def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
@@ -197,7 +197,7 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
             exposure_pct = float(row['exposure_pct']) if row['exposure_pct'] else 100
             tier = row['regime'] or 'NORMAL'
             rationale = row['halt_reasons'] or 'No data'
-            return {'statusCode': 200, 'data': {
+            return {
                 'current_tier': tier,
                 'exposure_pct': exposure_pct,
                 'rationale': rationale,
@@ -207,16 +207,16 @@ def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
                     'caution': 0.50,
                     'correction': 0.0,
                 }.get(tier.lower() if tier else '', 1.0),
-            }}
+            }
     except Exception as e:
         logger.warning(f"Exposure tier computation failed, using defaults: {e}")
 
-    return {'statusCode': 200, 'data': {
+    return {
         'current_tier': 'NORMAL',
         'exposure_pct': 100,
         'rationale': 'Default (no data)',
         'position_size_multiplier': 1.0,
-    }}
+    }
 
 def _get_drawdown_metrics(cur) -> Dict:
     """GET /api/algo/risk-dashboard/drawdown"""

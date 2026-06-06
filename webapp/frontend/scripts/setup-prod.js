@@ -10,15 +10,20 @@ const __dirname = path.dirname(__filename);
 
 // Get parameters from command line (preferred) or environment variables (CI/CD friendly)
 const apiUrl = process.argv[2] || process.env.VITE_API_URL || "";
-if (!apiUrl) {
-  console.warn("⚠️  Warning: API URL not provided via VITE_API_URL environment variable or argument");
-  console.warn("This may be expected if CloudFront is not yet ready. Frontend will use relative API paths.");
-  console.warn("Set VITE_API_URL environment variable or run:");
-  console.warn(
-    "  node setup-prod.js <API_URL> [environment] [userPoolId] [clientId] [cognitoDomain] [cloudfrontUrl]"
-  );
+const environment = process.argv[3] || process.env.VITE_ENVIRONMENT || "development";
+
+// CRITICAL: Prevent localhost from being written to production config
+if (!apiUrl && environment === "production") {
+  console.error("❌ ERROR: API_URL is required for production builds");
+  console.error("Set VITE_API_URL environment variable or pass as first argument:");
+  console.error("  VITE_API_URL=https://api.example.com node setup-prod.js");
+  console.error("  OR: node setup-prod.js https://api.example.com production");
+  process.exit(1);
 }
-const environment = process.argv[3] || process.env.VITE_ENVIRONMENT || "production";
+
+if (!apiUrl && environment !== "production") {
+  console.warn("⚠️  Warning: API URL not provided. Frontend will use relative paths for dev proxy.");
+}
 const userPoolId = process.argv[4] || process.env.VITE_COGNITO_USER_POOL_ID || "";
 const clientId = process.argv[5] || process.env.VITE_COGNITO_CLIENT_ID || "";
 const cognitoDomain = process.argv[6] || process.env.VITE_COGNITO_DOMAIN || "";

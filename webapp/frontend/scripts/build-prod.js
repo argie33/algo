@@ -23,8 +23,12 @@ const cognitoDomain = process.argv[6] || process.env.VITE_COGNITO_DOMAIN || "";
 const cloudfrontUrl = process.argv[7] || process.env.VITE_CLOUDFRONT_DOMAIN || "";
 
 // Validate critical variables before build
-if (!apiUrl) {
-  console.warn("⚠️  WARNING: API_URL is empty - frontend may not reach API");
+if (!apiUrl && process.env.NODE_ENV === 'production') {
+  console.error("❌ ERROR: API_URL is required for production builds");
+  console.error("Set VITE_API_URL environment variable, e.g.:");
+  console.error("  export VITE_API_URL=https://api.example.com");
+  console.error("  npm run build:prod");
+  process.exit(1);
 }
 
 if (!userPoolId && !clientId) {
