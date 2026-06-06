@@ -52,8 +52,9 @@ output "rds_proxy_endpoint" {
 }
 
 output "rds_proxy_address" {
-  description = "RDS Proxy endpoint (hostname:port) or RDS instance address if proxy unavailable"
-  value       = try(aws_db_proxy.main.endpoint, "${aws_db_instance.main.address}:5432")
+  description = "RDS Proxy endpoint for database connections"
+  value       = aws_db_proxy.main.endpoint
+  depends_on  = [aws_db_proxy.main]
 }
 
 # Secrets
