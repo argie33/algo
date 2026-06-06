@@ -966,15 +966,34 @@ class PriceLoader(OptimalLoader):
                 total_rows = result[0] if result else 0
                 latest_date = result[1] if result else None
 
+            # ISSUE #2 FIX: Track completion percentage and mark INCOMPLETE if <95%
+            symbols_expected = len(symbols) if symbols else 1
+            symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
+            completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
+
+            # Determine status: INCOMPLETE if coverage <95%, else COMPLETED
+            loader_status = 'COMPLETED'
+            if completion_pct < 95:
+                loader_status = 'INCOMPLETE'
+                logger.warning(
+                    f"[{self.table_name}] Load completed but INCOMPLETE: "
+                    f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%) — "
+                    f"Phase 1 will detect this and trigger failsafe retry"
+                )
+
             with DatabaseContext('write') as cur:
-                cur.execute("""
-                    INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated)
-                    VALUES (%s, %s, %s, NOW())
-                    ON CONFLICT (table_name) DO UPDATE SET
-                      row_count = EXCLUDED.row_count,
-                      latest_date = EXCLUDED.latest_date,
-                      last_updated = NOW()
-                """, (self.table_name, total_rows, latest_date))
+                cur.execute(
+                    "DELETE FROM data_loader_status WHERE table_name = %s",
+                    (self.table_name,),
+                )
+                cur.execute(
+                    "INSERT INTO data_loader_status "
+                    "(table_name, row_count, latest_date, last_updated, status, "
+                    "completion_pct, symbol_count, symbols_loaded) "
+                    "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s)",
+                    (self.table_name, total_rows, latest_date, loader_status,
+                     completion_pct, symbols_expected, symbols_successfully_loaded),
+                )
 
             # ISSUE #22 FIX: Invalidate Phase 1 data_loader_status cache on completion
             # Ensures Phase 1 detects updated loader status immediately, not after cache TTL
