@@ -586,13 +586,22 @@ class PriceLoader(OptimalLoader):
 
                 return results
             else:
-                # Transient error (network, timeout): retry with same batch size
+                # ISSUE #6 FIX: Transient error (network, timeout): differentiate error types
+                # Timeout errors likely indicate API slowness, not rate limiting
+                # Network/connection errors indicate infrastructure issues
+                error_str = str(e).lower()
+                is_timeout = "timeout" in error_str or "timed out" in error_str
+                is_connection = any(x in error_str for x in ["connection", "reset", "broken", "closed"])
+
+                error_type = "timeout (API slowness)" if is_timeout else "connection (network)" if is_connection else "other transient"
+
                 base_wait = min(30, 2 ** attempt)
                 jitter = random.uniform(0.9, 1.1)  # ±10% jitter
                 wait_time = base_wait * jitter
                 logger.warning(
-                    f"[BATCH FETCH] Transient error (attempt {attempt+1}/{max_attempts}): {e}. "
-                    f"Retrying {len(symbols)} symbols in {wait_time:.1f}s..."
+                    f"[BATCH FETCH] Transient {error_type} error (attempt {attempt+1}/{max_attempts}, elapsed {elapsed_sec:.0f}s): {e}. "
+                    f"Retrying {len(symbols)} symbols with same batch_size={batch_size} in {wait_time:.1f}s... "
+                    f"(Note: batch size not reduced for timeouts — if API fundamentally slow, increasing wait time not batch reduction)"
                 )
                 time.sleep(wait_time)
                 return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec=elapsed_sec + wait_time)

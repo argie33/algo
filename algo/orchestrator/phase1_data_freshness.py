@@ -1605,43 +1605,52 @@ def run(
                 logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
 
         # Fall back to direct scan only for tables missing from data_loader_status.
+        # ISSUE #5 FIX: Use atomic query to read all missing table dates in single transaction
+        # This prevents race conditions where price_daily is fresh at t=0 but technical_data_daily becomes stale at t=5
         # Use ORDER BY date DESC LIMIT 1 instead of MAX(date) — forces an index scan
         # regardless of stale PostgreSQL statistics (avoids sequential scan on t4g.micro).
-        # Use ONE connection for ALL missing tables — DB connection establishment takes
-        # 30-95s under heavy load; opening a separate connection per table would take
-        # 3× as long. Single connection with per-query 30s timeouts via SAVEPOINTs.
         missing = [t for t in ('price_daily', 'market_health_daily', 'trend_template_data') if t not in dates]
         if missing:
             try:
                 with DatabaseContext('read') as cur:
-                    cur.execute("SET statement_timeout = 30000")  # 30s per query
-                    for table in missing:
-                        try:
-                            cur.execute("SAVEPOINT scan")
-                            if table == 'price_daily':
-                                cur.execute(
-                                    "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
-                                )
-                                row = cur.fetchone()
-                                if not row:
+                    cur.execute("SET statement_timeout = 30000")  # 30s max for all queries
+                    # ISSUE #5 FIX: Begin explicit transaction to ensure all table reads are atomic
+                    cur.execute("BEGIN ISOLATION LEVEL READ COMMITTED")
+                    try:
+                        for table in missing:
+                            try:
+                                cur.execute("SAVEPOINT scan")
+                                if table == 'price_daily':
                                     cur.execute(
-                                        "SELECT date FROM etf_price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
+                                        "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
                                     )
                                     row = cur.fetchone()
-                            else:
-                                cur.execute(f"SELECT date FROM {table} ORDER BY date DESC LIMIT 1")
-                                row = cur.fetchone()
-                            cur.execute("RELEASE SAVEPOINT scan")
-                            if row:
-                                dates[table] = row[0]
-                                logger.info(f"Phase 1: direct scan found {table} latest={row[0]}")
-                        except Exception as e:
-                            try:
-                                cur.execute("ROLLBACK TO SAVEPOINT scan")
+                                    if not row:
+                                        cur.execute(
+                                            "SELECT date FROM etf_price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
+                                        )
+                                        row = cur.fetchone()
+                                else:
+                                    cur.execute(f"SELECT date FROM {table} ORDER BY date DESC LIMIT 1")
+                                    row = cur.fetchone()
                                 cur.execute("RELEASE SAVEPOINT scan")
-                            except Exception:
-                                pass
-                            logger.warning(f"Phase 1: direct scan for {table} failed ({e})")
+                                if row:
+                                    dates[table] = row[0]
+                                    logger.info(f"Phase 1: direct scan found {table} latest={row[0]} (atomic transaction)")
+                            except Exception as e:
+                                try:
+                                    cur.execute("ROLLBACK TO SAVEPOINT scan")
+                                    cur.execute("RELEASE SAVEPOINT scan")
+                                except Exception:
+                                    pass
+                                logger.warning(f"Phase 1: direct scan for {table} failed ({e})")
+                        cur.execute("COMMIT")
+                    except Exception as txn_err:
+                        try:
+                            cur.execute("ROLLBACK")
+                        except Exception:
+                            pass
+                        logger.warning(f"Phase 1: atomic transaction failed ({txn_err}), results may have race condition")
             except Exception as e:
                 logger.warning(f"Phase 1: direct scan connection failed ({e})")
 
@@ -1983,6 +1992,31 @@ def run(
                             else:
                                 logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] ⚠️  Could not terminate hung loader task, but proceeding with failsafe anyway. "
                                              f"Hung task may consume resources - monitor RDS connection pool.")
+
+                    # ISSUE #8 FIX: Also check for hung analytics loaders that could exhaust RDS connection pool
+                    # Analytics loaders (company_profile, analyst_sentiment, etc.) aren't on critical path
+                    # but if hung, they consume connections and prevent other loaders from running
+                    analytics_loaders = ['company_profile', 'analyst_sentiment', 'stability_metrics',
+                                       'value_metrics', 'growth_metrics', 'quality_metrics']
+                    hung_loaders = []
+                    for loader_table in analytics_loaders:
+                        try:
+                            if _detect_hung_loader_task(loader_table, timeout_minutes=2):  # 2min timeout for analytics
+                                hung_loaders.append(loader_table)
+                                logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] Analytics loader '{loader_table}' appears hung, attempting termination")
+                                _terminate_hung_loader_task(loader_table, verbose=False)
+                        except Exception:
+                            pass  # Ignore errors for non-critical analytics loaders
+
+                    if hung_loaders:
+                        alerts.send_position_alert(
+                            'DATA',
+                            'HUNG_ANALYTICS_LOADERS',
+                            f'{len(hung_loaders)} analytics loader(s) detected as hung (stale heartbeat >2min): {"; ".join(hung_loaders)}. '
+                            f'Attempted termination to free RDS connections.',
+                            {'hung_loaders': hung_loaders, 'correlation_id': _phase1_correlation_id}
+                        )
+                        logger.warning(f"[{_phase1_correlation_id}] [HUNG_ANALYTICS] Alerted on {len(hung_loaders)} hung analytics loader(s)")
             except Exception as status_err:
                 logger.debug(f"[{_phase1_correlation_id}] [FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
 
