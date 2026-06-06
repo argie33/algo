@@ -1521,6 +1521,20 @@ def run(
             logger.debug(f"Phase 1: Using default cache TTL: {cache_ttl_sec}s")
 
         # Step 1: Try DynamoDB cache first (configurable TTL, default 2 hours)
+        # ISSUE #10 FIX: Before using cache, verify database is truly unreachable
+        # This prevents using stale cache after database comes back online
+        database_available = False
+        try:
+            # Quick connectivity check: single fast query to see if database is responsive
+            # Use very short timeout (2s) to fail fast if DB is still down
+            with DatabaseContext('read') as db_check_cur:
+                db_check_cur.execute("SET statement_timeout = 2000")  # 2s max
+                db_check_cur.execute("SELECT 1")
+                database_available = True
+                logger.debug("[DATABASE CHECK] ✓ Database is responsive")
+        except Exception as db_check_err:
+            logger.debug(f"[DATABASE CHECK] Database unreachable ({db_check_err}), may use cache fallback")
+
         try:
             import boto3
             dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
@@ -1531,9 +1545,14 @@ def run(
             if 'Item' in response:
                 cached_dates = response['Item'].get('dates', {})
                 cache_age = datetime.now(timezone.utc).timestamp() - response['Item'].get('created_at', 0)
-                if cache_age < cache_ttl_sec:
+
+                # ISSUE #10 FIX: Only use cache if database is unavailable
+                # If database is available, force fresh query to avoid stale cache
+                if not database_available and cache_age < cache_ttl_sec:
                     dates = cached_dates
-                    logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s, ttl={cache_ttl_sec}s)")
+                    logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s, ttl={cache_ttl_sec}s, db unavailable)")
+                elif database_available:
+                    logger.info(f"[CACHE INVALIDATION] Database is responsive, skipping cache (age={cache_age:.0f}s). Will query fresh data.")
                 else:
                     logger.info(f"Phase 1: Cache expired (age={cache_age:.0f}s > ttl={cache_ttl_sec}s), will refresh")
         except Exception as cache_err:

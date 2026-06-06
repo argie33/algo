@@ -1054,8 +1054,9 @@ class PriceLoader(OptimalLoader):
         for symbol in symbols:
             rows = batch_results.get(symbol) if batch_results else None
             if not rows:
-                logger.debug(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
+                logger.debug(f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping")
                 self._stats["symbols_skipped_by_watermark"] += 1
+                self._stats["symbols_processed"] += 1  # Count as processed (no new data needed, not a failure)
                 continue
 
             logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch")
@@ -1104,6 +1105,26 @@ class PriceLoader(OptimalLoader):
             self._stats["rows_inserted"] += inserted
             self._stats["symbols_processed"] += 1
 
+def _invalidate_phase1_cache():
+    """Invalidate Phase 1 cache to force fresh status check on next run.
+
+    Called on loader failure to ensure Phase 1 doesn't use stale cached data.
+    """
+    try:
+        from datetime import datetime
+        import boto3
+
+        cache_date = datetime.now().date()
+        cache_key = f"data_loader_status-{cache_date.isoformat()}"
+        cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+
+        dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+        cache_table = dynamodb.Table(cache_table_name)
+        cache_table.delete_item(Key={'cache_key': cache_key})
+        logger.debug(f"[CACHE INVALIDATION] Invalidated Phase 1 cache on loader failure for {cache_key}")
+    except Exception as cache_err:
+        logger.debug(f"[CACHE INVALIDATION] Could not invalidate cache on failure: {cache_err}")
+
 def log_loader_execution(loader_name, table_name, status, records_loaded=0, records_updated=0, error_msg=None, duration_seconds=0):
     """Log loader execution to data_loader_runs table for monitoring."""
     try:
@@ -1144,6 +1165,7 @@ def main():
         logger.info(f"[{_correlation_id}] [MAIN] Environment loaded successfully")
     except Exception as e:
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
+        _invalidate_phase1_cache()
         log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
         return 1
 
@@ -1212,6 +1234,7 @@ def main():
                 return 1
     except Exception as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
+        _invalidate_phase1_cache()
         log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
         return 1
 
@@ -1272,6 +1295,7 @@ def main():
                 loader.close()
             except Exception as e:
                 logger.error(f"[MAIN] Loader failed for {asset_class}/{interval}: {e}", exc_info=True)
+                _invalidate_phase1_cache()
                 fail_count += 1
                 return 1
 
@@ -1280,6 +1304,7 @@ def main():
     duration_seconds = round(time.time() - start_time, 2)
     if fail_count > 0:
         logger.error(f"[MAIN] {fail_count} interval(s) had too many failures")
+        _invalidate_phase1_cache()
         log_loader_execution(
             'loadpricedaily',
             'price_daily',
