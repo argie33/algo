@@ -11,8 +11,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -413,7 +414,8 @@ def main():
 
         # Also write VIX-family term structure prices to price_daily so the
         # VolTermStructureCard in MarketsHealth can render.
-        end = date.today()
+        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+        end = datetime.now(ZoneInfo("America/New_York")).date()
         start = end - timedelta(days=90)
         written = _write_vix_family_prices(start, end)
         if written > 0:
