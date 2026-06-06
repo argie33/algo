@@ -53,7 +53,7 @@ output "rds_proxy_endpoint" {
 
 output "rds_proxy_address" {
   description = "RDS Proxy hostname only"
-  value       = regex("^([^:]+)", aws_db_proxy.main.endpoint)
+  value       = try(regex("^([^:]+)", aws_db_proxy.main.endpoint), aws_db_instance.main.address)
 }
 
 # Secrets
