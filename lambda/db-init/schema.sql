@@ -1702,7 +1702,10 @@ CREATE TABLE IF NOT EXISTS data_loader_status (
     stale_threshold_days INTEGER,
     status VARCHAR(20),
     last_updated TIMESTAMP,
-    error_message TEXT
+    error_message TEXT,
+    completion_pct DECIMAL(5, 2) DEFAULT 100.0,  -- ISSUE #2: Track symbol completion percentage
+    symbol_count INTEGER,                        -- ISSUE #2: Expected number of symbols
+    symbols_loaded INTEGER                       -- ISSUE #2: Actual symbols successfully loaded
 );
 
 -- Data patrol audit log

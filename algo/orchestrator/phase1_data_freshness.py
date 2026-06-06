@@ -1297,7 +1297,24 @@ def run(
         dates = {}
         cache_key = f"data_loader_status-{run_date.isoformat()}"
 
-        # Step 1: Try DynamoDB cache first (5-minute TTL)
+        # ISSUE #7 FIX: Make cache TTL configurable (was hardcoded to 5 minutes)
+        # Phase 1 runs 4 times/day (9:30 AM, 1 PM, 3 PM, 5:30 PM), so 5-min cache expires between runs.
+        # Extend to 2 hours (7200s) — fresh data must invalidate cache anyway.
+        cache_ttl_sec = 7200  # 2 hours — covers all Phase 1 runs within a day
+        try:
+            with DatabaseContext('read') as config_cur:
+                config_cur.execute(
+                    "SELECT value FROM algo_config WHERE key = %s",
+                    ('phase1_cache_ttl_seconds',)
+                )
+                config_result = config_cur.fetchone()
+                if config_result:
+                    cache_ttl_sec = int(config_result[0])
+                    logger.debug(f"Phase 1: Using configured cache TTL: {cache_ttl_sec}s")
+        except Exception:
+            logger.debug(f"Phase 1: Using default cache TTL: {cache_ttl_sec}s")
+
+        # Step 1: Try DynamoDB cache first (configurable TTL, default 2 hours)
         try:
             import boto3
             dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
@@ -1308,9 +1325,11 @@ def run(
             if 'Item' in response:
                 cached_dates = response['Item'].get('dates', {})
                 cache_age = datetime.now(timezone.utc).timestamp() - response['Item'].get('created_at', 0)
-                if cache_age < 300:  # 5-minute TTL
+                if cache_age < cache_ttl_sec:
                     dates = cached_dates
-                    logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s)")
+                    logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s, ttl={cache_ttl_sec}s)")
+                else:
+                    logger.info(f"Phase 1: Cache expired (age={cache_age:.0f}s > ttl={cache_ttl_sec}s), will refresh")
         except Exception as cache_err:
             logger.debug(f"Phase 1: Cache lookup failed ({cache_err}), will try database")
 
@@ -1331,16 +1350,16 @@ def run(
                     for r in cur.fetchall():
                         dates[r['table_name']] = r['latest_date']
 
-                    # Cache the results for future runs today
+                    # Cache the results for future runs today (ISSUE #7 FIX: use configurable TTL)
                     if dates:
                         try:
                             cache_table.put_item(Item={
                                 'cache_key': cache_key,
                                 'dates': dates,
                                 'created_at': datetime.now(timezone.utc).timestamp(),
-                                'ttl': int(time.time()) + 300,  # 5-minute TTL
+                                'ttl': int(time.time()) + cache_ttl_sec,  # Configurable TTL (default 2 hours)
                             })
-                            logger.debug(f"Phase 1: Cached {len(dates)} table dates")
+                            logger.debug(f"Phase 1: Cached {len(dates)} table dates (ttl={cache_ttl_sec}s)")
                         except Exception as cache_write_err:
                             logger.debug(f"Phase 1: Cache write failed ({cache_write_err}), continuing")
 
@@ -1580,7 +1599,10 @@ def run(
                             logger.info(f"[FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period, no re-trigger needed.")
                             failsafe_already_triggered = True  # Skip trigger below
                         else:
-                            logger.warning(f"[FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will trigger fresh loader.")
+                            logger.warning(f"[FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will terminate hung task and trigger fresh loader.")
+                            # Issue #3: Terminate the hung task before triggering new loader
+                            # This prevents RDS connection pool exhaustion from zombie tasks
+                            _terminate_hung_loader_task('stock_prices_daily', verbose=verbose)
             except Exception as status_err:
                 logger.debug(f"[FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
 
@@ -2090,6 +2112,37 @@ def run(
                     bs_pct = 100 * buysell_coverage / 5000
                     logger.info(f"[COMPLETENESS] buy_sell_daily: {buysell_coverage}/5000 symbols ({bs_pct:.1f}%) ✓")
 
+                # ISSUE #2 FIX: Add retry gate for 75-95% coverage range (suboptimal but above halt)
+                # If loader completes with 85% coverage, it's above halt threshold (75%) but incomplete.
+                # Trigger failsafe to re-run loader to reach 95%+ coverage instead of proceeding with gaps.
+                optimal_coverage_pct = 95
+                optimal_coverage = int(5000 * optimal_coverage_pct / 100)
+                suboptimal_loaders = []
+
+                if min_coverage <= price_coverage < optimal_coverage:
+                    suboptimal_loaders.append(('price_daily', 'stock_prices_daily', price_coverage))
+                if min_coverage <= technical_coverage < optimal_coverage:
+                    suboptimal_loaders.append(('technical_data_daily', 'technical_data_daily', technical_coverage))
+                if min_coverage <= buysell_coverage < optimal_coverage:
+                    suboptimal_loaders.append(('buy_sell_daily', 'buy_sell_daily', buysell_coverage))
+
+                # If any loader is in the 75-95% range, trigger failsafe to improve coverage
+                if suboptimal_loaders and not first_run_state:
+                    logger.warning(f"[COMPLETENESS RETRY] {len(suboptimal_loaders)} loaders have suboptimal coverage (75-95%):")
+                    for table_name, loader_name, coverage_count in suboptimal_loaders:
+                        coverage_pct = 100 * coverage_count / 5000
+                        logger.warning(f"  - {table_name}: {coverage_count}/5000 symbols ({coverage_pct:.1f}%)")
+                        try:
+                            logger.info(f"[COMPLETENESS RETRY] Triggering failsafe for {loader_name}")
+                            _trigger_loader_failsafe_with_verification(loader_name, verbose=True, poll_timeout_sec=150, retry_count=1)
+                            alerts.send_position_alert(
+                                'DATA', 'SUBOPTIMAL_COVERAGE_RETRY',
+                                f'{table_name} coverage suboptimal ({coverage_pct:.1f}%, need ≥{optimal_coverage_pct}%). Failsafe triggered.',
+                                {'table': table_name, 'coverage_pct': coverage_pct}
+                            )
+                        except Exception as retry_err:
+                            logger.warning(f"[COMPLETENESS RETRY] Could not trigger failsafe for {loader_name}: {retry_err}")
+
                 # Also warn if coverage is degrading but above threshold (early warning)
                 warn_threshold = int(5000 * (min_coverage_pct + 10) / 100)  # Warn at +10% above min (e.g., 85% if min=75%)
                 coverage_warnings = []
@@ -2112,13 +2165,30 @@ def run(
                     logger.critical(f"[HALT] Critical loader coverage below {min_coverage_pct}%. This indicates a loader failure mid-execution.")
                     logger.critical(f"  price_daily: {price_coverage}/5000, technical_data_daily: {technical_coverage}/5000, buy_sell_daily: {buysell_coverage}/5000")
                     logger.critical("  Incomplete data will cause Phase 5 to generate incomplete signal set.")
-                    logger.critical("  Check loader logs for partial failures.")
+                    logger.critical("  Triggering failsafe for incomplete loaders...")
+
+                    # Issue #2: Trigger failsafe for any loader that fell below threshold
+                    failed_loaders = []
+                    if price_coverage < min_coverage:
+                        failed_loaders.append('stock_prices_daily')
+                    if technical_coverage < min_coverage:
+                        failed_loaders.append('technical_data_daily')
+                    if buysell_coverage < min_coverage:
+                        failed_loaders.append('buy_sell_daily')
+
+                    for failed_loader in failed_loaders:
+                        try:
+                            logger.info(f"[FAILSAFE] Triggering re-run for incomplete loader: {failed_loader}")
+                            _trigger_loader_failsafe_with_verification(failed_loader, verbose=verbose, poll_timeout_sec=120)
+                        except Exception as failsafe_err:
+                            logger.warning(f"[FAILSAFE] Could not trigger {failed_loader}: {failsafe_err}")
+
                     alerts.send_position_alert(
                         'DATA', 'INCOMPLETE_COVERAGE',
                         f'HALT: Data coverage below {min_coverage_pct}%. Loaders completed partially. '
                         f'price_daily: {price_coverage}/5000, technical_data_daily: {technical_coverage}/5000, buy_sell_daily: {buysell_coverage}/5000. '
-                        f'Check loader logs for errors.',
-                        {'price': price_coverage, 'technical': technical_coverage, 'buysell': buysell_coverage, 'min': min_coverage, 'threshold_pct': min_coverage_pct}
+                        f'Failsafe triggered for incomplete loaders. Check loader logs for errors.',
+                        {'price': price_coverage, 'technical': technical_coverage, 'buysell': buysell_coverage, 'min': min_coverage, 'threshold_pct': min_coverage_pct, 'failsafe_loaders': failed_loaders}
                     )
                     log_phase_result_fn(1, 'data_completeness', 'halt',
                                        f'Incomplete coverage: price={price_coverage}/{min_coverage}, technical={technical_coverage}/{min_coverage}, buysell={buysell_coverage}/{min_coverage}')

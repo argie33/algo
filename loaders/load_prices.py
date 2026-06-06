@@ -370,23 +370,42 @@ class PriceLoader(OptimalLoader):
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
             return {s: None for s in symbols}
 
-        # Check circuit breaker: if rate limiting has persisted for > 5 min, fail loudly
+        # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
+        # Issue #6: Instead of failing completely, reduce batch size to avoid timeout
         if self._rate_limit_error_start_time is not None:
             error_duration = time.time() - self._rate_limit_error_start_time
             if error_duration > self._rate_limit_circuit_break_threshold:
-                logger.critical(
+                logger.warning(
                     f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration/60:.1f} minutes ({error_duration:.0f}s). "
-                    f"yfinance API experiencing degradation. Circuit break triggered at {self._rate_limit_circuit_break_threshold}s threshold. "
-                    f"Failing batch to prevent EOD pipeline cascade. yfinance API status should be checked."
+                    f"Attempting to continue with smaller batch size instead of failing completely."
                 )
-                # Emit alert
+
+                # Try with progressively smaller batch sizes (10, 5, 1)
+                reduced_batch_sizes = [10, 5, 1]
+                for reduced_size in reduced_batch_sizes:
+                    if reduced_size >= batch_size:
+                        continue  # Skip if not smaller than current
+
+                    logger.info(f"[CIRCUIT BREAKER] Retrying with reduced batch size: {reduced_size} (was {batch_size})")
+                    reduced_attempt = self._fetch_batch_with_retry(
+                        symbols, start, end, batch_size=reduced_size, attempt=attempt + 1, max_attempts=max_attempts
+                    )
+                    if any(v is not None for v in reduced_attempt.values()):
+                        logger.info(f"[CIRCUIT BREAKER] ✓ Partial success with batch={reduced_size}")
+                        return reduced_attempt
+
+                # If all reduced sizes failed, emit alert and fail gracefully
+                logger.critical(
+                    f"[CIRCUIT BREAKER] Rate limiting persisted {error_duration/60:.1f}min despite batch size reduction. "
+                    f"yfinance API experiencing degradation. Failing batch. Check yfinance API status."
+                )
                 try:
                     from algo.algo_alerts import AlertManager
                     alerts = AlertManager()
                     alerts.send_position_alert(
                         'YFINANCE',
                         'RATE_LIMIT_CIRCUIT_BREAK',
-                        f'yfinance rate limiting persisted {error_duration/60:.1f}min, circuit breaker triggered. '
+                        f'yfinance rate limiting persisted {error_duration/60:.1f}min despite batch reduction. '
                         f'EOD pipeline may be impacted. {self._rate_limit_errors} rate limit errors detected.',
                         {'duration_seconds': error_duration, 'error_count': self._rate_limit_errors}
                     )
