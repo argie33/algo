@@ -1461,7 +1461,8 @@ def run(
                     cur.execute("SET statement_timeout = 15000")  # 15s — should be instant
                     # Issue #22 FIX: Check for INCOMPLETE loaders and invalidate cache if found
                     cur.execute("SELECT COUNT(*) FROM data_loader_status WHERE status = 'INCOMPLETE'")
-                    incomplete_count = cur.fetchone()[0] if cur.fetchone() else 0
+                    incomplete_row = cur.fetchone()
+                    incomplete_count = incomplete_row[0] if incomplete_row else 0
 
                     if incomplete_count > 0:
                         logger.warning(
@@ -2024,14 +2025,17 @@ def run(
                 _check_cur.execute("SET statement_timeout = 5000")
                 # Check if both signal_quality_scores and buy_sell_daily are empty
                 _check_cur.execute("SELECT COUNT(*) FROM signal_quality_scores")
-                sqs_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
+                sqs_row = _check_cur.fetchone()
+                sqs_count = sqs_row[0] if sqs_row else 0
 
                 _check_cur.execute("SELECT COUNT(*) FROM buy_sell_daily")
-                bsd_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
+                bsd_row = _check_cur.fetchone()
+                bsd_count = bsd_row[0] if bsd_row else 0
 
                 # Also check critical price table
                 _check_cur.execute("SELECT COUNT(*) FROM price_daily WHERE symbol='SPY'")
-                price_count = _check_cur.fetchone()[0] if _check_cur.fetchone() else 0
+                price_row = _check_cur.fetchone()
+                price_count = price_row[0] if price_row else 0
 
                 if sqs_count == 0 and bsd_count == 0 and price_count == 0:
                     first_run_state = True
@@ -2103,7 +2107,8 @@ def run(
 
                 # Get expected symbol count from stock_symbols table
                 _sw_cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-                expected_symbol_count = _sw_cur.fetchone()[0] if _sw_cur.fetchone() else 4500
+                _sw_cur_row = _sw_cur.fetchone()
+                expected_symbol_count = _sw_cur_row[0] if _sw_cur_row else 4500
 
                 # Thresholds for completeness (configurable)
                 min_coverage_pct_warn = 0.90  # Warn if <90% coverage
@@ -2256,25 +2261,29 @@ def run(
                     _morning_cur.execute("""
                         SELECT MAX(date) FROM price_daily
                     """)
-                    price_date = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
+                    _morning_cur_row = _morning_cur.fetchone()
+                    price_date = _morning_cur_row[0] if _morning_cur_row else None
 
                     # Step 2: technical_data_daily
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM technical_data_daily
                     """)
-                    tech_updated = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
+                    _morning_cur_row = _morning_cur.fetchone()
+                    tech_updated = _morning_cur_row[0] if _morning_cur_row else None
 
                     # Step 3: buy_sell_daily
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM buy_sell_daily
                     """)
-                    buys_updated = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
+                    _morning_cur_row = _morning_cur.fetchone()
+                    buys_updated = _morning_cur_row[0] if _morning_cur_row else None
 
                     # Step 4: signal_quality_scores (optional, for observability)
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM signal_quality_scores
                     """)
-                    quality_updated = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
+                    _morning_cur_row = _morning_cur.fetchone()
+                    quality_updated = _morning_cur_row[0] if _morning_cur_row else None
 
                     # Check if all critical steps completed since morning prep start
                     failed_steps = []
@@ -2486,11 +2495,13 @@ def run(
 
                     # Get most recent date for technical_data_daily
                     _dep_cur.execute("SELECT MAX(date) FROM technical_data_daily")
-                    tech_date = _dep_cur.fetchone()[0] if _dep_cur.fetchone() else None
+                    _dep_cur_row = _dep_cur.fetchone()
+                    tech_date = _dep_cur_row[0] if _dep_cur_row else None
 
                     # Also verify buy_sell_daily's source (should match or be newer than tech_data)
                     _dep_cur.execute("SELECT MAX(date) FROM buy_sell_daily")
-                    buysell_date = _dep_cur.fetchone()[0] if _dep_cur.fetchone() else None
+                    _dep_cur_row = _dep_cur.fetchone()
+                    buysell_date = _dep_cur_row[0] if _dep_cur_row else None
 
                     if tech_date and buysell_date and buysell_date > tech_date:
                         logger.warning(f"[DEPENDENCY] buy_sell_daily ({buysell_date}) is newer than technical_data_daily ({tech_date})")
@@ -2520,13 +2531,16 @@ def run(
                     # Swing trader scores should not be older than 2 hours from expected_date
                     # (it depends on buy_sell_daily + technical_data which are typically from expected_date)
                     _sources_cur.execute("SELECT MAX(date) FROM buy_sell_daily")
-                    buysell_date = _sources_cur.fetchone()[0] if _sources_cur.fetchone() else None
+                    _sources_cur_row = _sources_cur.fetchone()
+                    buysell_date = _sources_cur_row[0] if _sources_cur_row else None
 
                     _sources_cur.execute("SELECT MAX(date) FROM technical_data_daily")
-                    tech_date = _sources_cur.fetchone()[0] if _sources_cur.fetchone() else None
+                    _sources_cur_row = _sources_cur.fetchone()
+                    tech_date = _sources_cur_row[0] if _sources_cur_row else None
 
                     _sources_cur.execute("SELECT MAX(date) FROM trend_template_data")
-                    trend_date = _sources_cur.fetchone()[0] if _sources_cur.fetchone() else None
+                    _sources_cur_row = _sources_cur.fetchone()
+                    trend_date = _sources_cur_row[0] if _sources_cur_row else None
 
                     # All three should be from expected_date (yesterday, most recent trading day)
                     sources_ok = True
@@ -2593,19 +2607,23 @@ def run(
 
                 # Get coverage for each level of the cascade
                 cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE updated_at >= %s", (expected_date,))
-                tech_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                cas_cur_row = cas_cur.fetchone()
+                tech_count = cas_cur_row[0] if cas_cur_row else 0
                 tech_coverage = (tech_count / expected_count * 100) if expected_count > 0 else 0
 
                 cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE updated_at >= %s", (expected_date,))
-                buys_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                cas_cur_row = cas_cur.fetchone()
+                buys_count = cas_cur_row[0] if cas_cur_row else 0
                 buys_coverage = (buys_count / expected_count * 100) if expected_count > 0 else 0
 
                 cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM signal_quality_scores WHERE updated_at >= %s", (expected_date,))
-                sqs_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                cas_cur_row = cas_cur.fetchone()
+                sqs_count = cas_cur_row[0] if cas_cur_row else 0
                 sqs_coverage = (sqs_count / expected_count * 100) if expected_count > 0 else 0
 
                 cas_cur.execute("SELECT COUNT(DISTINCT symbol) FROM swing_trader_scores WHERE date >= %s", (expected_date,))
-                swing_count = cas_cur.fetchone()[0] if cas_cur.fetchone() else 0
+                cas_cur_row = cas_cur.fetchone()
+                swing_count = cas_cur_row[0] if cas_cur_row else 0
                 swing_coverage = (swing_count / expected_count * 100) if expected_count > 0 else 0
 
                 # Detect gaps in cascade
@@ -2667,7 +2685,8 @@ def run(
                 elif verbose:
                     # Get latest date (fast index scan)
                     _sqs_cur.execute("SELECT MAX(date) FROM signal_quality_scores")
-                    latest = _sqs_cur.fetchone()[0] if _sqs_cur.fetchone() else None
+                    _sqs_cur_row = _sqs_cur.fetchone()
+                    latest = _sqs_cur_row[0] if _sqs_cur_row else None
                     logger.info(f"  [OK] signal_quality_scores: has data, latest {latest}")
         except Exception as e:
             logger.warning(f"  [WARN] signal_quality_scores check failed: {e} (observe-only)")

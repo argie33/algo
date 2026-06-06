@@ -79,13 +79,15 @@ class SignalQualityScoresLoader(OptimalLoader):
             with DatabaseContext('read') as cur:
                 # Check if buy_sell_daily has completed for end date
                 cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-                expected_symbols = cur.fetchone()[0] if cur.fetchone() else 4500
+                cur_row = cur.fetchone()
+                expected_symbols = cur_row[0] if cur_row else 4500
 
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
                     (end,)
                 )
-                actual_symbols = cur.fetchone()[0] if cur.fetchone() else 0
+                cur_row = cur.fetchone()
+                actual_symbols = cur_row[0] if cur_row else 0
                 coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
                 if coverage < 95:

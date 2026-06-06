@@ -280,7 +280,8 @@ class SwingTraderScoresLoader(OptimalLoader):
             with DatabaseContext('read') as cur:
                 # Get expected symbol count for coverage checks
                 cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-                expected_symbols = cur.fetchone()[0] if cur.fetchone() else 4500
+                cur_row = cur.fetchone()
+                expected_symbols = cur_row[0] if cur_row else 4500
 
                 # Check each source table for both existence AND completeness
                 for table_name, required_col in source_tables:
@@ -300,7 +301,8 @@ class SwingTraderScoresLoader(OptimalLoader):
                             f"SELECT COUNT(DISTINCT symbol) FROM {table_name} WHERE date = %s",
                             (end_date,)
                         )
-                        actual_symbols = cur.fetchone()[0] if cur.fetchone() else 0
+                        cur_row = cur.fetchone()
+                        actual_symbols = cur_row[0] if cur_row else 0
                         coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
                         if coverage < 95:
