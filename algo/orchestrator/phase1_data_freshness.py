@@ -924,6 +924,7 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
     missing_completions = []
     stale_data = []
     incomplete_coverage = []
+    unfinished_loaders = []
 
     try:
         # Query data_loader_status to see completion record for each loader
@@ -931,7 +932,7 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
         for loader in morning_prep_loaders:
             try:
                 cur.execute(
-                    "SELECT status, last_updated FROM data_loader_status WHERE table_name = %s ORDER BY last_updated DESC LIMIT 1",
+                    "SELECT status, last_updated, execution_completed, completion_pct FROM data_loader_status WHERE table_name = %s ORDER BY last_updated DESC LIMIT 1",
                     (loader,)
                 )
                 result = cur.fetchone()
@@ -940,11 +941,17 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                     missing_completions.append(f"{loader}: no status record found")
                     continue
 
-                status, last_updated = result
+                status, last_updated, execution_completed, completion_pct = result
 
                 # Check status is COMPLETED
                 if status != 'COMPLETED':
                     missing_completions.append(f"{loader}: status={status} (expected COMPLETED)")
+                    continue
+
+                # ISSUE #2 FIX: Check loader actually finished (execution_completed not null)
+                # If null, loader may have timed out or crashed mid-execution
+                if not execution_completed:
+                    unfinished_loaders.append(f"{loader}: execution_completed=null (loader may have crashed/timed out)")
                     continue
 
                 # Check last_updated is from today (run_date)
@@ -958,8 +965,14 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                         stale_data.append(f"{loader}: last_updated={last_updated} (expected {run_date})")
                         continue
 
+                # ISSUE #2 FIX: Check that completion was high enough
+                # Stale data is worse than partial data, so if data is fresh, allow down to 90% completion
+                if completion_pct and completion_pct < 90:
+                    incomplete_coverage.append(f"{loader}: completion={completion_pct:.1f}% (need >=90%)")
+                    continue
+
                 if verbose:
-                    logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {loader} completed on {last_updated}")
+                    logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {loader} completed {completion_pct:.1f}% on {last_updated}")
 
             except Exception as e:
                 missing_completions.append(f"{loader}: query error: {str(e)[:50]}")
@@ -995,7 +1008,7 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
             logger.debug(f"[MORNING_PREP_VALIDATION] Could not check coverage: {cov_e}")
 
         # Compile all issues
-        all_issues = missing_completions + stale_data + incomplete_coverage
+        all_issues = missing_completions + unfinished_loaders + stale_data + incomplete_coverage
 
         if all_issues:
             logger.warning(f"[MORNING_PREP_VALIDATION] Morning prep validation failed: {'; '.join(all_issues)}")
