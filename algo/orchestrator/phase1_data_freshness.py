@@ -747,7 +747,8 @@ def _get_most_recent_trading_day(from_date: _date = None, trading_days_back: int
     from algo.algo_market_calendar import MarketCalendar
 
     if from_date is None:
-        from_date = _date.today()
+        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+        from_date = datetime.now(ZoneInfo("America/New_York")).date()
 
     result = from_date
     count = 0

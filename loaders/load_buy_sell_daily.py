@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 import logging
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import List, Optional, Dict, Any
 
 from utils.loader_helpers import get_active_symbols
@@ -174,7 +175,9 @@ class SignalsDailyLoader(OptimalLoader):
                 row = cur.fetchone()
                 if row and row[0]:
                     max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
-                    age_days = (date.today() - max_date).days
+                    # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+                    today_et = datetime.now(ZoneInfo("America/New_York")).date()
+                    age_days = (today_et - max_date).days
                     return age_days
         except Exception as e:
             logger.warning(f"Could not calculate {source_table} age for {symbol}: {e}")
@@ -486,8 +489,9 @@ def main():
                 return 1
 
             tech_data_date = result[0]
-            from datetime import date as _date
-            tech_data_age = (_date.today() - (tech_data_date if isinstance(tech_data_date, _date) else _date.fromisoformat(str(tech_data_date)))).days
+            # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+            today_et = datetime.now(ZoneInfo("America/New_York")).date()
+            tech_data_age = (today_et - (tech_data_date if isinstance(tech_data_date, date) else date.fromisoformat(str(tech_data_date)))).days
 
             if tech_data_age > 1:
                 logger.error(f"[DEPENDENCY] technical_data_daily is {tech_data_age}+ days old - too stale for signal generation")

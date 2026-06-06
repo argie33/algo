@@ -3,6 +3,7 @@
 import logging
 import traceback
 from datetime import date as _date, timedelta, datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Callable, List, Dict, Tuple, Optional
 
 from utils.database_context import DatabaseContext
@@ -170,7 +171,9 @@ def _validate_pre_trade_data_quality(
             today = run_date
 
             # For testing with historical dates: use most recent data if run_date is in past
-            is_historical_test = today < date.today()
+            # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+            today_et = datetime.now(ZoneInfo("America/New_York")).date()
+            is_historical_test = today < today_et
             if is_historical_test:
                 cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
                 result = cur.fetchone()

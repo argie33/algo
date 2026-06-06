@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 import logging
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
@@ -136,8 +136,9 @@ class TechnicalDataDailyLoader(OptimalLoader):
                     from algo.algo_market_calendar import MarketCalendar
 
                     # Count trading days from max_date to today
+                    # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
                     trading_days = 0
-                    check_date = date.today() - timedelta(days=1)
+                    check_date = datetime.now(ZoneInfo("America/New_York")).date() - timedelta(days=1)
                     while check_date > max_date and trading_days < 999:
                         if MarketCalendar.is_trading_day(check_date):
                             trading_days += 1

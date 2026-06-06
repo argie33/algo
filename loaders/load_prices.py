@@ -248,7 +248,8 @@ class PriceLoader(OptimalLoader):
         from datetime import datetime, timezone, timedelta
         from zoneinfo import ZoneInfo
         from algo.algo_market_calendar import MarketCalendar
-        today = date.today()
+        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+        today = datetime.now(ZoneInfo("America/New_York")).date()
 
         # Check if today is a trading day
         if not MarketCalendar.is_trading_day(today):
@@ -891,8 +892,10 @@ class PriceLoader(OptimalLoader):
                 cache_invalidation_ok = False
                 try:
                     from datetime import datetime
+                    from zoneinfo import ZoneInfo
                     import boto3
-                    cache_date = datetime.now().date()
+                    # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+                    cache_date = datetime.now(ZoneInfo("America/New_York")).date()
                     cache_key = f"data_loader_status-{cache_date.isoformat()}"
                     cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
                     dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
@@ -1091,10 +1094,12 @@ class PriceLoader(OptimalLoader):
             # Ensures Phase 1 detects updated loader status immediately, not after cache TTL
             try:
                 from datetime import datetime
+                from zoneinfo import ZoneInfo
                 import os
                 import boto3
 
-                cache_date = datetime.now().date()
+                # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+                cache_date = datetime.now(ZoneInfo("America/New_York")).date()
                 cache_key = f"data_loader_status-{cache_date.isoformat()}"
                 cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
 
@@ -1116,7 +1121,8 @@ class PriceLoader(OptimalLoader):
         # Determine the watermark date for all symbols in batch
         # (simplified: use same date for all, finest-grained would be per-symbol)
         if self._backfill_days > 0:
-            previous_date = (datetime.now().date() - timedelta(days=self._backfill_days))
+            # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+            previous_date = (datetime.now(ZoneInfo("America/New_York")).date() - timedelta(days=self._backfill_days))
         else:
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
@@ -1188,9 +1194,11 @@ def _invalidate_phase1_cache():
     """
     try:
         from datetime import datetime
+        from zoneinfo import ZoneInfo
         import boto3
 
-        cache_date = datetime.now().date()
+        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+        cache_date = datetime.now(ZoneInfo("America/New_York")).date()
         cache_key = f"data_loader_status-{cache_date.isoformat()}"
         cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
 
@@ -1205,6 +1213,8 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
     """Log loader execution to data_loader_runs table for monitoring."""
     try:
         with DatabaseContext('write') as cur:
+            # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+            run_date = datetime.now(ZoneInfo("America/New_York")).date()
             cur.execute("""
                 INSERT INTO data_loader_runs (
                     loader_name, table_name, run_date, status, records_loaded, records_updated,
@@ -1222,7 +1232,7 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
             """, (
                 loader_name,
                 table_name,
-                date.today(),
+                run_date,
                 status,
                 records_loaded,
                 records_updated,

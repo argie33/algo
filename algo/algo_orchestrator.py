@@ -38,7 +38,8 @@ class Orchestrator:
         if env_execution_mode:
             self.config.override('execution_mode', env_execution_mode)
 
-        self.run_date = run_date or _date.today()
+        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+        self.run_date = run_date or datetime.now(ZoneInfo("America/New_York")).date()
         self.dry_run = dry_run
         self.verbose = verbose
         self.phase_results = {}
