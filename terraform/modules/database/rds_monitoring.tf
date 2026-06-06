@@ -2,53 +2,9 @@
 # RDS Connection Pool Monitoring and Alerting
 # ============================================================
 
-# CloudWatch Alarm: RDS Connection Pool Early Warning (50 connections)
-resource "aws_cloudwatch_metric_alarm" "rds_connection_warning" {
-  alarm_name          = "${var.project_name}-rds-connection-warning-${var.environment}"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 2  # Alert after 10 minutes of sustained high load
-  metric_name         = "DatabaseConnections"
-  namespace           = "AWS/RDS"
-  period              = 300  # 5-minute windows
-  statistic           = "Maximum"
-  threshold           = 50   # Early warning at 50 connections (1/10 of max 500)
-  alarm_description   = "RDS connection pool usage reaching 50 connections. Monitor for potential contention."
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    DBInstanceIdentifier = aws_db_instance.main.identifier
-  }
-
-  alarm_actions = var.alarm_sns_topic_arn != null ? [var.alarm_sns_topic_arn] : []
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-rds-connection-warning"
-  })
-}
-
-# CloudWatch Alarm: RDS Connection Pool Critical (100 connections)
-resource "aws_cloudwatch_metric_alarm" "rds_connection_critical" {
-  alarm_name          = "${var.project_name}-rds-connection-critical-${var.environment}"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1  # Alert immediately
-  metric_name         = "DatabaseConnections"
-  namespace           = "AWS/RDS"
-  period              = 60  # 1-minute windows
-  statistic           = "Maximum"
-  threshold           = 100  # Critical alert at 100 connections (1/5 of max 500)
-  alarm_description   = "RDS connection pool critical usage. Potential connection exhaustion risk."
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    DBInstanceIdentifier = aws_db_instance.main.identifier
-  }
-
-  alarm_actions = var.alarm_sns_topic_arn != null ? [var.alarm_sns_topic_arn] : []
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-rds-connection-critical"
-  })
-}
+# Note: RDS connection pool alarms are configured in main.tf (aws_cloudwatch_metric_alarm.rds_connections)
+# with configurable threshold via rds_connections_alarm_threshold variable (default 80 connections).
+# This consolidates monitoring to a single configurable location.
 
 # CloudWatch Alarm: RDS CPU Utilization (prevent cascading failures)
 resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {

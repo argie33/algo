@@ -272,7 +272,7 @@ variable "rds_storage_alarm_threshold" {
 variable "rds_connections_alarm_threshold" {
   description = "Active connections threshold for RDS alarm"
   type        = number
-  default     = 50
+  default     = 80
 
   validation {
     condition     = var.rds_connections_alarm_threshold > 0

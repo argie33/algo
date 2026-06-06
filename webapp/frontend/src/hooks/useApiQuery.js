@@ -74,9 +74,9 @@ export const useApiQuery = (
       return false;
     },
     retryDelay: (attemptIndex) => {
-      // Exponential backoff with max cap: 1s, 2s, 4s, 8s, 16s capped at 10s
-      // Total wait time: 1+2+4+8+16 = 31s for 5 retries (reasonable for deployment windows)
-      const baseWait = 1000 * Math.pow(2, attemptIndex);
+      // Exponential backoff with max cap: 500ms, 1s, 2s, 4s, 8s capped at 10s
+      // Total wait time: 0.5+1+2+4+8 = 15.5s for 5 retries (optimized for deployment recovery)
+      const baseWait = 500 * Math.pow(2, attemptIndex);
       const cappedWait = Math.min(baseWait, 10000);
       return cappedWait;
     },
@@ -171,9 +171,9 @@ export const useApiPaginatedQuery = (
       return false;
     },
     retryDelay: (attemptIndex) => {
-      // Exponential backoff with max cap: 1s, 2s, 4s, 8s, 16s capped at 10s
-      // Total wait time: 1+2+4+8+16 = 31s for 5 retries (reasonable for deployment windows)
-      const baseWait = 1000 * Math.pow(2, attemptIndex);
+      // Exponential backoff with max cap: 500ms, 1s, 2s, 4s, 8s capped at 10s
+      // Total wait time: 0.5+1+2+4+8 = 15.5s for 5 retries (optimized for deployment recovery)
+      const baseWait = 500 * Math.pow(2, attemptIndex);
       const cappedWait = Math.min(baseWait, 10000);
       return cappedWait;
     },
