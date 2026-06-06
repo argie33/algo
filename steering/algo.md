@@ -329,15 +329,15 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 - **Overhead (not in base calculation)**: ECS scheduling delays (~5-10 min per task × 5-6 tasks = 25-60 min), RDS cold start / first-run caching (~5-10 min), loader setup/teardown per instance (~5-10 min)
 - **Execution variance**: stock_prices_daily 75-120 min depending on yfinance latency, technical_data_daily 80-120 min depending on database query performance
 - **Estimated realistic path**: 4.25h base + 0.5-1h overhead + 0.25-0.75h variance = 5-6 hours
-- **Buffer with current 3:30 AM start**: 6 hours - 5.5 hours (midpoint estimate) = **30 min buffer (TIGHT but acceptable)**
-- **Monitoring critical**: If any step regularly exceeds 2 hours, buffer disappears. Monitor CloudWatch metrics closely.
+- **Buffer with current 2:00 AM start**: 7.5 hours - 5.5 hours (midpoint estimate) = **120 min buffer (COMFORTABLE)**
+- **Monitoring critical**: If any step regularly exceeds 2 hours, buffer shrinks. Monitor CloudWatch metrics closely. If execution approaches 6 hours, investigate yfinance API latency or RDS query performance.
 
 **Morning Prep Start Time:**
-- Morning prep starts at 2:45 AM ET via EventBridge rule (165 minutes = 02:45)
-- This provides 6 h 45 min (405 minutes) until 9:30 AM deadline
+- Morning prep starts at 2:00 AM ET via EventBridge rule (cron(0 2 ? * MON-FRI *))
+- This provides 7 h 30 min (450 minutes) until 9:30 AM deadline
 - Realistic execution window: 5-5.5 hours (including 0.5-1h ECS/RDS overhead)
-- Safety margin: 150-250 minutes; sufficient for yfinance rate limits, RDS slow queries, ECS scheduling delays
-- If margin reduces below 100 min: escalate to operations; consider further advance to 2:30 AM
+- Safety margin: 195-250 minutes; sufficient for 50-80% slowness without triggering stale-data cascade
+- If margin reduces below 100 min: escalate to operations; consider further advance to 1:45 AM
 
 **Monitoring (Copy-paste ready for CloudWatch Logs Insights):**
 
@@ -398,10 +398,10 @@ Run this daily to track trends. Alert if any step consistently takes >80% of all
 
 **Pipeline Isolation Constraint:**
 - EOD pipeline: 4:05 PM ET, normally completes by 5:30 PM (1.5 hours). Worst case: 6 hours if yfinance rate-limited or RDS slow.
-- Morning prep pipeline: 3:30 AM ET, requires ~5 hours to complete before 9:30 AM market open.
-- **No direct overlap** (4 PM finish → 3:30 AM start = 11.5 hours), but if EOD exceeds 7 hours, both pipelines compete for RDS connections during 9:30-10:30 AM window.
+- Morning prep pipeline: 2:00 AM ET, requires ~5 hours to complete before 9:30 AM market open.
+- **No direct overlap** (4 PM finish → 2:00 AM start = 10 hours), but if EOD exceeds 8 hours, both pipelines compete for RDS connections during 9:30-10:30 AM window.
 - **Current safeguard:** None explicit. Assumes EOD finishes by ~5:30 PM.
-- **Risk mitigation:** Monitor CloudWatch RDS metrics (DatabaseConnections) during 9:30-10:30 AM window. If consistently >80 connections, either: (1) Reduce EOD parallelism further, (2) Advance morning prep start to 3:15 AM, or (3) Implement explicit guard to wait for EOD completion.
+- **Risk mitigation:** Monitor CloudWatch RDS metrics (DatabaseConnections) during 9:30-10:30 AM window. If consistently >80 connections, either: (1) Reduce EOD parallelism further, (2) Implement explicit guard to wait for EOD completion, or (3) Monitor morning prep execution time to ensure consistent completion by 8:15 AM.
 
 ## Loader Execution Time Monitoring & Timeout Prevention
 

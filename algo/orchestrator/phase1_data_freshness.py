@@ -1595,9 +1595,9 @@ def run(
                    f"{min_until_open:.0f}min to market open. Est. {4.25*60:.0f}min needed (4.25h). "
                    f"Buffer: {max(0, min_until_open - 255):.0f}min")
 
-        # ISSUE #5 FIX: Early warning if morning prep is lagging (>2h past 2:45 AM start)
+        # ISSUE #5 FIX: Early warning if morning prep is lagging (>2h past 2:00 AM start)
         # If current time is 3 AM - 6:45 AM AND buy_sell_daily hasn't updated since pipeline start
-        morning_start_et = now_et.replace(hour=2, minute=45, second=0, microsecond=0)
+        morning_start_et = now_et.replace(hour=2, minute=0, second=0, microsecond=0)
         elapsed_since_start = (now_et - morning_start_et).total_seconds() / 60
         if 3 <= hour_et < 9 and elapsed_since_start > 120:  # 3 AM - 8:59 AM, >2h elapsed
             try:
@@ -1773,22 +1773,22 @@ def run(
             logger.debug(f"[MARKET_CLOSE] Could not check failure status: {mc_err}")
 
         # ISSUE #10 FIX: Morning Prep Pipeline Timing Monitoring
-        # Start time: 2:45 AM ET
-        # Deadline: 9:30 AM ET (405 minutes available)
+        # Start time: 2:00 AM ET (moved from 2:45 AM in Session 14)
+        # Deadline: 9:30 AM ET (450 minutes available)
         # Realistic execution: 230-255 minutes (3.8-4.25 hours)
-        # Safety buffer: 150 minutes (2.5 hours) — TIGHT but acceptable
+        # Safety buffer: 195 minutes (3.25 hours) — adequate
         # CRITICAL: If morning prep misses 9:30 AM deadline, Phase 1 finds stale data and halts
         # MITIGATION: Active monitoring with early warnings to catch slowness patterns
 
-        # Monitor morning prep pipeline timing (only relevant if we're in morning window 2:45-9:30 AM)
+        # Monitor morning prep pipeline timing (only relevant if we're in morning window 2:00-9:30 AM)
         from datetime import datetime as dt_local, timezone
         now_et = dt_local.now(ZoneInfo("America/New_York"))
-        morning_prep_start = now_et.replace(hour=2, minute=45, second=0, microsecond=0)
+        morning_prep_start = now_et.replace(hour=2, minute=0, second=0, microsecond=0)
         market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
         minutes_since_morning_start = (now_et - morning_prep_start).total_seconds() / 60
         minutes_until_market_open = (market_open - now_et).total_seconds() / 60
 
-        is_morning_prep_window = -5 < minutes_since_morning_start < 405  # ±5 min tolerance
+        is_morning_prep_window = -5 < minutes_since_morning_start < 450  # ±5 min tolerance (2:00 AM → 9:30 AM = 450 min)
         if is_morning_prep_window and minutes_until_market_open > 0 and minutes_since_morning_start > 0:
             # We're in the morning prep window. Check if we're falling behind schedule
             # Realistic execution: 230 min baseline
@@ -2379,9 +2379,9 @@ def run(
                     logger.info(f"  {flag} {name:25s}: latest {d} ({trading_day_age}d trading old/{calendar_day_age}d calendar, acceptable until {min_acceptable_date})")
 
         # ISSUE #10 FIX: Monitor morning prep timing to detect bottlenecks and deadline violations with 80% threshold
-        # Morning prep: 2:45 AM start → 9:30 AM deadline (405 min available)
-        # Expected: 230-255 min execution time, leaving 150 min buffer
-        # 80% threshold: alert when 324+ min elapsed (81 min remaining)
+        # Morning prep: 2:00 AM start → 9:30 AM deadline (450 min available)
+        # Expected: 230-255 min execution time, leaving 195 min buffer
+        # 80% threshold: alert when 360+ min elapsed (90 min remaining)
         try:
             with DatabaseContext('read') as _timing_cur:
                 _timing_cur.execute("SET statement_timeout = 5000")
@@ -2389,14 +2389,14 @@ def run(
                 _timing_cur.execute(
                     "SELECT MIN(started_at) FROM data_loader_runs WHERE run_date = %s "
                     "AND table_name IN ('price_daily', 'technical_data_daily', 'buy_sell_daily') "
-                    "AND started_at > NOW() - INTERVAL '5 hours'",  # Morning prep starts ~2:45 AM, look back 5h
+                    "AND started_at > NOW() - INTERVAL '7.5 hours'",  # Morning prep starts ~2:00 AM, look back 7.5h
                     (run_date,)
                 )
                 morning_start = _timing_cur.fetchone()
                 if morning_start and morning_start[0]:
                     elapsed_since_start = (datetime.now(timezone.utc) - morning_start[0]).total_seconds() / 60
-                    remaining_to_deadline = 405 - elapsed_since_start  # 9:30 AM deadline = 405 min from 2:45 AM
-                    elapsed_pct = (elapsed_since_start / 405) * 100
+                    remaining_to_deadline = 450 - elapsed_since_start  # 9:30 AM deadline = 450 min from 2:00 AM
+                    elapsed_pct = (elapsed_since_start / 450) * 100
 
                     # ISSUE #10 FIX: 80% threshold = 324 minutes elapsed, 81 minutes remaining
                     if elapsed_pct >= 95:
