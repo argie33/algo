@@ -24,9 +24,10 @@ logger = logging.getLogger(__name__)
 class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
     """5-tier filtering and signal evaluation."""
 
-    def __init__(self, exposure_risk_multiplier=1.0):
+    def __init__(self, exposure_risk_multiplier=1.0, degraded=False):
         self.config = get_config()
         self.exposure_risk_multiplier = exposure_risk_multiplier  # From exposure policy tier
+        self.degraded = degraded  # ISSUE #10 FIX: Accept degraded mode flag from Phase 1
         self._market_health_cache = None
         self._market_health_date = None
         self._portfolio_state_cache = None
@@ -54,6 +55,9 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         - CAUTION: 0.75x (75% position size, reduced risk)
         - PRESSURE: 0.5x (50% position size, minimum size)
 
+        ISSUE #10 FIX: When Phase 1 returns degraded (stale data but failsafe running),
+        apply additional 0.5x multiplier for conservative positioning until fresh data arrives.
+
         Args:
             base_size: Base position size in dollars
             tier: Exposure tier ('NORMAL', 'CAUTION', 'PRESSURE')
@@ -71,7 +75,14 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         multiplier = multipliers.get(tier, 1.0)  # Default to NORMAL if unknown
         adjusted_size = base_size * multiplier
 
-        logger.debug(f"Tier multiplier: {tier} ({multiplier}x) -> ${base_size:.0f} → ${adjusted_size:.0f}")
+        # ISSUE #10 FIX: Apply additional degraded mode multiplier (50% reduction when stale data)
+        if self.degraded:
+            adjusted_size = adjusted_size * 0.5
+            logger.debug(f"Degraded mode active: applying 0.5x multiplier to position sizes")
+
+        logger.debug(f"Tier multiplier: {tier} ({multiplier}x)" +
+                    (" [DEGRADED 0.5x]" if self.degraded else "") +
+                    f" -> ${base_size:.0f} → ${adjusted_size:.0f}")
         return adjusted_size
 
     def evaluate_signals(self, eval_date=None, max_date: Optional[_date] = None) -> List[Dict[str, Any]]:
