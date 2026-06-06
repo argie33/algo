@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -11,15 +11,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
             if path == '/api/economic/VIX':
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                cur.execute("""
+                rows = execute_with_timeout(cur, """
                     SELECT date, vix_level as vix
                     FROM market_health_daily
                     WHERE vix_level IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 100
-                """)
-                rows = cur.fetchall()
+                """, timeout_sec=3)
                 freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
                 return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
             elif path == '/api/economic/leading-indicators':
@@ -40,8 +38,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if end_date:
                         date_filter += " AND event_date <= %s"
                         query_params.append(end_date)
-                    cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                    cur.execute("""
+                    query = """
                         SELECT event_date, event_name, country, importance,
                                category, event_time,
                                forecast_value AS forecast,
@@ -52,8 +49,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     """ + date_filter + """
                         ORDER BY event_date ASC
                         LIMIT 200
-                    """, query_params)
-                    events = cur.fetchall()
+                    """
+                    events = execute_with_timeout(cur, query, params=query_params, timeout_sec=3)
                     freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
                     return list_response([dict(e) for e in events] if events else [], data_freshness=freshness)
                 except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable):

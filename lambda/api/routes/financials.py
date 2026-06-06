@@ -2,7 +2,7 @@
 import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict
 import logging
-from .utils import error_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness
+from .utils import error_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=40, default=8)
 
         if endpoint == 'key-metrics':
-            cur.execute("SET LOCAL statement_timeout = '5000ms'")
-            cur.execute("""
+            rows = execute_with_timeout(cur, """
                 SELECT
                     vm.symbol,
                     CURRENT_DATE AS date,
@@ -47,39 +46,36 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 WHERE vm.symbol = %s AND vm.symbol IS NOT NULL
                 ORDER BY vm.symbol DESC
                 LIMIT %s
-            """, (sym, limit))
-            rows = cur.fetchall()
+            """, params=(sym, limit), timeout_sec=5)
             freshness = check_data_freshness(cur, 'value_metrics', 'created_at', warning_days=7)
             return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
 
         if endpoint == 'income-statement':
-            cur.execute("SET LOCAL statement_timeout = '5000ms'")
             if period == 'quarterly':
-                cur.execute(psycopg2.sql.SQL("""
+                income_query = """
                     SELECT * FROM quarterly_income_statement
                     WHERE symbol = %s ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT %s
-                """), (sym, limit))
+                """
             else:
-                cur.execute(psycopg2.sql.SQL("""
+                income_query = """
                     SELECT * FROM annual_income_statement
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
-                """), (sym, limit))
-            rows = cur.fetchall()
+                """
+            rows = execute_with_timeout(cur, income_query, params=(sym, limit), timeout_sec=5)
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'balance-sheet':
-            cur.execute("SET LOCAL statement_timeout = '5000ms'")
             if period == 'quarterly':
-                cur.execute(psycopg2.sql.SQL("""
+                balance_query = """
                     SELECT * FROM quarterly_balance_sheet
                     WHERE symbol = %s ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT %s
-                """), (sym, limit))
+                """
             else:
-                cur.execute(psycopg2.sql.SQL("""
+                balance_query = """
                     SELECT * FROM annual_balance_sheet
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
-                """), (sym, limit))
-            rows = cur.fetchall()
+                """
+            rows = execute_with_timeout(cur, balance_query, params=(sym, limit), timeout_sec=5)
             return list_response([dict(r) for r in rows] if rows else [])
 
         if endpoint == 'cash-flow':

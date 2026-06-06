@@ -16,15 +16,14 @@ import json
 import logging
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, Any
-from .utils import error_response
+from .utils import error_response, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 
 def get_price_coverage(cur) -> Dict[str, Any]:
     """Get price_daily coverage metrics."""
     try:
-        cur.execute("SET LOCAL statement_timeout = '10s'")
-        cur.execute("""
+        rows = execute_with_timeout(cur, """
             SELECT
                 COUNT(DISTINCT symbol) as total_symbols,
                 (SELECT COUNT(DISTINCT symbol) FROM stock_symbols WHERE is_sp500 = TRUE) as sp500_total,
@@ -34,9 +33,9 @@ def get_price_coverage(cur) -> Dict[str, Any]:
                 COUNT(CASE WHEN close <= 0 THEN 1 END) as invalid_price_rows
             FROM price_daily
             WHERE date > NOW() - INTERVAL '7 days'
-        """)
+        """, timeout_sec=10)
 
-        row = cur.fetchone()
+        row = rows[0] if rows else None
         if not row:
             return error_response(500, 'no_data_error', 'No price data available')
 

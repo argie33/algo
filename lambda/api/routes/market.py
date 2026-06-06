@@ -77,23 +77,20 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
-                cur.execute("SET LOCAL statement_timeout = '5000ms'")
-                cur.execute("""
+                rows = execute_with_timeout(cur, """
                     SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
                            up_volume_percent, distribution_days_4w, breadth_momentum_10d,
                            vix_level, put_call_ratio, market_trend, market_stage
                     FROM market_health_daily
                     ORDER BY date DESC
                     LIMIT 1
-                """)
-                row = cur.fetchone()
-                base = dict(row) if row else {}
+                """, timeout_sec=5)
+                base = dict(rows[0]) if rows else {}
                 # Compute today's advancing/declining counts from price_daily.
                 # SAVEPOINT isolation: a timeout here must not abort the outer transaction.
                 try:
                     cur.execute("SAVEPOINT technicals_breadth")
-                    cur.execute("SET LOCAL statement_timeout = '5s'")
-                    cur.execute("""
+                    breadth_query = """
                         WITH latest AS (
                                  SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
                              ),
@@ -119,10 +116,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                             COUNT(t.symbol) AS total_stocks
                         FROM today t
                         JOIN yesterday y ON t.symbol = y.symbol
-                    """)
-                    brow = cur.fetchone()
+                    """
+                    breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=5)
                     cur.execute("RELEASE SAVEPOINT technicals_breadth")
-                    base['breadth'] = dict(brow) if brow else {}
+                    base['breadth'] = dict(breadth_rows[0]) if breadth_rows else {}
                 except Exception as e:
                     logger.warning(f"Technicals breadth query failed ({type(e).__name__}) — skipping. DB may be under write load.")
                     try:

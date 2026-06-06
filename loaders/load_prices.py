@@ -20,6 +20,7 @@ import argparse
 import logging
 import os
 import time
+import uuid
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
@@ -32,6 +33,7 @@ from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+_correlation_id = str(uuid.uuid4())[:8]  # ISSUE #21 FIX: Correlation ID for this loader instance
 
 class PriceLoader(OptimalLoader):
     """Multi-timeframe price loader. Replaces 4 separate loaders."""
@@ -1136,9 +1138,10 @@ def log_loader_execution(loader_name, table_name, status, records_loaded=0, reco
 def main():
     """Read config from environment variables (set by ECS task definition)."""
     start_time = time.time()
+    logger.info(f"[{_correlation_id}] [MAIN] Starting price loader instance")
 
     try:
-        logger.info("[MAIN] Environment loaded successfully")
+        logger.info(f"[{_correlation_id}] [MAIN] Environment loaded successfully")
     except Exception as e:
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
         log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
