@@ -2298,10 +2298,28 @@ def run(
         for name, d in checks.items():
             is_halt_check = name in halt_checks
             if d is None:
-                if is_halt_check:
-                    stale_items.append(f"{name}: missing")
+                # ISSUE #8 FIX: Distinguish between "never loaded" vs "hasn't been updated today"
+                # Check if table has ANY data to determine root cause
+                try:
+                    with DatabaseContext('read') as _root_cause_cur:
+                        _root_cause_cur.execute("SET statement_timeout = 2000")
+                        _root_cause_cur.execute(f"SELECT COUNT(*) FROM {table_keys[name]}")
+                        row = _root_cause_cur.fetchone()
+                        total_rows = row[0] if row else 0
+                except Exception:
+                    total_rows = None
+
+                if total_rows == 0:
+                    reason = f"{name}: NO DATA (table completely empty, loader never ran or data was purged)"
+                elif total_rows is None:
+                    reason = f"{name}: missing (cannot check table, possible schema issue)"
                 else:
-                    logger.warning(f"  [WARN] {name}: missing (observe-only, not blocking)")
+                    reason = f"{name}: STALE (table has {total_rows} rows but last update before {expected_date})"
+
+                if is_halt_check:
+                    stale_items.append(reason)
+                else:
+                    logger.warning(f"  [WARN] {reason} (observe-only, not blocking)")
                 if _metrics:
                     _metrics.put_data_freshness(table_keys[name], 999)
             elif d is not None:
