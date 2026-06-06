@@ -499,6 +499,27 @@ class Orchestrator:
         )
         # Store result for Phase 5 to check degradation status
         self._phase1_result = result
+
+        # ISSUE #9 FIX: Write Phase 1 degraded mode status to DynamoDB for health endpoint visibility
+        try:
+            import boto3
+            dynamodb = boto3.resource('dynamodb')
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+
+            degraded_status = result.status == 'degraded'
+            table.put_item(Item={
+                'key': 'phase1_degraded_mode',
+                'degraded': degraded_status,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'reason': result.summary if degraded_status else None,
+                'ttl': int(time.time()) + 3600,  # 1-hour TTL
+            })
+            if degraded_status:
+                logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.summary}")
+        except Exception as e:
+            logger.debug(f"Failed to write Phase 1 degraded status to DynamoDB: {e}")
+
         return not result.halted
 
     def phase_2_circuit_breakers(self) -> bool:

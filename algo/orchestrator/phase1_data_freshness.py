@@ -4040,11 +4040,19 @@ def run(
             logger.warning(f"[ISSUE#11_ENHANCEMENT] Stale data detected. Failsafe was triggered. "
                          f"Waiting for loaders to complete before final freshness check. Stale items: {'; '.join(stale_items)}")
 
-            # WAIT FOR FAILSAFE: Give triggered loaders up to 10 minutes to complete
-            # (failsafe should have already triggered when data was detected as stale above)
-            # Monitor until data becomes fresh or timeout
+            # WAIT FOR FAILSAFE: Give triggered loaders time to complete.
+            # ISSUE #15 FIX: Use adaptive timeout based on time of day:
+            # - Morning hours (2-9:30 AM ET): 30 minutes (1800s) because morning prep is lengthy
+            # - Intraday (after 9:30 AM): 10 minutes (600s) because intraday loaders are faster
             import time
-            failsafe_recheck_timeout = 600  # 10 minutes = 600 seconds
+            from zoneinfo import ZoneInfo
+
+            current_hour = datetime.now(ZoneInfo("America/New_York")).hour
+            if 2 <= current_hour < 10:  # 2 AM - 9:59 AM ET
+                failsafe_recheck_timeout = 1800  # 30 minutes for morning prep
+            else:
+                failsafe_recheck_timeout = 600   # 10 minutes for intraday
+
             failsafe_recheck_interval = 5   # Check every 5 seconds
             failsafe_recheck_start = time.time()
             stale_items_final = []

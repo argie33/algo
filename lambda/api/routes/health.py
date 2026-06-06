@@ -86,7 +86,7 @@ def _handle_basic(cur) -> Dict:
         elif health.get('freshness', {}).get('status') == 'WARNING':
             has_warning = True
 
-        # Check orchestrator halt flag (from DynamoDB)
+        # Check orchestrator halt flag and degraded mode status (from DynamoDB)
         try:
             import boto3
             import os
@@ -97,9 +97,18 @@ def _handle_basic(cur) -> Dict:
             response = table.get_item(Key={'key': 'orchestrator_halt'})
             halt_flag_active = response.get('Item', {}).get('halt_flag', False) is True
             health['orchestrator_halt_flag'] = halt_flag_active
+
+            # ISSUE #9 FIX: Check Phase 1 degraded mode status (indicates failsafe is running)
+            degraded_response = table.get_item(Key={'key': 'phase1_degraded_mode'})
+            phase1_degraded = degraded_response.get('Item', {}).get('degraded', False) is True
+            health['phase1_degraded_mode'] = phase1_degraded
+            if phase1_degraded:
+                degradation_reasons.append("Phase 1 degraded: failsafe in progress")
+                has_warning = True
         except Exception as e:
-            logger.debug(f"Failed to check halt flag: {str(e)[:60]}")
+            logger.debug(f"Failed to check orchestrator state: {str(e)[:60]}")
             health['orchestrator_halt_flag'] = None  # Unknown if DynamoDB unavailable
+            health['phase1_degraded_mode'] = None
 
         # Check last successful load time
         try:
