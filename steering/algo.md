@@ -148,6 +148,45 @@ If you need to rebuild the schema:
 - **Staleness columns:** `buy_sell_daily_age_days`, `technical_data_age_days`, `trend_template_age_days` in signal_quality_scores table
 - **Phase 5 filtering:** Rejects signals if data older than threshold (default 2 days, configurable as `signal_max_data_age_days`)
 - **Phase 1 monitoring:** Detects stale data and triggers failsafe loader if threshold exceeded
+
+## 23 Critical Data Loading Issues - Implementation Status
+
+**All 23 critical issues identified in system design have been addressed in code.** Each has explicit "ISSUE #X FIX" comments in phase1_data_freshness.py.
+
+**RED SEVERITY (Full-dataset failures):** ✅ All 6 implemented
+- #1 Market Close Data Lag: 1200s timeout + DynamoDB failure flag (line 1430-1463)
+- #2 Incomplete Loader Completion: <95% detection + failsafe retry (line 1719-1757)
+- #3 Hung Loader Detection: Task kill mechanism (line 336-391, 1873)
+- #6 Batch Size vs Rate Limiting: Dynamic reduction 150→50→20→1 (load_prices.py:73-92)
+- #7 Simplified Freshness Rule: 1-day rule + configurable cache TTL (line 1478-1545)
+- #13 ECS Task Scheduling: 180s poll timeout for Fargate (line 1953)
+
+**ORANGE SEVERITY (Data quality):** ✅ All 10 implemented
+- #4 Failsafe Grace Period: 150 min base + actual_running_at tracking (line 638)
+- #5 Swing Scores Dependencies: 4-source validation (line 2082-2110)
+- #8 Signal Quality Cascading: Upstream failure detection (line 2605-2650)
+- #9 Phase 1 Completeness: Symbol coverage % validation (line 1761-1811)
+- #10 Sector Ranking: Freshness check + halt logic (line 2226-2250)
+- #11 Morning/EOD Pipeline Overlap: Detection + monitoring (line 1824-1842)
+- #12 buy_sell_daily Dependencies: Technical data validation (line 2501-2530)
+- #19 Failsafe Timeout Verification: Secondary check (line 240-273)
+- #22 Cache Invalidation: INCOMPLETE detection (line 1519-1528)
+- #23 Hung Task Escalation: Zombie cleanup + stop verification (line 530-568, 1873)
+
+**YELLOW SEVERITY (Operational):** ✅ All 7 implemented
+- #14 Morning Prep Timing: 2:45 AM start + cache pre-warming (line 2755-2800)
+- #15 Data Age Tracking: Phase 5 blocking (line 1843-1863)
+- #16 Patrol Thresholds: Parameterized from algo_config (line 1654-1670)
+- #17 Signal Quality Timing: Handled via data age filtering
+- #18 Partial Loader Retry: Completeness gate (line 1742-1757)
+- #20 Circuit Breaker: Batch reduction instead of failure (load_prices.py:73-92)
+- #21 Correlation ID: Phase 1 logging (line 18-19), loader instances (load_prices.py)
+
+**Database Layer Enhancements (complementing data issues):**
+- Query timeout wrapper: execute_with_timeout() in lambda/api/routes/utils.py
+- CORS headers: Ensured on all responses (success and error)
+- Connection pooling: RDS Proxy configured with 20-30 persistent connections
+- Retry logic: Exponential backoff (1.5x) for timeout recovery
 - **File:** `algo/orchestrator/phase5_signal_generation.py` lines 250-299 (filtering); `algo/orchestrator/phase1_data_freshness.py` (detection)
 - **Impact:** Prevents trading on stale fundamentals or technical data
 
