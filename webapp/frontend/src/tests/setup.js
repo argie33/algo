@@ -4,11 +4,9 @@
  */
 
 import { afterEach, beforeEach, vi, afterAll } from "vitest";
-import { cleanup, render as rtlRender } from "@testing-library/react";
+import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import React from "react";
-import { MemoryRouter } from "react-router-dom";
-import * as RTL from "@testing-library/react";
 
 // Mock ResizeObserver for recharts and other components
 global.ResizeObserver = class ResizeObserver {
@@ -113,5 +111,15 @@ afterAll(() => {
   console.error = originalConsole.error;
 });
 
-// Note: RTL.render is read-only and cannot be overridden.
-// Tests that need Router context should wrap components manually or use a custom render function.
+// Mock Navigate to work outside of Router context in tests
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
+  return {
+    ...actual,
+    Navigate: ({ to, ...props }) => {
+      // In tests, just return null instead of trying to navigate
+      // This allows components that use Navigate to render in tests without a Router
+      return null;
+    },
+  };
+});
