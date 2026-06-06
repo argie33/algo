@@ -927,6 +927,25 @@ class OptimalLoader(ABC):
             # Mark loader as COMPLETED for Phase 1 grace period check
             self._update_loader_status("COMPLETED")
 
+            # ISSUE #7 FIX: Invalidate data_loader_status cache when loader completes
+            # Prevents Phase 1 from using stale cache that shows old completion status
+            try:
+                import boto3
+                dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+                cache_table = dynamodb.Table(cache_table_name)
+
+                # Invalidate any cached data_loader_status entries
+                run_date = _date.today().isoformat()
+                cache_key = f"data_loader_status-{run_date}"
+                try:
+                    cache_table.delete_item(Key={'cache_key': cache_key})
+                    logger.debug(f"[CACHE] Invalidated {cache_key} on {self.table_name} completion")
+                except Exception as cache_err:
+                    logger.debug(f"[CACHE] Could not invalidate cache: {cache_err}")
+            except Exception as cache_setup_err:
+                logger.debug(f"[CACHE] Cache invalidation unavailable: {cache_setup_err}")
+
             # Stop heartbeat thread before returning
             self._stop_heartbeat()
 
