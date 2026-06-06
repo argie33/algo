@@ -691,14 +691,16 @@ class Orchestrator:
                 logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
                 with TimeBlock("phase_1_data_freshness"):
                     if not self.phase_1_data_freshness():
-                        logger.error("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
+                        logger.error("\nFAIL-CLOSED: Data freshness check failed. Running Phase 7 (reconciliation) before halting.")
                         self.log_phase_result(1, 'data_freshness', 'halt', 'Stale or missing critical data')
+                        self.phase_7_reconcile()
                         return self._final_report()
                 phase_1_elapsed = time.time() - phase_1_start
                 logger.info(f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
             except Exception as e:
-                logger.error(f"\nERROR in phase 1 (data freshness): {e}. Halting pipeline.")
+                logger.error(f"\nERROR in phase 1 (data freshness): {e}. Running Phase 7 (reconciliation) before halting.")
                 self.log_phase_result(1, 'data_freshness', 'error', str(e))
+                self.phase_7_reconcile()
                 return self._final_report()
 
             phase_2_start = time.time()

@@ -188,8 +188,14 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                                 time.sleep(heartbeat_check_interval)
 
                             if not loader_heartbeat_detected:
-                                logger.warning(f"[FAILSAFE] Task RUNNING but heartbeat not detected within {heartbeat_wait_timeout}s. "
-                                            f"Loader may be slow to start or code may have startup errors. Proceeding with caution.")
+                                logger.critical(f"[FAILSAFE] CRITICAL: Task RUNNING but heartbeat not detected within {heartbeat_wait_timeout}s. "
+                                            f"Loader may have startup errors or be hung. Cannot proceed with potentially stale data.")
+                                AlertManager().critical(f"Loader {loader_name} started but never reported activity. Data may be stale.")
+                                if attempts < max_attempts:
+                                    logger.info(f"[FAILSAFE] Retrying loader trigger...")
+                                    time.sleep(10)
+                                    continue
+                                return False
 
                             # Store actual_running_at for grace period compensation (Issue 12)
                             # Grace period should start from when task actually runs, not from trigger time
@@ -1605,18 +1611,23 @@ def run(
                 )
             # WARNING threshold: 80% of time used, 80 min remaining
             elif time_until_930 < 80 and time_until_930 >= 20:
-                logger.warning(
-                    f"[MORNING_PREP_WARNING] ⚠️ TIMING WARNING: Only {time_until_930:.0f}min until 9:30 AM deadline. "
-                    f"Realistic execution: {realistic_time_needed}min. Monitor for slowness. "
+                logger.critical(
+                    f"[MORNING_PREP_HALT] ⚠️ TIMING HALT: Only {time_until_930:.0f}min until 9:30 AM deadline, "
+                    f"but realistically need {realistic_time_needed}min. Cannot complete morning prep in time. "
+                    f"Phase 1 halting to prevent stale data trades. "
                     f"Current time: {now_et.strftime('%H:%M')} ET"
                 )
                 alerts.send_position_alert(
                     'PIPELINE',
-                    'MORNING_PREP_WARNING_TIMING',
-                    f'Morning prep timing tight: {time_until_930:.0f} min until 9:30 AM, need ~{realistic_time_needed}min. '
-                    f'Monitor for slowness. Time: {now_et.strftime("%H:%M")} ET',
-                    {'minutes_remaining': time_until_930, 'time_needed': realistic_time_needed}
+                    'MORNING_PREP_TIMING_HALT',
+                    f'Morning prep timing impossible: {time_until_930:.0f} min until 9:30 AM, need {realistic_time_needed}min. '
+                    f'Phase 1 halting to prevent trading on stale data. Time: {now_et.strftime("%H:%M")} ET',
+                    {'minutes_remaining': time_until_930, 'minutes_needed': realistic_time_needed, 'halt': True}
                 )
+                log_phase_result_fn(1, 'morning_prep_timing', 'halt',
+                                   f'Insufficient time for morning prep: {time_until_930:.0f}min remaining, {realistic_time_needed}min needed')
+                return PhaseResult(1, 'morning_prep_timing', 'halted', {}, True,
+                                 f'Morning prep timing constraints violated')
 
     try:
         # Pre-flight: validate schema and RDS connection pool before proceeding
@@ -1685,6 +1696,7 @@ def run(
             # Don't fail-close on health check error, let other checks handle it
 
         # ISSUE #1 FIX: Check for market close data failure from previous loader run
+        # ISSUE #4 FIX: Don't rely on time-based stale check; any market close failure is critical
         try:
             import boto3
             dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
@@ -1699,23 +1711,24 @@ def run(
                 reason = failure_item.get('reason', 'unknown')
                 loader = failure_item.get('loader', 'stock_prices_daily')
 
-                # If market close failure is recent (<5 minutes), it may still be recoverable
-                if age_minutes < 5:
-                    logger.error(f"[MARKET_CLOSE] Recent failure detected in {loader}: {reason}")
-                    alerts.send_position_alert(
-                        'MARKET_CLOSE',
-                        'RECENT_YFINANCE_LAG',
-                        f"yfinance data unavailable during previous {loader} load attempt. "
-                        f"Triggering failsafe to retry with fallback. Reason: {reason}",
-                        {'loader': loader, 'age_minutes': age_minutes, 'reason': reason}
-                    )
-                    log_phase_result_fn(1, 'market_close_failure', 'warn',
-                                       f"yfinance lag detected in {loader}, failsafe triggered for retry")
-                    # Clear the failure flag after logging
-                    try:
-                        state_table.delete_item(Key={'state_key': 'market_close_failure'})
-                    except Exception:
-                        pass
+                # ISSUE #4 FIX: Market close failures are always critical, regardless of age
+                # yfinance lag may recur on next attempt, so treat any failure as reason to retry
+                logger.critical(f"[MARKET_CLOSE] Market close failure detected in {loader} (age {age_minutes:.0f}min): {reason}. "
+                               f"Triggering full failsafe retry (not just single loader).")
+                alerts.send_position_alert(
+                    'MARKET_CLOSE',
+                    'YFINANCE_LAG_DETECTED',
+                    f"Market close failure detected in {loader} ({age_minutes:.0f}min ago): {reason}. "
+                    f"Triggering full failsafe to retry with fresh attempt. May indicate yfinance lag or data availability issue.",
+                    {'loader': loader, 'age_minutes': age_minutes, 'reason': reason}
+                )
+                log_phase_result_fn(1, 'market_close_failure', 'warn',
+                                   f"Market close failure in {loader} ({age_minutes:.0f}min old): {reason}. Failsafe triggered.")
+                # Clear the failure flag after logging (will be re-set if next attempt also fails)
+                try:
+                    state_table.delete_item(Key={'state_key': 'market_close_failure'})
+                except Exception:
+                    pass
         except Exception as mc_err:
             logger.debug(f"[MARKET_CLOSE] Could not check failure status: {mc_err}")
 
@@ -2263,18 +2276,24 @@ def run(
 
                     # ISSUE #10 FIX: 80% threshold = 324 minutes elapsed, 81 minutes remaining
                     if elapsed_pct >= 95:
-                        # 95%+ of time used (< 20 min to deadline)
+                        # 95%+ of time used (< 20 min to deadline) — ISSUE #3 FIX: HALT instead of just warning
                         logger.critical(
                             f"[{_phase1_correlation_id}] [MORNING_PREP_TIMING] 🚨 CRITICAL: {elapsed_pct:.0f}% of time used! Only {remaining_to_deadline:.0f}min to 9:30 AM deadline! "
-                            f"Morning prep started {elapsed_since_start:.0f}min ago. WILL NOT COMPLETE IN TIME without immediate action."
+                            f"Morning prep started {elapsed_since_start:.0f}min ago. HALTING PHASE 1 to prevent late execution."
                         )
                         alerts.send_position_alert(
                             'TIMING',
-                            'MORNING_PREP_DEADLINE_CRITICAL',
-                            f'CRITICAL: {elapsed_pct:.0f}% of time used. Only {remaining_to_deadline:.0f}min to deadline. Started {elapsed_since_start:.0f}min ago. '
-                            f'Morning prep will exceed 9:30 AM deadline unless accelerated immediately.',
+                            'MORNING_PREP_DEADLINE_CRITICAL_HALT',
+                            f'HALT: {elapsed_pct:.0f}% of time used. Only {remaining_to_deadline:.0f}min to deadline. '
+                            f'Morning prep will exceed 9:30 AM deadline. Halting Phase 1 to prevent trading with stale data.',
                             {'elapsed_minutes': elapsed_since_start, 'remaining_minutes': remaining_to_deadline, 'elapsed_pct': elapsed_pct}
                         )
+                        log_phase_result_fn(1, 'morning_prep_deadline', 'halt',
+                                           f'Morning prep deadline at risk: {elapsed_pct:.0f}% time used, only {remaining_to_deadline:.0f}min to 9:30 AM')
+                        return PhaseResult(1, 'morning_prep_deadline', 'halted', {}, True,
+                                         f'Morning prep time budget exhausted ({elapsed_pct:.0f}% used). '
+                                         f'Only {remaining_to_deadline:.0f}min remaining until market open. '
+                                         f'Cannot safely complete data freshness checks and trading in remaining time. Halting.')
                     elif elapsed_pct >= 80:
                         # 80%+ of time used (threshold alert)
                         logger.warning(
