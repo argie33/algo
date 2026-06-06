@@ -31,7 +31,7 @@ def _handle_basic(cur) -> Dict:
     """
     health = {
         "status": "healthy",
-        "version": "v2-2026-05-22",
+        "version": "v2-2026-06-06",
         "timestamp": datetime.now().isoformat(),
     }
 
