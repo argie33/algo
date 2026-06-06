@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # ISSUE #21 FIX: Add correlation_id to all Phase 1 logs for traceability
 _phase1_correlation_id = str(uuid.uuid4())[:8]
 
-def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 150, retry_count: int = 1, correlation_id: str = None) -> bool:
+def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 180, retry_count: int = 1, correlation_id: str = None) -> bool:
     """
     Trigger ECS loader asynchronously and VERIFY it started before returning.
 
@@ -34,13 +34,15 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
     ECS TIMING: Fargate tasks can take 45-120s to reach RUNNING state under load.
     ISSUE #4 FIX: Increased default timeout from 120s to 150s to accommodate worst-case
     Fargate provisioning delays under cluster load. Prevents false timeout failures.
+    ISSUE #13 FIX: Further increased to 180s to safely handle peak cluster load where
+    Fargate instance provisioning can take up to 150s.
 
     ISSUE #11 FIX: Passes _phase1_correlation_id via PHASE1_CORRELATION_ID env var for end-to-end log tracing.
 
     Args:
         loader_name: Name of the loader to trigger
         verbose: Whether to log verbose output
-        poll_timeout_sec: Max seconds to wait for loader task to start (default 120s)
+        poll_timeout_sec: Max seconds to wait for loader task to start (default 180s)
         retry_count: Number of retry attempts after initial failure (default 1)
 
     Returns: True if loader task confirmed running, False if timeout/error
