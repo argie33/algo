@@ -1765,9 +1765,8 @@ def run(
         # MITIGATION: Active monitoring with early warnings to catch slowness patterns
 
         # Monitor morning prep pipeline timing (only relevant if we're in morning window 2:45-9:30 AM)
-        from datetime import datetime, timezone
-        from zoneinfo import ZoneInfo
-        now_et = datetime.now(ZoneInfo("America/New_York"))
+        from datetime import datetime as dt_local, timezone
+        now_et = dt_local.now(ZoneInfo("America/New_York"))
         morning_prep_start = now_et.replace(hour=2, minute=45, second=0, microsecond=0)
         market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
         minutes_since_morning_start = (now_et - morning_prep_start).total_seconds() / 60

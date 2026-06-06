@@ -649,9 +649,9 @@ class DailyReconciliation:
 
                     cur.execute("""
                         SELECT high, low FROM price_daily
-                        WHERE symbol = %s AND date >= %s AND date <= %s
+                        WHERE symbol = %s AND date >= %s::TEXT AND date <= %s::TEXT
                         ORDER BY date ASC
-                    """, (symbol, entry_date, exit_date))
+                    """, (symbol, str(entry_date), str(exit_date)))
 
                     prices = cur.fetchall()
                     if not prices:
