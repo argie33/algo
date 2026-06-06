@@ -912,7 +912,12 @@ class PriceLoader(OptimalLoader):
 
                 # ISSUE #2 & #8 FIX: Use centralized cache invalidation which marks cache as poisoned on failure
                 # This ensures Phase 1 skips cache even if invalidation fails (via invalidation_failed flag)
-                _invalidate_phase1_cache()
+                # CRITICAL: If cache invalidation fails completely, this raises RuntimeError to halt the loader
+                try:
+                    _invalidate_phase1_cache()
+                except RuntimeError as cache_fail:
+                    logger.critical(f"[MARKET_CLOSE] Cache invalidation FAILED (both deletion and poisoning failed). HALTING loader. Error: {cache_fail}")
+                    raise
 
                 # Return empty results - Phase 1 will detect stale data and trigger failsafe
                 logger.warning(f"[MARKET_CLOSE] Loader aborting with empty results. Phase 1 will trigger failsafe.")
@@ -1276,7 +1281,10 @@ def main():
         logger.info(f"[{_correlation_id}] [MAIN] Environment loaded successfully")
     except Exception as e:
         logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
-        _invalidate_phase1_cache()
+        try:
+            _invalidate_phase1_cache()
+        except RuntimeError as cache_err:
+            logger.critical(f"[MAIN] Cache invalidation failed on environment error: {cache_err}")
         log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
         return 1
 
@@ -1345,7 +1353,10 @@ def main():
                 return 1
     except Exception as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
-        _invalidate_phase1_cache()
+        try:
+            _invalidate_phase1_cache()
+        except RuntimeError as cache_err:
+            logger.critical(f"[MAIN] Cache invalidation failed on symbols error: {cache_err}")
         log_loader_execution('loadpricedaily', 'price_daily', 'failed', error_msg=str(e), duration_seconds=round(time.time() - start_time, 2))
         return 1
 
@@ -1406,7 +1417,10 @@ def main():
                 loader.close()
             except Exception as e:
                 logger.error(f"[MAIN] Loader failed for {asset_class}/{interval}: {e}", exc_info=True)
-                _invalidate_phase1_cache()
+                try:
+                    _invalidate_phase1_cache()
+                except RuntimeError as cache_err:
+                    logger.critical(f"[MAIN] Cache invalidation failed on loader error: {cache_err}")
                 fail_count += 1
                 return 1
 
@@ -1415,7 +1429,10 @@ def main():
     duration_seconds = round(time.time() - start_time, 2)
     if fail_count > 0:
         logger.error(f"[MAIN] {fail_count} interval(s) had too many failures")
-        _invalidate_phase1_cache()
+        try:
+            _invalidate_phase1_cache()
+        except RuntimeError as cache_err:
+            logger.critical(f"[MAIN] Cache invalidation failed on final failure: {cache_err}")
         log_loader_execution(
             'loadpricedaily',
             'price_daily',

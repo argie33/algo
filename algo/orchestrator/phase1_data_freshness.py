@@ -109,6 +109,7 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
 
             task_arn = response['tasks'][0]['taskArn']
             task_id = task_arn.split('/')[-1]
+            trigger_timestamp = time.time()  # Record when task was triggered
 
             if verbose:
                 logger.info(f"[FAILSAFE] Attempt {attempts}: ✓ ECS task launched: {task_id}")
@@ -143,6 +144,52 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                             elapsed = time.time() - poll_start
                             logger.info(f"[FAILSAFE] ✓ Loader task {task_id} confirmed RUNNING after {elapsed:.1f}s")
 
+                            # ISSUE #8 FIX: Verify loader actually starts loading data, not just that task is running
+                            # Wait up to 30s for loader to update its heartbeat in data_loader_status
+                            # This catches cases where task starts but loader code crashes or hangs on startup
+                            loader_heartbeat_detected = False
+                            heartbeat_wait_start = time.time()
+                            heartbeat_wait_timeout = 30  # 30 second timeout for heartbeat detection
+                            heartbeat_check_interval = 2  # Check every 2 seconds
+
+                            if verbose:
+                                logger.debug(f"[FAILSAFE] Waiting up to {heartbeat_wait_timeout}s for loader to update heartbeat (startup validation)...")
+
+                            while time.time() - heartbeat_wait_start < heartbeat_wait_timeout:
+                                try:
+                                    from utils.database_context import DatabaseContext
+                                    with DatabaseContext('read') as hb_cur:
+                                        hb_cur.execute("SET statement_timeout = 2000")  # 2s timeout
+                                        hb_cur.execute(
+                                            "SELECT last_updated FROM data_loader_status WHERE table_name = %s",
+                                            (loader_name.replace('_daily', '_daily').replace('_', '_'),)  # e.g., 'stock_prices_daily'
+                                        )
+                                        hb_result = hb_cur.fetchone()
+                                        if hb_result and hb_result[0]:
+                                            last_updated = hb_result[0]
+                                            # Check if heartbeat was updated AFTER task was triggered
+                                            if isinstance(last_updated, str):
+                                                from datetime import datetime
+                                                last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                                            if hasattr(last_updated, 'timestamp'):
+                                                last_updated_ts = last_updated.timestamp()
+                                            else:
+                                                last_updated_ts = last_updated
+                                            if last_updated_ts > trigger_timestamp:
+                                                loader_heartbeat_detected = True
+                                                heartbeat_elapsed = time.time() - heartbeat_wait_start
+                                                logger.info(f"[FAILSAFE] ✓ Loader heartbeat detected after {heartbeat_elapsed:.1f}s — loader is actually running and loading data")
+                                                break
+                                except Exception as hb_err:
+                                    if verbose:
+                                        logger.debug(f"[FAILSAFE] Heartbeat check attempt failed (will retry): {hb_err}")
+
+                                time.sleep(heartbeat_check_interval)
+
+                            if not loader_heartbeat_detected:
+                                logger.warning(f"[FAILSAFE] Task RUNNING but heartbeat not detected within {heartbeat_wait_timeout}s. "
+                                            f"Loader may be slow to start or code may have startup errors. Proceeding with caution.")
+
                             # Store actual_running_at for grace period compensation (Issue 12)
                             # Grace period should start from when task actually runs, not from trigger time
                             try:
@@ -154,14 +201,15 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                                 now = time.time()
                                 state_table.update_item(
                                     Key={'state_key': 'failsafe_trigger_log'},
-                                    UpdateExpression='SET actual_running_at = :running_at, scheduling_delay_seconds = :delay',
+                                    UpdateExpression='SET actual_running_at = :running_at, scheduling_delay_seconds = :delay, heartbeat_detected = :heartbeat',
                                     ExpressionAttributeValues={
                                         ':running_at': now,
                                         ':delay': elapsed,
+                                        ':heartbeat': loader_heartbeat_detected,
                                     }
                                 )
                                 if verbose:
-                                    logger.debug(f"[FAILSAFE] Stored actual_running_at and scheduling_delay: {elapsed:.1f}s")
+                                    logger.debug(f"[FAILSAFE] Stored actual_running_at, scheduling_delay ({elapsed:.1f}s), and heartbeat status: {loader_heartbeat_detected}")
                             except Exception as state_err:
                                 logger.debug(f"[FAILSAFE] Could not store actual_running_at: {state_err}")
 
@@ -1523,6 +1571,47 @@ def run(
             except Exception as lag_err:
                 logger.debug(f"[MORNING_PREP_LAG] Could not check lag status: {lag_err}")
 
+        # ISSUE #10 FIX: Active timing monitoring with multi-tier alerts
+        # Phase 1 runs at 9:30 AM ET. If we're checking before 9:30 AM, measure progress from 2:45 AM start
+        # Critical thresholds:
+        # - CRITICAL (95% threshold): <20 min remaining (8:10 AM+) — runner must complete immediately
+        # - WARNING (80% threshold): <80 min remaining (7:10 AM+) — watch for slowness
+        # - INFO: Keep monitoring between 2:45 AM and 7:10 AM as baseline
+        if is_morning and 2 <= hour_et < 9:  # Morning pipeline: 2:45 AM - 9:30 AM window
+            market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+            time_until_930 = (market_open - now_et).total_seconds() / 60
+            realistic_time_needed = 255  # 4h 15m (from steering docs)
+
+            # CRITICAL threshold: 95% of time used, only 20 min remaining
+            if time_until_930 < 20 and time_until_930 > 0:
+                logger.critical(
+                    f"[MORNING_PREP_CRITICAL] CRITICAL TIMING: Only {time_until_930:.0f}min until market open. "
+                    f"Morning prep must complete NOW or 9:30 AM orchestrator will find stale data. "
+                    f"Current time: {now_et.strftime('%H:%M')} ET"
+                )
+                alerts.send_position_alert(
+                    'PIPELINE',
+                    'MORNING_PREP_CRITICAL_TIMING',
+                    f'CRITICAL: Morning prep has only {time_until_930:.0f} minutes until 9:30 AM deadline. '
+                    f'Must complete immediately or orchestrator will halt on stale data. '
+                    f'Time: {now_et.strftime("%H:%M")} ET',
+                    {'minutes_remaining': time_until_930, 'critical': True}
+                )
+            # WARNING threshold: 80% of time used, 80 min remaining
+            elif time_until_930 < 80 and time_until_930 >= 20:
+                logger.warning(
+                    f"[MORNING_PREP_WARNING] ⚠️ TIMING WARNING: Only {time_until_930:.0f}min until 9:30 AM deadline. "
+                    f"Realistic execution: {realistic_time_needed}min. Monitor for slowness. "
+                    f"Current time: {now_et.strftime('%H:%M')} ET"
+                )
+                alerts.send_position_alert(
+                    'PIPELINE',
+                    'MORNING_PREP_WARNING_TIMING',
+                    f'Morning prep timing tight: {time_until_930:.0f} min until 9:30 AM, need ~{realistic_time_needed}min. '
+                    f'Monitor for slowness. Time: {now_et.strftime("%H:%M")} ET',
+                    {'minutes_remaining': time_until_930, 'time_needed': realistic_time_needed}
+                )
+
     try:
         # Pre-flight: validate schema and RDS connection pool before proceeding
         try:
@@ -1806,6 +1895,9 @@ def run(
                 log_phase_result_fn(1, 'cache_database_offline', 'halt', 'Both cache and database unavailable')
                 return PhaseResult(1, 'cache_database_offline', 'halted', {}, True, 'Cannot load data - both cache and database offline')
 
+            # SAFETY GUARD: Database check already confirmed availability above (line 1719-1722)
+            # If we reach here, database_available=True, so it's safe to query
+            logger.debug("[CACHE] Cache miss and database is available - querying fresh data...")
             try:
                 with DatabaseContext('read') as cur:
                     cur.execute("SET statement_timeout = 15000")  # 15s — should be instant
@@ -1904,15 +1996,33 @@ def run(
                                 cur.execute("ROLLBACK")
                             except Exception:
                                 pass
-                        logger.critical(f"Phase 1: SERIALIZABLE REPEATABLE READ atomic transaction failed ({txn_err}) - results may be inconsistent. HALTING to prevent race-condition data corruption")
+                        logger.critical(f"[{_phase1_correlation_id}] [ATOMIC] SERIALIZABLE REPEATABLE READ atomic transaction failed ({txn_err}) - results may be inconsistent. HALTING to prevent race-condition data corruption")
                         atomic_query_failed = True
+                        alerts.send_position_alert(
+                            'DATA',
+                            'ATOMIC_TRANSACTION_FAILED',
+                            f'CRITICAL HALT: SERIALIZABLE atomic transaction failed. Cannot guarantee data consistency across tables. Error: {str(txn_err)[:200]}',
+                            {'error': str(txn_err), 'halt': True}
+                        )
             except Exception as e:
-                logger.critical(f"Phase 1: SERIALIZABLE transaction connection failed ({e}) - HALTING to prevent data corruption")
+                logger.critical(f"[{_phase1_correlation_id}] [ATOMIC] SERIALIZABLE transaction connection failed ({e}) - HALTING to prevent data corruption")
                 atomic_query_failed = True
+                alerts.send_position_alert(
+                    'DATA',
+                    'ATOMIC_TRANSACTION_CONNECTION_FAILED',
+                    f'CRITICAL HALT: Could not establish atomic transaction connection. Cannot guarantee data consistency. Error: {str(e)[:200]}',
+                    {'error': str(e), 'halt': True}
+                )
 
             # CRITICAL: If atomic query failed, HALT instead of proceeding with potentially corrupted data
             if atomic_query_failed:
                 log_phase_result_fn(1, 'atomic_query_failure', 'halt', 'Database atomic query failed - cannot guarantee data consistency')
+                alerts.send_position_alert(
+                    'DATA',
+                    'ATOMIC_QUERY_FAILURE_HALT',
+                    f'HALT: Atomic transaction failed - cannot query all tables at same snapshot. Data consistency cannot be guaranteed. Escalate for investigation.',
+                    {'halt': True}
+                )
                 return PhaseResult(1, 'atomic_query_failure', 'halted', {}, True, 'Atomic database query failed - all tables must be checked at same snapshot. Cannot proceed with potentially inconsistent data')
 
         spy_date = dates.get('price_daily') or dates.get('etf_price_daily')
