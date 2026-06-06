@@ -56,13 +56,13 @@ export const extractData = (response) => {
     return {
       items: filteredItems,
       pagination: data.pagination || {
-        limit: data.limit,
-        offset: data.offset,
+        limit: data.limit || 50,
+        offset: data.offset || 0,
         total: data.total || filteredItems.length,
-        page: data.page,
-        totalPages: data.totalPages,
-        hasNext: data.hasNext,
-        hasPrev: data.hasPrev,
+        page: data.page || 1,
+        totalPages: data.totalPages || Math.ceil((data.total || filteredItems.length) / (data.limit || 50)),
+        hasNext: data.hasNext !== undefined ? data.hasNext : false,
+        hasPrev: data.hasPrev !== undefined ? data.hasPrev : false,
       },
       statusCode: httpStatus,
       success: true,
@@ -71,16 +71,29 @@ export const extractData = (response) => {
 
   // Handle single object responses (data field)
   if (data.data !== null && data.data !== undefined) {
+    // If data.data is an object, spread it; otherwise return as-is
+    if (typeof data.data === 'object' && data.data !== null && !Array.isArray(data.data)) {
+      return {
+        ...data.data,
+        statusCode: httpStatus,
+        success: true,
+      };
+    } else {
+      return {
+        data: data.data,
+        statusCode: httpStatus,
+        success: true,
+      };
+    }
+  }
+
+  // Fallback: return the whole data object with statusCode if it's an object
+  if (typeof data === 'object' && data !== null) {
     return {
-      ...data.data,
+      ...data,
       statusCode: httpStatus,
       success: true,
     };
-  }
-
-  // Fallback: return the whole data object
-  if (typeof data === 'object' && data !== null) {
-    return data;
   }
 
   // Enhanced error for debugging: detect HTML responses (usually 404/error pages from CDN)
