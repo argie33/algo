@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # ISSUE #21 FIX: Add correlation_id to all Phase 1 logs for traceability
 _phase1_correlation_id = str(uuid.uuid4())[:8]
 
-def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 150, retry_count: int = 1) -> bool:
+def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 150, retry_count: int = 1, correlation_id: str = None) -> bool:
     """
     Trigger ECS loader asynchronously and VERIFY it started before returning.
 
@@ -92,7 +92,7 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                             'environment': [
                                 {'name': 'FAILSAFE_TRIGGER', 'value': 'true'},
                                 {'name': 'TRIGGER_TIME', 'value': datetime.now(timezone.utc).isoformat()},
-                                {'name': 'PHASE1_CORRELATION_ID', 'value': _phase1_correlation_id},
+                                {'name': 'PHASE1_CORRELATION_ID', 'value': correlation_id if correlation_id else _phase1_correlation_id},
                             ]
                         }
                     ]
@@ -2138,7 +2138,7 @@ def run(
 
                 try:
                     logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")
-                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
+                    failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout, correlation_id=_phase1_correlation_id)
                     if failsafe_ok:
                         logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] ✓ Loader trigger confirmed. Task is running.")
                     else:
@@ -2625,7 +2625,7 @@ def run(
                         logger.warning(f"  - {table_name}: {coverage_count}/5000 symbols ({coverage_pct:.1f}%)")
                         try:
                             logger.info(f"[COMPLETENESS RETRY] Triggering failsafe for {loader_name}")
-                            _trigger_loader_failsafe_with_verification(loader_name, verbose=True, poll_timeout_sec=180, retry_count=1)  # ISSUE #13 FIX: Increased to 180s
+                            _trigger_loader_failsafe_with_verification(loader_name, verbose=True, poll_timeout_sec=180, retry_count=1, correlation_id=_phase1_correlation_id)  # ISSUE #13 FIX: Increased to 180s
                             alerts.send_position_alert(
                                 'DATA', 'SUBOPTIMAL_COVERAGE_RETRY',
                                 f'{table_name} coverage suboptimal ({coverage_pct:.1f}%, need ≥{optimal_coverage_pct}%). Failsafe triggered.',
@@ -2670,7 +2670,7 @@ def run(
                     for failed_loader in failed_loaders:
                         try:
                             logger.info(f"[FAILSAFE] Triggering re-run for incomplete loader: {failed_loader}")
-                            _trigger_loader_failsafe_with_verification(failed_loader, verbose=verbose, poll_timeout_sec=180)  # ISSUE #13 FIX: Increased to 180s
+                            _trigger_loader_failsafe_with_verification(failed_loader, verbose=verbose, poll_timeout_sec=180, correlation_id=_phase1_correlation_id)  # ISSUE #13 FIX: Increased to 180s
                         except Exception as failsafe_err:
                             logger.warning(f"[FAILSAFE] Could not trigger {failed_loader}: {failsafe_err}")
 

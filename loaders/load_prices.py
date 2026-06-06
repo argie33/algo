@@ -47,6 +47,7 @@ class PriceLoader(OptimalLoader):
 
         self.interval = interval
         self.asset_class = asset_class
+        self._correlation_id = _correlation_id  # Instance variable for use in all methods
         self.batch_size = 150  # Batch 150 symbols per API call: 5000 symbols = 33-34 calls (3x faster than 50)
 
         # Map interval + asset_class to table name
