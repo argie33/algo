@@ -172,8 +172,8 @@ describe("Settings Page", () => {
       await waitFor(() => {
         expect(screen.getByText(/Settings/i)).toBeInTheDocument();
       });
-      const apiKeysTab = screen.queryByTestId("api-keys-tab");
-      if (!apiKeysTab) return; // Feature moved elsewhere, test passes trivially
+      const apiKeysTabElement = screen.queryByTestId("api-keys-tab");
+      if (!apiKeysTabElement) return; // Feature moved elsewhere, test passes trivially
 
       // Click on the API Keys tab
       const apiKeysTab = screen.getByTestId("api-keys-tab");
@@ -259,8 +259,8 @@ describe("Settings Page", () => {
       await waitFor(() => {
         expect(screen.getByText(/Settings/i)).toBeInTheDocument();
       });
-      const apiKeysTab = screen.queryByTestId("api-keys-tab");
-      if (!apiKeysTab) return; // Feature moved elsewhere, test passes trivially
+      const apiKeysTabElement = screen.queryByTestId("api-keys-tab");
+      if (!apiKeysTabElement) return; // Feature moved elsewhere, test passes trivially
 
       // Click on the API Keys tab
       const apiKeysTab = screen.getByTestId("api-keys-tab");

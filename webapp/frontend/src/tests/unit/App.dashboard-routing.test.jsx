@@ -5,7 +5,6 @@ import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense } from "react";
 import { AuthProvider } from "../../contexts/AuthContext";
-import { ApiKeyProvider } from "../../components/ApiKeyProvider";
 import { testTheme } from "../test-utils.jsx";
 import App from "../../App";
 
