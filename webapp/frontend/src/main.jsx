@@ -185,18 +185,20 @@ const waitForConfig = async () => {
 
     const timeout = setTimeout(() => {
       if (!configLoaded) {
-        const error = new Error(
-          'Configuration failed to load within 10 seconds. ' +
-          'This usually means: (1) index.html is not loading config.js, ' +
-          '(2) config.js failed to deploy, or (3) network connectivity issue. ' +
-          'Check browser DevTools → Network tab for config.js load status.'
-        );
-        logger.error("ConfigLoadTimeout", error, {
+        const debugInfo = {
           configExists: !!window.__CONFIG__,
           configType: typeof window.__CONFIG__,
           configKeys: window.__CONFIG__ ? Object.keys(window.__CONFIG__) : [],
           errorFlag: window.__CONFIG_ERROR__,
-        });
+          timeoutMs: CONFIG_TIMEOUT,
+        };
+        const error = new Error(
+          'Configuration failed to load within 10 seconds. ' +
+          'Likely causes: (1) config.js not deployed to S3, (2) S3 permissions issue, ' +
+          '(3) CloudFront cache issue, or (4) network connectivity. ' +
+          'Actions: Check browser DevTools Network tab for config.js status, verify S3 deployment, check CloudFront distribution.'
+        );
+        logger.error("ConfigLoadTimeout", error, debugInfo);
         reject(error);
       }
     }, CONFIG_TIMEOUT);

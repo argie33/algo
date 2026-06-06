@@ -51,7 +51,9 @@ export const extractData = (response) => {
   }
 
   // Handle paginated responses (items + pagination)
-  if (Array.isArray(data.items)) {
+  // CRITICAL: Check that items is actually an array (not null/undefined)
+  if (data.items && Array.isArray(data.items)) {
+    // Filter out null/undefined items, but preserve falsy values like 0, false, ""
     const filteredItems = data.items.filter(item => item !== null && item !== undefined);
     return {
       items: filteredItems,
