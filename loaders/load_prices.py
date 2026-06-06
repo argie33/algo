@@ -1195,49 +1195,56 @@ def _invalidate_phase1_cache():
     CRITICAL: If invalidation fails, marks cache with 'invalidation_failed' flag
     so Phase 1 knows not to use it. If that also fails, raises RuntimeError to
     halt the loader and prevent silent stale-data use.
-    """
-    try:
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-        import boto3
 
-        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+    ISSUE #2 FIX: Three-tier approach:
+    1. Try to delete cache (best case)
+    2. If delete fails, mark as poisoned so Phase 1 skips it
+    3. If both fail, raise RuntimeError to halt loader immediately
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    import boto3
+
+    # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
+    try:
         cache_date = datetime.now(ZoneInfo("America/New_York")).date()
         cache_key = f"data_loader_status-{cache_date.isoformat()}"
         cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
-
         dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
         cache_table = dynamodb.Table(cache_table_name)
-        cache_table.delete_item(Key={'cache_key': cache_key})
-        logger.info(f"[CACHE INVALIDATION] ✓ Invalidated Phase 1 cache on loader failure for {cache_key}")
-    except Exception as cache_err:
-        # CRITICAL FIX: On deletion failure, try to mark cache with 'invalidation_failed' flag
-        logger.error(f"[CACHE INVALIDATION] ✗ FAILED to delete cache (will mark as poisoned): {type(cache_err).__name__}: {cache_err}")
-        poisoned_ok = False
+
         try:
-            from datetime import datetime
-            from zoneinfo import ZoneInfo
-            import boto3
-            cache_date = datetime.now(ZoneInfo("America/New_York")).date()
-            cache_key = f"data_loader_status-{cache_date.isoformat()}"
-            cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
-            dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-            cache_table = dynamodb.Table(cache_table_name)
-            # Mark cache as poisoned (invalidation failed) so Phase 1 will skip it
+            # Step 1: Try direct deletion
+            cache_table.delete_item(Key={'cache_key': cache_key})
+            logger.info(f"[CACHE INVALIDATION] ✓ Successfully deleted Phase 1 cache: {cache_key}")
+            return
+        except Exception as delete_err:
+            logger.error(f"[CACHE INVALIDATION] ✗ DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning...")
+
+        # Step 2: If delete failed, try to poison the cache so Phase 1 knows not to use it
+        try:
             cache_table.update_item(
                 Key={'cache_key': cache_key},
-                UpdateExpression='SET invalidation_failed = :true',
-                ExpressionAttributeValues={':true': True}
+                UpdateExpression='SET invalidation_failed = :true, poisoned_at = :now',
+                ExpressionAttributeValues={':true': True, ':now': time.time()}
             )
-            logger.warning(f"[CACHE INVALIDATION] Marked cache as poisoned (invalidation_failed=true) - Phase 1 will skip it")
-            poisoned_ok = True
-        except Exception as mark_err:
-            logger.error(f"[CACHE INVALIDATION] CRITICAL: Could not mark cache as poisoned either: {mark_err}")
+            logger.warning(f"[CACHE INVALIDATION] ✓ POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data")
+            return
+        except Exception as poison_err:
+            logger.error(f"[CACHE INVALIDATION] ✗ POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}")
 
-        # If we couldn't poison the cache, HALT to prevent silent stale-data use
-        if not poisoned_ok:
-            logger.critical(f"[CACHE INVALIDATION] Both deletion and poisoning failed - HALTING loader to prevent silent data corruption")
-            raise RuntimeError(f"CRITICAL: Cache invalidation completely failed (cannot delete or poison). Halting to prevent silent stale-data use.")
+    except Exception as setup_err:
+        logger.error(f"[CACHE INVALIDATION] Setup error: {setup_err}")
+
+    # Step 3: Both deletion AND poisoning failed - CRITICAL: MUST HALT
+    logger.critical(
+        f"[CACHE INVALIDATION] ✗✗ CRITICAL FAILURE: Could not delete OR poison cache. "
+        f"Phase 1 will potentially use stale data. HALTING LOADER IMMEDIATELY."
+    )
+    raise RuntimeError(
+        f"CRITICAL: Cache invalidation completely failed (cannot delete or poison). "
+        f"Halting loader to prevent silent stale-data corruption."
+    )
 
 def log_loader_execution(loader_name, table_name, status, records_loaded=0, records_updated=0, error_msg=None, duration_seconds=0):
     """Log loader execution to data_loader_runs table for monitoring."""

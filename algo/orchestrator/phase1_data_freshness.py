@@ -2555,9 +2555,18 @@ def run(
                     if hung_critical_loaders:
                         logger.critical(
                             f"[{_phase1_correlation_id}] [HUNG_CRITICAL_LOADERS] {len(hung_critical_loaders)} critical loader(s) hung: {'; '.join(hung_critical_loaders)}. "
-                            f"Morning pipeline blocked. Failing fast to trigger new failsafe instead of waiting through grace period."
+                            f"Morning pipeline blocked. Failing fast to trigger new failsafe instead of waiting through grace period. "
+                            f"Hung loaders: {'; '.join(hung_critical_loaders)} (must be restarted to prevent data staleness)"
                         )
                         failsafe_already_triggered = False  # Force failsafe trigger below
+                        # ISSUE #5 FIX: Alert immediately about hung loaders
+                        alerts.send_position_alert(
+                            'DATA',
+                            'HUNG_CRITICAL_LOADERS_DETECTED',
+                            f'HUNG LOADER ALERT: {len(hung_critical_loaders)} critical loader(s) detected with stale heartbeat: {", ".join(hung_critical_loaders)}. '
+                            f'Triggering fresh failsafe to replace hung tasks. Hung tasks being terminated.',
+                            {'hung_loaders': hung_critical_loaders, 'correlation_id': _phase1_correlation_id}
+                        )
 
                     # If stock_prices_daily is RUNNING and NOT hung, use grace period
                     _status_cur.execute(
