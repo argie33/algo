@@ -27,28 +27,46 @@ HANDLERS = {
     '/api/data-coverage': data_coverage,
 }
 
+def _add_cors_headers(response):
+    """Add CORS headers to response (applies to both success and error responses)."""
+    if not isinstance(response, dict):
+        response = {"statusCode": 500, "errorType": "internal_error", "message": "Invalid response format"}
+
+    # CORS headers must be present on all responses, including errors
+    response['headers'] = response.get('headers', {})
+    response['headers'].update({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Content-Type': 'application/json'
+    })
+    return response
+
 def route_request(cur, path, method, params, body=None, jwt_claims=None):
     """Route request to handler. Public handlers checked first (no auth required)."""
     # Check public handlers first (health, etc.) - these don't require JWT
     for prefix, handler in PUBLIC_HANDLERS.items():
         if path.startswith(prefix):
             try:
-                return handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                return _add_cors_headers(response)
             except Exception as e:
                 logger.error(f"Public handler error for {path}: {e}", exc_info=True)
-                return _format_handler_error(e)
+                return _add_cors_headers(_format_handler_error(e))
 
     # Check authenticated handlers
     for prefix, handler in HANDLERS.items():
         if path.startswith(prefix):
             try:
-                return handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
+                return _add_cors_headers(response)
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
-                return _format_handler_error(e)
-    # No handler found - return properly formatted 404
+                return _add_cors_headers(_format_handler_error(e))
+
+    # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
-    return {"statusCode": 404, "errorType": "not_found", "message": "Endpoint not found"}
+    return _add_cors_headers({"statusCode": 404, "errorType": "not_found", "message": "Endpoint not found"})
 
 
 def _format_handler_error(e):

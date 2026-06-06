@@ -3,7 +3,7 @@ import psycopg2
 from typing import Dict
 import logging
 from datetime import datetime, timezone
-from .utils import check_data_freshness, success_response, error_response
+from .utils import check_data_freshness, success_response, error_response, execute_with_timeout, handle_db_error
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +33,17 @@ def _handle_basic(cur) -> Dict:
     }
 
     try:
-        # Verify DB is responsive with a simple query
-        cur.execute("SELECT 1")
-        return success_response(health)
+        # Verify DB is responsive with a simple query (3 second timeout)
+        result = execute_with_timeout(cur, "SELECT 1", timeout_sec=3)
+        if result:
+            return success_response(health)
+        else:
+            return error_response(503, 'connection_error', 'Database connection failed')
 
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.warning(f"Health check failed - DB issue: {str(e)[:100]}")
-        return error_response(503, 'connection_error', 'Database connection failed')
     except Exception as e:
         logger.error(f"Health check error: {str(e)[:100]}")
-        return error_response(500, 'internal_error', 'Internal server error')
+        code, error_type, message = handle_db_error(e, "health check")
+        return error_response(code, error_type, message)
 
 def _handle_detailed(cur, jwt_claims: Dict) -> Dict:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""

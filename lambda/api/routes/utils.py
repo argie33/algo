@@ -1,4 +1,9 @@
 """Shared route utilities."""
+import psycopg2.errors
+import logging
+import time
+
+logger = logging.getLogger(__name__)
 
 def safe_limit(limit_str, max_val=5000, default=500):
     """Parse and validate limit parameter."""
@@ -117,6 +122,67 @@ def list_response(items, total=None, data_freshness=None, limit=None, offset=Non
         response["data_freshness"] = data_freshness
     return response
 
+def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, max_attempts: int = 2, backoff_multiplier: float = 1.5):
+    """Execute query with automatic timeout handling and exponential backoff retry.
+
+    ALL database queries should use this wrapper to prevent hanging queries.
+
+    Args:
+        cur: Database cursor
+        query: SQL query to execute
+        params: Query parameters (for parameterized queries)
+        timeout_sec: Initial timeout in seconds (default 10s)
+        max_attempts: Number of retry attempts on timeout (default 2 = 1 retry)
+        backoff_multiplier: Timeout multiplier on retry (default 1.5)
+
+    Returns:
+        Query result (list of rows) on success, empty list on failure
+
+    Raises:
+        None — logs errors and returns empty result on failure
+    """
+    current_timeout = timeout_sec
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            # Set LOCAL timeout (connection-scoped, not global)
+            cur.execute(f"SET LOCAL statement_timeout = '{int(current_timeout * 1000)}ms'")
+            if params:
+                cur.execute(query, params)
+            else:
+                cur.execute(query)
+            return cur.fetchall()
+
+        except psycopg2.errors.QueryCanceled as e:
+            last_error = e
+            if attempt < max_attempts - 1:
+                current_timeout *= backoff_multiplier
+                logger.warning(
+                    f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout"
+                )
+                try:
+                    cur.connection.rollback()
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            else:
+                logger.warning(f"Query timeout after {max_attempts} attempts")
+        except Exception as e:
+            last_error = e
+            logger.error(f"Query failed ({type(e).__name__}): {str(e)}")
+            try:
+                cur.connection.rollback()
+            except Exception:
+                pass
+            break
+
+    # Log final error if all attempts failed
+    if last_error:
+        logger.error(f"Query execution failed after {max_attempts} attempts: {last_error}")
+
+    return []
+
 def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int = 1) -> dict:
     """Check how fresh data is in a table.
 
@@ -184,20 +250,47 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
         }
 
 def json_response(code, data):
-    """Standardized JSON response wrapper.
+    """Standardized JSON response wrapper for single objects.
 
-    Ensures all responses follow the standard format:
-    - Success (code 2xx): {statusCode: 200, data: {...}}
-    - Error (code 4xx/5xx): {statusCode: code, errorType: "...", message: "..."}
+    Returns consistent format:
+    - Success (200): {statusCode: 200, data: {...}}
+    - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "..."}
 
-    This function should only be called with 200 status code for single objects.
-    For other status codes, use error_response() instead.
+    Always use success_response(data) or error_response(code, type, msg) instead of calling this directly.
     """
     if code == 200:
         return success_response(data)
     else:
         # For non-200 codes, data should have 'errorType' and 'message'
         return {"statusCode": code, **data}
+
+def handle_db_error(e, context="database operation"):
+    """Handle database errors with standardized response.
+
+    Converts exception to appropriate HTTP error response.
+    Returns: (statusCode, errorType, message)
+    """
+    error_type = type(e).__name__
+    error_msg = str(e)
+
+    # Timeout errors
+    if 'QueryCanceled' in error_type or 'timeout' in error_msg.lower():
+        return 504, 'timeout', 'Database query exceeded timeout'
+    # Connection errors
+    elif 'OperationalError' in error_type or 'Connection' in error_type:
+        return 503, 'connection_error', 'Database connection failed'
+    # Constraint/integrity errors
+    elif 'IntegrityError' in error_type:
+        return 400, 'integrity_error', 'Data constraint violation'
+    # Schema errors
+    elif 'UndefinedTable' in error_type or 'UndefinedColumn' in error_type:
+        return 503, 'schema_error', 'Database schema mismatch'
+    # Query syntax errors
+    elif 'ProgrammingError' in error_type:
+        return 400, 'query_error', 'Invalid query executed'
+    # Generic database errors
+    else:
+        return 500, 'database_error', f'Error during {context}'
 
 def handle_db_error(error, logger, operation):
     """Unified database error handler for all route handlers.
