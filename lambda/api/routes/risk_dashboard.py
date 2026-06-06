@@ -146,7 +146,8 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         result['data_freshness'] = freshness
         return json_response(200, result)
     except Exception as e:
-        return handle_db_error(e, logger, 'fetch comprehensive risk dashboard')
+        code, error_type, message = handle_db_error(e, 'fetch comprehensive risk dashboard')
+            return error_response(code, error_type, message)
 
 def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     """Get current portfolio drawdown and thresholds."""
@@ -223,7 +224,8 @@ def _get_drawdown_metrics(cur) -> Dict:
         info = _fetch_drawdown_info(cur)
         return json_response(200, info)
     except Exception as e:
-        return handle_db_error(e, logger, 'fetch drawdown metrics')
+        code, error_type, message = handle_db_error(e, 'fetch drawdown metrics')
+            return error_response(code, error_type, message)
 
 def _get_exposure_tier_info(cur) -> Dict:
     """GET /api/algo/risk-dashboard/exposure-tier"""
@@ -231,7 +233,8 @@ def _get_exposure_tier_info(cur) -> Dict:
         info = _fetch_exposure_tier_info(cur)
         return json_response(200, info)
     except Exception as e:
-        return handle_db_error(e, logger, 'fetch exposure tier info')
+        code, error_type, message = handle_db_error(e, 'fetch exposure tier info')
+            return error_response(code, error_type, message)
 
 def _get_position_sizing_audit(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
@@ -268,7 +271,8 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
 
         return json_response(200, {'items': items})
     except Exception as e:
-        return handle_db_error(e, logger, 'fetch position sizing audit')
+        code, error_type, message = handle_db_error(e, 'fetch position sizing audit')
+            return error_response(code, error_type, message)
 
 def _get_stop_loss_audit(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
@@ -303,7 +307,8 @@ def _get_stop_loss_audit(cur, days: int) -> Dict:
 
         return json_response(200, {'items': items})
     except Exception as e:
-        return handle_db_error(e, logger, 'fetch stop loss audit')
+        code, error_type, message = handle_db_error(e, 'fetch stop loss audit')
+            return error_response(code, error_type, message)
 
 def _get_exit_rules_distribution(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/exit-rules?days=30"""
@@ -336,7 +341,8 @@ def _get_exit_rules_distribution(cur, days: int) -> Dict:
 
         return json_response(200, {'items': items})
     except Exception as e:
-        return handle_db_error(e, logger, 'fetch exit rules distribution')
+        code, error_type, message = handle_db_error(e, 'fetch exit rules distribution')
+            return error_response(code, error_type, message)
 
 def _get_drawdown_status(drawdown_pct: float) -> str:
     """Determine drawdown status."""

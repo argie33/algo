@@ -84,7 +84,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return error_response(404, 'not_found', f'Unknown trade endpoint: {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle trades')
+            code, error_type, message = handle_db_error(e, 'handle trades')
+            return error_response(code, error_type, message)
 
 def _create_manual_trade(cur, body: Dict) -> Dict:
     """POST /api/trades/manual — manually log a trade entry."""
@@ -129,5 +130,6 @@ def _create_manual_trade(cur, body: Dict) -> Dict:
         return json_response(201, {'success': True, 'data': {'id': row['trade_id'], 'trade_id': row['trade_id']}})
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        return handle_db_error(e, logger, 'create manual trade')
+        code, error_type, message = handle_db_error(e, 'create manual trade')
+            return error_response(code, error_type, message)
 

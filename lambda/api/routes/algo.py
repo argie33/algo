@@ -50,7 +50,8 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return json_response(200, {'status': 'updated'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-                return handle_db_error(e, logger, 'handle algo')
+                code, error_type, message = handle_db_error(e, 'handle algo')
+            return error_response(code, error_type, message)
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             if not _check_admin_access(jwt_claims):
@@ -70,7 +71,8 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return json_response(200, {'status': 'deleted'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-                return handle_db_error(e, logger, 'handle algo')
+                code, error_type, message = handle_db_error(e, 'handle algo')
+            return error_response(code, error_type, message)
         if method == 'POST' and path == '/api/algo/patrol':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
@@ -322,9 +324,11 @@ def _get_algo_status(cur) -> Dict:
                 'data_freshness': freshness,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            return handle_db_error(e, logger, 'fetch algo status')
+            code, error_type, message = handle_db_error(e, 'fetch algo status')
+            return error_response(code, error_type, message)
         except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'fetch algo status')
+            code, error_type, message = handle_db_error(e, 'fetch algo status')
+            return error_response(code, error_type, message)
 
 def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
         """Get recent trades with all fields for frontend (scoped to user if user_id provided)."""
@@ -357,7 +361,8 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'fetch algo trades')
+            code, error_type, message = handle_db_error(e, 'fetch algo trades')
+            return error_response(code, error_type, message)
 
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
         """Get current open positions enriched with targets, sector, stage, and computed risk fields (scoped to user if user_id provided)."""
@@ -457,7 +462,8 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'fetch algo positions')
+            code, error_type, message = handle_db_error(e, 'fetch algo positions')
+            return error_response(code, error_type, message)
 
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
@@ -627,7 +633,8 @@ def _get_algo_performance(cur) -> Dict:
             return json_response(200, result)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'calculate performance')
+            code, error_type, message = handle_db_error(e, 'calculate performance')
+            return error_response(code, error_type, message)
 
 def _get_circuit_breakers(cur) -> Dict:
         """Get real-time circuit breaker state with current values vs thresholds."""
@@ -876,7 +883,8 @@ def _get_circuit_breakers(cur) -> Dict:
             return json_response(200, {'breakers': breakers, 'system_halted': any_halted, 'data_freshness': freshness})
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'fetch circuit breakers')
+            code, error_type, message = handle_db_error(e, 'fetch circuit breakers')
+            return error_response(code, error_type, message)
 
 def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""

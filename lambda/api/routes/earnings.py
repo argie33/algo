@@ -48,4 +48,5 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        return handle_db_error(e, logger, 'handle earnings')
+        code, error_type, message = handle_db_error(e, 'handle earnings')
+            return error_response(code, error_type, message)

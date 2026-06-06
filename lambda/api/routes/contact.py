@@ -209,7 +209,8 @@ def _submit_contact(cur, body: Dict) -> Dict:
         logger.error(f"contact_submissions table missing; unable to process submission")
         return error_response(503, 'service_unavailable', 'Contact service unavailable. Please try again later.')
     except Exception as e:
-        return handle_db_error(e, logger, 'submit_contact')
+        code, error_type, message = handle_db_error(e, 'submit_contact')
+            return error_response(code, error_type, message)
 
 def _get_submissions(cur, params: Dict) -> Dict:
     """Get contact submissions (admin-only)."""
@@ -232,4 +233,5 @@ def _get_submissions(cur, params: Dict) -> Dict:
         logger.error("contact_submissions table missing; unable to list submissions")
         return error_response(503, 'service_unavailable', 'Contact service unavailable.')
     except Exception as e:
-        return handle_db_error(e, logger, 'get_submissions')
+        code, error_type, message = handle_db_error(e, 'get_submissions')
+            return error_response(code, error_type, message)

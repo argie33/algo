@@ -81,7 +81,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return error_response(404, 'not_found', f'No admin handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle admin')
+            code, error_type, message = handle_db_error(e, 'handle admin')
+            return error_response(code, error_type, message)
 def _get_loader_status(cur) -> Dict:
         """Get status of all data loaders from data_loader_status table.
 
@@ -152,7 +153,8 @@ def _get_loader_status(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get loader status')
+            code, error_type, message = handle_db_error(e, 'get loader status')
+            return error_response(code, error_type, message)
 def _get_system_health(cur) -> Dict:
         """Get overall system health status."""
         try:
@@ -212,7 +214,8 @@ def _get_system_health(cur) -> Dict:
             return json_response(200, health_data)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get system health')
+            code, error_type, message = handle_db_error(e, 'get system health')
+            return error_response(code, error_type, message)
 def _get_database_stats(cur) -> Dict:
         """Get database statistics (schema-safe version - no table name exposure)."""
         try:
@@ -242,7 +245,8 @@ def _get_database_stats(cur) -> Dict:
             return json_response(200, stats)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get database stats')
+            code, error_type, message = handle_db_error(e, 'get database stats')
+            return error_response(code, error_type, message)
 def _get_data_quality(cur) -> Dict:
         """Get data quality metrics."""
         try:
@@ -279,7 +283,8 @@ def _get_data_quality(cur) -> Dict:
             return json_response(200, quality)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get data quality')
+            code, error_type, message = handle_db_error(e, 'get data quality')
+            return error_response(code, error_type, message)
 
 def _verify_user_email(body: Dict = None) -> Dict:
         """Verify a user's email in Cognito (dev/testing only)."""

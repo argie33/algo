@@ -94,7 +94,8 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = 'daily', symbol_
             return list_response([dict(s) for s in signals], data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'fetch stock signals')
+            code, error_type, message = handle_db_error(e, 'fetch stock signals')
+            return error_response(code, error_type, message)
 
 def _get_signals_etf(cur, limit: int = 500) -> Dict:
         """Get ETF trading signals."""
@@ -124,5 +125,6 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
             return list_response([dict(s) for s in signals])
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'fetch ETF signals')
+            code, error_type, message = handle_db_error(e, 'fetch ETF signals')
+            return error_response(code, error_type, message)
 

@@ -57,7 +57,8 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return json_response(200, {'data': dict(_DEFAULTS)})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        return handle_db_error(e, logger, 'get settings')
+        code, error_type, message = handle_db_error(e, 'get settings')
+            return error_response(code, error_type, message)
 
 def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
     """Persist user settings (theme, notifications, other preferences)."""
@@ -102,4 +103,5 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
         logger.warning("user_dashboard_settings table missing; settings not persisted")
         return json_response(200, {'success': True, 'message': 'Settings saved'})
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-        return handle_db_error(e, logger, 'save settings')
+        code, error_type, message = handle_db_error(e, 'save settings')
+            return error_response(code, error_type, message)
