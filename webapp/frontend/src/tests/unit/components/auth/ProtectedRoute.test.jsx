@@ -68,11 +68,13 @@ describe("ProtectedRoute", () => {
   describe("Basic Functionality", () => {
     test("renders children without authentication", () => {
       render(
-        <AuthProvider>
-          <ProtectedRoute>
-            <div data-testid="protected-content">Protected Content</div>
-          </ProtectedRoute>
-        </AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
+            <ProtectedRoute>
+              <div data-testid="protected-content">Protected Content</div>
+            </ProtectedRoute>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("protected-content")).toBeInTheDocument();
@@ -81,11 +83,13 @@ describe("ProtectedRoute", () => {
 
     test("renders children with requireAuth prop", () => {
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute requireAuth={true}>
             <div data-testid="protected-content">Protected Content</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("protected-content")).toBeInTheDocument();
@@ -96,11 +100,13 @@ describe("ProtectedRoute", () => {
       const fallback = <div data-testid="fallback">Loading...</div>;
 
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute fallback={fallback}>
             <div data-testid="protected-content">Protected Content</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("protected-content")).toBeInTheDocument();
@@ -118,11 +124,13 @@ describe("ProtectedRoute", () => {
       );
 
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>
             <ComplexChild />
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByText("Complex Component")).toBeInTheDocument();
@@ -132,12 +140,14 @@ describe("ProtectedRoute", () => {
 
     test("renders multiple children", () => {
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>
             <div data-testid="child-1">First Child</div>
             <div data-testid="child-2">Second Child</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("child-1")).toBeInTheDocument();
@@ -146,9 +156,11 @@ describe("ProtectedRoute", () => {
 
     test("renders null children gracefully", () => {
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>{null}</ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       // Should not throw error and render empty
@@ -157,9 +169,11 @@ describe("ProtectedRoute", () => {
 
     test("renders undefined children gracefully", () => {
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>{undefined}</ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       // Should not throw error and render empty
@@ -170,11 +184,13 @@ describe("ProtectedRoute", () => {
   describe("Props Handling", () => {
     test("ignores requireAuth parameter (legacy support)", () => {
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute requireAuth={false}>
             <div data-testid="content">Always Visible</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("content")).toBeInTheDocument();
@@ -184,11 +200,13 @@ describe("ProtectedRoute", () => {
       const fallback = <div data-testid="fallback">Should not show</div>;
 
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute fallback={fallback}>
             <div data-testid="content">Main Content</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("content")).toBeInTheDocument();
@@ -199,11 +217,13 @@ describe("ProtectedRoute", () => {
       const fallback = <div>Loading...</div>;
 
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute requireAuth={true} fallback={fallback}>
             <div data-testid="content">Content</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("content")).toBeInTheDocument();
@@ -219,7 +239,8 @@ describe("ProtectedRoute", () => {
               Content
             </div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       const childElement = container.querySelector("#test-id");
@@ -229,7 +250,8 @@ describe("ProtectedRoute", () => {
 
     test("preserves child component props and attributes", () => {
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>
             <button
               data-testid="action-button"
@@ -240,7 +262,8 @@ describe("ProtectedRoute", () => {
               Click Me
             </button>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       const button = screen.getByTestId("action-button");
@@ -251,14 +274,16 @@ describe("ProtectedRoute", () => {
 
     test("preserves React fragments", () => {
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>
             <>
               <div data-testid="fragment-child-1">First</div>
               <div data-testid="fragment-child-2">Second</div>
             </>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("fragment-child-1")).toBeInTheDocument();
@@ -272,11 +297,13 @@ describe("ProtectedRoute", () => {
       process.env.NODE_ENV = "development";
 
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>
             <div data-testid="dev-content">Development Content</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("dev-content")).toBeInTheDocument();
@@ -289,11 +316,13 @@ describe("ProtectedRoute", () => {
       process.env.NODE_ENV = "production";
 
       render(
-        <AuthProvider>
+        <MemoryRouter>
+          <AuthProvider>
           <ProtectedRoute>
             <div data-testid="prod-content">Production Content</div>
           </ProtectedRoute>
-        </AuthProvider>
+          </AuthProvider>
+        </MemoryRouter>
       );
 
       expect(screen.getByTestId("prod-content")).toBeInTheDocument();
