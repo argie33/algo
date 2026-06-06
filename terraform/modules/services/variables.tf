@@ -96,6 +96,11 @@ variable "rds_endpoint" {
   type        = string
 }
 
+variable "rds_proxy_address" {
+  description = "RDS Proxy endpoint for connection pooling (host:port)"
+  type        = string
+}
+
 variable "rds_database_name" {
   description = "RDS database name"
   type        = string

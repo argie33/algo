@@ -147,7 +147,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         return json_response(200, result)
     except Exception as e:
         code, error_type, message = handle_db_error(e, 'fetch comprehensive risk dashboard')
-            return error_response(code, error_type, message)
+        return error_response(code, error_type, message)
 
 def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     """Get current portfolio drawdown and thresholds."""

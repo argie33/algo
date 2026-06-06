@@ -208,6 +208,7 @@ module "services" {
   api_lambda_security_group_id           = module.vpc.api_lambda_security_group_id
   algo_lambda_security_group_id          = module.vpc.algo_lambda_security_group_id
   rds_endpoint                           = module.database.rds_endpoint
+  rds_proxy_address                      = module.database.rds_proxy_address
   rds_database_name                      = module.database.rds_database_name
   rds_credentials_secret_arn             = module.database.rds_credentials_secret_arn
   rds_password                           = module.database.rds_password
