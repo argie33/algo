@@ -5,21 +5,23 @@
 // - Never wrap in extra "data" key. Never use raw res.json().
 
 module.exports = {
-  // Single object response (NOT wrapped in "data" - direct at root)
+  // Single object response (wrapped in "data" key for consistency)
   sendData: (res, data, statusCode = 200) => {
     return res.status(statusCode).json({
       success: true,
-      ...data,  // Spread data directly into response (no "data" key)
+      statusCode: statusCode,
+      data: data,
       timestamp: new Date().toISOString()
     });
   },
 
-  // Legacy: Maps to sendData for backward compatibility (fixes the "data" wrapping bug)
+  // Standard success response - intelligently handles different data types
   sendSuccess: (res, data, statusCode = 200) => {
     // If data is an array, return as paginated response
     if (Array.isArray(data)) {
       return res.status(statusCode).json({
         success: true,
+        statusCode: statusCode,
         items: data,
         pagination: {
           limit: data.length,
@@ -34,16 +36,17 @@ module.exports = {
       });
     }
 
-    // For objects, DON'T wrap under "data" - spread directly (FIX for the critical bug)
+    // For objects, wrap under "data" key for consistent envelope
     return res.status(statusCode).json({
       success: true,
-      ...data,  // Changed from "data: data" to spreading directly
+      statusCode: statusCode,
+      data: data,
       timestamp: new Date().toISOString()
     });
   },
 
   // Standard error response with optional detailed context
-  // Format: { success: false, error: "code", message: "details", timestamp }
+  // Format: { success: false, statusCode, error: "code", message: "details", timestamp }
   sendError: (res, error, statusCode = 500, details = null) => {
     let errorMsg = typeof error === 'string' ? error : (error?.message || 'Internal server error');
 
@@ -79,6 +82,7 @@ module.exports = {
 
     const response = {
       success: false,
+      statusCode: statusCode,
       error: errorCode,
       message: sanitized,
       timestamp: new Date().toISOString()
@@ -93,10 +97,11 @@ module.exports = {
   },
 
   // Paginated list response - UNIFIED FORMAT
-  // Returns: { success, items: [], pagination: {...}, timestamp }
+  // Returns: { success, statusCode, items: [], pagination: {...}, timestamp }
   sendPaginated: (res, items, pagination, statusCode = 200) => {
     return res.status(statusCode).json({
       success: true,
+      statusCode: statusCode,
       items: items || [],
       pagination: {
         limit: pagination?.limit || 100,
@@ -112,10 +117,11 @@ module.exports = {
   },
 
   // Simple list response (no pagination, just items)
-  // Returns: { success, items: [], timestamp }
+  // Returns: { success, statusCode, items: [], timestamp }
   sendList: (res, items, statusCode = 200) => {
     return res.status(statusCode).json({
       success: true,
+      statusCode: statusCode,
       items: items || [],
       timestamp: new Date().toISOString()
     });
@@ -125,6 +131,7 @@ module.exports = {
   sendNotFound: (res, message = 'Resource not found') => {
     return res.status(404).json({
       success: false,
+      statusCode: 404,
       error: 'not_found',
       message: message,
       timestamp: new Date().toISOString()
@@ -136,6 +143,7 @@ module.exports = {
     const errorMsg = typeof error === 'string' ? error : (error?.message || 'Bad request');
     return res.status(400).json({
       success: false,
+      statusCode: 400,
       error: 'bad_request',
       message: errorMsg,
       timestamp: new Date().toISOString()
@@ -146,6 +154,7 @@ module.exports = {
   sendUnauthorized: (res, message = 'Unauthorized') => {
     return res.status(401).json({
       success: false,
+      statusCode: 401,
       error: 'unauthorized',
       message: message,
       timestamp: new Date().toISOString()

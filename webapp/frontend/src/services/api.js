@@ -328,35 +328,57 @@ try {
 const handleApiError = async (error, cacheKey, fallbackData, action = "fetch") => {
   const status = error.response?.status;
   const isNetworkError = !error.response;
+  const responseData = error.response?.data || {};
 
   let errorMessage = error.message;
+  let errorCode = responseData.error || 'unknown_error';
+
   if (status === 503) {
     errorMessage = "API temporarily unavailable. Showing cached data if available.";
+    errorCode = 'service_unavailable';
   } else if (status === 429) {
     errorMessage = "Too many requests. Please try again later.";
+    errorCode = 'rate_limited';
+  } else if (status === 401) {
+    errorMessage = "Unauthorized. Please login again.";
+    errorCode = 'unauthorized';
+  } else if (status === 403) {
+    errorMessage = "Permission denied.";
+    errorCode = 'forbidden';
   } else if (isNetworkError) {
     errorMessage = "Network error. Showing cached data if available.";
+    errorCode = 'network_error';
   }
 
-  console.warn(`[API] Error during ${action} (${status || 'network'}):`, errorMessage);
+  console.warn(`[API] Error during ${action} (${status || 'network'}):`, {
+    message: errorMessage,
+    code: errorCode,
+    status: status,
+    details: responseData.message || responseData.details
+  });
 
   // Try to return cached data if available
   if (cacheKey) {
     const cached = await dataCache.get(cacheKey);
     if (cached) {
       console.debug(`[API] Using cached data for ${cacheKey}`);
-      // Ensure cached data has consistent envelope format
-      // Cache stores normalized data from successful responses
       return {
         statusCode: 200,
         ...cached,
         fromCache: true,
-        error: errorMessage,
+        error: errorCode,
+        message: errorMessage,
       };
     }
   }
 
-  return { statusCode: 400, ...fallbackData, fromCache: false, error: errorMessage };
+  return {
+    statusCode: status || 400,
+    ...fallbackData,
+    fromCache: false,
+    error: errorCode,
+    message: errorMessage
+  };
 };
 
 // ============================================

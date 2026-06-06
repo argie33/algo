@@ -31,60 +31,54 @@ export const extractData = (response) => {
     throw new Error('Response data is null or undefined');
   }
 
-  // If success is false (legacy format), throw error
+  // Check for error responses first
   if (data.success === false) {
-    throw new Error(data.message || 'API request failed');
+    const errorMsg = data.error || data.message || 'API request failed';
+    const error = new Error(errorMsg);
+    error.code = data.error;
+    error.status = data.statusCode || response.status;
+    throw error;
   }
 
-  // Check HTTP status from axios response object (statusCode was removed by lambda handler)
-  const httpStatus = response.status !== undefined ? response.status : data.statusCode;
+  // Check HTTP status codes
+  const httpStatus = data.statusCode !== undefined ? data.statusCode : response.status;
   if (httpStatus >= 400) {
-    throw new Error(data.message || data.errorType || `API error: ${httpStatus}`);
+    const errorMsg = data.message || data.error || `API error: ${httpStatus}`;
+    const error = new Error(errorMsg);
+    error.status = httpStatus;
+    error.code = data.error;
+    throw error;
   }
 
-  // Priority order for extracting data:
-  // 1. data.items (most common paginated response) — return full envelope so components can access .items, .total, .pagination
+  // Handle paginated responses (items + pagination)
   if (Array.isArray(data.items)) {
-    // Ensure items array is valid; filter out null/undefined entries only
-    // Do NOT filter out items with missing fields — let components handle incomplete data
     const filteredItems = data.items.filter(item => item !== null && item !== undefined);
-    // Use backend total if provided; otherwise use filtered count to match actual items
-    const total = data.total || filteredItems.length;
     return {
-      ...data,
       items: filteredItems,
-      total,
+      pagination: data.pagination || {
+        limit: data.limit,
+        offset: data.offset,
+        total: data.total || filteredItems.length,
+        page: data.page,
+        totalPages: data.totalPages,
+        hasNext: data.hasNext,
+        hasPrev: data.hasPrev,
+      },
+      statusCode: httpStatus,
+      success: true,
     };
   }
 
-  // 2. data.data (nested structure)
+  // Handle single object responses (data field)
   if (data.data !== null && data.data !== undefined) {
-    // Check if data.data has items (double-nested)
-    if (Array.isArray(data.data.items)) {
-      // Filter out null/undefined items only; accept items with partial data
-      const filteredItems = data.data.items.filter(item => item !== null && item !== undefined);
-      // Extract all properties from data.data, filtering nulls in the wrapper
-      const result = {};
-      Object.entries(data.data).forEach(([key, value]) => {
-        if (key === 'items') {
-          result.items = filteredItems;
-        } else if (value !== null && value !== undefined) {
-          result[key] = value;
-        }
-      });
-      // Ensure total is set correctly
-      if (!result.total) {
-        result.total = filteredItems.length;
-      }
-      return result;
-    }
-    // Return the data object itself (ensure it's an object)
-    if (typeof data.data === 'object') {
-      return data.data;
-    }
+    return {
+      ...data.data,
+      statusCode: httpStatus,
+      success: true,
+    };
   }
 
-  // 3. The whole data object (if no items/data field)
+  // Fallback: return the whole data object
   if (typeof data === 'object' && data !== null) {
     return data;
   }
@@ -106,40 +100,57 @@ export const extractData = (response) => {
 export const extractPaginatedData = (response) => {
   const data = response.data || response;
 
-  // If success is false (legacy format), throw error
+  // Check for error responses
   if (data.success === false) {
-    throw new Error(data.message || 'API request failed');
+    const errorMsg = data.error || data.message || 'API request failed';
+    const error = new Error(errorMsg);
+    error.status = data.statusCode || response.status;
+    throw error;
   }
 
-  // Check HTTP status from axios response object (statusCode was removed by lambda handler)
-  const httpStatus = response.status !== undefined ? response.status : data.statusCode;
+  // Check HTTP status
+  const httpStatus = data.statusCode !== undefined ? data.statusCode : response.status;
   if (httpStatus >= 400) {
-    throw new Error(data.message || data.errorType || `API error: ${httpStatus}`);
+    const error = new Error(data.message || data.error || `API error: ${httpStatus}`);
+    error.status = httpStatus;
+    throw error;
   }
 
-  // Handle both direct items and nested data.items structure
-  let itemsToFilter = [];
+  // Handle direct items (new standardized format)
   if (Array.isArray(data.items)) {
-    itemsToFilter = data.items;
-  } else if (data.data && Array.isArray(data.data.items)) {
-    itemsToFilter = data.data.items;
+    const items = data.items.filter(item => item !== null && item !== undefined);
+    return {
+      items,
+      pagination: data.pagination || {
+        limit: data.limit || 100,
+        offset: data.offset || 0,
+        total: data.total || items.length,
+        page: data.page || 1,
+        totalPages: data.totalPages || Math.ceil((data.total || items.length) / (data.limit || 100)),
+        hasNext: data.hasNext !== undefined ? data.hasNext : false,
+        hasPrev: data.hasPrev !== undefined ? data.hasPrev : false,
+      },
+    };
   }
 
-  // Extract items (should be array, not full envelope) — filter out null/undefined entries only
-  const items = itemsToFilter.filter(item => item !== null && item !== undefined);
+  // Handle nested data.items (for backward compatibility)
+  if (data.data && Array.isArray(data.data.items)) {
+    const items = data.data.items.filter(item => item !== null && item !== undefined);
+    return {
+      items,
+      pagination: data.data.pagination || {
+        limit: data.limit || 100,
+        offset: data.offset || 0,
+        total: data.total || items.length,
+        page: data.page || 1,
+        totalPages: data.totalPages || Math.ceil((data.total || items.length) / (data.limit || 100)),
+        hasNext: data.hasNext !== undefined ? data.hasNext : false,
+        hasPrev: data.hasPrev !== undefined ? data.hasPrev : false,
+      },
+    };
+  }
 
-  return {
-    items,
-    pagination: data.pagination || {
-      limit: data.limit,
-      offset: data.offset,
-      total: data.total || items.length,
-      page: data.page,
-      totalPages: data.totalPages,
-      hasNext: data.hasNext,
-      hasPrev: data.hasPrev,
-    },
-  };
+  throw new Error('Response does not contain paginated data (items array)');
 };
 
 /**

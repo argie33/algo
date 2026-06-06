@@ -12,18 +12,19 @@ module.exports = (req, res, next) => {
 
   // Override res.json to normalize all responses
   res.json = function(body) {
-    // If already normalized, just send it
-    if (body?.success !== undefined && body?.timestamp) {
+    // If already properly formatted by sendSuccess/sendError, just send it
+    // Properly formatted = has success flag, statusCode, and timestamp
+    if (body?.success !== undefined && body?.statusCode !== undefined && body?.timestamp) {
       return originalJson.call(this, body);
     }
 
-    // Already has success flag but no timestamp — add timestamp and normalize
-    if (body?.success !== undefined && !body?.timestamp) {
-      const normalized = normalizeSuccessResponse(body);
+    // If has success flag but missing statusCode/timestamp, normalize it
+    if (body?.success !== undefined) {
+      const normalized = normalizeSuccessResponse(body, res.statusCode);
       return originalJson.call(this, normalized);
     }
 
-    // Normalize the response
+    // Fallback: normalize any response without success flag
     const normalized = normalizeResponse(body, res.statusCode);
     return originalJson.call(this, normalized);
   };
@@ -32,15 +33,17 @@ module.exports = (req, res, next) => {
 };
 
 /**
- * Normalize responses that already have success flag but are missing timestamp
+ * Normalize responses that already have success flag but are missing statusCode/timestamp
  */
-function normalizeSuccessResponse(body) {
+function normalizeSuccessResponse(body, httpStatusCode) {
   const timestamp = new Date().toISOString();
+  const statusCode = body.statusCode || httpStatusCode || 200;
 
   // Error response (success: false)
   if (body.success === false) {
     return {
       success: false,
+      statusCode: body.statusCode || httpStatusCode || 500,
       error: body.error || body.message || 'Request failed',
       timestamp
     };
@@ -50,6 +53,7 @@ function normalizeSuccessResponse(body) {
   if (Array.isArray(body?.items)) {
     return {
       success: true,
+      statusCode: statusCode,
       items: body.items,
       pagination: body.pagination || normalizePagination(body),
       timestamp
@@ -61,24 +65,28 @@ function normalizeSuccessResponse(body) {
     const items = body.data || body.results || [];
     return {
       success: true,
+      statusCode: statusCode,
       items: Array.isArray(items) ? items : [items],
       pagination: body.pagination,
       timestamp
     };
   }
 
-  // Single object response
+  // Single object response - should have data key
   if (body.data !== undefined) {
     return {
       success: true,
+      statusCode: statusCode,
       data: body.data,
       timestamp
     };
   }
 
-  // Fallback: wrap entire body as data (shouldn't happen with well-formed routes)
+  // Fallback: if no data/items structure, wrap body as data
+  // This handles legacy responses that don't follow the standard format
   return {
     success: true,
+    statusCode: statusCode,
     data: body,
     timestamp
   };
@@ -89,21 +97,22 @@ function normalizeSuccessResponse(body) {
  */
 function normalizeResponse(body, statusCode) {
   // If it's already properly formatted, return as-is
-  if (body?.success !== undefined && body?.timestamp) {
+  if (body?.success !== undefined && body?.statusCode !== undefined && body?.timestamp) {
     return body;
   }
 
-  // Determine if this is an error
+  const timestamp = new Date().toISOString();
   const isError = statusCode >= 400;
 
   // If it's a list/paginated response
   if (Array.isArray(body?.items) || (body?.items && !body?.success)) {
     return {
       success: !isError,
+      statusCode: statusCode,
       items: body.items || [],
       pagination: body.pagination || normalizePagination(body),
       error: isError ? (body.error || 'Request failed') : null,
-      timestamp: new Date().toISOString()
+      timestamp
     };
   }
 
@@ -112,10 +121,11 @@ function normalizeResponse(body, statusCode) {
     const items = body.data || body.results || [];
     return {
       success: !isError,
+      statusCode: statusCode,
       items: Array.isArray(items) ? items : [items],
       pagination: body.pagination,
       error: isError ? (body.error || 'Request failed') : null,
-      timestamp: new Date().toISOString()
+      timestamp
     };
   }
 
@@ -123,9 +133,10 @@ function normalizeResponse(body, statusCode) {
   if (body?.data && !body?.success && !Array.isArray(body.data)) {
     return {
       success: !isError,
+      statusCode: statusCode,
       data: body.data,
       error: isError ? (body.error || 'Request failed') : null,
-      timestamp: new Date().toISOString()
+      timestamp
     };
   }
 
@@ -133,16 +144,18 @@ function normalizeResponse(body, statusCode) {
   if (body?.error || isError) {
     return {
       success: false,
+      statusCode: statusCode,
       error: body?.error || body?.message || 'Request failed',
-      timestamp: new Date().toISOString()
+      timestamp
     };
   }
 
   // Default: wrap in data
   return {
     success: !isError,
+    statusCode: statusCode,
     data: body || null,
-    timestamp: new Date().toISOString()
+    timestamp
   };
 }
 
