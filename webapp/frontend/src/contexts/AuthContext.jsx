@@ -244,9 +244,11 @@ export function AuthProvider({ children }) {
       const cognitoConfigured = isCognitoConfigured();
       const isDevelopment = !isProductionBuild;
 
-      // DEVELOPMENT MODE: Auto-authenticate with dev token for local testing
-      if (isDevelopment && !cognitoConfigured) {
-        console.log('[AUTH] 🔧 Dev mode: Cognito not configured — using dev auto-authentication');
+      // FALLBACK AUTHENTICATION: Use dev tokens if Cognito not configured
+      // This applies to both dev mode AND production deployments without Cognito
+      if (!cognitoConfigured) {
+        const mode = isDevelopment ? 'Dev mode' : 'Production fallback';
+        console.log(`[AUTH] 🔧 ${mode}: Cognito not configured — using dev auto-authentication`);
         const devToken = localStorage.getItem('devToken') || 'dev-admin';
         tokenManager.setTokens({
           access: devToken,
@@ -276,7 +278,7 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // AWS Cognito authentication (production or explicit config)
+      // AWS Cognito authentication (explicit config available)
       if (cognitoConfigured) {
         try {
           // Race against 10s timeout — prevents infinite hang when tokens are stale
