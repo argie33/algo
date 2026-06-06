@@ -66,16 +66,19 @@ def _handle_basic(cur) -> Dict:
             health['rds_connection_pool'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch pool stats'}
 
         # Get data freshness summary (check critical tables - 10 second timeout)
+        # More robust query: handle case where tables might not exist or be empty
         try:
             freshness = execute_with_timeout(cur, """
-                SELECT
-                    COALESCE(MIN(EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0), 999) as oldest_data_age_days
+                SELECT COALESCE(
+                    MIN(EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0),
+                    999
+                ) as oldest_data_age_days
                 FROM (
-                    SELECT created_at FROM price_daily LIMIT 1
+                    SELECT created_at FROM price_daily WHERE created_at IS NOT NULL LIMIT 1
                     UNION ALL
-                    SELECT created_at FROM buy_sell_daily LIMIT 1
+                    SELECT created_at FROM buy_sell_daily WHERE created_at IS NOT NULL LIMIT 1
                     UNION ALL
-                    SELECT created_at FROM signal_quality_scores LIMIT 1
+                    SELECT created_at FROM signal_quality_scores WHERE created_at IS NOT NULL LIMIT 1
                 ) as freshness_check
             """, timeout_sec=10)
 
@@ -86,9 +89,19 @@ def _handle_basic(cur) -> Dict:
                     'oldest_data_age_days': round(age, 2),
                     'status': 'HEALTHY' if age <= 1 else ('WARNING' if age <= 3 else 'STALE')
                 }
+            else:
+                # No rows returned (tables empty or error)
+                health['freshness'] = {
+                    'oldest_data_age_days': 999,
+                    'status': 'STALE'
+                }
         except Exception as e:
             logger.warning(f"Failed to get freshness status: {str(e)[:80]}")
-            health['freshness'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch freshness'}
+            # Return STALE status if we can't check freshness - better to be cautious
+            health['freshness'] = {
+                'status': 'STALE',
+                'error': 'Unable to fetch freshness'
+            }
 
         # Overall system status based on component health
         has_critical = False
