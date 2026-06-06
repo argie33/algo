@@ -40,7 +40,7 @@ export default function PETrendChart({ sectorName, industryName }) {
         </Typography>
 
         <div style={getChartContainerStyle('default')}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} />
