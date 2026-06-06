@@ -515,7 +515,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return error_response(404, 'not_found', f'No market handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle market')
+            code, error_type, message = handle_db_error(e, 'handle market')
+            return error_response(code, error_type, message)
 def _get_fear_greed_history(cur, days: int = 30) -> Dict:
         """Get fear/greed index history with signals."""
         try:
@@ -594,7 +595,8 @@ def _get_fear_greed_history(cur, days: int = 30) -> Dict:
                 })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get fear greed history')
+            code, error_type, message = handle_db_error(e, 'get fear greed history')
+            return error_response(code, error_type, message)
 def _get_market_latest(cur) -> Dict:
         """Get latest market data including indices, breadth, and sentiment."""
         try:
@@ -636,7 +638,8 @@ def _get_market_latest(cur) -> Dict:
             return json_response(200, result if result else {})
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get market latest')
+            code, error_type, message = handle_db_error(e, 'get market latest')
+            return error_response(code, error_type, message)
 
 def _parse_range_param(params: Dict, default: int = 30) -> int:
     try:
@@ -821,7 +824,8 @@ def _get_correlation_matrix(cur) -> Dict:
                 cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
                 cur.execute("RELEASE SAVEPOINT correlation_matrix")
             except Exception: pass
-            return handle_db_error(e, logger, 'get correlation matrix')
+            code, error_type, message = handle_db_error(e, 'get correlation matrix')
+            return error_response(code, error_type, message)
 
 def _get_cap_distribution(cur) -> Dict:
         """Get market cap distribution across market cap buckets and sectors."""
@@ -921,7 +925,8 @@ def _get_cap_distribution(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get cap distribution')
+            code, error_type, message = handle_db_error(e, 'get cap distribution')
+            return error_response(code, error_type, message)
 
 INDEX_SYMBOLS = ['^GSPC', '^IXIC', '^NYA', '^RUT']
 INDEX_NAMES = {
@@ -1003,7 +1008,8 @@ def _get_markets(cur) -> Dict:
             }
             return json_response(200, result)
         except (psycopg2.errors.UndefinedTable, Exception) as e:
-            return handle_db_error(e, logger, 'get market indices')
+            code, error_type, message = handle_db_error(e, 'get market indices')
+            return error_response(code, error_type, message)
 
 def _get_sector_overview(cur) -> Dict:
     """Get latest sector performance overview from sectors table."""
@@ -1030,4 +1036,5 @@ def _get_sector_overview(cur) -> Dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         return list_response([])
     except Exception as e:
-        return handle_db_error(e, logger, 'get sector overview')
+        code, error_type, message = handle_db_error(e, 'get sector overview')
+        return error_response(code, error_type, message)
