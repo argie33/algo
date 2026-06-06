@@ -1705,7 +1705,9 @@ CREATE TABLE IF NOT EXISTS data_loader_status (
     error_message TEXT,
     completion_pct DECIMAL(5, 2) DEFAULT 100.0,  -- ISSUE #2: Track symbol completion percentage
     symbol_count INTEGER,                        -- ISSUE #2: Expected number of symbols
-    symbols_loaded INTEGER                       -- ISSUE #2: Actual symbols successfully loaded
+    symbols_loaded INTEGER,                      -- ISSUE #2: Actual symbols successfully loaded
+    execution_started TIMESTAMP,                 -- ISSUE #2: When loader started execution
+    execution_completed TIMESTAMP                -- ISSUE #2: When loader finished execution (null if still running/crashed)
 );
 
 -- Data patrol audit log

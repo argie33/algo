@@ -863,6 +863,7 @@ class PriceLoader(OptimalLoader):
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         start = time.time()
+        self._stats["start_time"] = datetime.fromtimestamp(start)  # ISSUE #2: Record execution start
         symbols = list(symbols)
         mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
         logger.info(
@@ -1085,10 +1086,11 @@ class PriceLoader(OptimalLoader):
                 cur.execute(
                     "INSERT INTO data_loader_status "
                     "(table_name, row_count, latest_date, last_updated, status, "
-                    "completion_pct, symbol_count, symbols_loaded) "
-                    "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s)",
+                    "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
+                    "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s)",
                     (self.table_name, total_rows, latest_date, loader_status,
-                     completion_pct, symbols_expected, symbols_successfully_loaded),
+                     completion_pct, symbols_expected, symbols_successfully_loaded,
+                     self._stats.get("start_time"), datetime.now()),
                 )
 
             # ISSUE #22 FIX: Invalidate Phase 1 data_loader_status cache on completion
