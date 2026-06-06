@@ -1625,7 +1625,7 @@ def run(
                             FROM data_loader_status
                             WHERE table_name IN (
                             'price_daily', 'etf_price_daily',
-                            'market_health_daily', 'trend_template_data',
+                            'market_health_daily', 'trend_template_data', 'technical_data_daily',
                             'signal_quality_scores', 'buy_sell_daily', 'swing_trader_scores'
                         )
                     """)
@@ -3017,3 +3017,75 @@ def run(
     except Exception as e:
         log_phase_result_fn(1, 'data_freshness', 'error', str(e))
         return PhaseResult(1, 'data_freshness', 'halted', {}, True, str(e))
+
+
+def cleanup_hung_eod_loaders(verbose: bool = False) -> Dict[str, int]:
+    """
+    ISSUE #15 FIX: Automatic EOD pipeline termination at deadline.
+
+    EOD loaders should complete by 5:30 PM. If still running at 9:00 PM,
+    they're hung and blocking morning prep. This function auto-terminates
+    old EOD loaders to free RDS connections.
+
+    Returns: Dict with {'terminated': count, 'errors': count}
+    """
+    try:
+        import boto3
+
+        eod_deadline_et = datetime.now(ZoneInfo("America/New_York")).replace(hour=21, minute=0, second=0, microsecond=0)  # 9 PM ET
+        eod_max_duration_minutes = 890  # 4:05 PM to 9:00 PM = 895 min, with 5 min margin
+
+        termination_results = {'terminated': 0, 'errors': 0}
+
+        try:
+            with DatabaseContext('read') as check_cur:
+                check_cur.execute("SET statement_timeout = 5000")
+
+                # Find loaders still marked RUNNING but older than EOD deadline
+                check_cur.execute("""
+                    SELECT table_name, last_updated FROM data_loader_status
+                    WHERE status = 'RUNNING' AND table_name IN ('price_daily', 'technical_data_daily', 'market_health_daily')
+                    AND last_updated < %s
+                """, (datetime.now(timezone.utc) - timedelta(minutes=eod_max_duration_minutes),))
+
+                hung_loaders = check_cur.fetchall()
+                if hung_loaders:
+                    logger.critical(f"[EOD_CLEANUP] Found {len(hung_loaders)} hung EOD loaders past 9 PM deadline - auto-terminating")
+
+                    ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                    cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+
+                    for table_name, last_updated in hung_loaders:
+                        try:
+                            logger.warning(f"[EOD_CLEANUP] Terminating hung loader for {table_name} (last updated {last_updated})")
+                            if _terminate_hung_loader_task(table_name, verbose=verbose):
+                                termination_results['terminated'] += 1
+                                logger.info(f"[EOD_CLEANUP] ✓ Successfully terminated {table_name}")
+                            else:
+                                logger.warning(f"[EOD_CLEANUP] Could not terminate {table_name}")
+                                termination_results['errors'] += 1
+                        except Exception as term_err:
+                            logger.error(f"[EOD_CLEANUP] Error terminating {table_name}: {term_err}")
+                            termination_results['errors'] += 1
+
+                    # Send alert about cleanup
+                    try:
+                        alerts = AlertManager()
+                        alerts.send_position_alert(
+                            'SYSTEM',
+                            'EOD_PIPELINE_AUTO_CLEANUP',
+                            f'Auto-terminated {termination_results["terminated"]} hung EOD loaders past 9 PM deadline to free RDS connections. '
+                            f'Errors: {termination_results["errors"]}',
+                            termination_results
+                        )
+                    except Exception:
+                        pass
+
+                return termination_results
+        except Exception as check_err:
+            logger.error(f"[EOD_CLEANUP] Could not check for hung loaders: {check_err}")
+            return {'terminated': 0, 'errors': 1}
+
+    except Exception as e:
+        logger.error(f"[EOD_CLEANUP] Cleanup function failed: {e}")
+        return {'terminated': 0, 'errors': 1}
