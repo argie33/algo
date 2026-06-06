@@ -369,6 +369,78 @@ def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = None) -> b
         logger.debug(f"[HUNG_TASK] Could not check loader heartbeat: {e}")
         return False
 
+def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool:
+    """Terminate an ECS loader task that has been detected as hung.
+
+    Issue #3: When a hung loader is detected, terminate the old task to prevent
+    it from competing with the new loader for RDS connections.
+
+    Args:
+        loader_name: Name of the loader (e.g., 'stock_prices_daily', 'technical_data_daily')
+        verbose: Whether to log verbose output
+
+    Returns:
+        True if task was terminated (or doesn't exist), False if termination failed
+    """
+    try:
+        import boto3
+        ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+        cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+
+        # Map loader name to ECS task definition prefix
+        task_def_map = {
+            'stock_prices_daily': 'algo-stock_prices_daily-loader',
+            'technical_data_daily': 'algo-technical_data_daily-loader',
+            'market_health_daily': 'algo-market_health_daily-loader',
+        }
+        task_def_prefix = task_def_map.get(loader_name, f'algo-{loader_name}-loader')
+
+        # List all running tasks
+        list_response = ecs_client.list_tasks(
+            cluster=cluster_arn,
+            desiredStatus='RUNNING',
+            family=task_def_prefix
+        )
+
+        if not list_response.get('taskArns'):
+            if verbose:
+                logger.debug(f"[HUNG_TASK_CLEANUP] No running tasks found for {loader_name}")
+            return True  # No task to terminate
+
+        # Describe the running tasks to find hung ones
+        desc_response = ecs_client.describe_tasks(
+            cluster=cluster_arn,
+            tasks=list_response['taskArns']
+        )
+
+        if not desc_response.get('tasks'):
+            return True
+
+        # Terminate all running tasks for this loader (typically only 1, but handle multiple)
+        terminated_count = 0
+        for task in desc_response['tasks']:
+            task_arn = task.get('taskArn')
+            task_id = task_arn.split('/')[-1] if task_arn else 'unknown'
+
+            try:
+                stop_response = ecs_client.stop_task(
+                    cluster=cluster_arn,
+                    task=task_arn,
+                    reason='Hung task detected — terminating to allow fresh loader to start'
+                )
+
+                if verbose:
+                    logger.info(f"[HUNG_TASK_CLEANUP] ✓ Terminated hung task {task_id}")
+                terminated_count += 1
+            except Exception as stop_err:
+                logger.warning(f"[HUNG_TASK_CLEANUP] Failed to terminate task {task_id}: {stop_err}")
+
+        return terminated_count > 0 or not list_response.get('taskArns')
+
+    except Exception as e:
+        logger.warning(f"[HUNG_TASK_CLEANUP] Could not terminate hung loader task for {loader_name}: {e}")
+        return False  # Warn but don't block
+
 def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeout: int = 600) -> bool:
     """
     DEPRECATED: Use _trigger_loader_failsafe_with_verification instead.

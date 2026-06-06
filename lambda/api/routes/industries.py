@@ -46,7 +46,7 @@ def _industry_list(cur, params):
     page = safe_page(page_str, default=1)
     offset = (page - 1) * limit
 
-    cur.execute("SET statement_timeout TO '25s'")
+    cur.execute("SET LOCAL statement_timeout = '25000ms'")
     cur.execute("""
         WITH latest_d AS (
             SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
