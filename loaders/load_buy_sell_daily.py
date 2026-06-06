@@ -100,16 +100,14 @@ class SignalsDailyLoader(OptimalLoader):
                 # If either loader completed partially (<95%), buy_sell_daily must not run.
 
                 cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-                cur_row = cur.fetchone()
-                expected_symbols = cur_row[0] if cur_row else 4500
+                expected_symbols = cur.fetchone()[0] if cur.fetchone() else 4500
 
                 # Check price_daily completeness
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
                     (end,)
                 )
-                cur_row = cur.fetchone()
-                price_coverage_symbols = cur_row[0] if cur_row else 0
+                price_coverage_symbols = cur.fetchone()[0] if cur.fetchone() else 0
                 price_coverage = (price_coverage_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
                 # Check technical_data_daily completeness
@@ -117,8 +115,7 @@ class SignalsDailyLoader(OptimalLoader):
                     "SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE date = %s",
                     (end,)
                 )
-                cur_row = cur.fetchone()
-                tech_coverage_symbols = cur_row[0] if cur_row else 0
+                tech_coverage_symbols = cur.fetchone()[0] if cur.fetchone() else 0
                 tech_coverage = (tech_coverage_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
                 # Block signal generation if either dependency <95% complete
@@ -498,8 +495,7 @@ def main():
                 SELECT COUNT(DISTINCT symbol) FROM technical_data_daily
                 WHERE date = (SELECT MAX(date) FROM technical_data_daily)
             """)
-            cur_row = cur.fetchone()
-            tech_symbol_count = cur_row[0] if cur_row else 0
+            tech_symbol_count = cur.fetchone()[0] if cur.fetchone() else 0
 
             coverage_pct = round(100 * tech_symbol_count / len(symbols), 1) if symbols else 0
             if coverage_pct < 75:
