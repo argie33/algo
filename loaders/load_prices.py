@@ -587,7 +587,7 @@ class PriceLoader(OptimalLoader):
                     f"Retrying {len(symbols)} symbols in {wait_time:.1f}s..."
                 )
                 time.sleep(wait_time)
-                return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts)
+                return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec=elapsed_sec + wait_time)
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
         """Try to fetch data from yfinance with retry logic for transient failures."""

@@ -351,10 +351,19 @@ def _kill_hung_loader_task(loader_name: str, verbose: bool = False) -> bool:
         ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
         cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
 
+        # ISSUE #3 FIX: Map loader names to correct ECS task definitions
+        task_family_map = {
+            'stock_prices_daily': 'algo-stock_prices_daily-loader',
+            'technical_data_daily': 'algo-technical_data_daily-loader',
+            'market_health_daily': 'algo-market_health_daily-loader',
+            'price_daily': 'algo-stock_prices_daily-loader',  # Alias
+        }
+        task_family = task_family_map.get(loader_name, f'algo-{loader_name}-loader')
+
         # List running tasks for this loader
         response = ecs_client.list_tasks(
             cluster=cluster_arn,
-            family=loader_name,
+            family=task_family,
             desiredStatus='RUNNING'
         )
 
@@ -1936,12 +1945,12 @@ def run(
                 # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
                 # asynchronously and verify it started before proceeding.
 
-                # SIMPLIFIED FAILSAFE: Single attempt with 120s poll timeout
+                # SIMPLIFIED FAILSAFE: Single attempt with 180s poll timeout
                 # Fargate tasks can take 45-120s to reach RUNNING under load (Issue #13)
                 # If it fails, halt only if data is VERY stale (2+ days). Otherwise proceed with warning.
                 # This prevents waiting through 3 timeout loops (30+120+180s = 330s) when failsafe is dead.
                 failsafe_ok = False
-                poll_timeout = 120  # Wait up to 120s for ECS task to reach RUNNING state (accounts for Fargate provisioning delays)
+                poll_timeout = 180  # ISSUE #13 FIX: Increased from 120s to 180s to safely handle worst-case Fargate delays
 
                 try:
                     logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")
@@ -2466,7 +2475,7 @@ def run(
                     for failed_loader in failed_loaders:
                         try:
                             logger.info(f"[FAILSAFE] Triggering re-run for incomplete loader: {failed_loader}")
-                            _trigger_loader_failsafe_with_verification(failed_loader, verbose=verbose, poll_timeout_sec=120)
+                            _trigger_loader_failsafe_with_verification(failed_loader, verbose=verbose, poll_timeout_sec=180)  # ISSUE #13 FIX: Increased to 180s
                         except Exception as failsafe_err:
                             logger.warning(f"[FAILSAFE] Could not trigger {failed_loader}: {failsafe_err}")
 
