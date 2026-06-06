@@ -1074,25 +1074,33 @@ jobs:
         working-directory: webapp/frontend
         run: |
           npm install
-          # Set ALL environment variables for setup-prod.js BEFORE npm run build
-          # This ensures config.js is generated correctly in public/, then copied to dist/ by Vite
 
           # API URL: Always use CloudFront (frontend is served FROM CloudFront for same-origin)
           WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
           if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
             FINAL_API_URL="$WEBSITE_URL"
-            echo "[OK] Using CloudFront URL: $FINAL_API_URL"
+            echo "[OK] Using Terraform website_url: $FINAL_API_URL"
           else
-            # Discover CloudFront URL from AWS
-            FINAL_API_URL=$(aws cloudfront list-distributions \
-              --query 'DistributionList.Items[0].DomainName' \
-              --output text 2>/dev/null || echo "")
-            if [ -n "$FINAL_API_URL" ] && [ "$FINAL_API_URL" != "None" ]; then
-              FINAL_API_URL="https://${FINAL_API_URL}"
-              echo "[OK] Discovered CloudFront URL: $FINAL_API_URL"
-            else
-              FINAL_API_URL=""
-              echo "[WARN] No CloudFront URL found - using relative paths"
+            echo "[WARN] Terraform website_url not available, attempting CloudFront discovery..."
+            # Discover CloudFront URL from AWS with timeout and retry logic
+            FINAL_API_URL=""
+            for attempt in 1 2 3; do
+              FINAL_API_URL=$(aws cloudfront list-distributions \
+                --query 'DistributionList.Items[0].DomainName' \
+                --output text 2>/dev/null || echo "")
+              if [ -n "$FINAL_API_URL" ] && [ "$FINAL_API_URL" != "None" ]; then
+                FINAL_API_URL="https://${FINAL_API_URL}"
+                echo "[OK] Discovered CloudFront URL (attempt $attempt): $FINAL_API_URL"
+                break
+              fi
+              if [ $attempt -lt 3 ]; then
+                echo "[RETRY] CloudFront not found, waiting 5s and retrying..."
+                sleep 5
+              fi
+            done
+            if [ -z "$FINAL_API_URL" ] || [ "$FINAL_API_URL" = "None" ]; then
+              echo "[ERROR] CloudFront discovery failed after 3 attempts - build cannot proceed"
+              exit 1
             fi
           fi
 
@@ -1101,33 +1109,39 @@ jobs:
           CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
           COGNITO_DOMAIN="${{ needs.terraform.outputs.cognito_domain_url }}"
 
-          # Normalize empty/null values
-          POOL_ID=$([ "$POOL_ID" = "null" ] || [ -z "$POOL_ID" ] && echo "" || echo "$POOL_ID")
-          CLIENT_ID=$([ "$CLIENT_ID" = "null" ] || [ -z "$CLIENT_ID" ] && echo "" || echo "$CLIENT_ID")
-          COGNITO_DOMAIN=$([ "$COGNITO_DOMAIN" = "null" ] || [ -z "$COGNITO_DOMAIN" ] && echo "" || echo "$COGNITO_DOMAIN")
+          # Validate Cognito outputs are present
+          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
+            echo "[ERROR] COGNITO_USER_POOL_ID from Terraform is empty - cannot build"
+            exit 1
+          fi
+          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ] || [ "$CLIENT_ID" = "None" ]; then
+            echo "[ERROR] COGNITO_USER_POOL_CLIENT_ID from Terraform is empty - cannot build"
+            exit 1
+          fi
 
-          # Build with all environment variables set (setup-prod.js reads these)
-          export VITE_API_URL="$FINAL_API_URL"
-          export VITE_ENVIRONMENT="production"
-          export VITE_COGNITO_USER_POOL_ID="$POOL_ID"
-          export VITE_COGNITO_CLIENT_ID="$CLIENT_ID"
-          export VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN"
+          # Use default domain if not provided
+          if [ -z "$COGNITO_DOMAIN" ] || [ "$COGNITO_DOMAIN" = "null" ] || [ "$COGNITO_DOMAIN" = "None" ]; then
+            COGNITO_DOMAIN="https://algo-dev.auth.us-east-1.amazoncognito.com"
+          fi
 
-          npm run build
+          # Build using build-prod.js with explicit arguments (cross-platform)
+          # This ensures all variables are passed correctly to setup-prod.js
+          node scripts/build-prod.js "$FINAL_API_URL" "production" "$POOL_ID" "$CLIENT_ID" "$COGNITO_DOMAIN"
 
-          # Validate config.js was created with required values
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Production build failed"
+            exit 1
+          fi
+
+          # Validate final config.js
           if [ ! -f "dist/config.js" ]; then
-            echo "[ERROR] config.js was not created by build"
+            echo "[ERROR] config.js not found in dist/"
             exit 1
           fi
 
           CONFIG_CONTENT=$(cat dist/config.js)
-          if echo "$CONFIG_CONTENT" | grep -q '"API_URL": ""'; then
-            echo "[WARN] API_URL is empty in config.js - frontend may not reach API if CloudFront not ready"
-          fi
-          if echo "$CONFIG_CONTENT" | grep -q '"USER_POOL_ID": ""'; then
-            echo "[WARN] USER_POOL_ID is empty in config.js - check Cognito Terraform outputs"
-          fi
+          echo "[OK] Final config.js:"
+          echo "$CONFIG_CONTENT"
 
       - name: Add Cache Busting to config.js
         run: |
