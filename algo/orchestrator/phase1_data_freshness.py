@@ -2714,7 +2714,11 @@ def run(
                     if result and result[0] == 'RUNNING' and 'price_daily' not in hung_critical_loaders:
                         # Loader is actively running and healthy
                         loader_currently_running = True
-                        logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period, no re-trigger needed.")
+                        # ISSUE #1 FIX: Grace period accounts for ECS scheduling delays (45-120s)
+                        # Grace period is calculated from actual_running_at (when task actually started),
+                        # not from trigger_time (when request was submitted). This compensates for Fargate
+                        # provisioning latency automatically. See _check_failsafe_completion() line 770-772.
+                        logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period (accounts for ECS scheduling delay), no re-trigger needed.")
                         failsafe_already_triggered = True  # Skip trigger below
 
                     # ISSUE #8 FIX: Also check for hung analytics loaders that could exhaust RDS connection pool
