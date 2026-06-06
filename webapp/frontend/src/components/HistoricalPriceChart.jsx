@@ -20,6 +20,7 @@ import {
   Bar,
 } from "recharts";
 import api from "../services/api";
+import { getChartContainerStyle } from "../utils/chartContainer";
 
 /**
  * Historical Price Chart
@@ -100,7 +101,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
         <Typography variant="h6" gutterBottom>
           {symbol} - Price History ({days} days)
         </Typography>
-        <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+        <div style={getChartContainerStyle('tall')}>
           <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -130,7 +131,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
             />
             </LineChart>
           </ResponsiveContainer>
-        </Box>
+        </div>
       </Paper>
 
       {/* Volume Chart */}
@@ -138,7 +139,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
         <Typography variant="h6" gutterBottom>
           Trading Volume
         </Typography>
-        <Box sx={{ width: "100%", height: 200, minWidth: 0 }}>
+        <div style={getChartContainerStyle('compact')}>
           <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
