@@ -129,8 +129,8 @@ if (typeof window !== "undefined" && !import.meta.env?.DEV) {
       console.info(`[API Config Updated] baseURL now set to: ${newConfig.baseURL}`);
       clearInterval(configCheckInterval);
     }
-  }, 50);  // Check every 50ms for up to 1 second (20 checks total)
-  setTimeout(() => clearInterval(configCheckInterval), 1000);
+  }, 100);  // Check every 100ms for up to 5 seconds (50 checks total)
+  setTimeout(() => clearInterval(configCheckInterval), 5000);
 }
 
 // Token refresh management

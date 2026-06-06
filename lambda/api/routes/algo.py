@@ -272,6 +272,7 @@ def _get_last_run(cur) -> Dict:
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
         try:
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")
             cur.execute("""
                 SELECT
                     details->>'run_id' AS run_id,
@@ -290,6 +291,7 @@ def _get_algo_status(cur) -> Dict:
 
             portfolio = {}
             try:
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute("""
                     SELECT total_portfolio_value, daily_return_pct,
                            unrealized_pnl_total, position_count
@@ -364,6 +366,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             user_filter = f"AND p.cognito_sub = %s" if user_id else ""
             params = (user_id,) if user_id else ()
 
+            cur.execute("SET LOCAL statement_timeout = '10000ms'")
             cur.execute(f"""
                 WITH latest_trend AS (
                     SELECT DISTINCT ON (symbol)
@@ -879,6 +882,7 @@ def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
         try:
             cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+            cur.execute("SET LOCAL statement_timeout = '8000ms'")
             cur.execute("""
                 SELECT snapshot_date, total_portfolio_value, total_cash,
                        unrealized_pnl_total, position_count, daily_return_pct

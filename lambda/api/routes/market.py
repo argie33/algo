@@ -30,22 +30,19 @@ def _execute_with_retry(cur, timeout_sec: int, query: str, max_attempts: int = 2
         except psycopg2.errors.QueryCanceled as e:
             last_error = e
             if attempt < max_attempts - 1:
-                # Retry with increased timeout on timeout error
                 current_timeout *= backoff_multiplier
                 logger.warning(
                     f"Query timeout (attempt {attempt + 1}/{max_attempts}, timeout={int(current_timeout * 1000)}ms) — retrying with increased timeout"
                 )
-                # Rollback the aborted transaction
                 try:
                     cur.connection.rollback()
                 except Exception:
                     pass
-                time.sleep(0.1)  # Brief backoff before retry
+                time.sleep(0.1)
             else:
                 logger.warning(f"Query timeout after {max_attempts} attempts")
         except Exception as e:
             last_error = e
-            # Don't retry on non-timeout errors
             logger.warning(f"Query failed ({type(e).__name__}): {str(e)}")
             try:
                 cur.connection.rollback()
@@ -59,6 +56,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         """Handle /api/market/* endpoints."""
         try:
             if path in ['/api/market', '/api/market/status'] or path.startswith('/api/market?'):
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute("""
                     SELECT date, market_trend, market_stage, advance_decline_ratio,
                            new_highs_count, new_lows_count, vix_level, put_call_ratio,
@@ -124,6 +122,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute("""
                     SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
                            up_volume_percent, distribution_days_4w, breadth_momentum_10d,
@@ -180,6 +179,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # The factors JSONB column stores the true McClellan value (19-EMA minus
                 # 39-EMA of net advances) computed by algo_market_exposure._mcclellan().
                 try:
+                    cur.execute("SET LOCAL statement_timeout = '5000ms'")
                     cur.execute("""
                         SELECT date,
                                (factors->'mcclellan'->>'value')::float AS advance_decline_line
