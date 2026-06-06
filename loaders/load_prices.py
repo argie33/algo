@@ -390,20 +390,38 @@ class PriceLoader(OptimalLoader):
 
         return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
 
-    def _fetch_with_fallback(self, symbols: List[str], start: date, end: date, batch_size: int, attempt: int = 0, max_attempts: int = 3):
+    def _fetch_with_fallback(self, symbols: List[str], start: date, end: date, batch_size: int, attempt: int = 0, max_attempts: int = 3, elapsed_sec: float = 0):
         """Fetch with progressive batch size reduction and adaptive retry with jitter.
 
         ISSUE #6 FIX: Add upper bound check - if batch_size=1 and still rate limited, fail immediately.
         Attempts: full batch → split in half → quarter size → give up.
         Includes randomized jitter to avoid thundering herd and circuit breaker for persistent errors.
+
+        CRITICAL: Prevents infinite batch reduction + timeout cascade by tracking elapsed time.
+        If batch=1 and elapsed > threshold, fail immediately rather than waiting indefinitely.
         """
         import time
         import random
 
+        # ISSUE #6 FIX: Prevent infinite batch reduction and Step Function timeout
+        # Track elapsed time to detect when we're spending too long on rate limiting
+        if elapsed_sec is None:
+            elapsed_sec = 0
+
+        # CRITICAL BOUND: If batch_size=1 and rate limiting persists >10 minutes, give up
+        # This prevents Step Function timeout (27000s limit) and cascading failures
+        max_single_batch_wait = 600  # 10 minutes max for batch=1 retries
+        if batch_size == 1 and elapsed_sec > max_single_batch_wait:
+            logger.critical(
+                f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec/60:.1f}min elapsed. "
+                f"Failing immediately to prevent Step Function timeout. yfinance severely degraded."
+            )
+            return {s: None for s in symbols}
+
         # ISSUE #6 FIX: If we've shrunk to batch_size=1 and still rate limiting, give up immediately
         # This prevents infinite reduction and timeout cascade
         if batch_size <= 0 or attempt >= max_attempts:
-            logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
+            logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}, elapsed {elapsed_sec:.0f}s")
             return {s: None for s in symbols}
 
         # Issue #20 FIX: At batch=1, try longer wait before giving up
@@ -450,12 +468,20 @@ class PriceLoader(OptimalLoader):
                 )
 
                 # Try with progressively smaller batch sizes (10, 5, 1)
+                # ISSUE #6 FIX: Stop trying if already spent too long on rate limiting
+                if elapsed_sec > max_single_batch_wait * 0.8:  # 8 minutes threshold
+                    logger.warning(
+                        f"[CIRCUIT BREAKER] Rate limiting {elapsed_sec/60:.1f}min, approaching timeout. "
+                        f"Skipping reduced batch size attempts, failing batch immediately."
+                    )
+                    return {s: None for s in symbols}
+
                 reduced_batch_sizes = [10, 5, 1]
                 for reduced_size in reduced_batch_sizes:
                     if reduced_size >= batch_size:
                         continue  # Skip if not smaller than current
 
-                    logger.info(f"[CIRCUIT BREAKER] Retrying with reduced batch size: {reduced_size} (was {batch_size})")
+                    logger.info(f"[CIRCUIT BREAKER] Retrying with reduced batch size: {reduced_size} (was {batch_size}), elapsed {elapsed_sec:.0f}s")
                     reduced_attempt = self._fetch_batch_with_retry(
                         symbols, start, end, batch_size=reduced_size, attempt=attempt + 1, max_attempts=max_attempts
                     )
@@ -525,9 +551,11 @@ class PriceLoader(OptimalLoader):
 
                 new_batch_size = max(1, batch_size // 2)
                 error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
+                # ISSUE #6 FIX: Track total elapsed time to prevent infinite retries
+                total_elapsed = elapsed_sec + error_duration + wait_time
                 logger.warning(
                     f"[BATCH FETCH] Rate limited (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}, "
-                    f"duration {error_duration:.0f}s). "
+                    f"duration {error_duration:.0f}s, total elapsed {total_elapsed:.0f}s). "
                     f"Batch {batch_size} → {new_batch_size}, waiting {wait_time:.1f}s (base {base_wait}s + jitter)..."
                 )
                 time.sleep(wait_time)
@@ -537,7 +565,8 @@ class PriceLoader(OptimalLoader):
                 successful_chunks = 0
                 for i in range(0, len(symbols), new_batch_size):
                     chunk = symbols[i:i+new_batch_size]
-                    chunk_results = self._fetch_with_fallback(chunk, start, end, new_batch_size, attempt + 1, max_attempts)
+                    # ISSUE #6 FIX: Pass elapsed_sec to prevent timeout cascade
+                    chunk_results = self._fetch_with_fallback(chunk, start, end, new_batch_size, attempt + 1, max_attempts, elapsed_sec=total_elapsed)
                     results.update(chunk_results)
                     # Count chunk as successful if it returned non-None results for any symbols
                     if any(v is not None for v in chunk_results.values()):

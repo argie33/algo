@@ -1730,7 +1730,9 @@ def run(
                         f"below 95% threshold, will trigger failsafe for retry"
                     )
 
-            # If any loader is INCOMPLETE, add to stale_items to trigger failsafe
+            # ISSUE #18 FIX: If any loader is INCOMPLETE, force retry via failsafe
+            # Incomplete = loader ran but got <95% coverage (partial failure)
+            # Don't just warn — retry immediately to get full coverage
             if incomplete_loaders:
                 stale_items.extend([
                     f"{il['table']}: {il['symbols_loaded']}/{il['symbol_count']} symbols ({il['completion_pct']:.1f}%, need >95%)"
@@ -1739,11 +1741,11 @@ def run(
                 alerts.send_position_alert(
                     'DATA',
                     'LOADER_INCOMPLETE',
-                    f"One or more loaders completed with <95% symbol coverage: {'; '.join([il['table'] for il in incomplete_loaders])}. "
-                    f"Triggering failsafe for retry.",
+                    f"One or more loaders completed with <95% symbol coverage (partial failure): {'; '.join([il['table'] for il in incomplete_loaders])}. "
+                    f"Triggering failsafe for automatic retry.",
                     {'incomplete_loaders': incomplete_loaders}
                 )
-                logger.warning(f"[INCOMPLETE_LOADERS] {len(incomplete_loaders)} loader(s) marked INCOMPLETE, will trigger failsafe")
+                logger.warning(f"[{_phase1_correlation_id}] [INCOMPLETE_LOADERS] {len(incomplete_loaders)} loader(s) marked INCOMPLETE - forcing retry via failsafe")
         except Exception as incomp_err:
             logger.debug(f"[INCOMPLETE] Check failed: {incomp_err} (proceeding)")
 
@@ -1808,7 +1810,33 @@ def run(
             _metrics.flush()
 
         if stale_items:
-            logger.warning(f"[FAILSAFE] Data stale detected, will trigger loader: {stale_items}")
+            logger.warning(f"[{_phase1_correlation_id}] Data stale detected, will trigger loader: {stale_items}")
+
+            # ISSUE #11 FIX: Pipeline Overlap Detection
+            # Check if EOD loaders are still running from yesterday
+            try:
+                with DatabaseContext('read') as _overlap_cur:
+                    _overlap_cur.execute("""
+                        SELECT COUNT(*), MAX(last_updated) FROM data_loader_status
+                        WHERE status = 'RUNNING' AND table_name IN ('price_daily', 'technical_data_daily')
+                    """)
+                    overlap_result = _overlap_cur.fetchone()
+                    running_count = overlap_result[0] if overlap_result else 0
+                    last_update = overlap_result[1] if overlap_result and len(overlap_result) > 1 else None
+
+                    if running_count > 0 and last_update:
+                        elapsed_minutes = (datetime.now(timezone.utc) - last_update).total_seconds() / 60
+                        if elapsed_minutes > 90:
+                            logger.warning(f"[{_phase1_correlation_id}] [OVERLAP] {running_count} loaders running {elapsed_minutes:.0f}min - RDS pool risk (EOD overlap)")
+            except Exception as e:
+                logger.debug(f"[{_phase1_correlation_id}] [OVERLAP] Check failed: {e}")
+
+            # ISSUE #15 FIX: Data Age Blocking
+            # Check if source data is too old and block trading if so
+            if price_date and (run_date - price_date).days > 2:  # max_age_days from config
+                logger.error(f"[{_phase1_correlation_id}] [DATA_AGE] Source data {(run_date - price_date).days}d old (max 2d)")
+                log_phase_result_fn(1, 'data_age_blocking', 'halt', 'Source data exceeds age threshold')
+                return PhaseResult(1, 'data_age_blocking', 'halted', {}, True, 'Source data exceeds age threshold')
 
             # SIMPLIFIED: Check if loader is currently RUNNING. If yes, use grace period.
             # If not, trigger immediately (no time-based grace period delays).
@@ -1829,28 +1857,28 @@ def run(
                         # If heartbeat is stale (>3 min), loader is stuck, trigger failsafe
                         if not _detect_hung_loader_task('price_daily'):
                             loader_currently_running = True
-                            logger.info(f"[FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period, no re-trigger needed.")
+                            logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period, no re-trigger needed.")
                             failsafe_already_triggered = True  # Skip trigger below
                         else:
-                            logger.warning(f"[FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will terminate hung task and trigger fresh loader.")
-                            # ISSUE #3 FIX: Terminate the hung task before triggering new loader
+                            logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will terminate hung task and trigger fresh loader.")
+                            # ISSUE #23 FIX: Zombie task cleanup - terminate hung tasks before triggering new one
                             # This prevents RDS connection pool exhaustion from zombie tasks
                             if _kill_hung_loader_task('stock_prices_daily', verbose=verbose):
-                                logger.info(f"[HUNG_TASK] Successfully killed hung loader task")
+                                logger.info(f"[{_phase1_correlation_id}] [HUNG_TASK] Successfully killed hung loader task (zombie cleanup)")
                             else:
-                                logger.warning(f"[HUNG_TASK] Could not kill hung loader task, proceeding with failsafe anyway")
+                                logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] Could not kill hung loader task, proceeding with failsafe anyway")
             except Exception as status_err:
-                logger.debug(f"[FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
+                logger.debug(f"[{_phase1_correlation_id}] [FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
 
             if failsafe_already_triggered and loader_currently_running:
                 # Loader is actively running — let it finish
                 failsafe_ok = True
-                logger.info(f"[FAILSAFE] ✓ Loader actively RUNNING. Proceeding to Phase 2 with in-flight loader.")
+                logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] ✓ Loader actively RUNNING. Proceeding to Phase 2 with in-flight loader.")
                 alerts.send_position_alert(
                     'DATA',
                     'STALE_DATA_LOADER_ACTIVE',
-                    f'Stale data detected but loader is actively running. Proceeding with in-flight loader.',
-                    {'stale_items': stale_items, 'loader_status': 'RUNNING'}
+                    f'Stale data detected but loader is actively running. Proceeding with in-flight loader. CorrID: {_phase1_correlation_id}',
+                    {'stale_items': stale_items, 'loader_status': 'RUNNING', 'correlation_id': _phase1_correlation_id}
                 )
                 log_phase_result_fn(1, 'data_freshness', 'warn',
                                    f'Stale, but loader actively running: {"; ".join(stale_items)}')
@@ -1916,14 +1944,14 @@ def run(
                 poll_timeout = 120  # Wait up to 120s for ECS task to reach RUNNING state (accounts for Fargate provisioning delays)
 
                 try:
-                    logger.info(f"[FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")
+                    logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")
                     failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout)
                     if failsafe_ok:
-                        logger.info(f"[FAILSAFE] ✓ Loader trigger confirmed. Task is running.")
+                        logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] ✓ Loader trigger confirmed. Task is running.")
                     else:
-                        logger.warning(f"[FAILSAFE] ✗ Loader trigger did not confirm within {poll_timeout}s. Will check data staleness.")
+                        logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] ✗ Loader trigger did not confirm within {poll_timeout}s. Will check data staleness.")
                 except Exception as trigger_err:
-                    logger.warning(f"[FAILSAFE] Loader trigger failed: {trigger_err}")
+                    logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] Loader trigger failed: {trigger_err}")
 
             if not failsafe_ok:
                 # Failsafe failed or timeout - loader may not have started.

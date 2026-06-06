@@ -235,7 +235,12 @@ try {
 
   // Ensure config is loaded before rendering app, or fail loudly
   configPromise
-    .then(() => {
+    .then(async () => {
+      // Initialize API config after main config loads
+      // This ensures window.__CONFIG__.API_URL is injected into axios baseURL
+      const { initializeApiConfig } = await import('./services/api');
+      initializeApiConfig();
+
       root.render(
         <ErrorBoundary>
           <BrowserRouter
