@@ -47,94 +47,58 @@ describe("ApiService Utility", () => {
     vi.clearAllMocks();
   });
 
-  describe("API Configuration", () => {
-    it("uses runtime config when available", async () => {
-      // Mock the dynamic import
+  describe("Module Exports", () => {
+    it("exports createLogger function", async () => {
       const apiService = await import("../../../utils/apiService.jsx");
 
       expect(apiService).toBeDefined();
+      expect(typeof apiService.createLogger).toBe("function");
     });
 
-    it("falls back to environment variables", async () => {
-      // Temporarily remove window config
-      const originalConfig = global.window.__CONFIG__;
-      delete global.window.__CONFIG__;
-
+    it("exports apiCall function", async () => {
       const apiService = await import("../../../utils/apiService.jsx");
 
       expect(apiService).toBeDefined();
-
-      // Restore
-      global.window.__CONFIG__ = originalConfig;
+      expect(typeof apiService.apiCall).toBe("function");
     });
 
-    it("handles missing configuration gracefully", async () => {
-      // Remove all config sources
-      const originalConfig = global.window.__CONFIG__;
-      const originalEnv = import.meta.env.VITE_API_URL;
-
-      delete global.window.__CONFIG__;
-      import.meta.env.VITE_API_URL = undefined;
-
+    it("exports apiPatterns object", async () => {
       const apiService = await import("../../../utils/apiService.jsx");
 
       expect(apiService).toBeDefined();
-
-      // Restore
-      global.window.__CONFIG__ = originalConfig;
-      import.meta.env.VITE_API_URL = originalEnv;
+      expect(typeof apiService.apiPatterns).toBe("object");
+      expect(typeof apiService.apiPatterns.fetchData).toBe("function");
     });
   });
 
   describe("Logger Creation", () => {
-    it("creates component loggers if available", async () => {
+    it("creates component loggers with required methods", async () => {
       const apiService = await import("../../../utils/apiService.jsx");
 
-      // Test the createLogger export
-      if (apiService.createLogger) {
-        const logger = apiService.createLogger("TestComponent");
-        expect(logger).toBeDefined();
-        expect(typeof logger.info).toBe("function");
-        expect(typeof logger.error).toBe("function");
-        expect(typeof logger.warn).toBe("function");
-        expect(typeof logger.debug).toBe("function");
-      } else {
-        expect(true).toBe(true); // Pass if not implemented
-      }
+      const logger = apiService.createLogger("TestComponent");
+      expect(logger).toBeDefined();
+      expect(typeof logger.info).toBe("function");
+      expect(typeof logger.error).toBe("function");
+      expect(typeof logger.warn).toBe("function");
+      expect(typeof logger.debug).toBe("function");
     });
   });
 
-  describe("API Service Functions", () => {
-    it("exports api service", async () => {
+  describe("Query Configuration", () => {
+    it("creates React Query config", async () => {
       const apiService = await import("../../../utils/apiService.jsx");
 
-      expect(apiService.default).toBeDefined();
+      const config = apiService.createQueryConfig("TestComponent");
+      expect(config).toBeDefined();
+      expect(config.defaultOptions).toBeDefined();
+      expect(config.defaultOptions.queries).toBeDefined();
     });
 
-    it("handles API calls", async () => {
-      mockAxios.get.mockResolvedValue({ data: { success: true } });
-
+    it("includes retry logic in query config", async () => {
       const apiService = await import("../../../utils/apiService.jsx");
 
-      if (apiService.default && apiService.default.get) {
-        const result = await apiService.default.get("/test");
-        expect(result.data).toEqual({ success: true });
-      }
-    });
-
-    it("handles API errors", async () => {
-      const mockError = new Error("API Error");
-      mockAxios.get.mockRejectedValue(mockError);
-
-      const apiService = await import("../../../utils/apiService.jsx");
-
-      if (apiService.default && apiService.default.get) {
-        try {
-          await apiService.default.get("/test");
-        } catch (error) {
-          expect(error).toBe(mockError);
-        }
-      }
+      const config = apiService.createQueryConfig("TestComponent");
+      expect(typeof config.defaultOptions.queries.retry).toBe("function");
     });
   });
 
