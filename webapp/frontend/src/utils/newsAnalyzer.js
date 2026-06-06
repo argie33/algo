@@ -75,7 +75,14 @@ class NewsAnalyzer {
    */
   analyzeSentiment(article) {
     try {
-      if (!article || (!article.title && !article.headline)) {
+      // Handle both string input and article object
+      let text;
+      if (typeof article === 'string') {
+        text = article.toLowerCase();
+      } else if (article && (article.title || article.headline)) {
+        text =
+          `${article.title || article.headline || ""} ${article.summary || article.description || ""}`.toLowerCase();
+      } else {
         return {
           sentiment: null,
           score: null,
@@ -83,9 +90,6 @@ class NewsAnalyzer {
           keywords: [],
         };
       }
-
-      const text =
-        `${article.title || article.headline || ""} ${article.summary || article.description || ""}`.toLowerCase();
       const words = text.split(/\s+/);
 
       let positiveScore = 0;
