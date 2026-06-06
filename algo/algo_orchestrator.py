@@ -12,6 +12,7 @@ import json
 import psycopg2
 import psycopg2.extensions
 from datetime import datetime, date as _date, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Any, Optional, Tuple, Union
 from algo.algo_alerts import AlertManager
 from algo.algo_market_calendar import MarketCalendar
@@ -108,8 +109,8 @@ class Orchestrator:
                         now_utc = datetime.now(timezone.utc)
 
                         # Convert to ET for trading hour comparison
-                        trigger_et = trigger_dt.astimezone(timezone(timedelta(hours=-5)))
-                        now_et = now_utc.astimezone(timezone(timedelta(hours=-5)))
+                        trigger_et = trigger_dt.astimezone(ZoneInfo("America/New_York"))
+                        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
 
                         trigger_date = trigger_et.date()
                         now_date_et = now_et.date()
@@ -155,7 +156,7 @@ class Orchestrator:
                                 while not MarketCalendar.is_trading_day(next_trading_day):
                                     next_trading_day += timedelta(days=1)
                                 next_open_et = next_trading_day.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0)
-                                next_open_et = next_open_et.replace(tzinfo=timezone(timedelta(hours=-5)))
+                                next_open_et = next_open_et.replace(tzinfo=ZoneInfo("America/New_York"))
 
                                 if now_et > next_open_et:
                                     logger.info(
@@ -296,7 +297,7 @@ class Orchestrator:
 
             # Calculate time until next orchestrator run (in ET)
             now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(timezone(timedelta(hours=-5)))
+            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
 
             ORCHESTRATOR_TIMES = [
                 (9, 30),    # 9:30 AM

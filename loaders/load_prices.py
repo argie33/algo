@@ -23,6 +23,7 @@ import time
 import uuid
 from datetime import date, datetime, timedelta
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from utils.database_context import DatabaseContext
 from utils.data_provenance_tracker import DataProvenanceTracker
@@ -112,7 +113,7 @@ class PriceLoader(OptimalLoader):
         """
         from datetime import datetime, timezone, timedelta
 
-        now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+        now_et = datetime.now(ZoneInfo("America/New_York"))
         eod_start_et = now_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
 
         # Check if we're within 2 hours of EOD start (accounts for possible scheduler delays)
@@ -340,7 +341,7 @@ class PriceLoader(OptimalLoader):
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(timezone(td(hours=-5)))
+        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
         # yfinance end date is EXCLUSIVE: pass today+1 so today's trading data is always fetchable
         end = now_et.date() + timedelta(days=1)
 
@@ -376,7 +377,7 @@ class PriceLoader(OptimalLoader):
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(timezone(td(hours=-5)))
+        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
         # yfinance end date is EXCLUSIVE: to fetch May 29 data we must pass end=May 30.
         # Use today+1 so today's data (if it's a trading day) is always included.
         end = now_et.date() + timedelta(days=1)
