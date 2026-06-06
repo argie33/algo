@@ -11,6 +11,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
             if path == '/api/economic/VIX':
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute("""
                     SELECT date, vix_level as vix
                     FROM market_health_daily
@@ -39,6 +40,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if end_date:
                         date_filter += " AND event_date <= %s"
                         query_params.append(end_date)
+                    cur.execute("SET LOCAL statement_timeout = '3000ms'")
                     cur.execute("""
                         SELECT event_date, event_name, country, importance,
                                category, event_time,

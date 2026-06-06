@@ -13,6 +13,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
         if symbol:
             limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=200, default=20)
+            cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute("""
                 SELECT symbol,
                        earnings_date AS report_date,
@@ -31,6 +32,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=1000, default=100)
+        cur.execute("SET LOCAL statement_timeout = '5000ms'")
         cur.execute("""
             SELECT symbol,
                    earnings_date AS report_date,

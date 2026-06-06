@@ -74,7 +74,18 @@ export const extractData = (response) => {
   if (data.data !== null && data.data !== undefined) {
     // Check if data.data has items (double-nested)
     if (Array.isArray(data.data.items)) {
-      const filteredItems = data.data.items.filter(item => item !== null && item !== undefined);
+      // Filter out null/undefined items AND items with missing critical fields (same as above)
+      const filteredItems = data.data.items.filter(item => {
+        if (item === null || item === undefined) return false;
+        // Filter items with missing critical fields
+        const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
+        const hasSector = item.sector !== null && item.sector !== undefined && item.sector !== '';
+        const hasIndustry = item.industry !== null && item.industry !== undefined && item.industry !== '';
+        const hasCompanyName = (item.company_name !== null && item.company_name !== undefined && item.company_name !== '') ||
+                               (item.name !== null && item.name !== undefined && item.name !== '');
+        // Require symbol AND at least one other critical field to be present
+        return hasSymbol && (hasSector || hasIndustry || hasCompanyName);
+      });
       // Extract all properties from data.data, filtering nulls in the wrapper
       const result = {};
       Object.entries(data.data).forEach(([key, value]) => {
@@ -129,8 +140,16 @@ export const extractPaginatedData = (response) => {
     throw new Error(data.message || data.errorType || `API error: ${httpStatus}`);
   }
 
+  // Handle both direct items and nested data.items structure
+  let itemsToFilter = [];
+  if (Array.isArray(data.items)) {
+    itemsToFilter = data.items;
+  } else if (data.data && Array.isArray(data.data.items)) {
+    itemsToFilter = data.data.items;
+  }
+
   // Extract items (should be array, not full envelope) — filter out null/undefined entries and items missing critical fields
-  const items = Array.isArray(data.items) ? data.items.filter(item => {
+  const items = itemsToFilter.filter(item => {
     if (item === null || item === undefined) return false;
     // Filter items with missing critical fields (symbol, sector, industry, company_name)
     const hasSymbol = item.symbol !== null && item.symbol !== undefined && item.symbol !== '';
@@ -140,7 +159,7 @@ export const extractPaginatedData = (response) => {
                            (item.name !== null && item.name !== undefined && item.name !== '');
     // Require symbol AND at least one other critical field to be present
     return hasSymbol && (hasSector || hasIndustry || hasCompanyName);
-  }) : [];
+  });
 
   return {
     items,

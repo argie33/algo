@@ -442,10 +442,10 @@ function ExposureFactors({ markets }) {
     ['naaim',           'NAAIM PROFESSIONAL EXPOSURE', 3],
   ];
 
-  const eco = factors['economic_overlay'] || {};
-  const macroStress = eco.macro_stress_score;
-  const macroPenalty = eco.penalty;
-  const macroSignals = eco.signals || [];
+  const eco = factors?.economic_overlay || {};
+  const macroStress = eco?.macro_stress_score;
+  const macroPenalty = eco?.penalty;
+  const macroSignals = eco?.signals || [];
   const macroColor = macroStress >= 60 ? C.danger : macroStress >= 40 ? C.amber : C.success;
 
   return (
@@ -855,16 +855,16 @@ function VixCard({ markets }) {
 
 function InternalsCard({ data, loading }) {
   if (loading || !data) return <Empty title="Market Internals" desc={loading ? "Loading…" : "No data"} wrap />;
-  const breadth = data.breadth || {};
-  const advancing = parseInt(breadth.advancing) || 0;
-  const declining = parseInt(breadth.declining) || 0;
-  const unchanged = parseInt(breadth.unchanged) || 0;
-  const total = parseInt(breadth.total_stocks) || (advancing + declining + unchanged);
+  const breadth = data?.breadth || {};
+  const advancing = parseInt(breadth?.advancing) || 0;
+  const declining = parseInt(breadth?.declining) || 0;
+  const unchanged = parseInt(breadth?.unchanged) || 0;
+  const total = parseInt(breadth?.total_stocks) || (advancing + declining + unchanged);
   const advPct = total ? (advancing / total) * 100 : 0;
   const decPct = total ? (declining / total) * 100 : 0;
   const adRatio = declining > 0 ? (advancing / declining) : 0;
-  const mcclellan = (data.mcclellan_oscillator || []).reverse().map(d => ({
-    date: d.date, value: parseFloat(d.advance_decline_line || 0),
+  const mcclellan = (data?.mcclellan_oscillator || []).reverse().map(d => ({
+    date: d?.date, value: parseFloat(d?.advance_decline_line || 0),
   }));
   return (
     <div className="card">

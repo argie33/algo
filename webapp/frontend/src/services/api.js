@@ -109,21 +109,29 @@ if (typeof window !== "undefined" && window.location?.hostname === "localhost") 
 }
 
 // Create axios instance with dynamic baseURL resolution
-// In production, wait up to 100ms for window.__CONFIG__ to load before initializing
-let resolvedBaseURL = currentConfig.baseURL;
-
-if (typeof window !== "undefined" && !currentConfig.baseURL && !import.meta.env?.DEV) {
-  // In production with no baseURL yet, use window.__CONFIG__ directly if available
-  resolvedBaseURL = window.__CONFIG__?.API_URL || currentConfig.baseURL;
-}
-
+// In production, use currentConfig which already checks window.__CONFIG__ as fallback (line 14-20)
 let api = axios.create({
-  baseURL: resolvedBaseURL,
+  baseURL: currentConfig.baseURL,
   timeout: currentConfig.isServerless ? 45000 : 30000,
   headers: {
     "Content-Type": "application/json",
   },
 });
+
+// Update API baseURL after config.js loads (production) — re-check window.__CONFIG__
+// This handles the case where config.js loads after axios is created
+if (typeof window !== "undefined" && !import.meta.env?.DEV) {
+  const configCheckInterval = setInterval(() => {
+    const newConfig = getApiConfig();
+    if (newConfig.baseURL && newConfig.baseURL !== api.defaults.baseURL) {
+      api.defaults.baseURL = newConfig.baseURL;
+      currentConfig = newConfig;
+      console.info(`[API Config Updated] baseURL now set to: ${newConfig.baseURL}`);
+      clearInterval(configCheckInterval);
+    }
+  }, 50);  // Check every 50ms for up to 1 second (20 checks total)
+  setTimeout(() => clearInterval(configCheckInterval), 1000);
+}
 
 // Token refresh management
 let _refreshCallback = null;

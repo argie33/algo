@@ -32,6 +32,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             offset_str = params.get('offset', [None])[0] if params else None
             limit = safe_limit(limit_str, max_val=5000, default=500)
             offset = safe_offset(offset_str)
+            cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
             if path == '/api/audit/trail' or path.startswith('/api/audit/trail?'):
                 cur.execute("""

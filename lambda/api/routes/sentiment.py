@@ -11,6 +11,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         """Handle /api/sentiment/* endpoints."""
         try:
             if path == '/api/sentiment/summary':
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute("""
                     SELECT fg.fear_greed_value, fg.fear_greed_label, fg.date,
                            mh.put_call_ratio, mh.vix_level
@@ -25,6 +26,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 aaii_row = None
                 try:
+                    cur.execute("SET LOCAL statement_timeout = '2000ms'")
                     cur.execute("""
                         SELECT bullish, neutral, bearish, date
                         FROM aaii_sentiment
@@ -37,6 +39,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 naaim_row = None
                 try:
+                    cur.execute("SET LOCAL statement_timeout = '2000ms'")
                     cur.execute("""
                         SELECT naaim_number_mean, date
                         FROM naaim
