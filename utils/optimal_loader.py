@@ -808,6 +808,21 @@ class OptimalLoader(ABC):
                     if hasattr(latest_date, "date"):
                         latest_date = latest_date.date()
 
+                # ISSUE #2 FIX: Track completion percentage and mark INCOMPLETE if <95%
+                symbols_expected = len(symbols) if symbols else 1
+                symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
+                completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
+
+                # Determine status: INCOMPLETE if coverage <95%, else COMPLETED
+                loader_status = 'COMPLETED'
+                if completion_pct < 95:
+                    loader_status = 'INCOMPLETE'
+                    logger.warning(
+                        f"[{self.table_name}] Load completed but INCOMPLETE: "
+                        f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%) — "
+                        f"Phase 1 will detect this and trigger failsafe retry"
+                    )
+
                 with DatabaseContext("write") as cur:
                     # Use DELETE + INSERT for robustness — avoids ON CONFLICT constraint
                     # dependency (works even if PRIMARY KEY was added after initial creation)
@@ -816,9 +831,12 @@ class OptimalLoader(ABC):
                         (self.table_name,),
                     )
                     cur.execute(
-                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated, status) "
-                        "VALUES (%s, %s, %s, NOW(), %s)",
-                        (self.table_name, total_rows, latest_date, 'COMPLETED'),
+                        "INSERT INTO data_loader_status "
+                        "(table_name, row_count, latest_date, last_updated, status, "
+                        "completion_pct, symbol_count, symbols_loaded) "
+                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s)",
+                        (self.table_name, total_rows, latest_date, loader_status,
+                         completion_pct, symbols_expected, symbols_successfully_loaded),
                     )
             except Exception as e:
                 logger.warning(
