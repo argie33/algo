@@ -239,14 +239,27 @@ class NewsAnalyzer {
         return [];
       }
 
-      const symbolPattern = /\b([A-Z]{1,5})\b/g;
+      const commonWords = new Set([
+        'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
+        'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how',
+        'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy',
+        'did', 'let', 'put', 'say', 'she', 'too', 'use', 'own', 'ate', 'yes',
+        'got', 'in', 'on', 'to', 'is', 'by', 'at', 'it', 'or', 'an', 'be',
+        'we', 'as', 'up', 'so', 'do', 'go', 'no', 'if', 'of', 'a', 'be', 'me'
+      ]);
+
+      const symbolPattern = /\b([a-zA-Z]{1,5})\b/g;
       const symbols = [];
       const seen = new Set();
       let match;
 
       while ((match = symbolPattern.exec(text)) !== null) {
         const symbol = match[1].toUpperCase();
-        if (!seen.has(symbol) && symbol.length >= 1 && symbol.length <= 5) {
+        const symbolLower = match[1].toLowerCase();
+        if (!seen.has(symbol) &&
+            symbol.length >= 2 &&
+            symbol.length <= 5 &&
+            !commonWords.has(symbolLower)) {
           symbols.push(symbol);
           seen.add(symbol);
         }
@@ -272,8 +285,8 @@ class NewsAnalyzer {
 
       const textLower = text.toLowerCase();
 
-      const earningsKeywords = ['earnings', 'revenue', 'profit', 'loss', 'quarterly', 'quarter'];
-      const analysisKeywords = ['technical', 'analysis', 'breakout', 'pattern', 'support', 'resistance', 'moving average', 'rsi', 'macd'];
+      const earningsKeywords = ['earnings', 'earnings report', 'earnings beat', 'earnings call', 'quarterly earnings', 'revenue beat', 'profit margin'];
+      const analysisKeywords = ['technical analysis', 'breakout', 'support level', 'resistance level', 'moving average', 'rsi', 'macd', 'chart pattern'];
 
       const hasEarnings = earningsKeywords.some(keyword => textLower.includes(keyword));
       const hasAnalysis = analysisKeywords.some(keyword => textLower.includes(keyword));
@@ -622,7 +635,8 @@ class NewsAnalyzer {
   }
 }
 
-// Create and export singleton instance
+export default NewsAnalyzer;
+
+// Create and export singleton instance for use in the app
 export const newsAnalyzer = new NewsAnalyzer();
-export default newsAnalyzer;
 
