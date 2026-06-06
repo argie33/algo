@@ -1487,10 +1487,17 @@ def _check_rds_connection_pool_health(cur: Any, verbose: bool = False, fail_clos
             except Exception as metric_err:
                 logger.debug(f"[RDS-POOL] Could not emit connection pool metrics: {metric_err}")
 
-            # Circuit breaker: fail-closed if connections exceed threshold
-            if active_conn >= fail_closed_at:
+            # ISSUE #12 FIX: Graceful degradation with warning tiers
+            # - WARN at 60 connections (approaching capacity)
+            # - CRITICAL/HALT at 90+ connections (high risk of cascade)
+            # - Try cleanup between thresholds
+
+            warn_threshold = 60
+            halt_threshold = 90
+
+            if active_conn >= halt_threshold:
                 logger.critical(
-                    f"[RDS-POOL] CIRCUIT BREAKER TRIGGERED: {active_conn} active connections (>={fail_closed_at} threshold). "
+                    f"[RDS-POOL] CIRCUIT BREAKER TRIGGERED: {active_conn} active connections (>={halt_threshold}). "
                     f"RDS pool exhaustion risk. Halting Phase 1 to prevent cascade failures."
                 )
                 try:
@@ -1498,13 +1505,30 @@ def _check_rds_connection_pool_health(cur: Any, verbose: bool = False, fail_clos
                     alerts.send_position_alert(
                         'RDS',
                         'CONNECTION_POOL_EXHAUSTION',
-                        f'RDS connection pool critically high: {active_conn} active connections (>={fail_closed_at}). '
+                        f'RDS connection pool CRITICAL: {active_conn} active connections (>={halt_threshold}). '
                         f'Circuit breaker triggered - Phase 1 halted to prevent cascade failures.',
                         {'active_connections': active_conn, 'max_idle_seconds': max_idle}
                     )
                 except Exception as alert_err:
                     logger.debug(f"[RDS-POOL] Could not send alert: {alert_err}")
                 return False  # FAIL-CLOSED: halt orchestrator
+
+            elif active_conn >= warn_threshold:
+                logger.warning(
+                    f"[RDS-POOL] WARNING: {active_conn} active connections (>={warn_threshold}). "
+                    f"Pool approaching capacity. Monitor queries for slowness."
+                )
+                try:
+                    alerts = AlertManager()
+                    alerts.send_position_alert(
+                        'RDS',
+                        'CONNECTION_POOL_WARNING',
+                        f'RDS connection pool high: {active_conn} active connections (>={warn_threshold}). '
+                        f'Approaching capacity limit. Proceeding with caution.',
+                        {'active_connections': active_conn, 'max_idle_seconds': max_idle}
+                    )
+                except Exception as alert_err:
+                    logger.debug(f"[RDS-POOL] Could not send warning: {alert_err}")
 
             # Warn if pool is getting full
             if active_conn >= 60:
