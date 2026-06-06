@@ -1564,18 +1564,22 @@ def run(
             if 'Item' in response:
                 cached_dates = response['Item'].get('dates', {})
                 cache_age = datetime.now(timezone.utc).timestamp() - response['Item'].get('created_at', 0)
+                cache_invalidation_failure_flag = response['Item'].get('invalidation_failed', False)
 
                 # ISSUE #10 FIX: Only use cache if database is unavailable
                 # If database is available, force fresh query to avoid stale cache
-                if not database_available and cache_age < cache_ttl_sec:
+                # ISSUE #24 FIX: Skip cache if cache invalidation recently failed (may contain stale data)
+                if not database_available and cache_age < cache_ttl_sec and not cache_invalidation_failure_flag:
                     dates = cached_dates
-                    logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s, ttl={cache_ttl_sec}s, db unavailable)")
+                    logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s, ttl={cache_ttl_sec}s, db unavailable, cache_ok=True)")
+                elif cache_invalidation_failure_flag:
+                    logger.warning(f"[CACHE VALIDATION] Cache invalidation previously failed - forcing fresh database query even though db unavailable")
                 elif database_available:
                     logger.info(f"[CACHE INVALIDATION] Database is responsive, skipping cache (age={cache_age:.0f}s). Will query fresh data.")
                 else:
                     logger.info(f"Phase 1: Cache expired (age={cache_age:.0f}s > ttl={cache_ttl_sec}s), will refresh")
         except Exception as cache_err:
-            logger.debug(f"Phase 1: Cache lookup failed ({cache_err}), will try database")
+            logger.warning(f"Phase 1: Cache lookup failed ({cache_err}), will query fresh database instead of using cache")
 
         # Step 2: If cache miss, query database
         if not dates:
