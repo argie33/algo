@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # ISSUE #21 FIX: Add correlation_id to all Phase 1 logs for traceability
 _phase1_correlation_id = str(uuid.uuid4())[:8]
 
-def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 180, retry_count: int = 1, correlation_id: str = None) -> bool:
+def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = None, retry_count: int = 1, correlation_id: str = None) -> bool:
     """
     Trigger ECS loader asynchronously and VERIFY it started before returning.
 
@@ -37,18 +37,41 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
     ISSUE #13 FIX: Further increased to 180s to safely handle peak cluster load where
     Fargate instance provisioning can take up to 150s.
 
+    ISSUE #10 FIX: Make timeout configurable via algo_config table for production tuning
+    if cluster load characteristics change. Default remains 180s unless overridden.
+
     ISSUE #11 FIX: Passes _phase1_correlation_id via PHASE1_CORRELATION_ID env var for end-to-end log tracing.
 
     Args:
         loader_name: Name of the loader to trigger
         verbose: Whether to log verbose output
-        poll_timeout_sec: Max seconds to wait for loader task to start (default 180s)
+        poll_timeout_sec: Max seconds to wait for loader task to start (default from algo_config, or 180s)
         retry_count: Number of retry attempts after initial failure (default 1)
 
     Returns: True if loader task confirmed running, False if timeout/error
     """
     import boto3
     from utils.database_context import DatabaseContext
+
+    # ISSUE #10 FIX: Read failsafe timeout from algo_config if not provided
+    # Allows production tuning if cluster load characteristics change
+    if poll_timeout_sec is None:
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT value FROM algo_config WHERE key = %s", ('failsafe_ecs_timeout_sec',))
+                result = cur.fetchone()
+                if result and result[0]:
+                    try:
+                        poll_timeout_sec = int(result[0])
+                        if verbose:
+                            logger.info(f"[FAILSAFE] Using configurable ECS timeout: {poll_timeout_sec}s")
+                    except (ValueError, TypeError):
+                        poll_timeout_sec = 180
+                else:
+                    poll_timeout_sec = 180
+        except Exception as e:
+            logger.debug(f"[FAILSAFE] Could not read failsafe_ecs_timeout_sec from config: {e}, using default 180s")
+            poll_timeout_sec = 180
 
     # Map loader names to ECS task definitions (constructed from Terraform naming: {project}-{loader_name}-loader)
     task_defs = {
