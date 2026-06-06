@@ -60,6 +60,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             # Validate symbol format before using in query
             if not re.match(r'^[A-Z0-9\-\^]{1,10}$', symbol.upper()):
                 return error_response(400, 'bad_request', 'Invalid symbol format')
+            cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute("""
                 SELECT ss.symbol, ss.security_name as company_name,
                        cp.sector, cp.industry, cp.website, cp.employees, cp.exchange

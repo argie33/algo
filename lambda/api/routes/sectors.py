@@ -21,8 +21,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 sectors = [s.strip() for s in sectors_str.split(',') if s.strip()]
                 result = {s: [] for s in sectors}
 
-                # Set timeout for batch trends query (15s for complex aggregations)
-                cur.execute("SET LOCAL statement_timeout = '15000ms'")
+                # Set timeout for batch trends query (12s for complex aggregations)
+                cur.execute("SET LOCAL statement_timeout = '12000ms'")
 
                 if sectors:
                     placeholders = ','.join(['%s'] * len(sectors))
@@ -51,8 +51,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 if path.endswith('/trend') or path.endswith('/trend/'):
                     days_str = params.get('days', [None])[0] if params else None
                     days = safe_days(days_str, max_val=365, default=90)
-                    # Set timeout for trend query (12s for window function aggregations)
-                    cur.execute("SET LOCAL statement_timeout = '12000ms'")
+                    # Set timeout for trend query (10s for window function aggregations)
+                    cur.execute("SET LOCAL statement_timeout = '10000ms'")
                     # All camelCase aliases double-quoted so psycopg2 preserves case
                     cur.execute("""
                         WITH sector_daily_avg AS (
@@ -90,6 +90,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 else:
                     days_str = params.get('days', [None])[0] if params else None
                     days = safe_days(days_str, max_val=365, default=90)
+                    cur.execute("SET LOCAL statement_timeout = '5000ms'")
                     cur.execute("""
                         SELECT date, sector, return_pct
                         FROM sector_performance
@@ -105,6 +106,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 page = safe_page(page_str, default=1)
                 offset = (page - 1) * limit
 
+                # Set timeout for complex sector ranking query with multiple CTEs and joins
+                cur.execute("SET LOCAL statement_timeout = '20000ms'")
                 cur.execute("""
                     WITH sector_perf_latest AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS latest_ytd
@@ -256,6 +259,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 days = safe_days(days_str, max_val=365, default=90)
                 if not sector_name:
                     return error_response(400, 'bad_request', 'Sector name required')
+                cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 cur.execute("""
                     SELECT date, sector, return_pct, relative_strength
                     FROM sector_performance
