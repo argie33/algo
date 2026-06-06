@@ -72,6 +72,56 @@ export const initializeApiConfig = () => {
 // Note: Config loading is handled by main.jsx which waits for config.js to load
 // before rendering the app. No need for redundant polling here.
 
+// Circuit breaker pattern to prevent cascading failures
+const CircuitBreaker = {
+  state: 'CLOSED', // CLOSED, OPEN, HALF_OPEN
+  failureCount: 0,
+  successCount: 0,
+  lastFailureTime: 0,
+  FAILURE_THRESHOLD: 5, // Open circuit after 5 failures
+  SUCCESS_THRESHOLD: 2, // Close circuit after 2 successes in half-open state
+  RECOVERY_TIMEOUT: 30000, // 30 seconds before attempting recovery
+};
+
+const checkCircuitBreaker = () => {
+  const now = Date.now();
+
+  if (CircuitBreaker.state === 'OPEN') {
+    // If enough time has passed, attempt recovery
+    if (now - CircuitBreaker.lastFailureTime > CircuitBreaker.RECOVERY_TIMEOUT) {
+      CircuitBreaker.state = 'HALF_OPEN';
+      CircuitBreaker.successCount = 0;
+      console.warn('[Circuit Breaker] Attempting recovery (HALF_OPEN state)');
+    } else {
+      // Still in failure window, reject immediately
+      throw new Error('API service temporarily unavailable (circuit breaker OPEN). Retrying in a moment...');
+    }
+  }
+};
+
+const recordCircuitBreakerSuccess = () => {
+  if (CircuitBreaker.state === 'HALF_OPEN') {
+    CircuitBreaker.successCount++;
+    if (CircuitBreaker.successCount >= CircuitBreaker.SUCCESS_THRESHOLD) {
+      CircuitBreaker.state = 'CLOSED';
+      CircuitBreaker.failureCount = 0;
+      console.log('[Circuit Breaker] Recovered (CLOSED state)');
+    }
+  } else if (CircuitBreaker.state === 'CLOSED') {
+    CircuitBreaker.failureCount = Math.max(0, CircuitBreaker.failureCount - 1);
+  }
+};
+
+const recordCircuitBreakerFailure = () => {
+  CircuitBreaker.lastFailureTime = Date.now();
+  CircuitBreaker.failureCount++;
+
+  if (CircuitBreaker.failureCount >= CircuitBreaker.FAILURE_THRESHOLD) {
+    CircuitBreaker.state = 'OPEN';
+    console.error(`[Circuit Breaker] Too many failures (${CircuitBreaker.failureCount}). Opening circuit.`);
+  }
+};
+
 // Simple health check state
 let apiHealthy = true;
 let lastHealthCheck = 0;
@@ -137,6 +187,8 @@ if (typeof window !== "undefined" && !import.meta.env?.DEV) {
 let _refreshCallback = null;
 let isRefreshing = false;
 let failedQueue = [];
+let lastTokenRefreshTime = 0;
+const TOKEN_REFRESH_GRACE_PERIOD = 5000; // 5 second grace period before forcing logout
 
 export const setRefreshCallback = (fn) => {
   _refreshCallback = fn;
@@ -149,11 +201,19 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Request interceptor - add auth token and track timing
+// Request interceptor - add auth token, track timing, and check circuit breaker
 try {
   if (api && api.interceptors) {
     api.interceptors.request.use(
       (config) => {
+        // Check circuit breaker before allowing request
+        try {
+          checkCircuitBreaker();
+        } catch (cbError) {
+          // Circuit breaker is OPEN, reject request immediately
+          return Promise.reject(cbError);
+        }
+
         config.metadata = { startTime: new Date() };
         const authHeader = tokenManager.getAuthHeader();
         if (authHeader) {
@@ -164,16 +224,35 @@ try {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor - handle errors with retry logic
+    // Response interceptor - handle errors with retry logic and circuit breaker
     api.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Record success for circuit breaker recovery
+        recordCircuitBreakerSuccess();
+        return response;
+      },
       async (error) => {
         const originalRequest = error.config;
 
-        // Handle 401 — try refresh once, then redirect
+        // Record failure for circuit breaker
+        const status = error.response?.status;
+        if (!originalRequest || !originalRequest._cbRecorded) {
+          // Only record once per request
+          if (status >= 500 || (status === 429 && CircuitBreaker.state === 'CLOSED')) {
+            recordCircuitBreakerFailure();
+          }
+          if (originalRequest) {
+            originalRequest._cbRecorded = true;
+          }
+        }
+
+        // Handle 401 — try refresh with grace period, allow multiple retries within grace period
         if (error.response?.status === 401) {
-          // Guard against infinite retry loops: only attempt refresh once per request
-          if (originalRequest._retried) {
+          const now = Date.now();
+          const timeSinceLastRefresh = now - lastTokenRefreshTime;
+
+          // Guard against infinite retry loops: only attempt refresh if within grace period
+          if (timeSinceLastRefresh > TOKEN_REFRESH_GRACE_PERIOD && originalRequest._retried) {
             tokenManager.clearTokens();
             if (typeof window !== "undefined" && window.location) {
               window.location.href = "/login";
@@ -196,6 +275,7 @@ try {
 
           isRefreshing = true;
           originalRequest._retried = true;
+          lastTokenRefreshTime = now;
 
           if (_refreshCallback) {
             try {
@@ -210,6 +290,15 @@ try {
             } catch (refreshError) {
               processQueue(refreshError, null);
               isRefreshing = false;
+              // After failed refresh, if still within grace period, allow user to retry
+              // Otherwise force logout
+              if (now - lastTokenRefreshTime > TOKEN_REFRESH_GRACE_PERIOD) {
+                tokenManager.clearTokens();
+                if (typeof window !== "undefined" && window.location) {
+                  window.location.href = "/login";
+                }
+              }
+              return Promise.reject(refreshError);
             }
           }
 

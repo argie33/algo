@@ -24,6 +24,7 @@ import {
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const fmtMoney = (v) =>
   v == null || isNaN(Number(v)) ? '—'
@@ -89,7 +90,7 @@ const formatErrorDetail = (err, context) => {
   return parts.length > 0 ? parts.join(' • ') : 'Unknown error';
 };
 
-export default function PortfolioDashboard() {
+function PortfolioDashboardPage() {
   const navigate = useNavigate();
 
   const { data: status, loading: statusLoading, error: statusError, refetch: refetchStatus } = useApiQuery(
@@ -425,6 +426,14 @@ export default function PortfolioDashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PortfolioDashboard() {
+  return (
+    <ErrorBoundary>
+      <PortfolioDashboardPage />
+    </ErrorBoundary>
   );
 }
 

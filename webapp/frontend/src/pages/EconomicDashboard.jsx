@@ -11,6 +11,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import { formatNumber, formatPercentageChange } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const TT = {
   background: 'var(--surface)', border: '1px solid var(--border)',

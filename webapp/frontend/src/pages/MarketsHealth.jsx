@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // TOKENS (mirror tokens.css for chart colors)
@@ -107,7 +108,7 @@ const fmtAgo = (ts) => {
 // MAIN
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-export default function MarketsHealth() {
+function MarketsHealthPage() {
   const navigate = useNavigate();
   const [ts, setTs] = useState(new Date());
 
@@ -251,6 +252,14 @@ export default function MarketsHealth() {
         <EconomicCalendarCard />
       </div>
     </div>
+  );
+}
+
+export default function MarketsHealth() {
+  return (
+    <ErrorBoundary>
+      <MarketsHealthPage />
+    </ErrorBoundary>
   );
 }
 

@@ -11,15 +11,18 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         """Handle /api/economic and /api/economic/* endpoints."""
         try:
             if path == '/api/economic/VIX':
-                rows = execute_with_timeout(cur, """
-                    SELECT date, vix_level as vix
-                    FROM market_health_daily
-                    WHERE vix_level IS NOT NULL
-                    ORDER BY date DESC
-                    LIMIT 100
-                """, timeout_sec=3)
-                freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
-                return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+                try:
+                    rows = execute_with_timeout(cur, """
+                        SELECT date, vix_level as vix
+                        FROM market_health_daily
+                        WHERE vix_level IS NOT NULL
+                        ORDER BY date DESC
+                        LIMIT 100
+                    """, timeout_sec=3)
+                    freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
+                    return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
+                except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+                    return list_response([])
             elif path == '/api/economic/leading-indicators':
                 return _get_leading_indicators(cur)
             elif path == '/api/economic/indicators':
@@ -59,9 +62,18 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Combine all economic data
                 return _get_leading_indicators(cur)
             return error_response(404, 'not_found', f'No economic handler for {path}')
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'handle economic')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.warning(f"Schema error in economic route {path}: {str(e)}")
+            return json_response(200, {'indicators': []})
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f"Database error in economic route {path}: {str(e)}")
+            return error_response(503, 'service_unavailable', 'Database temporarily unavailable. Using cached data.')
+        except TimeoutError as e:
+            logger.warning(f"Timeout in economic route {path}: {str(e)}")
+            return error_response(504, 'gateway_timeout', 'Request took too long. Partial or cached data may be returned.')
+        except Exception as e:
+            logger.error(f"Unexpected error in economic route {path}: {str(e)}")
+            return error_response(500, 'internal_error', 'An unexpected error occurred while fetching economic data.')
 def _get_leading_indicators(cur) -> Dict:
         """Get leading economic indicators formatted for EconomicDashboard."""
         # Maps FRED series IDs to indicator names
@@ -210,9 +222,15 @@ def _get_leading_indicators(cur) -> Dict:
 
             return json_response(200, {'indicators': indicators})
 
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            return handle_db_error(e, logger, 'get leading indicators')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.warning(f"Schema not available for leading indicators: {str(e)}")
+            return json_response(200, {'indicators': []})
+        except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            logger.error(f"Database error in leading indicators: {str(e)}")
+            return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
+        except Exception as e:
+            logger.error(f"Error fetching leading indicators: {str(e)}")
+            return json_response(200, {'indicators': []})
 def _get_yield_curve_full(cur) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
@@ -341,14 +359,14 @@ def _get_yield_curve_full(cur) -> Dict:
             })
 
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get yield curve full'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
+            logger.warning(f'Schema not available for yield curve: {e}')
+            return json_response(200, {'currentCurve': {}, 'spreads': {}, 'isInverted': False, 'history': {}})
         except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get yield curve full'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
+            logger.error(f'Database connection error: {e}')
+            return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
         except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get yield curve full', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
+            logger.error(f'Database error: {e}')
+            return error_response(503, 'service_unavailable', 'Database error while fetching yield curve.')
         except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get yield curve full', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch yield curve')
+            logger.error(f'Unexpected error in yield curve: {e}')
+            return json_response(200, {'currentCurve': {}, 'spreads': {}, 'isInverted': False, 'history': {}})

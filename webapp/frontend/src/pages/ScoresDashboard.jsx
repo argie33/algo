@@ -11,6 +11,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const num = (v, dp = 1) => formatNumber(v, dp);
 const pct = (v, dp = 2) => formatPercentageChange(v, dp);
@@ -79,7 +80,7 @@ const TOOLTIP_STYLE = {
   color: 'var(--text)',
 };
 
-export default function ScoresDashboard() {
+function ScoresDashboardPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [sector, setSector] = useState('');
@@ -339,6 +340,14 @@ export default function ScoresDashboard() {
 
       <ScoreLegend />
     </div>
+  );
+}
+
+export default function ScoresDashboard() {
+  return (
+    <ErrorBoundary>
+      <ScoresDashboardPage />
+    </ErrorBoundary>
   );
 }
 
