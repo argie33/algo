@@ -31,12 +31,14 @@ class SignalsDailyLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: Optional[date]):
         """Generate signals from technical data."""
         from algo.algo_market_calendar import MarketCalendar
-        from datetime import datetime, timezone, timedelta as td
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
+        # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(timezone(td(hours=-5)))
+        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
         end = now_et.date()
 
         # If today (ET) is not a trading day, use yesterday instead

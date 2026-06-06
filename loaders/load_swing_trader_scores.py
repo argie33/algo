@@ -50,8 +50,9 @@ class SwingTraderScoresLoader(OptimalLoader):
         try:
             # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
             # At 9 PM ET on June 4, UTC is already June 5. Use ET for correct trading day.
+            # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
             now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(timezone(td(hours=-5)))
+            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
             end = now_et.date()
 
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):

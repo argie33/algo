@@ -26,8 +26,10 @@ class AlgoMetricsDailyLoader(OptimalLoader):
         try:
             from datetime import datetime, timezone, timedelta as td
             # CRITICAL: Use ET (trading hours), not UTC, to determine date.
+            # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
+            from zoneinfo import ZoneInfo
             now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(timezone(td(hours=-5)))
+            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
             run_date = now_et.date()
 
             with DatabaseContext('read') as cur:
