@@ -108,6 +108,10 @@ jobs:
           cd terraform
           terraform fmt -check -recursive
           echo "OK: Terraform formatting is correct"
+      - name: Terraform init
+        run: |
+          cd terraform
+          terraform init -backend=false
       - name: Terraform validate
         run: |
           cd terraform
