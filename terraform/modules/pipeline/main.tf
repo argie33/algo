@@ -922,8 +922,8 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           # Fail-open: If prices fail after retries, use yesterday's prices and continue
-          Next        = "MorningFallback"
-          ResultPath  = "$.priceError"
+          Next       = "MorningFallback"
+          ResultPath = "$.priceError"
         }]
         Next = "MorningTechnicals"
       }
@@ -935,7 +935,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Type = "Pass"
         Parameters = {
           "fallback_note.$" = "$.priceError"
-          "message" = "Stock prices load failed or timed out. Using yesterday's prices for technicals and signals. Phase 1 will flag this as stale."
+          "message"         = "Stock prices load failed or timed out. Using yesterday's prices for technicals and signals. Phase 1 will flag this as stale."
         }
         Next = "MorningTechnicals"
       }
@@ -1143,7 +1143,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       }
 
       LogMorningSectorRankingFailure = {
-        Type     = "Pass"
+        Type = "Pass"
         # Fail-open: if sector ranking fails, still complete morning prep
         # Phase 1 and Phase 5 will use previously cached sector data
         Next = "MorningSuccess"

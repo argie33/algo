@@ -15,7 +15,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   namespace           = "AWS/RDS"
   period              = 300
   statistic           = "Average"
-  threshold           = 70  # Alert at 70% CPU
+  threshold           = 70 # Alert at 70% CPU
   alarm_description   = "RDS CPU utilization high. Queries may be slow or rate-limited."
   treat_missing_data  = "notBreaching"
 
@@ -39,7 +39,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_disk_queue_high" {
   namespace           = "AWS/RDS"
   period              = 300
   statistic           = "Average"
-  threshold           = 5  # Alert if >5 I/O operations queued
+  threshold           = 5 # Alert if >5 I/O operations queued
   alarm_description   = "RDS disk I/O queue depth high. Potential storage contention."
   treat_missing_data  = "notBreaching"
 
