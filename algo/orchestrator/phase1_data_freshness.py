@@ -2814,6 +2814,30 @@ def run(
                 # 10min timeout total. Instead of waiting synchronously (exceeds timeout), trigger
                 # asynchronously and verify it started before proceeding.
 
+                # ISSUE #3 FIX: HARD DEADLINE GATE — if <90 min to market open, abort failsafe
+                # Failsafe needs: 45-180s startup + 75-120min loading = 120-300min minimum
+                # If only 90min remain, failsafe will race against deadline and likely fail
+                # Better to halt and alert ops than attempt futile recovery
+                if is_morning and 2 <= hour_et < 9:
+                    market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+                    time_until_930 = (market_open - now_et).total_seconds() / 60
+                    if time_until_930 < 90:
+                        logger.critical(
+                            f"[{_phase1_correlation_id}] [ISSUE#3_HARD_DEADLINE] HALT: Only {time_until_930:.0f}min to market open. "
+                            f"Failsafe needs 120-300min (startup 45-180s + load 75-120min). NOT ENOUGH TIME. "
+                            f"Halting instead of attempting failsafe that will race deadline and fail."
+                        )
+                        alerts.send_position_alert(
+                            'TIMING',
+                            'MARKET_OPEN_HARD_DEADLINE_GATE',
+                            f'CRITICAL: Market opens in {time_until_930:.0f}min. Failsafe needs 120-300min. INSUFFICIENT TIME TO RECOVER DATA. HALT.',
+                            {'minutes_to_open': time_until_930, 'minutes_needed': '120-300', 'stale_items': stale_items, 'halt': True}
+                        )
+                        log_phase_result_fn(1, 'timing_deadline_gate', 'halt',
+                                           f'Hard deadline: {time_until_930:.0f}min to open, failsafe needs 120-300min')
+                        return PhaseResult(1, 'timing_deadline_gate', 'halted', {}, True,
+                                         f'HARD DEADLINE GATE: Market open {time_until_930:.0f}min away, failsafe needs 120-300min. Insufficient recovery window.')
+
                 # SIMPLIFIED FAILSAFE: Single attempt with 180s poll timeout
                 # Fargate tasks can take 45-120s to reach RUNNING under load (Issue #13)
                 # If it fails, halt only if data is VERY stale (2+ days). Otherwise proceed with warning.
