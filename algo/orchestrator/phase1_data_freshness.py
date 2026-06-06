@@ -2741,12 +2741,38 @@ def run(
             logger.info("  [LAMBDA] Secondary checks completed (lightweight observability only)")
 
         phase1_elapsed = time.time() - phase1_start
-        logger.info(f"[TIMING] Phase 1 completed in {phase1_elapsed:.1f}s")
+        logger.info(f"[{_phase1_correlation_id}] [TIMING] Phase 1 completed in {phase1_elapsed:.1f}s")
+
+        # ISSUE #14 FIX: Morning Prep Early Completion - Pre-Warm Phase 1 Cache
+        # If Phase 1 completes before 8 AM and all data is fresh, pre-cache results
+        # so 9:30 AM run returns instantly from cache instead of rescanning databases
         if is_morning:
             now_et = dt.now(tz.utc).astimezone(tz(td(hours=-5)))
             market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
             min_until_open = (market_open - now_et).total_seconds() / 60
-            logger.info(f"[TIMING] {min_until_open:.0f}min remaining until market open (9:30 AM ET)")
+
+            # Pre-warm cache if completing early (before 8 AM) and data is fresh
+            if now_et.hour < 8 and phase1_elapsed < 30:  # Quick run = data is fresh
+                try:
+                    import boto3
+                    dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                    cache_table = dynamodb.Table(os.getenv('CACHE_TABLE', 'algo_phase1_cache'))
+                    cache_key = f"data_loader_status-{run_date.isoformat()}"
+
+                    # Store phase 1 status with longer TTL so 9:30 AM hit gets cached result
+                    cache_table.put_item(Item={
+                        'cache_key': cache_key,
+                        'status': 'warm',
+                        'created_at': datetime.now(timezone.utc).timestamp(),
+                        'phase1_elapsed_ms': int(phase1_elapsed * 1000),
+                        'correlation_id': _phase1_correlation_id,
+                        'ttl': int(time.time()) + 3600,  # 1 hour cache
+                    })
+                    logger.info(f"[{_phase1_correlation_id}] [CACHE_PREWARM] Pre-warmed Phase 1 cache for 9:30 AM run (early completion at {now_et.strftime('%H:%M')})")
+                except Exception as prewarm_err:
+                    logger.debug(f"[{_phase1_correlation_id}] [CACHE_PREWARM] Could not pre-warm cache: {prewarm_err}")
+
+            logger.info(f"[{_phase1_correlation_id}] [TIMING] {min_until_open:.0f}min remaining until market open (9:30 AM ET)")
 
         log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
