@@ -2421,7 +2421,7 @@ def run(
                         logger.warning(f"  - {table_name}: {coverage_count}/5000 symbols ({coverage_pct:.1f}%)")
                         try:
                             logger.info(f"[COMPLETENESS RETRY] Triggering failsafe for {loader_name}")
-                            _trigger_loader_failsafe_with_verification(loader_name, verbose=True, poll_timeout_sec=150, retry_count=1)
+                            _trigger_loader_failsafe_with_verification(loader_name, verbose=True, poll_timeout_sec=180, retry_count=1)  # ISSUE #13 FIX: Increased to 180s
                             alerts.send_position_alert(
                                 'DATA', 'SUBOPTIMAL_COVERAGE_RETRY',
                                 f'{table_name} coverage suboptimal ({coverage_pct:.1f}%, need ≥{optimal_coverage_pct}%). Failsafe triggered.',

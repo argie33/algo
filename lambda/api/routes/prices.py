@@ -40,6 +40,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 table_name = _TABLE_MAP.get(timeframe, 'price_daily')
                 etf_table_name = _ETF_TABLE_MAP.get(timeframe, 'etf_price_daily')
 
+                # Set statement timeout for batch price queries (20s for non-blocking performance)
+                cur.execute("SET LOCAL statement_timeout = '20000ms'")
+
                 result = {sym: [] for sym in symbols}
 
                 batch_query = psycopg2.sql.SQL("""
