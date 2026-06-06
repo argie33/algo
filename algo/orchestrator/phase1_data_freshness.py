@@ -1586,14 +1586,17 @@ def run(
 
                 # ISSUE #10 FIX: Only use cache if database is unavailable
                 # If database is available, force fresh query to avoid stale cache
+                # ISSUE #10 FIX: If database just recovered, force refresh even if cache is fresh
                 # ISSUE #24 FIX: Skip cache if cache invalidation recently failed (may contain stale data)
                 if not database_available and cache_age < cache_ttl_sec and not cache_invalidation_failure_flag:
                     dates = cached_dates
                     logger.info(f"Phase 1: Using cached data_loader_status (age={cache_age:.0f}s, ttl={cache_ttl_sec}s, db unavailable, cache_ok=True)")
+                elif database_recovered:
+                    logger.warning(f"[DATABASE RECOVERY] Database just came back online - cache from outage may be stale/poisoned. Forcing fresh query.")
                 elif cache_invalidation_failure_flag:
                     logger.warning(f"[CACHE VALIDATION] Cache invalidation previously failed - forcing fresh database query even though db unavailable")
                 elif database_available:
-                    logger.info(f"[CACHE INVALIDATION] Database is responsive, skipping cache (age={cache_age:.0f}s). Will query fresh data.")
+                    logger.info(f"[CACHE VALIDATION] Database is responsive, skipping cache (age={cache_age:.0f}s). Will query fresh data.")
                 else:
                     logger.info(f"Phase 1: Cache expired (age={cache_age:.0f}s > ttl={cache_ttl_sec}s), will refresh")
         except Exception as cache_err:
@@ -1630,6 +1633,7 @@ def run(
                             dates[r['table_name']] = r['latest_date']
 
                         # Cache the results for future runs today (ISSUE #7 FIX: use configurable TTL)
+                        # ISSUE #10 FIX: Mark if database was down when cache created (so recovery is detected)
                         if dates:
                             try:
                                 cache_table.put_item(Item={
@@ -1637,8 +1641,9 @@ def run(
                                     'dates': dates,
                                     'created_at': datetime.now(timezone.utc).timestamp(),
                                     'ttl': int(time.time()) + cache_ttl_sec,  # Configurable TTL (default 2 hours)
+                                    'database_was_down_when_created': not database_available,  # Flag to detect recovery
                                 })
-                                logger.debug(f"Phase 1: Cached {len(dates)} table dates (ttl={cache_ttl_sec}s)")
+                                logger.debug(f"Phase 1: Cached {len(dates)} table dates (ttl={cache_ttl_sec}s, db_down={not database_available})")
                             except Exception as cache_write_err:
                                 logger.debug(f"Phase 1: Cache write failed ({cache_write_err}), continuing")
 
