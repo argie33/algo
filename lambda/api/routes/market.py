@@ -66,7 +66,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 """
 
                 # Execute with retry: start at 8s, retry at 12s if timeout
-                breadth = execute_with_timeout(cur, breadth_query, timeout_sec=8, max_attempts=2, backoff_multiplier=1.5)
+                try:
+                    breadth = execute_with_timeout(cur, breadth_query, timeout_sec=8, max_attempts=2, backoff_multiplier=1.5)
+                except psycopg2.errors.QueryCanceled as e:
+                    logger.error(f'Breadth query timeout: {e}')
+                    return error_response(504, 'timeout', 'Market breadth data query exceeded timeout')
+                except Exception as e:
+                    logger.error(f'Breadth query failed: {e}')
+                    return error_response(503, 'service_unavailable', 'Failed to fetch market breadth data')
 
                 if breadth:
                     # Only fetch freshness if query succeeded
@@ -77,14 +84,22 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 return list_response([dict(b) for b in breadth], data_freshness=freshness)
             elif path == '/api/market/technicals':
-                rows = execute_with_timeout(cur, """
-                    SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
-                           up_volume_percent, distribution_days_4w, breadth_momentum_10d,
-                           vix_level, put_call_ratio, market_trend, market_stage
-                    FROM market_health_daily
-                    ORDER BY date DESC
-                    LIMIT 1
-                """, timeout_sec=5)
+                try:
+                    rows = execute_with_timeout(cur, """
+                        SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
+                               up_volume_percent, distribution_days_4w, breadth_momentum_10d,
+                               vix_level, put_call_ratio, market_trend, market_stage
+                        FROM market_health_daily
+                        ORDER BY date DESC
+                        LIMIT 1
+                    """, timeout_sec=5)
+                except psycopg2.errors.QueryCanceled as e:
+                    logger.error(f'Technicals query timeout: {e}')
+                    return error_response(504, 'timeout', 'Market technicals data query exceeded timeout')
+                except Exception as e:
+                    logger.error(f'Technicals query failed: {e}')
+                    return error_response(503, 'service_unavailable', 'Failed to fetch market technicals data')
+
                 base = dict(rows[0]) if rows else {}
                 # Compute today's advancing/declining counts from price_daily.
                 # SAVEPOINT isolation: a timeout here must not abort the outer transaction.

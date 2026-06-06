@@ -389,8 +389,6 @@ app.use(async (req, res, next) => {
         setTimeout(() => reject(new Error("DB init timeout")), 60000)
       )
     ]);
-    if (process.env.NODE_ENV !== 'test') {
-    }
     next();
   } catch (error) {
     console.error(

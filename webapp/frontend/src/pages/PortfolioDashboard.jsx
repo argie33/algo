@@ -317,20 +317,30 @@ function PortfolioDashboardPage() {
       </div>
 
       {/* R-multiple ladder */}
-      <RLadderPanel positions={safePositionsList} loading={posLoading}
-                     onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
+      <ErrorBoundary>
+        <RLadderPanel positions={safePositionsList} loading={posLoading}
+                      onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
+      </ErrorBoundary>
 
       {/* Risk-pie + Sector concentration + Stage donut */}
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
-        <RiskAllocationPie positions={safePositionsList} totalValue={totalValue}
-                            onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
-        <SectorConcentration positions={safePositionsList} totalValue={totalValue} />
-        <StagePhaseDonut positions={safePositionsList} />
+        <ErrorBoundary>
+          <RiskAllocationPie positions={safePositionsList} totalValue={totalValue}
+                              onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <SectorConcentration positions={safePositionsList} totalValue={totalValue} />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <StagePhaseDonut positions={safePositionsList} />
+        </ErrorBoundary>
       </div>
 
       {/* Position-health table */}
-      <PositionHealthTable positions={safePositionsList} loading={posLoading}
-                            onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
+      <ErrorBoundary>
+        <PositionHealthTable positions={safePositionsList} loading={posLoading}
+                              onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
+      </ErrorBoundary>
 
       {/* Trade-level metrics + holding-period histogram */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>

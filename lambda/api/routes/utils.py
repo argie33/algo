@@ -136,10 +136,11 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
         backoff_multiplier: Timeout multiplier on retry (default 1.5)
 
     Returns:
-        Query result (list of rows) on success, empty list on failure
+        Query result (list of rows) on success
 
     Raises:
-        None — logs errors and returns empty result on failure
+        psycopg2.errors.QueryCanceled: If query times out after all retries
+        Exception: For other database errors
     """
     current_timeout = timeout_sec
     last_error = None
@@ -168,6 +169,8 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
                 time.sleep(0.1)
             else:
                 logger.warning(f"Query timeout after {max_attempts} attempts")
+                # Raise the timeout error so routes can handle it properly
+                raise e
         except Exception as e:
             last_error = e
             logger.error(f"Query failed ({type(e).__name__}): {str(e)}")
@@ -175,13 +178,13 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
                 cur.connection.rollback()
             except Exception:
                 pass
-            break
+            # Re-raise so routes can handle database errors properly
+            raise e
 
-    # Log final error if all attempts failed
+    # This line should never be reached, but kept for safety
     if last_error:
         logger.error(f"Query execution failed after {max_attempts} attempts: {last_error}")
-
-    return []
+        raise last_error
 
 def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int = 1) -> dict:
     """Check how fresh data is in a table.
