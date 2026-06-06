@@ -1817,6 +1817,18 @@ def run(
 
         min_acceptable_date = expected_date  # No tolerance — must be from expected trading day
 
+        # ISSUE #24 FIX: Define data dependency chain for atomic validation
+        # buy_sell_daily depends on technical_data_daily depends on price_daily
+        # If a downstream table is fresh but its upstream dependency is stale, the data is unreliable
+        dependency_chain = {
+            'SPY price data': [],  # No dependencies
+            'Trend template': ['SPY price data'],  # Depends on prices
+            'Buy/sell signals': ['Trend template', 'SPY price data'],  # Depends on trends and prices
+            'Market health': [],  # Independent
+            'Signal quality scores': [],  # Independent
+            'Sector ranking': [],  # Independent (uses cached fallback in Phase 3)
+        }
+
         # Issue #10 FIX: Load and log the halt threshold for transparency
         halt_threshold = 2  # Default
         try:
@@ -1875,8 +1887,25 @@ def run(
                     _metrics.put_data_freshness(table_keys[name], trading_day_age)
 
                 is_stale = d < min_acceptable_date
-                if is_stale and is_halt_check:
-                    stale_items.append(f"{name}: {trading_day_age}d stale ({calendar_day_age}cal, need within {expected_date} to {min_acceptable_date})")
+
+                # ISSUE #24 FIX: Validate upstream dependencies
+                # If this table's dependencies are stale, mark this table as unreliable even if fresh
+                upstream_stale = False
+                for dep_name in dependency_chain.get(name, []):
+                    if dep_name in checks and checks[dep_name] is not None:
+                        dep_date = checks[dep_name]
+                        is_dep_stale = dep_date < min_acceptable_date
+                        if is_dep_stale:
+                            logger.warning(f"  [DEPENDENCY] {name} depends on {dep_name}, but dependency is stale (from {dep_date})")
+                            upstream_stale = True
+
+                # Treat as stale if either directly stale OR has stale dependency
+                effective_stale = is_stale or upstream_stale
+                if effective_stale and is_halt_check:
+                    if upstream_stale:
+                        stale_items.append(f"{name}: {trading_day_age}d old BUT UNRELIABLE (upstream dependency stale, need within {min_acceptable_date})")
+                    else:
+                        stale_items.append(f"{name}: {trading_day_age}d stale ({calendar_day_age}cal, need within {expected_date} to {min_acceptable_date})")
                 if verbose:
                     is_ideal = d >= expected_date
                     flag = '[OK]' if is_ideal else '[WARN]' if (not is_stale) else '[STALE]'
