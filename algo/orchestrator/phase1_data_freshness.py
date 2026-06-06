@@ -322,7 +322,6 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                             row = status_cur.fetchone()
                             if row and row[0] == 'RUNNING':
                                 # Loader status shows RUNNING - it has begun work
-                                from datetime import datetime, timezone
                                 if isinstance(row[1], str):
                                     updated_at = datetime.fromisoformat(row[1].replace('Z', '+00:00'))
                                 else:
