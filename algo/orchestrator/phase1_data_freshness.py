@@ -955,7 +955,7 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
         for loader in morning_prep_loaders:
             try:
                 cur.execute(
-                    "SELECT status, last_updated, execution_completed, completion_pct FROM data_loader_status WHERE table_name = %s ORDER BY last_updated DESC LIMIT 1",
+                    "SELECT status, last_updated, execution_completed, completion_pct, symbol_count, symbols_loaded FROM data_loader_status WHERE table_name = %s ORDER BY last_updated DESC LIMIT 1",
                     (loader,)
                 )
                 result = cur.fetchone()
@@ -964,7 +964,7 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                     missing_completions.append(f"{loader}: no status record found")
                     continue
 
-                status, last_updated, execution_completed, completion_pct = result
+                status, last_updated, execution_completed, completion_pct, symbol_count, symbols_loaded = result
 
                 # Check status is COMPLETED
                 if status != 'COMPLETED':
@@ -976,6 +976,30 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                 if not execution_completed:
                     unfinished_loaders.append(f"{loader}: execution_completed=null (loader may have crashed/timed out)")
                     continue
+
+                # ISSUE #2 ENHANCED: Verify execution_completed is RECENT
+                # If execution_completed is >10 min old, loader process may have crashed after reporting initial completion
+                # (e.g., completed task execution but crashed writing to DB or during teardown)
+                now_utc = datetime.now(timezone.utc)
+                if isinstance(execution_completed, str):
+                    try:
+                        exec_completed_utc = datetime.fromisoformat(execution_completed.replace('Z', '+00:00')).astimezone(timezone.utc)
+                    except:
+                        exec_completed_utc = datetime.fromisoformat(execution_completed).astimezone(timezone.utc)
+                elif hasattr(execution_completed, 'tzinfo'):
+                    exec_completed_utc = execution_completed.astimezone(timezone.utc) if execution_completed.tzinfo else execution_completed.replace(tzinfo=timezone.utc)
+                else:
+                    exec_completed_utc = execution_completed.replace(tzinfo=timezone.utc) if hasattr(execution_completed, 'replace') else None
+
+                if exec_completed_utc:
+                    age_minutes = (now_utc - exec_completed_utc).total_seconds() / 60
+                    if age_minutes > 10:  # Completion reported >10 min ago
+                        unfinished_loaders.append(
+                            f"{loader}: execution_completed={execution_completed} ({age_minutes:.0f} min old, may indicate crash after initial completion)"
+                        )
+                        continue
+                    if verbose:
+                        logger.debug(f"[MORNING_PREP_VALIDATION] {loader}: execution_completed {age_minutes:.1f} min ago (recent)")
 
                 # Check last_updated is from today (run_date)
                 if last_updated:
@@ -993,6 +1017,18 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                 if completion_pct and completion_pct < 90:
                     incomplete_coverage.append(f"{loader}: completion={completion_pct:.1f}% (need >=90%)")
                     continue
+
+                # ISSUE #2 ENHANCED: Validate symbol coverage from data_loader_status
+                # Cross-check: symbols_loaded / symbol_count should be >= 90%
+                if symbol_count and symbol_count > 0 and symbols_loaded is not None:
+                    loader_symbol_coverage = (symbols_loaded / symbol_count * 100) if symbol_count > 0 else 0
+                    if loader_symbol_coverage < 90:
+                        incomplete_coverage.append(
+                            f"{loader}: symbol coverage {loader_symbol_coverage:.1f}% ({symbols_loaded}/{symbol_count} symbols, need >=90%)"
+                        )
+                        continue
+                    if verbose:
+                        logger.debug(f"[MORNING_PREP_VALIDATION] {loader}: {symbols_loaded}/{symbol_count} symbols ({loader_symbol_coverage:.1f}%)")
 
                 if verbose:
                     logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {loader} completed {completion_pct:.1f}% on {last_updated}")
