@@ -1162,7 +1162,6 @@ class PriceLoader(OptimalLoader):
             # ISSUE #22 FIX: Invalidate Phase 1 data_loader_status cache on completion
             # Ensures Phase 1 detects updated loader status immediately, not after cache TTL
             try:
-                from datetime import datetime
                 from zoneinfo import ZoneInfo
                 import os
                 import boto3
