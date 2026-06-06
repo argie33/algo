@@ -20,7 +20,7 @@
       crossorigin="anonymous"
     />
     <!-- Load config BEFORE main app (before Vite moves module scripts to head) -->
-    <script src="/config.js" onerror="window.__CONFIG_ERROR__ = true; console.error('[CONFIG] Failed to load config.js - check Network tab for 404/errors and server logs.')"></script>
+    <script src="/config.js" onerror="window.__CONFIG_ERROR__ = true; window.__CONFIG_ERROR_TIME__ = Date.now(); console.error('[CONFIG] Failed to load config.js. Check Network tab: (1) 404 means config.js not deployed, (2) syntax error in config.js, (3) server error. Or check application server logs.')"></script>
   </head>
   <body>
     <div id="root"></div>
