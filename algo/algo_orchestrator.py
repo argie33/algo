@@ -564,16 +564,22 @@ class Orchestrator:
         return True  # fail-open
 
     def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
-        """Thin delegation to phase5_signal_generation module."""
+        """Thin delegation to phase5_signal_generation module.
+
+        ISSUE #11 FIX: Pass Phase 1 degradation status so Phase 5 can apply conservative filters
+        """
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
         if self._check_halt_flag():
             return False
         from algo.orchestrator.phase5_signal_generation import run as run_phase5
+        # Check if Phase 1 returned degraded status (stale data with failsafe in progress)
+        phase1_degraded = getattr(self, '_phase1_result', None) and self._phase1_result.status == 'degraded'
         result = run_phase5(
             self.run_date, self.dry_run,
             self.verbose, self.log_phase_result,
             getattr(self, '_exposure_constraints', {}),
-            self._check_halt_flag
+            self._check_halt_flag,
+            phase1_degraded=phase1_degraded  # Signal Phase 5 to use conservative filters
         )
         self._qualified_trades = result.data.get('qualified_trades', [])
         self.phase_results.setdefault(5, {})['signals_evaluated'] = len(self._qualified_trades)

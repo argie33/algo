@@ -221,6 +221,7 @@ def run(
     log_phase_result_fn: Callable,
     exposure_constraints: Dict[str, Any],
     check_halt_flag: Callable,
+    phase1_degraded: bool = False,  # ISSUE #11 FIX: Accept Phase 1 degradation flag
 ) -> PhaseResult:
     """Execute Phase 5: Signal Generation & Ranking.
 
@@ -231,6 +232,7 @@ def run(
         log_phase_result_fn: Function to log phase results
         exposure_constraints: Exposure constraints from Phase 3b
         check_halt_flag: Function to check halt flag
+        phase1_degraded: Whether Phase 1 returned degraded status (stale data with failsafe in progress)
 
     Returns:
         PhaseResult with status 'ok', data containing qualified trades
@@ -243,6 +245,10 @@ def run(
     logger.info(f"\n{'='*70}")
     logger.info("PHASE 5: SIGNAL GENERATION & RANKING")
     logger.info(f"{'='*70}")
+    # ISSUE #11 FIX: Log degradation status for transparency
+    if phase1_degraded:
+        logger.warning("[ISSUE#11_FIX] Phase 1 returned DEGRADED: stale data detected but failsafe triggered. "
+                      "Phase 5 applying conservative signal generation (stricter filters, higher thresholds).")
     if exposure_constraints:
         logger.info(
             f"Exposure constraints: risk_mult={exposure_constraints.get('risk_multiplier', 1.0):.2f}x, tier='{exposure_constraints.get('tier_name', 'N/A')}'"

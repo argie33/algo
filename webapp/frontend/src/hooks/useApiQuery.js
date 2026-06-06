@@ -60,24 +60,24 @@ export const useApiQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors with GENEROUS retries for deployments/RDS restarts
-      // Allow up to 4 retries (5 total attempts) to handle 60+ second backend recovery during deployments
-      if (status >= 500) return failureCount < 4;
+      // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
+      // Allow up to 3 retries (4 total attempts) for backend recovery
+      if (status >= 500) return failureCount < 3;
 
-      // Retry on network errors and timeouts (transient issues) with maximum attempts
-      // These often indicate backend is recovering, give it many chances before giving up
+      // Retry on network errors and timeouts with LIMITED attempts
+      // Aggressive retry strategy: fail fast if API is truly down
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
-        return failureCount < 5;
+        return failureCount < 3;
       }
 
       // Default: no retry for unknown errors
       return false;
     },
     retryDelay: (attemptIndex) => {
-      // Exponential backoff with max cap: 500ms, 1s, 2s, 4s, 8s capped at 10s
-      // Total wait time: 0.5+1+2+4+8 = 15.5s for 5 retries (optimized for deployment recovery)
-      const baseWait = 500 * Math.pow(2, attemptIndex);
-      const cappedWait = Math.min(baseWait, 10000);
+      // Aggressive backoff: 200ms, 500ms, 1s (capped at 5s)
+      // Total wait time: 0.2+0.5+1 = 1.7s for 3 retries (fail fast if API is down)
+      const baseWait = 200 * Math.pow(2, attemptIndex);
+      const cappedWait = Math.min(baseWait, 5000);
       return cappedWait;
     },
     enabled,
@@ -86,10 +86,12 @@ export const useApiQuery = (
 
   const enrichedError = error ? {
     message: error?.message || 'Unknown error',
-    status: error?.response?.status,
+    status: error?.response?.status ?? error?.status ?? 0,
     code: error?.code,
     url: error?.config?.url,
     responseData: error?.response?.data,
+    isNetworkError: !error?.response,
+    httpStatus: error?.response?.status || (error?.message?.includes('timeout') ? 504 : 0),
   } : null;
 
   return {
@@ -157,24 +159,24 @@ export const useApiPaginatedQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors with GENEROUS retries for deployments/RDS restarts
-      // Allow up to 4 retries (5 total attempts) to handle 60+ second backend recovery during deployments
-      if (status >= 500) return failureCount < 4;
+      // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
+      // Allow up to 3 retries (4 total attempts) for backend recovery
+      if (status >= 500) return failureCount < 3;
 
-      // Retry on network errors and timeouts (transient issues) with maximum attempts
-      // These often indicate backend is recovering, give it many chances before giving up
+      // Retry on network errors and timeouts with LIMITED attempts
+      // Aggressive retry strategy: fail fast if API is truly down
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
-        return failureCount < 5;
+        return failureCount < 3;
       }
 
       // Default: no retry for unknown errors
       return false;
     },
     retryDelay: (attemptIndex) => {
-      // Exponential backoff with max cap: 500ms, 1s, 2s, 4s, 8s capped at 10s
-      // Total wait time: 0.5+1+2+4+8 = 15.5s for 5 retries (optimized for deployment recovery)
-      const baseWait = 500 * Math.pow(2, attemptIndex);
-      const cappedWait = Math.min(baseWait, 10000);
+      // Aggressive backoff: 200ms, 500ms, 1s (capped at 5s)
+      // Total wait time: 0.2+0.5+1 = 1.7s for 3 retries (fail fast if API is down)
+      const baseWait = 200 * Math.pow(2, attemptIndex);
+      const cappedWait = Math.min(baseWait, 5000);
       return cappedWait;
     },
     enabled,
@@ -183,10 +185,12 @@ export const useApiPaginatedQuery = (
 
   const enrichedError = error ? {
     message: error?.message || 'Unknown error',
-    status: error?.response?.status,
+    status: error?.response?.status ?? error?.status ?? 0,
     code: error?.code,
     url: error?.config?.url,
     responseData: error?.response?.data,
+    isNetworkError: !error?.response,
+    httpStatus: error?.response?.status || (error?.message?.includes('timeout') ? 504 : 0),
   } : null;
 
   return {

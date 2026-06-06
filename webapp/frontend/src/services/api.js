@@ -78,9 +78,9 @@ const CircuitBreaker = {
   failureCount: 0,
   successCount: 0,
   lastFailureTime: 0,
-  FAILURE_THRESHOLD: 15, // Open circuit after 15 failures (allows Lambda cold start + RDS recovery time)
-  SUCCESS_THRESHOLD: 5, // Close circuit after 5 successes in half-open state
-  RECOVERY_TIMEOUT: 180000, // 180 seconds (3 min) before attempting recovery - matches typical RDS/Lambda restart time on deployments
+  FAILURE_THRESHOLD: 8, // Open circuit after 8 failures (faster detection of sustained outages)
+  SUCCESS_THRESHOLD: 3, // Close circuit after 3 successes in half-open state
+  RECOVERY_TIMEOUT: 60000, // 60 seconds before attempting recovery (more responsive to temporary outages)
 };
 
 const checkCircuitBreaker = () => {
