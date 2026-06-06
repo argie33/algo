@@ -246,7 +246,7 @@ export function AuthProvider({ children }) {
 
       // DEVELOPMENT MODE: Auto-authenticate with dev token for local testing
       if (isDevelopment && !cognitoConfigured) {
-        console.log('[AUTH] Development mode detected - auto-authenticating with dev token');
+        console.log('[AUTH] 🔧 Dev mode: Cognito not configured — using dev auto-authentication');
         const devToken = localStorage.getItem('devToken') || 'dev-admin';
         tokenManager.setTokens({
           access: devToken,
@@ -353,9 +353,9 @@ export function AuthProvider({ children }) {
       }
 
       if (isCognitoConfigured()) {
-        console.log("[AUTH] Cognito configured, checking auth state");
+        console.log("[AUTH] ✅ Cognito configured, checking auth state");
       } else {
-        console.warn("[AUTH] Cognito not configured after 5s, proceeding unauthenticated");
+        console.debug("[AUTH] 🔧 Dev mode: Cognito not configured after 5s, will use dev tokens");
       }
 
       await checkAuthState();

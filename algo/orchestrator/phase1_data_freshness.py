@@ -333,63 +333,6 @@ def _check_failsafe_completion(state_table: Any, verbose: bool = False, timeout_
         logger.debug(f"[FAILSAFE_TIMEOUT] Could not check failsafe timeout: {err}")
         return None
 
-def _kill_hung_loader_task(loader_name: str, verbose: bool = False) -> bool:
-    """Kill a hung ECS loader task before triggering a new one.
-
-    ISSUE #3 FIX: When hung loader is detected, explicitly terminate the old task
-    to prevent zombie processes consuming RDS connections and DB contention.
-
-    Args:
-        loader_name: Name of loader (e.g., 'stock_prices_daily', 'technical_data_daily')
-        verbose: Whether to log verbose output
-
-    Returns:
-        True if task was killed or not found, False if kill failed
-    """
-    try:
-        import boto3
-        ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-        cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
-
-        # ISSUE #3 FIX: Map loader names to correct ECS task definitions
-        task_family_map = {
-            'stock_prices_daily': 'algo-stock_prices_daily-loader',
-            'technical_data_daily': 'algo-technical_data_daily-loader',
-            'market_health_daily': 'algo-market_health_daily-loader',
-            'price_daily': 'algo-stock_prices_daily-loader',  # Alias
-        }
-        task_family = task_family_map.get(loader_name, f'algo-{loader_name}-loader')
-
-        # List running tasks for this loader
-        response = ecs_client.list_tasks(
-            cluster=cluster_arn,
-            family=task_family,
-            desiredStatus='RUNNING'
-        )
-
-        if not response.get('taskArns'):
-            logger.debug(f"[HUNG_TASK_KILL] No running tasks found for {loader_name}")
-            return True
-
-        for task_arn in response['taskArns']:
-            try:
-                if verbose:
-                    logger.info(f"[HUNG_TASK_KILL] Stopping hung task: {task_arn}")
-                ecs_client.stop_task(
-                    cluster=cluster_arn,
-                    task=task_arn,
-                    reason=f'Hung loader detected. Initiating failsafe retry.'
-                )
-                logger.warning(f"[HUNG_TASK_KILL] Stopped hung {loader_name} task: {task_arn}")
-            except Exception as stop_err:
-                logger.warning(f"[HUNG_TASK_KILL] Could not stop task: {stop_err}")
-                return False
-
-        return True
-    except Exception as e:
-        logger.warning(f"[HUNG_TASK_KILL] Could not kill hung task for {loader_name}: {e}")
-        return False
-
 def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = None) -> bool:
     """Detect if loader task has hung by checking heartbeat.
 
@@ -1775,7 +1718,8 @@ def run(
 
                 # Check price_daily completeness
                 _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s", (expected_date,))
-                price_symbols = _comp_cur.fetchone()[0] if _comp_cur.fetchone() else 0
+                price_row = _comp_cur.fetchone()
+                price_symbols = price_row[0] if price_row else 0
                 price_coverage = (price_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
                 if price_coverage < 95:
                     completeness_warnings.append(
@@ -1785,7 +1729,8 @@ def run(
 
                 # Check technical_data_daily completeness
                 _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE updated_at >= %s", (expected_date,))
-                tech_symbols = _comp_cur.fetchone()[0] if _comp_cur.fetchone() else 0
+                tech_row = _comp_cur.fetchone()
+                tech_symbols = tech_row[0] if tech_row else 0
                 tech_coverage = (tech_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
                 if tech_coverage < 95:
                     completeness_warnings.append(
@@ -1795,7 +1740,8 @@ def run(
 
                 # Check buy_sell_daily completeness
                 _comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE updated_at >= %s", (expected_date,))
-                buys_symbols = _comp_cur.fetchone()[0] if _comp_cur.fetchone() else 0
+                buys_row = _comp_cur.fetchone()
+                buys_symbols = buys_row[0] if buys_row else 0
                 buys_coverage = (buys_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
                 if buys_coverage < 95:
                     completeness_warnings.append(
@@ -1902,12 +1848,14 @@ def run(
                             failsafe_already_triggered = True  # Skip trigger below
                         else:
                             logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will terminate hung task and trigger fresh loader.")
-                            # ISSUE #23 FIX: Zombie task cleanup - terminate hung tasks before triggering new one
+                            # ISSUE #9 FIX: Zombie task cleanup - terminate hung tasks before triggering new one
                             # This prevents RDS connection pool exhaustion from zombie tasks
-                            if _kill_hung_loader_task('stock_prices_daily', verbose=verbose):
-                                logger.info(f"[{_phase1_correlation_id}] [HUNG_TASK] Successfully killed hung loader task (zombie cleanup)")
+                            # Use _terminate_hung_loader_task for better verification (confirms stop actually completed)
+                            if _terminate_hung_loader_task('stock_prices_daily', verbose=verbose):
+                                logger.info(f"[{_phase1_correlation_id}] [HUNG_TASK] ✓ Successfully terminated hung loader task (zombie cleanup verified)")
                             else:
-                                logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] Could not kill hung loader task, proceeding with failsafe anyway")
+                                logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] ⚠️  Could not terminate hung loader task, but proceeding with failsafe anyway. "
+                                             f"Hung task may consume resources - monitor RDS connection pool.")
             except Exception as status_err:
                 logger.debug(f"[{_phase1_correlation_id}] [FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
 

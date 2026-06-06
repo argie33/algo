@@ -30,6 +30,7 @@ import {
   CheckCircle,
 } from "@mui/icons-material";
 import { formatPercentageChange } from "../utils/formatters";
+import { getChartContainerStyle } from "../utils/chartContainer";
 
 const MarketInternals = ({ data, isLoading, error }) => {
   const [_expandedSection, _setExpandedSection] = useState(null);
@@ -193,7 +194,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
               </Grid>
 
               {/* Breadth Chart */}
-              <Box sx={{ height: 300, width: "100%", minWidth: 0 }}>
+              <div style={getChartContainerStyle('default')}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={breadthChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -207,7 +208,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              </Box>
+              </div>
 
               {/* Breadth Details */}
               <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>

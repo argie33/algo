@@ -20,6 +20,7 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
 import { formatNumber } from "../utils/formatters";
+import { getChartContainerStyle } from "../utils/chartContainer";
 
 const McClellanOscillatorChart = ({ data, isLoading = false }) => {
   const theme = useTheme();
@@ -121,7 +122,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
         </Box>
 
         {chartData.length > 0 && (
-          <Box sx={{ width: "100%", height: 250, mt: 2, minWidth: 0 }}>
+          <div style={{ ...getChartContainerStyle('compact'), marginTop: 16 }}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
@@ -154,7 +155,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
                 />
               </ComposedChart>
             </ResponsiveContainer>
-          </Box>
+          </div>
         )}
 
         {data.data_points && (

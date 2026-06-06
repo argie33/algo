@@ -3,6 +3,7 @@ import { Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mu
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api";
 import { formatCurrency } from "../utils/formatters";
+import { getChartContainerStyle } from "../utils/chartContainer";
 
 export default function PETrendChart({ sectorName, industryName }) {
   const name = sectorName || industryName;
@@ -38,7 +39,7 @@ export default function PETrendChart({ sectorName, industryName }) {
           Avg Price Trend (1 Year)
         </Typography>
 
-        <Box sx={{ width: "100%", height: 300, minWidth: 0 }}>
+        <div style={getChartContainerStyle('default')}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -52,7 +53,7 @@ export default function PETrendChart({ sectorName, industryName }) {
               <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" />
             </LineChart>
           </ResponsiveContainer>
-        </Box>
+        </div>
 
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
           Average price across {name} stocks over the past year

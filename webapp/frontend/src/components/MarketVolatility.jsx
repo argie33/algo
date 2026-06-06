@@ -13,6 +13,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
 import { useTheme, alpha } from "@mui/material/styles";
 import { formatPercentageChange } from "../utils/formatters";
+import { getChartContainerStyle } from "../utils/chartContainer";
 
 const MarketVolatility = ({ data, isLoading, error }) => {
   const theme = useTheme();
@@ -146,7 +147,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                 <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                   Volatility Metrics
                 </Typography>
-                <Box sx={{ height: 300, width: "100%", minWidth: 0 }}>
+                <div style={getChartContainerStyle('default')}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -156,7 +157,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                       <Bar dataKey="value" fill={theme.palette.primary.main} />
                     </BarChart>
                   </ResponsiveContainer>
-                </Box>
+                </div>
               </CardContent>
             </Card>
           </Grid>

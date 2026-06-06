@@ -78,7 +78,7 @@ const NAV_SECTIONS = [
 export default function AppLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, isLoading } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [exposure, setExposure] = useState(null);
@@ -95,8 +95,8 @@ export default function AppLayout({ children }) {
 
   // Poll status every 30s — only when authenticated and user is loaded
   useEffect(() => {
-    // Ensure we have both authenticated status AND a loaded user before fetching
-    if (!isAuthenticated || !user) return;
+    // Wait for auth to finish loading, then verify authenticated state
+    if (isLoading || !isAuthenticated || !user) return;
     let cancelled = false;
     const fetchStatus = async () => {
       try {
@@ -118,7 +118,7 @@ export default function AppLayout({ children }) {
     fetchStatus();
     const id = setInterval(fetchStatus, 30000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [isAuthenticated, user]);
+  }, [isLoading, isAuthenticated, user]);
 
   // Close drawer on route change
   useEffect(() => { setDrawerOpen(false); setUserMenuOpen(false); }, [location.pathname]);

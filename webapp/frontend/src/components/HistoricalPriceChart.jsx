@@ -149,7 +149,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
             <Bar dataKey="volume" fill="#8884d8" name="Volume" />
             </BarChart>
           </ResponsiveContainer>
-        </Box>
+        </div>
       </Paper>
     </Box>
   );

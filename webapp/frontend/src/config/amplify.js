@@ -70,11 +70,11 @@ export function configureAmplify() {
     Amplify.configure(config);
 
     if (isConfigured) {
-      console.log("[AMPLIFY] Configured with Cognito:", currentPoolId.substring(0, 12) + "...");
+      console.log("[AMPLIFY] ✅ Configured with real Cognito:", currentPoolId.substring(0, 12) + "...");
     } else {
       // In development mode without Cognito, this is expected behavior
       // The AuthContext will use dev auto-authentication instead
-      console.debug("[AMPLIFY] Cognito not configured - AuthContext will use dev authentication");
+      console.debug("[AMPLIFY] 🔧 Dev mode: Using dummy Cognito config — AuthContext will provide dev authentication");
     }
   } catch (error) {
     console.error("Failed to configure Amplify:", error);
