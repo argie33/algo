@@ -52,6 +52,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 analyst_row = None
                 try:
+                    cur.execute("SET LOCAL statement_timeout = '2000ms'")
                     cur.execute("""
                         SELECT SUM(analyst_count) AS analyst_count,
                                SUM(bullish_count) AS bullish_count,
