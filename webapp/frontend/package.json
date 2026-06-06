@@ -65,7 +65,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-build-env.js && node scripts/setup-prod.js && vite build",
+    "build": "node scripts/check-build-env.js && node scripts/build-prod.js",
     "build:prod": "node scripts/build-prod.js",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:strict": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",

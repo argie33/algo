@@ -210,7 +210,7 @@ def _submit_contact(cur, body: Dict) -> Dict:
         return error_response(503, 'service_unavailable', 'Contact service unavailable. Please try again later.')
     except Exception as e:
         code, error_type, message = handle_db_error(e, 'submit_contact')
-            return error_response(code, error_type, message)
+        return error_response(code, error_type, message)
 
 def _get_submissions(cur, params: Dict) -> Dict:
     """Get contact submissions (admin-only)."""
@@ -234,4 +234,4 @@ def _get_submissions(cur, params: Dict) -> Dict:
         return error_response(503, 'service_unavailable', 'Contact service unavailable.')
     except Exception as e:
         code, error_type, message = handle_db_error(e, 'get_submissions')
-            return error_response(code, error_type, message)
+        return error_response(code, error_type, message)

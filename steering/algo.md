@@ -24,6 +24,28 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 
 ## Deployment
 
+**Frontend Build Process (Critical for API URL & Cognito Config):**
+The frontend build must properly embed API URL and Cognito credentials at build time. This is handled by `scripts/build-prod.js`:
+1. Reads API URL from command-line argument, environment variable, or CloudFront discovery
+2. Reads Cognito credentials (user pool ID, client ID, domain) from arguments or env vars
+3. Calls `setup-prod.js` to generate `public/config.js` with runtime configuration
+4. Runs Vite build, which includes config.js in the bundle
+5. Outputs to `dist/config.js` for deployment to S3/CloudFront
+
+**GitHub Actions Build Flow (deploy-all-infrastructure.yml lines 1078-1140):**
+1. Terraform creates CloudFront and Cognito resources, exports their IDs as outputs
+2. Workflow reads outputs: `website_url` (CloudFront domain), Cognito IDs
+3. If `website_url` missing, attempts CloudFront discovery with 3 retries (5s between attempts)
+4. Validates CloudFront URL and Cognito IDs are non-empty before proceeding
+5. Calls: `node scripts/build-prod.js "$FINAL_API_URL" "production" "$POOL_ID" "$CLIENT_ID" "$COGNITO_DOMAIN"`
+6. Validates `dist/config.js` contains correct API_URL and Cognito config
+7. Syncs to S3, invalidates CloudFront cache with cache-busting query string
+
+**Troubleshooting Frontend Build:**
+- **Hardcoded API_URL in config.js**: VITE_API_URL empty at build time. Verify: (1) Terraform `website_url` output is set, (2) CloudFront is ready before build starts, (3) Cognito resources created in Terraform
+- **Empty USER_POOL_ID/CLIENT_ID**: Cognito outputs from Terraform are null. Check: (1) Cognito user pool exists, (2) outputs defined in terraform/outputs.tf, (3) GitHub Secrets for credentials if using manual deployment
+- **Config fails to load in browser (5xx)**: (1) S3 bucket has public read deny policy, (2) CloudFront cache not invalidated, (3) Service Worker serving stale config, or (4) Cognito domain unreachable
+
 **Production:** `git push main` triggers deploy-all-infrastructure.yml (Terraform + Lambda + frontend + migrations). Uses GitHub OIDC for AWS auth (temp credentials, auto-expire). deploy-code.yml is for manual/selective runs only.
 
 **Local:** Never run `terraform apply` locally. Use `scripts/refresh-aws-credentials.ps1` only for debugging.
@@ -639,6 +661,48 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - Static assets: `Managed-CachingOptimized` (long TTL, compressed)
 - API: `Managed-CachingDisabled` (all /api/* requests pass through)
 - Client-side: `dataCache.js` caches API responses 5 minutes in-memory
+
+## API Response Format (Standardized with statusCode Envelope)
+
+**All API responses include `statusCode` at root level.** This ensures HTTP status codes flow through entire request/response cycle for consistent frontend error handling.
+
+**Success Response (200):**
+```json
+{
+  "statusCode": 200,
+  "data": { "symbol": "AAPL", "price": 150.25 }
+}
+```
+
+**List Response (200):**
+```json
+{
+  "statusCode": 200,
+  "items": [{ "symbol": "AAPL" }, { "symbol": "MSFT" }],
+  "total": 100,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Error Response (4xx/5xx):**
+```json
+{
+  "statusCode": 404,
+  "errorType": "not_found",
+  "message": "Stock INVALID not found"
+}
+```
+
+**Response Helpers (lambda/api/routes/utils.py):** All routes use these to ensure consistent format:
+- `success_response(data)` → wraps in `{statusCode: 200, data: ...}`
+- `list_response(items, total, ...)` → wraps in `{statusCode: 200, items: ..., total: X}`
+- `error_response(code, type, msg)` → returns `{statusCode: code, errorType: type, message: msg}`
+- `json_response(code, data)` → handles both success and error codes
+
+**Frontend Extraction:** `responseNormalizer.js` and axios interceptors extract `statusCode` from response data, enabling proper error handling even during response format transitions.
+
+**Tests:** API service mocks return `{statusCode: 200, data: {...}}` format. Update mocks if changing response structure.
 
 ## Error Handling & Diagnostics
 
