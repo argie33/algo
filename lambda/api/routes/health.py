@@ -65,29 +65,9 @@ def _handle_basic(cur) -> Dict:
             logger.warning(f"Failed to get connection pool status: {str(e)[:80]}")
             health['rds_connection_pool'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch pool stats'}
 
-        # Get data freshness summary - minimal check for table data
-        # Expensive freshness age calculations deferred to authenticated /health/pipeline endpoint
-        try:
-            freshness = execute_with_timeout(cur, """
-                SELECT COUNT(*) as row_count FROM price_daily LIMIT 1
-            """, timeout_sec=2)
-
-            if freshness and len(freshness) > 0:
-                row = dict(freshness[0])
-                row_count = int(row.get('row_count', 0)) or 0
-                health['freshness'] = {
-                    'data_loaded': row_count > 0,
-                    'status': 'HEALTHY' if row_count > 0 else 'NO_DATA'
-                }
-            else:
-                health['freshness'] = {'status': 'UNKNOWN'}
-        except Exception as e:
-            error_msg = str(e)[:100]
-            logger.warning(f"Failed to get freshness status: {error_msg}")
-            health['freshness'] = {
-                'status': 'UNKNOWN',
-                'error': f'Query error: {error_msg[:40]}'
-            }
+        # Data freshness check deferred to authenticated /health/pipeline endpoint
+        # Basic health endpoint skips this to stay responsive (<1s)
+        health['freshness'] = {'status': 'UNKNOWN', 'message': 'Use /health/pipeline for detailed freshness'}
 
         # Overall system status based on component health
         has_critical = False
