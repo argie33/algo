@@ -265,7 +265,8 @@ def run(
         if exposure_constraints:
             exposure_mult = exposure_constraints.get("risk_multiplier", 1.0)
 
-        pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
+        # ISSUE #10 FIX: Pass degraded flag to FilterPipeline to apply conservative filtering
+        pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult, degraded=phase1_degraded)
 
         # Timing instrumentation for Phase 5 performance diagnostics
         _start = _timing.time()

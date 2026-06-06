@@ -790,18 +790,34 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
                     if desc_resp.get('tasks'):
                         task = desc_resp['tasks'][0]
                         if task.get('lastStatus') == 'RUNNING':
+                            # Get actual task creation time from ECS
+                            created_at_str = task.get('createdAt')
+                            actual_start_time = current_time
+
+                            if created_at_str:
+                                try:
+                                    # createdAt is ISO 8601 timestamp
+                                    from datetime import datetime as dt_parse
+                                    if isinstance(created_at_str, str):
+                                        created_dt = dt_parse.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                                        actual_start_time = created_dt.timestamp()
+                                    elif hasattr(created_at_str, 'timestamp'):
+                                        actual_start_time = created_at_str.timestamp()
+                                except Exception:
+                                    actual_start_time = current_time
+
                             # Store this for future checks
                             try:
                                 state_table.update_item(
                                     Key={'state_key': 'failsafe_trigger_log'},
                                     UpdateExpression='SET actual_running_at = :running_at',
-                                    ExpressionAttributeValues={':running_at': current_time}
+                                    ExpressionAttributeValues={':running_at': actual_start_time}
                                 )
-                                logger.info(f"[FAILSAFE] Updated actual_running_at after re-check")
+                                logger.info(f"[FAILSAFE] Updated actual_running_at after re-check with task creation time")
                             except Exception:
                                 pass
-                            age_minutes = (current_time - current_time) / 60  # Task just confirmed RUNNING
-                            age_source = "running_at (re-verified from ECS)"
+                            age_minutes = (current_time - actual_start_time) / 60  # Age since task actually started
+                            age_source = "running_at (re-verified from ECS with task creation time)"
                         else:
                             age_minutes = (current_time - triggered_at) / 60
                             age_source = f"triggered_at (task in {task.get('lastStatus')})"
