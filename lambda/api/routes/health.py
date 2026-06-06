@@ -25,20 +25,91 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         return _handle_basic(cur)
 
 def _handle_basic(cur) -> Dict:
-    """Basic health check - PUBLIC, no auth required."""
+    """Basic health check - PUBLIC, no auth required.
+
+    Includes: database connectivity, RDS connection pool status, data freshness overview.
+    """
     health = {
         "status": "healthy",
-        "version": "v2-2026-05-21",
+        "version": "v2-2026-05-22",
         "timestamp": datetime.now().isoformat(),
     }
 
     try:
         # Verify DB is responsive with a simple query (3 second timeout)
         result = execute_with_timeout(cur, "SELECT 1", timeout_sec=3)
-        if result:
-            return success_response(health)
-        else:
+        if not result:
             return error_response(503, 'connection_error', 'Database connection failed')
+
+        # Get RDS connection pool status (5-second timeout for metadata query)
+        try:
+            pool_info = execute_with_timeout(cur, """
+                SELECT
+                    (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()) as active_connections,
+                    current_setting('max_connections')::int as max_connections
+            """, timeout_sec=5)
+
+            if pool_info and len(pool_info) > 0:
+                row = dict(pool_info[0])
+                active = row.get('active_connections', 0) or 0
+                max_conn = row.get('max_connections', 100) or 100
+                pool_pct = int((active / max_conn) * 100) if max_conn > 0 else 0
+
+                health['rds_connection_pool'] = {
+                    'active_connections': active,
+                    'max_connections': max_conn,
+                    'utilization_percent': pool_pct,
+                    'status': 'CRITICAL' if pool_pct > 90 else ('WARNING' if pool_pct > 75 else 'HEALTHY')
+                }
+        except Exception as e:
+            logger.warning(f"Failed to get connection pool status: {str(e)[:80]}")
+            health['rds_connection_pool'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch pool stats'}
+
+        # Get data freshness summary (check critical tables - 10 second timeout)
+        try:
+            freshness = execute_with_timeout(cur, """
+                SELECT
+                    COALESCE(MIN(EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0), 999) as oldest_data_age_days
+                FROM (
+                    SELECT created_at FROM price_daily LIMIT 1
+                    UNION ALL
+                    SELECT created_at FROM buy_sell_daily LIMIT 1
+                    UNION ALL
+                    SELECT created_at FROM signal_quality_scores LIMIT 1
+                ) as freshness_check
+            """, timeout_sec=10)
+
+            if freshness and len(freshness) > 0:
+                row = dict(freshness[0])
+                age = float(row.get('oldest_data_age_days', 999)) if row.get('oldest_data_age_days') is not None else 999
+                health['freshness'] = {
+                    'oldest_data_age_days': round(age, 2),
+                    'status': 'HEALTHY' if age <= 1 else ('WARNING' if age <= 3 else 'STALE')
+                }
+        except Exception as e:
+            logger.warning(f"Failed to get freshness status: {str(e)[:80]}")
+            health['freshness'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch freshness'}
+
+        # Overall system status based on component health
+        has_critical = False
+        has_warning = False
+
+        if health.get('rds_connection_pool', {}).get('status') == 'CRITICAL':
+            has_critical = True
+        elif health.get('rds_connection_pool', {}).get('status') == 'WARNING':
+            has_warning = True
+
+        if health.get('freshness', {}).get('status') == 'STALE':
+            has_critical = True
+        elif health.get('freshness', {}).get('status') == 'WARNING':
+            has_warning = True
+
+        if has_critical:
+            health['status'] = 'degraded'
+        elif has_warning:
+            health['status'] = 'warning'
+
+        return success_response(health)
 
     except Exception as e:
         logger.error(f"Health check error: {str(e)[:100]}")
