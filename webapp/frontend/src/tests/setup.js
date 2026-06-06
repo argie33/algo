@@ -98,6 +98,34 @@ vi.mock("../components/ApiKeyProvider", () => ({
   default: ({ children }) => children,
 }));
 
+// Mock tokenManager
+vi.mock("../services/tokenManager", () => ({
+  tokenManager: {
+    getAccessToken: vi.fn(() => "test-token"),
+    getIdToken: vi.fn(() => "test-id-token"),
+    getTokens: vi.fn(() => ({ accessToken: "test-token", idToken: "test-id-token" })),
+    setTokens: vi.fn(),
+    clearTokens: vi.fn(),
+    isTokenValid: vi.fn(() => true),
+  },
+}));
+
+// Mock sessionManager
+vi.mock("../services/sessionManager", () => ({
+  default: {
+    startWarningTimer: vi.fn(),
+    stopWarningTimer: vi.fn(),
+    extendSession: vi.fn(),
+    onSessionWarning: vi.fn((cb) => cb),
+    onSessionExpired: vi.fn((cb) => cb),
+  },
+}));
+
+// Mock SessionWarningDialog
+vi.mock("../components/auth/SessionWarningDialog", () => ({
+  default: () => null,
+}));
+
 // Mock console methods to reduce test noise
 const originalConsole = { ...console };
 console.error = (...args) => {
@@ -174,4 +202,14 @@ vi.mock("../services/api", () => ({
     delete: vi.fn(() => Promise.resolve({ data: {} })),
     patch: vi.fn(() => Promise.resolve({ data: {} })),
   },
+  setRefreshCallback: vi.fn(),
+  getApiConfig: vi.fn(() => ({
+    baseURL: "http://localhost:3001",
+    apiUrl: "http://localhost:3001",
+    isServerless: false,
+    isDev: true,
+    isDevelopment: true,
+    isProduction: false,
+  })),
+  initializeApiConfig: vi.fn(),
 }));
