@@ -14,6 +14,7 @@ For use in dashboard and automated monitoring.
 
 import json
 import logging
+import psycopg2.errors
 from datetime import datetime, date as _date, timedelta
 from typing import Dict, Any
 from .utils import error_response, execute_with_timeout, success_response, json_response
@@ -286,6 +287,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         summary = get_overall_coverage_summary(cur)
         # Return data wrapped in standard response format
         return json_response(200, summary)
+    except psycopg2.errors.QueryCanceled as e:
+        logger.error(f'Data coverage query timeout: {e}')
+        return error_response(504, 'timeout', 'Data coverage query exceeded timeout')
     except Exception as e:
         logger.error(f"Data coverage check error: {e}", exc_info=True)
         return error_response(500, 'data_coverage_error', 'Data coverage check failed')
