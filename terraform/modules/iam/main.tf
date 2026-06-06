@@ -1518,7 +1518,8 @@ data "aws_iam_policy_document" "developer" {
     ]
 
     resources = [
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*"
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/states/${var.project_name}-*"
     ]
   }
 }
