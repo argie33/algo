@@ -349,12 +349,33 @@ class PriceLoader(OptimalLoader):
         # Timeout - data not available, HALT loader with explicit error (ISSUE #11 FIX)
         elapsed = time.time() - start_time
 
+        # ISSUE #7 FIX: Track consecutive market close timeouts to detect API degradation
+        now = time.time()
+        if self._last_market_close_timeout_time and (now - self._last_market_close_timeout_time) < 86400:  # Within 24 hours
+            self._market_close_timeout_count += 1
+        else:
+            self._market_close_timeout_count = 1
+        self._last_market_close_timeout_time = now
+
+        # Alert if this is repeated failure (3+ times in 24h = API degradation pattern)
+        if self._market_close_timeout_count >= 3:
+            alert_msg = (
+                f"ALERT: Market close data unavailable {self._market_close_timeout_count} times in 24h. "
+                f"Possible yfinance API degradation. Check status page and consider switching data provider."
+            )
+            logger.critical(f"[{self._correlation_id}] {alert_msg}")
+            try:
+                from algo.algo_alerts import AlertManager
+                AlertManager().critical(alert_msg)
+            except Exception:
+                pass
+
         # Emit failure metric with diagnostic info
         try:
             from algo.algo_metrics import MetricsPublisher
             metrics = MetricsPublisher()
             metrics.put_metric('MarketCloseDataAvailable', 0, unit='Count',
-                             dimensions={'Status': 'timeout', 'LastError': last_error_type or 'unknown'})
+                             dimensions={'Status': 'timeout', 'LastError': last_error_type or 'unknown', 'ConsecutiveCount': str(self._market_close_timeout_count)})
             metrics.flush()
         except Exception:
             pass
@@ -369,7 +390,8 @@ class PriceLoader(OptimalLoader):
             f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
             f"Cannot load prices without market close data. Aborting to avoid stale price data. "
             f"Phase 1 will trigger failsafe when data becomes available. "
-            f"Check yfinance API status and RDS connection pool health."
+            f"Check yfinance API status and RDS connection pool health. "
+            f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
         )
         logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] ✗ {error_msg}")
         raise RuntimeError(error_msg)
