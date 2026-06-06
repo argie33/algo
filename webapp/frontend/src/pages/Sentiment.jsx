@@ -108,7 +108,7 @@ export default function Sentiment() {
   );
 
   if (error) {
-    return <div className="alert alert-danger" style={{ margin: '20px' }}>{error}</div>;
+    return <div className="alert alert-danger" style={{ margin: '20px' }}>{error?.message || 'Failed to load data'}</div>;
   }
 
   const rawData = Array.isArray(data) ? data : (data?.items || data?.data || []);

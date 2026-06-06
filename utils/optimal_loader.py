@@ -695,6 +695,79 @@ class OptimalLoader(ABC):
 
     # ---- Top-level orchestration ----
 
+    def _check_upstream_completeness(self, expected_symbols: int) -> bool:
+        """ISSUE #5 FIX: Check if upstream dependencies have adequate symbol coverage (>95%).
+
+        Loaders in the morning prep chain depend on previous loaders:
+        - technical_data_daily depends on price_daily
+        - buy_sell_daily depends on technical_data_daily
+        - signal_quality_scores depends on buy_sell_daily
+        - swing_trader_scores depends on all above
+
+        If upstream data <95% complete, downstream should not proceed (prevents silent data loss).
+
+        Args:
+            expected_symbols: Expected number of symbols for this run
+
+        Returns:
+            True if upstream complete (>95%), False if incomplete (should abort this load)
+        """
+        # Define upstream dependencies per table
+        upstream_deps = {
+            'technical_data_daily': 'price_daily',
+            'buy_sell_daily': 'technical_data_daily',
+            'signal_quality_scores': 'buy_sell_daily',
+            'swing_trader_scores': 'signal_quality_scores',
+        }
+
+        upstream_table = upstream_deps.get(self.table_name)
+        if not upstream_table:
+            # No upstream dependency, proceed normally
+            return True
+
+        try:
+            with DatabaseContext('read') as cur:
+                # Check upstream table completeness via data_loader_status
+                cur.execute(
+                    "SELECT completion_pct, symbols_loaded, symbol_count FROM data_loader_status "
+                    "WHERE table_name = %s AND status IN ('COMPLETED', 'INCOMPLETE')",
+                    (upstream_table,)
+                )
+                result = cur.fetchone()
+                if not result:
+                    # No upstream status — assume upstream hasn't run yet
+                    logger.error(
+                        f"[UPSTREAM] {self.table_name} requires {upstream_table}, but {upstream_table} "
+                        f"has no status. Aborting to prevent silent data loss."
+                    )
+                    return False
+
+                completion_pct, symbols_loaded, symbol_count = result
+                if completion_pct < 95:
+                    logger.critical(
+                        f"[UPSTREAM] {self.table_name} depends on {upstream_table}, which is only "
+                        f"{completion_pct:.1f}% complete ({symbols_loaded}/{symbol_count} symbols). "
+                        f"Aborting to prevent incomplete data from flowing downstream."
+                    )
+                    # Update our status to FAILED so Phase 1 detects it
+                    try:
+                        with DatabaseContext('write') as write_cur:
+                            write_cur.execute(
+                                "UPDATE data_loader_status SET status = %s WHERE table_name = %s",
+                                ('FAILED', self.table_name)
+                            )
+                    except Exception:
+                        pass
+                    return False
+
+                logger.info(f"[UPSTREAM] {self.table_name} upstream check passed: {upstream_table} "
+                           f"{completion_pct:.1f}% complete ({symbols_loaded}/{symbol_count} symbols)")
+                return True
+
+        except Exception as e:
+            logger.warning(f"[UPSTREAM] Could not check upstream completeness: {e}, proceeding anyway")
+            return True  # Don't abort if we can't check
+
     def run(
         self,
         symbols: Iterable[str],
@@ -746,8 +819,16 @@ class OptimalLoader(ABC):
             # Start heartbeat thread to signal loader is alive (for hung task detection)
             self._start_heartbeat()
 
-            start = time.time()
+            # ISSUE #5 FIX: Check upstream completeness before proceeding
             symbols = list(symbols)
+            if not self._check_upstream_completeness(len(symbols)):
+                # Upstream incomplete — abort this load to prevent silent data loss
+                logger.error(f"[{self.table_name}] Aborting due to incomplete upstream data")
+                self._update_loader_status("FAILED")
+                self._stop_heartbeat()
+                return self._stats
+
+            start = time.time()
             mode = (
                 f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
             )

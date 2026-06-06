@@ -2128,38 +2128,67 @@ def run(
         except Exception as sector_err:
             logger.debug(f"[SECTOR_RANKING] Check failed: {sector_err} (proceeding)")
 
-        # MORNING PREP VISIBILITY: Check if morning pipeline (2:45 AM) actually ran today
-        # If it's 9:30 AM+ and buy_sell_daily/signal_quality_scores haven't been updated since yesterday,
-        # morning prep failed silently and we should halt or alert.
+        # ISSUE #5 FIX: MORNING PREP VISIBILITY AND DEPENDENCY CHAIN VALIDATION
+        # Check if morning pipeline (2:45 AM) actually ran and all dependency steps completed.
+        # If any step failed silently (price→tech→buy_sell→quality), downstream signals incomplete.
         try:
             now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
             is_9am_or_later = now_et.hour >= 9
 
             if is_9am_or_later:
-                # At 9:30 AM or later, check if morning pipeline ran (should have updated signals)
                 morning_pipeline_cutoff = run_date.replace(hour=2, minute=45, second=0, microsecond=0)
                 with DatabaseContext('read') as _morning_cur:
                     _morning_cur.execute("SET statement_timeout = 5000")
 
-                    # Check if buy_sell_daily was updated since 2:45 AM this morning
+                    # Validate full dependency chain
+                    # Step 1: stock_prices_daily
+                    _morning_cur.execute("""
+                        SELECT MAX(date) FROM price_daily
+                    """)
+                    price_date = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
+
+                    # Step 2: technical_data_daily
+                    _morning_cur.execute("""
+                        SELECT MAX(updated_at) FROM technical_data_daily
+                    """)
+                    tech_updated = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
+
+                    # Step 3: buy_sell_daily
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM buy_sell_daily
-                        WHERE updated_at >= %s
-                    """, (morning_pipeline_cutoff,))
-                    buys_updated = _morning_cur.fetchone()[0]
+                    """)
+                    buys_updated = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
 
-                    if not buys_updated:
-                        logger.warning(f"[MORNING PREP] buy_sell_daily was NOT updated since 2:45 AM (morning prep may have failed)")
-                        logger.warning(f"  Check Step Functions: algo-morning-prep-pipeline or scheduled EventBridge trigger")
+                    # Step 4: signal_quality_scores (optional, for observability)
+                    _morning_cur.execute("""
+                        SELECT MAX(updated_at) FROM signal_quality_scores
+                    """)
+                    quality_updated = _morning_cur.fetchone()[0] if _morning_cur.fetchone() else None
+
+                    # Check if all critical steps completed since morning prep start
+                    failed_steps = []
+                    if not price_date or price_date < expected_date:
+                        failed_steps.append('stock_prices_daily')
+                    if not tech_updated or tech_updated < morning_pipeline_cutoff:
+                        failed_steps.append('technical_data_daily')
+                    if not buys_updated or buys_updated < morning_pipeline_cutoff:
+                        failed_steps.append('buy_sell_daily')
+
+                    if failed_steps:
+                        logger.warning(f"[MORNING PREP] Dependency chain BROKEN: {', '.join(failed_steps)} not updated")
+                        logger.warning(f"  Cutoff time: {morning_pipeline_cutoff}. Check Step Functions: algo-morning-prep-pipeline")
                         alerts.send_position_alert(
                             'PIPELINE',
-                            'MORNING_PREP_POTENTIAL_FAILURE',
-                            f'buy_sell_daily has not been refreshed since 2:45 AM. Morning prep pipeline may have failed. '
-                            f'Check Step Functions logs.',
-                            {'last_update': str(buys_updated), 'cutoff': str(morning_pipeline_cutoff)}
+                            'MORNING_PREP_INCOMPLETE',
+                            f'Morning prep incomplete: {", ".join(failed_steps)} not updated since 2:45 AM. '
+                            f'Downstream signals may be stale or missing. Check Step Functions logs.',
+                            {'failed_steps': failed_steps, 'cutoff': str(morning_pipeline_cutoff)}
                         )
+                        log_phase_result_fn(1, 'morning_prep_dependency', 'warn',
+                                           f'Incomplete: {", ".join(failed_steps)}')
                     else:
-                        logger.info(f"[MORNING PREP] ✓ buy_sell_daily updated at {buys_updated} (morning prep completed)")
+                        logger.info(f"[MORNING PREP] ✓ Dependency chain complete: all steps updated since {morning_pipeline_cutoff}")
+                        log_phase_result_fn(1, 'morning_prep_dependency', 'success', 'All steps completed')
         except Exception as morning_check_err:
             logger.debug(f"[MORNING PREP] Could not check morning pipeline status: {morning_check_err}")
 
