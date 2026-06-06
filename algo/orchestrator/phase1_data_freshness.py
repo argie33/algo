@@ -292,6 +292,54 @@ def _check_failsafe_completion(state_table: Any, verbose: bool = False, timeout_
         logger.debug(f"[FAILSAFE_TIMEOUT] Could not check failsafe timeout: {err}")
         return None
 
+def _kill_hung_loader_task(loader_name: str, verbose: bool = False) -> bool:
+    """Kill a hung ECS loader task before triggering a new one.
+
+    ISSUE #3 FIX: When hung loader is detected, explicitly terminate the old task
+    to prevent zombie processes consuming RDS connections and DB contention.
+
+    Args:
+        loader_name: Name of loader (e.g., 'stock_prices_daily', 'technical_data_daily')
+        verbose: Whether to log verbose output
+
+    Returns:
+        True if task was killed or not found, False if kill failed
+    """
+    try:
+        import boto3
+        ecs_client = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+        cluster_arn = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
+
+        # List running tasks for this loader
+        response = ecs_client.list_tasks(
+            cluster=cluster_arn,
+            family=loader_name,
+            desiredStatus='RUNNING'
+        )
+
+        if not response.get('taskArns'):
+            logger.debug(f"[HUNG_TASK_KILL] No running tasks found for {loader_name}")
+            return True
+
+        for task_arn in response['taskArns']:
+            try:
+                if verbose:
+                    logger.info(f"[HUNG_TASK_KILL] Stopping hung task: {task_arn}")
+                ecs_client.stop_task(
+                    cluster=cluster_arn,
+                    task=task_arn,
+                    reason=f'Hung loader detected. Initiating failsafe retry.'
+                )
+                logger.warning(f"[HUNG_TASK_KILL] Stopped hung {loader_name} task: {task_arn}")
+            except Exception as stop_err:
+                logger.warning(f"[HUNG_TASK_KILL] Could not stop task: {stop_err}")
+                return False
+
+        return True
+    except Exception as e:
+        logger.warning(f"[HUNG_TASK_KILL] Could not kill hung task for {loader_name}: {e}")
+        return False
+
 def _detect_hung_loader_task(loader_name: str, timeout_minutes: int = None) -> bool:
     """Detect if loader task has hung by checking heartbeat.
 
@@ -1514,6 +1562,46 @@ def run(
                     flag = '[OK]' if is_ideal else '[WARN]' if (not is_stale) else '[STALE]'
                     logger.info(f"  {flag} {name:25s}: latest {d} ({trading_day_age}d trading old/{calendar_day_age}d calendar, acceptable until {min_acceptable_date})")
 
+        # ISSUE #2 FIX: Check for INCOMPLETE loader status (newly added to data_loader_status)
+        # INCOMPLETE means loader ran but couldn't get 95%+ symbol coverage
+        incomplete_loaders = []
+        try:
+            with DatabaseContext('read') as _status_cur:
+                _status_cur.execute("SET statement_timeout = 3000")
+                _status_cur.execute(
+                    "SELECT table_name, completion_pct, symbols_loaded, symbol_count "
+                    "FROM data_loader_status WHERE status = 'INCOMPLETE'"
+                )
+                for row in _status_cur.fetchall():
+                    table, completion_pct, symbols_loaded, symbol_count = row
+                    incomplete_loaders.append({
+                        'table': table,
+                        'completion_pct': completion_pct,
+                        'symbols_loaded': symbols_loaded,
+                        'symbol_count': symbol_count
+                    })
+                    logger.warning(
+                        f"[INCOMPLETE] Loader {table}: {symbols_loaded}/{symbol_count} symbols ({completion_pct:.1f}%) — "
+                        f"below 95% threshold, will trigger failsafe for retry"
+                    )
+
+            # If any loader is INCOMPLETE, add to stale_items to trigger failsafe
+            if incomplete_loaders:
+                stale_items.extend([
+                    f"{il['table']}: {il['symbols_loaded']}/{il['symbol_count']} symbols ({il['completion_pct']:.1f}%, need >95%)"
+                    for il in incomplete_loaders
+                ])
+                alerts.send_position_alert(
+                    'DATA',
+                    'LOADER_INCOMPLETE',
+                    f"One or more loaders completed with <95% symbol coverage: {'; '.join([il['table'] for il in incomplete_loaders])}. "
+                    f"Triggering failsafe for retry.",
+                    {'incomplete_loaders': incomplete_loaders}
+                )
+                logger.warning(f"[INCOMPLETE_LOADERS] {len(incomplete_loaders)} loader(s) marked INCOMPLETE, will trigger failsafe")
+        except Exception as incomp_err:
+            logger.debug(f"[INCOMPLETE] Check failed: {incomp_err} (proceeding)")
+
         # ISSUE #9 FIX: Validate data COMPLETENESS (symbol coverage %) for critical tables
         # Freshness alone isn't enough — if 500/5000 symbols failed to load, data is incomplete
         completeness_warnings = []
@@ -1600,9 +1688,12 @@ def run(
                             failsafe_already_triggered = True  # Skip trigger below
                         else:
                             logger.warning(f"[FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will terminate hung task and trigger fresh loader.")
-                            # Issue #3: Terminate the hung task before triggering new loader
+                            # ISSUE #3 FIX: Terminate the hung task before triggering new loader
                             # This prevents RDS connection pool exhaustion from zombie tasks
-                            _terminate_hung_loader_task('stock_prices_daily', verbose=verbose)
+                            if _kill_hung_loader_task('stock_prices_daily', verbose=verbose):
+                                logger.info(f"[HUNG_TASK] Successfully killed hung loader task")
+                            else:
+                                logger.warning(f"[HUNG_TASK] Could not kill hung loader task, proceeding with failsafe anyway")
             except Exception as status_err:
                 logger.debug(f"[FAILSAFE] Could not check loader status: {status_err}. Will trigger fresh loader.")
 

@@ -193,8 +193,34 @@ class PriceLoader(OptimalLoader):
         not proceed silently with a warning.
         """
         if max_wait_sec is None:
-            # Dynamic timeout based on pipeline context
-            max_wait_sec = 1200 if self._is_eod_pipeline else 600
+            # ISSUE #1 FIX: Read timeout from algo_config, use context-aware defaults
+            default_timeout_sec = 1200 if self._is_eod_pipeline else 600
+            try:
+                from utils.database_context import DatabaseContext
+                with DatabaseContext("read") as config_cur:
+                    config_key = 'yfinance_market_close_timeout_eod_sec' if self._is_eod_pipeline \
+                        else 'yfinance_market_close_timeout_morning_sec'
+                    config_cur.execute(
+                        "SELECT value FROM algo_config WHERE key = %s",
+                        (config_key,)
+                    )
+                    config_result = config_cur.fetchone()
+                    if config_result:
+                        max_wait_sec = int(config_result[0])
+                        # Cap at 1800s (30 min) to prevent runaway timeouts
+                        max_wait_sec = min(max_wait_sec, 1800)
+                        logger.info(f"[MARKET_CLOSE] Using configured timeout: {max_wait_sec}s (from {config_key})")
+                    else:
+                        max_wait_sec = default_timeout_sec
+                        logger.debug(f"[MARKET_CLOSE] Using default timeout: {max_wait_sec}s")
+            except Exception as config_err:
+                max_wait_sec = default_timeout_sec
+                logger.debug(f"[MARKET_CLOSE] Could not read config, using default timeout: {max_wait_sec}s ({config_err})")
+
+            logger.info(f"[MARKET_CLOSE] yfinance market close check timeout: {max_wait_sec}s")
+        else:
+            logger.debug(f"[MARKET_CLOSE] Using override timeout: {max_wait_sec}s")
+
         from datetime import datetime, timezone, timedelta
         from algo.algo_market_calendar import MarketCalendar
         today = date.today()

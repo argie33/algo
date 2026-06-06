@@ -184,8 +184,20 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
         }
 
 def json_response(code, data):
-    """Standardized JSON response."""
-    return {"statusCode": code, **data}
+    """Standardized JSON response wrapper.
+
+    Ensures all responses follow the standard format:
+    - Success (code 2xx): {statusCode: 200, data: {...}}
+    - Error (code 4xx/5xx): {statusCode: code, errorType: "...", message: "..."}
+
+    This function should only be called with 200 status code for single objects.
+    For other status codes, use error_response() instead.
+    """
+    if code == 200:
+        return success_response(data)
+    else:
+        # For non-200 codes, data should have 'errorType' and 'message'
+        return {"statusCode": code, **data}
 
 def handle_db_error(error, logger, operation):
     """Unified database error handler for all route handlers.
