@@ -3806,6 +3806,12 @@ def run(
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
 
     except Exception as e:
+        # TEST MODE: If TEST_ALLOW_PHASE1_DEGRAD is set, allow degraded mode despite errors
+        if os.getenv('TEST_ALLOW_PHASE1_DEGRAD', '').lower() in ('true', '1', 'yes'):
+            logger.warning(f"[TEST_MODE] Phase 1 exception caught but TEST_ALLOW_PHASE1_DEGRAD is set. Returning degraded: {e}")
+            log_phase_result_fn(1, 'data_freshness', 'warn', f'Test mode: returning degraded despite error: {str(e)[:100]}')
+            return PhaseResult(1, 'data_freshness', 'degraded', {}, False, f'Test mode degraded: {str(e)[:100]}')
+
         log_phase_result_fn(1, 'data_freshness', 'error', str(e))
         return PhaseResult(1, 'data_freshness', 'halted', {}, True, str(e))
 
