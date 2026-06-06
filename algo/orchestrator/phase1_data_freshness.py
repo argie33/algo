@@ -1973,7 +1973,7 @@ def run(
                                     )
                                     row = cur.fetchone()
                             elif table in ('technical_data_daily', 'buy_sell_daily'):
-                                cur.execute(f"SELECT MAX(date) FROM {table}")
+                                cur.execute(f"SELECT MAX(updated_at) FROM {table}")
                                 row = cur.fetchone()
                             else:
                                 cur.execute(f"SELECT date FROM {table} ORDER BY date DESC LIMIT 1")
@@ -2674,11 +2674,14 @@ def run(
                     logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")
                     failsafe_ok = _trigger_loader_failsafe_with_verification('stock_prices_daily', verbose=verbose, poll_timeout_sec=poll_timeout, correlation_id=_phase1_correlation_id)
                     if failsafe_ok:
-                        logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] ✓ Loader trigger confirmed. Task is running.")
+                        logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] ✓ Loader trigger confirmed. Task is running. Data will refresh in parallel.")
                     else:
-                        logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] ✗ Loader trigger did not confirm within {poll_timeout}s. Will check data staleness.")
+                        # ISSUE #3 FIX: Explicit log that trigger DID NOT succeed
+                        logger.critical(f"[{_phase1_correlation_id}] [FAILSAFE] ✗ CRITICAL: Loader trigger FAILED to start within {poll_timeout}s timeout. Task may not have started or started but crashed immediately.")
                 except Exception as trigger_err:
-                    logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] Loader trigger failed: {trigger_err}")
+                    # ISSUE #3 FIX: Exception during trigger is also a failure - treat as critical
+                    logger.critical(f"[{_phase1_correlation_id}] [FAILSAFE] ✗ CRITICAL: Loader trigger exception: {trigger_err}. Task likely did not start.")
+                    failsafe_ok = False  # Ensure we treat exception as failure
 
             if not failsafe_ok:
                 # ISSUE #3 FIX: Failsafe failed or timeout - loader may not have started
