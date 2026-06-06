@@ -1624,12 +1624,12 @@ def run(
                 logger.debug(f"[MORNING_PREP_LAG] Could not check lag status: {lag_err}")
 
         # ISSUE #10 FIX: Active timing monitoring with multi-tier alerts
-        # Phase 1 runs at 9:30 AM ET. If we're checking before 9:30 AM, measure progress from 2:45 AM start
+        # Phase 1 runs at 9:30 AM ET. If we're checking before 9:30 AM, measure progress from 2:00 AM start
         # Critical thresholds:
         # - CRITICAL (95% threshold): <20 min remaining (8:10 AM+) — runner must complete immediately
         # - WARNING (80% threshold): <80 min remaining (7:10 AM+) — watch for slowness
-        # - INFO: Keep monitoring between 2:45 AM and 7:10 AM as baseline
-        if is_morning and 2 <= hour_et < 9:  # Morning pipeline: 2:45 AM - 9:30 AM window
+        # - INFO: Keep monitoring between 2:00 AM and 7:30 AM as baseline (450 min window)
+        if is_morning and 2 <= hour_et < 9:  # Morning pipeline: 2:00 AM - 9:30 AM window
             market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
             time_until_930 = (market_open - now_et).total_seconds() / 60
             realistic_time_needed = 255  # 4h 15m (from steering docs)
@@ -2658,7 +2658,7 @@ def run(
             # ISSUE #11 FIX: Pipeline Overlap Detection with Enforcement & Throttling
             # ISSUE #4 FIX: Pipeline Overlap Detection with RDS Connection Pool Monitoring
             # Check if EOD loaders are still running when morning prep needs to run.
-            # Morning prep (2:45 AM): stock_prices_daily → technical_data_daily → buy_sell_daily
+            # Morning prep (2:00 AM): stock_prices_daily → technical_data_daily → buy_sell_daily
             # If EOD loaders still running: both pipelines compete for RDS Proxy connections
             # NEW: Add throttling - if EOD running <60min, delay morning prep 30s and retry
             # ENFORCEMENT: Fail if EOD overran by >11.5 hours (should finish by ~5:30 PM)
@@ -3285,7 +3285,7 @@ def run(
             is_9am_or_later = now_et.hour >= 9
 
             if is_9am_or_later:
-                morning_pipeline_cutoff = run_date.replace(hour=2, minute=45, second=0, microsecond=0)
+                morning_pipeline_cutoff = run_date.replace(hour=2, minute=0, second=0, microsecond=0)
                 with DatabaseContext('read') as _morning_cur:
                     _morning_cur.execute("SET statement_timeout = 5000")
 
