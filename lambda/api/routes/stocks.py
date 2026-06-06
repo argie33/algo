@@ -260,6 +260,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         where_sql = " AND ".join(where_clauses)
         query_params_with_limit = query_params + [limit, offset]
 
+        # Set timeout for main listing query to prevent hangs
+        cur.execute("SET LOCAL statement_timeout = '8000ms'")
         cur.execute("""
             SELECT ss.symbol, COALESCE(ss.security_name, ss.symbol) as company_name,
                    COALESCE(cp.sector, 'Unknown') as sector,
@@ -273,6 +275,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         """, query_params_with_limit)
         rows = cur.fetchall()
 
+        # Set timeout for count query as well
+        cur.execute("SET LOCAL statement_timeout = '5000ms'")
         cur.execute("""
             SELECT COUNT(*) FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker

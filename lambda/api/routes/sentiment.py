@@ -79,6 +79,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 page_str = params.get('page', [None])[0] if params else None
                 page = safe_page(page_str, default=1)
                 offset = (page - 1) * limit
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute("""
                     SELECT symbol, date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent
@@ -90,6 +91,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 freshness = check_data_freshness(cur, 'analyst_sentiment_analysis', 'date', warning_days=7)
                 return list_response([dict(s) for s in sentiment] if sentiment else [], data_freshness=freshness)
             elif path == '/api/sentiment/divergence':
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute("""
                     SELECT asa.symbol, asa.date,
                            asa.bullish_count, asa.bearish_count, asa.analyst_count,
@@ -110,6 +112,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Validate symbol format: max 5 chars, alphanumeric + dash only
                 if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == '-' for c in symbol):
                     return error_response(400, 'bad_request', 'Invalid symbol format')
+                cur.execute("SET LOCAL statement_timeout = '3000ms'")
                 cur.execute("""
                     SELECT date, analyst_count, bullish_count, bearish_count, neutral_count,
                            target_price, current_price, upside_downside_percent
