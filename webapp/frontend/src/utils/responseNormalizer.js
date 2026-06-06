@@ -50,6 +50,25 @@ export const extractData = (response) => {
     throw error;
   }
 
+  // Handle direct array responses (e.g., from async queryFn returning array)
+  // CRITICAL: If data itself is an array, return it as-is or wrap it in an items property
+  if (Array.isArray(data)) {
+    return {
+      items: data,
+      pagination: {
+        limit: data.length,
+        offset: 0,
+        total: data.length,
+        page: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+      statusCode: httpStatus,
+      success: true,
+    };
+  }
+
   // Handle paginated responses (items + pagination)
   // CRITICAL: Check that items is actually an array (not null/undefined)
   if (data.items && Array.isArray(data.items)) {
@@ -73,8 +92,25 @@ export const extractData = (response) => {
 
   // Handle single object responses (data field)
   if (data.data !== null && data.data !== undefined) {
+    // If data.data is an array, wrap it in items property
+    if (Array.isArray(data.data)) {
+      return {
+        items: data.data,
+        pagination: {
+          limit: data.data.length,
+          offset: 0,
+          total: data.data.length,
+          page: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+        statusCode: httpStatus,
+        success: true,
+      };
+    }
     // If data.data is an object, spread it; otherwise return as-is
-    if (typeof data.data === 'object' && data.data !== null && !Array.isArray(data.data)) {
+    if (typeof data.data === 'object' && data.data !== null) {
       return {
         ...data.data,
         statusCode: httpStatus,
@@ -90,7 +126,8 @@ export const extractData = (response) => {
   }
 
   // Fallback: return the whole data object with statusCode if it's an object
-  if (typeof data === 'object' && data !== null) {
+  // BUT: Don't spread arrays - this would turn them into objects with numeric keys!
+  if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
     return {
       ...data,
       statusCode: httpStatus,

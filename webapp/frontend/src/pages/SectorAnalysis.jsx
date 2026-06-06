@@ -289,7 +289,7 @@ function SectorRelativeChart({ sectors }) {
   }, [sectors]);
 
   // Use batch endpoint instead of individual requests to reduce API calls from 150+ to 1
-  const { data: merged, loading: isLoading } = useApiQuery(
+  const { data: responseData, loading: isLoading } = useApiQuery(
     ['sector-relative-90', top.join('|')],
     async () => {
       if (top.length === 0) return [];
@@ -316,6 +316,9 @@ function SectorRelativeChart({ sectors }) {
     },
     { enabled: top.length > 0, staleTime: 1000 * 60 * 10, refetchInterval: 60000 }
   );
+
+  // Extract array from response - useApiQuery wraps arrays in { items: [...], pagination: {...} }
+  const merged = Array.isArray(responseData) ? responseData : (responseData?.items || []);
 
   if (isLoading) return <Empty title="Loading…" />;
   if (!merged || merged.length < 2) {
