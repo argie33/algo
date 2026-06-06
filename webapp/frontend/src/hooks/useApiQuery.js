@@ -60,13 +60,14 @@ export const useApiQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors up to specified retry count (default 2 for faster failure feedback)
-      // This handles transient failures during deployments/RDS restarts without long user wait
-      if (status >= 500) return failureCount < Math.min(retry, 2);
+      // Retry on 5xx errors with generous retries for deployments/RDS restarts
+      // Allow up to 3 retries (4 total attempts) to handle 30+ second backend recovery times
+      if (status >= 500) return failureCount < 3;
 
-      // Retry on network errors and timeouts (transient issues)
+      // Retry on network errors and timeouts (transient issues) with more attempts
+      // These often indicate backend is recovering, give it more chances
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
-        return failureCount < Math.min(retry, 2);
+        return failureCount < 4;
       }
 
       // Default: no retry for unknown errors
@@ -150,13 +151,14 @@ export const useApiPaginatedQuery = (
       // Never retry on not found (resource doesn't exist)
       if (status === 404) return false;
 
-      // Retry on 5xx errors up to specified retry count (default 2 for faster failure feedback)
-      // This handles transient failures during deployments/RDS restarts without long user wait
-      if (status >= 500) return failureCount < Math.min(retry, 2);
+      // Retry on 5xx errors with generous retries for deployments/RDS restarts
+      // Allow up to 3 retries (4 total attempts) to handle 30+ second backend recovery times
+      if (status >= 500) return failureCount < 3;
 
-      // Retry on network errors and timeouts (transient issues)
+      // Retry on network errors and timeouts (transient issues) with more attempts
+      // These often indicate backend is recovering, give it more chances
       if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED')) {
-        return failureCount < Math.min(retry, 2);
+        return failureCount < 4;
       }
 
       // Default: no retry for unknown errors
