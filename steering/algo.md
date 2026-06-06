@@ -45,6 +45,19 @@ If you need to rebuild the schema:
 2. Run GitHub Actions "Deploy All Infrastructure" workflow manually
 3. Workflow will automatically create, invoke, and clean up the db-init Lambda
 
+## Documentation Standards
+
+**Do NOT create at root level:**
+- Session docs: `STATUS_*.md`, `EXECUTION_*.md`, `*_REVIEW.md`, `CHECKLIST.md`, `ACTION_PLAN.md`
+- One-time scripts, logs, or analysis files (pre-commit enforced)
+
+**DO create/update:**
+- `steering/algo.md` - permanent procedures, architecture, troubleshooting, constraints
+- Git commit messages - authoritative source for what changed and why
+- `.claude/projects/C--Users-arger-code-algo/memory/*.md` - temporary guidance only, delete when done
+
+**Why:** Prevents doc accumulation. Git log + steering docs are the permanent source of truth.
+
 ## Schedule
 
 **Daily runs (Mon-Fri):**
