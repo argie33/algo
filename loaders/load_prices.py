@@ -887,9 +887,8 @@ class PriceLoader(OptimalLoader):
                 except Exception as ddb_err:
                     logger.debug(f"[MARKET_CLOSE] Could not record failure in DynamoDB: {ddb_err}")
 
-                # ISSUE #22 FIX: Invalidate cache on market close failure so Phase 1 doesn't use stale data
-                # ISSUE #24 FIX: Handle cache invalidation failures gracefully
-                cache_invalidation_ok = False
+                # ISSUE #22 & #2 FIX: Invalidate cache on market close failure with BLOCKING error on cache failure
+                # If cache invalidation fails, the loader must HALT to prevent Phase 1 from using stale cached data
                 try:
                     from datetime import datetime
                     from zoneinfo import ZoneInfo
@@ -902,21 +901,31 @@ class PriceLoader(OptimalLoader):
                     cache_table = dynamodb.Table(cache_table_name)
                     cache_table.delete_item(Key={'cache_key': cache_key})
                     logger.info(f"[CACHE INVALIDATION] ✓ Invalidated Phase 1 cache due to market close failure for {cache_key}")
-                    cache_invalidation_ok = True
                 except Exception as cache_err:
-                    logger.error(f"[CACHE INVALIDATION] ✗ FAILED to invalidate cache on market close failure: {type(cache_err).__name__}: {cache_err}. "
-                               f"Cache may contain stale data. Phase 1 should skip cache and force fresh database check.")
-                    # Emit metric to alert that cache invalidation failed
+                    # ISSUE #2 FIX: Cache invalidation failure is CRITICAL - must halt loader to prevent silent data corruption
+                    # If we can't invalidate cache, Phase 1 might use stale data. Rather than proceeding and silently
+                    # corrupting the dataset, we MUST fail loudly and let Phase 1 see the loader failure
+                    logger.critical(
+                        f"[CACHE INVALIDATION] ✗ CRITICAL: Failed to invalidate Phase 1 cache on market close failure. "
+                        f"Error: {type(cache_err).__name__}: {cache_err}. "
+                        f"Cannot safely proceed - Phase 1 might use stale cached data. Halting loader."
+                    )
+                    # Emit critical metric
                     try:
                         from algo.algo_metrics import MetricsPublisher
                         m = MetricsPublisher()
-                        m.put_metric('CacheInvalidationFailure', 1, unit='Count', dimensions={
+                        m.put_metric('CacheInvalidationCritical', 1, unit='Count', dimensions={
                             'reason': 'market_close_failure',
                             'error_type': type(cache_err).__name__
                         })
                         m.flush()
                     except Exception:
                         pass
+                    # HALT: Raise exception to force loader failure (Phase 1 will detect and trigger failsafe)
+                    raise RuntimeError(
+                        f"Loader aborting: Market close data unavailable AND cache invalidation failed. "
+                        f"This prevents silent data corruption. Cache error: {cache_err}"
+                    )
 
                 # Return empty results - Phase 1 will detect stale data and trigger failsafe
                 logger.warning(f"[MARKET_CLOSE] Loader aborting with empty results. Phase 1 will trigger failsafe.")
@@ -1191,6 +1200,8 @@ def _invalidate_phase1_cache():
     """Invalidate Phase 1 cache to force fresh status check on next run.
 
     Called on loader failure to ensure Phase 1 doesn't use stale cached data.
+    CRITICAL: If invalidation fails, marks cache with 'invalidation_failed' flag
+    so Phase 1 knows not to use it (better than silent failure).
     """
     try:
         from datetime import datetime
@@ -1205,9 +1216,29 @@ def _invalidate_phase1_cache():
         dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
         cache_table = dynamodb.Table(cache_table_name)
         cache_table.delete_item(Key={'cache_key': cache_key})
-        logger.debug(f"[CACHE INVALIDATION] Invalidated Phase 1 cache on loader failure for {cache_key}")
+        logger.info(f"[CACHE INVALIDATION] ✓ Invalidated Phase 1 cache on loader failure for {cache_key}")
     except Exception as cache_err:
-        logger.debug(f"[CACHE INVALIDATION] Could not invalidate cache on failure: {cache_err}")
+        # CRITICAL FIX: On failure, mark cache with 'invalidation_failed' flag so Phase 1 skips it
+        logger.error(f"[CACHE INVALIDATION] ✗ FAILED to delete cache (will mark as poisoned): {type(cache_err).__name__}: {cache_err}")
+        try:
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+            import boto3
+            cache_date = datetime.now(ZoneInfo("America/New_York")).date()
+            cache_key = f"data_loader_status-{cache_date.isoformat()}"
+            cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+            dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+            cache_table = dynamodb.Table(cache_table_name)
+            # Mark cache as poisoned (invalidation failed) so Phase 1 will skip it
+            cache_table.update_item(
+                Key={'cache_key': cache_key},
+                UpdateExpression='SET invalidation_failed = :true',
+                ExpressionAttributeValues={':true': True}
+            )
+            logger.warning(f"[CACHE INVALIDATION] Marked cache as poisoned (invalidation_failed=true) - Phase 1 will skip it")
+        except Exception as mark_err:
+            logger.error(f"[CACHE INVALIDATION] CRITICAL: Could not mark cache as poisoned either: {mark_err}. "
+                        f"Cache may be silently used with stale data. Phase 1 may not detect this failure.")
 
 def log_loader_execution(loader_name, table_name, status, records_loaded=0, records_updated=0, error_msg=None, duration_seconds=0):
     """Log loader execution to data_loader_runs table for monitoring."""

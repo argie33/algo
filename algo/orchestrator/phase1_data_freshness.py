@@ -301,7 +301,63 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                         pass
 
             if poll_success:
-                return True
+                # CRITICAL FIX: Verify loader actually started loading data, not just reached RUNNING
+                # Check if data_loader_status shows loader has begun work (status=RUNNING with recent updated_at)
+                # This catches tasks that reach RUNNING but immediately crash or fail to initialize
+                try:
+                    with DatabaseContext('read') as status_cur:
+                        status_cur.execute("SET statement_timeout = 5000")  # 5s max
+                        # Map loader_name to table_name for status lookup
+                        table_map = {
+                            'stock_prices_daily': 'price_daily',
+                            'technical_data_daily': 'technical_data_daily',
+                            'market_health_daily': 'market_health_daily',
+                        }
+                        table_name = table_map.get(loader_name)
+                        if table_name:
+                            status_cur.execute(
+                                "SELECT status, updated_at FROM data_loader_status WHERE table_name = %s",
+                                (table_name,)
+                            )
+                            row = status_cur.fetchone()
+                            if row and row[0] == 'RUNNING':
+                                # Loader status shows RUNNING - it has begun work
+                                from datetime import datetime, timezone
+                                if isinstance(row[1], str):
+                                    updated_at = datetime.fromisoformat(row[1].replace('Z', '+00:00'))
+                                else:
+                                    updated_at = row[1]
+                                age_sec = (datetime.now(timezone.utc) - updated_at).total_seconds()
+                                if age_sec < 60:  # Status updated within last minute
+                                    logger.info(f"[FAILSAFE] ✓ Verified: Loader {loader_name} started loading (status=RUNNING, updated {age_sec:.0f}s ago)")
+                                    return True
+                                else:
+                                    logger.warning(f"[FAILSAFE] ⚠️  Task RUNNING but status not recently updated ({age_sec:.0f}s ago). "
+                                                 f"Loader may have stalled. Monitoring...")
+                                    return True  # Still return True, will be caught by grace period hung detection
+                            else:
+                                logger.warning(f"[FAILSAFE] Task {task_id} RUNNING but {loader_name} status not yet RUNNING. "
+                                             f"Loader may still be initializing... waiting up to 30s more")
+                                # Give loader more time to initialize (up to 30s more)
+                                for wait_attempt in range(6):  # 6 attempts x 5s = 30s
+                                    time.sleep(5)
+                                    status_cur.execute(
+                                        "SELECT status, updated_at FROM data_loader_status WHERE table_name = %s",
+                                        (table_name,)
+                                    )
+                                    row = status_cur.fetchone()
+                                    if row and row[0] == 'RUNNING':
+                                        logger.info(f"[FAILSAFE] ✓ Verified (after 30s): Loader {loader_name} status=RUNNING")
+                                        return True
+                                # Still not RUNNING after 30s wait
+                                logger.error(f"[FAILSAFE] FAILED: Task {task_id} reached RUNNING but {loader_name} status never became RUNNING. "
+                                           f"Loader appears to have failed during initialization.")
+                                return False
+                except Exception as progress_err:
+                    logger.warning(f"[FAILSAFE] Could not verify loader progress: {progress_err}. "
+                                 f"Assuming loader is working (will be caught by grace period if it hangs)")
+                    return True  # Assume OK if we can't verify (database temporarily unavailable)
+
             elif attempts < max_attempts:
                 logger.warning(f"[FAILSAFE] Attempt {attempts}: Task did not reach RUNNING within {poll_timeout_sec}s. "
                               f"Retrying in 10s...")
@@ -1569,6 +1625,60 @@ def run(
         except Exception as mc_err:
             logger.debug(f"[MARKET_CLOSE] Could not check failure status: {mc_err}")
 
+        # ISSUE #10 FIX: Morning Prep Pipeline Timing Monitoring
+        # Start time: 2:45 AM ET
+        # Deadline: 9:30 AM ET (405 minutes available)
+        # Realistic execution: 230-255 minutes (3.8-4.25 hours)
+        # Safety buffer: 150 minutes (2.5 hours) — TIGHT but acceptable
+        # CRITICAL: If morning prep misses 9:30 AM deadline, Phase 1 finds stale data and halts
+        # MITIGATION: Active monitoring with early warnings to catch slowness patterns
+
+        # Monitor morning prep pipeline timing (only relevant if we're in morning window 2:45-9:30 AM)
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        morning_prep_start = now_et.replace(hour=2, minute=45, second=0, microsecond=0)
+        market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+        minutes_since_morning_start = (now_et - morning_prep_start).total_seconds() / 60
+        minutes_until_market_open = (market_open - now_et).total_seconds() / 60
+
+        is_morning_prep_window = -5 < minutes_since_morning_start < 405  # ±5 min tolerance
+        if is_morning_prep_window and minutes_until_market_open > 0 and minutes_since_morning_start > 0:
+            # We're in the morning prep window. Check if we're falling behind schedule
+            # Realistic execution: 230 min baseline
+            # Current time: minutes_since_morning_start
+            # Expected progress: should be ~56% done at T=130min (230×0.56≈129)
+            expected_at_halfway = 115  # Should be about halfway through (230/2)
+            expected_at_90pct = 207    # Should be 90% done at 207 min (230×0.9)
+
+            if minutes_since_morning_start > expected_at_halfway and minutes_until_market_open < expected_at_halfway:
+                # We're past the halfway point but running out of time
+                time_left_ratio = minutes_until_market_open / expected_at_halfway
+                if time_left_ratio < 0.8:
+                    logger.warning(
+                        f"[MORNING_PREP_TIMING] ⚠️ EARLY WARNING: Morning prep may miss 9:30 AM deadline. "
+                        f"Current time: {minutes_since_morning_start:.0f}min into window, "
+                        f"{minutes_until_market_open:.0f}min until market open. "
+                        f"Expected time remaining: {expected_at_halfway - minutes_since_morning_start:.0f}min, "
+                        f"actual: {minutes_until_market_open:.0f}min. "
+                        f"Safety margin at {time_left_ratio*100:.0f}% of expected (recommend >80% for safe completion). "
+                        f"Monitor individual loader execution times in CloudWatch."
+                    )
+                    try:
+                        alerts.send_position_alert(
+                            'TIMING',
+                            'MORNING_PREP_BEHIND_SCHEDULE',
+                            f"Morning prep pipeline running behind schedule. "
+                            f"Current: {minutes_since_morning_start:.0f}min, deadline in {minutes_until_market_open:.0f}min. "
+                            f"Safety margin degraded to {time_left_ratio*100:.0f}%. "
+                            f"Check stock_prices_daily, technical_data_daily, and buy_sell_daily execution times.",
+                            {'minutes_since_start': minutes_since_morning_start,
+                             'minutes_until_deadline': minutes_until_market_open,
+                             'safety_margin_pct': time_left_ratio * 100}
+                        )
+                    except Exception:
+                        pass
+
         # NOTE: ANALYZE moved to morning prep pipeline (4:30 AM ET) to run once daily instead of 4x.
         # Previously: ANALYZE took ~7.8s and ran at 9:30 AM, 1 PM, 3 PM, 5:30 PM = 31.2s/day wasted
         # Now: ANALYZE runs once in morning prep, statistics fresh for all 4 daily Phase 1 runs.
@@ -1711,17 +1821,17 @@ def run(
                 logger.warning(f"Phase 1: data_loader_status query failed ({e}), trying direct table scan")
 
         # Fall back to direct scan only for tables missing from data_loader_status.
-        # ISSUE #5 FIX: Use atomic query to read all missing table dates in single transaction
+        # CRITICAL FIX: Use SERIALIZABLE isolation to ensure all table reads are at same point in time
         # This prevents race conditions where price_daily is fresh at t=0 but technical_data_daily becomes stale at t=5
-        # Use ORDER BY date DESC LIMIT 1 instead of MAX(date) — forces an index scan
-        # regardless of stale PostgreSQL statistics (avoids sequential scan on t4g.micro).
+        # SERIALIZABLE = snapshot isolation + conflict detection = consistent view across all tables
         missing = [t for t in ('price_daily', 'market_health_daily', 'trend_template_data', 'technical_data_daily', 'buy_sell_daily') if t not in dates]
         if missing:
+            atomic_query_failed = False
             try:
                 with DatabaseContext('read') as cur:
                     cur.execute("SET statement_timeout = 30000")  # 30s max for all queries
-                    # ISSUE #5 FIX: Begin explicit transaction to ensure all table reads are atomic
-                    cur.execute("BEGIN ISOLATION LEVEL READ COMMITTED")
+                    # Use SERIALIZABLE isolation for true atomicity (not READ COMMITTED which is per-query)
+                    cur.execute("BEGIN ISOLATION LEVEL SERIALIZABLE")
                     try:
                         for table in missing:
                             try:
@@ -1745,7 +1855,7 @@ def run(
                                 cur.execute("RELEASE SAVEPOINT scan")
                                 if row and row[0]:
                                     dates[table] = row[0]
-                                    logger.info(f"[{_phase1_correlation_id}] Phase 1: direct scan found {table} latest={row[0]} (atomic transaction)")
+                                    logger.info(f"[{_phase1_correlation_id}] Phase 1: direct scan found {table} latest={row[0]} (serializable atomic)")
                             except Exception as e:
                                 try:
                                     cur.execute("ROLLBACK TO SAVEPOINT scan")
@@ -1759,9 +1869,16 @@ def run(
                             cur.execute("ROLLBACK")
                         except Exception:
                             pass
-                        logger.warning(f"Phase 1: atomic transaction failed ({txn_err}), results may have race condition")
+                        logger.critical(f"Phase 1: SERIALIZABLE atomic transaction failed ({txn_err}) - HALTING to prevent race-condition data corruption")
+                        atomic_query_failed = True
             except Exception as e:
-                logger.warning(f"Phase 1: direct scan connection failed ({e})")
+                logger.critical(f"Phase 1: SERIALIZABLE transaction connection failed ({e}) - HALTING to prevent data corruption")
+                atomic_query_failed = True
+
+            # CRITICAL: If atomic query failed, HALT instead of proceeding with potentially corrupted data
+            if atomic_query_failed:
+                log_phase_result_fn(1, 'atomic_query_failure', 'halt', 'Database atomic query failed - cannot guarantee data consistency')
+                return PhaseResult(1, 'atomic_query_failure', 'halted', {}, True, 'Atomic database query failed - cannot proceed with potentially corrupted data')
 
         spy_date = dates.get('price_daily') or dates.get('etf_price_daily')
         mh_date = dates.get('market_health_daily')
@@ -2126,30 +2243,54 @@ def run(
             loader_currently_running = False
 
             try:
-                # Quick check: is stock_prices_daily actually RUNNING in database?
+                # ISSUE #5 FIX: Check ALL critical-path loaders for hung status, not just stock_prices_daily
+                # Critical loaders: stock_prices_daily, technical_data_daily, buy_sell_daily
+                # If ANY of these are hung, they block the entire morning pipeline
+                critical_loaders_to_check = ['price_daily', 'technical_data_daily', 'buy_sell_daily']
+                hung_critical_loaders = []
+
                 with DatabaseContext('read') as _status_cur:
                     _status_cur.execute("SET statement_timeout = 3000")  # 3s max
+
+                    for critical_loader in critical_loaders_to_check:
+                        try:
+                            _status_cur.execute(
+                                "SELECT status FROM data_loader_status WHERE table_name = %s",
+                                (critical_loader,)
+                            )
+                            result = _status_cur.fetchone()
+                            if result and result[0] == 'RUNNING':
+                                # Check if loader has hung (stale heartbeat >3 min)
+                                if _detect_hung_loader_task(critical_loader):
+                                    hung_critical_loaders.append(critical_loader)
+                                    logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] Critical loader '{critical_loader}' marked RUNNING but heartbeat stale - hung detected")
+                                    # Attempt to terminate hung task
+                                    if _terminate_hung_loader_task(critical_loader, verbose=verbose):
+                                        logger.info(f"[{_phase1_correlation_id}] [HUNG_TASK] ✓ Successfully terminated hung loader: {critical_loader}")
+                                    else:
+                                        logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] Could not terminate {critical_loader}, may exhaust RDS pool")
+                        except Exception as e:
+                            logger.debug(f"[{_phase1_correlation_id}] Could not check status for {critical_loader}: {e}")
+
+                    # ISSUE #5 FIX: If we found hung critical loaders, we must trigger failsafe
+                    # Do NOT rely on grace period if critical path is blocked
+                    if hung_critical_loaders:
+                        logger.critical(
+                            f"[{_phase1_correlation_id}] [HUNG_CRITICAL_LOADERS] {len(hung_critical_loaders)} critical loader(s) hung: {'; '.join(hung_critical_loaders)}. "
+                            f"Morning pipeline blocked. Failing fast to trigger new failsafe instead of waiting through grace period."
+                        )
+                        failsafe_already_triggered = False  # Force failsafe trigger below
+
+                    # If stock_prices_daily is RUNNING and NOT hung, use grace period
                     _status_cur.execute(
                         "SELECT status FROM data_loader_status WHERE table_name = 'price_daily'"
                     )
                     result = _status_cur.fetchone()
-                    if result and result[0] == 'RUNNING':
-                        # ISSUE #12: Check if loader has hung before relying on grace period
-                        # If heartbeat is stale (>3 min), loader is stuck, trigger failsafe
-                        if not _detect_hung_loader_task('price_daily'):
-                            loader_currently_running = True
-                            logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period, no re-trigger needed.")
-                            failsafe_already_triggered = True  # Skip trigger below
-                        else:
-                            logger.warning(f"[{_phase1_correlation_id}] [FAILSAFE] Loader marked RUNNING but heartbeat is stale - loader appears hung. Will terminate hung task and trigger fresh loader.")
-                            # ISSUE #9 FIX: Zombie task cleanup - terminate hung tasks before triggering new one
-                            # This prevents RDS connection pool exhaustion from zombie tasks
-                            # Use _terminate_hung_loader_task for better verification (confirms stop actually completed)
-                            if _terminate_hung_loader_task('stock_prices_daily', verbose=verbose):
-                                logger.info(f"[{_phase1_correlation_id}] [HUNG_TASK] ✓ Successfully terminated hung loader task (zombie cleanup verified)")
-                            else:
-                                logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] ⚠️  Could not terminate hung loader task, but proceeding with failsafe anyway. "
-                                             f"Hung task may consume resources - monitor RDS connection pool.")
+                    if result and result[0] == 'RUNNING' and 'price_daily' not in hung_critical_loaders:
+                        # Loader is actively running and healthy
+                        loader_currently_running = True
+                        logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Loader status: RUNNING in background and healthy. Using grace period, no re-trigger needed.")
+                        failsafe_already_triggered = True  # Skip trigger below
 
                     # ISSUE #8 FIX: Also check for hung analytics loaders that could exhaust RDS connection pool
                     # Analytics loaders (company_profile, analyst_sentiment, etc.) aren't on critical path
