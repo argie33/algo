@@ -84,16 +84,16 @@ If you need to rebuild the schema:
 
 **Daily runs (Mon-Fri):**
 - 2:40 AM ET: stock_symbols (EventBridge)
-- 2:45 AM ET: sp500/russell constituents (EventBridge) AND morning-prep-pipeline (Step Functions, advanced timing)
+- 2:15 AM ET: sp500/russell constituents (EventBridge) AND morning-prep-pipeline (Step Functions)
   - Morning pipeline: loads 1d prices (stock+etf), technicals, then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
-  - Starts at 2:45 AM ET for timing margin: 405 minutes (6 h 45 min) available until 9:30 AM deadline, provides 150+ min safety buffer
-  - **CRITICAL TIMING CONSTRAINT:** 2:45 AM start → 9:30 AM deadline = 6:45 (405 min) available
-    - **Loader execution time** (sequential at parallelism=1): stock_prices_daily (15 min) + technical_data_daily (90 min) + buy_sell_daily (30 min) + signal_quality_scores (30 min) + swing_trader_scores (30 min) = **195 min (3.25 h)**
+  - Starts at 2:15 AM ET to provide safety buffer: 435 minutes (7 h 15 min) available until 9:30 AM deadline
+  - **TIMING CONSTRAINT:** 2:15 AM start → 9:30 AM deadline = 7:15 (435 min) available
+    - **Loader execution time** (with internal parallelism per loader): stock_prices_daily (15 min) + technical_data_daily (90 min) + buy_sell_daily (30 min) + signal_quality_scores (30 min) + swing_trader_scores (30 min) = **195 min (3.25 h)**
     - **Overhead** (ECS cold-start, RDS cache warm-up, per-task setup): ~35-60 min
     - **Total realistic time**: 230-255 min (3.8-4.25 h)
-    - **Safety buffer**: 405 - 255 = 150 min (2.5 h) — adequate, but margin tight if any loader slows >50%
-    - **Early warning:** If any loader takes >2h, Phase 1 will not complete by 9:30 AM. Check ECS CPU metrics and RDS slow queries.
-    - **Remediation:** If morning pipeline lags >1h behind schedule (running past 5 AM), early 9:30 AM run will find stale data and trigger failsafe. Monitor CloudWatch logs for slowness patterns.
+    - **Safety buffer**: 435 - 255 = 180 min (3 h) — provides 30min extra cushion vs prior 150min buffer; reduces false stale-data detections
+    - **Early warning:** If any loader takes >2h, Phase 1 will detect and log. Check ECS CPU metrics and RDS slow queries.
+    - **Remediation:** If morning pipeline lags significantly (running past 6 AM), Phase 1 will warn but has adequate buffer. Monitor CloudWatch logs for slowness patterns and missing loaders.
 - 4:05 PM ET: EOD pipeline (Step Functions, 9 core loaders) — loads all intervals (1d/1wk/1mo), signals, scores, orchestrator dry-run.
 - 9:30 AM, 1 PM, 3 PM, 5:30 PM ET: orchestrator (7 phases)
 

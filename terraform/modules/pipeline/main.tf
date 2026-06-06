@@ -18,7 +18,7 @@
  *                   → sector_ranking (15 min expected, 15 min timeout = 900s)
  *                     → algo_orchestrator dry-run (20 min expected, 20 min timeout = 1200s)
  *
- * MORNING PIPELINE (2:45 AM ET, 5.5h max execution):
+ * MORNING PIPELINE (2:15 AM ET, 5.5h max execution):
  *   stock_prices_daily (daily only, 15 min expected, 75 min timeout = 4500s)
  *     → [parallel] technical_data_daily (90 min expected, 90 min timeout = 5400s)
  *                + market_health_daily (20 min expected, 20 min timeout = 1200s)
@@ -1250,13 +1250,13 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
 # EventBridge Scheduler (timezone-aware): both pipelines use America/New_York so they
 # fire at the correct wall-clock time year-round regardless of EST/EDT offset.
 #
-# Morning: 4:30 AM ET   — loads prices + technicals before market open
+# Morning: 2:00 AM ET   — loads prices + technicals before market open (7h 30m before 9:30 AM, 210min buffer)
 # EOD:     4:05 PM ET   — 5 min after market close, gives Alpaca time to settle prices
 
 resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
   name                         = "${var.project_name}-morning-pipeline-${var.environment}"
-  description                  = "Morning data prep: load prices + technicals for market open (2:45 AM ET, advanced for timing margin)"
-  schedule_expression          = "cron(45 2 ? * MON-FRI *)"
+  description                  = "Morning data prep: load prices + technicals for market open (2:00 AM ET, provides 210min buffer before 9:30 AM)"
+  schedule_expression          = "cron(0 2 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 
