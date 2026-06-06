@@ -2800,6 +2800,45 @@ def run(
         except Exception as e:
             logger.debug(f"Could not check first-run state: {e}")
 
+        # FINAL SAFETY CHECK (Issue #1, #6): Prevent proceeding with extremely stale data
+        # This is a last-line-of-defense check before success return
+        try:
+            with DatabaseContext('read') as _final_check_cur:
+                _final_check_cur.execute("SET statement_timeout = 5000")
+
+                # Verify price_daily has recent data (within halt_threshold trading days)
+                _final_check_cur.execute(
+                    f"SELECT MAX(date) FROM price_daily WHERE symbol='SPY'"
+                )
+                max_date = _final_check_cur.fetchone()
+                if max_date and max_date[0]:
+                    max_date_val = max_date[0]
+                    if isinstance(max_date_val, str):
+                        from datetime import datetime
+                        max_date_val = datetime.fromisoformat(max_date_val).date()
+                    age_trading_days = (expected_date - max_date_val).days
+
+                    # CRITICAL: If data is at or beyond halt threshold, MUST HALT
+                    if age_trading_days >= halt_threshold:
+                        logger.critical(
+                            f"[FINAL_SAFETY_CHECK] HALT: price_daily is {age_trading_days}d stale (threshold={halt_threshold}d). "
+                            f"Even if freshness checks passed, data is too old for safe trading. HALTING."
+                        )
+                        alerts.send_position_alert(
+                            'DATA',
+                            'FINAL_SAFETY_HALT_STALE_DATA',
+                            f'HALT: Final safety check failed. price_daily is {age_trading_days}d stale (halt threshold: {halt_threshold}d). '
+                            f'Data too old for safe trading. This should have been caught earlier. Escalate.',
+                            {'data_age_days': age_trading_days, 'halt_threshold': halt_threshold, 'final_check': True}
+                        )
+                        log_phase_result_fn(1, 'final_safety', 'halt',
+                                           f'FINAL_SAFETY: price_daily is {age_trading_days}d old (exceed threshold {halt_threshold}d)')
+                        return PhaseResult(1, 'final_safety', 'halted', {}, True,
+                                         f'FINAL SAFETY: price_daily is {age_trading_days}d stale (threshold {halt_threshold}d). '
+                                         f'Data too old for safe trading. Manual intervention required.')
+        except Exception as final_err:
+            logger.debug(f"[FINAL_SAFETY_CHECK] Could not verify: {final_err} (proceeding)")
+
         # Check swing_trader_scores and source data freshness — WARNING-ONLY (no halt).
         # CRITICAL FIX (Issue #1, #5): Swing scores halting was false-positive.
         # Root cause: If buy_sell_daily/technical_data_daily incomplete, swing_trader_scores will be incomplete.

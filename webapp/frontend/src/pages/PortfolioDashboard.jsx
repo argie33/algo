@@ -134,10 +134,13 @@ function PortfolioDashboardPage() {
   const tradesList = Array.isArray(trades) ? trades : (trades?.items || []);
   const equityCurve = Array.isArray(equityItems) ? equityItems : (equityItems?.items || []);
 
-  // Add null safety checks for arrays
-  const safePositionsList = Array.isArray(positionsList) ? positionsList : [];
-  const safeTradesList = Array.isArray(tradesList) ? tradesList : [];
-  const safeEquityCurve = Array.isArray(equityCurve) ? equityCurve : [];
+  // Add null safety checks for arrays - ensure they're always valid arrays
+  const safePositionsList = (Array.isArray(positionsList) && positionsList.length > 0) ? positionsList : [];
+  const safeTradesList = (Array.isArray(tradesList) && tradesList.length > 0) ? tradesList : [];
+  // Equity curve needs special handling: ensure each item has required fields (date, value)
+  const safeEquityCurve = Array.isArray(equityCurve) && equityCurve.length > 0
+    ? equityCurve.filter(item => item && typeof item === 'object' && item.date && (item.value != null || item.equity != null))
+    : [];
 
   // status returns {run_id, last_run, current_phase, status, message} — no portfolio sub-object
   const portfolio = (status && typeof status === 'object' && status.portfolio) ? status.portfolio : {};

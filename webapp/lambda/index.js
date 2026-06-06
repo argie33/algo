@@ -346,8 +346,6 @@ const ensureDatabase = async () => {
     ])
       .then(async (pool) => {
         __dbAvailable = true;
-        if (process.env.NODE_ENV !== 'test') {
-        }
         // Initialize schema (materialized views, etc) after connection is established
         try {
           await initializeSchema();
@@ -375,9 +373,6 @@ const ensureDatabase = async () => {
 
 // Middleware to check database requirement based on endpoint
 app.use(async (req, res, next) => {
-  if (process.env.NODE_ENV !== 'test') {
-  }
-
   // Endpoints that don't require database
   const nonDbEndpoints = ["/", "/api/health"];
 
