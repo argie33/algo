@@ -168,35 +168,9 @@ let api = axios.create({
   },
 });
 
-// Update API baseURL after config.js loads (production) — re-check window.__CONFIG__
-// This handles the case where config.js loads after axios is created
-if (typeof window !== "undefined" && !import.meta.env?.DEV) {
-  const configCheckInterval = setInterval(() => {
-    const newConfig = getApiConfig();
-    if (newConfig.baseURL && newConfig.baseURL !== api.defaults.baseURL) {
-      api.defaults.baseURL = newConfig.baseURL;
-      currentConfig = newConfig;
-      console.info(`[API Config Updated] baseURL now set to: ${newConfig.baseURL}`);
-      clearInterval(configCheckInterval);
-    }
-  }, 50);  // Check every 50ms for faster response
-  // Wait up to 15 seconds (15000ms) for config.js to load before giving up
-  // Matches main.jsx config timeout for consistency. Longer timeout handles slow networks.
-  setTimeout(() => {
-    clearInterval(configCheckInterval);
-    if (!currentConfig.baseURL || currentConfig.baseURL === '') {
-      const criticalError = '[CRITICAL] API Config not loaded after 15s. config.js may not have deployed or failed to execute. Check: (1) Network tab for config.js 404, (2) Browser console for syntax errors, (3) Browser DevTools → Application → Cache Storage for stale files';
-      console.error(criticalError);
-      // Warn about silent failures
-      if (typeof window !== "undefined" && window.location) {
-        // Log to a persistent location so we can see this in production
-        try {
-          sessionStorage.setItem('API_CONFIG_ERROR', criticalError);
-        } catch (e) {}
-      }
-    }
-  }, 15000);  // 15 seconds timeout (increased from 10s)
-}
+// Note: Config loading is fully handled by main.jsx which waits for config.js before rendering.
+// main.jsx calls initializeApiConfig() after config is loaded, which updates the API baseURL.
+// Removed duplicate polling here to eliminate unnecessary complexity and double-waiting.
 
 // Token refresh management
 let _refreshCallback = null;
