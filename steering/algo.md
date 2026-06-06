@@ -51,7 +51,7 @@ If you need to rebuild the schema:
 - 2:40 AM ET: stock_symbols (EventBridge)
 - 2:45 AM ET: sp500/russell constituents (EventBridge) AND morning-prep-pipeline (Step Functions, advanced timing)
   - Morning pipeline: loads 1d prices (stock+etf), technicals, then refreshes buy_sell_daily → signal_quality_scores → swing_trader_scores (fail-open). Ensures signals are always fresh before 9:30 AM even if EOD pipeline ran slow overnight.
-  - Advanced from 4:30 AM to 2:45 AM (2026-06-05+) for timing margin: increases buffer from 35 min to 165 min
+  - Starts at 2:45 AM ET for timing margin: 405 minutes (6 h 45 min) available until 9:30 AM deadline, provides 150+ min safety buffer
   - **CRITICAL TIMING CONSTRAINT:** 2:45 AM start → 9:30 AM deadline = 6:45 (405 min) available
     - **Loader execution time** (sequential at parallelism=1): stock_prices_daily (15 min) + technical_data_daily (90 min) + buy_sell_daily (30 min) + signal_quality_scores (30 min) + swing_trader_scores (30 min) = **195 min (3.25 h)**
     - **Overhead** (ECS cold-start, RDS cache warm-up, per-task setup): ~35-60 min
@@ -71,7 +71,7 @@ If you need to rebuild the schema:
 - **Justification**: RDS Proxy multiplexes 24 loaders (up to 96 direct connections) into 20-30 persistent RDS connections, reducing TCP handshake overhead by 75%. Even with parallelism=2-4 per loader, the proxy pools connections efficiently, preventing "too many connections" errors.
 - **Enforcement**: Parallelism values are defined per-loader in `terraform/modules/loaders/main.tf` (loaders map, each key has `parallelism` field). ECS task definitions automatically receive correct LOADER_PARALLELISM env var. Do NOT override with global settings in task definition revisions.
 
-**RDS Proxy (Connection Pooling - IMPLEMENTED 2026-06-05):**
+**RDS Proxy (Connection Pooling):**
 - **Architecture:** `aws_db_proxy` multiplexes client connections to RDS
 - **Configuration:** AWS defaults (max_connections=100, max_idle_connections=50, connection_borrow_timeout=120s)
 - **Re-enablement (Commit b5f25302):** 
@@ -93,7 +93,7 @@ If you need to rebuild the schema:
   - Alert threshold: >80% of max_db_connections (400 out of 500) → investigate slow queries or RDS CPU saturation
   - Query to verify proxy is active: `aws rds describe-db-proxies --query 'DBProxies[?DBProxyName==\`algo-rds-proxy-dev\`].Status'` (expect: available)
 
-## Phase 1 Simplification & Diagnostic Improvements (2026-06-05 Evening)
+## Phase 1 Simplification & Diagnostic Improvements
 
 **Goal:** Make data freshness checks reliable and debuggable. Removed complex schedule-based logic that was fragile and hard to diagnose.
 
@@ -111,7 +111,7 @@ If you need to rebuild the schema:
 
 **Why:** Previous system had too many decision paths (schedule-based expected dates, multiple grace periods, market-open vs intraday rules). User reported "never succeeds fully with entire dataset" — system was halting on false positives (stale data checks triggered when data was actually OK). Simplified to just: "must be fresh, period."
 
-## Data Quality & Resilience Improvements (Verified 2026-06-05)
+## Data Quality & Resilience Improvements
 
 **Summary:** System has been hardened with sophisticated failure detection, recovery, and data quality mechanisms across all critical paths.
 
@@ -258,11 +258,12 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 - **Buffer with current 3:30 AM start**: 6 hours - 5.5 hours (midpoint estimate) = **30 min buffer (TIGHT but acceptable)**
 - **Monitoring critical**: If any step regularly exceeds 2 hours, buffer disappears. Monitor CloudWatch metrics closely.
 
-**Optimization Decision (Deployed 2026-06-05):**
-- Current margin of 35 minutes is insufficient for production safety (yfinance rate limits, RDS slow queries, ECS scheduling delays can easily exceed this)
-- **Advance start time to 3:30 AM ET** - gain 1 additional hour, increasing margin from 35 min to 95 min (safe)
-- Terraform: Update EventBridge rule for morning-prep-pipeline trigger time to 3:30 AM (210 minutes = 03:30)
-- This change is retroactively safe: if morning prep finishes by 8:30 AM, Phase 1 at 9:30 AM will have fresh data
+**Morning Prep Start Time:**
+- Morning prep starts at 2:45 AM ET via EventBridge rule (165 minutes = 02:45)
+- This provides 6 h 45 min (405 minutes) until 9:30 AM deadline
+- Realistic execution window: 5-5.5 hours (including 0.5-1h ECS/RDS overhead)
+- Safety margin: 150-250 minutes; sufficient for yfinance rate limits, RDS slow queries, ECS scheduling delays
+- If margin reduces below 100 min: escalate to operations; consider further advance to 2:30 AM
 
 **Monitoring (Copy-paste ready for CloudWatch Logs Insights):**
 
@@ -296,7 +297,7 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 - If exceeding 5 hours: check EOD pipeline from previous day (may still be running when morning prep starts, consuming RDS connections)
 - If stock_prices_daily exceeds 100 min: check yfinance API status and rate limiting; may need to reduce parallelism from 4→2
 - If technical_data_daily exceeds 110 min: check RDS query performance (CPU, slow log); may need to add indexes or increase RDS instance size
-- If consistently slow: increase ECS task CPU (currently 256/512) and memory (currently 512/1024) for stock_prices_daily and technical_data_daily
+- If consistently slow: increase ECS task CPU and memory in Terraform (loaders/main.tf, `task_cpu` and `task_memory` fields) for stock_prices_daily and technical_data_daily
 - If margin consistently <30 min after fixes: consider further start time advance to 3:15 AM or parallel loader splits
 
 **Timing Validation Query (CloudWatch Logs Insights):**
@@ -448,7 +449,7 @@ terraform workspace delete staging
 **Position Limits (per-portfolio constraints):**
 - Sector position limit: 8 (max 8 concurrent positions in single sector, e.g., Technology)
 - Industry position limit: 5 (max 5 concurrent positions in single industry, e.g., Cloud Computing)
-- Chart pattern quality: Close must be in upper 40% of daily range (relaxed from 60% on 2026-06-04)
+- Chart pattern quality: Close must be in upper 40% of daily range
 
 **Configuration Location:** `algo_config` table, read by Phase 5 at 9:30 AM/1 PM/3 PM/5:30 PM runs.
 
@@ -647,31 +648,7 @@ All API errors return specific error types instead of generic "error" messages, 
 3. No code changes needed — system automatically uses updated calendar
 4. Verify NASDAQ/NYSE holiday calendar before adding (sometimes differs on observed dates)
 
-## Release Notes & Verification (2026-06-05)
-
-**Deployed Changes:**
-- Signal staleness tracking (buy_sell_daily_age_days, technical_data_age_days, trend_template_age_days columns)
-- Data patrol trigger verification (confirm ECS task reaches RUNNING state)
-- Morning prep pipeline timing advanced: 4:30 AM → 3:30 AM ET (+60 min safety margin)
-- RDS connection pool tuning documented (20 connections currently, headroom to 40-60)
-- Security: 9 npm vulnerabilities fixed (1 critical, 8 high)
-- Infrastructure: IAM role name corrected (6c7a96b5)
-
-**Verification Checklist (First 5 Business Days):**
-- ✓ 2026-06-06 3:30 AM: Morning prep triggers at new time, completes by 9:30 AM
-- ✓ 2026-06-06 4:05 PM: Signal staleness columns populated in database (non-NULL values)
-- ✓ 2026-06-06 through 2026-06-11: Signal rejection count trends downward, qualified signals increase
-- ✓ Daily: Lambda logs show no 401/403 errors (IAM role fix verification)
-- ✓ Daily: Phase 5 "FILTER REJECTION ANALYSIS" visible in logs confirming filter changes deployed
-
-**If Deployment Fails:**
-- Revert via: `git revert HEAD` + push to trigger automatic rollback
-- Estimated rollback time: 10-15 minutes
-- All changes are safe-to-revert (no breaking migrations, backward-compatible)
-
-## RDS Proxy Status & Verification (Deployed 2026-06-05)
-
-**Current State:** ✅ **ACTIVE** — RDS Proxy confirmed in Terraform code
+## RDS Proxy Configuration & Verification
 
 **Configuration:**
 - Proxy name: `algo-rds-proxy-dev` (Terraform: `terraform/modules/database/main.tf` lines 214-234)
