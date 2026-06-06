@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import { theme } from '../services/theme';
+import { SystemHealthIndicator } from './SystemHealthIndicator';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // NAVIGATION
@@ -275,6 +276,7 @@ export default function AppLayout({ children }) {
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
+            <SystemHealthIndicator />
             {exposure && <ExposurePill exposure={exposure} />}
             {notifications?.length > 0 && (
               <span className="badge badge-danger">{notifications.length} ALERT{notifications.length === 1 ? '' : 'S'}</span>

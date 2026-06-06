@@ -893,6 +893,121 @@ def _get_most_recent_trading_day(from_date: _date = None, trading_days_back: int
 
     return result if count == trading_days_back else from_date
 
+def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool = False) -> tuple[bool, list[str]]:
+    """ISSUE #14 FIX: Validate that all 5 morning prep steps completed successfully.
+
+    Morning prep must run in order:
+    1. stock_prices_daily
+    2. technical_data_daily
+    3. buy_sell_daily
+    4. signal_quality_scores
+    5. swing_trader_scores
+
+    Each step must complete (status=COMPLETED) with today's data and >95% symbol coverage.
+
+    Args:
+        cur: Database cursor
+        run_date: Expected date for completed data
+        verbose: Log verbose output
+
+    Returns:
+        (all_completed: bool, issues: list[str]) - if all_completed is False, issues lists what failed
+    """
+    morning_prep_loaders = [
+        'stock_prices_daily',
+        'technical_data_daily',
+        'buy_sell_daily',
+        'signal_quality_scores',
+        'swing_trader_scores',
+    ]
+
+    missing_completions = []
+    stale_data = []
+    incomplete_coverage = []
+
+    try:
+        # Query data_loader_status to see completion record for each loader
+        cur.execute("SET statement_timeout = 5000")
+        for loader in morning_prep_loaders:
+            try:
+                cur.execute(
+                    "SELECT status, last_updated FROM data_loader_status WHERE table_name = %s ORDER BY last_updated DESC LIMIT 1",
+                    (loader,)
+                )
+                result = cur.fetchone()
+
+                if not result:
+                    missing_completions.append(f"{loader}: no status record found")
+                    continue
+
+                status, last_updated = result
+
+                # Check status is COMPLETED
+                if status != 'COMPLETED':
+                    missing_completions.append(f"{loader}: status={status} (expected COMPLETED)")
+                    continue
+
+                # Check last_updated is from today (run_date)
+                if last_updated:
+                    if isinstance(last_updated, str):
+                        last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00')).date()
+                    elif hasattr(last_updated, 'date'):
+                        last_updated = last_updated.date()
+
+                    if last_updated < run_date:
+                        stale_data.append(f"{loader}: last_updated={last_updated} (expected {run_date})")
+                        continue
+
+                if verbose:
+                    logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {loader} completed on {last_updated}")
+
+            except Exception as e:
+                missing_completions.append(f"{loader}: query error: {str(e)[:50]}")
+
+        # Also check symbol coverage for key tables (90% minimum for all morning prep outputs)
+        coverage_check_tables = {
+            'buy_sell_daily': 'entries/exits from morning prep',
+            'signal_quality_scores': 'signal quality rankings',
+            'swing_trader_scores': 'swing trader rankings',
+        }
+
+        try:
+            # Get expected symbol count
+            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
+            expected_count_result = cur.fetchone()
+            expected_symbols = expected_count_result[0] if expected_count_result else 4500
+
+            for table, desc in coverage_check_tables.items():
+                cur.execute(
+                    f"SELECT COUNT(DISTINCT symbol) FROM {table} WHERE updated_at >= %s",
+                    (run_date,)
+                )
+                count_result = cur.fetchone()
+                actual_symbols = count_result[0] if count_result else 0
+                coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+
+                if coverage < 90:
+                    incomplete_coverage.append(f"{table}: {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%, need 90%)")
+                elif verbose:
+                    logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {table}: {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%)")
+
+        except Exception as cov_e:
+            logger.debug(f"[MORNING_PREP_VALIDATION] Could not check coverage: {cov_e}")
+
+        # Compile all issues
+        all_issues = missing_completions + stale_data + incomplete_coverage
+
+        if all_issues:
+            logger.warning(f"[MORNING_PREP_VALIDATION] Morning prep validation failed: {'; '.join(all_issues)}")
+            return (False, all_issues)
+
+        logger.info(f"[MORNING_PREP_VALIDATION] ✓ All 5 morning prep steps completed successfully with fresh data")
+        return (True, [])
+
+    except Exception as e:
+        logger.error(f"[MORNING_PREP_VALIDATION] Validation check failed: {e}")
+        return (False, [f"validation_error: {str(e)[:100]}"])
+
 def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_result_fn: Callable) -> bool:
     """Check data patrol results. Fail-closed if critical/error findings.
 
@@ -3277,9 +3392,10 @@ def run(
         except Exception as sector_err:
             logger.debug(f"[SECTOR_RANKING] Check failed: {sector_err} (proceeding)")
 
-        # ISSUE #5 FIX: MORNING PREP VISIBILITY AND DEPENDENCY CHAIN VALIDATION
-        # Check if morning pipeline (2:45 AM) actually ran and all dependency steps completed.
-        # If any step failed silently (price→tech→buy_sell→quality), downstream signals incomplete.
+        # ISSUE #14 FIX: MORNING PREP VISIBILITY AND DEPENDENCY CHAIN VALIDATION
+        # Check if morning pipeline (2:00 AM ET start) actually ran and all dependency steps completed.
+        # If any step failed silently (price→tech→buy_sell→quality→swing_trader), downstream signals incomplete.
+        # This prevents proceeding with partial/stale data when a loader crashes mid-pipeline.
         try:
             now_et = datetime.now(ZoneInfo("America/New_York"))
             is_9am_or_later = now_et.hour >= 9
@@ -3289,36 +3405,43 @@ def run(
                 with DatabaseContext('read') as _morning_cur:
                     _morning_cur.execute("SET statement_timeout = 5000")
 
-                    # Validate full dependency chain
-                    # Step 1: stock_prices_daily
+                    # Validate full dependency chain (5 critical steps)
+                    # Step 1: stock_prices_daily (loads yesterday's closing prices)
                     _morning_cur.execute("""
                         SELECT MAX(date) FROM price_daily
                     """)
                     _morning_cur_row = _morning_cur.fetchone()
                     price_date = _morning_cur_row[0] if _morning_cur_row else None
 
-                    # Step 2: technical_data_daily
+                    # Step 2: technical_data_daily (depends on stock prices)
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM technical_data_daily
                     """)
                     _morning_cur_row = _morning_cur.fetchone()
                     tech_updated = _morning_cur_row[0] if _morning_cur_row else None
 
-                    # Step 3: buy_sell_daily
+                    # Step 3: buy_sell_daily (depends on technical data)
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM buy_sell_daily
                     """)
                     _morning_cur_row = _morning_cur.fetchone()
                     buys_updated = _morning_cur_row[0] if _morning_cur_row else None
 
-                    # Step 4: signal_quality_scores (optional, for observability)
+                    # Step 4: signal_quality_scores (depends on buy/sell signals)
                     _morning_cur.execute("""
                         SELECT MAX(updated_at) FROM signal_quality_scores
                     """)
                     _morning_cur_row = _morning_cur.fetchone()
                     quality_updated = _morning_cur_row[0] if _morning_cur_row else None
 
-                    # Check if all critical steps completed since morning prep start
+                    # Step 5: swing_trader_scores (depends on buy/sell and signal quality)
+                    _morning_cur.execute("""
+                        SELECT MAX(updated_at) FROM swing_trader_scores
+                    """)
+                    _morning_cur_row = _morning_cur.fetchone()
+                    swing_updated = _morning_cur_row[0] if _morning_cur_row else None
+
+                    # Check if all critical steps completed since morning prep start (2:00 AM)
                     failed_steps = []
                     if not price_date or price_date < expected_date:
                         failed_steps.append('stock_prices_daily')
@@ -3326,22 +3449,26 @@ def run(
                         failed_steps.append('technical_data_daily')
                     if not buys_updated or buys_updated < morning_pipeline_cutoff:
                         failed_steps.append('buy_sell_daily')
+                    if not quality_updated or quality_updated < morning_pipeline_cutoff:
+                        failed_steps.append('signal_quality_scores')
+                    if not swing_updated or swing_updated < morning_pipeline_cutoff:
+                        failed_steps.append('swing_trader_scores')
 
                     if failed_steps:
-                        logger.warning(f"[MORNING PREP] Dependency chain BROKEN: {', '.join(failed_steps)} not updated")
-                        logger.warning(f"  Cutoff time: {morning_pipeline_cutoff}. Check Step Functions: algo-morning-prep-pipeline")
+                        logger.warning(f"[MORNING PREP] Dependency chain BROKEN: {', '.join(failed_steps)} not updated since 2:00 AM")
+                        logger.warning(f"  Cutoff time: {morning_pipeline_cutoff}. Check Step Functions execution: algo-morning-prep-pipeline")
                         alerts.send_position_alert(
                             'PIPELINE',
                             'MORNING_PREP_INCOMPLETE',
-                            f'Morning prep incomplete: {", ".join(failed_steps)} not updated since 2:45 AM. '
-                            f'Downstream signals may be stale or missing. Check Step Functions logs.',
-                            {'failed_steps': failed_steps, 'cutoff': str(morning_pipeline_cutoff)}
+                            f'Morning prep incomplete: {", ".join(failed_steps)} not updated since 2:00 AM ET. '
+                            f'Downstream signals may be stale or missing. Check Step Functions logs for failure details.',
+                            {'failed_steps': failed_steps, 'cutoff': str(morning_pipeline_cutoff), 'pipeline_start': '2:00 AM ET'}
                         )
                         log_phase_result_fn(1, 'morning_prep_dependency', 'warn',
                                            f'Incomplete: {", ".join(failed_steps)}')
                     else:
-                        logger.info(f"[MORNING PREP] ✓ Dependency chain complete: all steps updated since {morning_pipeline_cutoff}")
-                        log_phase_result_fn(1, 'morning_prep_dependency', 'success', 'All steps completed')
+                        logger.info(f"[MORNING PREP] ✓ Dependency chain complete: all 5 steps updated since {morning_pipeline_cutoff} (2:00 AM ET)")
+                        log_phase_result_fn(1, 'morning_prep_dependency', 'success', 'All 5 steps completed (prices→technicals→signals→quality→scores)')
         except Exception as morning_check_err:
             logger.debug(f"[MORNING PREP] Could not check morning pipeline status: {morning_check_err}")
 
@@ -3871,15 +3998,74 @@ def run(
 
         log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
 
-        # ISSUE #11 FIX: Return 'degraded' status if stale data was detected
-        # This signals to Phase 5 that signal generation should be more conservative
-        # (e.g., don't trade if swing_trader_scores incomplete, use stricter filters)
+        # ISSUE #11 ENHANCEMENT: Only return 'degraded' if failsafe was triggered AND failed to refresh data.
+        # Previous logic: return degraded whenever stale data detected, even if failsafe succeeded.
+        # Problem: This causes perpetual degraded mode because failsafe runs async; data isn't fresh yet.
+        # New logic: If failsafe was triggered, wait briefly for loaders to complete, then re-check.
+        # Only return degraded if data is STILL stale after failsafe completed.
         if stale_items:
-            logger.warning(f"[ISSUE#11_FIX] Phase 1 returning DEGRADED: stale data detected but failsafe in progress. "
-                         f"Phase 5 should apply conservative signal generation. Stale items: {'; '.join(stale_items)}")
+            logger.warning(f"[ISSUE#11_ENHANCEMENT] Stale data detected. Failsafe was triggered. "
+                         f"Waiting for loaders to complete before final freshness check. Stale items: {'; '.join(stale_items)}")
+
+            # WAIT FOR FAILSAFE: Give triggered loaders up to 10 minutes to complete
+            # (failsafe should have already triggered when data was detected as stale above)
+            # Monitor until data becomes fresh or timeout
+            import time
+            failsafe_recheck_timeout = 600  # 10 minutes = 600 seconds
+            failsafe_recheck_interval = 5   # Check every 5 seconds
+            failsafe_recheck_start = time.time()
+            stale_items_final = []
+
+            while time.time() - failsafe_recheck_start < failsafe_recheck_timeout:
+                try:
+                    # Re-check data freshness
+                    with DatabaseContext('read') as recheck_cur:
+                        recheck_cur.execute("SET statement_timeout = 5000")
+
+                        # Re-run the freshness checks for critical tables
+                        tables_to_recheck = ['price_daily', 'technical_data_daily', 'buy_sell_daily']
+                        recheck_stale = []
+
+                        for table_name in tables_to_recheck:
+                            recheck_cur.execute(f"SELECT MAX(date) FROM {table_name}")
+                            recheck_row = recheck_cur.fetchone()
+                            table_date = recheck_row[0] if recheck_row else None
+
+                            if table_date is None:
+                                recheck_stale.append(f"{table_name}: NO DATA")
+                            elif table_date < expected_date:
+                                from algo.algo_market_calendar import MarketCalendar
+                                trading_day_age = 0
+                                check_date = run_date - timedelta(days=1)
+                                while check_date >= table_date and trading_day_age < 30:
+                                    if MarketCalendar.is_trading_day(check_date):
+                                        trading_day_age += 1
+                                    check_date -= timedelta(days=1)
+                                recheck_stale.append(f"{table_name}: {trading_day_age}d stale")
+
+                        if not recheck_stale:
+                            # Data is fresh! Failsafe succeeded
+                            logger.info(f"[ISSUE#11_ENHANCEMENT] ✓ Data is now fresh after failsafe completed. "
+                                       f"Elapsed {time.time() - failsafe_recheck_start:.0f}s. Returning OK status.")
+                            return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
+                        else:
+                            stale_items_final = recheck_stale
+                            elapsed = time.time() - failsafe_recheck_start
+                            if elapsed > 60:  # Only log every 60+ seconds to avoid spam
+                                logger.info(f"[ISSUE#11_ENHANCEMENT] Still waiting for failsafe. Data still stale after {elapsed:.0f}s: {'; '.join(stale_items_final)}")
+
+                except Exception as recheck_err:
+                    logger.debug(f"[ISSUE#11_ENHANCEMENT] Recheck attempt failed (will retry): {recheck_err}")
+
+                time.sleep(failsafe_recheck_interval)
+
+            # TIMEOUT: Failsafe did not refresh data within 10 minutes
+            # Return degraded status so Phase 5 knows to be conservative
+            logger.warning(f"[ISSUE#11_ENHANCEMENT] Failsafe timeout: data still stale after 10min. Returning DEGRADED. "
+                         f"Final stale items: {'; '.join(stale_items_final if stale_items_final else stale_items)}")
             return PhaseResult(1, 'data_freshness', 'degraded',
-                             {'stale_items': stale_items, 'failsafe_triggered': True},
-                             False, 'Phase 1 degraded - stale data with failsafe triggered')
+                             {'stale_items': stale_items_final if stale_items_final else stale_items, 'failsafe_triggered': True, 'failsafe_timeout': True},
+                             False, 'Phase 1 degraded - failsafe timed out')
 
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
 

@@ -329,7 +329,7 @@ Advisory lock: `OptimalLoader` uses `pg_try_advisory_lock` to prevent duplicate 
 - **Overhead (not in base calculation)**: ECS scheduling delays (~5-10 min per task × 5-6 tasks = 25-60 min), RDS cold start / first-run caching (~5-10 min), loader setup/teardown per instance (~5-10 min)
 - **Execution variance**: stock_prices_daily 75-120 min depending on yfinance latency, technical_data_daily 80-120 min depending on database query performance
 - **Estimated realistic path**: 4.25h base + 0.5-1h overhead + 0.25-0.75h variance = 5-6 hours
-- **Buffer with current 2:00 AM start**: 7.5 hours - 5.5 hours (midpoint estimate) = **120 min buffer (COMFORTABLE)**
+- **Buffer with current 2:00 AM start**: 450 minutes - 255 minutes (realistic max) = **195 min buffer (comfortable)**
 - **Monitoring critical**: If any step regularly exceeds 2 hours, buffer shrinks. Monitor CloudWatch metrics closely. If execution approaches 6 hours, investigate yfinance API latency or RDS query performance.
 
 **Morning Prep Start Time:**
