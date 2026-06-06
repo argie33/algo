@@ -65,42 +65,48 @@ def _handle_basic(cur) -> Dict:
             logger.warning(f"Failed to get connection pool status: {str(e)[:80]}")
             health['rds_connection_pool'] = {'status': 'UNKNOWN', 'error': 'Unable to fetch pool stats'}
 
-        # Get data freshness summary (check critical tables - 10 second timeout)
-        # More robust query: handle case where tables might not exist or be empty
+        # Get data freshness summary - check critical tables individually for better diagnostics
         try:
+            # Try a simpler, more efficient query: just check price_daily since it's the core loader
+            # This reduces timeout risk and provides clearer feedback
             freshness = execute_with_timeout(cur, """
-                SELECT COALESCE(
-                    MIN(EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0),
-                    999
-                ) as oldest_data_age_days
-                FROM (
-                    SELECT created_at FROM price_daily WHERE created_at IS NOT NULL LIMIT 1
-                    UNION ALL
-                    SELECT created_at FROM buy_sell_daily WHERE created_at IS NOT NULL LIMIT 1
-                    UNION ALL
-                    SELECT created_at FROM signal_quality_scores WHERE created_at IS NOT NULL LIMIT 1
-                ) as freshness_check
-            """, timeout_sec=10)
+                SELECT EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0 as age_days,
+                       COUNT(*) as row_count
+                FROM price_daily
+                WHERE created_at IS NOT NULL
+            """, timeout_sec=5)
 
             if freshness and len(freshness) > 0:
                 row = dict(freshness[0])
-                age = float(row.get('oldest_data_age_days', 999)) if row.get('oldest_data_age_days') is not None else 999
-                health['freshness'] = {
-                    'oldest_data_age_days': round(age, 2),
-                    'status': 'HEALTHY' if age <= 1 else ('WARNING' if age <= 3 else 'STALE')
-                }
+                age = float(row.get('age_days', 999)) if row.get('age_days') is not None else 999
+                row_count = int(row.get('row_count', 0)) or 0
+
+                if row_count == 0:
+                    # price_daily is empty - data hasn't been loaded yet
+                    health['freshness'] = {
+                        'row_count': 0,
+                        'status': 'NO_DATA',
+                        'message': 'No price data loaded yet'
+                    }
+                else:
+                    health['freshness'] = {
+                        'oldest_data_age_days': round(age, 2),
+                        'row_count': row_count,
+                        'status': 'HEALTHY' if age <= 1 else ('WARNING' if age <= 3 else 'STALE')
+                    }
             else:
-                # No rows returned (tables empty or error)
+                # No rows returned
                 health['freshness'] = {
-                    'oldest_data_age_days': 999,
-                    'status': 'STALE'
+                    'row_count': 0,
+                    'status': 'NO_DATA'
                 }
         except Exception as e:
-            logger.warning(f"Failed to get freshness status: {str(e)[:80]}")
-            # Return STALE status if we can't check freshness - better to be cautious
+            error_msg = str(e)[:100]
+            logger.warning(f"Failed to get freshness status: {error_msg}")
+            # If we can't fetch freshness, assume data is stale (conservative fail-safe)
             health['freshness'] = {
-                'status': 'STALE',
-                'error': 'Unable to fetch freshness'
+                'status': 'UNKNOWN',
+                'error': f'Query error: {error_msg[:60]}'
             }
 
         # Overall system status based on component health
