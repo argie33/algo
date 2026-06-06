@@ -335,11 +335,16 @@ class PriceLoader(OptimalLoader):
         except Exception:
             pass
 
+        # Determine root cause for clearer diagnostics
+        last_error_lower = (last_error_msg or '').lower()
+        is_rate_limit = "429" in last_error_lower or "too many" in last_error_lower or "rate" in last_error_lower
+        root_cause = "yfinance rate limiting" if is_rate_limit else "yfinance API lag/unavailability"
+
         error_msg = (
             f"Market close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
-            f"Last error: {last_error_type} - {last_error_msg or 'no message'}. "
-            f"yfinance API appears to be lagging or down. Cannot load prices without market close data. "
-            f"Aborting to avoid stale price data. Phase 1 will trigger failsafe when data becomes available. "
+            f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
+            f"Cannot load prices without market close data. Aborting to avoid stale price data. "
+            f"Phase 1 will trigger failsafe when data becomes available. "
             f"Check yfinance API status and RDS connection pool health."
         )
         logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] ✗ {error_msg}")
