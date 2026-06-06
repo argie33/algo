@@ -125,8 +125,12 @@ class PriceLoader(OptimalLoader):
     def _get_adaptive_batch_size(self) -> int:
         """Calculate adaptive batch size based on context and success rates.
 
+        ISSUE #6 FIX: Be conservative during EOD to avoid Step Function timeout (27000s limit).
+        Even with 160/min rate limit, if API lags or rate limiting hits, conservative sizing
+        ensures we complete within time window.
+
         PROACTIVE (EOD pipeline context):
-        - If in EOD pipeline and no errors yet: start with batch=50 (conservative to avoid rate limit)
+        - If in EOD pipeline and no errors yet: start with batch=50 (conservative)
         - If in EOD pipeline with prior errors: use 20 (very conservative)
 
         REACTIVE (based on recent success):
@@ -136,15 +140,18 @@ class PriceLoader(OptimalLoader):
 
         This reduces retry overhead when rate limiting is active while being proactive during EOD.
         """
-        # Proactive: During EOD pipeline, start AGGRESSIVE with high rate limit (160/min)
-        # With 160/min capacity and batch=150, we can fetch 5000 symbols in ~33 API calls = ~12 seconds
+        # ISSUE #6 FIX: Proactive conservative sizing during EOD to avoid timeout
+        # Even though 160/min rate limit theoretically allows batch=150,
+        # if API lag or rate limiting persists, conservative batch sizing ensures completion.
+        # Worst case: batch=20 × 250 symbols/batch = 12500 API calls at 160/min = ~78 min,
+        # well under Step Function timeout (27000s = 450 min).
         if self._is_eod_pipeline and self._batch_total_count == 0:
-            logger.debug("[BATCH_SIZE] EOD pipeline context, proactive sizing: starting with batch=150 (aggressive with 160/min rate limit)")
-            return 150  # Start aggressive during EOD (160/min rate limit gives us headroom)
+            logger.info("[BATCH_SIZE] EOD pipeline context: starting with batch=50 (conservative to ensure Step Function completion)")
+            return 50  # Start conservative during EOD to protect against timeouts
 
         if self._is_eod_pipeline and self._rate_limit_errors > 0:
-            logger.debug(f"[BATCH_SIZE] EOD pipeline with {self._rate_limit_errors} prior errors, using batch=50 (conservative fallback)")
-            return 50  # Conservative if we've already hit rate limits during EOD
+            logger.debug(f"[BATCH_SIZE] EOD pipeline with {self._rate_limit_errors} prior errors, using batch=20 (very conservative)")
+            return 20  # Very conservative if we've already hit rate limits during EOD
 
         # Reactive: Adjust based on recent success rate
         if self._batch_total_count == 0:
