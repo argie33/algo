@@ -15,6 +15,7 @@ import logging
 import os
 from datetime import date, timedelta
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -39,7 +40,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(timezone(td(hours=-5)))
+        now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
         end = now_et.date()
 
         # If today is not a trading day, use yesterday instead

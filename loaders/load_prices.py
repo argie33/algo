@@ -34,7 +34,8 @@ from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
-_correlation_id = str(uuid.uuid4())[:8]  # ISSUE #21 FIX: Correlation ID for this loader instance
+# ISSUE #21 FIX: Correlation ID for tracing - use Phase 1 correlation if provided (failsafe), else generate
+_correlation_id = os.getenv('PHASE1_CORRELATION_ID') or str(uuid.uuid4())[:8]
 
 class PriceLoader(OptimalLoader):
     """Multi-timeframe price loader. Replaces 4 separate loaders."""
@@ -264,6 +265,8 @@ class PriceLoader(OptimalLoader):
         start_time = time.time()
         attempt = 0
         backoff_sec = 5  # Start with 5s, then exponential: 10s, 20s, 40s, ...
+        last_error_type = None
+        last_error_msg = None
 
         while time.time() - start_time < max_wait_sec:
             attempt += 1
@@ -274,26 +277,59 @@ class PriceLoader(OptimalLoader):
                     latest_row = spy_data[-1] if spy_data else None
                     if latest_row and latest_row.get('close'):
                         elapsed = time.time() - start_time
-                        logger.info(f"[MARKET_CLOSE] ✓ Data available after {elapsed:.1f}s (attempt {attempt}, backoff {backoff_sec}s)")
+                        logger.info(f"[MARKET_CLOSE] ✓ Data available after {elapsed:.1f}s (attempt {attempt})")
+                        # Emit success metric
+                        try:
+                            from algo.algo_metrics import MetricsPublisher
+                            metrics = MetricsPublisher()
+                            metrics.put_metric('MarketCloseDataAvailable', 1, unit='Count', dimensions={'Status': 'success'})
+                            metrics.flush()
+                        except Exception:
+                            pass
                         return True
             except Exception as e:
-                logger.debug(f"[MARKET_CLOSE] Attempt {attempt}: fetch error: {type(e).__name__}")
+                last_error_type = type(e).__name__
+                last_error_msg = str(e)[:200]  # Truncate for logging
+                error_str = str(e).lower()
+                is_timeout = "timeout" in error_str or "connect" in error_str or "read timed" in error_str
+                is_rate_limit = "429" in error_str or "too many" in error_str or "rate" in error_str
+
+                log_level = "warning" if is_rate_limit else ("warning" if is_timeout else "debug")
+                logger.log(
+                    getattr(logging, log_level.upper()) if log_level in ["debug", "warning", "error"] else logging.DEBUG,
+                    f"[MARKET_CLOSE] Attempt {attempt}: {last_error_type} " +
+                    (f"(rate limit)" if is_rate_limit else f"(timeout)" if is_timeout else f"(other)") +
+                    f" - {last_error_msg}"
+                )
 
             # Calculate exponential backoff wait time
             wait_remaining = max_wait_sec - (time.time() - start_time)
             wait_time = min(backoff_sec, wait_remaining)
 
             if wait_time > 0 and wait_remaining > 0:
-                logger.debug(f"[MARKET_CLOSE] Attempt {attempt} failed, waiting {wait_time:.0f}s before retry (exponential backoff)...")
+                logger.debug(f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}...")
                 time.sleep(wait_time)
                 backoff_sec = min(backoff_sec * 2, 60)  # Cap at 60s per retry
 
         # Timeout - data not available, HALT loader with explicit error (ISSUE #11 FIX)
         elapsed = time.time() - start_time
+
+        # Emit failure metric with diagnostic info
+        try:
+            from algo.algo_metrics import MetricsPublisher
+            metrics = MetricsPublisher()
+            metrics.put_metric('MarketCloseDataAvailable', 0, unit='Count',
+                             dimensions={'Status': 'timeout', 'LastError': last_error_type or 'unknown'})
+            metrics.flush()
+        except Exception:
+            pass
+
         error_msg = (
             f"Market close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
+            f"Last error: {last_error_type} - {last_error_msg or 'no message'}. "
             f"yfinance API appears to be lagging or down. Cannot load prices without market close data. "
-            f"Aborting to avoid stale price data. Phase 1 will trigger failsafe when data becomes available."
+            f"Aborting to avoid stale price data. Phase 1 will trigger failsafe when data becomes available. "
+            f"Check yfinance API status and RDS connection pool health."
         )
         logger.error(f"[MARKET_CLOSE] ✗ {error_msg}")
         raise RuntimeError(error_msg)

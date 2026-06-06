@@ -918,7 +918,7 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
 // ============================================================
 // NOTIFICATIONS — surface CRITICAL events to UI as toasts
 // ============================================================
-router.get('/notifications', async (req, res) => {
+router.get('/notifications', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'logs');
@@ -962,7 +962,7 @@ router.get('/notifications', async (req, res) => {
 });
 
 // Mark single notification as read (PATCH)
-router.patch('/notifications/:id/read', requireAuth, requireAdmin, async (req, res) => {
+router.patch('/notifications/:id/read', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
     const { id } = req.params;
@@ -977,7 +977,7 @@ router.patch('/notifications/:id/read', requireAuth, requireAdmin, async (req, r
 });
 
 // Delete single notification
-router.delete('/notifications/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/notifications/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const pool = getPool();
     const { id } = req.params;
@@ -989,7 +989,7 @@ router.delete('/notifications/:id', requireAuth, requireAdmin, async (req, res) 
 });
 
 // Batch mark as seen (legacy endpoint)
-router.post('/notifications/seen', requireAuth, async (req, res) => {
+router.post('/notifications/seen', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
     const ids = req.body?.ids || [];
