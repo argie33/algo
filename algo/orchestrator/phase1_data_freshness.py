@@ -1800,9 +1800,10 @@ def run(
         cache_key = f"data_loader_status-{run_date.isoformat()}"
 
         # ISSUE #7 FIX: Make cache TTL configurable (was hardcoded to 5 minutes)
-        # Phase 1 runs 4 times/day (9:30 AM, 1 PM, 3 PM, 5:30 PM), so 5-min cache expires between runs.
-        # Extend to 2 hours (7200s) — fresh data must invalidate cache anyway.
-        cache_ttl_sec = 7200  # 2 hours — covers all Phase 1 runs within a day
+        # ISSUE #5 FIX: Reduce cache TTL from 2h to 15min (900s) to prevent stale status lookups
+        # Phase 1 runs 4 times/day (9:30 AM, 1 PM, 3 PM, 5:30 PM). Cache expires between runs (~4h apart).
+        # 15-min TTL ensures we catch loader status changes within a Phase 1 run cycle.
+        cache_ttl_sec = 900  # 15 minutes — fresh between Phase 1 runs, but spans multiple loaders completing
         try:
             with DatabaseContext('read') as config_cur:
                 config_cur.execute(
@@ -2105,12 +2106,14 @@ def run(
         # ISSUE #24 FIX: Define data dependency chain for atomic validation
         # buy_sell_daily depends on technical_data_daily depends on price_daily
         # If a downstream table is fresh but its upstream dependency is stale, the data is unreliable
+        # ISSUE #6 FIX: Swing trader scores depends on signal_quality_scores and buy_sell_daily
         dependency_chain = {
             'SPY price data': [],  # No dependencies
             'Trend template': ['SPY price data'],  # Depends on prices
             'Buy/sell signals': ['Trend template', 'SPY price data'],  # Depends on trends and prices
+            'Signal quality scores': ['Buy/sell signals'],  # Depends on buy signals
+            'Swing trader scores': ['Buy/sell signals', 'Signal quality scores'],  # Depends on buys and SQS
             'Market health': [],  # Independent
-            'Signal quality scores': [],  # Independent
             'Sector ranking': [],  # Independent (uses cached fallback in Phase 3)
         }
 
@@ -2183,6 +2186,16 @@ def run(
                 if buys_coverage < 95:
                     early_completeness_warnings.append(
                         f"buy_sell_daily: {buys_symbols}/{expected_symbols} symbols ({buys_coverage:.1f}%, need >95%)"
+                    )
+
+                # ISSUE #6 FIX: Check swing_trader_scores completeness (critical for Phase 5 ranking)
+                _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM swing_trader_scores WHERE date >= %s", (expected_date,))
+                swing_row = _early_comp_cur.fetchone()
+                swing_symbols = swing_row[0] if swing_row else 0
+                swing_coverage = (swing_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                if swing_coverage < 95:
+                    early_completeness_warnings.append(
+                        f"swing_trader_scores: {swing_symbols}/{expected_symbols} symbols ({swing_coverage:.1f}%, need >95%)"
                     )
 
                 # CRITICAL: If data is incomplete NOW, HALT instead of triggering failsafe
@@ -3448,19 +3461,39 @@ def run(
                         f"({swing_coverage:.1f}% vs {sqs_coverage:.1f}%)"
                     )
 
+                # ISSUE #6 FIX: Cascading failures on swing_trader_scores should halt, not just warn
+                # If swing scores incomplete, Phase 5 cannot rank trades properly
                 if cascading_failures:
-                    logger.warning(f"[CASCADING_FAILURE] Detected {len(cascading_failures)} data gaps:")
-                    for issue in cascading_failures:
-                        logger.warning(f"  - {issue}")
-                    alerts.send_position_alert(
-                        'DATA', 'CASCADING_FAILURES',
-                        f'Detected {len(cascading_failures)} cascading data gaps. '
-                        f'Coverage: TECH={tech_coverage:.0f}% → BUY={buys_coverage:.0f}% → SQ={sqs_coverage:.0f}% → SWING={swing_coverage:.0f}%. '
-                        f'If coverage drops below 75%, phase 5 will have insufficient trading opportunities.',
-                        {'coverage': {'tech': tech_coverage, 'buys': buys_coverage, 'sqs': sqs_coverage, 'swing': swing_coverage}}
-                    )
-                    log_phase_result_fn(1, 'cascading_failures', 'warn',
-                                       f'{len(cascading_failures)} cascading failure(s) detected')
+                    swing_has_gap = any('swing_trader_scores' in failure for failure in cascading_failures)
+                    if swing_has_gap and swing_coverage < 75:
+                        # CRITICAL: swing_trader_scores required for Phase 5, cannot proceed
+                        logger.critical(f"[CASCADING_FAILURE_CRITICAL] {len(cascading_failures)} critical data gap(s):")
+                        for issue in cascading_failures:
+                            logger.critical(f"  - {issue}")
+                        alerts.critical(
+                            f'CRITICAL: Cascading data failure detected. Swing trader scores {swing_coverage:.0f}% coverage. '
+                            f'Coverage chain: TECH={tech_coverage:.0f}% → BUY={buys_coverage:.0f}% → SQ={sqs_coverage:.0f}% → SWING={swing_coverage:.0f}%. '
+                            f'Phase 5 cannot generate signals without complete swing scores. Halting.'
+                        )
+                        log_phase_result_fn(1, 'cascading_failures_critical', 'halt',
+                                           f'{len(cascading_failures)} critical cascading failure(s): incomplete swing scores')
+                        return PhaseResult(1, 'cascading_failures_critical', 'halted', {}, True,
+                                         f'Cascading data failure: swing_trader_scores {swing_coverage:.0f}% coverage (need >75%). '
+                                         f'Data degradation chain detected. Cannot proceed with trading.')
+                    else:
+                        # Non-critical gap: warn but proceed
+                        logger.warning(f"[CASCADING_FAILURE] Detected {len(cascading_failures)} data gaps (non-blocking):")
+                        for issue in cascading_failures:
+                            logger.warning(f"  - {issue}")
+                        alerts.send_position_alert(
+                            'DATA', 'CASCADING_FAILURES',
+                            f'Detected {len(cascading_failures)} cascading data gaps. '
+                            f'Coverage: TECH={tech_coverage:.0f}% → BUY={buys_coverage:.0f}% → SQ={sqs_coverage:.0f}% → SWING={swing_coverage:.0f}%. '
+                            f'May reduce trading opportunities in Phase 5.',
+                            {'coverage': {'tech': tech_coverage, 'buys': buys_coverage, 'sqs': sqs_coverage, 'swing': swing_coverage}}
+                        )
+                        log_phase_result_fn(1, 'cascading_failures', 'warn',
+                                           f'{len(cascading_failures)} cascading failure(s) detected (non-blocking)')
                 else:
                     logger.info(
                         f"[CASCADING_FAILURE] Coverage healthy: TECH={tech_coverage:.0f}% → "
@@ -3620,6 +3653,17 @@ def run(
             logger.debug(f"[{_phase1_correlation_id}] Final re-check skipped ({recheck_err}), proceeding")
 
         log_phase_result_fn(1, 'data_freshness', 'success', 'All data fresh within window')
+
+        # ISSUE #11 FIX: Return 'degraded' status if stale data was detected
+        # This signals to Phase 5 that signal generation should be more conservative
+        # (e.g., don't trade if swing_trader_scores incomplete, use stricter filters)
+        if stale_items:
+            logger.warning(f"[ISSUE#11_FIX] Phase 1 returning DEGRADED: stale data detected but failsafe in progress. "
+                         f"Phase 5 should apply conservative signal generation. Stale items: {'; '.join(stale_items)}")
+            return PhaseResult(1, 'data_freshness', 'degraded',
+                             {'stale_items': stale_items, 'failsafe_triggered': True},
+                             False, 'Phase 1 degraded - stale data with failsafe triggered')
+
         return PhaseResult(1, 'data_freshness', 'ok', {}, False, None)
 
     except Exception as e:
