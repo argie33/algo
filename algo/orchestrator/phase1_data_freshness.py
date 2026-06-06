@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import time
+import uuid
 from datetime import date as _date, datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Dict
 
@@ -13,6 +14,9 @@ from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
+
+# ISSUE #21 FIX: Add correlation_id to all Phase 1 logs for traceability
+_phase1_correlation_id = str(uuid.uuid4())[:8]
 
 def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool = False, poll_timeout_sec: int = 150, retry_count: int = 1) -> bool:
     """
@@ -1853,22 +1857,16 @@ def run(
                         except (IndexError, ValueError):
                             pass
 
-                # Decision: if data is >= configured threshold and failsafe failed, HALT (Issue #1)
+                # Decision: if data is >= configured threshold and failsafe failed, HALT (Issue #1, #10)
                 # This prevents silent failures in Phase 5 when signal gate kills trades.
                 # Threshold is configurable via algo_config (default 2 trading days)
-                halt_threshold = 2  # Default
-                try:
-                    with DatabaseContext('read') as _cfg_cur:
-                        _cfg_cur.execute("SELECT value FROM algo_config WHERE key = %s", ('phase1_halt_stale_days_threshold',))
-                        result = _cfg_cur.fetchone()
-                        if result:
-                            halt_threshold = int(result[0])
-                except Exception:
-                    pass
+                # Note: halt_threshold was already loaded and logged at Phase 1 startup above
 
                 if oldest_stale_trading_day_age is not None and oldest_stale_trading_day_age >= halt_threshold:
-                    logger.critical(f"[HALT] Failsafe loader trigger failed AND data is {oldest_stale_trading_day_age}+ trading days stale. Too risky to proceed.")
+                    logger.critical(f"[HALT] Data age ({oldest_stale_trading_day_age}d) >= halt threshold ({halt_threshold}d). Too risky to proceed.")
+                    logger.critical(f"[HALT] Failsafe loader trigger failed, and data is too old.")
                     logger.critical(f"  Stale items: {stale_items}")
+                    logger.critical(f"  Threshold: {halt_threshold}d trading days (configurable via phase1_halt_stale_days_threshold in algo_config)")
                     logger.critical(f"  Loader failed to start. Halting orchestrator.")
 
                     alerts.send_position_alert(

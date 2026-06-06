@@ -4,9 +4,11 @@
  */
 
 import { afterEach, beforeEach, vi, afterAll } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, render as rtlRender } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
+import * as RTL from "@testing-library/react";
 
 // Mock ResizeObserver for recharts and other components
 global.ResizeObserver = class ResizeObserver {
@@ -110,3 +112,32 @@ afterAll(() => {
   console.warn = originalConsole.warn;
   console.error = originalConsole.error;
 });
+
+// Auto-wrap render calls with MemoryRouter to provide Router context
+// This allows tests that render components with Navigate/useNavigate to work properly
+const originalRender = RTL.render;
+RTL.render = function(ui, options = {}) {
+  const Wrapper = ({ children }) => (
+    <MemoryRouter
+      initialEntries={options.initialRoutes || ["/"]}
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      {children}
+    </MemoryRouter>
+  );
+
+  return originalRender(ui, {
+    ...options,
+    wrapper: options.wrapper
+      ? ({ children }) => <Wrapper><options.wrapper>{children}</options.wrapper></Wrapper>
+      : Wrapper,
+  });
+};
+
+// Also override global.render if it exists
+if (typeof global !== 'undefined' && global.render) {
+  global.render = RTL.render;
+}
