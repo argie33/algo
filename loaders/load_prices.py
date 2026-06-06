@@ -233,6 +233,7 @@ class PriceLoader(OptimalLoader):
             logger.debug(f"[MARKET_CLOSE] Using override timeout: {max_wait_sec}s")
 
         from datetime import datetime, timezone, timedelta
+        from zoneinfo import ZoneInfo
         from algo.algo_market_calendar import MarketCalendar
         today = date.today()
 
@@ -242,7 +243,7 @@ class PriceLoader(OptimalLoader):
             return True
 
         # Check if we're within 45 minutes after market close (4:00 PM ET ± 45 min = 3:15 PM - 4:45 PM)
-        now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+        now_et = datetime.now(ZoneInfo("America/New_York"))
         market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
         minutes_after_close = (now_et - market_close_et).total_seconds() / 60
 
@@ -488,7 +489,7 @@ class PriceLoader(OptimalLoader):
                         continue  # Skip if not smaller than current
 
                     logger.info(f"[CIRCUIT BREAKER] Retrying with reduced batch size: {reduced_size} (was {batch_size}), elapsed {elapsed_sec:.0f}s")
-                    reduced_attempt = self._fetch_batch_with_retry(
+                    reduced_attempt = self._fetch_with_fallback(
                         symbols, start, end, batch_size=reduced_size, attempt=attempt + 1, max_attempts=max_attempts
                     )
                     if any(v is not None for v in reduced_attempt.values()):
@@ -822,6 +823,20 @@ class PriceLoader(OptimalLoader):
                     })
                 except Exception as ddb_err:
                     logger.debug(f"[MARKET_CLOSE] Could not record failure in DynamoDB: {ddb_err}")
+
+                # ISSUE #22 FIX: Invalidate cache on market close failure so Phase 1 doesn't use stale data
+                try:
+                    from datetime import datetime
+                    import boto3
+                    cache_date = datetime.now().date()
+                    cache_key = f"data_loader_status-{cache_date.isoformat()}"
+                    cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+                    dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
+                    cache_table = dynamodb.Table(cache_table_name)
+                    cache_table.delete_item(Key={'cache_key': cache_key})
+                    logger.debug(f"[CACHE INVALIDATION] Invalidated Phase 1 cache due to market close failure for {cache_key}")
+                except Exception as cache_err:
+                    logger.debug(f"[CACHE INVALIDATION] Could not invalidate cache on market close failure: {cache_err}")
 
                 # Return empty results - Phase 1 will detect stale data and trigger failsafe
                 logger.warning(f"[MARKET_CLOSE] Loader aborting with empty results. Phase 1 will trigger failsafe.")

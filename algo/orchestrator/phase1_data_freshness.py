@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from datetime import date as _date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Callable, Optional, Dict
 
 from utils.database_context import DatabaseContext
@@ -894,9 +895,8 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                             state_table.put_item(Item={
                                 'state_key': 'patrol_trigger_log',
                                 'triggered_at': now,
-                                'last_success_at': now,  # Initialize to trigger time; will update when patrol completes
                                 'ttl': int(now) + 3600,  # 1-hour TTL
-                            })
+                            })  # ISSUE #4 FIX: Don't pre-populate last_success_at; only set when patrol completes successfully
                             logger.debug("[PATROL] Logged patrol trigger timestamp for grace period")
                         except Exception as log_err:
                             logger.debug(f"[PATROL] Could not log trigger timestamp: {log_err}")
@@ -1358,7 +1358,7 @@ def run(
 
     # ISSUE #4 FIX: Log timing context for morning pipeline
     from datetime import datetime as dt, timezone as tz, timedelta as td
-    now_et = dt.now(tz.utc).astimezone(tz(td(hours=-5)))
+    now_et = dt.now(ZoneInfo("America/New_York"))
     hour_et = now_et.hour
     minute_et = now_et.minute
 
@@ -1369,6 +1369,34 @@ def run(
         logger.info(f"[TIMING] Morning pipeline: {now_et.strftime('%H:%M')} ET, "
                    f"{min_until_open:.0f}min to market open. Est. {4.25*60:.0f}min needed (4.25h). "
                    f"Buffer: {max(0, min_until_open - 255):.0f}min")
+
+        # ISSUE #5 FIX: Early warning if morning prep is lagging (>2h past 2:45 AM start)
+        # If current time is 3 AM - 6:45 AM AND buy_sell_daily hasn't updated since pipeline start
+        morning_start_et = now_et.replace(hour=2, minute=45, second=0, microsecond=0)
+        elapsed_since_start = (now_et - morning_start_et).total_seconds() / 60
+        if 3 <= hour_et < 9 and elapsed_since_start > 120:  # 3 AM - 8:59 AM, >2h elapsed
+            try:
+                with DatabaseContext('read') as _lag_cur:
+                    _lag_cur.execute("SET statement_timeout = 3000")
+                    _lag_cur.execute("SELECT MAX(updated_at) FROM buy_sell_daily")
+                    lag_result = _lag_cur.fetchone()
+                    buys_updated = lag_result[0] if lag_result else None
+
+                    if not buys_updated or buys_updated < morning_start_et:
+                        logger.warning(
+                            f"[MORNING_PREP_LAG] ⚠️ Pipeline running for {elapsed_since_start:.0f}min "
+                            f"but buy_sell_daily not updated since 2:45 AM start. Pipeline appears stalled or slow."
+                        )
+                        alerts.send_position_alert(
+                            'PIPELINE',
+                            'MORNING_PREP_LAG',
+                            f'Morning prep pipeline stalling: running {elapsed_since_start:.0f}min but '
+                            f'buy_sell_daily ({buys_updated}) not updated since 2:45 AM start. '
+                            f'Check logs for loader delays.',
+                            {'elapsed_minutes': elapsed_since_start, 'buys_updated': str(buys_updated)}
+                        )
+            except Exception as lag_err:
+                logger.debug(f"[MORNING_PREP_LAG] Could not check lag status: {lag_err}")
 
     try:
         # Pre-flight: validate schema and RDS connection pool before proceeding
@@ -2330,7 +2358,7 @@ def run(
         # Check if morning pipeline (2:45 AM) actually ran and all dependency steps completed.
         # If any step failed silently (price→tech→buy_sell→quality), downstream signals incomplete.
         try:
-            now_et = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=-5)))
+            now_et = datetime.now(ZoneInfo("America/New_York"))
             is_9am_or_later = now_et.hour >= 9
 
             if is_9am_or_later:
