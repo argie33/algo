@@ -209,6 +209,31 @@ class Orchestrator:
             # Return True (halt condition) to fail-closed
             return True
 
+    def _set_halt_flag(self, reason: str = '') -> bool:
+        """Set halt flag in DynamoDB. Returns True if successfully set.
+
+        ISSUE #8 FIX: When Phase 1 detects stale data, set halt flag to stop
+        Phase 5 from generating full-intensity signals during degradation.
+        """
+        try:
+            import boto3
+            dynamodb = boto3.resource('dynamodb')
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+
+            now_utc = datetime.now(timezone.utc)
+            table.put_item(Item={
+                'key': self.HALT_FLAG_DYNAMODB_KEY,
+                'halt_flag': True,
+                'triggered_at': now_utc.isoformat(),
+                'reason': reason or 'Phase 1 degraded: stale data detected',
+            })
+            logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
+            return True
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to set halt flag: {e}")
+            return False
+
     def _check_connection_pool_health(self) -> None:
         """Monitor RDS connection pool and alert if approaching limits."""
         try:
@@ -517,6 +542,8 @@ class Orchestrator:
             })
             if degraded_status:
                 logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.summary}")
+                # ISSUE #8 FIX: Set halt flag to stop Phase 5 from generating full-intensity signals
+                self._set_halt_flag(f"Phase 1 degraded: {result.summary}")
         except Exception as e:
             logger.debug(f"Failed to write Phase 1 degraded status to DynamoDB: {e}")
 
