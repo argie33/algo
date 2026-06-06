@@ -1554,8 +1554,20 @@ def run(
 
         min_acceptable_date = expected_date  # No tolerance — must be from expected trading day
 
+        # Issue #10 FIX: Load and log the halt threshold for transparency
+        halt_threshold = 2  # Default
+        try:
+            with DatabaseContext('read') as _cfg_cur:
+                _cfg_cur.execute("SELECT value FROM algo_config WHERE key = %s", ('phase1_halt_stale_days_threshold',))
+                result = _cfg_cur.fetchone()
+                if result:
+                    halt_threshold = int(result[0])
+        except Exception:
+            pass
+
         logger.info(f"[DATA FRESHNESS] Simplified rule: data must be from {expected_date} (today is {run_date}, most recent trading day)")
         logger.info(f"[DATA FRESHNESS] Tolerance: {max_acceptable_age_days} trading day(s). Will trigger failsafe if older.")
+        logger.info(f"[DATA FRESHNESS] HALT THRESHOLD: {halt_threshold} trading days — data >= {halt_threshold}d old will halt orchestrator if failsafe fails.")
 
         try:
             from algo.algo_metrics import MetricsPublisher

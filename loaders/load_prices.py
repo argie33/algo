@@ -393,14 +393,34 @@ class PriceLoader(OptimalLoader):
     def _fetch_with_fallback(self, symbols: List[str], start: date, end: date, batch_size: int, attempt: int = 0, max_attempts: int = 3):
         """Fetch with progressive batch size reduction and adaptive retry with jitter.
 
+        ISSUE #6 FIX: Add upper bound check - if batch_size=1 and still rate limited, fail immediately.
         Attempts: full batch → split in half → quarter size → give up.
         Includes randomized jitter to avoid thundering herd and circuit breaker for persistent errors.
         """
         import time
         import random
 
+        # ISSUE #6 FIX: If we've shrunk to batch_size=1 and still rate limiting, give up immediately
+        # This prevents infinite reduction and timeout cascade
         if batch_size <= 0 or attempt >= max_attempts:
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}")
+            return {s: None for s in symbols}
+
+        if batch_size == 1 and self._rate_limit_errors > 5:
+            logger.critical(
+                f"[BATCH FETCH ABORT] Batch size at minimum (1 symbol) with {self._rate_limit_errors} rate limit errors. "
+                f"yfinance API severely degraded. Failing fast to prevent timeout cascade."
+            )
+            try:
+                from algo.algo_metrics import MetricsPublisher
+                m = MetricsPublisher()
+                m.put_metric('BatchFetchMinimumSizeReached', 1, unit='Count', dimensions={
+                    'table': self.table_name,
+                    'error_count': str(self._rate_limit_errors)
+                })
+                m.flush()
+            except Exception:
+                pass
             return {s: None for s in symbols}
 
         # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
