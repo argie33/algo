@@ -1008,6 +1008,24 @@ class PriceLoader(OptimalLoader):
                       latest_date = EXCLUDED.latest_date,
                       last_updated = NOW()
                 """, (self.table_name, total_rows, latest_date))
+
+            # ISSUE #22 FIX: Invalidate Phase 1 data_loader_status cache on completion
+            # Ensures Phase 1 detects updated loader status immediately, not after cache TTL
+            try:
+                from datetime import datetime
+                import os
+                import boto3
+
+                cache_date = datetime.now().date()
+                cache_key = f"data_loader_status-{cache_date.isoformat()}"
+                cache_table_name = os.getenv('CACHE_TABLE', 'algo_phase1_cache')
+
+                dynamodb = boto3.resource('dynamodb')
+                cache_table = dynamodb.Table(cache_table_name)
+                cache_table.delete_item(Key={'cache_key': cache_key})
+                logger.debug(f"[CACHE INVALIDATION] Invalidated Phase 1 cache for {cache_key}")
+            except Exception as cache_err:
+                logger.debug(f"[CACHE INVALIDATION] Could not invalidate cache: {cache_err}")
         except Exception as e:
             logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
