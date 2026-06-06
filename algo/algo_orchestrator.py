@@ -485,8 +485,11 @@ class Orchestrator:
 
     # ---------- Phase implementations ----------
 
-    def phase_1_data_freshness(self) -> bool:
-        """Thin delegation to phase1_data_freshness module."""
+    def phase_1_data_freshness(self):
+        """Thin delegation to phase1_data_freshness module.
+
+        ISSUE #11 FIX: Returns full PhaseResult instead of boolean to capture degradation status
+        """
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
         from algo.orchestrator.phase1_data_freshness import run as run_phase1
         result = run_phase1(
@@ -494,6 +497,8 @@ class Orchestrator:
             self.run_date, self.dry_run, self.alerts,
             self.verbose, self.log_phase_result
         )
+        # Store result for Phase 5 to check degradation status
+        self._phase1_result = result
         return not result.halted
 
     def phase_2_circuit_breakers(self) -> bool:
@@ -690,7 +695,16 @@ class Orchestrator:
                 phase_1_start = time.time()
                 logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
                 with TimeBlock("phase_1_data_freshness"):
-                    if not self.phase_1_data_freshness():
+                    # ISSUE #11 FIX: Capture Phase 1 result to check for degradation
+                    from algo.orchestrator.phase1_data_freshness import run as run_phase1
+                    self.config
+                    phase1_result = run_phase1(
+                        self.config,
+                        self.run_date, self.dry_run, self.alerts,
+                        self.verbose, self.log_phase_result
+                    )
+                    self._phase1_result = phase1_result  # Store for Phase 5 to check degradation
+                    if phase1_result.halted:
                         logger.error("\nFAIL-CLOSED: Data freshness check failed. Running Phase 7 (reconciliation) before halting.")
                         self.log_phase_result(1, 'data_freshness', 'halt', 'Stale or missing critical data')
                         self.phase_7_reconcile()

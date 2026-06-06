@@ -151,11 +151,11 @@ def _trigger_loader_failsafe_with_verification(loader_name: str, verbose: bool =
                             # This catches cases where task starts but loader code crashes or hangs on startup
                             loader_heartbeat_detected = False
                             heartbeat_wait_start = time.time()
-                            heartbeat_wait_timeout = 30  # 30 second timeout for heartbeat detection
+                            heartbeat_wait_timeout = 120  # 120 second timeout for heartbeat detection (accounts for slow loader startup + initialization)
                             heartbeat_check_interval = 2  # Check every 2 seconds
 
                             if verbose:
-                                logger.debug(f"[FAILSAFE] Waiting up to {heartbeat_wait_timeout}s for loader to update heartbeat (startup validation)...")
+                                logger.debug(f"[FAILSAFE] Waiting up to {heartbeat_wait_timeout}s for loader to update heartbeat (startup validation, increased for slow-start loaders)...")
 
                             while time.time() - heartbeat_wait_start < heartbeat_wait_timeout:
                                 try:
