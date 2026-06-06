@@ -1873,6 +1873,7 @@ def run(
         except Exception as db_check_err:
             logger.debug(f"[DATABASE CHECK] Database unreachable ({db_check_err}), may use cache fallback")
 
+        cache_invalidation_failure_flag = False  # Initialize before try block
         try:
             import boto3
             dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
