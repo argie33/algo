@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders } from '../../setup/test-wrapper';
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import RegisterForm from "../../../../components/auth/RegisterForm";
 
@@ -49,8 +49,7 @@ describe("RegisterForm", () => {
 
   describe("Basic Rendering", () => {
     test("renders register form with all elements", () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       expect(screen.getByText("Sign Up")).toBeInTheDocument();
@@ -67,8 +66,7 @@ describe("RegisterForm", () => {
     });
 
     test("has password visibility toggles", () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       expect(
@@ -82,8 +80,7 @@ describe("RegisterForm", () => {
 
   describe("Form Interactions", () => {
     test("updates form fields", () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       const firstNameField = screen.getByLabelText(/first name/i);
@@ -93,8 +90,7 @@ describe("RegisterForm", () => {
     });
 
     test("toggles password visibility", () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       const passwordField = document.getElementById("password");
@@ -109,8 +105,7 @@ describe("RegisterForm", () => {
 
   describe("Form Validation", () => {
     test("shows error for empty required fields", async () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       const submitButton = screen.getByRole("button", {
@@ -126,8 +121,7 @@ describe("RegisterForm", () => {
     });
 
     test("shows error for password mismatch", async () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       fireEvent.change(screen.getByLabelText(/first name/i), {
@@ -160,8 +154,7 @@ describe("RegisterForm", () => {
     });
 
     test("shows error for invalid email", async () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       fireEvent.change(screen.getByLabelText(/first name/i), {
@@ -198,8 +191,7 @@ describe("RegisterForm", () => {
 
   describe("Form Submission", () => {
     test("submits form with valid data", async () => {
-      render(
-        <MemoryRouter>
+      renderWithProviders(
           <RegisterForm {...defaultProps} />);
 
       fireEvent.change(screen.getByLabelText(/first name/i), {

@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders } from '../../setup/test-wrapper';
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import ResetPasswordForm from "../../../../components/auth/ResetPasswordForm";
 
@@ -48,7 +49,7 @@ describe("ResetPasswordForm", () => {
   });
 
   test("renders reset password form", () => {
-    render(<ResetPasswordForm {...defaultProps} />);
+    renderWithProviders(<ResetPasswordForm {...defaultProps} />);
 
     expect(screen.getByText("Set New Password")).toBeInTheDocument();
     expect(screen.getByLabelText(/reset code/i)).toBeInTheDocument();
@@ -60,7 +61,7 @@ describe("ResetPasswordForm", () => {
   });
 
   test("submits password reset", async () => {
-    render(<ResetPasswordForm {...defaultProps} />);
+    renderWithProviders(<ResetPasswordForm {...defaultProps} />);
 
     fireEvent.change(screen.getByLabelText(/reset code/i), {
       target: { value: "123456" },
@@ -87,7 +88,7 @@ describe("ResetPasswordForm", () => {
   });
 
   test("shows validation error for password mismatch", async () => {
-    render(<ResetPasswordForm {...defaultProps} />);
+    renderWithProviders(<ResetPasswordForm {...defaultProps} />);
 
     fireEvent.change(screen.getByLabelText(/reset code/i), {
       target: { value: "123456" },

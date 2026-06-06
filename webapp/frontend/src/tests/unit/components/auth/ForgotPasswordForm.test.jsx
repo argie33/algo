@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders } from '../../setup/test-wrapper';
 import { vi } from "vitest";
 import ForgotPasswordForm from "../../../../components/auth/ForgotPasswordForm";
 
@@ -12,7 +13,7 @@ describe("ForgotPasswordForm", () => {
   });
 
   test("renders forgot password form", () => {
-    render(<ForgotPasswordForm {...defaultProps} />);
+    renderWithProviders(<ForgotPasswordForm {...defaultProps} />);
 
     expect(screen.getByText("Reset Password")).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
@@ -22,7 +23,7 @@ describe("ForgotPasswordForm", () => {
   });
 
   test("submits email for password reset", async () => {
-    render(<ForgotPasswordForm {...defaultProps} />);
+    renderWithProviders(<ForgotPasswordForm {...defaultProps} />);
 
     const emailInput = screen.getByLabelText(/email address/i);
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -38,7 +39,7 @@ describe("ForgotPasswordForm", () => {
   });
 
   test("shows success message after submission", async () => {
-    render(<ForgotPasswordForm {...defaultProps} />);
+    renderWithProviders(<ForgotPasswordForm {...defaultProps} />);
 
     const emailInput = screen.getByLabelText(/email address/i);
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -54,7 +55,7 @@ describe("ForgotPasswordForm", () => {
   });
 
   test("disables submit button when email is empty", () => {
-    render(<ForgotPasswordForm {...defaultProps} />);
+    renderWithProviders(<ForgotPasswordForm {...defaultProps} />);
 
     const submitButton = screen.getByRole("button", {
       name: /send reset email/i,
@@ -65,7 +66,7 @@ describe("ForgotPasswordForm", () => {
 
   test("switches back to login", () => {
     const onBack = vi.fn();
-    render(<ForgotPasswordForm {...defaultProps} onBack={onBack} />);
+    renderWithProviders(<ForgotPasswordForm {...defaultProps} onBack={onBack} />);
 
     const backButton = screen.getByText("Back to Sign In");
     fireEvent.click(backButton);

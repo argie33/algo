@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders } from '../../setup/test-wrapper';
 import { vi } from "vitest";
 import ConfirmationForm from "../../../../components/auth/ConfirmationForm";
 
@@ -34,7 +35,7 @@ describe("ConfirmationForm", () => {
   });
 
   test("renders confirmation form", () => {
-    render(<ConfirmationForm {...defaultProps} />);
+    renderWithProviders(<ConfirmationForm {...defaultProps} />);
 
     expect(
       screen.getByRole("heading", { name: "Verify Account" })
@@ -49,7 +50,7 @@ describe("ConfirmationForm", () => {
   });
 
   test("submits verification code", async () => {
-    render(<ConfirmationForm {...defaultProps} />);
+    renderWithProviders(<ConfirmationForm {...defaultProps} />);
 
     const codeInput = screen.getByLabelText(/verification code/i);
     fireEvent.change(codeInput, { target: { value: "123456" } });
@@ -90,7 +91,7 @@ describe("ConfirmationForm", () => {
   });
 
   test("resends verification code", async () => {
-    render(<ConfirmationForm {...defaultProps} />);
+    renderWithProviders(<ConfirmationForm {...defaultProps} />);
 
     const resendButton = screen.getByText(/resend/i);
     fireEvent.click(resendButton);
