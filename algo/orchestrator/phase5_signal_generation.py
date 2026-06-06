@@ -287,7 +287,8 @@ def run(
                         f"""SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s""",
                         (eval_date,),
                     )
-                    scores_count = _age_cur.fetchone()[0] if _age_cur.fetchone() else 0
+                    row = _age_cur.fetchone()
+                    scores_count = row[0] if row else 0
                     if scores_count == 0:
                         logger.warning(
                             f"[ISSUE #8] signal_quality_scores MISSING for {eval_date}. "
