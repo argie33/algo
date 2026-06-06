@@ -67,7 +67,7 @@ class OptimalLoader(ABC):
         self._heartbeat_thread = None
         self._heartbeat_running = False
         self._heartbeat_lock = threading.Lock()
-        self._heartbeat_interval = 300  # 5 minutes between heartbeat updates
+        self._heartbeat_interval = 60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
         self._setup_signal_handlers()
         self._validate_runtime_config()
 
@@ -85,10 +85,12 @@ class OptimalLoader(ABC):
         signal.signal(signal.SIGTERM, handle_shutdown)
 
     def _start_heartbeat(self) -> None:
-        """Start a background thread that updates loader status every 5 minutes.
+        """Start a background thread that updates loader status every 60 seconds.
 
+        ISSUE #12 FIX: Increased frequency from every 5 minutes to every 60 seconds.
         This heartbeat mechanism allows Phase 1 to detect hung/stalled loader tasks.
-        Phase 1 watches for last_updated > 10 minutes and declares task timeout.
+        Phase 1 considers task hung if no heartbeat for >3 minutes (default timeout).
+        With 60-second updates, hung tasks are detected within 3-5 minutes instead of 8-10.
         """
         with self._heartbeat_lock:
             if self._heartbeat_running:
