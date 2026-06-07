@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
-import { ensureObject } from '../utils/dataValidation';
 import dataCache from '../services/dataCache';
 
 /**
@@ -48,6 +47,9 @@ export const useApiQuery = (
         const cachedData = await dataCache.get(actualCacheKey);
         if (cachedData) {
           console.info('[useApiQuery] Returning cached fallback for:', actualCacheKey);
+          if (Array.isArray(cachedData)) {
+            return cachedData;
+          }
           return { ...cachedData, fromCache: true };
         }
         throw err;
@@ -110,7 +112,7 @@ export const useApiQuery = (
   } : null;
 
   return {
-    data: ensureObject(rawData),
+    data: rawData,
     loading: isLoading,
     error: enrichedError,
     isFetching: rest.isFetching,
@@ -159,6 +161,9 @@ export const useApiPaginatedQuery = (
         const cachedData = await dataCache.get(actualCacheKey);
         if (cachedData) {
           console.info('[useApiPaginatedQuery] Returning cached fallback for:', actualCacheKey);
+          if (Array.isArray(cachedData)) {
+            return cachedData;
+          }
           return { ...cachedData, fromCache: true };
         }
         throw err;

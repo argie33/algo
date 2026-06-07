@@ -177,17 +177,16 @@ export default function Sentiment() {
 
   const stats = useMemo(() => {
     let bull = 0, bear = 0, neutral = 0, unknown = 0;
-    if (Array.isArray(stocksList)) {
-      stocksList.forEach((s) => {
-        if (s && typeof s === 'object') {
-          if (s.compositeScore == null) unknown++;
-          else if (s.compositeScore > 0.3) bull++;
-          else if (s.compositeScore < -0.3) bear++;
-          else neutral++;
-        }
-      });
-    }
-    return { total: Array.isArray(stocksList) ? stocksList.length : 0, bull, bear, neutral, unknown };
+    const list = Array.isArray(stocksList) ? stocksList : [];
+    list.forEach((s) => {
+      if (s && typeof s === 'object') {
+        if (s.compositeScore == null) unknown++;
+        else if (s.compositeScore > 0.3) bull++;
+        else if (s.compositeScore < -0.3) bear++;
+        else neutral++;
+      }
+    });
+    return { total: list.length, bull, bear, neutral, unknown };
   }, [stocksList]);
 
   const selectedStock = useMemo(
@@ -231,15 +230,17 @@ export default function Sentiment() {
   // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bull−bear %)
   const changeLeaders = useMemo(() => {
     const byDate = {};
-    const divItems = Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || divergenceQ.data || []);
-    (divItems || []).forEach((row) => {
-      if (!row.symbol || !row.date) return;
+    const divItems = Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || []);
+    const items = Array.isArray(divItems) ? divItems : [];
+    items.forEach((row) => {
+      if (!row || !row.symbol || !row.date) return;
       const sym = row.symbol;
       if (!byDate[sym]) byDate[sym] = [];
       byDate[sym].push(row);
     });
     const moves = [];
     Object.entries(byDate).forEach(([sym, rows]) => {
+      if (!Array.isArray(rows) || rows.length === 0) return;
       rows.sort((a, b) => new Date(b.date) - new Date(a.date));
       if (rows.length < 2) return;
       const cur = rows[0];
@@ -263,8 +264,12 @@ export default function Sentiment() {
   const contrarianSetups = useMemo(() => {
     const scoreMap = new Map();
     const scoresList = Array.isArray(scoresQ.data) ? scoresQ.data : (scoresQ.data?.items || []);
-    (scoresList || []).forEach((s) => scoreMap.set(s.symbol, s));
-    const merged = stocksList
+    const scores = Array.isArray(scoresList) ? scoresList : [];
+    scores.forEach((s) => {
+      if (s && s.symbol) scoreMap.set(s.symbol, s);
+    });
+    const stocksToProcess = Array.isArray(stocksList) ? stocksList : [];
+    const merged = stocksToProcess
       .filter((s) => s.compositeScore != null)
       .map((s) => {
         const algo = scoreMap.get(s.symbol);
@@ -288,7 +293,8 @@ export default function Sentiment() {
   // Analyst rating funnel across the universe
   const ratingFunnel = useMemo(() => {
     let strongBuy = 0, buy = 0, hold = 0, sell = 0, strongSell = 0;
-    stocksList.forEach((s) => {
+    const list = Array.isArray(stocksList) ? stocksList : [];
+    list.forEach((s) => {
       const a = s.latestAnalyst;
       if (!a || !a.analyst_count) return;
       const total = Number(a.analyst_count) || 0;
@@ -369,7 +375,7 @@ export default function Sentiment() {
             changeLeaders={changeLeaders}
             contrarianSetups={contrarianSetups}
             ratingFunnel={ratingFunnel}
-            divergenceData={divergenceQ.data || []}
+            divergenceData={Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || [])}
           />
         )}
 
