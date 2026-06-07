@@ -1573,10 +1573,11 @@ def _invalidate_phase1_cache():
 
         # Step 2: If delete failed, try to poison the cache so Phase 1 knows not to use it
         try:
+            from decimal import Decimal
             cache_table.update_item(
                 Key={'cache_key': cache_key},
                 UpdateExpression='SET invalidation_failed = :true, poisoned_at = :now',
-                ExpressionAttributeValues={':true': True, ':now': time.time()}
+                ExpressionAttributeValues={':true': True, ':now': Decimal(str(time.time()))}
             )
             logger.warning(f"[CACHE INVALIDATION] ✓ POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data")
             return
@@ -1659,6 +1660,9 @@ def main():
     # Parse comma-separated values
     intervals = [x.strip() for x in intervals_str.split(",")]
     asset_classes = [x.strip() for x in asset_classes_str.split(",")]
+
+    # Set execution timeout (ECS task timeout for price loader is 7200s = 2h)
+    execution_timeout_sec = 7200
 
     # Validate
     valid_intervals = {"1d", "1wk", "1mo"}

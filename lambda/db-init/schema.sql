@@ -1592,6 +1592,7 @@ CREATE TABLE IF NOT EXISTS algo_trades (
     last_partial_exit_date DATE,
     mfe_pct DECIMAL(8, 4),
     mae_pct DECIMAL(8, 4),
+    cognito_sub VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, signal_date, entry_price)
@@ -1652,6 +1653,7 @@ CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     sharpe_ratio DECIMAL(8, 4),
     distribution_days_market INTEGER,
     market_health_status VARCHAR(50),
+    cognito_sub VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1690,6 +1692,7 @@ CREATE TABLE IF NOT EXISTS algo_trade_adds (
     fraction_of_original DECIMAL(5, 4),
     r_multiple_at_add DECIMAL(5, 2),
     trigger_reason TEXT,
+    cognito_sub VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(trade_id, add_number)
 );
