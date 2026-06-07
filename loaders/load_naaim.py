@@ -56,7 +56,14 @@ class NAAIMExposureLoader(OptimalLoader):
 
             # Clean data
             df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+            before_dropna = len(df)
             df = df.dropna(subset=['Date'])
+            after_dropna = len(df)
+            if after_dropna < before_dropna:
+                logger.warning(
+                    f"Dropped {before_dropna - after_dropna} row(s) with missing/invalid Date "
+                    f"— {after_dropna} rows remain"
+                )
             df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
 
             rows = []
