@@ -173,7 +173,8 @@ export const extractPaginatedData = (response) => {
 
   // Handle direct items (new standardized format)
   if (Array.isArray(data.items)) {
-    const items = data.items.filter(item => item !== null && item !== undefined);
+    // Extra safety: use fallback in case data.items is somehow falsy
+    const items = (data.items ?? []).filter(item => item !== null && item !== undefined);
     return {
       items,
       pagination: data.pagination || {
@@ -190,7 +191,8 @@ export const extractPaginatedData = (response) => {
 
   // Handle nested data.items (for backward compatibility)
   if (data.data && Array.isArray(data.data.items)) {
-    const items = data.data.items.filter(item => item !== null && item !== undefined);
+    // Extra safety: use fallback in case data.data.items is somehow falsy
+    const items = (data.data.items ?? []).filter(item => item !== null && item !== undefined);
     return {
       items,
       pagination: data.data.pagination || {
