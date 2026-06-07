@@ -926,7 +926,8 @@ class PriceLoader(OptimalLoader):
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         start = time.time()
-        self._stats["start_time"] = datetime.fromtimestamp(start)  # ISSUE #2: Record execution start
+        from datetime import timezone
+        self._stats["start_time"] = datetime.now(timezone.utc)  # ISSUE #2: Record execution start (UTC)
         symbols = list(symbols)
         mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
         logger.info(
@@ -1004,8 +1005,13 @@ class PriceLoader(OptimalLoader):
         processed = 0
         batch_times = []  # Track batch execution times for monitoring
 
-        # Process batches with concurrency (increase max to 8 for better throughput on larger batches)
-        max_concurrent = min(parallelism, 8)  # Allow up to 8 concurrent batches for faster loading
+        # ISSUE #6 FIX: Limit concurrent batch threads to prevent RDS connection pool exhaustion
+        # Each concurrent thread gets 1-2 connections from pool (RDS Proxy default 500 max).
+        # With 5000+ symbols: batch threads × 6 loaders running sequentially = high usage.
+        # Conservative limit: 3 concurrent batches per loader to stay well under pool limits.
+        # This trades speed (more parallelism = faster) for stability (no pool exhaustion).
+        # If pool has <50% utilization, frontend can increase LOADER_PARALLELISM in future.
+        max_concurrent = min(parallelism, 3)  # ISSUE #6: Reduced from 8 to prevent pool exhaustion
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             futures = {executor.submit(self._load_batch, batch): batch for batch in batches}
             for future in as_completed(futures):
@@ -1195,6 +1201,8 @@ class PriceLoader(OptimalLoader):
                     "DELETE FROM data_loader_status WHERE table_name = %s",
                     (self.table_name,),
                 )
+                from datetime import timezone
+                exec_completed_utc = datetime.now(timezone.utc)  # ISSUE #2: Execution completed timestamp
                 cur.execute(
                     "INSERT INTO data_loader_status "
                     "(table_name, row_count, latest_date, last_updated, status, "
@@ -1202,7 +1210,7 @@ class PriceLoader(OptimalLoader):
                     "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s)",
                     (self.table_name, total_rows, latest_date, loader_status,
                      completion_pct, symbols_expected, symbols_successfully_loaded,
-                     self._stats.get("start_time"), datetime.now()),
+                     self._stats.get("start_time"), exec_completed_utc),
                 )
 
             # ISSUE #22 FIX: Invalidate Phase 1 data_loader_status cache on completion
