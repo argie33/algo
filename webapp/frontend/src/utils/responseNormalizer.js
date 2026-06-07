@@ -207,7 +207,20 @@ export const extractPaginatedData = (response) => {
     };
   }
 
-  throw new Error('Response does not contain paginated data (items array)');
+  // Fallback: return empty items array instead of throwing (Issue #9)
+  // This handles API responses that return success without items structure
+  return {
+    items: [],
+    pagination: data.pagination || {
+      limit: data.limit || 100,
+      offset: data.offset || 0,
+      total: 0,
+      page: data.page || 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false,
+    },
+  };
 };
 
 /**
