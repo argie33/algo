@@ -255,20 +255,21 @@ export default function TradingSignals() {
   }, [filtered, enriched]);
 
   return (
-    <div className="main-content">
-      <div className="page-head">
-        <div>
-          <div className="page-head-title">Trading Signals</div>
-          <div className="page-head-sub">
-            {tab === 'stocks' ? 'Pine-script signals for stocks' : 'Pine-script signals for ETFs'}
-            {' · click any row for full detail'}
-            {' · '}
-            <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>
-              <Clock size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-              Updated {freshness}
-            </span>
+    <ErrorBoundary>
+      <div className="main-content">
+        <div className="page-head">
+          <div>
+            <div className="page-head-title">Trading Signals</div>
+            <div className="page-head-sub">
+              {tab === 'stocks' ? 'Pine-script signals for stocks' : 'Pine-script signals for ETFs'}
+              {' · click any row for full detail'}
+              {' · '}
+              <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>
+                <Clock size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                Updated {freshness}
+              </span>
+            </div>
           </div>
-        </div>
         <div className="page-head-actions" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
           <select
             value={limit}
