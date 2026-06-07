@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS price_daily (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_daily_unique ON price_daily(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date DESC);
 
 -- Weekly price data
 CREATE TABLE IF NOT EXISTS price_weekly (
@@ -961,6 +962,7 @@ CREATE TABLE IF NOT EXISTS economic_calendar (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(event_id, event_date)
 );
+CREATE INDEX IF NOT EXISTS idx_economic_calendar_event_date ON economic_calendar(event_date);
 
 -- Economic data time series
 CREATE TABLE IF NOT EXISTS economic_data (
