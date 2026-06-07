@@ -4,13 +4,14 @@ import { resolve } from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
+  // Load environment variables from process.env (no .env files per CLAUDE.md policy)
+  // loadEnv reads from process.env when .env doesn't exist
   const env = loadEnv(mode, process.cwd(), '');
 
   const isDevelopment = mode === "development";
   const isProduction = mode === "production";
 
-  // API URL configuration - use loadEnv to properly read .env file
+  // API URL configuration - read from process.env (set by build-prod.js)
   // In development: leave VITE_API_URL empty so api.js uses relative paths
   // The Vite proxy will handle routing /api/* to localhost:3001
   // In production: use explicit URL from VITE_API_URL environment variable
