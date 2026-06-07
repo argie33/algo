@@ -28,6 +28,7 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 import { formatNumber } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const num = (v, dp = 2) => formatNumber(v, dp);
 
@@ -231,14 +232,14 @@ export default function SwingCandidates() {
 
       {/* Charts row 1 — radar + sector treemap */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ComponentRadar items={items} selected={selected} />
-        <SectorTreemap items={items} onSectorClick={(s) => setSector(s)} />
+        <ErrorBoundary><ComponentRadar items={items} selected={selected} /></ErrorBoundary>
+        <ErrorBoundary><SectorTreemap items={items} onSectorClick={(s) => setSector(s)} /></ErrorBoundary>
       </div>
 
       {/* Charts row 2 — funnel + correlation */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <GradeFunnel items={items} />
-        <ComponentCorrelation items={items} />
+        <ErrorBoundary><GradeFunnel items={items} /></ErrorBoundary>
+        <ErrorBoundary><ComponentCorrelation items={items} /></ErrorBoundary>
       </div>
 
       {/* History */}

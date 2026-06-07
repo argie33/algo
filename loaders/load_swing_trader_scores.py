@@ -46,6 +46,7 @@ class SwingTraderScoresLoader(OptimalLoader):
         """
         from algo.algo_market_calendar import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
+        from zoneinfo import ZoneInfo
 
         try:
             # CRITICAL: Use ET (trading hours), not UTC, to determine end date.

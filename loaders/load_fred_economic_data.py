@@ -146,6 +146,10 @@ class FredEconomicDataLoader(OptimalLoader):
                     for obs in observations:
                         val_str = obs.get("value", ".")
                         if val_str == ".":
+                            logger.debug(
+                                f"{series_id} [{obs.get('date')}]: Observation skipped — missing value "
+                                f"(value='.')"
+                            )
                             continue
                         try:
                             all_rows.append({
@@ -153,7 +157,11 @@ class FredEconomicDataLoader(OptimalLoader):
                                 'date': obs["date"],
                                 'value': float(val_str)
                             })
-                        except (ValueError, KeyError):
+                        except (ValueError, KeyError) as e:
+                            logger.debug(
+                                f"{series_id} [{obs.get('date')}]: Observation skipped — parsing error "
+                                f"(value={val_str}, error={e})"
+                            )
                             continue
 
                     logger.info(f"  {series_id}: SUCCESS ({len([r for r in all_rows if r['series_id'] == series_id])} rows)")

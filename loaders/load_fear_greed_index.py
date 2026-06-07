@@ -87,6 +87,10 @@ class FearGreedIndexLoader(OptimalLoader):
                         elif date_str:
                             entry_date = str(date_str)[:10]
                         else:
+                            logger.debug(
+                                f"Fear & Greed entry skipped — missing date field "
+                                f"(x={x_val}, _date={entry.get('_date')}, date={entry.get('date')})"
+                            )
                             continue
                         value = entry.get('y', entry.get('value', 0))
                         label = entry.get('rating', entry.get('description', 'Neutral'))
@@ -95,7 +99,8 @@ class FearGreedIndexLoader(OptimalLoader):
                             'fear_greed_value': float(value),
                             'fear_greed_label': str(label),
                         })
-                    except (ValueError, KeyError, TypeError, AttributeError):
+                    except (ValueError, KeyError, TypeError, AttributeError) as e:
+                        logger.debug(f"Fear & Greed entry parsing error: {e}")
                         continue
 
                 return rows if rows else None

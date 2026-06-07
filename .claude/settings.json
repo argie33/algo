@@ -13,6 +13,9 @@
     ]
   },
   "todoFeatureEnabled": true,
+  "env": {
+    "DEV_BYPASS_AUTH": "true"
+  },
   "hooks": {
     "SessionStart": [
       {

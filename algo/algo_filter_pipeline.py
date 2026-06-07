@@ -109,8 +109,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
         # 45s per statement gives enough time for complex EXISTS queries while fail-opening fast.
         try:
             cur.execute("SET statement_timeout = 45000")
-        except Exception:
-            pass
+        except Exception as stmt_timeout_err:
+            logger.debug(f"Failed to set statement timeout: {stmt_timeout_err}")
 
         if not eval_date:
             # Run in a SEPARATE connection: if the EXISTS subqueries time out, only
@@ -119,7 +119,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                 with DatabaseContext('read') as _res_cur:
                     _res_cur.execute("SET statement_timeout = 10000")  # 10s max
                     eval_date = self._resolve_evaluation_date(_res_cur, max_date=max_date)
-            except Exception:
+            except Exception as eval_date_err:
+                logger.warning(f"Failed to resolve evaluation date: {eval_date_err}, using fallback date")
                 eval_date = max_date or _date.today()
 
             # Snapshot eval_date immutably for this run (prevents sector rotation mid-evaluation)
@@ -286,8 +287,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     try:
                         cur.execute("ROLLBACK TO SAVEPOINT stage_query")
                         cur.execute("RELEASE SAVEPOINT stage_query")
-                    except Exception:
-                        pass
+                    except Exception as savepoint_err:
+                        logger.debug(f"Failed to rollback savepoint for {symbol}: {savepoint_err}")
                     logger.warning(f"  SKIP {symbol}: stage query failed ({_sq_err})")
                     continue
                 if row:
@@ -489,8 +490,8 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
                     try:
                         cur.execute("ROLLBACK TO SAVEPOINT persist_eval")
                         cur.execute("RELEASE SAVEPOINT persist_eval")
-                    except Exception:
-                        pass
+                    except Exception as persist_savepoint_err:
+                        logger.debug(f"Failed to rollback persist_eval savepoint: {persist_savepoint_err}")
                     logger.debug(f"Signal evaluation persist failed for {result.get('symbol','?')}: {e_persist}")
 
                 # Track per-symbol timing for performance diagnostics

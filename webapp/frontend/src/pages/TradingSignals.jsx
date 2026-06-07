@@ -487,7 +487,7 @@ function SignalHeatmap({ rows }) {
         {data.length === 0
           ? <Empty title="Not enough data for heatmap" />
           : (
-            <div style={{ height: 280 }}>
+            <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
                   <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -561,7 +561,7 @@ function SetupBreakdown({ rows }) {
         {data.length === 0
           ? <Empty title="No base-type data" desc="base_type column is empty for these signals." />
           : (
-            <div style={{ height: 220 }}>
+            <div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
                   <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" horizontal={false} />
@@ -749,7 +749,7 @@ function SqsHistogram({ rows }) {
           <Empty title="No SQS data" desc="No quality scores joined to current signals." />
         ) : (
           <>
-            <div style={{ flex: 1, minHeight: 240, width: '100%' }}>
+            <div style={{ width: '100%', height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -1012,7 +1012,7 @@ function PriceSparkline({ symbol }) {
           {change >= 0 ? '+' : ''}{change.toFixed(2)}%
         </span>
       </div>
-      <div style={{ height: 90 }}>
+      <div style={{ width: '100%', height: 90 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>

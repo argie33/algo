@@ -33,6 +33,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
         from algo.algo_market_calendar import MarketCalendar
         from datetime import datetime, timezone, timedelta as td
+        from zoneinfo import ZoneInfo
 
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.

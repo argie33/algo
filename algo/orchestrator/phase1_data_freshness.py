@@ -698,8 +698,8 @@ def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool
                                         f'Task may still consume RDS connections. Failsafe will proceed but may encounter pool exhaustion.',
                                         {'task_id': task_id, 'loader': loader_name}
                                     )
-                                except Exception:
-                                    pass
+                                except Exception as alert_err:
+                                    logger.warning(f"[HUNG_TASK_CLEANUP] Failed to send alert about stuck task termination: {alert_err}")
                                 # Count as "attempted" but don't mark success to allow caller to take additional action
                                 terminated_count += 1
                         else:
@@ -718,8 +718,8 @@ def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool
                                 dimensions={'LoaderName': loader_name}
                             )
                             metrics.flush()
-                        except Exception:
-                            pass
+                        except Exception as metrics_err:
+                            logger.warning(f"[HUNG_TASK_CLEANUP] Failed to publish hung task metric: {metrics_err}")
                     else:
                         logger.warning(f"[HUNG_TASK_CLEANUP] Task {task_id} not in stopped state: {final_state}")
                 else:
@@ -968,8 +968,8 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
                                     ExpressionAttributeValues={':running_at': actual_start_time}
                                 )
                                 logger.info(f"[FAILSAFE] Updated actual_running_at after re-check with task creation time")
-                            except Exception:
-                                pass
+                            except Exception as ddb_update_err:
+                                logger.debug(f"[FAILSAFE] Failed to update DynamoDB with re-verified task start time: {ddb_update_err}")
                             age_minutes = (current_time - actual_start_time) / 60  # Age since task actually started
                             age_source = "running_at (re-verified from ECS with task creation time)"
                         else:
@@ -1023,8 +1023,8 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
                         max_grace_period = int(cached[0])
                         if verbose:
                             logger.debug(f"[FAILSAFE] Using cached grace period: {max_grace_period}m")
-            except Exception:
-                pass
+            except Exception as cache_err:
+                logger.debug(f"[FAILSAFE] Could not read grace period from Redis cache: {cache_err}")
 
             # Try 3: Manual config
             if max_grace_period is None:
@@ -1034,8 +1034,8 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
                         result = cur.fetchone()
                         if result and result[0]:
                             max_grace_period = int(result[0])
-                except Exception:
-                    pass
+                except Exception as config_err:
+                    logger.debug(f"[FAILSAFE] Could not read grace period from algo_config: {config_err}")
 
             # Try 4: Default
             if max_grace_period is None:
@@ -1165,10 +1165,10 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                             stale_threshold_minutes = int(config_result[0])
                             if verbose:
                                 logger.debug(f"[STALE_DATA] Using configured threshold: {stale_threshold_minutes} min")
-                        except (ValueError, TypeError):
-                            pass
-                except Exception:
-                    pass
+                        except (ValueError, TypeError) as parse_err:
+                            logger.debug(f"[FAILSAFE] Could not parse execution_completed timestamp: {parse_err}")
+                except Exception as exec_check_err:
+                    logger.debug(f"[FAILSAFE] Could not check execution completion status: {exec_check_err}")
 
                 if isinstance(execution_completed, str):
                     try:
@@ -1427,8 +1427,8 @@ def _check_data_patrol(cur: Any, run_date: _date, verbose: bool, log_phase_resul
                                     elif task.get('lastStatus') in ('STOPPED', 'STOPPING'):
                                         logger.warning(f"[PATROL] Task {task_id} stopped: {task.get('stoppedReason', 'unknown')}")
                                         break
-                            except Exception:
-                                pass
+                            except Exception as desc_err:
+                                logger.debug(f"[PATROL] Error checking task status: {desc_err}")
                             time.sleep(0.5)
 
                         # Log trigger timestamp for grace period check in future runs
@@ -2162,8 +2162,8 @@ def run(
                 # Clear the failure flag after logging (will be re-set if next attempt also fails)
                 try:
                     state_table.delete_item(Key={'state_key': 'market_close_failure'})
-                except Exception:
-                    pass
+                except Exception as ddb_cleanup_err:
+                    logger.debug(f"[MARKET_CLOSE] Failed to clean up market close failure flag from DynamoDB: {ddb_cleanup_err}")
         except Exception as mc_err:
             logger.debug(f"[MARKET_CLOSE] Could not check failure status: {mc_err}")
 
@@ -2217,8 +2217,8 @@ def run(
                              'minutes_until_deadline': minutes_until_market_open,
                              'safety_margin_pct': time_left_ratio * 100}
                         )
-                    except Exception:
-                        pass
+                    except Exception as metrics_err:
+                        logger.warning(f"[TIMING] Failed to publish timing metrics: {metrics_err}")
 
         # NOTE: ANALYZE moved to morning prep pipeline (4:30 AM ET) to run once daily instead of 4x.
         # Previously: ANALYZE took ~7.8s and ran at 9:30 AM, 1 PM, 3 PM, 5:30 PM = 31.2s/day wasted
@@ -2277,8 +2277,8 @@ def run(
                         cache_created_when_db_was_down = True
                         logger.warning(f"[DATABASE RECOVERY] Database came back online! Cache was written during outage. Forcing refresh.")
                         database_recovered = True
-                except Exception:
-                    pass
+                except Exception as recovery_check_err:
+                    logger.debug(f"[DATABASE RECOVERY] Could not check database recovery status: {recovery_check_err}")
 
                 logger.debug("[DATABASE CHECK] ✓ Database is responsive")
         except Exception as db_check_err:
@@ -2453,8 +2453,8 @@ def run(
                         if atomic_transaction_started:
                             try:
                                 cur.execute("ROLLBACK")
-                            except Exception:
-                                pass
+                            except Exception as rollback_err:
+                                logger.error(f"[{_phase1_correlation_id}] Failed to rollback after transaction error: {rollback_err}")
                         logger.critical(f"[{_phase1_correlation_id}] [ATOMIC] SERIALIZABLE REPEATABLE READ atomic transaction failed ({txn_err}) - results may be inconsistent. HALTING to prevent race-condition data corruption")
                         atomic_query_failed = True
                         alerts.send_position_alert(
@@ -2560,8 +2560,8 @@ def run(
                 result = _cfg_cur.fetchone()
                 if result:
                     halt_threshold = int(result[0])
-        except Exception:
-            pass
+        except Exception as halt_config_err:
+            logger.debug(f"[DATA FRESHNESS] Could not read halt threshold from config: {halt_config_err}")
 
         logger.info(f"[DATA FRESHNESS] Simplified rule: data must be from {expected_date} (today is {run_date}, most recent trading day)")
         logger.info(f"[DATA FRESHNESS] Tolerance: {max_acceptable_age_days} trading day(s). Will trigger failsafe if older.")
@@ -3238,8 +3238,8 @@ def run(
                                 hung_loaders.append(loader_table)
                                 logger.warning(f"[{_phase1_correlation_id}] [HUNG_TASK] Analytics loader '{loader_table}' appears hung, attempting termination")
                                 _terminate_hung_loader_task(loader_table, verbose=False)
-                        except Exception:
-                            pass  # Ignore errors for non-critical analytics loaders
+                        except Exception as analytics_term_err:
+                            logger.warning(f"[{_phase1_correlation_id}] Failed to terminate hung analytics loader {loader_table}: {analytics_term_err}")
 
                     if hung_loaders:
                         alerts.send_position_alert(
@@ -3857,8 +3857,8 @@ def run(
                         result = _cfg_cur.fetchone()
                         if result:
                             min_coverage_pct = int(result[0])
-                except Exception:
-                    pass
+                except Exception as coverage_config_err:
+                    logger.debug(f"[DATA FRESHNESS] Could not read coverage config: {coverage_config_err}")
 
                 min_coverage = int(5000 * min_coverage_pct / 100)
                 coverage_check_failed = False
@@ -4315,8 +4315,8 @@ def run(
                         latest_date = row[0] if row else None
                         if latest_date is None:
                             stale_on_recheck.append(f"{table_label} (no data >= {expected_date})")
-                    except Exception:
-                        pass  # Table may not exist yet, skip
+                    except Exception as recheck_err:
+                        logger.debug(f"[RACE_CONDITION] Could not re-check table {table_label} for stale data: {recheck_err}")
 
                 if stale_on_recheck:
                     logger.error(f"[{_phase1_correlation_id}] [RACE_CONDITION] Final re-check detected stale/missing data: {', '.join(stale_on_recheck)}")
@@ -4480,8 +4480,8 @@ def cleanup_hung_eod_loaders(verbose: bool = False) -> Dict[str, int]:
                             f'Errors: {termination_results["errors"]}',
                             termination_results
                         )
-                    except Exception:
-                        pass
+                    except Exception as alert_err:
+                        logger.warning(f"[EOD_CLEANUP] Failed to send cleanup alert: {alert_err}")
 
                 return termination_results
         except Exception as check_err:

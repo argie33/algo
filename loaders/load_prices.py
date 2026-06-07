@@ -403,8 +403,8 @@ class PriceLoader(OptimalLoader):
             try:
                 from algo.algo_alerts import AlertManager
                 AlertManager().critical(alert_msg)
-            except Exception:
-                pass
+            except Exception as alert_err:
+                logger.error(f"[{self._correlation_id}] Failed to send critical alert: {alert_err}", exc_info=True)
 
         # Emit failure metric with diagnostic info
         try:
@@ -413,8 +413,8 @@ class PriceLoader(OptimalLoader):
             metrics.put_metric('MarketCloseDataAvailable', 0, unit='Count',
                              dimensions={'Status': 'timeout', 'LastError': last_error_type or 'unknown', 'ConsecutiveCount': str(self._market_close_timeout_count)})
             metrics.flush()
-        except Exception:
-            pass
+        except Exception as metrics_err:
+            logger.error(f"[{self._correlation_id}] Failed to publish market close timeout metric: {metrics_err}", exc_info=True)
 
         # Determine root cause for clearer diagnostics
         last_error_lower = (last_error_msg or '').lower()

@@ -25,6 +25,7 @@ import {
 import { api } from '../services/api';
 import { formatPercentageChange, formatNumber } from '../utils/formatters';
 import { formatXAxisDate } from '../utils/dateFormatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const TT_STYLE = {
   background: 'var(--surface)',
@@ -1401,19 +1402,23 @@ export default function SectorAnalysis() {
 
       <div style={{ marginTop: 'var(--space-4)' }}>
         {tab === 'sectors' && (
-          <SectorsView
-            sectors={sectors}
-            industries={industries}
-            isLoading={sectorsQ.loading}
-            error={sectorsQ.error}
-          />
+          <ErrorBoundary>
+            <SectorsView
+              sectors={sectors}
+              industries={industries}
+              isLoading={sectorsQ.loading}
+              error={sectorsQ.error}
+            />
+          </ErrorBoundary>
         )}
         {tab === 'industries' && (
-          <IndustriesView
-            industries={industries}
-            isLoading={industriesQ.loading}
-            error={industriesQ.error}
-          />
+          <ErrorBoundary>
+            <IndustriesView
+              industries={industries}
+              isLoading={industriesQ.loading}
+              error={industriesQ.error}
+            />
+          </ErrorBoundary>
         )}
       </div>
     </div>
