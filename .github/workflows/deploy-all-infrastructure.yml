@@ -832,6 +832,52 @@ jobs:
             && echo "[OK] User $PRIMARY_USER added to admin group" \
             || echo "[WARN] Could not add user to admin group (user may not exist yet)"
 
+      - name: Update API Gateway CORS with CloudFront Domain
+        run: |
+          # CRITICAL FIX: After Terraform creates CloudFront, update API Gateway CORS to include the new domain.
+          # Without this, the frontend (served via CloudFront) cannot call the API due to CORS errors.
+          # This step ensures CORS origins include the CloudFront domain that Terraform just created.
+
+          WEBSITE_URL="${{ steps.outputs.outputs.website_url }}"
+
+          if [ -z "$WEBSITE_URL" ] || [ "$WEBSITE_URL" = "None" ] || [ "$WEBSITE_URL" = "null" ]; then
+            echo "[SKIP] Website URL (CloudFront domain) not available"
+            exit 0
+          fi
+
+          # Extract CloudFront domain (remove https:// prefix if present)
+          CF_DOMAIN=$(echo "$WEBSITE_URL" | sed 's|^https://||')
+          CF_ORIGIN="https://${CF_DOMAIN}"
+
+          echo "Updating API Gateway CORS with CloudFront domain: $CF_DOMAIN"
+
+          # Get API Gateway name from terraform config
+          cd terraform
+          PROJECT=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
+          ENV=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
+          API_NAME="${PROJECT}-api-${ENV}"
+          cd ..
+
+          # Get API Gateway ID
+          API_GW_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${API_NAME}'].ApiId" \
+            --output text --region $AWS_REGION 2>/dev/null || echo "")
+
+          if [ -z "$API_GW_ID" ]; then
+            echo "[SKIP] Could not find API Gateway ID for $API_NAME"
+            exit 0
+          fi
+
+          echo "Found API Gateway: $API_GW_ID"
+
+          # Update CORS to include CloudFront + localhost for dev
+          aws apigatewayv2 update-api \
+            --api-id "$API_GW_ID" \
+            --cors-configuration "AllowOrigins=$CF_ORIGIN,http://localhost:5173,http://localhost:3000,AllowMethods=GET,HEAD,OPTIONS,PUT,POST,PATCH,DELETE,AllowHeaders=Content-Type,Authorization,X-Requested-With,Accept,ExposeHeaders=Content-Length,Content-Type,MaxAge=3600,AllowCredentials=true" \
+            --region $AWS_REGION 2>/dev/null \
+            && echo "[OK] Updated API Gateway CORS with CloudFront: $CF_DOMAIN" \
+            || echo "[WARN] Failed to update API Gateway CORS"
+
       - name: Summary
         run: |
           echo "### Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
