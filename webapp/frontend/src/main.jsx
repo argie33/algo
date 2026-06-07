@@ -22,12 +22,10 @@ const logger = createComponentLogger("Main");
 
 // RESTORED: Professional error logging service integration
 const _originalConsoleError = console.error;
-const _originalConsoleWarn = console.warn;
 
-// Console warning passthrough - show all warnings
-// Recharts dimension warnings (width(-1), height(-1)) are non-critical but useful for debugging.
-// If charts render incorrectly, these warnings will help diagnose the issue.
-console.warn = _originalConsoleWarn;
+// All console.warn calls pass through unfiltered - including Recharts dimension warnings.
+// These warnings are useful for debugging chart rendering issues.
+// We do NOT suppress console.warn to ensure real rendering problems are visible.
 
 // Suppress only non-actionable browser warnings that come from third-party libraries.
 // All application errors and CORS/network issues pass through for debugging.

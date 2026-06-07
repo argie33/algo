@@ -310,7 +310,15 @@ class FilterTiers45Mixin:
 
             # Compute 60-day returns
             returns = pivot.pct_change()
+            rows_before = len(returns)
             returns = returns.dropna()
+            rows_after = len(returns)
+            dropped = rows_before - rows_after
+            if dropped > 0:
+                logger.debug(
+                    f"{new_symbol}: Dropped {dropped} row(s) with NaN returns during correlation check "
+                    f"({rows_after} valid rows remain)"
+                )
 
             if len(returns) < 20:
                 logger.warning(f'Insufficient data for correlation check {new_symbol}: {len(returns)} days')

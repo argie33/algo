@@ -600,24 +600,38 @@ function RecentPerformance({ rows, timeframe }) {
     queryKey: ['signal-perf', symbols, timeframe],
     queryFn: async () => {
       if (!recentBuys.length) return [];
-      // Fetch price history for recent buys (limit to 100, batch with max 5 concurrent)
+      // Fetch price history using batch endpoint (20 symbols per request, max 5 concurrent batches)
       const toFetch = recentBuys.slice(0, 100);
-      const results = await batchRequests(
-        toFetch,
-        async (r) => {
+
+      // Chunk into groups of 20 (batch endpoint limit)
+      const chunks = [];
+      for (let i = 0; i < toFetch.length; i += 20) {
+        chunks.push(toFetch.slice(i, i + 20));
+      }
+
+      // Execute batches with limited concurrency (5 concurrent)
+      const allResults = await batchRequests(
+        chunks,
+        async (chunk) => {
           try {
-            const res = await api.get(`/api/prices/history/${r.symbol}?timeframe=${timeframe}&limit=60`);
-            let items = res?.data?.data || res?.data;
-            items = Array.isArray(items) ? items : (items?.items || []);
-            return { symbol: r.symbol, items, entry: r };
+            const symbols = chunk.map(r => r.symbol).join(',');
+            const res = await api.get(`/api/prices/batch-history?symbols=${encodeURIComponent(symbols)}&timeframe=${timeframe}&limit=60`);
+            const symbolsData = res?.data?.symbols || {};
+
+            // Map results back to entry objects
+            return chunk.map(r => {
+              const items = symbolsData[r.symbol] || [];
+              return { symbol: r.symbol, items, entry: r };
+            });
           } catch (err) {
-            console.warn(`Failed to fetch price history for ${r.symbol}:`, err);
-            return { symbol: r.symbol, items: [], entry: r, error: true };
+            console.warn(`Failed to fetch batch price history for chunk:`, err);
+            return chunk.map(r => ({ symbol: r.symbol, items: [], entry: r, error: true }));
           }
         },
-        5 // Limit to 5 concurrent requests to avoid RDS connection pool exhaustion
+        5 // Max 5 concurrent batch requests to avoid connection pool exhaustion
       );
-      return results;
+
+      return allResults.flat();
     },
     enabled: recentBuys.length > 0,
     staleTime: 300000,
