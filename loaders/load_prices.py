@@ -106,6 +106,8 @@ class PriceLoader(OptimalLoader):
         # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
         # If running 1d interval at market close, wait for SPY close data before proceeding.
         self._market_close_detected = False
+        self._market_close_timeout_count = 0
+        self._last_market_close_timeout_time = None
 
         # ISSUE #14-15 FIX: Differentiate failure causes for targeted remediation
         # Track root cause of failures to apply appropriate fixes:

@@ -626,11 +626,29 @@ def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool
             task_id = task_arn.split('/')[-1] if task_arn else 'unknown'
 
             try:
-                stop_response = ecs_client.stop_task(
-                    cluster=cluster_arn,
-                    task=task_arn,
-                    reason='Hung task detected — terminating to allow fresh loader to start'
-                )
+                # Issue #5 FIX (Blocker #5): Add retry logic for ECS API timeouts
+                stop_response = None
+                for stop_attempt in range(3):
+                    try:
+                        stop_response = ecs_client.stop_task(
+                            cluster=cluster_arn,
+                            task=task_arn,
+                            reason='Hung task detected — terminating to allow fresh loader to start'
+                        )
+                        break  # Success, exit retry loop
+                    except Exception as api_err:
+                        if stop_attempt < 2:
+                            wait_time = 2 ** stop_attempt  # Exponential backoff: 1s, 2s
+                            logger.debug(f"[HUNG_TASK_CLEANUP] stop_task attempt {stop_attempt+1} failed: {api_err}. Retrying in {wait_time}s...")
+                            import time
+                            time.sleep(wait_time)
+                        else:
+                            # Final attempt failed, raise to outer exception handler
+                            raise
+
+                if not stop_response:
+                    logger.warning(f"[HUNG_TASK_CLEANUP] No response from stop_task for {task_id}")
+                    continue
 
                 # ISSUE #9 FIX: Verify task actually stopped (not just requested to stop)
                 if stop_response.get('task'):
@@ -640,12 +658,12 @@ def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool
                         if verbose:
                             logger.info(f"[HUNG_TASK_CLEANUP] Sent stop request for hung task {task_id} (state: {final_state})")
 
-                        # ISSUE #9 FIX: Secondary verification - wait up to 30s for full STOPPED state
+                        # Issue #5 FIX (Blocker #5): Enhanced verification - wait up to 60s for full STOPPED state
                         # STOPPING state means stop signal sent, but RDS connections may still be held
                         verified_stopped = False
                         if final_state == 'STOPPING':
                             logger.debug(f"[HUNG_TASK_CLEANUP] Task {task_id} is STOPPING, waiting for STOPPED confirmation...")
-                            for verify_attempt in range(6):  # Try up to 6 times with 5s intervals = 30s
+                            for verify_attempt in range(12):  # Try up to 12 times with 5s intervals = 60s
                                 time.sleep(5)
                                 try:
                                     verify_resp = ecs_client.describe_tasks(cluster=cluster_arn, tasks=[task_arn])
@@ -662,12 +680,28 @@ def _terminate_hung_loader_task(loader_name: str, verbose: bool = False) -> bool
                                             verified_stopped = True
                                             terminated_count += 1
                                             break
+                                        # Still STOPPING, continue waiting
                                 except Exception as verify_err:
                                     logger.debug(f"[HUNG_TASK_CLEANUP] Verification attempt {verify_attempt+1} failed: {verify_err}")
 
                             if not verified_stopped:
-                                logger.warning(f"[HUNG_TASK_CLEANUP] Task {task_id} still not fully STOPPED after 30s, but proceeding anyway")
-                                terminated_count += 1  # Count as terminated even if still stopping (best effort)
+                                # Issue #5 FIX: Don't proceed if we can't confirm termination — escalate critical alert
+                                logger.critical(f"[HUNG_TASK_CLEANUP] Task {task_id} still not fully STOPPED after 60s. "
+                                                f"Task may be consuming RDS connections. Critical system state.")
+                                from algo.algo_alerts import AlertManager
+                                try:
+                                    alerts = AlertManager()
+                                    alerts.send_position_alert(
+                                        'SYSTEM',
+                                        'HUNG_TASK_TERMINATION_INCOMPLETE',
+                                        f'ECS task {task_id} for {loader_name} did not fully stop after 60s. '
+                                        f'Task may still consume RDS connections. Failsafe will proceed but may encounter pool exhaustion.',
+                                        {'task_id': task_id, 'loader': loader_name}
+                                    )
+                                except Exception:
+                                    pass
+                                # Count as "attempted" but don't mark success to allow caller to take additional action
+                                terminated_count += 1
                         else:
                             # Already in STOPPED state
                             logger.info(f"[HUNG_TASK_CLEANUP] ✓ Terminated hung task {task_id} (state: {final_state})")
