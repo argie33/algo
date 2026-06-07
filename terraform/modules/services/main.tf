@@ -509,7 +509,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3Frontend"
-    compress         = false  # Small file, compression overhead not worth it
+    compress         = false # Small file, compression overhead not worth it
 
     cache_policy_id            = data.aws_cloudfront_cache_policy.managed_caching_disabled.id
     response_headers_policy_id = var.cloudfront_enabled ? aws_cloudfront_response_headers_policy.s3_cors[0].id : null
