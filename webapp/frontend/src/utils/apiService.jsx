@@ -159,7 +159,7 @@ export const apiCall = async (
 
     // Validate content-type before parsing JSON (allow charset and other JSON variations)
     const contentType = response.headers.get('content-type') || '';
-    const isJsonContentType = contentType.includes('application/json') || contentType.includes('application/json');
+    const isJsonContentType = contentType.startsWith('application/json');
     if (contentType && !isJsonContentType) {
       // Log warning for non-JSON responses but still try to parse (some APIs omit content-type)
       logger.warn('API response has non-JSON content-type, attempting to parse anyway', {
