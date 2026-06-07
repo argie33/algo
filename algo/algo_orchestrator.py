@@ -90,10 +90,14 @@ class Orchestrator:
         Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
         SECURITY: If DynamoDB is unreachable, emits CloudWatch alarm metric.
 
-        Auto-expires halt flags based on trading schedule (not just calendar):
-        - If halt set before 4 PM ET: expires at 4 PM (end of current trading day)
-        - If halt set after 4 PM ET: expires at 9:30 AM next trading day
-        Allows circuit breaker halt at 1 PM to not block 3 PM and 5:30 PM runs.
+        ISSUE #8 FIX: Halt flag persists through entire trading day (9:30 AM - 4:00 PM ET)
+        to prevent Phase 5 from generating signals with stale data set by early morning
+        Phase 1. Auto-expires only at market open of next trading day (9:30 AM ET).
+
+        Timeline example:
+        - 2:30 AM: Loaders detect stale data → Phase 1 sets halt_flag with triggered_at=2:30 AM
+        - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag → still active (same day)
+        - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
         """
         try:
             import boto3
@@ -115,62 +119,44 @@ class Orchestrator:
 
                         trigger_date = trigger_et.date()
                         now_date_et = now_et.date()
-                        trigger_hour = trigger_et.hour
 
-                        MARKET_CLOSE_HOUR = 16  # 4 PM ET
                         MARKET_OPEN_HOUR = 9
                         MARKET_OPEN_MINUTE = 30
 
                         # Check if halt is from a previous trading day
                         if trigger_date < now_date_et:
-                            logger.info(
-                                f"[HALT_FLAG] Halt from {trigger_date} is older than today ({now_date_et}) — auto-clearing"
-                            )
-                            table.put_item(Item={
-                                'key': self.HALT_FLAG_DYNAMODB_KEY,
-                                'halt_flag': False,
-                                'reason': 'Auto-expired: halt flag from prior trading day',
-                                'reset_at': now_utc.isoformat(),
-                            })
-                            return False
+                            # Halt flag from previous day: auto-clear only if we've passed
+                            # market open (9:30 AM) of current trading day
+                            now_trading_day = now_date_et
+                            market_open_et = now_et.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0, microsecond=0)
+                            market_open_et = market_open_et.replace(tzinfo=ZoneInfo("America/New_York"))
 
-                        # Same trading day: check if we've passed expiry window
-                        if trigger_date == now_date_et:
-                            if trigger_hour < MARKET_CLOSE_HOUR:
-                                # Halt triggered before 4 PM → expires at 4 PM
-                                expiry_et = trigger_et.replace(hour=MARKET_CLOSE_HOUR, minute=0, second=0)
-                                if now_et > expiry_et:
-                                    logger.info(
-                                        f"[HALT_FLAG] Halt set at {trigger_et.strftime('%H:%M')} ET. "
-                                        f"Now past {MARKET_CLOSE_HOUR}:00 ET — auto-clearing."
-                                    )
-                                    table.put_item(Item={
-                                        'key': self.HALT_FLAG_DYNAMODB_KEY,
-                                        'halt_flag': False,
-                                        'reason': 'Auto-expired: halt set before market close',
-                                        'reset_at': now_utc.isoformat(),
-                                    })
-                                    return False
+                            if now_et >= market_open_et:
+                                logger.info(
+                                    f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
+                                    f"on {now_date_et} — auto-clearing"
+                                )
+                                table.put_item(Item={
+                                    'key': self.HALT_FLAG_DYNAMODB_KEY,
+                                    'halt_flag': False,
+                                    'reason': 'Auto-expired: halt flag from prior trading day after market open',
+                                    'reset_at': now_utc.isoformat(),
+                                })
+                                return False
                             else:
-                                # Halt triggered after 4 PM → expires at 9:30 AM next trading day
-                                next_trading_day = now_date_et + timedelta(days=1)
-                                while not MarketCalendar.is_trading_day(next_trading_day):
-                                    next_trading_day += timedelta(days=1)
-                                next_open_et = next_trading_day.replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0)
-                                next_open_et = next_open_et.replace(tzinfo=ZoneInfo("America/New_York"))
+                                # Pre-market on current day, keep halt from previous day active
+                                # (e.g., stale data from night loaders should halt all-day trading)
+                                logger.info(
+                                    f"[HALT_FLAG] Halt from {trigger_date} still active before market open today"
+                                )
+                                return True
 
-                                if now_et > next_open_et:
-                                    logger.info(
-                                        f"[HALT_FLAG] Halt set at {trigger_et.strftime('%H:%M')} ET (post-close). "
-                                        f"Past {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET next day — auto-clearing."
-                                    )
-                                    table.put_item(Item={
-                                        'key': self.HALT_FLAG_DYNAMODB_KEY,
-                                        'halt_flag': False,
-                                        'reason': 'Auto-expired: halt set after market close',
-                                        'reset_at': now_utc.isoformat(),
-                                    })
-                                    return False
+                        # Same trading day: halt persists throughout entire day
+                        # (early morning Phase 1 sets flag to protect all-day trading)
+                        if trigger_date == now_date_et:
+                            logger.critical("HALT FLAG DETECTED — stopping all trading phases immediately")
+                            self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
+                            return True
 
                     except Exception as parse_err:
                         logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
@@ -232,6 +218,37 @@ class Orchestrator:
             return True
         except Exception as e:
             logger.error(f"[ERROR] Failed to set halt flag: {e}")
+            return False
+
+    def _clear_halt_flag(self, reason: str = '') -> bool:
+        """Clear halt flag in DynamoDB. Returns True if successfully cleared.
+
+        ISSUE #8 FIX: When Phase 1 verifies data is fresh, explicitly clear the
+        halt flag to allow Phase 5 to generate signals normally.
+
+        Args:
+            reason: Optional explanation for why halt was cleared
+
+        Returns: True if successfully cleared, False on error
+        """
+        try:
+            import boto3
+            dynamodb = boto3.resource('dynamodb')
+            table_name = os.getenv('HALT_FLAG_TABLE', 'algo_orchestrator_state')
+            table = dynamodb.Table(table_name)
+
+            now_utc = datetime.now(timezone.utc)
+            table.put_item(Item={
+                'key': self.HALT_FLAG_DYNAMODB_KEY,
+                'halt_flag': False,
+                'cleared_at': now_utc.isoformat(),
+                'reason': reason or 'Phase 1 verified: data is fresh',
+                'reset_at': now_utc.isoformat(),
+            })
+            logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
+            return True
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to clear halt flag: {e}")
             return False
 
     def _check_connection_pool_health(self) -> None:
@@ -304,6 +321,57 @@ class Orchestrator:
         except Exception as e:
             logger.debug(f"  Health check failed: {e}")
 
+    def _verify_task_stopped(self, ecs, cluster: str, task_arn: str, loader_name: str, max_retries: int = 3, retry_delay_sec: float = 1.0) -> bool:
+        """Verify that a task actually stopped. Returns True if verified STOPPED, False if verification failed.
+
+        ISSUE #5 FIX: Prevents hung tasks consuming RDS connections by verifying termination.
+        Retries with escalating delays because ECS stop_task is async and may fail silently.
+        """
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = ecs.describe_tasks(cluster=cluster, tasks=[task_arn])
+                if not response.get('tasks'):
+                    logger.error(f"[TASK_TERMINATION] Attempt {attempt}: Task {task_arn} not found in describe_tasks response")
+                    if attempt < max_retries:
+                        time.sleep(retry_delay_sec)
+                        retry_delay_sec *= 1.5  # Exponential backoff
+                    continue
+
+                task_status = response['tasks'][0].get('lastStatus', 'UNKNOWN')
+                desired_status = response['tasks'][0].get('desiredStatus', 'UNKNOWN')
+
+                logger.debug(f"[TASK_TERMINATION] Attempt {attempt}: {loader_name} lastStatus={task_status}, desiredStatus={desired_status}")
+
+                # Task is confirmed stopped
+                if task_status == 'STOPPED':
+                    logger.info(f"[TASK_TERMINATION] ✓ {loader_name} task {task_arn} verified STOPPED")
+                    return True
+
+                # Task still running but stop was requested
+                if desired_status == 'STOPPED' and task_status in ('RUNNING', 'DEPROVISIONING'):
+                    if attempt < max_retries:
+                        logger.debug(f"[TASK_TERMINATION] Attempt {attempt}: Stop requested, waiting for status transition...")
+                        time.sleep(retry_delay_sec)
+                        retry_delay_sec *= 1.5
+                        continue
+
+                # Task didn't receive stop signal
+                logger.error(f"[TASK_TERMINATION] Attempt {attempt}: Task status {task_status}/{desired_status} — stop not acknowledged")
+                if attempt < max_retries:
+                    time.sleep(retry_delay_sec)
+                    retry_delay_sec *= 1.5
+
+            except Exception as e:
+                logger.error(f"[TASK_TERMINATION] Attempt {attempt}: Failed to verify task status: {e}")
+                if attempt < max_retries:
+                    time.sleep(retry_delay_sec)
+                    retry_delay_sec *= 1.5
+
+        # All retries exhausted — termination verification failed
+        logger.critical(f"[TASK_TERMINATION] FAILED: {loader_name} task {task_arn} did not transition to STOPPED after {max_retries} attempts. "
+                       f"RDS connection may not be released. Manual intervention required.")
+        return False
+
     def _kill_long_running_loaders(self) -> None:
         """CRITICAL: Kill analytics loaders if approaching next orchestrator run.
 
@@ -313,6 +381,8 @@ class Orchestrator:
 
         Dynamic timeout: calculate time until next orchestrator run, subtract 15 min buffer.
         Orchestrator runs at: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET (Mon-Fri only)
+
+        ISSUE #5 FIX: Verifies task termination to prevent hung tasks consuming RDS connections.
         """
         try:
             import boto3
@@ -368,6 +438,7 @@ class Orchestrator:
             task_details = ecs.describe_tasks(cluster=cluster, tasks=response['taskArns'])
             now = datetime.now(timezone.utc)
 
+            failed_terminations = []
             for task in task_details.get('tasks', []):
                 # Extract loader name from task definition (format: algo-LOADER_NAME-loader:1)
                 task_def = task.get('taskDefinitionArn', '')
@@ -393,9 +464,37 @@ class Orchestrator:
                     task_arn = task.get('taskArn')
                     logger.warning(f"[OOM_PREVENTION] Killing {loader_name} task (running {age.total_seconds() / 3600:.1f}h, "
                                  f"max {max_runtime.total_seconds()/3600:.1f}h before next orch run): {task_arn}")
-                    ecs.stop_task(cluster=cluster, task=task_arn, reason=f'Analytics loader killing before next orchestrator run')
-                    self.log_phase_result(0, 'oom_prevention', 'success',
-                                         f'Killed {loader_name} task running {age.total_seconds() / 3600:.1f}h')
+
+                    # ISSUE #5: Issue stop request
+                    try:
+                        ecs.stop_task(cluster=cluster, task=task_arn, reason=f'Analytics loader killing before next orchestrator run')
+                    except Exception as stop_err:
+                        logger.error(f"[TASK_TERMINATION] stop_task() call failed: {stop_err}")
+                        failed_terminations.append((loader_name, task_arn, str(stop_err)))
+                        continue
+
+                    # ISSUE #5: Verify task actually stopped (with retries)
+                    if self._verify_task_stopped(ecs, cluster, task_arn, loader_name):
+                        self.log_phase_result(0, 'oom_prevention', 'success',
+                                             f'Killed {loader_name} task running {age.total_seconds() / 3600:.1f}h')
+                    else:
+                        failed_terminations.append((loader_name, task_arn, 'verification timeout'))
+
+            # ISSUE #5: Alert if any terminations failed
+            if failed_terminations:
+                error_details = '; '.join([f"{name}: {err}" for name, arn, err in failed_terminations])
+                logger.critical(f"[TASK_TERMINATION] ESCALATION: {len(failed_terminations)} task termination(s) failed. "
+                              f"{error_details}")
+                try:
+                    self.alerts.send_position_alert(
+                        'TASK_TERMINATION',
+                        'HUNG_LOADER_TERMINATION_FAILED',
+                        f'Failed to terminate {len(failed_terminations)} hung analytics loaders. RDS connections may not be released. '
+                        f'Check CloudWatch logs and manually stop: {", ".join([arn.split("/")[-1] for _, arn, _ in failed_terminations])}',
+                        {'failed_tasks': [{'loader': name, 'task_arn': arn, 'error': err} for name, arn, err in failed_terminations]}
+                    )
+                except Exception as alert_err:
+                    logger.error(f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}")
 
         except Exception as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
@@ -526,6 +625,7 @@ class Orchestrator:
         self._phase1_result = result
 
         # ISSUE #9 FIX: Write Phase 1 degraded mode status to DynamoDB for health endpoint visibility
+        # ISSUE #8 FIX: Manage halt flag lifecycle based on data freshness status
         try:
             import boto3
             dynamodb = boto3.resource('dynamodb')
@@ -540,10 +640,15 @@ class Orchestrator:
                 'reason': result.summary if degraded_status else None,
                 'ttl': int(time.time()) + 3600,  # 1-hour TTL
             })
+
             if degraded_status:
                 logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.summary}")
                 # ISSUE #8 FIX: Set halt flag to stop Phase 5 from generating full-intensity signals
                 self._set_halt_flag(f"Phase 1 degraded: {result.summary}")
+            elif result.status == 'ok':
+                # ISSUE #8 FIX: Clear halt flag when Phase 1 verifies data is fresh
+                # This allows Phase 5 to resume normal signal generation
+                self._clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
         except Exception as e:
             logger.debug(f"Failed to write Phase 1 degraded status to DynamoDB: {e}")
 
