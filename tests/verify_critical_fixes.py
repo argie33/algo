@@ -6,8 +6,6 @@ Verification tests for critical fixes:
 - Issue #14: Missing API health status endpoint
 """
 
-import sys
-import json
 from pathlib import Path
 
 def test_issue_1_config_generation():
