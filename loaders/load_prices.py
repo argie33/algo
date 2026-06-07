@@ -899,13 +899,18 @@ class PriceLoader(OptimalLoader):
         fallback_to_prior_day = False
         if self.interval == "1d":
             try:
-                # This will raise RuntimeError if market close data unavailable after timeout
-                # No need to check return value - if it returns, data is available
-                self._check_market_close_data_available()  # Uses dynamic timeout
-                logger.debug("[MARKET_CLOSE] ✓ Market close data available, proceeding with load")
+                # ISSUE #1 FIX: Check market close data availability
+                # Returns True if available, False if timeout (non-fatal - proceed with available data)
+                # Raises RuntimeError for auth errors (fatal - abort loader)
+                market_close_available = self._check_market_close_data_available()  # Uses dynamic timeout
+                if market_close_available:
+                    logger.debug("[MARKET_CLOSE] ✓ Market close data available, proceeding with load")
+                else:
+                    logger.warning("[MARKET_CLOSE] ⚠️  Market close data NOT available (timeout), but proceeding with whatever data exists. "
+                                  "Phase 1 will detect staleness via execution_completed timestamp.")
             except RuntimeError as market_close_err:
-                # Market close check timed out - log failure and return empty
-                logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] Loader aborting: {str(market_close_err)}")
+                # Market close check hit a fatal error (auth, configuration, etc) - abort loader
+                logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] Loader aborting (fatal error): {str(market_close_err)}")
                 try:
                     from algo.algo_metrics import MetricsPublisher
                     m = MetricsPublisher()
@@ -917,7 +922,7 @@ class PriceLoader(OptimalLoader):
                 except Exception as metric_err:
                     logger.debug(f"Could not publish market close metric: {metric_err}")
 
-                # ISSUE #2 FIX: Record market close failure for Phase 1 detection
+                # Record market close failure for Phase 1 detection
                 try:
                     import boto3
                     dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
