@@ -252,20 +252,45 @@ def check_data_freshness(cur, table_name: str, date_column: str = "date", warnin
             "warning": "Unable to determine data freshness"
         }
 
-def json_response(code, data):
+def json_response(code, data, data_freshness=None):
     """Standardized JSON response wrapper for single objects.
 
     Returns consistent format:
-    - Success (200): {statusCode: 200, data: {...}}
+    - Success (200): {statusCode: 200, data: {...}, data_freshness?: {...}}
     - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "..."}
 
-    Always use success_response(data) or error_response(code, type, msg) instead of calling this directly.
+    Supports metadata parameter to maintain consistency with list_response().
     """
     if code == 200:
-        return success_response(data)
+        response = success_response(data)
+        if data_freshness:
+            response["data_freshness"] = data_freshness
+        return response
     else:
         # For non-200 codes, data should have 'errorType' and 'message'
         return {"statusCode": code, **data}
+
+def decimal_to_float_recursive(obj):
+    """Convert Decimal values to float recursively in dicts and lists.
+
+    Handles PostgreSQL NUMERIC types which come back as Decimal from psycopg2.
+    This ensures JSON serialization works correctly without relying on json.default handlers.
+
+    Args:
+        obj: Dict, list, or scalar to convert
+
+    Returns:
+        Object with all Decimal values converted to float
+    """
+    from decimal import Decimal
+    if isinstance(obj, dict):
+        return {k: decimal_to_float_recursive(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [decimal_to_float_recursive(item) for item in obj]
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    else:
+        return obj
 
 def handle_db_error(error, context="database operation"):
     """Unified database error handler for all route handlers.

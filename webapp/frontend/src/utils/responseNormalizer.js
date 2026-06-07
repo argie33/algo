@@ -35,7 +35,7 @@ export const extractData = (response) => {
   if (data.success === false) {
     const errorMsg = data.error || data.message || 'API request failed';
     const error = new Error(errorMsg);
-    error.code = data.error;
+    error.code = data.errorType;
     error.status = data.statusCode || response.status;
     throw error;
   }
@@ -46,7 +46,7 @@ export const extractData = (response) => {
     const errorMsg = data.message || data.error || `API error: ${httpStatus}`;
     const error = new Error(errorMsg);
     error.status = httpStatus;
-    error.code = data.error;
+    error.code = data.errorType;
     throw error;
   }
 
@@ -73,7 +73,8 @@ export const extractData = (response) => {
   // CRITICAL: Check that items is actually an array (not null/undefined)
   if (data.items && Array.isArray(data.items)) {
     // Filter out null/undefined items, but preserve falsy values like 0, false, ""
-    const filteredItems = data.items.filter(item => item !== null && item !== undefined);
+    // Extra safety: use fallback in case data.items is somehow null/falsy
+    const filteredItems = (data.items ?? []).filter(item => item !== null && item !== undefined);
     return {
       items: filteredItems,
       pagination: data.pagination || {
@@ -156,6 +157,7 @@ export const extractPaginatedData = (response) => {
   if (data.success === false) {
     const errorMsg = data.error || data.message || 'API request failed';
     const error = new Error(errorMsg);
+    error.code = data.errorType;
     error.status = data.statusCode || response.status;
     throw error;
   }
@@ -164,6 +166,7 @@ export const extractPaginatedData = (response) => {
   const httpStatus = data.statusCode !== undefined ? data.statusCode : response.status;
   if (httpStatus >= 400) {
     const error = new Error(data.message || data.error || `API error: ${httpStatus}`);
+    error.code = data.errorType;
     error.status = httpStatus;
     throw error;
   }

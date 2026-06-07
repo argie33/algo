@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, decimal_to_float_recursive
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +215,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         cur.execute("ROLLBACK TO SAVEPOINT top_movers")
                         cur.execute("RELEASE SAVEPOINT top_movers")
                     except Exception: pass
-                items = [dict(m) for m in movers] if movers else []
+                items = [decimal_to_float_recursive(dict(m)) for m in movers] if movers else []
                 gainers = sorted([m for m in items if (m.get('pct_change') or 0) >= 0],
                                  key=lambda x: -(x.get('pct_change') or 0))[:10]
                 losers = sorted([m for m in items if (m.get('pct_change') or 0) < 0],
