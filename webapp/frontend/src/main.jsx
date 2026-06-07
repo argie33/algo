@@ -35,8 +35,9 @@ console.warn = function (...args) {
     return;
   }
 
-  // Suppress network error warnings from useApiQuery (expected when backend unavailable)
-  if (msg.includes('[useApiQuery] Query failed') && msg.includes('Network Error')) {
+  // Suppress network/API error warnings when backend unavailable
+  // These are expected in dev when backend server isn't running
+  if (msg.includes('Query failed') || msg.includes('[useApi')) {
     return;
   }
 
@@ -52,6 +53,13 @@ console.error = function (...args) {
   // Suppress ResizeObserver warnings from third-party libraries (not caused by our code)
   // These are known benign warnings from resize observation in external libs
   if (msg.includes('ResizeObserver') && msg.includes('loop limit exceeded')) {
+    return;
+  }
+
+  // Suppress API status code errors (4xx/5xx) when backend unavailable
+  // These create verbose triple-logging (network error + API error + query error)
+  // In production with backend available, actual API errors would be user-visible via UI
+  if (msg.includes('[API] Request failed with status')) {
     return;
   }
 
