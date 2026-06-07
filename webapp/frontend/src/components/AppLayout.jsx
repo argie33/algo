@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
+import { extractData } from '../utils/responseNormalizer';
 import { theme } from '../services/theme';
 import { SystemHealthIndicator } from './SystemHealthIndicator';
 
@@ -101,19 +102,21 @@ export default function AppLayout({ children }) {
     let cancelled = false;
     const fetchStatus = async () => {
       try {
-        const marketData = await api.get('/api/algo/markets').catch((err) => {
+        let marketResponse = null;
+        try {
+          marketResponse = await api.get('/api/algo/markets');
+        } catch (err) {
           console.error('[AppLayout] Market fetch failed:', {
             message: err?.message,
             code: err?.code,
             status: err?.response?.status,
             endpoint: '/api/algo/markets'
           });
-          return null;
-        });
+        }
 
-        let notifData = null;
+        let notifResponse = null;
         try {
-          notifData = await api.get('/api/algo/notifications');
+          notifResponse = await api.get('/api/algo/notifications');
         } catch (err) {
           // Suppress 403 notifications errors (auth) - not critical for UI
           if (err?.response?.status !== 403) {
@@ -128,12 +131,28 @@ export default function AppLayout({ children }) {
 
         if (cancelled) return;
 
-        // Check for error responses (success: false indicates API error)
-        const marketContent = marketData?.data?.data || marketData?.data;
-        const marketExposure = marketContent?.success === false ? null : (marketContent?.current || null);
+        // Extract normalized data using responseNormalizer
+        let marketContent = {};
+        let notifContent = {};
 
-        const notifContent = notifData?.data?.data || notifData?.data;
-        const notifItems = notifContent?.success === false ? [] : (notifContent?.items || []);
+        try {
+          if (marketResponse) {
+            marketContent = extractData(marketResponse);
+          }
+        } catch (err) {
+          console.debug('[AppLayout] Failed to extract market data:', err.message);
+        }
+
+        try {
+          if (notifResponse) {
+            notifContent = extractData(notifResponse);
+          }
+        } catch (err) {
+          console.debug('[AppLayout] Failed to extract notification data:', err.message);
+        }
+
+        const marketExposure = marketContent?.current || null;
+        const notifItems = Array.isArray(notifContent?.items) ? notifContent.items : [];
 
         setExposure(marketExposure);
         setNotifications(notifItems);

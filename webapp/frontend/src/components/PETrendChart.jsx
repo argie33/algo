@@ -1,5 +1,5 @@
 import { useApiQuery } from "../hooks/useApiQuery";
-import { Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
+import { Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api";
 import { formatCurrency } from "../utils/formatters";

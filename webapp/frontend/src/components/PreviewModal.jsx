@@ -18,6 +18,25 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     setLoading(true);
     setError(null);
     try {
+      // Validate inputs before parsing
+      if (!symbol) {
+        setError('Symbol is required');
+        setLoading(false);
+        return;
+      }
+      if (!entryPrice || isNaN(parseFloat(entryPrice))) {
+        console.error('[PreviewModal] Invalid entry price:', entryPrice);
+        setError('Entry price must be a valid number');
+        setLoading(false);
+        return;
+      }
+      if (!stopPrice || isNaN(parseFloat(stopPrice))) {
+        console.error('[PreviewModal] Invalid stop price:', stopPrice);
+        setError('Stop price must be a valid number');
+        setLoading(false);
+        return;
+      }
+
       const response = await api.post('/api/algo/preview', {
         symbol: symbol.toUpperCase(),
         entry_price: parseFloat(entryPrice),
@@ -31,6 +50,12 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
       }
       setPreview(data?.preview || data);
     } catch (err) {
+      console.error('[PreviewModal] Preview request failed:', {
+        message: err?.message,
+        code: err?.code,
+        status: err?.response?.status,
+        endpoint: '/api/algo/preview'
+      });
       setError(err.message || 'Failed');
     } finally {
       setLoading(false);
@@ -44,10 +69,19 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     setError(null);
 
     try {
+      // Validate quantity before parsing
+      const quantity = shares ? parseFloat(shares) : parseFloat(preview.shares);
+      if (!quantity || isNaN(quantity) || quantity <= 0) {
+        console.error('[PreviewModal] Invalid quantity:', shares || preview.shares);
+        setError('Quantity must be a positive number');
+        setLoading(false);
+        return;
+      }
+
       const tradeData = {
         symbol: symbol.toUpperCase(),
         trade_type: tradeType,
-        quantity: parseFloat(shares || preview.shares),
+        quantity: quantity,
         price: parseFloat(entryPrice),
         execution_date: new Date().toISOString().split('T')[0],
       };
@@ -68,7 +102,7 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
             symbol,
             entry_price: parseFloat(entryPrice),
             stop_loss_price: parseFloat(stopPrice),
-            shares: parseFloat(shares || preview.shares),
+            shares: quantity,
             trade_id: data?.id || data?.trade_id
           });
         }
@@ -77,6 +111,12 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
         setError(data?.error || 'Failed to create trade');
       }
     } catch (err) {
+      console.error('[PreviewModal] Trade creation failed:', {
+        message: err?.message,
+        code: err?.code,
+        status: err?.response?.status,
+        endpoint: '/api/trades/manual'
+      });
       setError(err.message || 'Failed to create trade');
     } finally {
       setLoading(false);

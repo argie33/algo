@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
+import { extractData } from '../utils/responseNormalizer';
 
 /**
  * SystemHealthIndicator - Shows system degradation status and signal freshness in header
@@ -20,15 +21,7 @@ export function SystemHealthIndicator() {
         const response = await api.get('/api/health', { timeout: 10000 });
         if (cancelled) return;
 
-        const data = response.data?.data || response.data;
-
-        // Check for error responses (success: false indicates API error)
-        if (data?.success === false) {
-          console.debug('[SystemHealthIndicator] Health check returned error:', data?.error);
-          setIsDegraded(false);
-          setSignalFreshness(null);
-          return;
-        }
+        const data = extractData(response);
 
         setIsDegraded(data?.degraded_mode_active === true);
         setSignalFreshness(data?.freshness);
