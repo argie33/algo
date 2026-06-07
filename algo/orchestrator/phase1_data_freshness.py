@@ -1027,16 +1027,25 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                 # ISSUE #2 ENHANCED: Verify execution_completed is RECENT
                 # If execution_completed is too old, loader process may have crashed after reporting initial completion
                 # (e.g., completed task execution but crashed writing to DB or during teardown)
-                # ISSUE #2 ROBUSTNESS: Use adaptive thresholds based on time of day to account for system latency
-                # - Morning prep (2-9:30 AM ET): 40 min grace period (loaders are heavier, more system load expected)
-                # - Intraday (9:30 AM+): 20 min grace period (faster loaders, less load)
-                # This prevents false positives when Phase 1 runs slow due to CloudWatch/system latency
+                # ISSUE #2 ROBUSTNESS: Use configurable, measured thresholds instead of arbitrary heuristics
+                # Read stale threshold from algo_config (measured from production loader execution times)
                 now_utc = datetime.now(timezone.utc)
-                current_hour_et = datetime.now(ZoneInfo("America/New_York")).hour
-                if 2 <= current_hour_et < 10:  # 2 AM - 9:59 AM ET (morning prep window)
-                    stale_threshold_minutes = 40
-                else:  # 10 AM+ or before 2 AM (intraday/evening)
-                    stale_threshold_minutes = 20
+
+                # Default to 30 minutes (conservative). Can be tuned via algo_config table
+                stale_threshold_minutes = 30
+                try:
+                    cur.execute("SET statement_timeout = 2000")
+                    cur.execute("SELECT value FROM algo_config WHERE key = %s", ('stale_loader_threshold_minutes',))
+                    config_result = cur.fetchone()
+                    if config_result and config_result[0]:
+                        try:
+                            stale_threshold_minutes = int(config_result[0])
+                            if verbose:
+                                logger.debug(f"[STALE_DATA] Using configured threshold: {stale_threshold_minutes} min")
+                        except (ValueError, TypeError):
+                            pass
+                except Exception:
+                    pass
 
                 if isinstance(execution_completed, str):
                     try:

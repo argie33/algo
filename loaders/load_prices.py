@@ -73,6 +73,12 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
+        # ISSUE #FULLFIX: Per-symbol retry tracking (prevents cascade failures)
+        self._failed_symbols = {}  # {symbol: failure_count}
+        self._failed_symbols_lock = threading.Lock()
+        self._max_per_symbol_failures = 5
+        self._symbols_failed_final = set()
+
         # ISSUE #3 FIX: Improved token bucket with per-thread fairness and anti-starvation
         # Rate limit: 160 API calls per minute (safe margin below yfinance's 200/min)
         # Initial burst: 300 tokens (enough for 2 parallel batches of 150 symbols each)
@@ -198,6 +204,25 @@ class PriceLoader(OptimalLoader):
                 f"Failure ratio: {self._batch_failure_ratio:.2f}. "
                 f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
             )
+
+    def _track_symbol_failure(self, symbol: str) -> bool:
+        """Track symbol failure and return True if we should retry."""
+        with self._failed_symbols_lock:
+            failures = self._failed_symbols.get(symbol, 0)
+            if failures < self._max_per_symbol_failures:
+                self._failed_symbols[symbol] = failures + 1
+                return True
+            else:
+                self._symbols_failed_final.add(symbol)
+                return False
+
+    def _get_retry_symbols(self, original_symbols: list) -> list:
+        """Get symbols that failed but still have retry budget."""
+        with self._failed_symbols_lock:
+            retry_symbols = [s for s in self._failed_symbols.keys()
+                           if self._failed_symbols[s] < self._max_per_symbol_failures
+                           and s not in original_symbols]
+        return retry_symbols
 
     def _check_market_close_data_available(self, max_wait_sec: int = None) -> bool:
         """Check if SPY close data is available (market close data freshness check).
@@ -1239,6 +1264,29 @@ class PriceLoader(OptimalLoader):
                 logger.debug(f"[CACHE INVALIDATION] Could not invalidate cache: {cache_err}")
         except Exception as e:
             logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+
+        # ISSUE #FULLFIX: Final symbol retry pass to recover from cascade failures
+        # Before returning, retry any symbols that failed in batches but have retry budget left
+        if self._failed_symbols and len(self._failed_symbols) < len(symbols):
+            logger.info(f"[FINAL_RETRY] {len(self._failed_symbols)} symbols failed. Attempting final retry pass...")
+            final_retry_symbols = [s for s in self._failed_symbols.keys() if s not in self._symbols_failed_final]
+
+            if final_retry_symbols and (time.time() - start) < (25200 * 0.8):  # Only if time permits (80% of 7h limit)
+                try:
+                    logger.info(f"[FINAL_RETRY] Retrying {len(final_retry_symbols)} failed symbols with batch_size=20...")
+                    final_results = self._fetch_with_fallback(
+                        final_retry_symbols,
+                        start=datetime.now().date() - timedelta(days=30),
+                        end=datetime.now().date(),
+                        batch_size=20,
+                        attempt=0,
+                        max_attempts=2,
+                        elapsed_sec=int(time.time() - start)
+                    )
+                    successful_final = sum(1 for v in final_results.values() if v is not None)
+                    logger.info(f"[FINAL_RETRY] Recovered {successful_final}/{len(final_retry_symbols)} symbols")
+                except Exception as final_retry_err:
+                    logger.warning(f"[FINAL_RETRY] Final retry failed: {final_retry_err}")
 
         return self._stats
 

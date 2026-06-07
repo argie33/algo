@@ -154,15 +154,25 @@ class Orchestrator:
                         # Same trading day: halt persists throughout entire day
                         # (early morning Phase 1 sets flag to protect all-day trading)
                         if trigger_date == now_date_et:
-                            logger.critical("HALT FLAG DETECTED — stopping all trading phases immediately")
-                            self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
+                            hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
+                            logger.critical(
+                                f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
+                                f"Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')}. "
+                                f"Reason: {response['Item'].get('reason', 'Unknown')[:150]}"
+                            )
+                            self.log_phase_result(0, 'halt_flag_detected', 'halted',
+                                                f"Halt flag detected (triggered at {trigger_et.strftime('%H:%M ET')}: {response['Item'].get('reason', 'Unknown')[:100]})")
                             return True
 
                     except Exception as parse_err:
                         logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
 
-                logger.critical("HALT FLAG DETECTED — stopping all trading phases immediately")
-                self.log_phase_result(0, 'halt_flag_detected', 'halted', 'External halt flag detected and respected')
+                reason = response['Item'].get('reason', 'Unknown')
+                logger.critical(
+                    f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). "
+                    f"Reason: {reason[:150]}"
+                )
+                self.log_phase_result(0, 'halt_flag_detected', 'halted', f'Halt flag detected: {reason[:100]}')
                 return True
         except Exception as e:
             # CRITICAL SAFETY: DynamoDB unavailable means we cannot verify halt flag status
@@ -720,9 +730,22 @@ class Orchestrator:
         """Thin delegation to phase5_signal_generation module.
 
         ISSUE #11 FIX: Pass Phase 1 degradation status so Phase 5 can apply conservative filters
+        ISSUE #10 FIX: Log detailed halt context and send notification when halting
         """
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
         if self._check_halt_flag():
+            logger.critical("[PHASE_5_HALT] Phase 5 halted by halt flag. No signal-based trades will be generated. "
+                          "Check CloudWatch logs for Phase 1 to see why data quality was degraded.")
+            self.log_phase_result(5, 'signal_generation', 'halted', 'Halted by halt flag (data quality degraded)')
+            try:
+                self.alerts.send_position_alert(
+                    'TRADING_HALTED',
+                    'PHASE5_HALT',
+                    'Phase 5 signal generation halted. Data quality degraded. Check CloudWatch for Phase 1 details.',
+                    {'phase': 5, 'action': 'signal_generation_blocked'}
+                )
+            except Exception as alert_err:
+                logger.warning(f"Could not send halt alert: {alert_err}")
             return False
         from algo.orchestrator.phase5_signal_generation import run as run_phase5
         # Check if Phase 1 returned degraded status (stale data with failsafe in progress)
@@ -739,9 +762,24 @@ class Orchestrator:
         return not result.halted
 
     def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
-        """Thin delegation to phase6_entry_execution module."""
+        """Thin delegation to phase6_entry_execution module.
+
+        ISSUE #10 FIX: Log detailed halt context when halting
+        """
         self.log_phase_start(6, 'ENTRY EXECUTION')
         if self._check_halt_flag():
+            logger.critical("[PHASE_6_HALT] Phase 6 halted by halt flag. No new signal-based trades will be entered. "
+                          "Check CloudWatch logs for Phase 1 to see why data quality was degraded.")
+            self.log_phase_result(6, 'entry_execution', 'halted', 'Halted by halt flag (data quality degraded)')
+            try:
+                self.alerts.send_position_alert(
+                    'TRADING_HALTED',
+                    'PHASE6_HALT',
+                    'Phase 6 entry execution halted. Data quality degraded. Check CloudWatch for Phase 1 details.',
+                    {'phase': 6, 'action': 'entry_execution_blocked'}
+                )
+            except Exception as alert_err:
+                logger.warning(f"Could not send halt alert: {alert_err}")
             return False
         from algo.orchestrator.phase6_entry_execution import run as run_phase6
         result = run_phase6(
@@ -946,7 +984,10 @@ class Orchestrator:
                 with TimeBlock("phase_5_signal_generation"):
                     result = self.phase_5_signal_generation()
                     if not result:
-                        logger.critical("HALT: Phase 5 (Signal Generation) returned False — skipping Phase 6.")
+                        # ISSUE #10 FIX: Provide context about why Phase 5 halted
+                        # Phase 5's phase_5_signal_generation() method logs halt reason internally
+                        logger.critical("HALT: Phase 5 (Signal Generation) halted — no signal-based trades will be generated. "
+                                      "See logs above for halt reason (likely data quality degradation). Skipping Phase 6.")
                         # Phase 7 must still run: it creates the portfolio snapshot that Phase 5
                         # needs on its next invocation. Skipping Phase 7 here causes a deadlock
                         # where Phase 5 always halts (no snapshot) and Phase 7 never creates one.
@@ -965,7 +1006,9 @@ class Orchestrator:
                 with TimeBlock("phase_6_entry_execution"):
                     result = self.phase_6_entry_execution()
                     if not result:
-                        logger.critical("HALT: Phase 6 (Entry Execution) returned False — stopping pipeline")
+                        # ISSUE #10 FIX: Provide context about why Phase 6 halted
+                        logger.critical("HALT: Phase 6 (Entry Execution) halted — no new signal-based trades will be entered. "
+                                      "See logs above for halt reason (likely data quality degradation). Stopping pipeline.")
                         return self._final_report()
                 phase_6_elapsed = time.time() - phase_6_start
                 logger.info(f"[PHASE 6] Completed in {phase_6_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")

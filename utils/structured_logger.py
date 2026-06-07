@@ -57,7 +57,10 @@ def get_trace_id() -> str:
     return _trace_id
 
 class StructuredFormatter(logging.Formatter):
-    """Custom JSON formatter - no external dependencies."""
+    """Custom JSON formatter - no external dependencies.
+
+    ISSUE #13 FIX: Auto-includes correlation_id from context if available.
+    """
 
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON."""
@@ -70,6 +73,13 @@ class StructuredFormatter(logging.Formatter):
             "trace_id": get_trace_id(),
             "caller": f"{record.filename}:{record.lineno}",
         }
+
+        # ISSUE #13 FIX: Auto-include correlation_id from context
+        try:
+            from utils.correlation_context import get_correlation_id as get_corr_id
+            log_entry["correlation_id"] = get_corr_id()
+        except (ImportError, Exception):
+            pass  # correlation_context not available or not set
 
         # Merge in extra fields from the record
         if hasattr(record, "__dict__"):
