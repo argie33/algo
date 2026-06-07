@@ -1003,22 +1003,48 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
         # - Fresh loader (6:05 AM) + ~300 min execution ≈ 10:35 AM (past 9:30 AM deadline but acceptable for data freshness)
         # - This provides: first_attempt(2:05-5:20) + grace_wait(5:20-6:05) + second_attempt(6:05-10:35)
         #
-        # Tuning: default 240 prevents empty retry window while allowing recovery time
-        # - 240 min too long → no retry time (old 300 min)
-        # - 180 min too short → false positives on slow loads
-        # - Hard cap: 390 min (450 - 60 Phase 2-7) prevents missing 9:30 AM deadline
-        HARD_MAX_GRACE_PERIOD = 390  # Absolute maximum: 450 min window - 60 min Phase 2-7 = 390 min
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute("SELECT value FROM algo_config WHERE key = %s", ('failsafe_grace_period_minutes',))
-                result = cur.fetchone()
-                configured_grace = int(result[0]) if result and result[0] else 240  # ISSUE #10: Changed from 300 to 240
-                max_grace_period = min(configured_grace, HARD_MAX_GRACE_PERIOD)
-                if configured_grace > HARD_MAX_GRACE_PERIOD:
-                    logger.warning(f"[FAILSAFE] Grace period {configured_grace}m exceeds hard cap {HARD_MAX_GRACE_PERIOD}m (450 min window - 60 min Phase 2-7) — capping at {HARD_MAX_GRACE_PERIOD}m")
-        except Exception as config_err:
-            logger.debug(f"[FAILSAFE] Could not read grace period config: {config_err}, using default 240m")
-            max_grace_period = 240  # ISSUE #10: Changed from 300 to 240
+        # ISSUE #7 FIX: Auto-tune grace period from historical loader execution times
+        # Fallback: manual config, then default 240
+        HARD_MAX_GRACE_PERIOD = 390
+        max_grace_period = None
+
+        # Try 1: Auto-calculated from recent execution data
+        auto_grace = _calculate_optimal_grace_period(loader_name, verbose=verbose)
+        if auto_grace:
+            max_grace_period = auto_grace
+        else:
+            # Try 2: Cached auto value
+            try:
+                with DatabaseContext("read") as cur:
+                    cache_key = f'grace_period_auto_{loader_name}'
+                    cur.execute("SELECT value FROM algo_config WHERE key = %s", (cache_key,))
+                    cached = cur.fetchone()
+                    if cached and cached[0]:
+                        max_grace_period = int(cached[0])
+                        if verbose:
+                            logger.debug(f"[FAILSAFE] Using cached grace period: {max_grace_period}m")
+            except Exception:
+                pass
+
+            # Try 3: Manual config
+            if max_grace_period is None:
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute("SELECT value FROM algo_config WHERE key = %s", ('failsafe_grace_period_minutes',))
+                        result = cur.fetchone()
+                        if result and result[0]:
+                            max_grace_period = int(result[0])
+                except Exception:
+                    pass
+
+            # Try 4: Default
+            if max_grace_period is None:
+                max_grace_period = 240
+
+        # Enforce hard cap
+        if max_grace_period > HARD_MAX_GRACE_PERIOD:
+            logger.warning(f"[FAILSAFE] Grace period {max_grace_period}m exceeds cap {HARD_MAX_GRACE_PERIOD}m")
+            max_grace_period = HARD_MAX_GRACE_PERIOD
 
         if age_minutes < max_grace_period:
             if verbose:
