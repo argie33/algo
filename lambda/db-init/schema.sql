@@ -16,9 +16,11 @@ CREATE TABLE IF NOT EXISTS stock_symbols (
     market_category VARCHAR(50),
     is_sp500 BOOLEAN DEFAULT FALSE,
     etf VARCHAR(5),
+    active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_stock_symbols_etf ON stock_symbols(etf);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_active ON stock_symbols(active);
 
 -- Daily OHLCV price data
 CREATE TABLE IF NOT EXISTS price_daily (
