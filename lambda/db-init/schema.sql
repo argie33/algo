@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_symbols_active ON stock_symbols(active);
 CREATE TABLE IF NOT EXISTS price_daily (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    date TEXT NOT NULL,
+    date DATE NOT NULL,
     open DECIMAL(12, 4),
     high DECIMAL(12, 4),
     low DECIMAL(12, 4),
@@ -1385,7 +1385,7 @@ CREATE TABLE IF NOT EXISTS algo_config (
 -- Market health daily (market breadth, distribution days, trend)
 CREATE TABLE IF NOT EXISTS market_health_daily (
     id SERIAL PRIMARY KEY,
-    date TEXT NOT NULL UNIQUE,
+    date DATE NOT NULL UNIQUE,
     spy_close DECIMAL(12, 4),
     market_trend VARCHAR(20),
     market_stage INTEGER,
