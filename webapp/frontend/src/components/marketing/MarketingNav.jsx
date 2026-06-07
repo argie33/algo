@@ -34,7 +34,7 @@ const MarketingNav = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedMobileItem, setExpandedMobileItem] = useState(null);
-  const [desktopMenuAnchor, setDesktopMenuAnchor] = useState(null);
+  const [_desktopMenuAnchor, setDesktopMenuAnchor] = useState(null);
   const [activeDesktopMenu, setActiveDesktopMenu] = useState(null);
 
   const navItems = [

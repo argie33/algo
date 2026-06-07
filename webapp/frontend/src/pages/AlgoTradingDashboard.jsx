@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
-import { QuerySection } from '../components/QueryErrorBoundary';
 import ErrorBoundary from '../components/ErrorBoundary';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -122,14 +121,14 @@ function AlgoTradingDashboardPage() {
   const adminOpts = { ...qOpts, retry: false };
 
   const { data: markets,         isLoading: mLoading,   error: err1,  refetch: r1  } = useApiQuery(['algo','markets'],        () => api.get('/api/algo/markets'), qOpts);
-  const { items: scores,         isLoading: sLoading,   error: err2,  refetch: r2  } = useApiPaginatedQuery(['algo','scores'], () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
-  const { data: config,          isLoading: cLoading,   error: err5,  refetch: r5  } = useApiQuery(['algo','config'],          () => api.get('/api/algo/config'), adminOpts);
-  const { data: dataStatus,      isLoading: dLoading,   error: err6,  refetch: r6  } = useApiQuery(['algo','data-status'],     () => api.get('/api/algo/data-status'), adminOpts);
-  const { data: policy,          isLoading: poLoading,  error: err7,  refetch: r7  } = useApiQuery(['algo','policy'],          () => api.get('/api/algo/exposure-policy'), adminOpts);
-  const { data: evaluated,       isLoading: evLoading,  error: err8,  refetch: r8  } = useApiQuery(['algo','evaluate'],        () => api.get('/api/algo/evaluate'), adminOpts);
-  const { data: circuitBreakers, isLoading: cbLoading,  error: err11, refetch: r11 } = useApiQuery(['algo','circuit'],         () => api.get('/api/algo/circuit-breakers'), adminOpts);
-  const { data: dataQuality,     isLoading: dqLoading,  error: err12, refetch: r12 } = useApiQuery(['algo','dq'],              () => api.get('/api/algo/data-quality'), adminOpts);
-  const { data: rejectionFunnel, isLoading: rfLoading,  error: err13, refetch: r13 } = useApiQuery(['algo','funnel'],          () => api.get('/api/algo/rejection-funnel'), adminOpts);
+  const { items: scores,         isLoading: _sLoading,   error: err2,  refetch: r2  } = useApiPaginatedQuery(['algo','scores'], () => api.get('/api/algo/swing-scores?limit=100'), qOpts);
+  const { data: config,          isLoading: _cLoading,   error: err5,  refetch: r5  } = useApiQuery(['algo','config'],          () => api.get('/api/algo/config'), adminOpts);
+  const { data: dataStatus,      isLoading: _dLoading,   error: err6,  refetch: r6  } = useApiQuery(['algo','data-status'],     () => api.get('/api/algo/data-status'), adminOpts);
+  const { data: policy,          isLoading: _poLoading,  error: err7,  refetch: r7  } = useApiQuery(['algo','policy'],          () => api.get('/api/algo/exposure-policy'), adminOpts);
+  const { data: evaluated,       isLoading: _evLoading,  error: err8,  refetch: r8  } = useApiQuery(['algo','evaluate'],        () => api.get('/api/algo/evaluate'), adminOpts);
+  const { data: circuitBreakers, isLoading: _cbLoading,  error: err11, refetch: r11 } = useApiQuery(['algo','circuit'],         () => api.get('/api/algo/circuit-breakers'), adminOpts);
+  const { data: dataQuality,     isLoading: _dqLoading,  error: err12, refetch: r12 } = useApiQuery(['algo','dq'],              () => api.get('/api/algo/data-quality'), adminOpts);
+  const { data: rejectionFunnel, isLoading: _rfLoading,  error: err13, refetch: r13 } = useApiQuery(['algo','funnel'],          () => api.get('/api/algo/rejection-funnel'), adminOpts);
   const { data: lastRun,                                error: err14, refetch: r14 } = useApiQuery(['algo','last-run'],        () => api.get('/api/algo/last-run'), adminOpts);
   const { data: positionsResp,   isLoading: posLoading, error: err15, refetch: r15 } = useApiQuery(['algo','positions'],       () => api.get('/api/algo/positions'), adminOpts);
   const { data: performance,                            error: err16, refetch: r16 } = useApiQuery(['algo','performance'],     () => api.get('/api/algo/performance'), adminOpts);
@@ -784,7 +783,7 @@ function PositionDetail({ p }) {
 // ============================================================================
 // PIPELINE TAB — live 7-phase orchestrator status + data loader health
 // ============================================================================
-function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, circuitBreakers, lastRun }) {
+function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunnel, _circuitBreakers, lastRun }) {
   const loaders = dataStatus?.sources || [];
   const funnelTiers = (rejectionFunnel && Array.isArray(rejectionFunnel.funnel) ? rejectionFunnel.funnel : [])
     .filter(f => f != null)

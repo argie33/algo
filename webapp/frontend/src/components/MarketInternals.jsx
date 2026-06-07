@@ -29,7 +29,6 @@ import {
   WarningAmber,
   CheckCircle,
 } from "@mui/icons-material";
-import { formatPercentageChange } from "../utils/formatters";
 import { getChartContainerStyle } from "../utils/chartContainer";
 
 const MarketInternals = ({ data, isLoading, error }) => {

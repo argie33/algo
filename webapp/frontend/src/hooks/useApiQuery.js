@@ -31,7 +31,7 @@ export const useApiQuery = (
   const actualCacheKey = cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
 
   // User-friendly error message
-  const getErrorMessage = (err) => {
+  const _getErrorMessage = (err) => {
     if (!err) return null;
     const status = err?.response?.status;
     if (status === 401 || status === 403) return 'Authentication failed. Please log in.';

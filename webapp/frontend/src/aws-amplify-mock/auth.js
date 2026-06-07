@@ -49,7 +49,7 @@ export const confirmSignIn = async (_params) => ({
   nextStep: { signInStep: 'DONE' },
 });
 
-export const updatePassword = async (params) => {};
+export const updatePassword = async (_params) => {};
 
 export const fetchUserAttributes = async () => ({
   email: 'test@example.com',

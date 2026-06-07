@@ -18,7 +18,7 @@ export async function batchRequests(items, fn, concurrency = 5) {
   let activeCount = 0;
   let queueIdx = 0;
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const processNext = async () => {
       if (queueIdx >= queue.length && activeCount === 0) {
         resolve(results);

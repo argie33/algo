@@ -10,7 +10,7 @@ const DataAgeBadge = ({ dataFreshness, label = 'Updated' }) => {
     return null;
   }
 
-  const { data_age_days, is_stale, max_date, warning } = dataFreshness;
+  const { data_age_days, _is_stale, max_date, warning } = dataFreshness;
 
   // If no data at all
   if (data_age_days === null) {

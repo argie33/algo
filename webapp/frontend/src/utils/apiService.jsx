@@ -5,7 +5,7 @@ import { tokenManager } from "../services/tokenManager";
 
 // Enhanced logging utility
 export const createLogger = (componentName) => ({
-  info: (message, data) => {
+  info: (_message, _data) => {
     // Reserved for detailed debugging - currently suppressed to reduce console noise
     // Enable this in production debugging only if needed
   },

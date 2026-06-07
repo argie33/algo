@@ -9,7 +9,7 @@ import { AlertTriangle, X } from 'lucide-react';
 export default function ApiErrorBanner() {
   const [showBanner, setShowBanner] = useState(false);
   const [errorCount, setErrorCount] = useState(0);
-  const [lastError, setLastError] = useState(null);
+  const [_lastError, setLastError] = useState(null);
 
   useEffect(() => {
     const handleConsoleError = (message) => {
