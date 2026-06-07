@@ -415,6 +415,7 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
     access_control_expose_headers {
       items = ["Content-Length", "Content-Type"]
     }
+    origin_override = true
   }
 }
 
