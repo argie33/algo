@@ -542,6 +542,20 @@ class PriceLoader(OptimalLoader):
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}, elapsed {elapsed_sec:.0f}s")
             return {s: None for s in symbols}
 
+        # Issue #1 FIX (Blocker #1): Early abort if rate limiting persists at batch >= 20
+        # Prevents slow bleed to timeout when yfinance is rate-limiting heavily.
+        # At batch=20 with persistent 429s, loader could take 400+ min for 5700 symbols.
+        # If batch is still >= 20 with 5+ rate limit errors, yfinance is likely down/blocked.
+        # Better to fail fast and trigger failsafe than wait through hopeless retry loop.
+        if batch_size >= 20 and self._rate_limit_errors >= 5:
+            error_duration = (time.time() - self._rate_limit_error_start_time) if self._rate_limit_error_start_time else 0
+            if error_duration > 60:  # Only if rate limiting persisted >1 min
+                logger.critical(
+                    f"[RATE_LIMIT_EARLY_ABORT] Batch size {batch_size} with {self._rate_limit_errors} rate limit errors "
+                    f"persisting for {error_duration:.0f}s. yfinance severely degraded. Aborting early to prevent timeout."
+                )
+                return {s: None for s in symbols}
+
         # Issue #20 FIX: At batch=1, try longer wait before giving up
         if batch_size == 1 and self._rate_limit_errors > 3:
             # Try with exponential backoff + longer wait times (up to 10 min) at batch=1

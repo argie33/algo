@@ -124,15 +124,26 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
         {chartData.length > 0 && (
           <div style={{ ...getChartContainerStyle('compact'), marginTop: 16 }}>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={chartData}>
+              <ComposedChart
+                data={chartData}
+                margin={{ top: 20, right: 30, left: 60, bottom: 60 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
                 <XAxis
                   dataKey="date"
                   stroke={theme.palette.text.secondary}
                   style={{ fontSize: "0.75rem" }}
                   tick={{ fill: theme.palette.text.secondary }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                  interval={Math.max(0, Math.floor(chartData.length / 8))}
                 />
-                <YAxis stroke={theme.palette.text.secondary} style={{ fontSize: "0.75rem" }} />
+                <YAxis
+                  stroke={theme.palette.text.secondary}
+                  style={{ fontSize: "0.75rem" }}
+                  width={50}
+                />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: alpha(theme.palette.background.default, 0.95),
@@ -141,6 +152,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
                   }}
                   formatter={(value) => formatNumber(value, 0)}
                   labelStyle={{ color: theme.palette.text.primary }}
+                  cursor={{ fill: alpha(theme.palette.primary.main, 0.1) }}
                 />
                 <ReferenceLine
                   y={0}
@@ -152,6 +164,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
                   fill={isBullish ? theme.palette.success.main : theme.palette.error.main}
                   radius={[4, 4, 0, 0]}
                   opacity={0.7}
+                  isAnimationActive={true}
                 />
               </ComposedChart>
             </ResponsiveContainer>

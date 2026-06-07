@@ -40,17 +40,28 @@ export default function PETrendChart({ sectorName, industryName }) {
         </Typography>
 
         <div style={getChartContainerStyle('default')}>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 80, bottom: 80 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} />
-              <YAxis label={{ value: "Avg Price ($)", angle: -90, position: "insideLeft" }} />
+              <XAxis
+                dataKey="date"
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 12 }}
+                interval={Math.max(0, Math.floor(chartData.length / 8))}
+              />
+              <YAxis
+                label={{ value: "Avg Price ($)", angle: -90, position: "insideLeft", offset: 10 }}
+                width={70}
+              />
               <Tooltip
-                contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid #666", borderRadius: 4 }}
+                contentStyle={{ backgroundColor: "rgba(0,0,0,0.9)", border: "1px solid #666", borderRadius: 4, color: "#fff" }}
                 labelStyle={{ color: "#fff" }}
                 formatter={(value) => value != null ? formatCurrency(value) : "N/A"}
+                cursor={{ stroke: '#888' }}
               />
-              <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" />
+              <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" isAnimationActive={true} />
             </LineChart>
           </ResponsiveContainer>
         </div>

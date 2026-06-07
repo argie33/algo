@@ -103,32 +103,49 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
         </Typography>
         <div style={getChartContainerStyle('tall')}>
           <ResponsiveContainer width="100%" height={500}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey="close"
-              stroke="#8884d8"
-              name="Close Price"
-            />
-            <Line
-              type="monotone"
-              dataKey="high"
-              stroke="#82ca9d"
-              name="High"
-              opacity={0.5}
-            />
-            <Line
-              type="monotone"
-              dataKey="low"
-              stroke="#ffc658"
-              name="Low"
-              opacity={0.5}
-            />
+            <LineChart
+              data={chartData}
+              margin={{ top: 20, right: 30, left: 70, bottom: 80 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 12 }}
+                interval={Math.max(0, Math.floor(chartData.length / 10))}
+              />
+              <YAxis width={70} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid #666", borderRadius: 4 }}
+                labelStyle={{ color: "#fff" }}
+                cursor={{ stroke: '#888' }}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="close"
+                stroke="#8884d8"
+                name="Close Price"
+                isAnimationActive={true}
+              />
+              <Line
+                type="monotone"
+                dataKey="high"
+                stroke="#82ca9d"
+                name="High"
+                opacity={0.5}
+                isAnimationActive={true}
+              />
+              <Line
+                type="monotone"
+                dataKey="low"
+                stroke="#ffc658"
+                name="Low"
+                opacity={0.5}
+                isAnimationActive={true}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -140,13 +157,33 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           Trading Volume
         </Typography>
         <div style={getChartContainerStyle('compact')}>
-          <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="volume" fill="#8884d8" name="Volume" />
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart
+              data={chartData}
+              margin={{ top: 20, right: 30, left: 70, bottom: 80 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 12 }}
+                interval={Math.max(0, Math.floor(chartData.length / 10))}
+              />
+              <YAxis width={70} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid #666", borderRadius: 4 }}
+                labelStyle={{ color: "#fff" }}
+                cursor={{ fill: 'rgba(0,0,0,0.1)' }}
+              />
+              <Bar
+                dataKey="volume"
+                fill="#8884d8"
+                name="Volume"
+                isAnimationActive={true}
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>

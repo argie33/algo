@@ -149,12 +149,29 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                 </Typography>
                 <div style={getChartContainerStyle('default')}>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={chartData}>
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => formatPercentageChange(value, 3)} />
-                      <Bar dataKey="value" fill={theme.palette.primary.main} />
+                      <XAxis
+                        dataKey="name"
+                        angle={-20}
+                        textAnchor="end"
+                        height={50}
+                      />
+                      <YAxis width={50} />
+                      <Tooltip
+                        formatter={(value) => formatPercentageChange(value, 3)}
+                        contentStyle={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid #666", borderRadius: 4 }}
+                        labelStyle={{ color: "#fff" }}
+                      />
+                      <Bar
+                        dataKey="value"
+                        fill={theme.palette.primary.main}
+                        isAnimationActive={true}
+                        radius={[4, 4, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
