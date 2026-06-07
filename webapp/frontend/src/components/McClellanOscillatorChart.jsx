@@ -123,7 +123,7 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
 
         {chartData.length > 0 && (
           <div style={{ ...getChartContainerStyle('compact'), marginTop: 16 }}>
-            <ResponsiveContainer width="100%" height={350}>
+            <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={chartData}
                 margin={{ top: 20, right: 30, left: 60, bottom: 60 }}
