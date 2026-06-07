@@ -1580,48 +1580,67 @@ def main():
     total_stats = {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
     fail_count = 0
 
-    for asset_class in asset_classes:
-        for interval in intervals:
-            try:
-                # Build per-asset-class symbol list.
-                # dict.fromkeys preserves insertion order and deduplicates.
-                if asset_class == 'stock':
-                    run_symbols = list(dict.fromkeys(symbols + ESSENTIAL_STOCK_PRICE_DAILY))
-                    logger.info(f"[MAIN] stock symbols: {len(symbols)} from DB + {len(ESSENTIAL_STOCK_PRICE_DAILY)} essential ETFs = {len(run_symbols)} total")
-                else:  # etf
-                    # ETF tables (etf_price_daily/weekly/monthly) should only contain ETF symbols,
-                    # not the 5000+ non-ETF stocks. Loading all non-ETF stocks into ETF tables
-                    # was doubling the data load (~600 extra batches), causing the ECS task to
-                    # time out before completing stock price updates for L-Z symbols.
-                    run_symbols = list(dict.fromkeys(ESSENTIAL_ETF_SYMBOLS))
-                    logger.info(f"[MAIN] etf symbols: {len(run_symbols)} essential ETFs only (sector, index, macro ETFs)")
+    from utils.execution_timeout import ExecutionTimeout
 
-                loader = PriceLoader(interval=interval, asset_class=asset_class)
-                logger.info(f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}")
-                with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
-                    stats = loader.run(run_symbols, parallelism=parallelism)
+    try:
+        with ExecutionTimeout(max_seconds=execution_timeout_sec, label="stock_prices_daily"):
+            for asset_class in asset_classes:
+                for interval in intervals:
+                    try:
+                        # Build per-asset-class symbol list.
+                        # dict.fromkeys preserves insertion order and deduplicates.
+                        if asset_class == 'stock':
+                            run_symbols = list(dict.fromkeys(symbols + ESSENTIAL_STOCK_PRICE_DAILY))
+                            logger.info(f"[MAIN] stock symbols: {len(symbols)} from DB + {len(ESSENTIAL_STOCK_PRICE_DAILY)} essential ETFs = {len(run_symbols)} total")
+                        else:  # etf
+                            # ETF tables (etf_price_daily/weekly/monthly) should only contain ETF symbols,
+                            # not the 5000+ non-ETF stocks. Loading all non-ETF stocks into ETF tables
+                            # was doubling the data load (~600 extra batches), causing the ECS task to
+                            # time out before completing stock price updates for L-Z symbols.
+                            run_symbols = list(dict.fromkeys(ESSENTIAL_ETF_SYMBOLS))
+                            logger.info(f"[MAIN] etf symbols: {len(run_symbols)} essential ETFs only (sector, index, macro ETFs)")
 
-                logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
-                total_stats["symbols_loaded"] += stats.get("symbols_processed", 0)
-                total_stats["symbols_failed"] += stats.get("symbols_failed", 0)
-                total_stats["rows_inserted"] += stats.get("rows_inserted", 0)
+                        loader = PriceLoader(interval=interval, asset_class=asset_class)
+                        logger.info(f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}")
+                        with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
+                            stats = loader.run(run_symbols, parallelism=parallelism)
 
-                fail_rate = stats.get("symbols_failed", 0) / max(len(run_symbols), 1)
-                if fail_rate > 0.10:
-                    logger.error(f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)")
-                    fail_count += 1
-                else:
-                    logger.info(f"Acceptable failure rate for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)")
+                        logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
+                        total_stats["symbols_loaded"] += stats.get("symbols_processed", 0)
+                        total_stats["symbols_failed"] += stats.get("symbols_failed", 0)
+                        total_stats["rows_inserted"] += stats.get("rows_inserted", 0)
 
-                loader.close()
-            except Exception as e:
-                logger.error(f"[MAIN] Loader failed for {asset_class}/{interval}: {e}", exc_info=True)
-                try:
-                    _invalidate_phase1_cache()
-                except RuntimeError as cache_err:
-                    logger.critical(f"[MAIN] Cache invalidation failed on loader error: {cache_err}")
-                fail_count += 1
-                return 1
+                        fail_rate = stats.get("symbols_failed", 0) / max(len(run_symbols), 1)
+                        if fail_rate > 0.10:
+                            logger.error(f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)")
+                            fail_count += 1
+                        else:
+                            logger.info(f"Acceptable failure rate for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)")
+
+                        loader.close()
+                    except Exception as e:
+                        logger.error(f"[MAIN] Loader failed for {asset_class}/{interval}: {e}", exc_info=True)
+                        try:
+                            _invalidate_phase1_cache()
+                        except RuntimeError as cache_err:
+                            logger.critical(f"[MAIN] Cache invalidation failed on loader error: {cache_err}")
+                        fail_count += 1
+                        return 1
+    except Exception as timeout_err:
+        logger.critical(f"[MAIN] Loader execution timeout exceeded: {timeout_err}")
+        try:
+            _invalidate_phase1_cache()
+        except RuntimeError as cache_err:
+            logger.critical(f"[MAIN] Cache invalidation failed on timeout error: {cache_err}")
+        duration_seconds = round(time.time() - start_time, 2)
+        log_loader_execution(
+            'loadpricedaily',
+            'price_daily',
+            'failed',
+            error_msg=f"Execution timeout: {timeout_err}",
+            duration_seconds=duration_seconds
+        )
+        return 1
 
     logger.info(f"[MAIN] All intervals completed. Total: {total_stats}")
 
