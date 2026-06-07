@@ -111,31 +111,44 @@ export default function Sentiment() {
     return <div className="alert alert-danger" style={{ margin: '20px' }}>{error?.message || 'Failed to load data'}</div>;
   }
 
-  const rawData = Array.isArray(data) ? data : (data?.items || data?.data || []);
+  let rawData = [];
+  if (Array.isArray(data)) {
+    rawData = data;
+  } else if (data && typeof data === 'object' && (data.items || data.data)) {
+    rawData = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : []);
+  }
 
   const stocksList = useMemo(() => {
-    const grouped = rawData.reduce((acc, item) => {
-      const sym = item.symbol;
-      if (!acc[sym]) acc[sym] = { symbol: sym, analyst: [] };
-      const analystScore = calcAnalystSentiment(
-        item.bullish_count, item.bearish_count, item.neutral_count, item.analyst_count
-      );
-      acc[sym].analyst.push({ ...item, sentiment_score: analystScore, source: 'analyst' });
-      return acc;
-    }, {});
+    if (!Array.isArray(rawData)) return [];
 
-    return Object.values(grouped).map((stock) => {
-      const latestAnalyst = stock.analyst[0] || null;
-      const compositeScore = latestAnalyst?.sentiment_score ?? null;
-      return {
-        symbol: stock.symbol,
-        compositeScore,
-        analyst: stock.analyst,
-        latestAnalyst,
-        allData: [...stock.analyst].sort((a, b) => new Date(b.date) - new Date(a.date)),
-        divergence: detectDivergence(latestAnalyst?.sentiment_score),
-      };
-    });
+    try {
+      const grouped = rawData.reduce((acc, item) => {
+        if (!item || typeof item !== 'object' || !item.symbol) return acc;
+        const sym = item.symbol;
+        if (!acc[sym]) acc[sym] = { symbol: sym, analyst: [] };
+        const analystScore = calcAnalystSentiment(
+          item.bullish_count, item.bearish_count, item.neutral_count, item.analyst_count
+        );
+        acc[sym].analyst.push({ ...item, sentiment_score: analystScore, source: 'analyst' });
+        return acc;
+      }, {});
+
+      return Object.values(grouped).map((stock) => {
+        const latestAnalyst = stock.analyst[0] || null;
+        const compositeScore = latestAnalyst?.sentiment_score ?? null;
+        return {
+          symbol: stock.symbol,
+          compositeScore,
+          analyst: stock.analyst,
+          latestAnalyst,
+          allData: [...stock.analyst].sort((a, b) => new Date(b.date) - new Date(a.date)),
+          divergence: detectDivergence(latestAnalyst?.sentiment_score),
+        };
+      });
+    } catch (err) {
+      console.error('Error processing sentiment data:', err);
+      return [];
+    }
   }, [rawData]);
 
   const filtered = useMemo(() => {
@@ -164,13 +177,17 @@ export default function Sentiment() {
 
   const stats = useMemo(() => {
     let bull = 0, bear = 0, neutral = 0, unknown = 0;
-    stocksList.forEach((s) => {
-      if (s.compositeScore == null) unknown++;
-      else if (s.compositeScore > 0.3) bull++;
-      else if (s.compositeScore < -0.3) bear++;
-      else neutral++;
-    });
-    return { total: stocksList.length, bull, bear, neutral, unknown };
+    if (Array.isArray(stocksList)) {
+      stocksList.forEach((s) => {
+        if (s && typeof s === 'object') {
+          if (s.compositeScore == null) unknown++;
+          else if (s.compositeScore > 0.3) bull++;
+          else if (s.compositeScore < -0.3) bear++;
+          else neutral++;
+        }
+      });
+    }
+    return { total: Array.isArray(stocksList) ? stocksList.length : 0, bull, bear, neutral, unknown };
   }, [stocksList]);
 
   const selectedStock = useMemo(
