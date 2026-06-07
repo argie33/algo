@@ -407,7 +407,7 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
       items = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
     }
     access_control_allow_methods {
-      items = ["GET", "HEAD", "HTTP", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
+      items = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
     }
     access_control_allow_origins {
       items = ["*"]
