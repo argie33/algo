@@ -207,7 +207,7 @@ class PriceLoader(OptimalLoader):
         data availability.
 
         Timeout is context-aware:
-        - EOD pipeline (4:05-6:00 PM): 1200s (20 min) — still safe within 85-min pipeline window
+        - EOD pipeline (4:05-6:00 PM): 1800s (30 min) — generous buffer within 85-min pipeline window
         - Morning prep (3:30-9:30 AM): 600s (10 min) — market just opened, data should be fresh
         - Other times: 300s (5 min) — should rarely block
 
@@ -220,8 +220,9 @@ class PriceLoader(OptimalLoader):
         """
         if max_wait_sec is None:
             # CRITICAL FIX: Read timeout from algo_config with strict validation
-            # Use context-aware defaults: EOD (1200s/20min) vs Morning (600s/10min)
-            default_timeout_sec = 1200 if self._is_eod_pipeline else 600
+            # Use context-aware defaults: EOD (1800s/30min) vs Morning (600s/10min)
+            # Increased from 1200s to 1800s to handle yfinance lag of 10-15 minutes
+            default_timeout_sec = 1800 if self._is_eod_pipeline else 600
             config_key = 'yfinance_market_close_timeout_eod_sec' if self._is_eod_pipeline \
                 else 'yfinance_market_close_timeout_morning_sec'
             config_used = 'default'
@@ -237,10 +238,11 @@ class PriceLoader(OptimalLoader):
                     if config_result:
                         try:
                             config_value = int(config_result[0])
-                            # CRITICAL: Validate timeout is reasonable (1s-1800s)
-                            if config_value < 1 or config_value > 1800:
+                            # CRITICAL: Validate timeout is reasonable (1s-3600s)
+                            # Increased upper bound from 1800s to 3600s to support longer waits if needed
+                            if config_value < 1 or config_value > 3600:
                                 logger.warning(
-                                    f"[MARKET_CLOSE] ⚠️  Config {config_key}={config_value}s is out of bounds (1-1800s). "
+                                    f"[MARKET_CLOSE] ⚠️  Config {config_key}={config_value}s is out of bounds (1-3600s). "
                                     f"Using default {default_timeout_sec}s instead."
                                 )
                                 max_wait_sec = default_timeout_sec
@@ -265,7 +267,7 @@ class PriceLoader(OptimalLoader):
                 max_wait_sec = default_timeout_sec
                 config_used = 'default (read error)'
 
-            logger.info(f"[MARKET_CLOSE] Using {config_used} timeout: {max_wait_sec}s "
+            logger.info(f"[MARKET_CLOSE] Using {config_used} timeout: {max_wait_sec}s ({max_wait_sec/60:.0f} min) "
                        f"(pipeline={'EOD' if self._is_eod_pipeline else 'morning'})")
         else:
             logger.debug(f"[MARKET_CLOSE] Using override timeout: {max_wait_sec}s")
@@ -301,7 +303,7 @@ class PriceLoader(OptimalLoader):
 
         start_time = time.time()
         attempt = 0
-        backoff_sec = 5  # Start with 5s, then exponential: 10s, 20s, 40s, ...
+        backoff_sec = 5  # Start with 5s, then exponential: 10s, 20s, 40s, 80s, ...
         last_error_type = None
         last_error_msg = None
 
@@ -344,9 +346,11 @@ class PriceLoader(OptimalLoader):
             wait_time = min(backoff_sec, wait_remaining)
 
             if wait_time > 0 and wait_remaining > 0:
-                logger.debug(f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}...")
+                elapsed_so_far = time.time() - start_time
+                logger.debug(f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}... (elapsed {elapsed_so_far/60:.1f}min/{max_wait_sec/60:.0f}min)")
                 time.sleep(wait_time)
-                backoff_sec = min(backoff_sec * 2, 60)  # Cap at 60s per retry
+                # More patient backoff: 5s → 10s → 20s → 40s → 80s (cap at 120s for 30+ min waits)
+                backoff_sec = min(backoff_sec * 2, 120)
 
         # Timeout - data not available, HALT loader with explicit error (ISSUE #11 FIX)
         elapsed = time.time() - start_time
@@ -387,17 +391,19 @@ class PriceLoader(OptimalLoader):
         is_rate_limit = "429" in last_error_lower or "too many" in last_error_lower or "rate" in last_error_lower
         root_cause = "yfinance rate limiting" if is_rate_limit else "yfinance API lag/unavailability"
 
-        fallback_threshold = 1800 if self._is_eod_pipeline else 3600
+        # Fallback threshold: allow fallback (non-fatal) for up to 40 min, then fail (fatal)
+        # EOD has 85-min window, so 40 min fallback buffer leaves room for retry
+        fallback_threshold = 2400 if self._is_eod_pipeline else 3600
         if elapsed < fallback_threshold:
             logger.warning(
-                f"[{self._correlation_id}] [MARKET_CLOSE] ⚠️  Market close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
+                f"[{self._correlation_id}] [MARKET_CLOSE] ⚠️  Market close data NOT available after {elapsed:.0f}s ({elapsed/60:.1f} min, {attempt} attempts). "
                 f"Root cause: {root_cause}. Allowing FALLBACK: Loader will proceed with historical data (prior day) instead of halting. "
                 f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
             )
             return False
         else:
             error_msg = (
-            f"Market close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
+            f"Market close data NOT available after {elapsed:.0f}s ({elapsed/60:.1f} min, {attempt} attempts). "
             f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
             f"Cannot load prices without market close data. Aborting to avoid stale price data. "
             f"Phase 1 will trigger failsafe when data becomes available. "
