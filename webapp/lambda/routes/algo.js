@@ -957,7 +957,8 @@ router.get('/notifications', authenticateToken, async (req, res) => {
 
     return sendSuccess(res, { items: result.rows });
   } catch (error) {
-    return sendSuccess(res, { items: [] });
+    logger.error('Error fetching notifications:', { error: error.message });
+    return sendError(res, error.message, 503);
   }
 });
 
@@ -1684,8 +1685,8 @@ router.get('/sector-rotation', async (req, res) => {
       }))
     });
   } catch (error) {
-    // Table may not exist yet — return empty gracefully
-    return sendSuccess(res, { items: [] });
+    logger.error('Error in /algo/sector-rotation:', { error: error.message });
+    return sendError(res, error.message, 503);
   }
 });
 
@@ -1732,7 +1733,7 @@ router.get('/data-quality', async (req, res) => {
     return sendSuccess(res, { data: { status: overall_status, checks } });
   } catch (error) {
     logger.error('Error in /algo/data-quality:', { error: error.message });
-    return sendSuccess(res, { data: { status: 'unknown', checks: [], error: error.message } });
+    return sendError(res, error.message, 503);
   }
 });
 
@@ -1783,7 +1784,7 @@ router.get('/rejection-funnel', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/rejection-funnel:', { error: error.message });
-    return sendSuccess(res, { data: { total_signals: 0, tiers: [], error: error.message } });
+    return sendError(res, error.message, 503);
   }
 });
 
@@ -1827,11 +1828,7 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/orders/pending:', { error: error.message });
-    return sendSuccess(res, {
-      pending_orders: [],
-      approval_required: false,
-      error: error.message
-    });
+    return sendError(res, error.message, 503);
   }
 });
 
@@ -1874,7 +1871,7 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
     return sendSuccess(res, { metrics });
   } catch (error) {
     logger.error('Error in /algo/execution-quality:', { error: error.message });
-    return sendSuccess(res, { metrics: {}, error: error.message });
+    return sendError(res, error.message, 503);
   }
 });
 
