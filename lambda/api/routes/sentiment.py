@@ -69,7 +69,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     'fear_greed': {'value': fg_value, 'label': fg_label} if fg_value is not None else None,
                     'aaii': dict(aaii_row) if aaii_row else None,
                     'naaim': dict(naaim_row) if naaim_row else None,
-                    'analyst': dict(analyst_row) if analyst_row and analyst_row['analyst_count'] else None,
+                    'analyst': dict(analyst_row) if analyst_row and analyst_row.get('analyst_count') else None,
                     'put_call_ratio': float(row['put_call_ratio']) if row and row['put_call_ratio'] else None,
                     'vix_level': float(row['vix_level']) if row and row['vix_level'] else None,
                     'date': str(row['date']) if row else None,
