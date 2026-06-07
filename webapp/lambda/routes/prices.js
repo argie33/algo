@@ -51,10 +51,10 @@ router.get('/history/:symbol', async (req, res) => {
     const pool = getPool();
 
     const priceQuery = `
-      SELECT date, open, high, low, close, volume, adj_close
+      SELECT date::DATE, open::NUMERIC, high::NUMERIC, low::NUMERIC, close::NUMERIC, volume::BIGINT, adj_close::NUMERIC
       FROM ${stockTable} WHERE symbol = $1
       UNION ALL
-      SELECT date, open, high, low, close, volume, adj_close
+      SELECT date::DATE, open::NUMERIC, high::NUMERIC, low::NUMERIC, close::NUMERIC, volume::BIGINT, adj_close::NUMERIC
       FROM ${etfTable} WHERE symbol = $1
       ORDER BY date DESC
       LIMIT $2 OFFSET $3
@@ -141,12 +141,12 @@ router.get('/batch-history', async (req, res) => {
 
     // Fetch data for all symbols
     const priceQuery = `
-      SELECT symbol, date, open, high, low, close, volume, adj_close
+      SELECT symbol, date::DATE, open::NUMERIC, high::NUMERIC, low::NUMERIC, close::NUMERIC, volume::BIGINT, adj_close::NUMERIC
       FROM (
-        SELECT symbol, date, open, high, low, close, volume, adj_close
+        SELECT symbol, date::DATE, open::NUMERIC, high::NUMERIC, low::NUMERIC, close::NUMERIC, volume::BIGINT, adj_close::NUMERIC
         FROM ${stockTable} WHERE symbol = ANY($1)
         UNION ALL
-        SELECT symbol, date, open, high, low, close, volume, adj_close
+        SELECT symbol, date::DATE, open::NUMERIC, high::NUMERIC, low::NUMERIC, close::NUMERIC, volume::BIGINT, adj_close::NUMERIC
         FROM ${etfTable} WHERE symbol = ANY($1)
       ) combined
       ORDER BY symbol, date DESC
