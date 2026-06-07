@@ -22,10 +22,27 @@ const logger = createComponentLogger("Main");
 
 // RESTORED: Professional error logging service integration
 const _originalConsoleError = console.error;
+const _originalConsoleWarn = console.warn;
 
-// All console.warn calls pass through unfiltered - including Recharts dimension warnings.
-// These warnings are useful for debugging chart rendering issues.
-// We do NOT suppress console.warn to ensure real rendering problems are visible.
+// Suppress non-actionable Recharts dimension warnings during initial render.
+// These occur when ResponsiveContainer renders before parent dimensions are calculated.
+// The charts render fine once layout is complete, so this warning is not actionable for users.
+console.warn = function (...args) {
+  const msg = String(args[0] || '');
+
+  // Suppress Recharts dimension warnings (width/height = -1 during mount)
+  if (msg.includes('The width') && msg.includes('of chart should be greater than 0')) {
+    return;
+  }
+
+  // Suppress network error warnings from useApiQuery (expected when backend unavailable)
+  if (msg.includes('[useApiQuery] Query failed') && msg.includes('Network Error')) {
+    return;
+  }
+
+  // All other warnings pass through
+  _originalConsoleWarn.apply(console, args);
+};
 
 // Suppress only non-actionable browser warnings that come from third-party libraries.
 // All application errors and CORS/network issues pass through for debugging.

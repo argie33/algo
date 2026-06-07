@@ -651,8 +651,15 @@ p { margin: 0; }
   min-height: 200px;
 }
 
-/* ResponsiveContainer wrapper (.recharts-responsive-container) must fill parent */
-.chart-container > div:first-child {
+/* ResponsiveContainer wrapper must fill parent — target both direct child and .recharts-responsive-container */
+.chart-container > div {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-container .recharts-responsive-container {
   width: 100% !important;
   height: 100% !important;
 }
