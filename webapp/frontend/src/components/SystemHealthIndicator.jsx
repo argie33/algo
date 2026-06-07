@@ -17,7 +17,7 @@ export function SystemHealthIndicator() {
 
     const fetchHealth = async () => {
       try {
-        const response = await api.get('/api/health', { timeout: 3000 });
+        const response = await api.get('/api/health', { timeout: 10000 });
         if (cancelled) return;
 
         const data = response.data?.data || response.data;

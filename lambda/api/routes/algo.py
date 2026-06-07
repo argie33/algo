@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
+        # In dev mode (DEV_BYPASS_AUTH=true), allow access to admin endpoints
+        if os.environ.get('DEV_BYPASS_AUTH') == 'true':
+            return True
         return False
     groups = jwt_claims.get('cognito:groups') or []
     return 'admin' in groups
@@ -371,7 +374,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             user_filter = f"AND p.cognito_sub = %s" if user_id else ""
             params = (user_id,) if user_id else ()
 
-            cur.execute("SET LOCAL statement_timeout = '10000ms'")
+            cur.execute("SET LOCAL statement_timeout = '30000ms'")
             cur.execute(f"""
                 WITH latest_trend AS (
                     SELECT DISTINCT ON (symbol)

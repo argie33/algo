@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors, psycopg2.sql
 from typing import Dict, Any, Optional, List
 import logging, re
 from datetime import datetime, timedelta, date, timezone
-from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout, decimal_to_float_recursive
+from .utils import error_response, success_response, list_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +25,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 
                 # Add freshness check
                 freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
-                result['data_freshness'] = freshness
 
-                return json_response(200, result)
+                return json_response(200, result, data_freshness=freshness)
             elif path == '/api/market/indices':
                 return _get_markets(cur)
             elif path == '/api/market/breadth':
@@ -170,8 +169,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     logger.warning(f"Exception: {e}")
                     base['mcclellan_oscillator'] = []
                 freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
-                base['data_freshness'] = freshness
-                return json_response(200, base)
+                return json_response(200, base, data_freshness=freshness)
             elif path == '/api/market/top-movers':
                 movers = []
                 gainers = []
@@ -215,7 +213,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         cur.execute("ROLLBACK TO SAVEPOINT top_movers")
                         cur.execute("RELEASE SAVEPOINT top_movers")
                     except Exception: pass
-                items = [decimal_to_float_recursive(dict(m)) for m in movers] if movers else []
+                items = [dict(m) for m in movers] if movers else []
                 gainers = sorted([m for m in items if (m.get('pct_change') or 0) >= 0],
                                  key=lambda x: -(x.get('pct_change') or 0))[:10]
                 losers = sorted([m for m in items if (m.get('pct_change') or 0) < 0],
@@ -830,8 +828,8 @@ def _get_correlation_matrix(cur) -> Dict:
                         'portfolio_stability': portfolio_stability
                     }
                 },
-                'data_freshness': freshness
-            })
+                }
+            }, data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.warning(f"Correlation matrix query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
@@ -936,8 +934,8 @@ def _get_cap_distribution(cur) -> Dict:
                     'smallest_cap': min((s['market_cap'] for s in stocks if s['market_cap'] > 0), default=0),
                     'category_distribution': category_dist
                 },
-                'data_freshness': freshness
-            })
+                }
+            }, data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'get cap distribution')

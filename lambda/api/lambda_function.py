@@ -709,8 +709,16 @@ def require_auth(event: Dict, path: str) -> tuple:
     if not _COGNITO_ENABLED:
         # Allow development bypass with DEV_BYPASS_AUTH environment variable
         if os.getenv('DEV_BYPASS_AUTH', '').lower() == 'true':
-            logger.warning(f"[DEV_MODE] Authentication bypassed for {path}")
-            return (False, True, None, {})  # Bypass auth with empty claims
+            logger.warning(f"[DEV_MODE] Dev mode enabled, checking for dev token...")
+            token = get_bearer_token(event)
+            if token and token.startswith('dev-'):
+                is_valid, claims, error = validate_bearer_token(token)
+                if is_valid:
+                    logger.info(f"[DEV_MODE] Dev token validated with groups: {claims.get('cognito:groups')}")
+                    return (True, True, None, claims)
+            # If no valid dev token, grant admin access for development
+            logger.info(f"[DEV_MODE] No token or invalid token; granting dev admin access")
+            return (False, True, None, {'cognito:groups': ['admin', 'user'], 'sub': 'dev-user'})
         logger.error(f"[AUTH_FAILURE] Protected endpoint {path} accessed but Cognito not configured")
         return (True, False, "Authentication system not configured. Contact administrator.", None)
 

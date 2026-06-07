@@ -24,6 +24,7 @@ def validate_environment():
         logger.error(f"Credential validation failed: {e}")
         raise RuntimeError(f"Critical credential error: {e}")
 
+
 try:
     validate_environment()
 except Exception as e:
@@ -189,7 +190,7 @@ class AlgoConfig:
     def __init__(self):
         import time
         t0 = time.time()
-        logger.info(f"[AlgoConfig] __init__ starting")
+        logger.info("[AlgoConfig] __init__ starting")
         self._config = {}
         self._load_defaults()
         t1 = time.time()
@@ -206,7 +207,7 @@ class AlgoConfig:
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
         t0 = time.time()
-        logger.info(f"[AlgoConfig] _load_from_database() starting")
+        logger.info("[AlgoConfig] _load_from_database() starting")
         try:
             t_conn_start = time.time()
             with DatabaseContext('read', timeout=15) as cur:
@@ -407,12 +408,14 @@ class AlgoConfig:
 # Global config instance
 _instance = None
 
+
 def get_config():
     """Get or create global config instance."""
     global _instance
     if _instance is None:
         _instance = AlgoConfig()
     return _instance
+
 
 def reset_config() -> None:
     """Reset singleton — call at Lambda invocation start so config is fresh each run.
@@ -424,6 +427,7 @@ def reset_config() -> None:
     _instance = None
     logger.info("[AlgoConfig] Singleton reset — will reload from DB on next get_config() call")
 
+
 def get_api_timeout() -> int:
     """Get API request timeout in seconds.
 
@@ -433,6 +437,7 @@ def get_api_timeout() -> int:
     if env_val:
         return int(env_val)
     return get_config().get('api_request_timeout_seconds', 5)
+
 
 def get_db_timeout() -> int:
     """Get database connection timeout in seconds.
