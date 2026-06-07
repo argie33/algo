@@ -1335,8 +1335,8 @@ function RatingFunnel({ data }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 240 }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ height: 240, width: '100%' }}>
+          <ResponsiveContainer width="100%" height={240}>
             <FunnelChart>
               <RechartsTooltip contentStyle={TT_STYLE}
                                formatter={(v, n) => [`${v} symbols (${((v / total) * 100).toFixed(1)}%)`, n]} />
@@ -1491,8 +1491,8 @@ function DivergenceTimeline({ rows }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 220 }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ height: 220, width: '100%' }}>
+          <ResponsiveContainer width="100%" height={220}>
             <LineChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
               <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10}

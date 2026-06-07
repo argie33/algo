@@ -45,72 +45,9 @@ def test_issue_14_health_endpoint():
 
 def test_response_format_consistency():
     """Verify all response helpers return consistent statusCode format"""
-    print("="*70)
-    print("BONUS TEST: Response Format Consistency (Issue #2)")
-    print("="*70)
-
     utils_py = Path("C:/Users/arger/code/algo/lambda/api/routes/utils.py").read_text()
 
-    checks = [
-        ("success_response returns statusCode", 'success_response' in utils_py and '"statusCode": 200' in utils_py),
-        ("error_response returns statusCode", 'error_response' in utils_py and '"statusCode": code' in utils_py),
-        ("list_response returns statusCode", 'list_response' in utils_py and '"statusCode": 200' in utils_py),
-    ]
+    assert 'success_response' in utils_py and '"statusCode": 200' in utils_py, "success_response statusCode missing"
+    assert 'error_response' in utils_py and '"statusCode": code' in utils_py, "error_response statusCode missing"
+    assert 'list_response' in utils_py and '"statusCode": 200' in utils_py, "list_response statusCode missing"
 
-    all_passed = True
-    for check_name, result in checks:
-        status = "[OK] PASS" if result else "[FAIL] FAIL"
-        print(f"  {status}: {check_name}")
-        if not result:
-            all_passed = False
-
-    if all_passed:
-        print("\n[OK] BONUS FIX VERIFIED: All response helpers include statusCode\n")
-    else:
-        print("\n[FAIL] BONUS FIX INCOMPLETE: Response format inconsistency\n")
-
-    return all_passed
-
-def main():
-    """Run all verification tests"""
-    print("\n" + "="*70)
-    print("CRITICAL FIXES VERIFICATION")
-    print("="*70)
-
-    results = {
-        "Issue #1: Hardcoded localhost URL": test_issue_1_config_generation(),
-        "Issue #3: Timeout returning 200": test_issue_3_database_timeout(),
-        "Issue #14: Missing health endpoint": test_issue_14_health_endpoint(),
-        "Bonus: Response format consistency": test_response_format_consistency(),
-    }
-
-    # Summary
-    print("="*70)
-    print("SUMMARY")
-    print("="*70)
-
-    passed_count = sum(1 for v in results.values() if v)
-    total_count = len(results)
-
-    for test_name, passed in results.items():
-        status = "[OK]" if passed else "[FAIL]"
-        print(f"  {status} {test_name}")
-
-    print(f"\nResult: {passed_count}/{total_count} tests passed\n")
-
-    if passed_count == total_count:
-        print("[OK] ALL CRITICAL FIXES VERIFIED - Ready for AWS deployment!")
-        print("\nNext steps:")
-        print("  1. Push code to GitHub (already synced)")
-        print("  2. Trigger GitHub Actions: deploy-code.yml")
-        print("  3. Monitor CloudWatch logs for:")
-        print("     - Frontend build: check config.js has correct API_URL")
-        print("     - API Lambda: test /api/health for RDS pool and freshness status")
-        print("     - Simulate timeout: verify 504 response (not 200)")
-        return 0
-    else:
-        print("[FAIL] SOME TESTS FAILED - Fix issues before AWS deployment")
-        return 1
-
-if __name__ == "__main__":
-    sys.exit(main())
