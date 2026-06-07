@@ -1971,6 +1971,8 @@ def run(
     Returns:
         PhaseResult with status and data
     """
+    import time  # FIX: Explicitly import to avoid UnboundLocalError in Python 3.10+
+    from zoneinfo import ZoneInfo  # FIX: Explicitly import to avoid UnboundLocalError
     phase1_start = time.time()
     logger.debug(f"Phase 1: Starting data freshness check for run_date={run_date}")
 
