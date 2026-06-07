@@ -180,6 +180,10 @@ class AlgoConfig:
         # Network Configuration
         'api_request_timeout_seconds': ('5', 'int', 'HTTP request timeout (seconds) for Alpaca/FRED/market data APIs'),
         'db_connection_timeout_seconds': ('15', 'int', 'Database connection timeout (seconds) — RDS Proxy adds latency'),
+
+        # Failsafe Configuration
+        'failsafe_ecs_timeout_sec': ('180', 'int', 'Max seconds to wait for ECS task to reach RUNNING state (Fargate provisioning under load: 45-150s)'),
+        'failsafe_grace_period_minutes': ('240', 'int', 'Grace period before triggering second failsafe (min). Morning window 2-9:30AM=450min; expected load ~285min; allows 2:00+240m=6:00 expiry, second loader 6:00+285m≈11:30am (acceptable). Must be <390 (450-60 Phase 2-7 buffer). Too long: no retry time. Too short: false positives if load is slow.'),
     }
 
     def __init__(self):

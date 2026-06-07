@@ -907,27 +907,47 @@ class OptimalLoader(ABC):
                     )
 
                 with DatabaseContext("write") as cur:
+                    # ISSUE #2 FIX: Preserve execution_started timestamp across DELETE+INSERT
+                    # Read current execution_started before wiping it out
+                    cur.execute(
+                        "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
+                        (self.table_name,),
+                    )
+                    existing = cur.fetchone()
+                    execution_started = existing[0] if existing and existing[0] else "NOW()"
+
                     # Use DELETE + INSERT for robustness — avoids ON CONFLICT constraint
                     # dependency (works even if PRIMARY KEY was added after initial creation)
                     cur.execute(
                         "DELETE FROM data_loader_status WHERE table_name = %s",
                         (self.table_name,),
                     )
-                    cur.execute(
-                        "INSERT INTO data_loader_status "
-                        "(table_name, row_count, latest_date, last_updated, status, "
-                        "completion_pct, symbol_count, symbols_loaded) "
-                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s)",
-                        (self.table_name, total_rows, latest_date, loader_status,
-                         completion_pct, symbols_expected, symbols_successfully_loaded),
-                    )
+
+                    # Include execution_started (preserved) and execution_completed (set now) in INSERT
+                    if execution_started == "NOW()":
+                        # execution_started was null, set it now
+                        cur.execute(
+                            "INSERT INTO data_loader_status "
+                            "(table_name, row_count, latest_date, last_updated, status, "
+                            "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
+                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), NOW())",
+                            (self.table_name, total_rows, latest_date, loader_status,
+                             completion_pct, symbols_expected, symbols_successfully_loaded),
+                        )
+                    else:
+                        # execution_started already exists, preserve it
+                        cur.execute(
+                            "INSERT INTO data_loader_status "
+                            "(table_name, row_count, latest_date, last_updated, status, "
+                            "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
+                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW())",
+                            (self.table_name, total_rows, latest_date, loader_status,
+                             completion_pct, symbols_expected, symbols_successfully_loaded, execution_started),
+                        )
             except Exception as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
                 )
-
-            # Mark loader as COMPLETED for Phase 1 grace period check
-            self._update_loader_status("COMPLETED")
 
             # ISSUE #7 FIX: Invalidate data_loader_status cache when loader completes
             # Prevents Phase 1 from using stale cache that shows old completion status
@@ -1057,22 +1077,40 @@ class OptimalLoader(ABC):
                     if hasattr(latest_date, "date"):
                         latest_date = latest_date.date()
                 with DatabaseContext("write") as cur:
+                    # ISSUE #2 FIX: Preserve execution_started timestamp across DELETE+INSERT
+                    cur.execute(
+                        "SELECT execution_started FROM data_loader_status WHERE table_name = %s",
+                        (self.table_name,),
+                    )
+                    existing = cur.fetchone()
+                    execution_started = existing[0] if existing and existing[0] else "NOW()"
+
                     cur.execute(
                         "DELETE FROM data_loader_status WHERE table_name = %s",
                         (self.table_name,),
                     )
-                    cur.execute(
-                        "INSERT INTO data_loader_status (table_name, row_count, latest_date, last_updated, status) "
-                        "VALUES (%s, %s, %s, NOW(), %s)",
-                        (self.table_name, total_rows, latest_date, 'COMPLETED'),
-                    )
+
+                    # Include execution_started (preserved) and execution_completed (set now) in INSERT
+                    if execution_started == "NOW()":
+                        # execution_started was null, set it now
+                        cur.execute(
+                            "INSERT INTO data_loader_status "
+                            "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
+                            "VALUES (%s, %s, %s, NOW(), %s, NOW(), NOW())",
+                            (self.table_name, total_rows, latest_date, 'COMPLETED'),
+                        )
+                    else:
+                        # execution_started already exists, preserve it
+                        cur.execute(
+                            "INSERT INTO data_loader_status "
+                            "(table_name, row_count, latest_date, last_updated, status, execution_started, execution_completed) "
+                            "VALUES (%s, %s, %s, NOW(), %s, %s, NOW())",
+                            (self.table_name, total_rows, latest_date, 'COMPLETED', execution_started),
+                        )
             except Exception as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
                 )
-
-            # Mark loader as COMPLETED for Phase 1 grace period check
-            self._update_loader_status("COMPLETED")
 
             return inserted
         finally:

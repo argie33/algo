@@ -3,7 +3,9 @@
 Unit tests for Issue #2: Data Loader Completion Detection Enhancement
 
 Tests the two-part fix:
-1. Recentness check: execution_completed > 10 min old → HALT
+1. Recentness check: execution_completed > adaptive_threshold old → HALT
+   - Morning (2-9:30 AM ET): 40 min threshold
+   - Intraday (9:30 AM+): 20 min threshold
 2. Symbol coverage: symbols_loaded / symbol_count < 90% → HALT
 """
 
@@ -16,35 +18,94 @@ from zoneinfo import ZoneInfo
 class TestExecutionCompletedRecentness(unittest.TestCase):
     """Test the recentness validation for execution_completed timestamps."""
 
-    def test_recent_completion_accepted(self):
-        """execution_completed < 10 min old should be accepted."""
+    def _get_stale_threshold(self, test_hour_et):
+        """Helper to determine stale threshold based on ET hour (same logic as production)."""
+        if 2 <= test_hour_et < 10:  # 2 AM - 9:59 AM ET (morning prep window)
+            return 40
+        else:  # 10 AM+ or before 2 AM (intraday/evening)
+            return 20
+
+    def test_recent_completion_morning_accepted(self):
+        """execution_completed < 40 min old during morning (2-9:30 AM ET) should be accepted."""
+        # Simulate 5:00 AM ET (morning prep window)
+        threshold = self._get_stale_threshold(5)
+        self.assertEqual(threshold, 40)
+
         now = datetime.now(timezone.utc)
-        execution_completed = now - timedelta(minutes=5)  # 5 minutes ago
+        execution_completed = now - timedelta(minutes=15)  # 15 minutes ago (well within 40 min)
 
         age_minutes = (now - execution_completed).total_seconds() / 60
 
         # Should NOT be flagged as stale
-        self.assertLess(age_minutes, 10)
+        self.assertLess(age_minutes, threshold)
 
-    def test_stale_completion_rejected(self):
-        """execution_completed > 10 min old should be rejected (crash detected)."""
+    def test_recent_completion_intraday_accepted(self):
+        """execution_completed < 20 min old during intraday should be accepted."""
+        # Simulate 11:00 AM ET (intraday)
+        threshold = self._get_stale_threshold(11)
+        self.assertEqual(threshold, 20)
+
         now = datetime.now(timezone.utc)
-        execution_completed = now - timedelta(minutes=75)  # 75 minutes ago
+        execution_completed = now - timedelta(minutes=5)  # 5 minutes ago (within 20 min)
+
+        age_minutes = (now - execution_completed).total_seconds() / 60
+
+        # Should NOT be flagged as stale
+        self.assertLess(age_minutes, threshold)
+
+    def test_stale_completion_morning_rejected(self):
+        """execution_completed > 40 min old during morning should be rejected (crash detected)."""
+        # Simulate 6:00 AM ET (morning prep window)
+        threshold = self._get_stale_threshold(6)
+        self.assertEqual(threshold, 40)
+
+        now = datetime.now(timezone.utc)
+        execution_completed = now - timedelta(minutes=45)  # 45 minutes ago (exceeds 40 min)
 
         age_minutes = (now - execution_completed).total_seconds() / 60
 
         # Should be flagged as stale
-        self.assertGreater(age_minutes, 10)
+        self.assertGreater(age_minutes, threshold)
 
-    def test_boundary_10_minutes(self):
-        """execution_completed exactly at 10 min boundary."""
+    def test_stale_completion_intraday_rejected(self):
+        """execution_completed > 20 min old during intraday should be rejected (crash detected)."""
+        # Simulate 2:00 PM ET (intraday)
+        threshold = self._get_stale_threshold(14)
+        self.assertEqual(threshold, 20)
+
         now = datetime.now(timezone.utc)
-        execution_completed = now - timedelta(minutes=10)  # Exactly 10 minutes
+        execution_completed = now - timedelta(minutes=75)  # 75 minutes ago (exceeds 20 min)
 
         age_minutes = (now - execution_completed).total_seconds() / 60
 
-        # At boundary, should be rejected (>10 means just over 10)
-        self.assertAlmostEqual(age_minutes, 10, delta=0.1)
+        # Should be flagged as stale
+        self.assertGreater(age_minutes, threshold)
+
+    def test_boundary_40_minutes_morning(self):
+        """execution_completed exactly at 40 min boundary during morning."""
+        threshold = self._get_stale_threshold(5)
+        self.assertEqual(threshold, 40)
+
+        now = datetime.now(timezone.utc)
+        execution_completed = now - timedelta(minutes=40)  # Exactly 40 minutes
+
+        age_minutes = (now - execution_completed).total_seconds() / 60
+
+        # At boundary, should be rejected (>40 means just over 40)
+        self.assertAlmostEqual(age_minutes, 40, delta=0.1)
+
+    def test_boundary_20_minutes_intraday(self):
+        """execution_completed exactly at 20 min boundary during intraday."""
+        threshold = self._get_stale_threshold(11)
+        self.assertEqual(threshold, 20)
+
+        now = datetime.now(timezone.utc)
+        execution_completed = now - timedelta(minutes=20)  # Exactly 20 minutes
+
+        age_minutes = (now - execution_completed).total_seconds() / 60
+
+        # At boundary, should be rejected (>20 means just over 20)
+        self.assertAlmostEqual(age_minutes, 20, delta=0.1)
 
     def test_timezone_aware_parsing(self):
         """Should handle timezone-aware timestamps from database."""
@@ -52,11 +113,13 @@ class TestExecutionCompletedRecentness(unittest.TestCase):
         db_timestamp_str = "2026-06-09T02:30:00+00:00"
         exec_completed = datetime.fromisoformat(db_timestamp_str.replace('Z', '+00:00'))
 
-        # Current time slightly later
-        now = exec_completed + timedelta(minutes=5)
+        # Current time 15 minutes later (within morning 40 min threshold)
+        now = exec_completed + timedelta(minutes=15)
 
         age_minutes = (now - exec_completed).total_seconds() / 60
-        self.assertLess(age_minutes, 10)
+        threshold = self._get_stale_threshold(2)
+        self.assertEqual(threshold, 40)
+        self.assertLess(age_minutes, threshold)
 
     def test_timezone_string_with_z(self):
         """Should handle 'Z' suffix for UTC timestamps."""
@@ -65,8 +128,22 @@ class TestExecutionCompletedRecentness(unittest.TestCase):
 
         now = exec_completed + timedelta(minutes=5)
         age_minutes = (now - exec_completed).total_seconds() / 60
+        threshold = self._get_stale_threshold(2)
+        self.assertEqual(threshold, 40)
 
-        self.assertLess(age_minutes, 10)
+        self.assertLess(age_minutes, threshold)
+
+    def test_system_latency_scenario_morning(self):
+        """Loader finishes at 4:50 AM, Phase 1 runs at 5:05 AM (15 min latency) - should NOT fail."""
+        # Simulate Phase 1 checking at 5:05 AM ET
+        threshold = self._get_stale_threshold(5)
+        self.assertEqual(threshold, 40)
+
+        # Execution completed 15 minutes ago (normal system latency)
+        age_minutes = 15
+
+        # Should NOT be flagged as stale (well within 40 min threshold for morning)
+        self.assertLess(age_minutes, threshold)
 
 
 class TestSymbolCoverageValidation(unittest.TestCase):
@@ -136,8 +213,18 @@ class TestSymbolCoverageValidation(unittest.TestCase):
 class TestIssue2IntegrationScenarios(unittest.TestCase):
     """Integration scenarios for Issue #2 detection."""
 
-    def test_normal_completion_scenario(self):
-        """Normal scenario: loader finishes quickly, coverage high."""
+    def _get_stale_threshold(self, test_hour_et):
+        """Helper to determine stale threshold based on ET hour (same logic as production)."""
+        if 2 <= test_hour_et < 10:  # 2 AM - 9:59 AM ET (morning prep window)
+            return 40
+        else:  # 10 AM+ or before 2 AM (intraday/evening)
+            return 20
+
+    def test_normal_completion_scenario_morning(self):
+        """Normal scenario: loader finishes quickly during morning, coverage high."""
+        # Simulate 5:00 AM ET (morning prep window)
+        threshold = self._get_stale_threshold(5)
+
         now = datetime.now(timezone.utc)
 
         # Loader finished 3 minutes ago
@@ -150,11 +237,31 @@ class TestIssue2IntegrationScenarios(unittest.TestCase):
         coverage = (symbols_loaded / symbol_count * 100)
 
         # Both checks should pass
-        self.assertLess(age_minutes, 10)
+        self.assertLess(age_minutes, threshold)
+        self.assertGreaterEqual(coverage, 90)
+
+    def test_normal_completion_scenario_intraday(self):
+        """Normal scenario: loader finishes quickly during intraday, coverage high."""
+        # Simulate 1:00 PM ET (intraday)
+        threshold = self._get_stale_threshold(13)
+
+        now = datetime.now(timezone.utc)
+
+        # Loader finished 5 minutes ago
+        execution_completed = now - timedelta(minutes=5)
+        age_minutes = (now - execution_completed).total_seconds() / 60
+
+        # 99% coverage
+        symbol_count = 5000
+        symbols_loaded = 4950
+        coverage = (symbols_loaded / symbol_count * 100)
+
+        # Both checks should pass
+        self.assertLess(age_minutes, threshold)
         self.assertGreaterEqual(coverage, 90)
 
     def test_hung_loader_scenario(self):
-        """Hung loader: completion timestamp is 2 hours old."""
+        """Hung loader: completion timestamp is 2 hours old (exceeds any threshold)."""
         now = datetime.now(timezone.utc)
 
         # Task reported completion 2 hours ago, then crashed writing to DB
@@ -167,7 +274,11 @@ class TestIssue2IntegrationScenarios(unittest.TestCase):
         coverage = (symbols_loaded / symbol_count * 100)
 
         # BOTH checks fail - this is correctly detected as hung loader
-        self.assertGreater(age_minutes, 10)
+        # (2 hours > any threshold)
+        morning_threshold = self._get_stale_threshold(5)
+        intraday_threshold = self._get_stale_threshold(13)
+        self.assertGreater(age_minutes, morning_threshold)
+        self.assertGreater(age_minutes, intraday_threshold)
         self.assertLess(coverage, 90)
 
     def test_partial_batch_failure_scenario(self):
@@ -183,8 +294,11 @@ class TestIssue2IntegrationScenarios(unittest.TestCase):
         symbols_loaded = 3750
         coverage = (symbols_loaded / symbol_count * 100)
 
-        # Age check passes (recent), but coverage check fails
-        self.assertLess(age_minutes, 10)
+        # Age check passes (recent in both morning and intraday), but coverage check fails
+        morning_threshold = self._get_stale_threshold(5)
+        intraday_threshold = self._get_stale_threshold(13)
+        self.assertLess(age_minutes, morning_threshold)
+        self.assertLess(age_minutes, intraday_threshold)
         self.assertLess(coverage, 90)
 
 

@@ -1,0 +1,183 @@
+{
+  "consoleErrors": [],
+  "consoleWarnings": [
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    },
+    {
+      "type": "warning",
+      "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.",
+      "location": {
+        "url": "http://localhost:5173/node_modules/.vite/deps/recharts.js?v=db9aaf17",
+        "line": 8499,
+        "column": 16,
+        "lineNumber": 8499,
+        "columnNumber": 16
+      }
+    }
+  ],
+  "networkErrors": [],
+  "pageErrors": []
+}

@@ -143,6 +143,9 @@ _DEFAULTS = [
     # Network
     ('api_request_timeout_seconds', '5', 'int', 'HTTP request timeout (seconds)'),
     ('db_connection_timeout_seconds', '15', 'int', 'Database connection timeout (seconds)'),
+    # Failsafe Configuration
+    ('failsafe_ecs_timeout_sec', '180', 'int', 'Max seconds to wait for ECS task to reach RUNNING state'),
+    ('failsafe_grace_period_minutes', '240', 'int', 'Grace period before triggering second failsafe (issue #10)'),
 ]
 
 

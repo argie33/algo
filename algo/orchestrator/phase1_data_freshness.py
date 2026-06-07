@@ -891,29 +891,37 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
                 age_minutes = (current_time - triggered_at) / 60
                 age_source = "triggered_at (ECS check failed)"
 
-        # ISSUE #7 FIX: Dynamic grace period based on symbol count (configurable via algo_config)
-        # Morning prep (2:00-9:30 AM) has 450 min window. Expected execution with 5000 symbols:
+        # ISSUE #10 FIX: Grace period properly accounts for morning window size + retry time
+        # Morning prep (2:00-9:30 AM ET) = 450 min window. Expected execution with 5000 symbols:
         #   - stock_prices_daily: 15 min (50 symbols/min × 300 symbols/batch)
         #   - technical_data_daily: 180+ min (complex calculations, first run cache-cold)
         #   - buy_sell_daily: 30 min
         #   - signal_quality_scores: 30 min
         #   - swing_trader_scores: 30 min
-        #   Total: ~285+ minutes expected
-        # Grace period MUST accommodate worst-case. Read from database if available.
-        # - Default: 300 minutes (5 hours) — 450 min window - 60 min buffer for Phase 2-7
-        # - Hard cap: 420 minutes (7 hours) — safety valve to prevent indefinite waits
-        HARD_MAX_GRACE_PERIOD = 420  # Absolute maximum to prevent infinite waits if heartbeat stalls
+        #   Total: ~285 minutes expected
+        #
+        # Grace period strategy: Allow first attempt to run, with room for ONE retry
+        # - If first trigger at 2:05 AM and grace period = 240 min: grace expires 6:05 AM
+        # - If loader is stale at 6:05 AM, trigger fresh loader
+        # - Fresh loader (6:05 AM) + ~300 min execution ≈ 10:35 AM (past 9:30 AM deadline but acceptable for data freshness)
+        # - This provides: first_attempt(2:05-5:20) + grace_wait(5:20-6:05) + second_attempt(6:05-10:35)
+        #
+        # Tuning: default 240 prevents empty retry window while allowing recovery time
+        # - 240 min too long → no retry time (old 300 min)
+        # - 180 min too short → false positives on slow loads
+        # - Hard cap: 390 min (450 - 60 Phase 2-7) prevents missing 9:30 AM deadline
+        HARD_MAX_GRACE_PERIOD = 390  # Absolute maximum: 450 min window - 60 min Phase 2-7 = 390 min
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT value FROM algo_config WHERE key = %s", ('failsafe_grace_period_minutes',))
                 result = cur.fetchone()
-                configured_grace = int(result[0]) if result and result[0] else 300  # Increased from 150
+                configured_grace = int(result[0]) if result and result[0] else 240  # ISSUE #10: Changed from 300 to 240
                 max_grace_period = min(configured_grace, HARD_MAX_GRACE_PERIOD)
                 if configured_grace > HARD_MAX_GRACE_PERIOD:
-                    logger.warning(f"[FAILSAFE] Grace period configured to {configured_grace}m exceeds hard cap {HARD_MAX_GRACE_PERIOD}m — capping at {HARD_MAX_GRACE_PERIOD}m")
+                    logger.warning(f"[FAILSAFE] Grace period {configured_grace}m exceeds hard cap {HARD_MAX_GRACE_PERIOD}m (450 min window - 60 min Phase 2-7) — capping at {HARD_MAX_GRACE_PERIOD}m")
         except Exception as config_err:
-            logger.debug(f"[FAILSAFE] Could not read grace period config: {config_err}, using default 300m")
-            max_grace_period = 300  # ISSUE #7 FIX: Increased from 150m to accommodate 5000 symbols
+            logger.debug(f"[FAILSAFE] Could not read grace period config: {config_err}, using default 240m")
+            max_grace_period = 240  # ISSUE #10: Changed from 300 to 240
 
         if age_minutes < max_grace_period:
             if verbose:
@@ -1017,9 +1025,19 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                     continue
 
                 # ISSUE #2 ENHANCED: Verify execution_completed is RECENT
-                # If execution_completed is >10 min old, loader process may have crashed after reporting initial completion
+                # If execution_completed is too old, loader process may have crashed after reporting initial completion
                 # (e.g., completed task execution but crashed writing to DB or during teardown)
+                # ISSUE #2 ROBUSTNESS: Use adaptive thresholds based on time of day to account for system latency
+                # - Morning prep (2-9:30 AM ET): 40 min grace period (loaders are heavier, more system load expected)
+                # - Intraday (9:30 AM+): 20 min grace period (faster loaders, less load)
+                # This prevents false positives when Phase 1 runs slow due to CloudWatch/system latency
                 now_utc = datetime.now(timezone.utc)
+                current_hour_et = datetime.now(ZoneInfo("America/New_York")).hour
+                if 2 <= current_hour_et < 10:  # 2 AM - 9:59 AM ET (morning prep window)
+                    stale_threshold_minutes = 40
+                else:  # 10 AM+ or before 2 AM (intraday/evening)
+                    stale_threshold_minutes = 20
+
                 if isinstance(execution_completed, str):
                     try:
                         exec_completed_utc = datetime.fromisoformat(execution_completed.replace('Z', '+00:00')).astimezone(timezone.utc)
@@ -1032,13 +1050,13 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
 
                 if exec_completed_utc:
                     age_minutes = (now_utc - exec_completed_utc).total_seconds() / 60
-                    if age_minutes > 10:  # Completion reported >10 min ago
+                    if age_minutes > stale_threshold_minutes:
                         unfinished_loaders.append(
-                            f"{loader}: execution_completed={execution_completed} ({age_minutes:.0f} min old, may indicate crash after initial completion)"
+                            f"{loader}: execution_completed={execution_completed} ({age_minutes:.0f} min old, exceeds {stale_threshold_minutes}min threshold, may indicate crash)"
                         )
                         continue
                     if verbose:
-                        logger.debug(f"[MORNING_PREP_VALIDATION] {loader}: execution_completed {age_minutes:.1f} min ago (recent)")
+                        logger.debug(f"[MORNING_PREP_VALIDATION] {loader}: execution_completed {age_minutes:.1f} min ago (within {stale_threshold_minutes}min threshold)")
 
                 # Check last_updated is from today (run_date)
                 if last_updated:
