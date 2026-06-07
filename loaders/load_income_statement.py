@@ -19,6 +19,7 @@ from utils.loader_helpers import get_active_symbols
 from utils.sec_edgar_client import SecEdgarClient
 
 from utils.optimal_loader import OptimalLoader
+from utils.loader_config import get_parallelism
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -159,7 +160,7 @@ def main():
     parser.add_argument("--period", choices=["annual", "quarterly"],
                         help="Statement period (defaults to LOADER_PERIOD env var)")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
-    default_parallelism = int(os.getenv("LOADER_PARALLELISM", "1"))
+    default_parallelism = get_parallelism("income_statement")
     parser.add_argument("--parallelism", type=int, default=default_parallelism,
                         help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})")
     args = parser.parse_args()

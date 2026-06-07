@@ -33,6 +33,7 @@ from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
 from utils.loader_helpers import get_active_symbols
 from utils.correlation_context import set_correlation_id, get_correlation_id
+from utils.loader_config import get_parallelism
 from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 
@@ -381,34 +382,40 @@ class PriceLoader(OptimalLoader):
             logger.info(f"[MARKET_CLOSE] Before market close ({minutes_after_close:.0f}min), skipping check")
             return True
 
-        # We're 0-45 minutes after market close - verify SPY data with exponential backoff
+        # We're 0-45 minutes after market close - verify SPY data with efficient retry
         logger.info(f"[MARKET_CLOSE] {minutes_after_close:.1f}min after close at 4 PM ET, checking yfinance for SPY data...")
 
         start_time = time.time()
         attempt = 0
-        backoff_sec = 5  # Start with 5s, then exponential: 10s, 20s, 40s, 80s, ...
+        # ISSUE #11 FIX: Use SHORT timeout (15s) per check, fixed waits between retries
+        # This allows ~4x more attempts in the same 30-min budget vs 120s timeout per attempt
+        # Typical yfinance lag is 5-15 min, so more frequent polling catches data sooner
+        short_check_timeout = 15  # Each yfinance check uses only 15s (not 120s)
+        wait_between_checks = 3   # Wait only 3s between short checks (fixed, not exponential)
         last_error_type = None
         last_error_msg = None
 
         while time.time() - start_time < max_wait_sec:
             attempt += 1
             try:
-                # Try to fetch SPY 1d data from yfinance
-                spy_data = self.router.fetch_ohlcv_interval('SPY', today, today + timedelta(days=1), '1d')
-                if spy_data:
-                    latest_row = spy_data[-1] if spy_data else None
-                    if latest_row and latest_row.get('close'):
-                        elapsed = time.time() - start_time
-                        logger.info(f"[MARKET_CLOSE] ✓ Data available after {elapsed:.1f}s (attempt {attempt})")
-                        # Emit success metric
-                        try:
-                            from algo.algo_metrics import MetricsPublisher
-                            metrics = MetricsPublisher()
-                            metrics.put_metric('MarketCloseDataAvailable', 1, unit='Count', dimensions={'Status': 'success'})
-                            metrics.flush()
-                        except Exception:
-                            pass
-                        return True
+                # Use FAST market close check: 15s timeout instead of 120s
+                # This is much more efficient for checking "is data available?" vs "download all data"
+                data_available = self.router.check_market_close_data_available_fast(
+                    symbol='SPY',
+                    timeout_sec=short_check_timeout
+                )
+                if data_available:
+                    elapsed = time.time() - start_time
+                    logger.info(f"[MARKET_CLOSE] ✓ Data available after {elapsed:.1f}s (attempt {attempt})")
+                    # Emit success metric
+                    try:
+                        from algo.algo_metrics import MetricsPublisher
+                        metrics = MetricsPublisher()
+                        metrics.put_metric('MarketCloseDataAvailable', 1, unit='Count', dimensions={'Status': 'success'})
+                        metrics.flush()
+                    except Exception:
+                        pass
+                    return True
             except Exception as e:
                 last_error_type = type(e).__name__
                 last_error_msg = str(e)[:200]  # Truncate for logging
@@ -424,16 +431,16 @@ class PriceLoader(OptimalLoader):
                     f" - {last_error_msg}"
                 )
 
-            # Calculate exponential backoff wait time
-            wait_remaining = max_wait_sec - (time.time() - start_time)
-            wait_time = min(backoff_sec, wait_remaining)
+            # Check time remaining and wait before next attempt
+            elapsed = time.time() - start_time
+            wait_remaining = max_wait_sec - elapsed
+            wait_time = min(wait_between_checks, wait_remaining)
 
             if wait_time > 0 and wait_remaining > 0:
-                elapsed_so_far = time.time() - start_time
-                logger.debug(f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}... (elapsed {elapsed_so_far/60:.1f}min/{max_wait_sec/60:.0f}min)")
+                logger.debug(f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}... (elapsed {elapsed/60:.1f}min/{max_wait_sec/60:.0f}min)")
                 time.sleep(wait_time)
-                # More patient backoff: 5s → 10s → 20s → 40s → 80s (cap at 120s for 30+ min waits)
-                backoff_sec = min(backoff_sec * 2, 120)
+            elif wait_remaining <= 0:
+                break  # Total timeout reached
 
         # Timeout - data not available, HALT loader with explicit error (ISSUE #11 FIX)
         elapsed = time.time() - start_time
@@ -803,6 +810,12 @@ class PriceLoader(OptimalLoader):
 
             if result:
                 # Success: reset rate limit error tracking and improve request pace
+                if self._rate_limit_errors > 0:
+                    # CREATIVE FIX #6: Detect recovery - API is responding again
+                    logger.info(f"[RATE_LIMIT_RECOVERY] API recovered after {self._rate_limit_errors} errors. "
+                               f"Decreasing request interval from {self._adaptive_request_interval:.3f}s back to normal.")
+                    self._adaptive_request_interval = max(0.375, self._adaptive_request_interval * 0.9)  # Gradually recover
+
                 self._rate_limit_errors = 0
                 self._rate_limit_error_start_time = None
                 # CREATIVE FIX #2: Track which batch sizes work
@@ -1639,7 +1652,8 @@ def main():
     # CRITICAL: Use higher parallelism for stock_prices_daily to complete in reasonable time
     # Loading 5000 symbols × 3 intervals = 15000+ records; parallelism=2 takes 6+ hours
     # parallelism=8 reduces to ~2 hours while RDS Proxy handles connection pooling
-    parallelism = int(os.getenv("LOADER_PARALLELISM", "8"))
+    # FIXED Issue #13: Read parallelism from DynamoDB (dynamic), fallback to env var
+    parallelism = get_parallelism("stock_prices_daily")
     max_symbols_limit = int(os.getenv("LOADER_MAX_SYMBOLS", "0"))  # 0 = no limit (loads all symbols)
 
     # Parse comma-separated values
@@ -1721,6 +1735,16 @@ def main():
         'GLD', 'TLT', 'IVV', 'VXX',             # Macro ETFs — correlation matrix
     ]
 
+    # CREATIVE FIX #5: Interval staggering with time delays
+    # Instead of loading 1d, 1wk, 1mo sequentially (causing API load spike),
+    # stagger them with delays to spread pressure over time and prevent rate limiting.
+    # This is especially effective because 1mo is less critical than 1d and can tolerate delay.
+    interval_stagger_delays = {
+        '1d': 0,      # Load 1d immediately (most critical)
+        '1wk': 60,    # Stagger weekly 60s later (spreads API load)
+        '1mo': 120,   # Stagger monthly 120s later (least critical)
+    }
+
     # Run price loader for each interval + asset_class combination
     total_stats = {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
     fail_count = 0
@@ -1732,6 +1756,12 @@ def main():
             for asset_class in asset_classes:
                 for interval in intervals:
                     try:
+                        # CREATIVE FIX #5: Apply interval staggering delay
+                        stagger_delay = interval_stagger_delays.get(interval, 0)
+                        if stagger_delay > 0:
+                            logger.info(f"[CREATIVE FIX #5] Staggering {interval} load by {stagger_delay}s to spread API pressure...")
+                            time.sleep(stagger_delay)
+
                         # Build per-asset-class symbol list.
                         # dict.fromkeys preserves insertion order and deduplicates.
                         if asset_class == 'stock':

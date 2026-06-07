@@ -6,22 +6,8 @@ import { tokenManager } from "../services/tokenManager";
 // Enhanced logging utility
 export const createLogger = (componentName) => ({
   info: (message, data) => {
-    // Safe data handling for info to avoid circular references
-    let _safeData;
-    try {
-      _safeData =
-        data && typeof data === "object"
-          ? JSON.parse(JSON.stringify(data))
-          : data;
-    } catch (error) {
-      _safeData = data
-        ? String(data)
-        : "Unable to stringify data (circular reference)";
-    }
-    // Log in development mode
-    if (import.meta.env?.DEV) {
-      console.info(`[${componentName}] ${message}`, _safeData);
-    }
+    // Reserved for detailed debugging - currently suppressed to reduce console noise
+    // Enable this in production debugging only if needed
   },
   error: (message, error, context) => {
     // Safe error object to avoid circular references

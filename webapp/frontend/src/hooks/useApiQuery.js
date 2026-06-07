@@ -58,7 +58,7 @@ export const useApiQuery = (
         }
         return freshData;
       } catch (err) {
-        console.warn('[useApiQuery] Query failed:', err.message);
+        // Error already logged by api.js interceptor, skip duplicate logging
         // Try to return cached data as fallback when all retries exhausted
         try {
           const cachedData = await dataCache.get(actualCacheKey);
@@ -182,7 +182,7 @@ export const useApiPaginatedQuery = (
         }
         return freshData;
       } catch (err) {
-        console.warn('[useApiPaginatedQuery] Query failed:', err.message);
+        // Error already logged by api.js interceptor, skip duplicate logging
         // Try to return cached data as fallback when all retries exhausted
         try {
           const cachedData = await dataCache.get(actualCacheKey);

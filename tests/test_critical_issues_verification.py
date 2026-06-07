@@ -33,15 +33,15 @@ class TestIssue1MarketCloseDataLag(unittest.TestCase):
         """Verify that market close check times out properly and raises RuntimeError."""
         # This test verifies the timeout behavior in load_prices.py:_check_market_close_data_available()
         # The implementation should:
-        # 1. Wait with exponential backoff (5s, 10s, 20s, 40s, ...)
-        # 2. If timeout (1200s for EOD, 600s for morning), raise RuntimeError
+        # 1. Use efficient polling with short timeouts (15s per check) + fixed waits (3s between)
+        # 2. If timeout (1800s for EOD, 600s for morning), raise RuntimeError
         # 3. Record failure in DynamoDB with state_key='market_close_failure'
 
         # Since we can't mock yfinance easily, this test documents the expected behavior
         expected_behaviors = [
-            "Checks SPY close data availability",
-            "Uses exponential backoff (5s → 10s → 20s → 40s)",
-            "Times out after 1200s (EOD) or 600s (morning)",
+            "Checks SPY close data availability with fast method",
+            "Uses efficient polling (15s per check + 3s waits)",
+            "Times out after 1800s (EOD) or 600s (morning)",
             "Raises RuntimeError on timeout",
             "Records failure in DynamoDB state table",
             "Invalidates Phase 1 cache (poisons if deletion fails)",
@@ -54,11 +54,11 @@ class TestIssue1MarketCloseDataLag(unittest.TestCase):
 
         # Check for key implementation details
         assert "_check_market_close_data_available" in source, "Market close check function not found"
-        assert "exponential backoff" in source, "Exponential backoff not documented"
+        assert "check_market_close_data_available_fast" in source, "Fast market close check method not found"
         assert "RuntimeError" in source and "market close" in source.lower(), "RuntimeError for market close not found"
         assert "market_close_failure" in source, "DynamoDB failure recording not found"
 
-        print(f"✓ Issue #1 implementation verified: {len(expected_behaviors)} behaviors found")
+        print(f"[PASS] Issue #1 implementation verified: {len(expected_behaviors)} behaviors found")
 
     def test_phase1_detects_market_close_failure(self):
         """Verify Phase 1 detects market close failures from DynamoDB and triggers failsafe."""
@@ -87,7 +87,7 @@ class TestIssue1MarketCloseDataLag(unittest.TestCase):
         assert "Triggering full failsafe" in source, "Failsafe triggering message not found"
         assert "[MARKET_CLOSE]" in source, "MARKET_CLOSE log prefix not found"
 
-        print(f"✓ Issue #1 Phase 1 detection verified: {len(expected_behaviors)} behaviors found")
+        print(f"[OK] Issue #1 Phase 1 detection verified: {len(expected_behaviors)} behaviors found")
 
 
 class TestIssue9MorningPrepTiming(unittest.TestCase):
@@ -118,7 +118,7 @@ class TestIssue9MorningPrepTiming(unittest.TestCase):
         # Verify correct timing window
         self.assertEqual(available_minutes, 450, "Morning prep window should be 450 minutes (7.5 hours)")
 
-        print(f"✓ Morning prep timing window verified: {available_minutes} minutes available")
+        print(f"[OK] Morning prep timing window verified: {available_minutes} minutes available")
 
     def test_morning_prep_alerting_tiers(self):
         """Verify 3-tier alerting system for morning prep timing (Session 14 update)."""
@@ -142,7 +142,7 @@ class TestIssue9MorningPrepTiming(unittest.TestCase):
         assert "20" in source and "CRITICAL" in source, "Critical threshold (20 min) not found"
         assert "[MORNING_PREP_TIMING]" in source, "Morning prep timing log prefix not found"
 
-        print(f"✓ Morning prep alerting tiers verified: {len(expected_thresholds)} tiers found")
+        print(f"[OK] Morning prep alerting tiers verified: {len(expected_thresholds)} tiers found")
 
     def test_morning_prep_deadline_hard_gate(self):
         """Verify morning prep has hard gate that halts at 9:30 AM if data not fresh."""
@@ -161,7 +161,7 @@ class TestIssue9MorningPrepTiming(unittest.TestCase):
         assert "1 trading day" in source or "trading day" in source, "Data age check not found"
         assert re.search(r'data.*stale|stale.*data', source, re.IGNORECASE), "Staleness detection not found"
 
-        print("✓ Morning prep hard deadline gate verified")
+        print("[OK] Morning prep hard deadline gate verified")
 
 
 class TestIssue14DynamoDBCacheHealth(unittest.TestCase):
@@ -191,7 +191,7 @@ class TestIssue14DynamoDBCacheHealth(unittest.TestCase):
         assert "timeout_sec" in source and "5" in source, "5 second timeout not found"
         assert "[DYNAMODB]" in source, "DYNAMODB log prefix not found"
 
-        print(f"✓ DynamoDB preflight check verified: {len(expected_checks)} checks found")
+        print(f"[OK] DynamoDB preflight check verified: {len(expected_checks)} checks found")
 
     def test_dynamodb_fallback_when_rds_down(self):
         """Verify cache fallback works when RDS is unavailable."""
@@ -216,7 +216,7 @@ class TestIssue14DynamoDBCacheHealth(unittest.TestCase):
         assert "cache" in source.lower(), "Cache reference not found"
         assert "database unavailable" in source.lower() or "rds" in source.lower(), "RDS down handling not found"
 
-        print(f"✓ DynamoDB cache fallback verified: {len(expected_behavior)} behaviors found")
+        print(f"[OK] DynamoDB cache fallback verified: {len(expected_behavior)} behaviors found")
 
 
 class TestIssue14DynamoDBHealthCheck(unittest.TestCase):
@@ -234,7 +234,7 @@ class TestIssue14DynamoDBHealthCheck(unittest.TestCase):
         assert "ACTIVE" in source, "DynamoDB ACTIVE status check not found"
         assert "timeout" in source or "timeout_sec" in source, "Timeout handling not found"
 
-        print("✓ DynamoDB health check implementation verified")
+        print("[OK] DynamoDB health check implementation verified")
 
 
 if __name__ == '__main__':

@@ -132,6 +132,54 @@ resource "aws_dynamodb_table" "loader_execution_status" {
   })
 }
 
+# ============================================================
+# DynamoDB Table for Dynamic Loader Configuration
+# FIXED Issue #13: Hard-coded Parallelism Values vs RDS Capabilities
+# ============================================================
+# Stores loader configuration (parallelism, enabled status) dynamically.
+# Allows updating parallelism without redeploying Terraform or restarting ECS tasks.
+# Loaders read this config at startup with 5-minute cache fallback to env vars.
+
+resource "aws_dynamodb_table" "loader_config" {
+  name         = "${var.project_name}-loader-config-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "loader_name"
+
+  attribute {
+    name = "loader_name"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-loader-config"
+  })
+}
+
+# Grant ECS tasks permission to read from the loader config table
+resource "aws_iam_role_policy" "ecs_task_loader_config_access" {
+  name = "${var.project_name}-ecs-loader-config-access"
+  role = split("/", var.task_role_arn)[1]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBLoaderConfig"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem"
+        ]
+        Resource = aws_dynamodb_table.loader_config.arn
+      }
+    ]
+  })
+}
+
 # Grant ECS tasks permission to access the loader status table
 resource "aws_iam_role_policy" "ecs_task_loader_status_access" {
   name = "${var.project_name}-ecs-loader-status-access"
