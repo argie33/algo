@@ -386,7 +386,7 @@ const DeepValueStocks = () => {
   if (error) {
     return (
       <div className="alert alert-danger" style={{ margin: 'var(--space-4)' }}>
-        {error}
+        {typeof error === 'string' ? error : error?.message || 'Failed to load stocks'}
       </div>
     );
   }
