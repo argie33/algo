@@ -3267,6 +3267,29 @@ def run(
                 # Loader not running, or check failed. Trigger fresh loader NOW (no grace period).
                 logger.warning(f"[FAILSAFE] Loader not currently running. Attempting to trigger fresh loader: {stale_items}")
 
+                # RDS CONNECTION POOL CHECK: Don't trigger failsafe if pool already exhausted
+                # ISSUE #5 FIX: Circuit breaker prevents cascading failures when pool > 80%
+                try:
+                    with DatabaseContext('read') as pool_check_cur:
+                        pool_ok = _check_rds_connection_pool_health(pool_check_cur, verbose=False, fail_closed_at=80)
+                        if not pool_ok:
+                            logger.critical(
+                                f"[{_phase1_correlation_id}] [RDS-POOL-BLOCKER] HALT: RDS connection pool exhausted (>80 connections). "
+                                f"Cannot safely trigger new loader — would cascade into critical failure. Halting instead."
+                            )
+                            alerts.send_position_alert(
+                                'DATABASE',
+                                'RDS_POOL_EXHAUSTED_FAILSAFE_BLOCKED',
+                                f'RDS connection pool exhausted during failsafe decision. Cannot trigger new loader. Pool must recover first. Halting.',
+                                {'halt': True, 'reason': 'RDS pool exhausted'}
+                            )
+                            log_phase_result_fn(1, 'rds_pool_exhausted', 'halt',
+                                              'RDS connection pool exhausted (>80 connections) — cannot trigger failsafe')
+                            return PhaseResult(1, 'rds_pool_exhausted', 'halted', {}, True,
+                                            'RDS connection pool exhaustion: cannot safely trigger new loader')
+                except Exception as pool_err:
+                    logger.debug(f"[RDS-POOL-BLOCKER] Could not check RDS pool before failsafe: {pool_err}")
+
                 # CLUSTER HEALTH PRECHECK: Verify cluster has capacity before triggering
                 try:
                     import boto3
