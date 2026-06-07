@@ -607,9 +607,9 @@ function StockDetail({ stock, onClose }) {
               <div className="card-sub">Daily bull-bear analyst score</div>
             </div>
           </div>
-          <div className="card-body" style={{ height: 200 }}>
+          <div className="card-body" style={{ height: 200, width: '100%' }}>
             {trend.length >= 2 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                   <XAxis dataKey="date" tick={{ fill: 'var(--text-3)', fontSize: 10 }}
@@ -1279,7 +1279,7 @@ function CompositeGauge({ gauge }) {
             </div>
           </div>
           <div style={{ width: '60%', height: 130 }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={130}>
               <BarChart data={gauge.components} layout="vertical"
                         margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" horizontal={false} />

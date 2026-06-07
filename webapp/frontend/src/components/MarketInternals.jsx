@@ -196,9 +196,9 @@ const MarketInternals = ({ data, isLoading, error }) => {
               {/* Breadth Chart */}
               <div style={getChartContainerStyle('default')}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={breadthChartData}>
+                  <BarChart data={breadthChartData} margin={{ top: 8, right: 16, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <XAxis dataKey="name" height={40} tick={{ fontSize: 12 }} />
                     <YAxis />
                     <Tooltip />
                     <Bar dataKey="value" fill="#8884d8">
@@ -261,9 +261,9 @@ const MarketInternals = ({ data, isLoading, error }) => {
 
               <Box sx={{ height: 300, width: "100%", mb: 2, minWidth: 0 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={maChartData}>
+                  <BarChart data={maChartData} margin={{ top: 8, right: 16, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <XAxis dataKey="name" height={40} tick={{ fontSize: 12 }} />
                     <YAxis domain={[0, 100]} />
                     <Tooltip formatter={(value) => value != null ? `${Number(value).toFixed(1)}%` : "N/A"} />
                     <Bar dataKey="value" fill="#3b82f6" />

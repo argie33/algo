@@ -448,8 +448,8 @@ function ChartTab({ series, loading, tf, setTf, smaToggles, setSmaToggles, refet
           <Empty title="No price data" desc="No history available for this symbol." />
         ) : (
           <>
-            <div style={{ height: 380 }}>
-              <ResponsiveContainer>
+            <div style={{ height: 380, width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
                   <defs>
                     <linearGradient id="closeGrad" x1="0" y1="0" x2="0" y2="1">
@@ -489,8 +489,8 @@ function ChartTab({ series, loading, tf, setTf, smaToggles, setSmaToggles, refet
             </div>
 
             {/* RSI subpanel */}
-            <div style={{ height: 110, marginTop: 'var(--space-3)' }}>
-              <ResponsiveContainer>
+            <div style={{ height: 110, marginTop: 'var(--space-3)', width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={series} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
                   <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                   <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }}
@@ -767,8 +767,8 @@ function FinancialsTab({ income, balance, cashflow }) {
           </div>
         </div>
         <div className="card-body">
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer>
+          <div style={{ height: 260, width: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                 <XAxis dataKey="period" tick={{ fill: 'var(--text-faint)', fontSize: 11 }} />
@@ -789,8 +789,8 @@ function FinancialsTab({ income, balance, cashflow }) {
           </div>
         </div>
         <div className="card-body">
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer>
+          <div style={{ height: 260, width: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                 <XAxis dataKey="period" tick={{ fill: 'var(--text-faint)', fontSize: 11 }} />
@@ -896,8 +896,8 @@ function AnalystsTab({ data, last }) {
           </div>
         </div>
         <div className="card-body">
-          <div style={{ height: 220 }}>
-            <ResponsiveContainer>
+          <div style={{ height: 220, width: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={dist} dataKey="value" nameKey="name" cx="50%" cy="50%"
                      innerRadius={50} outerRadius={80} stroke="none">

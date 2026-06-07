@@ -102,7 +102,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           {symbol} - Price History ({days} days)
         </Typography>
         <div style={getChartContainerStyle('tall')}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={500}>
             <LineChart
               data={chartData}
               margin={{ top: 20, right: 30, left: 70, bottom: 80 }}
@@ -157,7 +157,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           Trading Volume
         </Typography>
         <div style={getChartContainerStyle('compact')}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={250}>
             <BarChart
               data={chartData}
               margin={{ top: 20, right: 30, left: 70, bottom: 80 }}
