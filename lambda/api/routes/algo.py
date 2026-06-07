@@ -373,9 +373,17 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
         try:
             # Ensure cognito_sub column exists (migration)
             try:
-                cur.execute("ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255)")
-            except Exception:
-                pass
+                # Check if column exists first
+                cur.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name='algo_positions' AND column_name='cognito_sub'
+                """)
+                if not cur.fetchone():
+                    # Column doesn't exist, create it
+                    cur.execute("ALTER TABLE algo_positions ADD COLUMN cognito_sub VARCHAR(255)")
+                    logger.info("Created cognito_sub column in algo_positions")
+            except Exception as e:
+                logger.warning(f"Migration check failed: {e} - continuing anyway")
 
             # Build WHERE clause with optional user scoping
             user_filter = f"AND p.cognito_sub = %s" if user_id else ""
