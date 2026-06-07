@@ -386,11 +386,15 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 logger.warning(f"Migration check failed: {e} - continuing anyway")
 
             # Build WHERE clause with optional user scoping
+            # If cognito_sub column doesn't exist yet, skip user filtering
             user_filter = f"AND p.cognito_sub = %s" if user_id else ""
             params = (user_id,) if user_id else ()
 
             cur.execute("SET LOCAL statement_timeout = '30000ms'")
-            cur.execute(f"""
+
+            try:
+                # Try query with user_id filter
+                cur.execute(f"""
                 WITH latest_trend AS (
                     SELECT DISTINCT ON (symbol)
                         symbol, weinstein_stage, minervini_trend_score, percent_from_52w_low
@@ -463,7 +467,66 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 WHERE LOWER(p.status) = 'open' {user_filter}
                 ORDER BY p.position_value DESC
             """, params)
-            positions = cur.fetchall()
+                positions = cur.fetchall()
+            except psycopg2.errors.UndefinedColumn as e:
+                # cognito_sub column doesn't exist yet - retry without user filtering
+                if user_id and 'cognito_sub' in str(e):
+                    logger.warning(f"cognito_sub column missing, returning all positions (not filtered by user)")
+                    cur.execute(f"""
+                WITH latest_trend AS (
+                    SELECT DISTINCT ON (symbol)
+                        symbol, weinstein_stage, minervini_trend_score, percent_from_52w_low
+                    FROM trend_template_data
+                    WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                    ORDER BY symbol, date DESC
+                )
+                SELECT
+                    p.position_id, p.symbol, p.quantity, p.avg_entry_price, p.current_price,
+                    p.position_value, p.unrealized_pnl, p.unrealized_pnl_pct, p.status,
+                    p.days_since_entry, p.distribution_day_count, p.target_levels_hit,
+                    p.current_stop_price,
+                    p.current_stop_price AS stop_loss_price,
+                    p.stage_in_exit_plan, p.created_at, p.updated_at,
+                    ot.stop_loss_price AS trade_stop_price,
+                    ot.target_1_price, ot.target_2_price, ot.target_3_price,
+                    COALESCE(cp.sector, 'Unknown') as sector,
+                    lt.weinstein_stage,
+                    lt.minervini_trend_score,
+                    lt.percent_from_52w_low AS pct_from_52w_low,
+                    CASE
+                        WHEN p.avg_entry_price IS NOT NULL
+                             AND p.current_stop_price IS NOT NULL
+                             AND (p.avg_entry_price - p.current_stop_price) > 0
+                        THEN ROUND(
+                            ((p.current_price - p.avg_entry_price) /
+                             (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
+                    END AS r_multiple,
+                    CASE
+                        WHEN p.current_stop_price IS NOT NULL AND p.avg_entry_price > p.current_stop_price
+                        THEN ROUND((p.quantity * (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
+                    END AS open_risk_dollars,
+                    CASE
+                        WHEN p.current_stop_price IS NOT NULL AND p.current_price > 0
+                        THEN ROUND(
+                            ((p.current_price - p.current_stop_price) / p.current_price * 100)::NUMERIC, 2)
+                    END AS distance_to_stop_pct
+                FROM algo_positions p
+                LEFT JOIN LATERAL (
+                    SELECT stop_loss_price, target_1_price, target_2_price, target_3_price
+                    FROM algo_trades at
+                    WHERE p.trade_ids_arr IS NOT NULL AND at.trade_id = ANY(p.trade_ids_arr)
+                    ORDER BY at.id ASC
+                    LIMIT 1
+                ) ot ON true
+                LEFT JOIN company_profile cp ON cp.ticker = p.symbol
+                LEFT JOIN latest_trend lt ON lt.symbol = p.symbol
+                WHERE LOWER(p.status) = 'open'
+                ORDER BY p.position_value DESC
+            """)
+                    positions = cur.fetchall()
+                else:
+                    raise
+
             items = []
             for p in positions:
                 d = dict(p)
@@ -478,8 +541,7 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                 'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
                 'data_freshness': freshness
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch algo positions')
             return error_response(code, error_type, message)
 
