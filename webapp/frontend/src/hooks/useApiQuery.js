@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
 import { ensureObject } from '../utils/dataValidation';
+import dataCache from '../services/dataCache';
 
 /**
  * React Query wrapper with standardized error/loading/data handling.
@@ -24,17 +25,31 @@ export const useApiQuery = (
     gcTime = 10 * 60 * 1000,
     retry = 3,
     enabled = true,
+    cacheKey = null,
     ...restOptions
   } = {}
 ) => {
+  const actualCacheKey = cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
+
   const { data: rawData, isLoading, error, ...rest } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
+      let lastError = null;
       try {
         const response = await queryFn();
-        return extractData(response);
+        const freshData = extractData(response);
+        // Cache successful result for fallback
+        dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+        return freshData;
       } catch (err) {
+        lastError = err;
         console.warn('[useApiQuery] Query failed:', err.message);
+        // Try to return cached data as fallback when all retries exhausted
+        const cachedData = await dataCache.get(actualCacheKey);
+        if (cachedData) {
+          console.info('[useApiQuery] Returning cached fallback for:', actualCacheKey);
+          return { ...cachedData, fromCache: true };
+        }
         throw err;
       }
     },
@@ -123,17 +138,29 @@ export const useApiPaginatedQuery = (
     gcTime = 10 * 60 * 1000,
     retry = 3,
     enabled = true,
+    cacheKey = null,
     ...restOptions
   } = {}
 ) => {
+  const actualCacheKey = cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
+
   const { data: rawData, isLoading, error, ...rest } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
       try {
         const response = await queryFn();
-        return extractPaginatedData(response);
+        const freshData = extractPaginatedData(response);
+        // Cache successful result for fallback
+        dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+        return freshData;
       } catch (err) {
         console.warn('[useApiPaginatedQuery] Query failed:', err.message);
+        // Try to return cached data as fallback when all retries exhausted
+        const cachedData = await dataCache.get(actualCacheKey);
+        if (cachedData) {
+          console.info('[useApiPaginatedQuery] Returning cached fallback for:', actualCacheKey);
+          return { ...cachedData, fromCache: true };
+        }
         throw err;
       }
     },
