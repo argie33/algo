@@ -405,6 +405,7 @@ class AlgoConfig:
     def __repr__(self):
         return f"<AlgoConfig {len(self._config)} keys>"
 
+
 # Global config instance
 _instance = None
 
@@ -449,21 +450,26 @@ def get_db_timeout() -> int:
         return int(env_val)
     return get_config().get('db_connection_timeout_seconds', 15)
 
+
 def get_market_data_timeout() -> int:
     """Get market data API timeout in seconds."""
     return int(os.getenv('MARKET_DATA_TIMEOUT', '10'))
+
 
 def get_alpaca_timeout() -> int:
     """Get Alpaca API timeout in seconds."""
     return int(os.getenv('ALPACA_TIMEOUT', '5'))
 
+
 def get_webhook_timeout() -> int:
     """Get webhook timeout in seconds."""
     return int(os.getenv('WEBHOOK_TIMEOUT', '5'))
 
+
 def get_subprocess_timeout() -> int:
     """Get subprocess timeout in seconds."""
     return int(os.getenv('SUBPROCESS_TIMEOUT', '5'))
+
 
 def get_alpaca_base_url() -> str:
     """Get Alpaca API base URL from unified config.
@@ -473,11 +479,12 @@ def get_alpaca_base_url() -> str:
     from config.alpaca_config import get_alpaca_base_url as get_unified_url
     return get_unified_url()
 
+
 if __name__ == "__main__":
     config = get_config()
     config.initialize_defaults()
     logger.info("\nConfiguration Summary:")
-    logger.info("="*60)
+    logger.info("=" * 60)
     for key, val in sorted(config.to_dict().items()):
         logger.info(f"  {key:.<40} {val}")
-    logger.info("="*60)
+    logger.info("=" * 60)
