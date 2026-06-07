@@ -381,6 +381,18 @@ resource "aws_security_group_rule" "rds_from_bastion" {
   description              = "Allow PostgreSQL from Bastion"
 }
 
+# Explicit security group rule for API Lambda Cognito HTTPS egress
+# (also defined inline in api_lambda SG, but adding explicit rule to ensure it's created)
+resource "aws_security_group_rule" "api_lambda_cognito_https" {
+  type              = "egress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.api_lambda.id
+  description       = "Allow HTTPS to internet for Cognito JWT validation"
+}
+
 # Note: Circuit breaker Lambda SG is created in monitoring module and added here via Terraform
 # This allows the circuit breaker to query portfolio P&L without being in the RDS SG
 
