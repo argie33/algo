@@ -178,7 +178,7 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                             fontWeight: 600,
                           }}
                         >
-                          {parseFloat(stock.change_percent || 0).toFixed(2)}%
+                          {formatPercentageChange(stock.change_percent)}
                         </TableCell>
                         <TableCell>
                           <Chip label={stock.sector || '—'} size="small" variant="outlined" />

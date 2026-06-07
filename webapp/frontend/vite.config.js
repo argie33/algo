@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
             "/api": {
               target: proxyTarget,
               changeOrigin: true,
-              timeout: 35000, // 35s to match Lambda's 30s statement timeout + 5s buffer for network/serialization
+              timeout: 15000, // 15s to match backend's 8s query timeout + 7s buffer for network/serialization. Some queries use SET LOCAL statement_timeout = '8000ms' for performance.
               configure: (proxy, options) => {
               },
             },

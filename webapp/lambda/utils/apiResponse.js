@@ -140,7 +140,20 @@ module.exports = {
 
   // Bad request response
   sendBadRequest: (res, error) => {
-    const errorMsg = typeof error === 'string' ? error : (error?.message || 'Bad request');
+    let errorMsg = typeof error === 'string' ? error : (error?.message || 'Bad request');
+
+    // Sanitize error messages in production to avoid leaking internal details
+    if (process.env.NODE_ENV === 'production') {
+      const sensitivePatterns = [
+        { pattern: /column|table|database|schema/i },
+        { pattern: /password|secret|token|api[_-]key/i },
+        { pattern: /\/[a-z]/i }
+      ];
+      if (sensitivePatterns.some(p => p.pattern.test(errorMsg))) {
+        errorMsg = 'Invalid request';
+      }
+    }
+
     return res.status(400).json({
       success: false,
       statusCode: 400,
