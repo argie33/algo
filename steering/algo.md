@@ -100,6 +100,12 @@ If you need to rebuild the schema:
 **Loaders:** 37 total (9 core via Step Functions, 28 supporting via EventBridge). Core loaders: stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily, trend_template_data, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores.
 
 **LOADER_PARALLELISM:** All loaders read thread-pool concurrency from the `LOADER_PARALLELISM` environment variable (set by Terraform ECS task definition). CLI `--parallelism` arg falls back to the env var. Parallelism tuned per loader with RDS Proxy multiplexing:
+- **stock_prices_daily (SERIAL EXECUTION)**: parallelism=1 (ISSUE #RATE_LIMIT_429 fix)
+  - Reduced from parallelism=6 to eliminate yfinance 429 rate limiting errors
+  - Root cause: 6 concurrent threads created contention on shared NAT gateway IP
+  - Solution: serial execution prevents rate limit cascade and timeout failures
+  - Execution time: 5000 symbols / 30 batch_size * 2s interval = ~334s (5.5 min) — fits comfortably in 7200s timeout
+  - No performance impact: 5.5 min << 85-min EOD window
 - **Critical path loaders**: technical_data_daily (parallelism=2), buy_sell_daily (parallelism=3), signal_quality_scores (parallelism=2), swing_trader_scores (parallelism=2)
 - **Analytics loaders**: company_profile (parallelism=2), analyst_sentiment (parallelism=2), stability_metrics (parallelism=2), value_metrics (parallelism=2), growth_metrics (parallelism=2), quality_metrics (parallelism=2)
 - **Small loaders**: parallelism=1 to avoid rate limiting or because data size is small
