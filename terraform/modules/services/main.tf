@@ -395,6 +395,31 @@ data "aws_cloudfront_origin_request_policy" "managed_all_viewer_except_host" {
   name = "Managed-AllViewerExceptHostHeader"
 }
 
+# Response headers policy to forward CORS headers from API Gateway to client
+resource "aws_cloudfront_response_headers_policy" "api_cors" {
+  count   = var.cloudfront_enabled ? 1 : 0
+  name    = "${var.project_name}-api-cors-${var.environment}"
+  comment = "Forward CORS headers from API Gateway responses to CloudFront clients"
+
+  cors_config {
+    access_control_allow_credentials = true
+    access_control_allow_headers {
+      items = ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
+    }
+    access_control_allow_methods {
+      items = ["GET", "HEAD", "HTTP", "OPTIONS", "POST", "PUT", "DELETE", "PATCH"]
+    }
+    access_control_allow_origins {
+      items = ["*"]
+    }
+    access_control_expose_headers {
+      items = ["Content-Length", "Content-Type"]
+    }
+    access_control_max_age_override = 3600
+    origin_override                  = true
+  }
+}
+
 # OAC for CloudFront S3 origin - securely signs requests to S3
 resource "aws_cloudfront_origin_access_control" "frontend" {
   count                             = var.cloudfront_enabled ? 1 : 0
@@ -446,9 +471,10 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "APIGateway"
     compress         = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.managed_caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.managed_all_viewer_except_host.id
-    viewer_protocol_policy   = "https-only"
+    cache_policy_id            = data.aws_cloudfront_cache_policy.managed_caching_disabled.id
+    origin_request_policy_id   = data.aws_cloudfront_origin_request_policy.managed_all_viewer_except_host.id
+    response_headers_policy_id = var.cloudfront_enabled ? aws_cloudfront_response_headers_policy.api_cors[0].id : null
+    viewer_protocol_policy     = "https-only"
   }
 
   ordered_cache_behavior {
