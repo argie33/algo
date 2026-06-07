@@ -132,27 +132,29 @@ class OptimalLoader(ABC):
             with DatabaseContext("write") as cur:
                 if status == "RUNNING":
                     # Mark loader as running, preserve prior stats if any
+                    # ISSUE #2 FIX: Set execution_started to track when loader began
                     cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() "
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() "
                         "WHERE table_name = %s",
                         (status, self.table_name)
                     )
                     if cur.rowcount == 0:
                         # First run, insert entry
                         cur.execute(
-                            "INSERT INTO data_loader_status (table_name, status, last_updated) "
-                            "VALUES (%s, %s, NOW())",
+                            "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) "
+                            "VALUES (%s, %s, NOW(), NOW())",
                             (self.table_name, status)
                         )
-                    logger.debug(f"[{self.table_name}] Status updated to RUNNING")
+                    logger.debug(f"[{self.table_name}] Status updated to RUNNING, execution_started recorded")
                 elif status == "COMPLETED":
                     # Mark loader as completed with current timestamp
+                    # ISSUE #2 FIX: Set execution_completed to detect post-completion crashes (>10 min old = likely crash)
                     cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() "
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() "
                         "WHERE table_name = %s",
                         (status, self.table_name)
                     )
-                    logger.debug(f"[{self.table_name}] Status updated to COMPLETED")
+                    logger.debug(f"[{self.table_name}] Status updated to COMPLETED, execution_completed timestamp recorded")
         except Exception as e:
             logger.warning(f"[{self.table_name}] Failed to update status to {status}: {e}")
 
