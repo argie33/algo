@@ -1036,8 +1036,8 @@ data "aws_iam_policy_document" "lambda_algo" {
     ]
   }
 
-  # ECS - OOM prevention: list and stop long-running analytics loaders (>2h)
-  # ListTasks is a service-level action requiring "*" resource, other actions scoped to cluster
+  # ECS - Failsafe loader trigger + OOM prevention: run, list, describe, and stop ECS tasks
+  # ListTasks is a service-level action requiring "*" resource, other actions scoped to cluster/task
   statement {
     sid    = "ECSListTasks"
     effect = "Allow"
@@ -1060,6 +1060,19 @@ data "aws_iam_policy_document" "lambda_algo" {
   }
 
   statement {
+    sid    = "ECSRunTask"
+    effect = "Allow"
+
+    actions = [
+      "ecs:RunTask"
+    ]
+
+    resources = [
+      "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-*:*"
+    ]
+  }
+
+  statement {
     sid    = "ECSTaskManagement"
     effect = "Allow"
 
@@ -1070,6 +1083,21 @@ data "aws_iam_policy_document" "lambda_algo" {
 
     resources = [
       "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task/${var.project_name}-cluster/*"
+    ]
+  }
+
+  # IAM PassRole for ECS task execution
+  statement {
+    sid    = "IAMPassRoleECS"
+    effect = "Allow"
+
+    actions = [
+      "iam:PassRole"
+    ]
+
+    resources = [
+      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-ecs-task-execution-${var.environment}",
+      "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-ecs-task-${var.environment}"
     ]
   }
 }
