@@ -363,13 +363,13 @@ def _get_yield_curve_full(cur) -> Dict:
 
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f'Schema not available for yield curve: {e}')
-            return json_response(200, {'currentCurve': {}, 'spreads': {}, 'isInverted': False, 'history': {}})
+            return error_response(503, 'schema_error', 'Database schema mismatch or migration issue')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}')
-            return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
+            return error_response(503, 'connection_error', 'Database temporarily unavailable.')
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}')
-            return error_response(503, 'service_unavailable', 'Database error while fetching yield curve.')
+            return error_response(503, 'query_error', 'Database error while fetching yield curve.')
         except Exception as e:
             logger.error(f'Unexpected error in yield curve: {e}')
-            return json_response(200, {'currentCurve': {}, 'spreads': {}, 'isInverted': False, 'history': {}})
+            return error_response(500, 'internal_error', 'An unexpected error occurred while processing your request')

@@ -1825,16 +1825,16 @@ def _get_markets(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable: {e}', extra={'operation': 'get markets'})
-            return json_response(200, {'success': False, 'current': None, 'history': [], 'message': 'Data not available'})
+            return error_response(503, 'schema_error', 'Database schema mismatch or migration issue')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}', extra={'operation': 'get markets'})
-            return json_response(200, {'success': False, 'current': None, 'history': [], 'message': 'Database unavailable'})
+            return error_response(503, 'connection_error', 'RDS/database connection failed')
         except psycopg2.DatabaseError as e:
             logger.error(f'Database error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
-            return json_response(200, {'success': False, 'current': None, 'history': [], 'message': 'Database error'})
+            return error_response(503, 'query_error', 'Database query execution failed')
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
-            return json_response(200, {'success': False, 'current': None, 'history': [], 'message': 'Failed to fetch markets data'})
+            return error_response(500, 'internal_error', 'An unexpected error occurred while processing your request')
 
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
