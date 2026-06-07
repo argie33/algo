@@ -75,14 +75,15 @@ export function DataSection({
  * TruncatedList — Display a list with "X of Y" indicator and expand option
  */
 export function TruncatedList({
-  items,
+  items = [],
   limit,
   renderItem,
   emptyMessage = 'No items',
   header,
 }) {
-  const displayed = items.slice(0, limit);
-  const total = items.length;
+  const itemsArray = Array.isArray(items) ? items : [];
+  const displayed = itemsArray.slice(0, limit);
+  const total = itemsArray.length;
   const hasMore = total > limit;
 
   return (

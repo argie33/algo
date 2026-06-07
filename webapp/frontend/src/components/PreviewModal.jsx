@@ -23,11 +23,13 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
         entry_price: parseFloat(entryPrice),
         stop_loss_price: parseFloat(stopPrice)
       });
-      if (!response.success) {
-        setError(response.error || 'Failed');
+      const data = response.data;
+      // Check for error responses (success: false indicates API error)
+      if (data?.success === false) {
+        setError(data?.error || 'Failed');
         return;
       }
-      setPreview(response.preview);
+      setPreview(data?.preview || data);
     } catch (err) {
       setError(err.message || 'Failed');
     } finally {
@@ -51,8 +53,15 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
       };
 
       const response = await api.post('/api/trades/manual', tradeData);
+      const data = response.data;
 
-      if (response?.success || response?.data) {
+      // Check for error responses (success: false indicates API error)
+      if (data?.success === false) {
+        setError(data?.error || 'Failed to create trade');
+        return;
+      }
+
+      if (data?.id || data?.trade_id) {
         setSuccess(true);
         if (onConfirm) {
           onConfirm({
@@ -60,12 +69,12 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
             entry_price: parseFloat(entryPrice),
             stop_loss_price: parseFloat(stopPrice),
             shares: parseFloat(shares || preview.shares),
-            trade_id: response.data?.id
+            trade_id: data?.id || data?.trade_id
           });
         }
         setTimeout(handleClose, 2000);
       } else {
-        setError(response?.error || 'Failed to create trade');
+        setError(data?.error || 'Failed to create trade');
       }
     } catch (err) {
       setError(err.message || 'Failed to create trade');

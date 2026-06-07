@@ -25,7 +25,7 @@ const MarketIndices = ({ data, isLoading, error }) => {
   }
 
   // Display actual data from backend
-  if (data && Array.isArray(data) && data.length > 0) {
+  if (Array.isArray(data) && data.length > 0) {
     return (
       <Grid container spacing={3}>
         {data.map((index) => (

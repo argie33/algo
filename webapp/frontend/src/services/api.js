@@ -78,23 +78,30 @@ const CircuitBreaker = {
   failureCount: 0,
   successCount: 0,
   lastFailureTime: 0,
-  FAILURE_THRESHOLD: 25, // Open circuit after 25 consecutive failures (tolerates transient errors)
-  SUCCESS_THRESHOLD: 2, // Close circuit after 2 successes in half-open state (faster recovery)
-  RECOVERY_TIMEOUT: 5000, // 5 seconds before attempting recovery (better UX, was blocking for 15s)
+  openAttempts: 0, // Track recovery attempts for exponential backoff
+  FAILURE_THRESHOLD: 50, // Open circuit after 50 consecutive failures (tolerate transient spikes)
+  SUCCESS_THRESHOLD: 3, // Close circuit after 3 successes in half-open state (ensure stability)
+  RECOVERY_TIMEOUT_BASE: 15000, // Start at 15 seconds before recovery attempt
+  RECOVERY_TIMEOUT_MAX: 120000, // Cap at 2 minutes between attempts
 };
 
 const checkCircuitBreaker = () => {
   const now = Date.now();
 
   if (CircuitBreaker.state === 'OPEN') {
-    // If enough time has passed, attempt recovery
-    if (now - CircuitBreaker.lastFailureTime > CircuitBreaker.RECOVERY_TIMEOUT) {
+    // Calculate exponential backoff: base × 2^(attempts-1), capped at max
+    const backoffDelay = Math.min(
+      CircuitBreaker.RECOVERY_TIMEOUT_BASE * Math.pow(2, CircuitBreaker.openAttempts - 1),
+      CircuitBreaker.RECOVERY_TIMEOUT_MAX
+    );
+
+    if (now - CircuitBreaker.lastFailureTime > backoffDelay) {
       CircuitBreaker.state = 'HALF_OPEN';
       CircuitBreaker.successCount = 0;
-      console.warn('[Circuit Breaker] Attempting recovery (HALF_OPEN state)');
+      console.warn(`[Circuit Breaker] Attempting recovery (HALF_OPEN state, attempt ${CircuitBreaker.openAttempts})`);
     } else {
-      // Still in failure window, reject immediately
-      throw new Error('API service temporarily unavailable (circuit breaker OPEN). Retrying in a moment...');
+      const retryIn = Math.ceil((backoffDelay - (now - CircuitBreaker.lastFailureTime)) / 1000);
+      throw new Error(`API service temporarily unavailable (circuit breaker OPEN). Retrying in ${retryIn}s...`);
     }
   }
 };
@@ -105,6 +112,7 @@ const recordCircuitBreakerSuccess = () => {
     if (CircuitBreaker.successCount >= CircuitBreaker.SUCCESS_THRESHOLD) {
       CircuitBreaker.state = 'CLOSED';
       CircuitBreaker.failureCount = 0;
+      CircuitBreaker.openAttempts = 0; // Reset backoff on successful recovery
       console.log('[Circuit Breaker] Recovered (CLOSED state)');
     }
   } else if (CircuitBreaker.state === 'CLOSED') {
@@ -118,7 +126,8 @@ const recordCircuitBreakerFailure = () => {
 
   if (CircuitBreaker.failureCount >= CircuitBreaker.FAILURE_THRESHOLD) {
     CircuitBreaker.state = 'OPEN';
-    console.error(`[Circuit Breaker] Too many failures (${CircuitBreaker.failureCount}). Opening circuit.`);
+    CircuitBreaker.openAttempts++; // Increment for exponential backoff calculation
+    console.error(`[Circuit Breaker] Too many failures (${CircuitBreaker.failureCount}). Opening circuit. Will retry in ${CircuitBreaker.RECOVERY_TIMEOUT_BASE / 1000}s...`);
   }
 };
 
@@ -233,9 +242,12 @@ try {
 
         // Record failure for circuit breaker
         const status = error.response?.status;
+        const isNetworkError = !error.response;
+        const isTimeout = error.code === 'ECONNABORTED';
+
         if (!originalRequest || !originalRequest._cbRecorded) {
-          // Only record once per request
-          if (status >= 500 || (status === 429 && CircuitBreaker.state === 'CLOSED')) {
+          // Record failures for: 5xx errors, rate limits, network errors, and timeouts
+          if (status >= 500 || (status === 429 && CircuitBreaker.state === 'CLOSED') || isNetworkError || isTimeout) {
             recordCircuitBreakerFailure();
           }
           if (originalRequest) {

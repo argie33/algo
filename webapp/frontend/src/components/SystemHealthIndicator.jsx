@@ -21,6 +21,15 @@ export function SystemHealthIndicator() {
         if (cancelled) return;
 
         const data = response.data?.data || response.data;
+
+        // Check for error responses (success: false indicates API error)
+        if (data?.success === false) {
+          console.debug('[SystemHealthIndicator] Health check returned error:', data?.error);
+          setIsDegraded(false);
+          setSignalFreshness(null);
+          return;
+        }
+
         setIsDegraded(data?.degraded_mode_active === true);
         setSignalFreshness(data?.freshness);
 

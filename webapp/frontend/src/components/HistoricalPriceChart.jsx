@@ -42,7 +42,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           api.getStockPrices?.(symbol, days) ||
           Promise.resolve({ data: [] }));
 
-        const data = response?.data || [];
+        const data = Array.isArray(response?.data) ? response.data : [];
 
         // Transform data for chart
         const transformed = data.map((row) => ({

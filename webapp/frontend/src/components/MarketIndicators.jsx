@@ -26,7 +26,7 @@ const MarketIndicators = ({ data, isLoading, error }) => {
     return <LinearProgress />;
   }
 
-  if (error || !data?.data) {
+  if (error || !data) {
     return (
       <Alert severity="error">
         Unable to load market indicators data. {error?.message}
@@ -34,10 +34,10 @@ const MarketIndicators = ({ data, isLoading, error }) => {
     );
   }
 
-  const indices = data.data.indices || [];
+  const indices = Array.isArray(data?.indices) ? data.indices : [];
 
   // Handle case where indices might be empty
-  if (!Array.isArray(indices) || indices.length === 0) {
+  if (indices.length === 0) {
     return (
       <Alert severity="info">
         No market indicator data available yet.

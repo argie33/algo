@@ -38,7 +38,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
     return <LinearProgress />;
   }
 
-  if (error || !data?.data) {
+  if (error || !data) {
     return (
       <Alert severity="error">
         Unable to load market internals data. {error?.message}
@@ -52,7 +52,7 @@ const MarketInternals = ({ data, isLoading, error }) => {
     market_extremes,
     _overextension_indicator,
     _positioning_metrics,
-  } = data.data;
+  } = data;
 
   // Color helpers
   const getSignalColor = (signal) => {

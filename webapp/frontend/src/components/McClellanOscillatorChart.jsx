@@ -56,8 +56,8 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
   const rawCurrentValue = data.current_value || 0;
   const currentValue = typeof rawCurrentValue === 'number' ? rawCurrentValue : parseFloat(rawCurrentValue) || 0;
   const isBullish = currentValue > 0;
-  const chartData = data.recent_data ? data.recent_data.slice(-20).map(item => ({
-    date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+  const chartData = Array.isArray(data.recent_data) ? data.recent_data.slice(-20).map(item => ({
+    date: item.date ? new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—",
     value: item.advance_decline_line || 0,
   })) : [];
 

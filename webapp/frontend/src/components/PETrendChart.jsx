@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { _Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { Box, Card, CardContent, Typography, CircularProgress, Alert } from "@mui/material";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api";
 import { formatCurrency } from "../utils/formatters";
@@ -9,19 +9,16 @@ export default function PETrendChart({ sectorName, industryName }) {
   const name = sectorName || industryName;
   const endpoint = sectorName ? `sectors/${sectorName}/trend` : `industries/${industryName}/trend`;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["trend", name],
-    queryFn: async () => {
-      const response = await api.get(`/api/${endpoint}?days=365`);
-      return response.data.data;
-    },
-    enabled: !!name,
-  });
+  const { data, loading: isLoading, error } = useApiQuery(
+    ["trend", name],
+    () => api.get(`/api/${endpoint}?days=365`),
+    { enabled: !!name }
+  );
 
   if (!name) return null;
   if (isLoading) return <CircularProgress size={30} />;
 
-  const trendData = data?.trendData || [];
+  const trendData = Array.isArray(data?.trendData) ? data.trendData : [];
   if (error || trendData.length === 0) {
     return <Alert severity="info">No trend data available</Alert>;
   }

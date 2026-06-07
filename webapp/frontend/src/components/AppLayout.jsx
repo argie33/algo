@@ -102,7 +102,12 @@ export default function AppLayout({ children }) {
     const fetchStatus = async () => {
       try {
         const marketData = await api.get('/api/algo/markets').catch((err) => {
-          console.debug('[AppLayout] Market fetch error:', err?.response?.status);
+          console.error('[AppLayout] Market fetch failed:', {
+            message: err?.message,
+            code: err?.code,
+            status: err?.response?.status,
+            endpoint: '/api/algo/markets'
+          });
           return null;
         });
 
@@ -112,15 +117,32 @@ export default function AppLayout({ children }) {
         } catch (err) {
           // Suppress 403 notifications errors (auth) - not critical for UI
           if (err?.response?.status !== 403) {
-            console.warn('[AppLayout] Notifications fetch error:', err?.message);
+            console.error('[AppLayout] Notifications fetch failed:', {
+              message: err?.message,
+              code: err?.code,
+              status: err?.response?.status,
+              endpoint: '/api/algo/notifications'
+            });
           }
         }
 
         if (cancelled) return;
-        setExposure(marketData?.data?.current || null);
-        setNotifications(notifData?.data?.items || []);
+
+        // Check for error responses (success: false indicates API error)
+        const marketContent = marketData?.data?.data || marketData?.data;
+        const marketExposure = marketContent?.success === false ? null : (marketContent?.current || null);
+
+        const notifContent = notifData?.data?.data || notifData?.data;
+        const notifItems = notifContent?.success === false ? [] : (notifContent?.items || []);
+
+        setExposure(marketExposure);
+        setNotifications(notifItems);
       } catch (err) {
-        console.error('[AppLayout] Status fetch failed:', err?.message || err);
+        console.error('[AppLayout] Status fetch failed:', {
+          message: err?.message,
+          code: err?.code,
+          status: err?.response?.status
+        });
       }
     };
     fetchStatus();

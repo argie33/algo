@@ -18,7 +18,12 @@ export function APIHealthCheck({ onHealthy, onUnhealthy, children }) {
         setIsHealthy(true);
         onHealthy?.();
       } catch (error) {
-        console.warn('API health check failed:', error.message);
+        console.error('[APIHealthCheck] Health check failed:', {
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          isNetworkError: !error.response
+        });
         setIsHealthy(false);
         onUnhealthy?.(error);
       } finally {

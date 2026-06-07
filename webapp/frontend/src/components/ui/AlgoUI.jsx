@@ -194,12 +194,12 @@ export const FactorBar = ({ label, pts, max, sub, _expanded, onToggle }) => (
 // ============================================================================
 // DATA TABLE — pre-styled table for data rows
 // ============================================================================
-export const DataTable = ({ columns, rows, emptyMessage, maxHeight }) => (
+export const DataTable = ({ columns = [], rows = [], emptyMessage, maxHeight }) => (
   <TableContainer sx={maxHeight ? { maxHeight } : {}}>
     <Table size="small" stickyHeader={!!maxHeight}>
       <TableHead>
         <TableRow>
-          {columns.map((col) => (
+          {(Array.isArray(columns) ? columns : []).map((col) => (
             <TableCell
               key={col.key || col.label}
               align={col.align || 'left'}
@@ -211,7 +211,7 @@ export const DataTable = ({ columns, rows, emptyMessage, maxHeight }) => (
         </TableRow>
       </TableHead>
       <TableBody>
-        {(rows || []).length === 0 ? (
+        {(Array.isArray(rows) ? rows : []).length === 0 ? (
           <TableRow>
             <TableCell colSpan={columns.length} sx={{ ...comp.tdCell, textAlign: 'center', py: 4 }}>
               <Typography sx={{ color: C.textDim, fontSize: F.sm }}>
@@ -219,11 +219,11 @@ export const DataTable = ({ columns, rows, emptyMessage, maxHeight }) => (
               </Typography>
             </TableCell>
           </TableRow>
-        ) : rows.map((row, i) => (
+        ) : (Array.isArray(rows) ? rows : []).map((row, i) => (
           <TableRow key={row._key || i} hover sx={{
             '&:hover': { bgcolor: `${C.cardAlt} !important` },
           }}>
-            {columns.map((col) => (
+            {(Array.isArray(columns) ? columns : []).map((col) => (
               <TableCell
                 key={col.key || col.label}
                 align={col.align || 'left'}
