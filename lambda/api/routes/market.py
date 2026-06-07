@@ -827,7 +827,6 @@ def _get_correlation_matrix(cur) -> Dict:
                         'diversification_benefit': diversification_benefit,
                         'portfolio_stability': portfolio_stability
                     }
-                },
                 }
             }, data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
@@ -933,7 +932,6 @@ def _get_cap_distribution(cur) -> Dict:
                     'largest_cap': max((s['market_cap'] for s in stocks), default=0),
                     'smallest_cap': min((s['market_cap'] for s in stocks if s['market_cap'] > 0), default=0),
                     'category_distribution': category_dist
-                },
                 }
             }, data_freshness=freshness)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
