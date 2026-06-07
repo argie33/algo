@@ -371,6 +371,12 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
         """Get current open positions enriched with targets, sector, stage, and computed risk fields (scoped to user if user_id provided)."""
         try:
+            # Ensure cognito_sub column exists (migration)
+            try:
+                cur.execute("ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS cognito_sub VARCHAR(255)")
+            except Exception:
+                pass
+
             # Build WHERE clause with optional user scoping
             user_filter = f"AND p.cognito_sub = %s" if user_id else ""
             params = (user_id,) if user_id else ()
