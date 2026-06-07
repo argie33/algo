@@ -254,7 +254,7 @@ class MarketExposure:
                 factors['sector_rotation'] = {'error': str(e)[:60]}
 
             try:
-                eco = self._economic_regime_overlay(eval_date)
+                eco = self._economic_regime_overlay(eval_date, cur)
                 eco_penalty = eco.get('penalty', 0)
                 eco_cap = eco.get('cap', 100.0)
                 if eco_penalty != 0 or eco_cap < 100.0:
@@ -800,7 +800,7 @@ class MarketExposure:
             'widening_rapidly': widening_1pp,
         }
 
-    def _economic_regime_overlay(self, eval_date):
+    def _economic_regime_overlay(self, eval_date, cur):
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
 
         Inspired by Yardeni/Slok/Goldman FCI methodology: when macro cycle signals
