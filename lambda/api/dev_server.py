@@ -14,8 +14,15 @@ from urllib.parse import urlparse, parse_qs
 import psycopg2
 import psycopg2.extras
 
+# DEVELOPMENT MODE: Enable dev token authentication
+# Allows frontend to authenticate with Bearer dev-admin tokens without Cognito
+os.environ['DEV_BYPASS_AUTH'] = 'true'
+os.environ['ENVIRONMENT'] = 'development'
+
 # Add lambda/api to path so we can import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+print(f"[DEV_SERVER_INIT] DEV_BYPASS_AUTH={os.environ.get('DEV_BYPASS_AUTH')}", flush=True)
 
 import lambda_function
 

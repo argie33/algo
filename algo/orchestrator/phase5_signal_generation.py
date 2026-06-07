@@ -237,9 +237,32 @@ def run(
     Returns:
         PhaseResult with status 'ok', data containing qualified trades
     """
+    # ISSUE #10 FIX: Provide detailed logging + notification when halt flag blocks signals
     if check_halt_flag():
+        logger.critical(
+            "[PHASE_5_HALT_DECISION] Phase 5 signal generation HALTED by external halt flag. "
+            "This typically means Phase 1 detected stale/missing data and triggered a safety halt. "
+            "No trades will be generated. Check CloudWatch Phase 1 logs for root cause."
+        )
+
+        # Send notification so user knows why no trades happened
+        try:
+            from algo.algo_alerts import AlertManager
+            alerts = AlertManager()
+            alerts.send_position_alert(
+                'TRADING_HALTED',
+                'PHASE5_SIGNAL_HALT',
+                'Phase 5 signal generation halted by halt flag. '
+                'This is a safety mechanism when data quality is degraded. '
+                'Check CloudWatch Phase 1 logs for root cause.',
+                {'phase': 5, 'action': 'signal_generation_blocked'}
+            )
+        except Exception as alert_err:
+            logger.warning(f"Could not send halt flag alert: {alert_err}")
+
         return PhaseResult(
-            5, "signal_generation", "halted", {}, True, "Halt flag detected"
+            5, "signal_generation", "halted", {}, True,
+            "Halt flag detected - data quality degraded or stale (see logs for Phase 1 details)"
         )
 
     logger.info(f"\n{'='*70}")

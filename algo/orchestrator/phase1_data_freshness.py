@@ -753,6 +753,103 @@ def _trigger_loader_failsafe(loader_name: str, verbose: bool = False, wait_timeo
     """
     return _trigger_loader_failsafe_with_verification(loader_name, verbose, poll_timeout_sec=240)
 
+def _get_table_names_for_loader(loader_name: str) -> list:
+    """Map ECS loader name to possible data_loader_status table names.
+
+    Some loaders update multiple tables. This returns possible table names for queries.
+    """
+    mapping = {
+        'stock_prices_daily': ['price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily'],
+        'technical_data_daily': ['technical_data_daily'],
+        'market_health_daily': ['market_health_daily'],
+        'buy_sell_daily': ['buy_sell_daily'],
+        'signal_quality_scores': ['signal_quality_scores'],
+        'swing_trader_scores': ['swing_trader_scores'],
+    }
+    if loader_name in mapping:
+        return mapping[loader_name]
+    base_name = loader_name.replace('_daily', '')
+    return [loader_name, base_name]
+
+def _calculate_optimal_grace_period(loader_name: str, verbose: bool = False) -> Optional[int]:
+    """Calculate optimal grace period from historical loader execution times.
+
+    ISSUE #7 FIX: Auto-tune grace period instead of fixed 240-min config.
+    Loader times vary wildly (160-300+ min), so use actual historical data.
+
+    Strategy:
+    - Query last 30 days of completed loader runs
+    - Calculate 95th percentile of execution times
+    - Add 30-minute safety margin
+    - Respect hard cap 390 min, minimum 180 min
+    """
+    try:
+        from datetime import datetime as dt_module, timezone
+        with DatabaseContext("read") as cur:
+            cache_key = f'grace_period_auto_{loader_name}'
+            # Check cache age
+            try:
+                cur.execute(
+                    "SELECT value, EXTRACT(EPOCH FROM (NOW() - updated_at)) / 3600 as age_hours "
+                    "FROM algo_config WHERE key = %s",
+                    (cache_key,)
+                )
+                cached_result = cur.fetchone()
+                if cached_result and cached_result[1] and cached_result[1] < 23:
+                    if verbose:
+                        logger.debug(f"[GRACE-PERIOD-AUTO] Cached value for {loader_name}: {cached_result[0]}m (age={cached_result[1]:.1f}h)")
+                    return None  # Use cached value from config
+            except Exception:
+                pass
+
+            # Get execution times from last 30 days
+            table_names = _get_table_names_for_loader(loader_name)
+            all_times = []
+
+            for table_name in table_names:
+                try:
+                    cur.execute("""
+                        SELECT EXTRACT(EPOCH FROM (execution_completed - execution_started)) / 60
+                        FROM data_loader_status
+                        WHERE table_name = %s AND status = 'COMPLETED'
+                          AND execution_completed IS NOT NULL AND execution_started IS NOT NULL
+                          AND execution_completed > NOW() - INTERVAL '30 days'
+                        LIMIT 30
+                    """, (table_name,))
+                    all_times.extend([row[0] for row in cur.fetchall() if row[0] and row[0] > 0])
+                except Exception:
+                    pass
+
+            if not all_times or len(all_times) < 5:
+                if verbose:
+                    logger.debug(f"[GRACE-PERIOD-AUTO] Insufficient data for {loader_name} ({len(all_times)} samples)")
+                return None
+
+            # Calculate 95th percentile
+            all_times.sort()
+            idx_95 = max(0, int(len(all_times) * 0.95) - 1)
+            percentile_95 = all_times[idx_95]
+            final_grace = max(180, min(int(percentile_95 + 30), 390))
+
+            if verbose:
+                logger.info(f"[GRACE-PERIOD-AUTO] {loader_name}: p95={percentile_95:.0f}m → grace={final_grace}m")
+
+        # Cache the value
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "INSERT INTO algo_config (key, value, updated_at) VALUES (%s, %s, NOW()) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+                    (cache_key, str(final_grace))
+                )
+        except Exception as cache_err:
+            logger.debug(f"[GRACE-PERIOD-AUTO] Could not cache: {cache_err}")
+
+        return final_grace
+    except Exception as err:
+        logger.debug(f"[GRACE-PERIOD-AUTO] Error: {err}")
+        return None
+
 def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader_name: str = 'stock_prices_daily') -> Optional[float]:
     """Check if a previously-triggered failsafe is within grace period window.
 
