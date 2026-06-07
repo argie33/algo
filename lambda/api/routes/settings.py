@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 import json
 import logging
 from typing import Dict
-from .utils import error_response, json_response, handle_db_error
+from .utils import error_response, json_response, handle_db_error, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +38,11 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
         return error_response(401, 'unauthorized', 'User identity required')
 
     try:
-        cur.execute("""
+        rows = execute_with_timeout(cur, """
             SELECT theme, notifications, preferences
             FROM user_dashboard_settings WHERE user_id = %s
-        """, (user_id,))
-        row = cur.fetchone()
+        """, (user_id,), timeout_sec=5)
+        row = rows[0] if rows else None
         if row:
             try:
                 stored = {

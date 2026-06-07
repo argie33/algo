@@ -3,7 +3,7 @@ import psycopg2, psycopg2.extras, psycopg2.errors
 from typing import Dict
 import logging, re
 from datetime import datetime, timezone
-from .utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness
+from .utils import error_response, json_response, list_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
 from collections import defaultdict
 from time import time
 
@@ -217,17 +217,16 @@ def _get_submissions(cur, params: Dict) -> Dict:
     try:
         limit = safe_limit(params.get('limit', [100])[0] if params else 100)
         try:
-            cur.execute("""
+            rows = execute_with_timeout(cur, """
                 SELECT id, name, email, subject, message, phone, submitted_at
                 FROM contact_submissions ORDER BY submitted_at DESC LIMIT %s
-            """, (limit,))
+            """, (limit,), timeout_sec=8)
         except psycopg2.errors.UndefinedColumn:
             cur.connection.rollback()
-            cur.execute("""
+            rows = execute_with_timeout(cur, """
                 SELECT id, name, email, subject, message, submitted_at
                 FROM contact_submissions ORDER BY submitted_at DESC LIMIT %s
-            """, (limit,))
-        rows = cur.fetchall()
+            """, (limit,), timeout_sec=8)
         return list_response(rows, total=len(rows))
     except psycopg2.errors.UndefinedTable:
         logger.error("contact_submissions table missing; unable to list submissions")
