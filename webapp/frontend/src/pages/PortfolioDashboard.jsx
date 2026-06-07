@@ -602,7 +602,7 @@ function EquityCurve({ series, loading }) {
                        tickFormatter={fmtMoneyShort} width={64} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [fmtMoney(v), 'Value']} />
                 <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2}
-                      fill="url(#equityGrad)" />
+                      fill="url(#equityGrad)" connectNulls={true} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -656,7 +656,7 @@ function DrawdownChart({ series, loading }) {
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}%`, 'Drawdown']} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Area type="monotone" dataKey="dd" stroke="var(--danger)" strokeWidth={1.5}
-                      fill="url(#ddGrad)" />
+                      fill="url(#ddGrad)" connectNulls={true} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

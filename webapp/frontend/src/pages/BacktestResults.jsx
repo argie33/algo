@@ -287,7 +287,7 @@ function RunDetail({ detail, onBack }) {
                   <XAxis dataKey="date" stroke="var(--text-3)" fontSize={11} />
                   <YAxis stroke="var(--text-3)" fontSize={11} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Area type="monotone" dataKey="equity" stroke="var(--brand)" strokeWidth={2}
+                  <Area type="monotone" dataKey="equity" stroke="var(--brand)" strokeWidth={2} connectNulls={true}
                         fill="url(#bkEq)" />
                 </AreaChart>
               </ResponsiveContainer>

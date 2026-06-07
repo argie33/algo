@@ -628,7 +628,7 @@ function ExposureHistory({ markets }) {
               <ReferenceLine y={60} stroke={C.brand2}  strokeDasharray="3 3" label={{ value: 'Healthy',   fill: C.brand2,  fontSize: 10, position: 'right' }} />
               <ReferenceLine y={40} stroke={C.amber}   strokeDasharray="3 3" label={{ value: 'Pressure',  fill: C.amber,   fontSize: 10, position: 'right' }} />
               <ReferenceLine y={20} stroke={C.danger}  strokeDasharray="3 3" label={{ value: 'Caution',   fill: C.danger,  fontSize: 10, position: 'right' }} />
-              <Area type="monotone" dataKey="exposure" stroke={C.brand2} strokeWidth={2} fill="url(#expGrad)" />
+              <Area type="monotone" dataKey="exposure" stroke={C.brand2} strokeWidth={2} fill="url(#expGrad)" connectNulls={true} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -904,7 +904,7 @@ function InternalsCard({ data, loading }) {
                 <YAxis tick={{ fill: C.textFaint, fontSize: 10 }} width={60} tickFormatter={v => Number(v).toLocaleString('en-US')} />
                 <ReferenceLine y={0} stroke={C.border2} />
                 <RTooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 8, fontSize: 11, color: C.text }} />
-                <Area type="monotone" dataKey="value" stroke={C.brand2} strokeWidth={1.5} fill="url(#mcGrad)" />
+                <Area type="monotone" dataKey="value" stroke={C.brand2} strokeWidth={1.5} fill="url(#mcGrad)" connectNulls={true} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1697,7 +1697,7 @@ function SentimentCompositeCard({ markets, sentiment, loading }) {
                           </linearGradient>
                         </defs>
                         <YAxis hide domain={[0, 100]} />
-                        <Area type="monotone" dataKey="value" stroke={fgRegime.color} strokeWidth={1.5} fill="url(#fgGrad)" />
+                        <Area type="monotone" dataKey="value" stroke={fgRegime.color} strokeWidth={1.5} fill="url(#fgGrad)" connectNulls={true} />
                         <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [v, 'F&G']} />
                       </AreaChart>
                     </ResponsiveContainer>

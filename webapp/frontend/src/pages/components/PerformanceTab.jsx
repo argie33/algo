@@ -84,7 +84,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
                   <XAxis dataKey="snapshot_date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => String(v).slice(5)} interval="preserveStartEnd" />
                   <YAxis tickFormatter={chartFmt} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={48} />
                   <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => v != null ? `$${Number(v).toLocaleString()}` : 'N/A'} labelFormatter={v => v} />
-                  <Area type="monotone" dataKey="total_portfolio_value" stroke="var(--brand)" fill="url(#eqGrad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="total_portfolio_value" stroke="var(--brand)" fill="url(#eqGrad)" strokeWidth={2} dot={false} connectNulls={true} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -112,7 +112,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
                   <YAxis tickFormatter={v => `${v}%`} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={40} />
                   <ReferenceLine y={0} stroke="var(--border)" />
                   <RechartTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => v != null ? `${Number(v)}%` : 'N/A'} />
-                  <Area type="monotone" dataKey="drawdown" stroke="var(--danger)" fill="url(#ddGrad)" strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="drawdown" stroke="var(--danger)" fill="url(#ddGrad)" strokeWidth={1.5} dot={false} connectNulls={true} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
