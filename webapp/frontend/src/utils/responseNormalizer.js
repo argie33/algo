@@ -110,12 +110,21 @@ export const extractData = (response) => {
         success: true,
       };
     }
-    // If data.data is an object, spread it; otherwise return as-is
+    // If data.data is an object, check for errors before spreading
     if (typeof data.data === 'object' && data.data !== null) {
+      // If the nested data has success: false, treat it as an error
+      if (data.data.success === false) {
+        const errorMsg = data.data.message || data.data.error || 'API request failed';
+        const error = new Error(errorMsg);
+        error.code = data.data.errorType;
+        error.status = httpStatus;
+        throw error;
+      }
+      // Otherwise, spread the data and ensure success is set appropriately
       return {
         ...data.data,
         statusCode: httpStatus,
-        success: true,
+        success: data.data.success !== undefined ? data.data.success : true,
       };
     } else {
       return {
@@ -129,10 +138,18 @@ export const extractData = (response) => {
   // Fallback: return the whole data object with statusCode if it's an object
   // BUT: Don't spread arrays - this would turn them into objects with numeric keys!
   if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    // Check for errors in the fallback case too
+    if (data.success === false) {
+      const errorMsg = data.message || data.error || 'API request failed';
+      const error = new Error(errorMsg);
+      error.code = data.errorType;
+      error.status = httpStatus;
+      throw error;
+    }
     return {
       ...data,
       statusCode: httpStatus,
-      success: true,
+      success: data.success !== undefined ? data.success : true,
     };
   }
 
