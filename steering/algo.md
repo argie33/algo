@@ -178,7 +178,7 @@ If you need to rebuild the schema:
 
 **Old approach (reactive):** Circuit breaker after 180-480s, batch reduction 150→50→20→1 (too conservative, falls back to serial).
 
-**New creative solution (proactive):** Prevent rate limits instead of reacting. See `RATE_LIMIT_FIX_SUMMARY.md` for details.
+**New creative solution (proactive):** Prevent rate limits instead of reacting. See `rate_limiting_creative_fixes.md` for details.
 
 **Implemented fixes:**
 1. **Predictive Request Pacing** - Monitor API latency, adjust request intervals dynamically to stay under limit
