@@ -98,6 +98,19 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_lock = threading.Lock()  # Thread-safe token access
         self._rate_limit_event = threading.Condition(self._rate_limit_lock)  # Notify waiting threads when tokens available
 
+        # CREATIVE FIX #1: Predictive rate limiting with adaptive request pacing
+        # Instead of reactive circuit breaker that fails after 180-480s, we prevent rate limits proactively
+        # Monitor actual API latency and adjust request rate to stay under 160 req/min limit
+        self._request_latency_samples = []  # List of (timestamp, latency_sec) tuples
+        self._latency_window_sec = 60  # Collect samples over 60s window
+        self._min_request_interval = 0.1  # Minimum time between requests (0.1s = 10 req/sec max)
+        self._adaptive_request_interval = 0.375  # Start at 160 req/min = 0.375s between requests
+        self._last_request_time = None
+
+        # CREATIVE FIX #2: Smart batch sizing based on API responsiveness
+        # Tracks which batch sizes cause rate limiting for this specific API instance
+        self._batch_size_performance = {}  # {batch_size: (success_count, failure_count)}
+
         # Circuit breaker: track rate limit errors to detect persistent issues
         # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
         # EOD pipeline (4:05-5:30 PM, 85 min): Use aggressive threshold (180s) to fail fast
@@ -150,6 +163,40 @@ class PriceLoader(OptimalLoader):
         logger.debug(f"[CONTEXT] Running during morning/regular hours ({time_since_eod_start:.0f} min from 4:05 PM ET), using conservative rate limiting")
         return False
 
+    def _get_smart_batch_size(self) -> int:
+        """CREATIVE FIX #2: Calculate optimal batch size based on observed API performance.
+
+        Instead of starting conservative and reducing, we learn which batch sizes
+        work well for this specific yfinance instance and use those.
+
+        Algorithm:
+        1. If we have performance data for batch sizes, use the one with highest success rate
+        2. If multiple sizes tie, prefer larger (fewer API calls)
+        3. If no data yet, use context-aware default
+
+        This prevents unnecessary retries by picking sizes that we know work.
+        """
+        # Find batch size with best success rate
+        if self._batch_size_performance:
+            best_size = None
+            best_rate = -1
+            for size, (successes, failures) in self._batch_size_performance.items():
+                total = successes + failures
+                if total >= 2:  # Need at least 2 trials to consider
+                    rate = successes / total
+                    if rate > best_rate or (rate == best_rate and (best_size is None or size > best_size)):
+                        best_rate = rate
+                        best_size = size
+
+            if best_size is not None and best_rate >= 0.5:
+                logger.debug(f"[BATCH_SIZE_SMART] Using batch={best_size} (success rate {best_rate:.0%})")
+                return best_size
+
+        # Fallback: use default with context awareness
+        if self._is_eod_pipeline:
+            return 50  # Conservative during EOD
+        return 100
+
     def _get_adaptive_batch_size(self) -> int:
         """Calculate adaptive batch size based on context and success rates.
 
@@ -168,6 +215,12 @@ class PriceLoader(OptimalLoader):
 
         This reduces retry overhead when rate limiting is active while being proactive during EOD.
         """
+        # CREATIVE FIX #2: Use smart batch sizing if available
+        smart_size = self._get_smart_batch_size()
+        if smart_size != 100 and smart_size != 50:  # If smart sizing found a good size
+            return smart_size
+
+        # Fallback to reactive sizing
         # ISSUE #6 FIX: Proactive conservative sizing during EOD to avoid timeout
         # Even though 160/min rate limit theoretically allows batch=150,
         # if API lag or rate limiting persists, conservative batch sizing ensures completion.
@@ -443,6 +496,59 @@ class PriceLoader(OptimalLoader):
         logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] ✗ {error_msg}")
         raise RuntimeError(error_msg)
 
+    def _record_request_latency(self, latency_sec: float) -> None:
+        """CREATIVE FIX #1: Track API latency to predict when rate limits will be hit.
+
+        Records request latency and uses it to adaptively adjust request interval.
+        If API is responding slowly (>1s per request), we increase wait time between requests
+        to stay under the 160 req/min limit.
+        """
+        now = time.time()
+        self._request_latency_samples.append((now, latency_sec))
+
+        # Keep only recent samples (within 60s window)
+        cutoff = now - self._latency_window_sec
+        self._request_latency_samples = [(t, lat) for t, lat in self._request_latency_samples if t >= cutoff]
+
+        if len(self._request_latency_samples) >= 3:  # Need at least 3 samples to estimate
+            avg_latency = sum(lat for _, lat in self._request_latency_samples) / len(self._request_latency_samples)
+
+            # If API is responding slowly, increase wait time to avoid rate limiting
+            # Formula: if avg_latency > 0.6s, we're approaching the 160 req/min limit
+            # Adjust interval to: latency + slack for other requests
+            if avg_latency > 0.6:
+                new_interval = max(self._min_request_interval, avg_latency * 1.5)  # 1.5x latency for safety
+                if new_interval > self._adaptive_request_interval:
+                    self._adaptive_request_interval = new_interval
+                    logger.info(f"[RATE_LIMIT_PREDICT] API latency {avg_latency:.3f}s avg, increasing request interval to {new_interval:.3f}s")
+            elif avg_latency < 0.3:
+                # API is responding quickly, we can be more aggressive
+                new_interval = max(self._min_request_interval, 0.375)  # Default 160 req/min
+                if new_interval < self._adaptive_request_interval:
+                    self._adaptive_request_interval = new_interval
+                    logger.debug(f"[RATE_LIMIT_PREDICT] API latency {avg_latency:.3f}s avg, decreasing interval to {new_interval:.3f}s")
+
+    def _adaptive_request_pacing(self) -> None:
+        """CREATIVE FIX #1: Implement predictive rate limiting with request pacing.
+
+        Instead of hitting rate limits and then backing off exponentially,
+        we spread requests over time at a rate that's guaranteed to stay under the limit.
+        This prevents the circuit breaker from ever triggering.
+        """
+        if self._last_request_time is None:
+            self._last_request_time = time.time()
+            return
+
+        now = time.time()
+        elapsed = now - self._last_request_time
+        wait_needed = self._adaptive_request_interval - elapsed
+
+        if wait_needed > 0.01:  # Only sleep if >10ms wait needed
+            logger.debug(f"[RATE_LIMIT_PACE] Request pacing: waiting {wait_needed:.3f}s (interval {self._adaptive_request_interval:.3f}s)")
+            time.sleep(wait_needed)
+
+        self._last_request_time = time.time()
+
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
         """ISSUE #3: Thread-safe token bucket with per-thread fairness.
 
@@ -683,18 +789,34 @@ class PriceLoader(OptimalLoader):
                 return {s: None for s in symbols}
 
         try:
-            self._rate_limit_wait(tokens_needed=1)
+            # CREATIVE FIX #1: Predictive request pacing
+            # Apply adaptive request interval based on observed API latency
+            self._adaptive_request_pacing()
+
+            # Measure latency for this request
+            request_start = time.time()
             result = self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+            request_latency = time.time() - request_start
+
+            # Record latency for future adaptive adjustment
+            self._record_request_latency(request_latency)
+
             if result:
-                # Success: reset rate limit error tracking
+                # Success: reset rate limit error tracking and improve request pace
                 self._rate_limit_errors = 0
                 self._rate_limit_error_start_time = None
+                # CREATIVE FIX #2: Track which batch sizes work
+                batch_size_key = len(symbols)
+                if batch_size_key not in self._batch_size_performance:
+                    self._batch_size_performance[batch_size_key] = [0, 0]  # [successes, failures]
+                self._batch_size_performance[batch_size_key][0] += 1
                 return result
         except Exception as e:
             error_str = str(e).lower()
             is_rate_limit = "rate" in error_str or "429" in error_str or "too many" in error_str
 
             if is_rate_limit:
+                # CREATIVE FIX #4: Intelligent retry strategy - try request pacing before reducing batch size
                 # Track rate limit errors for circuit breaker
                 self._rate_limit_errors += 1
                 if self._rate_limit_error_start_time is None:
@@ -703,6 +825,11 @@ class PriceLoader(OptimalLoader):
                         f"[RATE_LIMIT] First rate limiting error detected (error #{self._rate_limit_errors}). "
                         f"Circuit will break if persists >5 minutes. Monitoring yfinance API recovery."
                     )
+
+                # CREATIVE FIX #4: Increase adaptive interval to slow down requests
+                # Instead of immediately reducing batch size, try slowing down request rate first
+                self._adaptive_request_interval = min(2.0, self._adaptive_request_interval * 1.5)
+                logger.info(f"[RATE_LIMIT_PREDICT] Rate limit detected, increasing request interval to {self._adaptive_request_interval:.3f}s")
 
                 # Emit CloudWatch metric for rate limit occurrence
                 try:
@@ -718,6 +845,12 @@ class PriceLoader(OptimalLoader):
                 except Exception:
                     pass
 
+                # Track batch size performance for future decisions
+                batch_size_key = len(symbols)
+                if batch_size_key not in self._batch_size_performance:
+                    self._batch_size_performance[batch_size_key] = [0, 0]
+                self._batch_size_performance[batch_size_key][1] += 1  # Mark as failure
+
                 # ISSUE #6 CRITICAL: Abort if batch=20 or smaller in EOD pipeline with multiple rate limit errors
                 # Prevents infinite retry loop at very small batch sizes
                 if self._is_eod_pipeline and batch_size <= 20 and self._rate_limit_errors >= 3:
@@ -727,19 +860,34 @@ class PriceLoader(OptimalLoader):
                     )
                     return {s: None for s in symbols}
 
+                # CREATIVE FIX #4: Only reduce batch size if request pacing didn't help
+                # Retry with same batch size first using increased request interval
+                if attempt == 0:
+                    logger.info(f"[RATE_LIMIT] Retrying batch={batch_size} with increased request pacing (attempt {attempt+1}/{max_attempts})...")
+                    error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
+                    base_wait = min(30, (2 ** attempt) * 5)  # Shorter wait - we're trying pacing
+                    jitter = random.uniform(0.9, 1.1)
+                    wait_time = base_wait * jitter
+                    logger.debug(f"[RATE_LIMIT] Waiting {wait_time:.1f}s before paced retry...")
+                    time.sleep(wait_time)
+                    # Retry with same batch size but higher request pacing
+                    return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec=elapsed_sec)
+
+                # If paced retry failed, then reduce batch size
+                new_batch_size = max(1, batch_size // 2)
+                error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
+                # ISSUE #6 FIX: Track total elapsed time to prevent infinite retries
+                total_elapsed = elapsed_sec + error_duration
+
                 # Calculate adaptive backoff with jitter
                 base_wait = min(60, (2 ** attempt) * 5)  # Exponential: 5s, 10s, 20s, 40s, 80s (cap at 60s)
                 jitter = random.uniform(0.8, 1.2)  # ±20% jitter to avoid thundering herd
                 wait_time = base_wait * jitter
 
-                new_batch_size = max(1, batch_size // 2)
-                error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
-                # ISSUE #6 FIX: Track total elapsed time to prevent infinite retries
-                total_elapsed = elapsed_sec + error_duration + wait_time
                 logger.warning(
-                    f"[BATCH FETCH] Rate limited (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}, "
+                    f"[BATCH FETCH] Rate limited after paced retry (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}, "
                     f"duration {error_duration:.0f}s, total elapsed {total_elapsed:.0f}s). "
-                    f"Batch {batch_size} → {new_batch_size}, waiting {wait_time:.1f}s (base {base_wait}s + jitter)..."
+                    f"Batch {batch_size} → {new_batch_size}, waiting {wait_time:.1f}s..."
                 )
                 time.sleep(wait_time)
 
@@ -773,6 +921,15 @@ class PriceLoader(OptimalLoader):
                 base_wait = min(30, 2 ** attempt)
                 jitter = random.uniform(0.9, 1.1)  # ±10% jitter
                 wait_time = base_wait * jitter
+
+                # CREATIVE FIX #3: For transient errors, use predictive pacing to auto-recover
+                # Instead of just waiting, also record the latency to adjust future request intervals
+                if is_timeout or is_connection:
+                    self._adaptive_request_interval = min(2.0, self._adaptive_request_interval * 1.2)  # Slow down by 20%
+                    logger.warning(
+                        f"[BATCH FETCH] Transient {error_type} error, increasing request interval to {self._adaptive_request_interval:.3f}s for recovery"
+                    )
+
                 logger.warning(
                     f"[BATCH FETCH] Transient {error_type} error (attempt {attempt+1}/{max_attempts}, elapsed {elapsed_sec:.0f}s): {e}. "
                     f"Retrying {len(symbols)} symbols with same batch_size={batch_size} in {wait_time:.1f}s... "

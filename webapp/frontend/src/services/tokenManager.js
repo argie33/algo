@@ -46,7 +46,8 @@ export const tokenManager = {
         refresh: this.getToken('refresh'),
         dev_session: this.getToken('dev_session')
       };
-    } catch {
+    } catch (err) {
+      console.error('[TokenManager] Failed to get all tokens:', err?.message || err);
       return {};
     }
   },

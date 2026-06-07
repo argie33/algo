@@ -20,7 +20,8 @@ export const safeGet = (obj, path, defaultValue = null) => {
     }, obj);
 
     return value !== undefined ? value : defaultValue;
-  } catch {
+  } catch (err) {
+    console.error('[DataValidation] Failed to access nested property:', err?.message || err);
     return defaultValue;
   }
 };
@@ -163,7 +164,8 @@ export const safeCalculate = (value, calculator, defaultResult = 0) => {
     const num = ensureNumber(value);
     const result = calculator(num);
     return isNaN(result) ? defaultResult : result;
-  } catch {
+  } catch (err) {
+    console.error('[DataValidation] Safe calculation failed:', err?.message || err);
     return defaultResult;
   }
 };

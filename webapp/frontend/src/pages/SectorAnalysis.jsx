@@ -115,7 +115,10 @@ const filterByRange = (rows, range) => {
   else if (range === '6m') cutoff.setMonth(cutoff.getMonth() - 6);
   else cutoff.setFullYear(cutoff.getFullYear() - 1);
   const out = rows.filter(r => {
-    try { return new Date(r.date) >= cutoff; } catch { return true; }
+    try { return new Date(r.date) >= cutoff; } catch (err) {
+      console.debug('[SectorAnalysis] Failed to parse date for filtering:', err?.message);
+      return true;
+    }
   });
   return out.length > 0 ? out : rows;
 };
@@ -290,7 +293,7 @@ function SectorRelativeChart({ sectors }) {
   }, [sectors]);
 
   // Use batch endpoint instead of individual requests to reduce API calls from 150+ to 1
-  const { data: responseData, loading: isLoading } = useApiQuery(
+  const { data: responseData, loading: isLoading, error } = useApiQuery(
     ['sector-relative-90', top.join('|')],
     async () => {
       if (top.length === 0) return [];
@@ -322,6 +325,7 @@ function SectorRelativeChart({ sectors }) {
   const merged = Array.isArray(responseData) ? responseData : (responseData?.items || []);
 
   if (isLoading) return <Empty title="Loading…" />;
+  if (error) return <Empty title={`Error loading sector trends: ${error?.message}`} />;
   if (!merged || merged.length < 2) {
     return <Empty title="No relative-performance data" />;
   }
@@ -353,13 +357,14 @@ function SectorRelativeChart({ sectors }) {
 
 // ─── Sector breadth (% above 50d / 200d MA) ────────────────────────────────
 function SectorBreadthChart() {
-  const { data, loading: isLoading } = useApiQuery(
+  const { data, loading: isLoading, error } = useApiQuery(
     ['sector-breadth'],
     () => api.get('/api/algo/sector-breadth'),
     { refetchInterval: 60000 }
   );
 
   if (isLoading) return <Empty title="Loading breadth…" />;
+  if (error) return <Empty title={`Error loading breadth: ${error?.message}`} />;
   const breadthData = (Array.isArray(data) ? data : data?.items) || [];
   if (!breadthData || breadthData.length === 0) return <Empty title="No breadth data" />;
 
@@ -389,13 +394,14 @@ function SectorBreadthChart() {
 
 // ─── Stage-2 leaders per sector ────────────────────────────────────────────
 function Stage2LeadersChart() {
-  const { data, loading: isLoading } = useApiQuery(
+  const { data, loading: isLoading, error } = useApiQuery(
     ['sector-stage2'],
     () => api.get('/api/algo/sector-stage2'),
     { refetchInterval: 60000 }
   );
 
   if (isLoading) return <Empty title="Loading…" />;
+  if (error) return <Empty title={`Error loading stage-2 data: ${error?.message}`} />;
   const dataItems = Array.isArray(data) ? data : (data?.items || []);
   if (!dataItems || dataItems.length === 0) {
     return <Empty title="No stage data" desc="Requires trend_template_data coverage." />;
@@ -428,7 +434,7 @@ function Stage2LeadersChart() {
 
 // ─── Defensive vs Cyclical signal timeline ─────────────────────────────────
 function DefensiveCyclicalChart() {
-  const { data, loading: isLoading } = useApiQuery(
+  const { data, loading: isLoading, error } = useApiQuery(
     ['sector-rotation'],
     () => api.get('/api/algo/sector-rotation?limit=180'),
     { refetchInterval: 60000 }
@@ -436,6 +442,7 @@ function DefensiveCyclicalChart() {
 
   const rotationData = (Array.isArray(data) ? data : data?.items) || [];
   if (isLoading) return <Empty title="Loading…" />;
+  if (error) return <Empty title={`Error loading rotation data: ${error?.message}`} />;
   if (!rotationData || rotationData.length === 0) {
     return <Empty title="Sector rotation signal not yet computed"
                   desc="Run algo_sector_rotation.py to populate." />;
@@ -495,13 +502,14 @@ function DailyStrengthChart({ name, type, range }) {
     ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
     : `/api/industries/${encodeURIComponent(name)}/trend?days=365`;
 
-  const { data: resp, loading: isLoading } = useApiQuery(
+  const { data: resp, loading: isLoading, error } = useApiQuery(
     [`${type}-strength`, name],
     () => api.get(endpoint),
     { enabled: !!name, staleTime: 1000 * 60 * 10 }
   );
 
   if (isLoading) return <Empty title="Loading…" />;
+  if (error) return <Empty title={`Error loading ${type} data: ${error?.message}`} />;
 
   const trendArr = resp?.trendData || [];
   const firstAvgPrice = trendArr[0]?.avgPrice || null;
@@ -664,12 +672,13 @@ function SparklineTrend({ name, type }) {
     ? `/api/sectors/${encodeURIComponent(name)}/trend?days=90`
     : `/api/industries/${encodeURIComponent(name)}/trend?days=90`;
 
-  const { data: resp } = useApiQuery(
+  const { data: resp, error } = useApiQuery(
     [`${type}-sparkline`, name],
     () => api.get(endpoint),
     { enabled: !!name, staleTime: 1000 * 60 * 10 }
   );
 
+  if (error) return <span className="t-xs muted">—</span>;
   const rows = (resp?.trendData || []).filter(r => r.dailyStrengthScore != null);
   if (rows.length < 2) return <span className="t-xs muted">—</span>;
 
@@ -691,13 +700,13 @@ function SparklineTrend({ name, type }) {
 function TopCompanies({ industry }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const { data: rawData, loading: isLoading } = useApiQuery(
+  const { data: rawData, loading: isLoading, error } = useApiQuery(
     ['industry-top-companies', industry],
     () => api.get('/api/scores/stockscores?limit=200&sortBy=composite_score&sortOrder=desc'),
     { enabled: open, staleTime: 1000 * 60 * 10 }
   );
 
-  const data = (Array.isArray(rawData) ? rawData : rawData?.items) || [];
+  const data = error ? [] : (Array.isArray(rawData) ? rawData : rawData?.items) || [];
 
   const filtered = useMemo(() => {
     if (!data || data.length === 0) return [];

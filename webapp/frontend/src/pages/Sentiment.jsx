@@ -23,7 +23,10 @@ const TT_STYLE = {
 
 const fmtDate = (d) => {
   if (!d) return '—';
-  try { return new Date(d).toLocaleDateString(); } catch { return String(d); }
+  try { return new Date(d).toLocaleDateString(); } catch (err) {
+    console.debug('[Sentiment] Failed to format date:', err?.message);
+    return String(d);
+  }
 };
 const num = (v, dp = 2) => formatNumber(v, dp);
 const pct = (v, dp = 2) => formatPercentageChange(v, dp);
@@ -106,10 +109,6 @@ export default function Sentiment() {
     () => api.get('/api/sentiment/divergence'),
     { refetchInterval: 300000 }
   );
-
-  if (error) {
-    return <div className="alert alert-danger" style={{ margin: '20px' }}>{error?.message || 'Failed to load data'}</div>;
-  }
 
   let rawData = [];
   if (Array.isArray(data)) {

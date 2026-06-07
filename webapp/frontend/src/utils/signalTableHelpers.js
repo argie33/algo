@@ -44,7 +44,8 @@ export const formatCellValue = (value, key) => {
   if (key.includes("date") && typeof value === "string") {
     try {
       return new Date(value).toLocaleDateString();
-    } catch {
+    } catch (err) {
+      console.error('[SignalTableHelpers] Failed to format signal table date:', err?.message || err);
       return value;
     }
   }

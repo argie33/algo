@@ -62,6 +62,7 @@ export class DevAuthHelper {
         }
       }
     } catch (error) {
+      console.warn('[DevAuthHelper] Failed to parse dev session:', error?.message || error);
       // Invalid JSON, create new session
     }
 
@@ -86,6 +87,7 @@ export class DevAuthHelper {
 
       return session.user || null;
     } catch (error) {
+      console.warn('[DevAuthHelper] Failed to retrieve dev user:', error?.message || error);
       return null;
     }
   }

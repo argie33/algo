@@ -20,7 +20,7 @@ export const createLogger = (componentName) => ({
     }
     // Log in development mode
     if (import.meta.env?.DEV) {
-      // Reserved for development logging
+      console.info(`[${componentName}] ${message}`, _safeData);
     }
   },
   error: (message, error, context) => {
@@ -86,7 +86,7 @@ const getAuthToken = () => {
     // Use tokenManager for consistent token retrieval
     return tokenManager.getToken('access');
   } catch (error) {
-    // Silent failure for auth token retrieval
+    console.warn('[apiService] Failed to retrieve auth token:', error?.message || error);
   }
   return null;
 };
@@ -133,7 +133,8 @@ export const apiCall = async (
 
       try {
         errorData = JSON.parse(errorText);
-      } catch {
+      } catch (parseErr) {
+        console.error('[API] Failed to parse error response JSON:', parseErr?.message || parseErr);
         errorData = { message: errorText };
       }
 

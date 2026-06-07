@@ -618,6 +618,70 @@ class DataSourceRouter:
             logger.warning("yfinance eps_trend timeout for %s", symbol)
             return None
 
+    # ============== MARKET CLOSE DATA CHECK ==============
+
+    def check_market_close_data_available_fast(self, symbol: str = 'SPY', timeout_sec: int = 15) -> bool:
+        """Quick check if market close data is available from yfinance (short timeout).
+
+        Used by EOD pipeline to verify yfinance has ingested today's close data.
+        yfinance typically has data 5-15 min after market close (4 PM ET).
+
+        Uses a SHORT timeout (default 15s) to quickly determine availability without
+        burning time on long network calls. This allows more frequent retries within
+        the overall market close wait budget.
+
+        Args:
+            symbol: Which symbol to check (default 'SPY')
+            timeout_sec: Timeout for the yfinance API call (default 15s)
+
+        Returns:
+            True if data available, False if timeout/error
+        """
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+
+        try:
+            today = datetime.now(ZoneInfo("America/New_York")).date()
+
+            if yf is None:
+                logger.error("[yfinance-fast-check] yfinance not installed")
+                return False
+
+            yf_symbol = symbol.replace('.', '-') if '.' in symbol else symbol
+
+            def do_download():
+                return yf.download(
+                    yf_symbol,
+                    start=today,
+                    end=today + timedelta(days=1),
+                    interval='1d',
+                    auto_adjust=False,
+                    progress=False,
+                )
+
+            # Use SHORT timeout for quick check (don't burn time waiting for API)
+            hist = _call_with_timeout(do_download, timeout_sec=timeout_sec, retries=1)
+
+            # Check if we got valid data with today's close
+            if hist is None or hist.empty:
+                logger.debug(f"[yfinance-fast-check] No data for {symbol}")
+                return False
+
+            latest_row = hist.iloc[-1] if not hist.empty else None
+            if latest_row is not None and 'Close' in latest_row:
+                logger.info(f"[yfinance-fast-check] ✓ {symbol} close data available")
+                return True
+
+            logger.debug(f"[yfinance-fast-check] Data for {symbol} missing close column")
+            return False
+
+        except TimeoutError:
+            logger.debug(f"[yfinance-fast-check] Timeout after {timeout_sec}s (data not yet available)")
+            return False
+        except Exception as e:
+            logger.debug(f"[yfinance-fast-check] Error checking {symbol}: {type(e).__name__}: {str(e)[:100]}")
+            return False
+
     # ============== HEALTH REPORT ==============
 
     def health_report(self) -> Dict[str, Any]:
