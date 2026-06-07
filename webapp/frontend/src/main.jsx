@@ -35,12 +35,6 @@ console.warn = function (...args) {
     return;
   }
 
-  // Suppress network/API error warnings when backend unavailable
-  // These are expected in dev when backend server isn't running
-  if (msg.includes('Query failed') || msg.includes('[useApi')) {
-    return;
-  }
-
   // All other warnings pass through
   _originalConsoleWarn.apply(console, args);
 };
@@ -56,14 +50,8 @@ console.error = function (...args) {
     return;
   }
 
-  // Suppress API status code errors (4xx/5xx) when backend unavailable
-  // These create verbose triple-logging (network error + API error + query error)
-  // In production with backend available, actual API errors would be user-visible via UI
-  if (msg.includes('[API] Request failed with status')) {
-    return;
-  }
-
-  // All other errors are shown (CORS, network, app errors, etc.)
+  // All other errors are shown (CORS, network, app errors, API errors, etc.)
+  // API errors from api.js are the single source of truth for HTTP failures
   _originalConsoleError.apply(console, args);
 };
 
