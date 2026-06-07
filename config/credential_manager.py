@@ -134,6 +134,21 @@ class CredentialManager:
             f"Set {env_var} environment variable or add secret to AWS Secrets Manager."
         )
 
+
+# Singleton instance for use throughout the application
+_credential_manager = CredentialManager()
+
+
+def get_db_config() -> Dict[str, Any]:
+    """Get database configuration from Secrets Manager or environment variables.
+
+    In AWS Lambda: fetches from DB_SECRET_ARN (stored in Secrets Manager as JSON)
+    In local dev: reads individual DB_* environment variables
+
+    Returns a dict with keys: host, port, user, password, database
+    """
+    return _credential_manager.get_db_credentials()
+
     def _fetch_from_secrets_manager(self, secret_name: str) -> Optional[str]:
         """Fetch from AWS Secrets Manager. Returns None if not found."""
         try:
