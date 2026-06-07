@@ -36,10 +36,13 @@ class _CorrelationIdCursor:
 
     def execute(self, query: str, args=None):
         """Execute query with correlation_id comment appended."""
-        if query and not query.strip().startswith('--'):
-            sql_with_comment = f"{query} /* correlation_id: {self.correlation_id} */"
+        # Convert to string if not already (handles SQLAlchemy Composed objects, etc)
+        query_str = str(query) if query is not None else ""
+
+        if query_str and not query_str.strip().startswith('--'):
+            sql_with_comment = f"{query_str} /* correlation_id: {self.correlation_id} */"
         else:
-            sql_with_comment = query
+            sql_with_comment = query_str
 
         if args is not None:
             return self.cursor.execute(sql_with_comment, args)
@@ -48,10 +51,13 @@ class _CorrelationIdCursor:
 
     def executemany(self, query: str, args):
         """Execute many with correlation_id comment appended."""
-        if query and not query.strip().startswith('--'):
-            sql_with_comment = f"{query} /* correlation_id: {self.correlation_id} */"
+        # Convert to string if not already
+        query_str = str(query) if query is not None else ""
+
+        if query_str and not query_str.strip().startswith('--'):
+            sql_with_comment = f"{query_str} /* correlation_id: {self.correlation_id} */"
         else:
-            sql_with_comment = query
+            sql_with_comment = query_str
         return self.cursor.executemany(sql_with_comment, args)
 
     def fetchone(self):
@@ -137,17 +143,16 @@ class DatabaseContext:
 
     @staticmethod
     def _get_loader_correlation_id() -> str:
-        """Get correlation_id from load_prices module if available, else fallback."""
+        """Get correlation_id from utils.correlation_context (thread-safe).
+
+        This avoids circular import with load_prices by using the dedicated
+        correlation context module that both load_prices and database_context use.
+        """
         try:
-            # Try to import the _correlation_id_var from load_prices
-            from loaders.load_prices import _correlation_id_var, _correlation_id
-            cid = _correlation_id_var.get()
-            if cid:
-                return cid
-            # If not set in contextvars, use the module-level _correlation_id
-            return _correlation_id
-        except (ImportError, AttributeError, Exception):
-            # Fallback if load_prices is not available
+            from utils.correlation_context import get_correlation_id
+            return get_correlation_id()
+        except (ImportError, Exception):
+            # Fallback if correlation_context is not available
             return "NO_CID"
 
     def __enter__(self):
