@@ -1120,33 +1120,14 @@ jobs:
         run: |
           npm install
 
-          # API URL: Always use CloudFront (frontend is served FROM CloudFront for same-origin)
-          WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
-          if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
-            FINAL_API_URL="$WEBSITE_URL"
-            echo "[OK] Using Terraform website_url: $FINAL_API_URL"
+          # API URL: Use API Gateway endpoint (not CloudFront)
+          API_GATEWAY_URL="${{ needs.terraform.outputs.api_gateway_endpoint }}"
+          if [ -n "$API_GATEWAY_URL" ] && [ "$API_GATEWAY_URL" != "null" ] && [ "$API_GATEWAY_URL" != "None" ]; then
+            FINAL_API_URL="$API_GATEWAY_URL"
+            echo "[OK] Using Terraform api_gateway_endpoint: $FINAL_API_URL"
           else
-            echo "[WARN] Terraform website_url not available, attempting CloudFront discovery..."
-            # Discover CloudFront URL from AWS with timeout and retry logic
-            FINAL_API_URL=""
-            for attempt in 1 2 3; do
-              FINAL_API_URL=$(aws cloudfront list-distributions \
-                --query 'DistributionList.Items[0].DomainName' \
-                --output text 2>/dev/null || echo "")
-              if [ -n "$FINAL_API_URL" ] && [ "$FINAL_API_URL" != "None" ]; then
-                FINAL_API_URL="https://${FINAL_API_URL}"
-                echo "[OK] Discovered CloudFront URL (attempt $attempt): $FINAL_API_URL"
-                break
-              fi
-              if [ $attempt -lt 3 ]; then
-                echo "[RETRY] CloudFront not found, waiting 5s and retrying..."
-                sleep 5
-              fi
-            done
-            if [ -z "$FINAL_API_URL" ] || [ "$FINAL_API_URL" = "None" ]; then
-              echo "[ERROR] CloudFront discovery failed after 3 attempts - build cannot proceed"
-              exit 1
-            fi
+            echo "[ERROR] Terraform api_gateway_endpoint output not available - cannot determine API URL"
+            exit 1
           fi
 
           # Cognito Configuration (from Terraform outputs)
