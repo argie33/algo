@@ -516,9 +516,10 @@ class PriceLoader(OptimalLoader):
         if elapsed_sec is None:
             elapsed_sec = 0
 
-        # CRITICAL BOUND: If batch_size=1 and rate limiting persists >10 minutes, give up
-        # This prevents Step Function timeout (27000s limit) and cascading failures
-        max_single_batch_wait = 600  # 10 minutes max for batch=1 retries
+        # CRITICAL BOUND: If batch_size=1 and rate limiting persists, give up per pipeline context
+        # EOD (85 min deadline): 3 min max wait at batch=1 to fail fast and trigger failsafe
+        # Morning (450 min deadline): 10 min max wait at batch=1 to allow recovery
+        max_single_batch_wait = 180 if self._is_eod_pipeline else 600
         if batch_size == 1 and elapsed_sec > max_single_batch_wait:
             logger.critical(
                 f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec/60:.1f}min elapsed. "
@@ -651,6 +652,15 @@ class PriceLoader(OptimalLoader):
                     metrics.flush()
                 except Exception:
                     pass
+
+                # ISSUE #6 CRITICAL: Abort if batch=20 or smaller in EOD pipeline with multiple rate limit errors
+                # Prevents infinite retry loop at very small batch sizes
+                if self._is_eod_pipeline and batch_size <= 20 and self._rate_limit_errors >= 3:
+                    logger.critical(
+                        f"[BATCH FETCH ABORT] Batch={batch_size} with {self._rate_limit_errors} rate limit errors. "
+                        f"yfinance severely degraded. Failing to prevent timeout cascade."
+                    )
+                    return {s: None for s in symbols}
 
                 # Calculate adaptive backoff with jitter
                 base_wait = min(60, (2 ** attempt) * 5)  # Exponential: 5s, 10s, 20s, 40s, 80s (cap at 60s)
