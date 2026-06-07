@@ -32,28 +32,16 @@ from utils.data_provenance_tracker import DataProvenanceTracker
 from utils.data_tick_validator import validate_price_tick
 from utils.data_watermark_manager import WatermarkManager
 from utils.loader_helpers import get_active_symbols
+from utils.correlation_context import set_correlation_id, get_correlation_id
 from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-# ISSUE #13 FIX: Correlation ID context for thread-safe end-to-end tracing
-_correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar('correlation_id', default=None)
-
-def _set_correlation_id(correlation_id: str) -> None:
-    """Set the correlation ID for this execution context."""
-    _correlation_id_var.set(correlation_id)
-
-def _get_correlation_id() -> str:
-    """Get the current correlation ID, or generate a new one if not set."""
-    cid = _correlation_id_var.get()
-    if cid is None:
-        cid = f"GEN-{str(uuid.uuid4())[:8]}"
-        _correlation_id_var.set(cid)
-    return cid
-
 # Correlation ID for tracing - Phase 1 passes PHASE1_CORRELATION_ID via environment
+# Initialize correlation_context with the environment-provided ID or auto-generate
 _correlation_id = os.getenv('PHASE1_CORRELATION_ID') or f"AUTO-{str(uuid.uuid4())[:8]}"
+set_correlation_id(_correlation_id)
 
 class PriceLoader(OptimalLoader):
     """Multi-timeframe price loader. Replaces 4 separate loaders."""
@@ -238,7 +226,7 @@ class PriceLoader(OptimalLoader):
         with self._failed_symbols_lock:
             retry_symbols = [s for s in self._failed_symbols.keys()
                            if self._failed_symbols[s] < self._max_per_symbol_failures
-                           and s not in original_symbols]
+                           and s in original_symbols]
         return retry_symbols
 
     def _check_market_close_data_available(self, max_wait_sec: int = None) -> bool:
@@ -1068,7 +1056,7 @@ class PriceLoader(OptimalLoader):
                 try:
                     future.result()
                 except Exception as e:
-                    logger.error(f"Batch failed: {e}")
+                    logger.error(f"Batch {len(batch) if batch else 0} symbols failed: {type(e).__name__}: {str(e)[:200]}", exc_info=True)
 
                 batch_elapsed = time.time() - batch_start
                 batch_times.append(batch_elapsed)
