@@ -36,23 +36,34 @@ class _CorrelationIdCursor:
 
     def execute(self, query: str, args=None):
         """Execute query with correlation_id comment appended."""
-        # Convert to string if not already (handles SQLAlchemy Composed objects, etc)
-        query_str = str(query) if query is not None else ""
+        # Handle psycopg2.sql.Composed objects by compiling to string
+        if hasattr(query, 'as_string'):
+            # psycopg2 SQL Composed object - compile it
+            query_str = query.as_string(self.cursor)
+        else:
+            # Regular string query
+            query_str = str(query) if query is not None else ""
 
         if query_str and not query_str.strip().startswith('--'):
             sql_with_comment = f"{query_str} /* correlation_id: {self.correlation_id} */"
         else:
             sql_with_comment = query_str
 
-        if args is not None:
+        # If we compiled from Composed, just pass the compiled string without further wrapping
+        if hasattr(query, 'as_string'):
+            return self.cursor.execute(sql_with_comment)
+        elif args is not None:
             return self.cursor.execute(sql_with_comment, args)
         else:
             return self.cursor.execute(sql_with_comment)
 
     def executemany(self, query: str, args):
         """Execute many with correlation_id comment appended."""
-        # Convert to string if not already
-        query_str = str(query) if query is not None else ""
+        # Handle psycopg2.sql.Composed objects
+        if hasattr(query, 'as_string'):
+            query_str = query.as_string(self.cursor)
+        else:
+            query_str = str(query) if query is not None else ""
 
         if query_str and not query_str.strip().startswith('--'):
             sql_with_comment = f"{query_str} /* correlation_id: {self.correlation_id} */"
