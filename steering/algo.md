@@ -296,6 +296,21 @@ If you need to rebuild the schema:
 
 This solves the circular dependency: API Gateway no longer needs hardcoded CF domain; Lambda fetches it dynamically.
 
+## RDS Proxy Connection Pool — Frontend Batching
+
+**Issue Fixed:** TradingSignals page was making up to 100 concurrent API requests (via `Promise.all`) when computing signal performance metrics, exhausting the RDS Proxy connection pool (30 pooled connections) and triggering timeouts.
+
+**Solution Implemented:**
+1. **Request Batching Utility** (`webapp/frontend/src/utils/requestBatcher.js`): Limits concurrent requests to 5 by default, queuing remaining requests until slots free up.
+2. **Batch Price History Endpoint** (`/api/prices/batch-history`): Fetches up to 20 symbols in one request instead of N individual requests. Already existed in backend.
+3. **TradingSignals RecentPerformance** (lines 598-637): Updated to use batch endpoint (chunked into groups of 20) with max 5 concurrent batches = max 5 simultaneous RDS connections instead of 100.
+
+**Impact:**
+- Reduces peak connection pool usage from ~100 simultaneous requests to ~5
+- Reduces number of RDS queries from 100 to 5 batch queries
+- Prevents "connection pool exhaustion" timeouts on TradingSignals page
+- Generalizable pattern for other multi-symbol operations (use `batchRequests` utility)
+
 ## Known Limitations
 
 1. **Intraday pricing (F-01 - IMPLEMENTED):** RealtimePricingEngine integrated into position monitor (Phase 3). Tries Alpaca Data API → IEX Cloud → YFinance → daily price_daily fallback. Market hours (9:30 AM - 4 PM ET) during Mon-Fri: fetches real-time prices. Outside market hours or if APIs fail: uses daily prices from database. Position sizing uses real-time prices when available, daily prices as fallback.

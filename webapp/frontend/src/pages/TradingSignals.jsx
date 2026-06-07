@@ -25,6 +25,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import { formatCurrency, formatPercentageChange, formatNumber } from '../utils/formatters';
 import { batchRequests } from '../utils/requestBatcher';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // ─── formatters ────────────────────────────────────────────────────────────
 const fmtMoney = (v) => formatCurrency(v);
@@ -342,14 +343,14 @@ export default function TradingSignals() {
 
       {/* Charts row 1 — heatmap + setup breakdown */}
       <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
-        <SignalHeatmap rows={filtered} />
-        <SetupBreakdown rows={filtered} />
+        <ErrorBoundary><SignalHeatmap rows={filtered} /></ErrorBoundary>
+        <ErrorBoundary><SetupBreakdown rows={filtered} /></ErrorBoundary>
       </div>
 
       {/* Charts row 2 — performance + SQS histogram */}
       <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
-        <RecentPerformance rows={enriched} timeframe={timeframe} />
-        <SqsHistogram rows={filtered} />
+        <ErrorBoundary><RecentPerformance rows={enriched} timeframe={timeframe} /></ErrorBoundary>
+        <ErrorBoundary><SqsHistogram rows={filtered} /></ErrorBoundary>
       </div>
 
       {/* Filters */}
@@ -430,8 +431,10 @@ export default function TradingSignals() {
         )}
       </div>
 
-      <SignalsTable rows={filtered} loading={isLoading} kind={tab}
-        expandedKey={expandedKey} setExpandedKey={setExpandedKey} />
+      <ErrorBoundary>
+        <SignalsTable rows={filtered} loading={isLoading} kind={tab}
+          expandedKey={expandedKey} setExpandedKey={setExpandedKey} />
+      </ErrorBoundary>
     </div>
   );
 }

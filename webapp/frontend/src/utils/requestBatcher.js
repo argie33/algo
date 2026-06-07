@@ -4,7 +4,7 @@
  */
 
 /**
- * Execute promises with concurrency limit
+ * Execute async functions with concurrency limit, preserving result order
  * @param {Array} items - Array of items to process
  * @param {Function} fn - Async function to execute per item: (item) => Promise
  * @param {number} concurrency - Max concurrent requests (default: 5)
@@ -13,45 +13,39 @@
 export async function batchRequests(items, fn, concurrency = 5) {
   if (items.length === 0) return [];
 
-  const results = Array(items.length).fill(null);
-  const inProgress = new Set();
-  let nextIndex = 0;
+  const results = new Array(items.length);
+  const queue = items.map((item, idx) => ({ item, idx }));
+  let activeCount = 0;
+  let queueIdx = 0;
 
-  const executeNext = async () => {
-    if (nextIndex >= items.length) return;
+  return new Promise((resolve, reject) => {
+    const processNext = async () => {
+      if (queueIdx >= queue.length && activeCount === 0) {
+        resolve(results);
+        return;
+      }
 
-    const currentIndex = nextIndex++;
-    const item = items[currentIndex];
+      if (queueIdx < queue.length && activeCount < concurrency) {
+        const { item, idx } = queue[queueIdx++];
+        activeCount++;
 
-    try {
-      results[currentIndex] = await fn(item);
-    } catch (error) {
-      results[currentIndex] = { error, item };
-    } finally {
-      inProgress.delete(currentIndex);
+        try {
+          results[idx] = await fn(item);
+        } catch (error) {
+          results[idx] = { error, item };
+        } finally {
+          activeCount--;
+          // Continue processing when a slot frees up
+          setImmediate(processNext);
+        }
+      }
+    };
+
+    // Start initial batch
+    for (let i = 0; i < Math.min(concurrency, items.length); i++) {
+      setImmediate(processNext);
     }
-  };
-
-  // Start initial batch of requests
-  for (let i = 0; i < Math.min(concurrency, items.length); i++) {
-    inProgress.add(i);
-    executeNext().catch(err => console.error('[Batcher] Error:', err));
-  }
-
-  // Continue executing as slots free up
-  while (inProgress.size > 0) {
-    await Promise.race(
-      Array.from(inProgress).map(i => new Promise(resolve => setTimeout(resolve, 10)))
-    );
-
-    // Execute next batch
-    while (inProgress.size < concurrency && nextIndex < items.length) {
-      inProgress.add(nextIndex);
-      executeNext().catch(err => console.error('[Batcher] Error:', err));
-    }
-  }
-
-  return results;
+  });
 }
 
 /**
