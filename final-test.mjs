@@ -22,7 +22,7 @@ for (const pageInfo of pages) {
 
   try {
     await page.goto('http://localhost:5173' + pageInfo.url, { waitUntil: 'networkidle', timeout: 30000 });
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(5000);
 
     const state = await page.evaluate(() => {
       const main = document.querySelector('main');

@@ -98,9 +98,10 @@ export default defineConfig(({ mode }) => {
         "@emotion/styled",
         "react-is",
         "prop-types",
-        "hoist-non-react-statics"
+        "hoist-non-react-statics",
+        "lucide-react"
       ],
-      exclude: ["@aws-amplify/auth", "aws-amplify", "lucide-react"],
+      exclude: ["@aws-amplify/auth", "aws-amplify"],
       esbuildOptions: {
         loader: {
           ".js": "jsx",

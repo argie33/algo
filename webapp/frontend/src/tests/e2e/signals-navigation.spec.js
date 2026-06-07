@@ -32,8 +32,8 @@ test.describe("Trading Signals Navigation", () => {
     try {
       await stocksSection.click();
       await page.waitForTimeout(500);
-    } catch {
-      // Section already expanded
+    } catch (err) {
+      console.debug('[E2E Navigation] Stocks section click failed, may already be expanded:', err?.message);
     }
 
     // Look for Trading Signals menu item

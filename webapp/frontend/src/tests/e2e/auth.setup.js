@@ -22,8 +22,8 @@ setup("authenticate", async ({ page }) => {
   // Wait for the app to mount
   try {
     await page.waitForSelector("#root", { timeout: 5000 });
-  } catch {
-    // Element not found within timeout - continue anyway
+  } catch (err) {
+    console.warn('[E2E Auth] Root element not found within timeout:', err?.message);
   }
 
   await page.waitForTimeout(1000); // Brief pause for hydration

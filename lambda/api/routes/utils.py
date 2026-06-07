@@ -164,8 +164,8 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
                 )
                 try:
                     cur.connection.rollback()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.debug(f"Failed to rollback after query timeout: {rollback_err}")
                 time.sleep(0.1)
             else:
                 logger.warning(f"Query timeout after {max_attempts} attempts")
@@ -176,8 +176,8 @@ def execute_with_timeout(cur, query: str, params=None, timeout_sec: int = 10, ma
             logger.error(f"Query failed ({type(e).__name__}): {str(e)}")
             try:
                 cur.connection.rollback()
-            except Exception:
-                pass
+            except Exception as rollback_err:
+                logger.debug(f"Failed to rollback after query error: {rollback_err}")
             # Re-raise so routes can handle database errors properly
             raise e
 
