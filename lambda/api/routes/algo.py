@@ -53,8 +53,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return json_response(200, {'status': 'updated'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-                code, error_type, message = handle_db_error(e, 'handle algo')
-            return error_response(code, error_type, message)
+                code, error_type, message = handle_db_error(e, 'mark notification as read')
+                logger.error(f'Failed to mark notification as read: {error_type} - {message}')
+                return json_response(200, {'status': 'error', 'message': message})
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             if not _check_admin_access(jwt_claims):
@@ -74,8 +75,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 return json_response(200, {'status': 'deleted'})
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-                code, error_type, message = handle_db_error(e, 'handle algo')
-            return error_response(code, error_type, message)
+                code, error_type, message = handle_db_error(e, 'delete notification')
+                logger.error(f'Failed to delete notification: {error_type} - {message}')
+                return json_response(200, {'status': 'error', 'message': message})
         if method == 'POST' and path == '/api/algo/patrol':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
