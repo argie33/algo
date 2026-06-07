@@ -7,7 +7,7 @@
  * Sections:
  *   1. Regime banner (exposure, tier, halt status)
  *   2. Major indices grid w/ 30d sparklines
- *   3. 11-factor exposure composite
+ *   3. 12-factor exposure composite
  *   4. Market pulse (DD circle + FTD)
  *   5. 90d exposure history area chart
  *   6. Breadth bar chart (% > 50/200 DMA)
@@ -438,17 +438,18 @@ function IndexCell({ idx, prices = [] }) {
 function ExposureFactors({ markets }) {
   const factors = markets?.current?.factors || {};
   const list = [
-    ['ibd_state',       'MARKET STATE',               18],
-    ['trend_30wk',      '30-WEEK MA TREND',           15],
-    ['breadth_50dma',   'BREADTH (% > 50-DMA)',       14],
-    ['breadth_200dma',  'HEALTH (% > 200-DMA)',       10],
-    ['mcclellan',       'MCCLELLAN OSCILLATOR',        9],
-    ['vix_regime',      'VIX REGIME',                  8],
-    ['new_highs_lows',  'NEW HIGHS - LOWS',            7],
-    ['credit_spread',   'HY CREDIT SPREAD',            7],
-    ['ad_line',         'A/D LINE CONFIRMATION',       5],
-    ['aaii_sentiment',  'AAII SENTIMENT (CONTRARIAN)', 4],
-    ['naaim',           'NAAIM PROFESSIONAL EXPOSURE', 3],
+    ['follow_through_day', 'FOLLOW-THROUGH DAY',         16],
+    ['trend_30wk',         '30-WEEK MA TREND',           15],
+    ['breadth_50dma',      'BREADTH (% > 50-DMA)',       14],
+    ['breadth_200dma',     'HEALTH (% > 200-DMA)',       10],
+    ['mcclellan',          'MCCLELLAN OSCILLATOR',        9],
+    ['distribution_days',  'DISTRIBUTION DAYS PRESSURE',  9],
+    ['vix_regime',         'VIX REGIME',                  8],
+    ['new_highs_lows',     'NEW HIGHS - LOWS',            7],
+    ['credit_spread',      'HY CREDIT SPREAD',            7],
+    ['ad_line',            'A/D LINE CONFIRMATION',       5],
+    ['aaii_sentiment',     'AAII SENTIMENT (CONTRARIAN)', 4],
+    ['naaim',              'NAAIM PROFESSIONAL EXPOSURE', 3],
   ];
 
   const eco = factors?.economic_overlay || {};
@@ -461,7 +462,7 @@ function ExposureFactors({ markets }) {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">11-Factor Exposure Composite</div>
+          <div className="card-title">12-Factor Exposure Composite</div>
           <div className="card-sub">
             {markets?.current ? `Raw ${num(markets.current.raw_score, 1)} → capped ${markets.current.exposure_pct}%`
               : 'Each factor independently scored, summed for total exposure'}
@@ -545,8 +546,8 @@ function MarketPulse({ markets }) {
   const cur = markets?.current;
   if (!cur) return <Empty title="No data" desc="Pulse loads when exposure is computed" />;
   const dd = cur.distribution_days || 0;
-  const ftd = cur.factors?.ibd_state?.follow_through_day;
-  const state = cur.factors?.ibd_state?.state || '—';
+  const ftd = cur.factors?.follow_through_day?.has_ftd;
+  const ddRegime = cur.factors?.distribution_days?.regime || '—';
   const ddColor = dd >= 5 ? C.danger : dd >= 4 ? C.amber : C.success;
 
   return (
@@ -576,9 +577,9 @@ function MarketPulse({ markets }) {
             <span className={ftd ? 'up' : 'down'} style={{ fontWeight: 'var(--w-bold)' }}>{ftd ? 'YES' : 'NO'}</span>
           </div>
           <div className="flex items-center justify-between t-sm mono" style={{ padding: '6px 0', borderTop: '1px solid var(--border-soft)' }}>
-            <span className="muted">State</span>
-            <span className={state.includes('uptrend') ? 'up' : 'down'} style={{ fontWeight: 'var(--w-bold)' }}>
-              {state.replace(/_/g, ' ').toUpperCase()}
+            <span className="muted">Regime</span>
+            <span className={ddRegime.includes('strong') ? 'up' : ddRegime.includes('caution') ? 'neutral' : 'down'} style={{ fontWeight: 'var(--w-bold)' }}>
+              {ddRegime.replace(/_/g, ' ').toUpperCase()}
             </span>
           </div>
         </div>

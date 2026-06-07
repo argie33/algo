@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
 """
-Quantitative Market Exposure Engine - Research-backed 11-factor composite
+Quantitative Market Exposure Engine - Research-backed 12-factor composite
 
 Replaces simple "Stage 2 yes/no" gating with a 0-100 portfolio risk allocation
 score driven by these inputs (weights from synthesis of IBD, O'Neil, Weinstein,
 Zweig, AAII/NAAIM contrarian, Schwab/Fidelity breadth research, Apollo/Goldman
 credit cycle research):
 
-    18pt  IBD MARKET STATE      Confirmed Uptrend / Pressure / Correction
+    16pt  FOLLOW-THROUGH DAY    IBD confirmation after correction signal
     15pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
     14pt  BREADTH % > 50-DMA    short-term participation (linear 20-80%)
     10pt  BREADTH % > 200-DMA   longer-term health (linear 30-80%)
      9pt  MCCLELLAN OSCILLATOR  short-term momentum (-100 to +100 zone)
+     9pt  DISTRIBUTION DAYS     IBD pressure metric: 0-2 = 1.0, 3-4 = 0.6, 5+ = 0.2
      8pt  VIX REGIME            <15 / 15-25 / 25-35 / 35+
      7pt  NEW HIGHS - LOWS      regime health indicator
      7pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2) - credit leads equity
@@ -20,10 +21,14 @@ credit cycle research):
      4pt  AAII SENTIMENT        contrarian: extreme bearish crowd → bullish signal
      3pt  NAAIM EXPOSURE        professional manager positioning (contrarian at extremes)
 
+Removed old "IBD MARKET STATE" 18pt factor (it double-counted distribution days and
+follow-through day logic). Now they are separate factors: FTD = 16pt (confirmation),
+DD = 9pt (pressure gauge).
+
 PLUS HARD VETOES (cap at ≤25-35%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
   - VIX > 40 with rising trend
-  - 6+ distribution days in last 25 sessions
+  - 6+ distribution days in last 25 sessions (reinforces DD factor veto)
   - No follow-through day after correction
   - HY credit spread > 8.5% (systemic stress)
 
@@ -53,11 +58,12 @@ class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 
     # Factor weights (sum = 100)
-    W_IBD_STATE = 18
+    W_FTD = 16                      # Follow-through day: uptrend confirmation
     W_TREND_30WK = 15
     W_BREADTH_50 = 14
     W_BREADTH_200 = 10
     W_MCCLELLAN = 9
+    W_DISTRIBUTION_DAYS = 9         # New: Distribution days (market pressure gauge)
     W_VIX = 8
     W_NEW_HIGHS_LOWS = 7
     W_CREDIT_SPREAD = 7
@@ -133,26 +139,26 @@ class MarketExposure:
             if cached:
                 return cached
 
-        logger.info(f"Computing market exposure for {eval_date} (11 sequential queries)")
+        logger.info(f"Computing market exposure for {eval_date} (12 sequential queries)")
         with DatabaseContext('read') as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
-            # technical_data_daily (fast indexed lookup). 45s × 11 = 495s max, fits in Lambda
+            # technical_data_daily (fast indexed lookup). 45s × 12 = 540s max, fits in Lambda
             # 600s budget. Raised from 30s because some queries exceed 30s on t4g.micro even
             # without concurrent loaders (slow disk I/O on the small instance).
             cur.execute("SET statement_timeout = 45000")
             factors = {}
             score = 0.0
 
-            # --- 1. IBD market state ---
-            ibd = self._ibd_state(eval_date, cur)
-            ibd_pts = self.W_IBD_STATE * ibd['score_factor']
-            factors['ibd_state'] = {
-                **ibd,
-                'pts': round(ibd_pts, 1),
-                'max': self.W_IBD_STATE,
+            # --- 1. Follow-through day (IBD uptrend confirmation) ---
+            ftd = self._follow_through_day_factor(eval_date, cur)
+            ftd_pts = self.W_FTD * ftd['score_factor']
+            factors['follow_through_day'] = {
+                **ftd,
+                'pts': round(ftd_pts, 1),
+                'max': self.W_FTD,
             }
-            score += ibd_pts
-            logger.debug(f"  IBD state: {ibd['state']}, {ibd_pts:.1f} pts")
+            score += ftd_pts
+            logger.debug(f"  Follow-through day: {ftd_pts:.1f} pts")
 
             # --- 2. Trend 30-week MA (SPY vs SMA_150 + slope) ---
             t30 = self._trend_30wk(eval_date, cur)
@@ -175,49 +181,56 @@ class MarketExposure:
             score += b200_pts
             logger.debug(f"  Breadth 200-DMA: {b200.get('value', 0):.1f}%, {b200_pts:.1f} pts")
 
-            # --- 5. VIX regime ---
-            vix = self._vix_regime(eval_date, cur)
-            vix_pts = self.W_VIX * vix['score_factor']
-            factors['vix_regime'] = {**vix, 'pts': round(vix_pts, 1), 'max': self.W_VIX}
-            score += vix_pts
-            logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
-
-            # --- 6. McClellan oscillator ---
+            # --- 5. McClellan oscillator ---
             mc = self._mcclellan(eval_date, cur)
             mc_pts = self.W_MCCLELLAN * mc['score_factor']
             factors['mcclellan'] = {**mc, 'pts': round(mc_pts, 1), 'max': self.W_MCCLELLAN}
             score += mc_pts
             logger.debug(f"  McClellan: {mc_pts:.1f} pts")
 
-            # --- 7. New highs vs new lows ---
+            # --- 6. Distribution days (IBD market pressure gauge) ---
+            dd = self._distribution_days_factor(eval_date, cur)
+            dd_pts = self.W_DISTRIBUTION_DAYS * dd['score_factor']
+            factors['distribution_days'] = {**dd, 'pts': round(dd_pts, 1), 'max': self.W_DISTRIBUTION_DAYS}
+            score += dd_pts
+            logger.debug(f"  Distribution days: {dd.get('count', 0)} days, {dd_pts:.1f} pts")
+
+            # --- 7. VIX regime ---
+            vix = self._vix_regime(eval_date, cur)
+            vix_pts = self.W_VIX * vix['score_factor']
+            factors['vix_regime'] = {**vix, 'pts': round(vix_pts, 1), 'max': self.W_VIX}
+            score += vix_pts
+            logger.debug(f"  VIX regime: {vix_pts:.1f} pts")
+
+            # --- 8. New highs vs new lows ---
             nhnl = self._new_highs_lows(eval_date, cur)
             nhnl_pts = self.W_NEW_HIGHS_LOWS * nhnl['score_factor']
             factors['new_highs_lows'] = {**nhnl, 'pts': round(nhnl_pts, 1), 'max': self.W_NEW_HIGHS_LOWS}
             score += nhnl_pts
             logger.debug(f"  New Highs/Lows: {nhnl_pts:.1f} pts")
 
-            # --- 8. A/D line confirmation ---
+            # --- 9. A/D line confirmation ---
             ad = self._ad_line(eval_date, cur)
             ad_pts = self.W_AD_LINE * ad['score_factor']
             factors['ad_line'] = {**ad, 'pts': round(ad_pts, 1), 'max': self.W_AD_LINE}
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
-            # --- 9. Credit spreads (HY OAS — credit leads equity) ---
+            # --- 10. Credit spreads (HY OAS — credit leads equity) ---
             cs = self._credit_spread(eval_date, cur)
             cs_pts = self.W_CREDIT_SPREAD * cs['score_factor']
             factors['credit_spread'] = {**cs, 'pts': round(cs_pts, 1), 'max': self.W_CREDIT_SPREAD}
             score += cs_pts
             logger.debug(f"  Credit spreads: {cs_pts:.1f} pts")
 
-            # --- 10. AAII sentiment (contrarian at extremes) ---
+            # --- 11. AAII sentiment (contrarian at extremes) ---
             aaii = self._aaii(eval_date, cur)
             aaii_pts = self.W_AAII * aaii['score_factor']
             factors['aaii_sentiment'] = {**aaii, 'pts': round(aaii_pts, 1), 'max': self.W_AAII}
             score += aaii_pts
             logger.debug(f"  AAII sentiment: {aaii_pts:.1f} pts")
 
-            # --- 11. NAAIM professional manager exposure (contrarian at extremes) ---
+            # --- 12. NAAIM professional manager exposure (contrarian at extremes) ---
             naaim = self._naaim(eval_date, cur)
             naaim_pts = self.W_NAAIM * naaim['score_factor']
             factors['naaim'] = {**naaim, 'pts': round(naaim_pts, 1), 'max': self.W_NAAIM}
@@ -277,14 +290,14 @@ class MarketExposure:
             if vix_value > 40 and vix.get('rising'):
                 halt_reasons.append(f'VIX {vix_value:.1f} rising > 40')
                 cap = min(cap, 30.0)
-            # Veto 3: 6+ distribution days
-            dd = self._distribution_days(eval_date, cur)
-            if dd >= 6:
-                halt_reasons.append(f'{dd} distribution days >= 6')
+            # Veto 3: 6+ distribution days (reinforces DD factor)
+            dd_count = dd.get('count', 0)
+            if dd_count >= 6:
+                halt_reasons.append(f'{dd_count} distribution days >= 6')
                 cap = min(cap, 35.0)
-            # Veto 4: in correction without FTD
-            if ibd['state'] == 'correction' and not ibd.get('follow_through_day'):
-                halt_reasons.append('In correction without follow-through day')
+            # Veto 4: no follow-through day after correction signal
+            if not ftd.get('has_ftd'):
+                halt_reasons.append('No follow-through day in last 30 days')
                 cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
             if cs.get('value') and cs['value'] > 8.5:
@@ -298,7 +311,7 @@ class MarketExposure:
 
             final = min(score, cap)
 
-            # Determine recommended state
+            # Determine recommended state based on final exposure score
             if final >= 70:
                 regime = 'confirmed_uptrend'
             elif final >= 45:
@@ -317,7 +330,7 @@ class MarketExposure:
                 'exposure_pct': round(final, 1),
                 'regime': regime,
                 'halt_reasons': halt_reasons,
-                'distribution_days': dd,
+                'distribution_days': dd_count,
                 'factors': factors,
             }
             self._persist(eval_date, result)
@@ -325,24 +338,45 @@ class MarketExposure:
 
     # ====== Factor implementations ======
 
-    def _ibd_state(self, eval_date, cur):
-        """Classify market state using DD count + FTD presence per IBD thresholds."""
-        dd_count = self._distribution_days(eval_date, cur)
+    def _follow_through_day_factor(self, eval_date, cur):
+        """Follow-through day: IBD confirmation after correction signal.
+
+        FTD = index closes >= 1.7% on volume above prior (any time in last 30 days).
+        Presence of FTD indicates market has confirmed an uptrend after a correction.
+        """
         ftd = self._has_follow_through_day(eval_date, cur)
-        if dd_count <= 3 and ftd:
-            state = 'confirmed_uptrend'
-            sf = 1.0
-        elif dd_count <= 5:
-            state = 'uptrend_under_pressure'
-            sf = 0.5
-        else:
-            state = 'correction'
-            sf = 0.0
+        sf = 1.0 if ftd else 0.2
         return {
-            'state': state,
             'score_factor': sf,
-            'distribution_days_25d': dd_count,
-            'follow_through_day': ftd,
+            'has_ftd': ftd,
+            'description': 'FTD present' if ftd else 'No FTD in last 30 days',
+        }
+
+    def _distribution_days_factor(self, eval_date, cur):
+        """Distribution days: IBD market pressure gauge (last 25 trading sessions).
+
+        DD = sessions where close down >= 0.2% AND volume > prior day.
+        This is a pressure metric that builds through market corrections.
+
+        Scoring (gradient, not a cliff):
+        - 0-2 DDs:   market strong, 1.0 factor
+        - 3-4 DDs:   caution building, 0.6 factor
+        - 5+ DDs:    pressure mounting, 0.2 factor
+        - 6+ DDs:    severe pressure (also hard veto cap)
+        """
+        dd_count = self._distribution_days(eval_date, cur)
+
+        if dd_count <= 2:
+            sf = 1.0
+        elif dd_count <= 4:
+            sf = 0.6
+        else:  # 5+
+            sf = 0.2
+
+        return {
+            'score_factor': sf,
+            'count': dd_count,
+            'regime': 'strong' if dd_count <= 2 else ('caution' if dd_count <= 4 else 'pressure'),
         }
 
     def _distribution_days(self, eval_date, cur):

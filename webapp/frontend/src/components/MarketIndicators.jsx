@@ -56,7 +56,14 @@ const MarketIndicators = ({ data, isLoading, error }) => {
 
   // Sort by date desc and get latest
   const latestData = Object.values(symbolMap).map((items) => {
-    items.sort((a, b) => new Date(b.date) - new Date(a.date));
+    items.sort((a, b) => {
+      const getTime = (date) => {
+        if (!date) return 0;
+        const time = new Date(date).getTime();
+        return isNaN(time) ? 0 : time;
+      };
+      return getTime(b) - getTime(a);
+    });
     return items[0];
   });
 

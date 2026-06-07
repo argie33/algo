@@ -40,6 +40,7 @@ try:
     from rich.align import Align
     from rich.columns import Columns
     from rich.console import Console, Group
+    from rich.layout import Layout
     from rich.live import Live
     from rich.panel import Panel
     from rich.rule import Rule
@@ -304,9 +305,27 @@ def fetch_perf(c):
                 v = float(s.get("total_portfolio_value") or 0)
                 if v > pk: pk = v
                 if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
+        win_amt  = [float(t.get("profit_loss_dollars") or 0) for t in wins]
+        loss_amt = [abs(float(t.get("profit_loss_dollars") or 0)) for t in losses]
+        avg_win  = statistics.mean(win_amt)  if win_amt  else 0.0
+        avg_loss = statistics.mean(loss_amt) if loss_amt else 0.0
+        gross_wins  = sum(win_amt)
+        gross_losses = sum(loss_amt)
+        pf = round(gross_wins / gross_losses, 2) if gross_losses > 0 else None
+        lr = 1 - wr / 100
+        expectancy = round(wr / 100 * avg_win - lr * avg_loss, 2) if trades else 0.0
+        avg_r = []
+        for t in trades:
+            rv = t.get("exit_r_multiple")
+            if rv is not None:
+                try: avg_r.append(float(rv))
+                except: pass
+        avg_r_val = round(statistics.mean(avg_r), 2) if avg_r else None
         return {"n": len(trades), "w": len(wins), "l": len(losses),
                 "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
-                "sharpe": sharpe, "maxdd": round(maxdd, 1)}
+                "sharpe": sharpe, "maxdd": round(maxdd, 1),
+                "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
+                "profit_factor": pf, "expectancy": expectancy, "avg_r": avg_r_val}
     except Exception as e:
         return {"_error": str(e)}
 
@@ -349,16 +368,79 @@ def fetch_signals(c):
             FROM buy_sell_daily
             WHERE signal='BUY'
               AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY')""")
+        total_r = q1(c, "SELECT COUNT(*) AS n FROM buy_sell_daily WHERE date=(SELECT MAX(date) FROM buy_sell_daily)")
+        total_n = int(total_r["n"] or 0) if total_r else 0
         top = q(c, """
             SELECT s.symbol, s.score, cp.sector
             FROM swing_trader_scores s
             LEFT JOIN company_profile cp ON cp.ticker = s.symbol
             WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
             ORDER BY s.score DESC LIMIT 12""")
+        # Score grade distribution across full universe
+        grades_r = q(c, """
+            SELECT
+              COUNT(*) FILTER (WHERE score >= 80) AS a,
+              COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
+              COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
+              COUNT(*) FILTER (WHERE score < 40) AS d,
+              COUNT(*) AS total
+            FROM swing_trader_scores
+            WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
+        grades = grades_r[0] if grades_r else {}
+        # Near-threshold watchlist (score 55-69, just below or just above min threshold ~60)
+        near = q(c, """
+            SELECT s.symbol, s.score, cp.sector
+            FROM swing_trader_scores s
+            LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+            WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
+              AND s.score BETWEEN 55 AND 69
+            ORDER BY s.score DESC LIMIT 8""")
         return {"n": int(sig["n"] or 0) if sig else 0,
+                "total": total_n,
                 "date": sig["d"] if sig else None,
                 "top": top,
-                "pass": [s for s in top if float(s.get("score") or 0) >= 60]}
+                "pass": [s for s in top if float(s.get("score") or 0) >= 60],
+                "grades": grades,
+                "near": near}
+    except Exception as e:
+        return {"_error": str(e)}
+
+def fetch_sector_ranking(c):
+    try:
+        return q(c, """
+            SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago, stock_count
+            FROM sector_ranking
+            WHERE date=(SELECT MAX(date) FROM sector_ranking)
+            ORDER BY current_rank ASC""")
+    except Exception as e:
+        return {"_error": str(e)}
+
+def fetch_activity(c):
+    """Get last run activity detail from audit log: what actually happened."""
+    try:
+        latest = q1(c, """
+            SELECT details->>'run_id' AS run_id FROM algo_audit_log
+            WHERE details->>'run_id' IS NOT NULL
+            GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
+        if not latest or not latest.get("run_id"):
+            return {}
+        rid = latest["run_id"]
+        phases = q(c, """
+            SELECT action_type, status, details, created_at
+            FROM algo_audit_log WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
+        # Pull last 10 trade actions (entries + exits) regardless of run
+        recent_actions = q(c, """
+            SELECT action_type, status, details, created_at
+            FROM algo_audit_log
+            WHERE action_type IN ('entry_executed','exit_executed','entry_rejected',
+                                  'position_exited','order_placed','order_rejected')
+            ORDER BY created_at DESC LIMIT 10""")
+        # Count by type across last run
+        counts = {}
+        for p in phases:
+            at = p.get("action_type", "")
+            counts[at] = counts.get(at, 0) + 1
+        return {"run_id": rid, "phases": phases, "counts": counts, "recent_actions": recent_actions}
     except Exception as e:
         return {"_error": str(e)}
 
@@ -434,6 +516,7 @@ FETCHERS = {
     "port": fetch_portfolio, "perf": fetch_perf, "pos": fetch_positions,
     "trades": fetch_recent_trades, "sig": fetch_signals,
     "health": fetch_health, "cb": fetch_circuit,
+    "srank": fetch_sector_ranking, "activity": fetch_activity,
 }
 
 def load_all():
@@ -459,11 +542,7 @@ def load_all():
 
 # ── panel builders ────────────────────────────────────────────────────────────
 
-def panel_orch(run, cfg, data_for_mascot, frame):
-    g = Table.grid(padding=(0, 1))
-    g.add_column("content", ratio=1)
-    g.add_column("mascot", no_wrap=True, justify="right", min_width=7)
-
+def panel_orch(run, cfg):
     next_run  = next_run_str()
     mode      = cfg.get("mode", "?")
     mc2       = G if mode == "LIVE" else Y
@@ -471,12 +550,14 @@ def panel_orch(run, cfg, data_for_mascot, frame):
     ec        = G if cfg.get("enabled", True) else R
     max_n     = cfg.get("max_pos_n")
     min_score = cfg.get("min_score")
+    score_s   = f"  score≥[white]{min_score}[/]" if min_score else ""
+    slots_s   = f"  max [white]{max_n}[/] pos" if max_n else ""
 
     if not run or run.get("_error"):
         body = Text.from_markup(
             f"[dim]no run data[/]\n"
-            f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
-            f"[dim]Next: {next_run}[/]\n"
+            f"[{mc2}]{mode}[/]  [{ec}]{en}[/]{score_s}{slots_s}\n"
+            f"[dim]Next: {next_run}[/]\n[dim]—[/]"
         )
     else:
         age  = fmt_age(run.get("run_at"))
@@ -494,23 +575,13 @@ def panel_orch(run, cfg, data_for_mascot, frame):
             pi  = "+" if ps == "success" else ("~" if ps in ("halt", "warn") else "x")
             pbadges.append(f"[{pc}]P{num}{pi}[/]")
         phases_str = " ".join(pbadges) if pbadges else "[dim]—[/]"
-        score_s = f"  min score:[white]{min_score}[/]" if min_score else ""
-        slots_s = f"  max pos:[white]{max_n}[/]" if max_n else ""
         body = Text.from_markup(
             f"{sts}  [dim]{age}[/]\n"
             f"[{mc2}]{mode}[/]  [{ec}]{en}[/]{score_s}{slots_s}\n"
             f"[dim]{rid}[/]\n"
             f"[dim]Next:[/] [white]{next_run}[/]  {phases_str}"
         )
-
-    fi   = mascot_pose(data_for_mascot, frame)
-    mc   = MASCOT_COLORS[fi]
-    pose = MASCOT_FRAMES[fi]
-    mascot_txt = Text.from_markup(
-        f"[bold {mc}]{pose[0]}[/]\n[bold {mc}]{pose[1]}[/]\n[bold {mc}]{pose[2]}[/]"
-    )
-    g.add_row(body, mascot_txt)
-    return Panel(g, title="[bold]ORCHESTRATOR[/]", border_style="blue", padding=(0, 1))
+    return Panel(body, title="[bold]ORCHESTRATOR[/]", border_style="blue", padding=(0, 1))
 
 
 def panel_market(mkt):
@@ -591,15 +662,27 @@ def panel_performance(perf, rec):
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c   = G if streak >= 0 else R
     pnl_c   = G if (perf.get("pnl") or 0) >= 0 else R
+    pf      = perf.get("profit_factor")
+    pf_s    = f"{pf:.2f}" if pf is not None else "--"
+    pf_c    = G if (pf or 0) >= 1.5 else (Y if (pf or 0) >= 1.0 else R)
+    exp     = perf.get("expectancy") or 0
+    exp_c   = G if exp >= 0 else R
+    avg_r   = perf.get("avg_r")
+    avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
     rows = [Text.from_markup(
-        f"Trades: [white]{perf.get('n', 0)}[/]  ([{G}]{perf.get('w', 0)}W[/] / [{R}]{perf.get('l', 0)}L[/])\n"
-        f"Win Rate: [{G if (perf.get('wr') or 0) >= 50 else R}]{perf.get('wr', '--')}%[/]\n"
+        f"Trades: [white]{perf.get('n', 0)}[/]  "
+        f"([{G}]{perf.get('w', 0)}W[/] / [{R}]{perf.get('l', 0)}L[/])\n"
+        f"Win Rate: [{G if (perf.get('wr') or 0) >= 50 else R}]{perf.get('wr', '--')}%[/]  "
+        f"Streak: [{str_c}]{str_s}[/]\n"
         f"P&L: [{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
         f"MaxDD: [white]{perf.get('maxdd', '--')}%[/]\n"
-        f"Sharpe: [white]{perf.get('sharpe') or '--'}[/]  "
-        f"Streak: [{str_c}]{str_s}[/]"
+        f"PF: [{pf_c}]{pf_s}[/]  "
+        f"Expect: [{exp_c}]{fmt_money(exp)}[/]  "
+        f"Sharpe: [white]{perf.get('sharpe') or '--'}[/]\n"
+        f"Avg R: [white]{avg_r_s}[/]  "
+        f"Avg W: [{G}]{fmt_money(perf.get('avg_win'))}[/]  "
+        f"Avg L: [{R}]{fmt_money(perf.get('avg_loss'))}[/]"
     )]
-    # Recent trades
     closed = [t for t in rec if t.get("status") == "closed"][:3]
     if closed:
         rows.append(Text("Recent exits:", style="dim"))
@@ -671,31 +754,64 @@ def panel_positions(pos, compact=False):
 
 def panel_signals(sig):
     if not sig or sig.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]TOP SIGNALS[/]", border_style="magenta", padding=(0, 1))
+        return Panel(Text("no data", style="dim"), title="[bold]SIGNALS & BREADTH[/]", border_style="magenta", padding=(0, 1))
     raw    = sig.get("n", 0)
+    total  = sig.get("total", 0)
     passed = sig.get("pass", [])
+    top    = sig.get("top", [])
     d      = sig.get("date")
     ds     = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-    pct_s  = f"{len(passed) / raw * 100:.1f}%" if raw > 0 else "--"
-    rows   = [Text.from_markup(
-        f"[dim]{ds}[/]  [white]{raw}[/] [dim]BUY candidates[/]  "
-        f"[{G}]{len(passed)}[/] [dim]passed ({pct_s})[/]"
-    )]
-    pairs = list(zip(passed[::2], passed[1::2] + [None]))
+    pct_s  = f"{raw / total * 100:.1f}%" if total > 0 else "--"
+    g_data = sig.get("grades") or {}
+    ga_n   = int(g_data.get("a") or 0)
+    gb_n   = int(g_data.get("b") or 0)
+    gc_n   = int(g_data.get("c") or 0)
+    gd_n   = int(g_data.get("d") or 0)
+    gt_n   = int(g_data.get("total") or 1)
+    near   = sig.get("near") or []
+
+    rows = [
+        Text.from_markup(
+            f"[dim]{ds}[/]  [white]{raw}[/][dim] BUY signals / {total} universe ({pct_s})[/]\n"
+            f"[dim]Breadth:[/]  "
+            f"[{G}]A:{ga_n}[/]  [{CY}]B:{gb_n}[/]  [yellow]C:{gc_n}[/]  [{R}]D:{gd_n}[/]  [dim]/{gt_n}[/]"
+        ),
+        Rule(style="dim"),
+    ]
+
+    # Top scorers in 2-column pairs
+    rows.append(Text("[dim]Top scores:[/]"))
+    pairs = list(zip(top[::2], top[1::2] + [None]))
     for a, b in pairs:
         sa   = float(a.get("score") or 0)
         ga   = grade(sa)
         ca   = G if sa >= 80 else CY
-        left = f"[{ca}]{ga} {a['symbol']} {sa:.0f}[/]"
+        left = f"[{ca}]{ga} {a['symbol']:<5} {sa:.0f}[/]"
         if b:
-            sb   = float(b.get("score") or 0)
-            gb   = grade(sb)
-            cb2  = G if sb >= 80 else CY
-            right = f"[{cb2}]{gb} {b['symbol']} {sb:.0f}[/]"
+            sb    = float(b.get("score") or 0)
+            gb    = grade(sb)
+            cb2   = G if sb >= 80 else CY
+            right = f"[{cb2}]{gb} {b['symbol']:<5} {sb:.0f}[/]"
             rows.append(Text.from_markup(f"  {left}   {right}"))
         else:
             rows.append(Text.from_markup(f"  {left}"))
-    return Panel(Group(*rows), title="[bold]TOP SIGNALS[/]", border_style="magenta", padding=(0, 1))
+
+    # Near-threshold watchlist
+    if near:
+        rows.append(Rule(style="dim"))
+        rows.append(Text("[dim]Watchlist (near threshold):[/]"))
+        npairs = list(zip(near[::2], near[1::2] + [None]))
+        for a, b in npairs:
+            sa   = float(a.get("score") or 0)
+            left = f"[yellow]{a['symbol']:<5} {sa:.0f}[/]"
+            if b:
+                sb    = float(b.get("score") or 0)
+                right = f"[yellow]{b['symbol']:<5} {sb:.0f}[/]"
+                rows.append(Text.from_markup(f"  {left}   {right}"))
+            else:
+                rows.append(Text.from_markup(f"  {left}"))
+
+    return Panel(Group(*rows), title="[bold]SIGNALS & BREADTH[/]", border_style="magenta", padding=(0, 1))
 
 
 def panel_health(hlth):
@@ -714,6 +830,165 @@ def panel_health(hlth):
             f"[{c}]{icon}[/]  [{rc}]{nm:<18}[/]  [dim]{age}d old[/]"
         ))
     return Panel(Group(*rows), title="[bold]DATA HEALTH[/]", border_style="yellow", padding=(0, 1))
+
+
+def panel_sector(pos, port):
+    if not pos:
+        return Panel(Text("no positions", style="dim"), title="[bold]SECTOR EXPOSURE[/]", border_style="bright_blue", padding=(0, 1))
+    pv = float(port.get("total_portfolio_value") or 0)
+    sd = {}
+    for p in pos:
+        sec = (p.get("sector") or "Unknown")
+        val = float(p.get("position_value") or 0)
+        pnl = float(p.get("unrealized_pnl_pct") or 0)
+        if sec not in sd:
+            sd[sec] = {"val": 0, "n": 0, "pnls": []}
+        sd[sec]["val"] += val
+        sd[sec]["n"] += 1
+        sd[sec]["pnls"].append(pnl)
+    rows = []
+    for sec, d in sorted(sd.items(), key=lambda x: -x[1]["val"]):
+        pct     = d["val"] / pv * 100 if pv else 0
+        avg_pnl = sum(d["pnls"]) / len(d["pnls"]) if d["pnls"] else 0
+        pc      = G if avg_pnl >= 0 else R
+        bar_f   = int(min(pct, 30) / 30 * 8)
+        bar     = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (8 - bar_f)}[/]"
+        rows.append(Text.from_markup(
+            f"[white]{sec[:14]:<14}[/]  {bar}  "
+            f"[dim]{d['n']}p  {pct:.0f}%[/]  "
+            f"[{pc}]{'+' if avg_pnl >= 0 else ''}{avg_pnl:.1f}%[/]"
+        ))
+    return Panel(Group(*rows), title="[bold]SECTOR EXPOSURE[/]", border_style="bright_blue", padding=(0, 1))
+
+
+def panel_sector_ranking(srank):
+    if not srank or (isinstance(srank, dict) and srank.get("_error")):
+        return Panel(Text("no data", style="dim"), title="[bold]SECTOR RANKING[/]", border_style="cyan", padding=(0, 1))
+    rows = []
+    total = len(srank)
+    mid   = total // 2
+    # Top half = leaders, bottom = laggards
+    leaders  = srank[:5]
+    laggards = srank[-5:][::-1]
+    def rank_delta(r):
+        cur = r.get("current_rank")
+        old = r.get("rank_1w_ago")
+        if cur is None or old is None: return ""
+        d = int(old) - int(cur)
+        if d > 0:  return f"[{G}]▲{d}[/]"
+        if d < 0:  return f"[{R}]▼{abs(d)}[/]"
+        return "[dim]=[/]"
+    rows.append(Text.from_markup(f"[{G}][bold]Leaders[/][/]  [dim]{total} sectors total[/]"))
+    for r in leaders:
+        sc  = r.get("current_rank")
+        nm  = (r.get("sector_name") or "--")[:20]
+        ms  = float(r.get("momentum_score") or 0)
+        dlt = rank_delta(r)
+        rows.append(Text.from_markup(
+            f"  [{G}]#{sc:<2}[/]  [white]{nm:<20}[/]  [{CY}]{ms:.1f}[/]  {dlt}"
+        ))
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[{R}][bold]Laggards[/][/]"))
+    for r in laggards:
+        sc  = r.get("current_rank")
+        nm  = (r.get("sector_name") or "--")[:20]
+        ms  = float(r.get("momentum_score") or 0)
+        dlt = rank_delta(r)
+        rows.append(Text.from_markup(
+            f"  [{R}]#{sc:<2}[/]  [dim]{nm:<20}[/]  [dim]{ms:.1f}[/]  {dlt}"
+        ))
+    return Panel(Group(*rows), title="[bold]SECTOR RANKING[/]", border_style="cyan", padding=(0, 1))
+
+
+def panel_activity(act, run):
+    """Show what happened in the last orchestrator run from audit log."""
+    if not act or act.get("_error"):
+        return Panel(Text("no data", style="dim"), title="[bold]ALGO ACTIVITY[/]", border_style="blue", padding=(0, 1))
+    rid    = (act.get("run_id") or "")[:28]
+    phases = act.get("phases") or []
+    recent = act.get("recent_actions") or []
+    rows   = []
+
+    # Phase summary from last run
+    if phases:
+        rows.append(Text.from_markup(f"[dim]Run:[/] [white]{rid}[/]"))
+        for p in phases:
+            at  = p.get("action_type", "")
+            if not at.startswith("phase_"): continue
+            parts = at.split("_")
+            num   = parts[1] if len(parts) > 1 else "?"
+            name  = " ".join(parts[2:]).replace("_", " ") if len(parts) > 2 else at
+            st    = p.get("status", "")
+            sc    = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
+            si    = "+" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "!")
+            rows.append(Text.from_markup(
+                f"  [{sc}]{si} P{num} {name[:28]}[/]"
+            ))
+
+    # Recent trade actions (entry/exit events)
+    trade_actions = [a for a in recent if a.get("action_type") in
+                     ("entry_executed", "exit_executed", "entry_rejected",
+                      "position_exited", "order_placed", "order_rejected")]
+    if trade_actions:
+        rows.append(Rule(style="dim"))
+        rows.append(Text("[dim]Recent actions:[/]"))
+        for a in trade_actions[:6]:
+            at = a.get("action_type", "")
+            det = a.get("details") or {}
+            if isinstance(det, str):
+                try: det = json.loads(det)
+                except: det = {}
+            sym = det.get("symbol", "")
+            ic  = G if "executed" in at or "placed" in at else R
+            label = at.replace("_", " ").title()[:22]
+            sym_s = f" {sym}" if sym else ""
+            rows.append(Text.from_markup(f"  [{ic}]{label}{sym_s}[/]"))
+
+    if not rows:
+        rows.append(Text("no recent activity", style="dim"))
+    return Panel(Group(*rows), title="[bold]ALGO ACTIVITY[/]", border_style="blue", padding=(0, 1))
+
+
+def mascot_sidebar(data, frame, secs_to_refresh=None):
+    """Fixed right-column mascot widget — goes in Layout sidebar."""
+    fi   = mascot_pose(data, frame)
+    mc   = MASCOT_COLORS[fi]
+    pose = MASCOT_FRAMES[fi]
+    cb   = data.get("cb") or {}
+    mkt  = data.get("mkt") or {}
+    tier = mkt.get("tier", "unknown")
+    tier_lbl = tier.replace("_", " ").upper() if tier != "unknown" else ""
+    tier_c   = TIER_COLOR.get(tier, "dim")
+
+    lines = Text.from_markup(
+        f"\n[bold {mc}]{pose[0]}[/]\n"
+        f"[bold {mc}]{pose[1]}[/]\n"
+        f"[bold {mc}]{pose[2]}[/]\n\n"
+        f"[{tier_c}]{tier_lbl}[/]\n"
+    )
+    if secs_to_refresh is not None:
+        lines = Text.from_markup(
+            f"\n[bold {mc}]{pose[0]}[/]\n"
+            f"[bold {mc}]{pose[1]}[/]\n"
+            f"[bold {mc}]{pose[2]}[/]\n\n"
+            f"[{tier_c}]{tier_lbl}[/]\n\n"
+            f"[dim]refresh\n  in {secs_to_refresh}s[/]"
+        )
+    if cb.get("any"):
+        fire_label = f"\n[bold bright_red]⚠ {cb.get('n', 0)} BREAKER[/]"
+        lines = Text.from_markup(str(lines) + fire_label) if False else Text.from_markup(
+            f"\n[bold {mc}]{pose[0]}[/]\n"
+            f"[bold {mc}]{pose[1]}[/]\n"
+            f"[bold {mc}]{pose[2]}[/]\n\n"
+            f"[bold bright_red]⚠ CB FIRED[/]\n"
+            + (f"[dim]refresh\n  in {secs_to_refresh}s[/]" if secs_to_refresh is not None else "")
+        )
+    return Panel(
+        Align(lines, align="center"),
+        title="[bold white]ALGO[/]",
+        border_style=mc,
+        padding=(0, 0),
+    )
 
 
 # ── loading screen (shown while queries run) ──────────────────────────────────
@@ -741,7 +1016,8 @@ def loading_screen(frame):
 
 # ── full dashboard ────────────────────────────────────────────────────────────
 
-def render_dashboard(data, compact=False, elapsed=0.0, frame=0):
+def _main_content(data, compact, elapsed, frame):
+    """Build the main content Group (all panels except sidebar mascot)."""
     run   = data.get("run")   or {}
     cfg   = data.get("cfg")   or {}
     mkt   = data.get("mkt")   or {}
@@ -757,41 +1033,52 @@ def render_dashboard(data, compact=False, elapsed=0.0, frame=0):
     mkt_s  = "[bold bright_green]MARKET OPEN[/]" if is_open() else "[dim]MARKET CLOSED[/]"
     ts     = now_et.strftime("%a %b %d  %I:%M %p ET")
 
-    # Derive mascot pose from actual market/system state
-    fi   = mascot_pose({"cb": cb, "mkt": mkt}, frame)
-    mc   = MASCOT_COLORS[fi]
+    srank = data.get("srank") or []
+    act   = data.get("activity") or {}
 
-    elements = []
+    return Group(
+        Rule(
+            f"[bold white]ALGO OPS DASHBOARD[/]  {mkt_s}  [dim]{ts}[/]  [dim]loaded {elapsed:.1f}s[/]",
+            style="blue",
+        ),
+        # Row 1: system status
+        Columns([panel_orch(run, cfg), panel_market(mkt), panel_circuit(cb)],
+                equal=True, expand=True),
+        # Row 2: portfolio metrics
+        Columns([panel_portfolio(port, cfg), panel_performance(perf, rec), panel_sector(pos, port)],
+                equal=True, expand=True),
+        # Row 3: all open positions
+        panel_positions(pos, compact),
+        # Row 4: signals/breadth | sector ranking
+        Columns([panel_signals(sig), panel_sector_ranking(srank)],
+                equal=True, expand=True),
+        # Row 5: activity log | data health
+        Columns([panel_activity(act, run), panel_health(hlth)],
+                equal=True, expand=True),
+    )
 
-    # ── header ──────────────────────────────────────────────────────────
-    elements.append(Rule(
-        f"[bold white]ALGO OPS DASHBOARD[/]  {mkt_s}  [dim]{ts}[/]  [dim]loaded {elapsed:.1f}s[/]",
-        style="blue"
-    ))
 
-    # ── row 1: orchestrator | market | circuit breakers ──────────────────
-    elements.append(Columns([
-        panel_orch(run, cfg, data, frame),
-        panel_market(mkt),
-        panel_circuit(cb),
-    ], equal=True, expand=True))
+def render_dashboard(data, compact=False, elapsed=0.0, frame=0,
+                     watch_interval=None, last_load_time=None):
+    """Return a Layout (watch mode) or Group (one-shot) renderable."""
+    mkt = data.get("mkt") or {}
+    cb  = data.get("cb")  or {}
 
-    # ── row 2: portfolio | performance ───────────────────────────────────
-    elements.append(Columns([
-        panel_portfolio(port, cfg),
-        panel_performance(perf, rec),
-    ], equal=True, expand=True))
+    secs = None
+    if watch_interval is not None and last_load_time is not None:
+        secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
 
-    # ── row 3: positions (full width) ────────────────────────────────────
-    elements.append(panel_positions(pos, compact))
+    main    = _main_content(data, compact, elapsed, frame)
+    sidebar = mascot_sidebar({"cb": cb, "mkt": mkt}, frame, secs_to_refresh=secs)
 
-    # ── row 4: signals | data health ─────────────────────────────────────
-    elements.append(Columns([
-        panel_signals(sig),
-        panel_health(hlth),
-    ], equal=True, expand=True))
-
-    return Group(*elements)
+    layout = Layout()
+    layout.split_row(
+        Layout(name="main",    ratio=1),
+        Layout(name="sidebar", size=16),
+    )
+    layout["main"].update(main)
+    layout["sidebar"].update(sidebar)
+    return layout
 
 
 # ── run modes ─────────────────────────────────────────────────────────────────
@@ -820,16 +1107,21 @@ def run_once(compact):
             time.sleep(0.125)
 
     CONSOLE.clear()
-    CONSOLE.print(render_dashboard(result[0], compact=compact, elapsed=elapsed[0], frame=frame))
+    # One-shot: print main content without Layout (no full-screen takeover)
+    data = result[0]
+    mkt  = data.get("mkt") or {}
+    cb   = data.get("cb")  or {}
+    CONSOLE.print(_main_content(data, compact=compact, elapsed=elapsed[0], frame=frame))
+    CONSOLE.print(Text.from_markup(f"  [dim]loaded in {elapsed[0]:.1f}s[/]"))
 
 
 def run_watch(interval, compact):
-    """Continuously animate mascot at 8fps, reload data every `interval` seconds."""
-    result  = [None]
-    elapsed = [0.0]
-    loading = [True]
+    """Watch mode: anti-flicker Layout at 2fps, data reload every `interval` seconds."""
+    result    = [None]
+    elapsed   = [0.0]
+    loading   = [True]
     last_load = [0.0]
-    frame   = [0]
+    frame     = [0]
 
     def reload():
         loading[0] = True
@@ -839,36 +1131,30 @@ def run_watch(interval, compact):
         last_load[0] = time.monotonic()
         loading[0] = False
 
-    # Initial load
-    t = threading.Thread(target=reload, daemon=True)
-    t.start()
+    # Initial load in background
+    threading.Thread(target=reload, daemon=True).start()
 
-    with Live(console=CONSOLE, refresh_per_second=8, screen=False) as live:
+    with Live(console=CONSOLE, refresh_per_second=2, screen=True) as live:
         try:
             while True:
                 frame[0] += 1
                 if loading[0] or result[0] is None:
                     live.update(loading_screen(frame[0]))
                 else:
-                    now = time.monotonic()
-                    secs_left = max(0, interval - int(now - last_load[0]))
-                    dash = render_dashboard(result[0], compact=compact,
-                                            elapsed=elapsed[0], frame=frame[0])
-                    # Append refresh countdown
-                    footer = Text.from_markup(
-                        f"  [dim]Watch mode  —  next refresh in {secs_left}s  —  Ctrl+C to exit[/]"
-                    )
-                    live.update(Group(dash, footer))
+                    live.update(render_dashboard(
+                        result[0],
+                        compact=compact,
+                        elapsed=elapsed[0],
+                        frame=frame[0],
+                        watch_interval=interval,
+                        last_load_time=last_load[0],
+                    ))
+                    if not loading[0] and (time.monotonic() - last_load[0]) >= interval:
+                        threading.Thread(target=reload, daemon=True).start()
 
-                    # Trigger background reload when due
-                    if not loading[0] and (now - last_load[0]) >= interval:
-                        t = threading.Thread(target=reload, daemon=True)
-                        t.start()
-
-                time.sleep(0.125)
+                time.sleep(0.5)
         except KeyboardInterrupt:
             pass
-    CONSOLE.print("\n[dim]stopped[/]")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
