@@ -271,7 +271,8 @@ def _get_last_run(cur) -> Dict:
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, 'get last run')
-        return error_response(code, error_type, message)
+        logger.error(f'Failed to fetch last run: {error_type} - {message}')
+        return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
 
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
@@ -325,12 +326,11 @@ def _get_algo_status(cur) -> Dict:
                 'portfolio': portfolio,
                 'data_freshness': freshness,
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch algo status')
-            return error_response(code, error_type, message)
-        except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            code, error_type, message = handle_db_error(e, 'fetch algo status')
-            return error_response(code, error_type, message)
+            logger.error(f'Failed to fetch algo status: {error_type} - {message}')
+            return json_response(200, {'status': 'unavailable', 'last_run': None, 'portfolio': {}, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 
 def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
         """Get recent trades with all fields for frontend (scoped to user if user_id provided)."""
@@ -364,7 +364,12 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch algo trades')
-            return error_response(code, error_type, message)
+            logger.error(f'Failed to fetch algo trades: {error_type} - {message}')
+            return json_response(200, {
+                'items': [],
+                'pagination': {'total': 0, 'limit': limit, 'offset': 0},
+                'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}
+            })
 
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
         """Get current open positions enriched with targets, sector, stage, and computed risk fields (scoped to user if user_id provided)."""
@@ -541,7 +546,12 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch algo positions')
-            return error_response(code, error_type, message)
+            logger.error(f'Failed to fetch algo positions: {error_type} - {message}')
+            return json_response(200, {
+                'items': [],
+                'pagination': {'total': 0, 'limit': 10000, 'offset': 0},
+                'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}
+            })
 
 def _get_algo_performance(cur) -> Dict:
         """Get comprehensive algo performance metrics including Sharpe, Sortino, max drawdown."""
@@ -712,7 +722,14 @@ def _get_algo_performance(cur) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'calculate performance')
-            return error_response(code, error_type, message)
+            logger.error(f'Failed to calculate performance: {error_type} - {message}')
+            return json_response(200, {
+                'total_trades': 0, 'winning_trades': 0, 'losing_trades': 0,
+                'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
+                'total_return_pct': 0.0, 'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
+                'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0,
+                'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}
+            })
 
 def _get_circuit_breakers(cur) -> Dict:
         """Get real-time circuit breaker state with current values vs thresholds."""
@@ -963,7 +980,8 @@ def _get_circuit_breakers(cur) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch circuit breakers')
-            return error_response(code, error_type, message)
+            logger.error(f'Failed to fetch circuit breakers: {error_type} - {message}')
+            return json_response(200, {'breakers': [], 'any_triggered': False, 'triggered_count': 0, 'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'}})
 
 def _get_equity_curve(cur, days: int = 180) -> Dict:
         """Get equity curve for last N days."""
@@ -1700,18 +1718,10 @@ def _get_rejection_funnel(cur) -> Dict:
                     'pass_rate_pct': round((high_quality_count / initial_count * 100), 2) if initial_count else 0
                 }
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get rejection funnel'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get rejection funnel'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get rejection funnel', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch rejection funnel')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch rejection funnel: {type(e).__name__}: {e}', extra={'operation': 'get rejection funnel'})
+            return json_response(200, {'funnel': [], 'summary': {'total_initial': 0, 'total_passed': 0, 'total_rejected': 0, 'pass_rate_pct': 0}})
 _TIER_CONFIG = {
     'confirmed_uptrend': {
         'description': 'Confirmed uptrend — full deployment',
@@ -1814,18 +1824,10 @@ def _get_markets(cur) -> Dict:
                 'sectors': sectors,
                 'market_health': market_health,
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get markets'})
-            return error_response(503, 'schema_error', 'Database schema mismatch or migration issue')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get markets'})
-            return error_response(503, 'connection_error', 'RDS/database connection failed')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
-            return error_response(503, 'query_error', 'Database query execution failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get markets', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'An unexpected error occurred while processing your request')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
+            return json_response(200, {'success': False, 'current': {}, 'active_tier': None, 'history': [], 'sectors': [], 'market_health': None})
 
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
@@ -1914,18 +1916,10 @@ def _get_algo_evaluate(cur) -> Dict:
                     'unrealized_pnl': float(unrealized_pnl or 0)
                 }
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo evaluate'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get algo evaluate'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo evaluate', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to evaluate algorithm')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to evaluate algorithm: {type(e).__name__}: {e}', extra={'operation': 'get algo evaluate'})
+            return json_response(200, {'signals': {'total_candidates': 0}, 'constraints': {}, 'sector_exposure': {}, 'portfolio_health': {}})
 def _get_data_quality(cur) -> Dict:
         """Get detailed data quality summary by table from latest data_patrol_log run."""
         try:
@@ -2005,18 +1999,10 @@ def _get_data_quality(cur) -> Dict:
                     'total_tables_checked': len(tables_dict)
                 }
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get data quality'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get data quality'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get data quality', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to check data quality')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to check data quality: {type(e).__name__}: {e}', extra={'operation': 'get data quality'})
+            return json_response(200, {'accuracy_check': 'error', 'last_check': None, 'tables': [], 'summary': {'critical': 0, 'errors': 0, 'warnings': 0, 'healthy': 0}})
 def _get_exposure_policy(cur) -> Dict:
         """Get detailed market exposure policy with calculation factors."""
         try:
@@ -2090,18 +2076,10 @@ def _get_exposure_policy(cur) -> Dict:
                 'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get exposure policy'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get exposure policy'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get exposure policy', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get exposure policy', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch exposure policy')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch exposure policy: {type(e).__name__}: {e}', extra={'operation': 'get exposure policy'})
+            return json_response(200, {'current_exposure_pct': 0, 'regime': 'unknown', 'halt_reasons': [], 'factors': {}, 'as_of': None})
 def _get_sector_stage2(cur) -> Dict:
         """Get percentage of stocks in Stage 2 by sector."""
         try:
