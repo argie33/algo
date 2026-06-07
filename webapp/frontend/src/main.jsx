@@ -14,6 +14,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { configureAmplify } from "./config/amplify";
 import { createComponentLogger } from "./utils/errorLogger";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ApiErrorBanner from "./components/ApiErrorBanner";
 import { modernTheme } from "./theme/modernTheme";
 
 // Initialize comprehensive error logging service
@@ -300,6 +301,7 @@ try {
                   CssBaseline removed — our theme.css owns the global reset/base. */}
               <ThemeProvider theme={modernTheme}>
                 <AuthProvider>
+                  <ApiErrorBanner />
                   <App />
                 </AuthProvider>
               </ThemeProvider>
