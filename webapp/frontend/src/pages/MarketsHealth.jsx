@@ -183,73 +183,73 @@ function MarketsHealthPage() {
       </div>
 
       {mkError && <div className="alert alert-danger" style={{marginBottom: 'var(--space-4)'}}>Failed to load market data - some sections unavailable</div>}
-      {!mkError && <RegimeBanner markets={m} />}
-      {!techError && <IndicesStrip />}
+      {!mkError && <ErrorBoundary><RegimeBanner markets={m} /></ErrorBoundary>}
+      {!techError && <ErrorBoundary><IndicesStrip /></ErrorBoundary>}
       {techError && <div className="alert alert-warn" style={{marginBottom: 'var(--space-4)'}}>Technical data unavailable</div>}
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        {!mkError ? <ExposureFactors markets={m} /> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
-        {!mkError ? <MarketPulse markets={m} /> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
+        {!mkError ? <ErrorBoundary><ExposureFactors markets={m} /></ErrorBoundary> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
+        {!mkError ? <ErrorBoundary><MarketPulse markets={m} /></ErrorBoundary> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
       </div>
 
       <div style={{ marginTop: 'var(--space-4)' }}>
-        {!mkError && <ExposureHistory markets={m} />}
+        {!mkError && <ErrorBoundary><ExposureHistory markets={m} /></ErrorBoundary>}
         {mkError && <div className="card"><div className="card-body"><div className="alert alert-danger">Exposure history unavailable</div></div></div>}
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <BreadthCard markets={m} />
-        <NewHighsLowsCard markets={m} />
+        <ErrorBoundary><BreadthCard markets={m} /></ErrorBoundary>
+        <ErrorBoundary><NewHighsLowsCard markets={m} /></ErrorBoundary>
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <SentimentCard markets={m} sentiment={sentimentData} loading={sentimentLoading} />
-        <VixCard markets={m} />
+        <ErrorBoundary><SentimentCard markets={m} sentiment={sentimentData} loading={sentimentLoading} /></ErrorBoundary>
+        <ErrorBoundary><VixCard markets={m} /></ErrorBoundary>
       </div>
 
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <InternalsCard data={technicalsData} loading={technicalsLoading} />
-        <TopMoversCard data={moversData} loading={moversLoading} />
+        <ErrorBoundary><InternalsCard data={technicalsData} loading={technicalsLoading} /></ErrorBoundary>
+        <ErrorBoundary><TopMoversCard data={moversData} loading={moversLoading} /></ErrorBoundary>
       </div>
 
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <SeasonalityCard data={seasonalityData} loading={seasonalityLoading} />
+        <ErrorBoundary><SeasonalityCard data={seasonalityData} loading={seasonalityLoading} /></ErrorBoundary>
       </div>
 
       {/* ──────────── 13. Sector Heat Map ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <SectorHeatMap onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} />
+        <ErrorBoundary><SectorHeatMap onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} /></ErrorBoundary>
       </div>
 
       {/* ──────────── 14. Sector Rotation Map ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <SectorRotationMap markets={m} onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} />
+        <ErrorBoundary><SectorRotationMap markets={m} onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} /></ErrorBoundary>
       </div>
 
       {/* ──────────── 14b. Sector Rotation Signal ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <SectorRotationSignalCard />
+        <ErrorBoundary><SectorRotationSignalCard /></ErrorBoundary>
       </div>
 
       {/* ──────────── 15-16. Yield Curve + VIX Term Structure ──────────── */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <YieldCurveCard />
-        <VolTermStructureCard />
+        <ErrorBoundary><YieldCurveCard /></ErrorBoundary>
+        <ErrorBoundary><VolTermStructureCard /></ErrorBoundary>
       </div>
 
       {/* ──────────── 17. Distribution Days Timeline ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <DistributionDaysTimeline />
+        <ErrorBoundary><DistributionDaysTimeline /></ErrorBoundary>
       </div>
 
       {/* ──────────── 18. Sentiment Composite (Fear & Greed + AAII spread) ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <SentimentCompositeCard markets={m} sentiment={sentimentData} loading={sentimentLoading} />
+        <ErrorBoundary><SentimentCompositeCard markets={m} sentiment={sentimentData} loading={sentimentLoading} /></ErrorBoundary>
       </div>
 
       {/* ──────────── 19. Economic Calendar ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
-        <EconomicCalendarCard />
+        <ErrorBoundary><EconomicCalendarCard /></ErrorBoundary>
       </div>
     </div>
   );

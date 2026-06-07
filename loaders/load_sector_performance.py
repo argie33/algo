@@ -84,6 +84,7 @@ def _load_sector_performance(today: date) -> int:
 
         # For each trading date in the fetched range, compute return_pct per sector
         records = []
+        skipped_count = 0
         for d in all_dates:
             spy_close = prices.get('SPY', {}).get(d)
             spy_ret = ((spy_close - spy_baseline) / spy_baseline * 100) if spy_close and spy_baseline else None
@@ -92,12 +93,22 @@ def _load_sector_performance(today: date) -> int:
                 close = prices.get(etf, {}).get(d)
                 base = baseline.get(etf)
                 if close is None or base is None or base == 0:
+                    skipped_count += 1
+                    logger.debug(
+                        f"{sector:25s} [{d}]: Row skipped — missing price data "
+                        f"(close={close}, base={base})"
+                    )
                     continue
                 ret_pct = (close - base) / base * 100
                 rel_strength = (ret_pct - spy_ret) if spy_ret is not None else None
                 records.append((sector, d, round(ret_pct, 4), round(rel_strength, 4) if rel_strength is not None else None))
 
         if not records:
+            if skipped_count > 0:
+                logger.warning(
+                    f"All {skipped_count} potential sector records were skipped due to missing "
+                    f"price data — no records inserted"
+                )
             return 0
 
         # Upsert all records
@@ -110,7 +121,10 @@ def _load_sector_performance(today: date) -> int:
         """, records)
 
         inserted = len(records)
-        logger.info(f"Upserted {inserted} sector performance records through {today}")
+        logger.info(
+            f"Upserted {inserted} sector performance records through {today}"
+            f"{' (' + str(skipped_count) + ' skipped due to missing prices)' if skipped_count > 0 else ''}"
+        )
 
         # Update data_loader_status
         try:

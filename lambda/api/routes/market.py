@@ -218,7 +218,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                                  key=lambda x: -(x.get('pct_change') or 0))[:10]
             losers = sorted([m for m in items if (m.get('pct_change') or 0) < 0],
                             key=lambda x: (x.get('pct_change') or 0))[:10]
-            return json_response(200, {'gainers': gainers or [], 'losers': losers or [], 'items': items})
+            return {
+                'statusCode': 200,
+                'gainers': gainers or [],
+                'losers': losers or [],
+                'items': items
+            }
         elif path == '/api/market/distribution-days':
             DIST_INDEX_NAMES = {'^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^NYA': 'NYSE Composite', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000'}
             try:

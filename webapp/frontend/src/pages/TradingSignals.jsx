@@ -24,6 +24,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import { formatCurrency, formatPercentageChange, formatNumber } from '../utils/formatters';
+import { batchRequests } from '../utils/requestBatcher';
 
 // ─── formatters ────────────────────────────────────────────────────────────
 const fmtMoney = (v) => formatCurrency(v);
@@ -599,21 +600,24 @@ function RecentPerformance({ rows, timeframe }) {
     queryKey: ['signal-perf', symbols, timeframe],
     queryFn: async () => {
       if (!recentBuys.length) return [];
-      // Fetch price history for recent buys (up to 100 to keep reasonable)
+      // Fetch price history for recent buys (limit to 100, batch with max 5 concurrent)
       const toFetch = recentBuys.slice(0, 100);
-      const promises = toFetch.map(r =>
-        api.get(`/api/prices/history/${r.symbol}?timeframe=${timeframe}&limit=60`)
-           .then(res => {
-             let items = res?.data?.data || res?.data;
-             items = Array.isArray(items) ? items : (items?.items || []);
-             return { symbol: r.symbol, items, entry: r };
-           })
-           .catch(err => {
-             console.warn(`Failed to fetch price history for ${r.symbol}:`, err);
-             return { symbol: r.symbol, items: [], entry: r, error: true };
-           })
+      const results = await batchRequests(
+        toFetch,
+        async (r) => {
+          try {
+            const res = await api.get(`/api/prices/history/${r.symbol}?timeframe=${timeframe}&limit=60`);
+            let items = res?.data?.data || res?.data;
+            items = Array.isArray(items) ? items : (items?.items || []);
+            return { symbol: r.symbol, items, entry: r };
+          } catch (err) {
+            console.warn(`Failed to fetch price history for ${r.symbol}:`, err);
+            return { symbol: r.symbol, items: [], entry: r, error: true };
+          }
+        },
+        5 // Limit to 5 concurrent requests to avoid RDS connection pool exhaustion
       );
-      return Promise.all(promises);
+      return results;
     },
     enabled: recentBuys.length > 0,
     staleTime: 300000,

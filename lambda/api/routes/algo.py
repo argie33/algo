@@ -2211,7 +2211,7 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
                     LIMIT %s OFFSET %s
                 """, (limit, offset))
             rows = cur.fetchall()
-            return json_response(200, {'items': [dict(r) for r in rows], 'total': total, 'limit': limit, 'offset': offset})
+            return list_response([dict(r) for r in rows], total=total, limit=limit, offset=offset)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable: {e}', extra={'operation': 'get algo audit log'})
             return error_response(503, 'service_unavailable', 'Data unavailable')

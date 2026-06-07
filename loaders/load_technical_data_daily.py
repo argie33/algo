@@ -93,16 +93,25 @@ class TechnicalDataDailyLoader(OptimalLoader):
                     (symbol, start, end),
                 )
                 rows = []
+                skipped_count = 0
                 for r in cur.fetchall():
                     # Validate: reject zero-price or zero-volume rows (data errors or halted stocks)
                     close = float(r[4]) if r[4] is not None else None
                     volume = int(r[5]) if r[5] is not None else None
 
                     if close is None or close <= 0:
-                        # Zero/negative close price = data error
+                        skipped_count += 1
+                        logger.debug(
+                            f"{symbol} [{r[0]}]: Row skipped — invalid close price "
+                            f"(close={close} — expected > 0)"
+                        )
                         continue
                     if volume is not None and volume == 0:
-                        # Zero volume = halted/no trading
+                        skipped_count += 1
+                        logger.debug(
+                            f"{symbol} [{r[0]}]: Row skipped — zero volume "
+                            f"(stock halted/no trading)"
+                        )
                         continue
 
                     rows.append({
@@ -113,6 +122,11 @@ class TechnicalDataDailyLoader(OptimalLoader):
                         "close": close,
                         "volume": volume,
                     })
+                if skipped_count > 0:
+                    logger.warning(
+                        f"{symbol}: Skipped {skipped_count} row(s) due to invalid/missing "
+                        f"price or volume data — {len(rows)} valid row(s) returned"
+                    )
                 return rows
         except Exception as e:
             logger.error(f"Failed to fetch price data for {symbol}: {e}")

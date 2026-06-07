@@ -215,8 +215,14 @@ class SignalsDailyLoader(OptimalLoader):
                     (symbol, start, end),
                 )
                 rows = []
+                dropped_rows = 0
                 for r in cur.fetchall():
                     if r[0] is None or r[11] is None:
+                        dropped_rows += 1
+                        logger.debug(
+                            f"{symbol} [{r[0]}]: Row dropped — missing required field "
+                            f"(date={r[0]}, close={r[11]})"
+                        )
                         continue
                     rows.append({
                         "date": r[0].isoformat() if r[0] else None,
@@ -236,6 +242,10 @@ class SignalsDailyLoader(OptimalLoader):
                         "high": float(r[14]) if r[14] is not None else None,
                         "low": float(r[15]) if r[15] is not None else None,
                     })
+                if dropped_rows > 0:
+                    logger.warning(
+                        f"{symbol}: Dropped {dropped_rows} row(s) due to missing date or close price"
+                    )
                 return rows
         except Exception as e:
             logger.error(f"Failed to fetch signal data for {symbol}: {e}")
@@ -254,6 +264,7 @@ class SignalsDailyLoader(OptimalLoader):
         tech_data_age = self._calculate_data_source_age_days(symbol, "technical_data_daily")
 
         signals = []
+        skipped_count = 0
 
         for i, row in enumerate(rows):
             high = row.get("high")
@@ -271,6 +282,11 @@ class SignalsDailyLoader(OptimalLoader):
             mansfield_rs = row.get("mansfield_rs")
 
             if close is None or high is None or low is None:
+                skipped_count += 1
+                logger.debug(
+                    f"{symbol} [{row.get('date')}]: Skipping row — missing required OHLC field "
+                    f"(close={close}, high={high}, low={low})"
+                )
                 continue
 
             signal_type = None
@@ -451,6 +467,11 @@ class SignalsDailyLoader(OptimalLoader):
                     "technical_data_age_days": tech_data_age,
                 })
 
+        if skipped_count > 0:
+            logger.warning(
+                f"{symbol}: Skipped {skipped_count} row(s) during signal generation "
+                f"due to missing OHLC fields — {len(signals)} signal(s) generated"
+            )
         return signals
 
 def main():

@@ -63,7 +63,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute(count_query, count_args)
                 total = next(iter(dict(cur.fetchone() or {}).values()), 0)
                 freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
-                return json_response(200, {'items': [dict(t) for t in trades], 'total': total, 'data_freshness': freshness})
+                return list_response([dict(t) for t in trades], total=total, data_freshness=freshness)
             elif path == '/api/trades/summary':
                 if not _check_admin_access(jwt_claims):
                     return error_response(403, 'forbidden', 'Admin access required')
