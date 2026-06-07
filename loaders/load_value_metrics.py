@@ -14,6 +14,7 @@ import time
 from utils.yfinance_wrapper import get_ticker
 from utils.optimal_loader import OptimalLoader
 from utils.loader_helpers import get_active_symbols
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ def _apply_schema_migrations():
 def main():
     parser = argparse.ArgumentParser(description='Value Metrics Loader')
     parser.add_argument('--symbols', type=str, help='Comma-separated symbols or blank for all')
-    parser.add_argument('--parallelism', type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help='Parallel workers')
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("value_metrics"), help='Parallel workers')
     args = parser.parse_args()
 
     _apply_schema_migrations()

@@ -18,6 +18,7 @@ from typing import List, Optional, Dict, Any
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -477,7 +478,7 @@ class SignalsDailyLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load daily trading signals")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "3")), help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("buy_sell_daily"), help="Parallel workers")
     args = parser.parse_args()
 
     try:

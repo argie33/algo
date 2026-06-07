@@ -33,6 +33,7 @@ import json
 
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 class SwingTraderScoresLoader(OptimalLoader):
     table_name = "swing_trader_scores"
@@ -331,7 +332,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("swing_trader_scores"), help="Concurrent workers")
     args = parser.parse_args()
 
     symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)

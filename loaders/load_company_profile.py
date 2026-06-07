@@ -11,6 +11,7 @@ from typing import Optional, List
 from utils.optimal_loader import OptimalLoader
 from utils.loader_helpers import get_active_symbols
 from utils.yfinance_wrapper import get_ticker
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Company Profile Loader')
     parser.add_argument('--symbols', type=str, help='Comma-separated symbols, or blank for all active')
-    parser.add_argument('--parallelism', type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help='Number of parallel workers')
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("company_profile"), help='Number of parallel workers')
     args = parser.parse_args()
 
     loader = CompanyProfileLoader()

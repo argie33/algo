@@ -99,7 +99,7 @@ If you need to rebuild the schema:
 
 **Loaders:** 37 total (9 core via Step Functions, 28 supporting via EventBridge). Core loaders: stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily, trend_template_data, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores.
 
-**LOADER_PARALLELISM:** All loaders read thread-pool concurrency from the `LOADER_PARALLELISM` environment variable (set by Terraform ECS task definition). CLI `--parallelism` arg falls back to the env var. Parallelism tuned per loader with RDS Proxy multiplexing:
+**LOADER_PARALLELISM (Dynamic Configuration):** All loaders read thread-pool concurrency via `loader_config.get_parallelism(loader_name)` which queries DynamoDB first, then falls back to `LOADER_PARALLELISM` environment variable. This allows updating parallelism without redeploying Terraform or restarting loaders (changes picked up at next loader startup). Default values from Terraform:
 - **stock_prices_daily (SERIAL EXECUTION)**: parallelism=1 (ISSUE #RATE_LIMIT_429 fix)
   - Reduced from parallelism=6 to eliminate yfinance 429 rate limiting errors
   - Root cause: 6 concurrent threads created contention on shared NAT gateway IP
@@ -110,7 +110,14 @@ If you need to rebuild the schema:
 - **Analytics loaders**: company_profile (parallelism=2), analyst_sentiment (parallelism=2), stability_metrics (parallelism=2), value_metrics (parallelism=2), growth_metrics (parallelism=2), quality_metrics (parallelism=2)
 - **Small loaders**: parallelism=1 to avoid rate limiting or because data size is small
 - **Justification**: RDS Proxy multiplexes 24 loaders (up to 96 direct connections) into 20-30 persistent RDS connections, reducing TCP handshake overhead by 75%. Even with parallelism=2-4 per loader, the proxy pools connections efficiently, preventing "too many connections" errors.
-- **Enforcement**: Parallelism values are defined per-loader in `terraform/modules/loaders/main.tf` (loaders map, each key has `parallelism` field). ECS task definitions automatically receive correct LOADER_PARALLELISM env var. Do NOT override with global settings in task definition revisions.
+- **Updating parallelism dynamically (FIXED ISSUE #13):**
+  - Initialize DynamoDB table: `python scripts/initialize-loader-config.py --environment dev`
+  - List current config: `python scripts/update-loader-parallelism.py --list --environment dev`
+  - Update single loader: `python scripts/update-loader-parallelism.py --loader technical_data_daily --parallelism 3 --environment dev`
+  - Update multiple: `python scripts/update-loader-parallelism.py --loader technical_data_daily --parallelism 3 --loader buy_sell_daily --parallelism 4 --environment dev`
+  - Reset to defaults: `python scripts/update-loader-parallelism.py --reset --environment dev`
+  - Batch update from JSON: `python scripts/update-loader-parallelism.py --from-file updates.json --environment dev`
+  - Changes are effective at next loader startup (5-minute DynamoDB cache TTL on reads)
 
 **RDS Proxy (Connection Pooling):**
 - **Architecture:** `aws_db_proxy` multiplexes client connections to RDS

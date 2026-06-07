@@ -45,6 +45,7 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 class AnalystSentimentLoader(OptimalLoader):
     table_name = "analyst_sentiment_analysis"
@@ -119,7 +120,7 @@ class AnalystSentimentLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Optimal analyst_sentiment loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("analyst_sentiment_analysis"), help="Concurrent workers")
     args = parser.parse_args()
 
     if args.symbols:

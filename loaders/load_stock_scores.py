@@ -27,6 +27,7 @@ import os
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -490,7 +491,7 @@ class StockScoresLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load stock scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "8")), help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("stock_scores"), help="Parallel workers")
     args = parser.parse_args()
 
     try:

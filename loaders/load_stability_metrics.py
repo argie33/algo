@@ -23,6 +23,7 @@ from typing import List, Optional, Dict
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ class StabilityMetricsLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Stability Metrics Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("stability_metrics"), help="Concurrent workers")
     args = parser.parse_args()
 
     symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)

@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
 from utils.loader_helpers import get_active_symbols
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class EarningsCalendarLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Earnings Calendar Loader")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols, or blank for all active")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "4")), help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("earnings_calendar"), help="Parallel workers")
     args = parser.parse_args()
 
     loader = EarningsCalendarLoader()

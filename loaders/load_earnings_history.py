@@ -22,6 +22,7 @@ from datetime import date
 from typing import List, Optional
 
 from utils.optimal_loader import OptimalLoader
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 class EarningsHistoryLoader(OptimalLoader):
     table_name = "earnings_history"
@@ -107,7 +108,7 @@ class EarningsHistoryLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Optimal earnings_history loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Concurrent workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("earnings_history"), help="Concurrent workers")
     args = parser.parse_args()
 
     if args.symbols:

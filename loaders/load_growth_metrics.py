@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 from utils.loader_helpers import get_active_symbols
 from utils.database_context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 class GrowthMetricsLoader(OptimalLoader):
     table_name = "growth_metrics"
@@ -100,7 +101,7 @@ class GrowthMetricsLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Growth metrics loader")
     parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "8")))
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("growth_metrics"))
     args = parser.parse_args()
 
     symbols = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else get_active_symbols(timeout_secs=60)

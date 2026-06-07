@@ -21,6 +21,7 @@ import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.loader_config import get_parallelism, get_default_parallelism
 
 logger = logging.getLogger(__name__)
 
@@ -282,7 +283,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load signal quality scores")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "2")), help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("signal_quality_scores"), help="Parallel workers")
     parser.add_argument("--timeframe", type=str, default="daily", help="Timeframe (daily/weekly/monthly, ignored for quality scores)")
     parser.add_argument("--asset-class", type=str, default="stock", help="Asset class (stock/etf, ignored for quality scores)")
     args = parser.parse_args()

@@ -21,6 +21,7 @@ import logging
 from utils.loader_helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.loader_config import get_parallelism, get_default_parallelism
 from loaders.technical_indicators import compute_moving_averages
 
 logger = logging.getLogger(__name__)
@@ -205,7 +206,7 @@ class TrendCriteriaLoader(OptimalLoader):
 def main():
     parser = argparse.ArgumentParser(description="Load trend criteria data")
     parser.add_argument("--symbols", help="Comma-separated symbols")
-    parser.add_argument("--parallelism", type=int, default=int(os.getenv("LOADER_PARALLELISM", "4")), help="Parallel workers")
+    parser.add_argument("--parallelism", type=int, default=get_default_parallelism("trend_criteria_data"), help="Parallel workers")
     args = parser.parse_args()
 
     try:
