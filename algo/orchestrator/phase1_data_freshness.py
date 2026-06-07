@@ -1052,15 +1052,27 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                     incomplete_coverage.append(f"{loader}: completion={completion_pct:.1f}% (need >=90%)")
                     continue
 
-                # ISSUE #2 ENHANCED: Validate symbol coverage from data_loader_status
-                # Cross-check: symbols_loaded / symbol_count should be >= 90%
+                # ISSUE #2 ENHANCED + ISSUE #2 BLOCKER FIX: Validate symbol coverage with gradual degradation
+                # ISSUE #2 BLOCKER: Previously 90% threshold was too strict (89% → halt). Now tiered:
+                # - <80%: Critical failure, halt entire pipeline (too incomplete to trade)
+                # - 80-85%: Warning, proceed but with reduced position sizing (50%)
+                # - 85-90%: Moderate, proceed with caution (75% position sizing)
+                # - >=90%: Optimal (100% position sizing)
                 if symbol_count and symbol_count > 0 and symbols_loaded is not None:
                     loader_symbol_coverage = (symbols_loaded / symbol_count * 100) if symbol_count > 0 else 0
-                    if loader_symbol_coverage < 90:
+                    if loader_symbol_coverage < 80:
+                        # Critical: below 80% is too incomplete to trade reliably
                         incomplete_coverage.append(
-                            f"{loader}: symbol coverage {loader_symbol_coverage:.1f}% ({symbols_loaded}/{symbol_count} symbols, need >=90%)"
+                            f"{loader}: CRITICAL symbol coverage {loader_symbol_coverage:.1f}% ({symbols_loaded}/{symbol_count} symbols, minimum 80%)"
                         )
                         continue
+                    elif loader_symbol_coverage < 90:
+                        # Warning: below 90% but tradeable - Phase 5 will reduce position sizing
+                        logger.warning(
+                            f"[MORNING_PREP_VALIDATION] ⚠️  {loader}: symbol coverage {loader_symbol_coverage:.1f}% "
+                            f"({symbols_loaded}/{symbol_count} symbols). Below 90% optimal but above 80% minimum. "
+                            f"Phase 5 will reduce position sizing."
+                        )
                     if verbose:
                         logger.debug(f"[MORNING_PREP_VALIDATION] {loader}: {symbols_loaded}/{symbol_count} symbols ({loader_symbol_coverage:.1f}%)")
 
@@ -1092,8 +1104,13 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
                 actual_symbols = count_result[0] if count_result else 0
                 coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
-                if coverage < 90:
-                    incomplete_coverage.append(f"{table}: {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%, need 90%)")
+                # ISSUE #2 BLOCKER FIX: Gradual degradation for output tables (same as loaders)
+                if coverage < 80:
+                    # Critical: too incomplete
+                    incomplete_coverage.append(f"{table}: CRITICAL {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%, need minimum 80%)")
+                elif coverage < 90:
+                    # Warning: tradeable but with reduced sizing
+                    logger.warning(f"[MORNING_PREP_VALIDATION] ⚠️  {table} ({desc}): {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%). Below optimal but above minimum.")
                 elif verbose:
                     logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {table}: {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%)")
 
@@ -3169,12 +3186,22 @@ def run(
                         return PhaseResult(1, 'timing_deadline_gate', 'halted', {}, True,
                                          f'HARD DEADLINE GATE: Market open {time_until_930:.0f}min away, failsafe needs 120-300min. Insufficient recovery window.')
 
-                # SIMPLIFIED FAILSAFE: Single attempt with 180s poll timeout
-                # Fargate tasks can take 45-120s to reach RUNNING under load (Issue #13)
-                # If it fails, halt only if data is VERY stale (2+ days). Otherwise proceed with warning.
-                # This prevents waiting through 3 timeout loops (30+120+180s = 330s) when failsafe is dead.
-                failsafe_ok = False
-                poll_timeout = 180  # ISSUE #13 FIX: Increased from 120s to 180s to safely handle worst-case Fargate delays
+                # Issue #4 FIX (Blocker #4): Adaptive failsafe timeout based on time of day
+                # Morning prep (2-10 AM ET) needs longer timeout because:
+                #   - Morning loaders load 5700+ symbols across multiple tables
+                #   - May need 5-15 min per loader, startup can be 45-120s under load
+                #   - Total: expect 60-120s startup + 300-900s load = ~360-1020s realistic
+                # Intraday (rest of day) loaders are faster:
+                #   - Typically load fewer symbols, faster queries
+                #   - Expect 45-60s startup + 60-180s load = ~105-240s realistic
+                # Conservative values with safety margin:
+                if is_morning and 2 <= hour_et < 10:
+                    poll_timeout = 1200  # 20 min for morning prep loaders (safety: +150% buffer)
+                else:
+                    poll_timeout = 300  # 5 min for intraday loaders (safety: +100% buffer)
+
+                logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Using adaptive timeout: {poll_timeout}s "
+                          f"(time={hour_et}:00, is_morning={is_morning})")
 
                 try:
                     logger.info(f"[{_phase1_correlation_id}] [FAILSAFE] Triggering loader with {poll_timeout}s poll timeout...")
