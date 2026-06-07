@@ -20,6 +20,7 @@ import {
   Bar,
 } from "recharts";
 import api from "../services/api";
+import { extractData } from "../utils/responseNormalizer";
 import { getChartContainerStyle } from "../utils/chartContainer";
 
 /**
@@ -42,15 +43,15 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           api.getStockPrices?.(symbol, days) ||
           Promise.resolve({ data: [] }));
 
-        const responseData = response?.data;
-
-        // Check for error responses (success: false indicates API error)
-        if (responseData?.success === false) {
-          setError(responseData?.error || "Failed to load chart data");
-          return;
+        let responseData;
+        try {
+          responseData = extractData(response);
+        } catch (err) {
+          console.warn("Failed to extract chart data:", err.message);
+          responseData = response?.data || [];
         }
 
-        const data = Array.isArray(responseData) ? responseData : [];
+        const data = Array.isArray(responseData) ? responseData : (Array.isArray(responseData?.data) ? responseData.data : []);
 
         // Transform data for chart
         const transformed = data.map((row) => ({

@@ -21,7 +21,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
     return <LinearProgress />;
   }
 
-  if (error || !data?.data) {
+  if (error || !data) {
     return (
       <Alert severity="error">
         Unable to load market volatility data. {error?.message}
@@ -29,7 +29,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
     );
   }
 
-  const { market_volatility, avg_absolute_change } = data.data;
+  const { market_volatility, avg_absolute_change } = data;
 
   // Handle case where required fields might be missing
   if (typeof market_volatility !== 'number' || isNaN(market_volatility)) {

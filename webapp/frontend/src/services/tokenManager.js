@@ -29,7 +29,11 @@ export const tokenManager = {
       // Fall back to sessionStorage (cleared on browser close)
       return sessionStorage.getItem(TOKEN_KEYS[type] || type) || null;
     } catch (err) {
-      console.error('[TokenManager] Failed to get token:', err?.message || err);
+      console.error('[TokenManager] Failed to get token:', {
+        tokenType: type,
+        message: err?.message,
+        code: err?.code
+      });
       return null;
     }
   },
@@ -47,7 +51,11 @@ export const tokenManager = {
         dev_session: this.getToken('dev_session')
       };
     } catch (err) {
-      console.error('[TokenManager] Failed to get all tokens:', err?.message || err);
+      console.error('[TokenManager] Failed to get all tokens:', {
+        message: err?.message,
+        code: err?.code,
+        operation: 'getAllTokens'
+      });
       return {};
     }
   },
@@ -74,7 +82,11 @@ export const tokenManager = {
         localStorage.removeItem(key);
       }
     } catch (error) {
-      console.error(`Failed to set token (${type}):`, error);
+      console.error('[TokenManager] Failed to set token:', {
+        tokenType: type,
+        message: error?.message,
+        code: error?.code
+      });
     }
   },
 
@@ -106,7 +118,11 @@ export const tokenManager = {
         localStorage.removeItem(key);
       });
     } catch (error) {
-      console.error('Failed to clear tokens:', error);
+      console.error('[TokenManager] Failed to clear all tokens:', {
+        message: error?.message,
+        code: error?.code,
+        operation: 'clearTokens'
+      });
     }
   },
 
@@ -121,7 +137,11 @@ export const tokenManager = {
       sessionStorage.removeItem(key);
       localStorage.removeItem(key);
     } catch (error) {
-      console.error(`Failed to clear token (${type}):`, error);
+      console.error('[TokenManager] Failed to clear token:', {
+        tokenType: type,
+        message: error?.message,
+        code: error?.code
+      });
     }
   },
 

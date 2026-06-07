@@ -111,7 +111,13 @@ const NotificationCenter = () => {
       await api.patch(`/api/algo/notifications/${id}/read`);
       refetch();
     } catch (err) {
-      console.error('Failed to mark as read:', err);
+      console.error('[NotificationCenter] Failed to mark as read:', {
+        notificationId: id,
+        message: err?.message,
+        code: err?.code,
+        status: err?.response?.status,
+        endpoint: `/api/algo/notifications/${id}/read`
+      });
     }
   };
 
@@ -120,7 +126,13 @@ const NotificationCenter = () => {
       await api.delete(`/api/algo/notifications/${id}`);
       refetch();
     } catch (err) {
-      console.error('Failed to delete:', err);
+      console.error('[NotificationCenter] Failed to delete notification:', {
+        notificationId: id,
+        message: err?.message,
+        code: err?.code,
+        status: err?.response?.status,
+        endpoint: `/api/algo/notifications/${id}`
+      });
     }
   };
 

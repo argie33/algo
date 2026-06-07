@@ -88,8 +88,11 @@ const MarketStatusBar = () => {
       setMarketStatus(data);
       setLoading(false);
     } catch (error) {
-      if (import.meta.env && import.meta.env.DEV)
-        console.error("Failed to fetch market status:", error);
+      console.error('[MarketStatusBar] Failed to fetch market status:', {
+        message: error?.message,
+        code: error?.code,
+        status: error?.response?.status
+      });
       setLoading(false);
     }
   };

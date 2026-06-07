@@ -272,10 +272,11 @@ Select.displayName = 'Select';
 // TABS
 // =============================================================================
 
-export function Tabs({ tabs, value, onChange, className }) {
+export function Tabs({ tabs = [], value, onChange, className }) {
+  const tabsArray = Array.isArray(tabs) ? tabs : [];
   return (
     <div className={cx('flex border-b border-border', className)}>
-      {tabs.map((tab, i) => {
+      {tabsArray.map((tab, i) => {
         const active = value === (tab.value ?? i);
         return (
           <button
@@ -416,7 +417,7 @@ export function TrendArrow({ value, size = 16 }) {
  * Rows: array of objects keyed by `key` field
  */
 export function DataTable({
-  columns, rows, keyField = 'id',
+  columns = [], rows = [], keyField = 'id',
   onRowClick, expandRender, sortable = true,
   empty, loading, error, className,
   maxHeight = '60vh',
@@ -425,9 +426,12 @@ export function DataTable({
   const [sortDir, setSortDir] = useState('asc');
   const [expandedKey, setExpandedKey] = useState(null);
 
+  const columnsArray = Array.isArray(columns) ? columns : [];
+  const rowsArray = Array.isArray(rows) ? rows : [];
+
   const sortedRows = React.useMemo(() => {
-    if (!sortKey) return rows;
-    const r = [...rows];
+    if (!sortKey) return rowsArray;
+    const r = [...rowsArray];
     r.sort((a, b) => {
       const av = a[sortKey], bv = b[sortKey];
       if (av == null) return 1;
@@ -437,11 +441,11 @@ export function DataTable({
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return r;
-  }, [rows, sortKey, sortDir]);
+  }, [rowsArray, sortKey, sortDir]);
 
   if (loading) return <Skeleton height={300} />;
   if (error) return <ErrorState error={error} />;
-  if (!rows?.length) return <EmptyState {...(empty || {})} />;
+  if (!rowsArray?.length) return <EmptyState {...(empty || {})} />;
 
   const handleSort = (col) => {
     if (!sortable || col.sortable === false) return;
@@ -454,7 +458,7 @@ export function DataTable({
       <table className="table">
         <thead>
           <tr>
-            {columns.map(col => (
+            {columnsArray.map(col => (
               <th
                 key={col.key}
                 onClick={() => handleSort(col)}
@@ -487,7 +491,7 @@ export function DataTable({
                     if (onRowClick) onRowClick(row);
                   }}
                 >
-                  {columns.map(col => (
+                  {columnsArray.map(col => (
                     <td
                       key={col.key}
                       className={cx(
@@ -501,7 +505,7 @@ export function DataTable({
                 </tr>
                 {expanded && expandRender && (
                   <tr>
-                    <td colSpan={columns.length} className="bg-bg-alt p-4">
+                    <td colSpan={columnsArray.length} className="bg-bg-alt p-4">
                       {expandRender(row)}
                     </td>
                   </tr>
@@ -533,8 +537,9 @@ export function SectionDivider({ children, className }) {
 // =============================================================================
 
 export function Sparkline({ data, width = 80, height = 24, color }) {
-  if (!data || data.length < 2) return null;
-  const values = data.map(d => typeof d === 'number' ? d : d.value);
+  const dataArray = Array.isArray(data) ? data : [];
+  if (!dataArray || dataArray.length < 2) return null;
+  const values = dataArray.map(d => typeof d === 'number' ? d : d.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;

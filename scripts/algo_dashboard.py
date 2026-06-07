@@ -771,14 +771,14 @@ def render_dashboard(data, compact=False, elapsed=0.0, frame=0):
 
     # ── row 1: orchestrator | market | circuit breakers ──────────────────
     elements.append(Columns([
-        panel_orch(run, cfg, frame),
+        panel_orch(run, cfg, data, frame),
         panel_market(mkt),
         panel_circuit(cb),
     ], equal=True, expand=True))
 
     # ── row 2: portfolio | performance ───────────────────────────────────
     elements.append(Columns([
-        panel_portfolio(port),
+        panel_portfolio(port, cfg),
         panel_performance(perf, rec),
     ], equal=True, expand=True))
 

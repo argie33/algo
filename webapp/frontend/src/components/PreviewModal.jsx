@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../services/api';
+import { extractData } from '../utils/responseNormalizer';
 import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
 
 export default function PreviewModal({ isOpen, onClose, onConfirm }) {
@@ -42,12 +43,7 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
         entry_price: parseFloat(entryPrice),
         stop_loss_price: parseFloat(stopPrice)
       });
-      const data = response.data;
-      // Check for error responses (success: false indicates API error)
-      if (data?.success === false) {
-        setError(data?.error || 'Failed');
-        return;
-      }
+      const data = extractData(response);
       setPreview(data?.preview || data);
     } catch (err) {
       console.error('[PreviewModal] Preview request failed:', {
@@ -87,13 +83,7 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
       };
 
       const response = await api.post('/api/trades/manual', tradeData);
-      const data = response.data;
-
-      // Check for error responses (success: false indicates API error)
-      if (data?.success === false) {
-        setError(data?.error || 'Failed to create trade');
-        return;
-      }
+      const data = extractData(response);
 
       if (data?.id || data?.trade_id) {
         setSuccess(true);

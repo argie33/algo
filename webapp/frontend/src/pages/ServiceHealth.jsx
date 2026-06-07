@@ -37,6 +37,12 @@ export default function ServiceHealth() {
       await api.post('/api/algo/patrol', { quick: false });
       setPatrolMsg({ ok: true, text: 'Data patrol complete — refresh to see latest findings.' });
     } catch (e) {
+      console.error('[ServiceHealth] Data patrol failed:', {
+        message: e?.message,
+        code: e?.code,
+        status: e?.response?.status,
+        endpoint: '/api/algo/patrol'
+      });
       setPatrolMsg({ ok: false, text: `Patrol failed: ${e?.message || 'Unknown error'}` });
     }
     setPatrolRunning(false);
