@@ -891,24 +891,29 @@ def _check_failsafe_grace_period(state_table: Any, verbose: bool = False, loader
                 age_minutes = (current_time - triggered_at) / 60
                 age_source = "triggered_at (ECS check failed)"
 
-        # Dynamic grace period (configurable via algo_config):
-        # Read from database if available, default to 150 minutes
-        # - stock_prices_daily can take up to 2h with yfinance lag
-        # - Grace period starts from actual_running_at, so no need to add ECS delay anymore
-        # - Default: 150 minutes (2.5 hours)
-        # - Hard cap: 240 minutes (4 hours) — if grace period stalls, we don't wait indefinitely
-        HARD_MAX_GRACE_PERIOD = 240  # Absolute maximum to prevent infinite waits if heartbeat stalls
+        # ISSUE #7 FIX: Dynamic grace period based on symbol count (configurable via algo_config)
+        # Morning prep (2:00-9:30 AM) has 450 min window. Expected execution with 5000 symbols:
+        #   - stock_prices_daily: 15 min (50 symbols/min × 300 symbols/batch)
+        #   - technical_data_daily: 180+ min (complex calculations, first run cache-cold)
+        #   - buy_sell_daily: 30 min
+        #   - signal_quality_scores: 30 min
+        #   - swing_trader_scores: 30 min
+        #   Total: ~285+ minutes expected
+        # Grace period MUST accommodate worst-case. Read from database if available.
+        # - Default: 300 minutes (5 hours) — 450 min window - 60 min buffer for Phase 2-7
+        # - Hard cap: 420 minutes (7 hours) — safety valve to prevent indefinite waits
+        HARD_MAX_GRACE_PERIOD = 420  # Absolute maximum to prevent infinite waits if heartbeat stalls
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT value FROM algo_config WHERE key = %s", ('failsafe_grace_period_minutes',))
                 result = cur.fetchone()
-                configured_grace = int(result[0]) if result and result[0] else 150
+                configured_grace = int(result[0]) if result and result[0] else 300  # Increased from 150
                 max_grace_period = min(configured_grace, HARD_MAX_GRACE_PERIOD)
                 if configured_grace > HARD_MAX_GRACE_PERIOD:
                     logger.warning(f"[FAILSAFE] Grace period configured to {configured_grace}m exceeds hard cap {HARD_MAX_GRACE_PERIOD}m — capping at {HARD_MAX_GRACE_PERIOD}m")
         except Exception as config_err:
-            logger.debug(f"[FAILSAFE] Could not read grace period config: {config_err}, using default 150m")
-            max_grace_period = 150
+            logger.debug(f"[FAILSAFE] Could not read grace period config: {config_err}, using default 300m")
+            max_grace_period = 300  # ISSUE #7 FIX: Increased from 150m to accommodate 5000 symbols
 
         if age_minutes < max_grace_period:
             if verbose:
