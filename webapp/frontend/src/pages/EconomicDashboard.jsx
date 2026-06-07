@@ -308,7 +308,7 @@ function EconomicDashboardPage() {
       {(leadQ.error || yldQ.error) && (
         <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)' }}>
           <AlertCircle size={16} />
-          <div>{leadQ.error || yldQ.error || 'Failed to load economic data'}</div>
+          <div>{(leadQ.error?.message || leadQ.error?.responseData?.message || yldQ.error?.message || yldQ.error?.responseData?.message || 'Failed to load economic data')}</div>
         </div>
       )}
 

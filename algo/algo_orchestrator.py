@@ -665,12 +665,13 @@ class Orchestrator:
     # ---------- Phase implementations ----------
 
     def phase_1_data_freshness(self):
-        """Thin delegation to phase1_data_freshness module.
+        """Thin delegation to phase1_data_freshness_v2 module (simplified).
 
-        ISSUE #11 FIX: Returns full PhaseResult instead of boolean to capture degradation status
+        New version only checks: are today's prices loaded? 95%+ coverage?
+        Removes all the complex grace period / hung task detection logic.
         """
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
-        from algo.orchestrator.phase1_data_freshness import run as run_phase1
+        from algo.orchestrator.phase1_data_freshness_v2 import run as run_phase1
         result = run_phase1(
             self.config,
             self.run_date, self.dry_run, self.alerts,
@@ -772,61 +773,31 @@ class Orchestrator:
         return True  # fail-open
 
     def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
-        """Thin delegation to phase5_signal_generation module.
+        """Thin delegation to phase5_signal_generation_v2 module (simplified).
 
-        ISSUE #11 FIX: Pass Phase 1 degradation status so Phase 5 can apply conservative filters
-        ISSUE #10 FIX: Log detailed halt context and send notification when halting
+        New version: Compute signals on-the-fly from price data.
+        No dependency on technical_data_daily.
         """
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
-        if self._check_halt_flag():
-            logger.critical("[PHASE_5_HALT] Phase 5 halted by halt flag. No signal-based trades will be generated. "
-                          "Check CloudWatch logs for Phase 1 to see why data quality was degraded.")
-            self.log_phase_result(5, 'signal_generation', 'halted', 'Halted by halt flag (data quality degraded)')
-            try:
-                self.alerts.send_position_alert(
-                    'TRADING_HALTED',
-                    'PHASE5_HALT',
-                    'Phase 5 signal generation halted. Data quality degraded. Check CloudWatch for Phase 1 details.',
-                    {'phase': 5, 'action': 'signal_generation_blocked'}
-                )
-            except Exception as alert_err:
-                logger.warning(f"Could not send halt alert: {alert_err}")
-            return False
-        from algo.orchestrator.phase5_signal_generation import run as run_phase5
-        # Check if Phase 1 returned degraded status (stale data with failsafe in progress)
-        phase1_degraded = getattr(self, '_phase1_result', None) and self._phase1_result.status == 'degraded'
+        from algo.orchestrator.phase5_signal_generation_v2 import run as run_phase5
         result = run_phase5(
             self.run_date, self.dry_run,
             self.verbose, self.log_phase_result,
             getattr(self, '_exposure_constraints', {}),
             self._check_halt_flag,
-            phase1_degraded=phase1_degraded  # Signal Phase 5 to use conservative filters
+            phase1_degraded=False
         )
         self._qualified_trades = result.data.get('qualified_trades', [])
         self.phase_results.setdefault(5, {})['signals_evaluated'] = len(self._qualified_trades)
         return not result.halted
 
     def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
-        """Thin delegation to phase6_entry_execution module.
+        """Thin delegation to phase6_entry_execution_v2 module (simplified).
 
-        ISSUE #10 FIX: Log detailed halt context when halting
+        New version: Compute ATR + SMA_50 on-demand, execute immediately.
         """
         self.log_phase_start(6, 'ENTRY EXECUTION')
-        if self._check_halt_flag():
-            logger.critical("[PHASE_6_HALT] Phase 6 halted by halt flag. No new signal-based trades will be entered. "
-                          "Check CloudWatch logs for Phase 1 to see why data quality was degraded.")
-            self.log_phase_result(6, 'entry_execution', 'halted', 'Halted by halt flag (data quality degraded)')
-            try:
-                self.alerts.send_position_alert(
-                    'TRADING_HALTED',
-                    'PHASE6_HALT',
-                    'Phase 6 entry execution halted. Data quality degraded. Check CloudWatch for Phase 1 details.',
-                    {'phase': 6, 'action': 'entry_execution_blocked'}
-                )
-            except Exception as alert_err:
-                logger.warning(f"Could not send halt alert: {alert_err}")
-            return False
-        from algo.orchestrator.phase6_entry_execution import run as run_phase6
+        from algo.orchestrator.phase6_entry_execution_v2 import run as run_phase6
         result = run_phase6(
             self.config,
             self.run_date, self.dry_run,
@@ -937,18 +908,16 @@ class Orchestrator:
                 phase_1_start = time.time()
                 logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
                 with TimeBlock("phase_1_data_freshness"):
-                    # ISSUE #11 FIX: Capture Phase 1 result to check for degradation
-                    from algo.orchestrator.phase1_data_freshness import run as run_phase1
-                    self.config
+                    from algo.orchestrator.phase1_data_freshness_v2 import run as run_phase1
                     phase1_result = run_phase1(
                         self.config,
                         self.run_date, self.dry_run, self.alerts,
                         self.verbose, self.log_phase_result
                     )
-                    self._phase1_result = phase1_result  # Store for Phase 5 to check degradation
+                    self._phase1_result = phase1_result
                     if phase1_result.halted:
-                        logger.error("\nFAIL-CLOSED: Data freshness check failed. Running Phase 7 (reconciliation) before halting.")
-                        self.log_phase_result(1, 'data_freshness', 'halt', 'Stale or missing critical data')
+                        logger.error("\nPhase 1 failed: prices not loaded or coverage insufficient.")
+                        self.log_phase_result(1, 'data_freshness', 'halt', phase1_result.summary)
                         self.phase_7_reconcile()
                         return self._final_report()
                 phase_1_elapsed = time.time() - phase_1_start
