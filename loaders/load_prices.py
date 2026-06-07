@@ -17,8 +17,10 @@ Tables: price_daily, price_weekly, price_monthly, etf_price_daily, etf_price_wee
 """
 
 import argparse
+import contextvars
 import logging
 import os
+import threading
 import time
 import uuid
 from datetime import date, datetime, timedelta
@@ -34,8 +36,24 @@ from monitoring.metrics_context import TimeBlock
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
-# ISSUE #21 FIX: Correlation ID for tracing - use Phase 1 correlation if provided (failsafe), else generate
-_correlation_id = os.getenv('PHASE1_CORRELATION_ID') or str(uuid.uuid4())[:8]
+
+# ISSUE #13 FIX: Correlation ID context for thread-safe end-to-end tracing
+_correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar('correlation_id', default=None)
+
+def _set_correlation_id(correlation_id: str) -> None:
+    """Set the correlation ID for this execution context."""
+    _correlation_id_var.set(correlation_id)
+
+def _get_correlation_id() -> str:
+    """Get the current correlation ID, or generate a new one if not set."""
+    cid = _correlation_id_var.get()
+    if cid is None:
+        cid = f"GEN-{str(uuid.uuid4())[:8]}"
+        _correlation_id_var.set(cid)
+    return cid
+
+# Correlation ID for tracing - Phase 1 passes PHASE1_CORRELATION_ID via environment
+_correlation_id = os.getenv('PHASE1_CORRELATION_ID') or f"AUTO-{str(uuid.uuid4())[:8]}"
 
 class PriceLoader(OptimalLoader):
     """Multi-timeframe price loader. Replaces 4 separate loaders."""
@@ -85,7 +103,6 @@ class PriceLoader(OptimalLoader):
         # Refill: 160 tokens per 60s = 2.67 tokens/sec (conservative to stay under limit)
         # With 6 parallel threads: each thread should get ~27 tokens/sec refill rate
         # Thread fairness: use condition variable to wake waiting threads fairly
-        import threading
         self._rate_limit_tokens = 300  # Increased initial burst for 6 parallel threads
         self._rate_limit_max_tokens = 300  # Cap to prevent unlimited accumulation
         self._rate_limit_last_refill = time.time()

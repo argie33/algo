@@ -30,6 +30,19 @@ export const useApiQuery = (
 ) => {
   const actualCacheKey = cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
 
+  // User-friendly error message
+  const getErrorMessage = (err) => {
+    if (!err) return null;
+    const status = err?.response?.status;
+    if (status === 401 || status === 403) return 'Authentication failed. Please log in.';
+    if (status === 404) return 'Resource not found';
+    if (status >= 500) return 'Server error. Please try again later.';
+    if (err.message?.includes('Network') || err.message?.includes('timeout')) {
+      return 'Network error. Please check your connection.';
+    }
+    return err.message || 'Failed to load data';
+  };
+
   const { data: rawData, isLoading, error, ...rest } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {

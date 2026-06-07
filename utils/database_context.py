@@ -129,14 +129,26 @@ class DatabaseContext:
         self.role = role
         self.timeout = timeout
         self.cursor_factory = cursor_factory
-        # ISSUE #13 FIX: Get correlation_id from context or parameter
-        try:
-            from utils.correlation_context import get_correlation_id as get_corr_id
-            self.correlation_id = correlation_id or get_corr_id()
-        except (ImportError, Exception):
-            self.correlation_id = correlation_id or "NO_CORRELATION_ID"
+        # ISSUE #13 FIX: correlation_id for tracing (loaders should provide this)
+        # If not provided, attempt to get from the load_prices module's contextvars
+        self.correlation_id = correlation_id or self._get_loader_correlation_id()
         self.conn = None
         self.cur = None
+
+    @staticmethod
+    def _get_loader_correlation_id() -> str:
+        """Get correlation_id from load_prices module if available, else fallback."""
+        try:
+            # Try to import the _correlation_id_var from load_prices
+            from loaders.load_prices import _correlation_id_var, _correlation_id
+            cid = _correlation_id_var.get()
+            if cid:
+                return cid
+            # If not set in contextvars, use the module-level _correlation_id
+            return _correlation_id
+        except (ImportError, AttributeError, Exception):
+            # Fallback if load_prices is not available
+            return "NO_CID"
 
     def __enter__(self):
         """Enter context - get database connection."""
