@@ -387,7 +387,16 @@ class PriceLoader(OptimalLoader):
         is_rate_limit = "429" in last_error_lower or "too many" in last_error_lower or "rate" in last_error_lower
         root_cause = "yfinance rate limiting" if is_rate_limit else "yfinance API lag/unavailability"
 
-        error_msg = (
+        fallback_threshold = 1800 if self._is_eod_pipeline else 3600
+        if elapsed < fallback_threshold:
+            logger.warning(
+                f"[{self._correlation_id}] [MARKET_CLOSE] ⚠️  Market close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
+                f"Root cause: {root_cause}. Allowing FALLBACK: Loader will proceed with historical data (prior day) instead of halting. "
+                f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
+            )
+            return False
+        else:
+            error_msg = (
             f"Market close data NOT available after {elapsed:.0f}s ({attempt} attempts). "
             f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
             f"Cannot load prices without market close data. Aborting to avoid stale price data. "
