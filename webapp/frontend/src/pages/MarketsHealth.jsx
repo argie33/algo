@@ -274,7 +274,7 @@ function RegimeBanner({ markets }) {
         <AlertTriangle size={18} />
         <div>
           <div style={{ fontWeight: 'var(--w-semibold)' }}>Market exposure not yet computed for today</div>
-          <div className="muted t-sm">The orchestrator computes the 11-factor regime at 9:30 AM and 1:00 PM ET on trading days. Check back after the next run.</div>
+          <div className="muted t-sm">The orchestrator computes the 12-factor regime at 9:30 AM and 1:00 PM ET on trading days. Check back after the next run.</div>
         </div>
       </div>
     );
@@ -438,12 +438,12 @@ function IndexCell({ idx, prices = [] }) {
 function ExposureFactors({ markets }) {
   const factors = markets?.current?.factors || {};
   const list = [
-    ['follow_through_day', 'FOLLOW-THROUGH DAY',         16],
+    ['follow_through_day', 'FOLLOW-THROUGH DAY',         10],
     ['trend_30wk',         '30-WEEK MA TREND',           15],
     ['breadth_50dma',      'BREADTH (% > 50-DMA)',       14],
     ['breadth_200dma',     'HEALTH (% > 200-DMA)',       10],
     ['mcclellan',          'MCCLELLAN OSCILLATOR',        9],
-    ['distribution_days',  'DISTRIBUTION DAYS PRESSURE',  9],
+    ['distribution_days',  'DISTRIBUTION DAYS PRESSURE',  8],
     ['vix_regime',         'VIX REGIME',                  8],
     ['new_highs_lows',     'NEW HIGHS - LOWS',            7],
     ['credit_spread',      'HY CREDIT SPREAD',            7],

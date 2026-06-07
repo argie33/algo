@@ -442,7 +442,7 @@ function PortfolioDashboardPage() {
             <Stile
               label="Market Score"
               value={<span className="mono tnum">{markets?.current?.raw_score ?? '—'}/100</span>}
-              sub="11-factor composite"
+              sub="12-factor composite"
             />
             <Stile
               label="VIX"

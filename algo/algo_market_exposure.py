@@ -8,12 +8,12 @@ score driven by these inputs (weights from synthesis of IBD, O'Neil, Weinstein,
 Zweig, AAII/NAAIM contrarian, Schwab/Fidelity breadth research, Apollo/Goldman
 credit cycle research):
 
-    16pt  FOLLOW-THROUGH DAY    IBD confirmation after correction signal
+    10pt  FOLLOW-THROUGH DAY    IBD confirmation after correction signal
     15pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
     14pt  BREADTH % > 50-DMA    short-term participation (linear 20-80%)
     10pt  BREADTH % > 200-DMA   longer-term health (linear 30-80%)
      9pt  MCCLELLAN OSCILLATOR  short-term momentum (-100 to +100 zone)
-     9pt  DISTRIBUTION DAYS     IBD pressure metric: 0-2 = 1.0, 3-4 = 0.6, 5+ = 0.2
+     8pt  DISTRIBUTION DAYS     IBD pressure metric: 0-2 = 1.0, 3-4 = 0.6, 5+ = 0.2
      8pt  VIX REGIME            <15 / 15-25 / 25-35 / 35+
      7pt  NEW HIGHS - LOWS      regime health indicator
      7pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2) - credit leads equity
@@ -58,12 +58,12 @@ class MarketExposure:
     """Quantitative market regime + exposure % computation."""
 
     # Factor weights (sum = 100)
-    W_FTD = 16                      # Follow-through day: uptrend confirmation
+    W_FTD = 10                      # Follow-through day: uptrend confirmation
     W_TREND_30WK = 15
     W_BREADTH_50 = 14
     W_BREADTH_200 = 10
     W_MCCLELLAN = 9
-    W_DISTRIBUTION_DAYS = 9         # New: Distribution days (market pressure gauge)
+    W_DISTRIBUTION_DAYS = 8         # New: Distribution days (market pressure gauge)
     W_VIX = 8
     W_NEW_HIGHS_LOWS = 7
     W_CREDIT_SPREAD = 7
