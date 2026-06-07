@@ -123,5 +123,5 @@ api_gateway_log_retention_days = 3 # Increased from 1: enough to debug API issue
 # ============================================================
 # RDS Proxy Configuration
 # ============================================================
-enable_rds_proxy = false # Temporarily disabled due to Terraform validation errors. Will re-enable with corrected aws_db_proxy resource configuration.
+enable_rds_proxy = true # CRITICAL: Enables connection pooling for 24+ concurrent loaders (multiplexes to 20-30 RDS connections). Essential for EOD and morning prep pipelines.
 
