@@ -2666,32 +2666,30 @@ router.get("/top-movers", async (req, res) => {
   try {
     const { limit } = paginationConfig.sanitize(req.query.limit, 0, 'market');
 
+    // Get latest market date from cache (5 min TTL) instead of subquery
+    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    if (!latestDate) {
+      return sendNotFound(res, "No market data available");
+    }
+
     const result = await query(`
-      WITH latest_prices AS (
-        SELECT
-          symbol,
-          open,
-          close,
-          ((close - open) / NULLIF(open, 0) * 100) as change_pct
-        FROM price_daily
-        WHERE date = (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
-          AND close IS NOT NULL
-          AND open IS NOT NULL
-      )
       SELECT
         symbol,
         open,
         close,
-        change_pct,
+        ((close - open) / NULLIF(open, 0) * 100) as change_pct,
         CASE
-          WHEN change_pct > 0 THEN 'gainer'
-          WHEN change_pct < 0 THEN 'loser'
+          WHEN ((close - open) / NULLIF(open, 0) * 100) > 0 THEN 'gainer'
+          WHEN ((close - open) / NULLIF(open, 0) * 100) < 0 THEN 'loser'
           ELSE 'unchanged'
         END as type
-      FROM latest_prices
-      ORDER BY ABS(change_pct) DESC
-      LIMIT $1
-    `, [limit * 2]);
+      FROM price_daily
+      WHERE date = $1
+        AND close IS NOT NULL
+        AND open IS NOT NULL
+      ORDER BY ABS((close - open) / NULLIF(open, 0) * 100) DESC
+      LIMIT $2
+    `, [latestDate, limit * 2]);
 
     const gainers = (result.rows || []).filter(r => r.type === 'gainer').slice(0, limit);
     const losers = (result.rows || []).filter(r => r.type === 'loser').slice(0, limit);
