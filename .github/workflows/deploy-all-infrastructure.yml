@@ -851,12 +851,10 @@ jobs:
 
           echo "Updating API Gateway CORS with CloudFront domain: $CF_DOMAIN"
 
-          # Get API Gateway name from terraform config
-          cd terraform
+          # Get API Gateway name from terraform config (already in terraform dir via defaults)
           PROJECT=$(grep '^project_name' terraform.tfvars | cut -d'"' -f2)
           ENV=$(grep '^environment' terraform.tfvars | cut -d'"' -f2)
           API_NAME="${PROJECT}-api-${ENV}"
-          cd ..
 
           # Get API Gateway ID
           API_GW_ID=$(aws apigatewayv2 get-apis \
