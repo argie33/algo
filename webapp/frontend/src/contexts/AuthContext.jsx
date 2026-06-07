@@ -330,11 +330,45 @@ export function AuthProvider({ children }) {
           } else {
             console.error("❌ Cognito authentication failed:", error?.message);
           }
-          // In production with Cognito configured, we DO NOT fall back - this is an auth failure
+
+          // In development mode, provide dev tokens even with Cognito configured
+          // This allows dev workflows without requiring actual Cognito login
+          if (!isProductionBuild) {
+            console.log('[AUTH] 🔧 Dev mode: Cognito configured but no active session — using dev auto-authentication');
+            const devToken = localStorage.getItem('devToken') || 'dev-admin';
+            tokenManager.setTokens({
+              access: devToken,
+              id: `dev-id-token-${Date.now()}`,
+              refresh: `dev-refresh-${Date.now()}`
+            });
+
+            dispatch({
+              type: AUTH_ACTIONS.LOGIN_SUCCESS,
+              payload: {
+                user: {
+                  username: 'devuser',
+                  userId: 'dev-user-local',
+                  email: 'dev@localhost',
+                  firstName: 'Dev',
+                  lastName: 'User',
+                  role: devToken === 'dev-admin' ? 'admin' : 'user',
+                  groups: devToken === 'dev-admin' ? ['admin', 'user'] : ['user'],
+                },
+                tokens: {
+                  accessToken: devToken,
+                  idToken: `dev-id-token-${Date.now()}`,
+                  refreshToken: `dev-refresh-${Date.now()}`,
+                },
+              },
+            });
+            return;
+          }
+
+          // In production with Cognito configured, this is an auth failure
         }
       }
 
-      // No valid session found (Cognito not configured or session expired)
+      // No valid session found (Cognito not configured or session expired in production)
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     } catch (error) {
       console.log("Authentication check failed:", error);
