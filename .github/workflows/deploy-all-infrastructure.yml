@@ -633,10 +633,11 @@ jobs:
             fi
           fi
 
-          # Try to import algo/database secret (RDS credentials - if it exists)
-          if aws secretsmanager describe-secret --secret-id "algo/database" --region us-east-1 >/dev/null 2>&1; then
-            echo "Importing algo/database (RDS credentials) secret..."
-            DB_ARN=$(aws secretsmanager describe-secret --secret-id "algo/database" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
+          # Try to import RDS credentials secret (uses Terraform naming: ${project}-db-credentials-${environment})
+          SECRET_ID="${PROJECT_NAME}-db-credentials-${ENVIRONMENT}"
+          if aws secretsmanager describe-secret --secret-id "$SECRET_ID" --region us-east-1 >/dev/null 2>&1; then
+            echo "Importing RDS credentials secret: $SECRET_ID..."
+            DB_ARN=$(aws secretsmanager describe-secret --secret-id "$SECRET_ID" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
             if [ -n "$DB_ARN" ]; then
               terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.rds_credentials" "$DB_ARN" 2>&1 | grep -E "Import|Error|Successfully" || true
             fi
@@ -1280,12 +1281,18 @@ jobs:
         continue-on-error: true
         run: |
           echo "=== Running Database Migrations ==="
+          # Get secret name from terraform.tfvars (matches Terraform's naming pattern)
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          SECRET_ID="${PROJECT}-db-credentials-${ENVIRONMENT}"
+          echo "Using secret: $SECRET_ID"
+
           SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id algo/database \
+            --secret-id "$SECRET_ID" \
             --query SecretString \
             --output text 2>/dev/null || echo "{}")
           if [ -z "$SECRET" ] || [ "$SECRET" = "{}" ]; then
-            echo "WARNING: Could not fetch database credentials, skipping migrations"
+            echo "WARNING: Could not fetch database credentials from $SECRET_ID, skipping migrations"
             exit 0
           fi
           # SECURITY: Pass credentials via stdin to avoid logging them in env vars

@@ -185,8 +185,14 @@ jobs:
       - name: Run Migrations
         run: |
           echo "=== Running Database Migrations ==="
+          # Get secret name from terraform.tfvars (matches Terraform's naming pattern)
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          SECRET_ID="${PROJECT}-db-credentials-${ENVIRONMENT}"
+          echo "Using secret: $SECRET_ID"
+
           SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id algo/database \
+            --secret-id "$SECRET_ID" \
             --query SecretString \
             --output text 2>/dev/null || echo "{}")
           if [ -z "$SECRET" ] || [ "$SECRET" = "{}" ]; then

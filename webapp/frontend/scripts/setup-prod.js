@@ -49,3 +49,7 @@ window.__CONFIG__ = ${JSON.stringify(prodConfig, null, 2)};
 
 fs.writeFileSync(configPath, configContent);
 
+console.log(`✓ Production config created at: ${configPath}`);
+console.log(`  API_URL: ${apiUrl || "(relative paths)"}`);
+console.log(`  Environment: ${environment}`);
+console.log(`  User Pool ID: ${userPoolId ? "SET" : "(not set)"}`);
