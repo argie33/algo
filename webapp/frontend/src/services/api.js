@@ -78,9 +78,9 @@ const CircuitBreaker = {
   failureCount: 0,
   successCount: 0,
   lastFailureTime: 0,
-  FAILURE_THRESHOLD: 12, // Open circuit after 12 failures (allows transient errors without blocking)
-  SUCCESS_THRESHOLD: 3, // Close circuit after 3 successes in half-open state
-  RECOVERY_TIMEOUT: 15000, // 15 seconds before attempting recovery (faster recovery for better UX)
+  FAILURE_THRESHOLD: 25, // Open circuit after 25 consecutive failures (tolerates transient errors)
+  SUCCESS_THRESHOLD: 2, // Close circuit after 2 successes in half-open state (faster recovery)
+  RECOVERY_TIMEOUT: 5000, // 5 seconds before attempting recovery (better UX, was blocking for 15s)
 };
 
 const checkCircuitBreaker = () => {
