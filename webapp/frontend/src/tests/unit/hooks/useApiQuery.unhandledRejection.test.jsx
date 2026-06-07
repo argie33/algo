@@ -226,4 +226,71 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     expect(result.current.items).toEqual([]);
     expect(unhandledRejections.length).toBe(0);
   });
+
+  it('should handle API response without items property (Issue #9)', async () => {
+    const queryFn = vi.fn().mockResolvedValue({
+      data: { statusCode: 200, data: {} }, // No items property
+    });
+
+    dataCache.set.mockResolvedValue(undefined);
+    dataCache.get.mockResolvedValue(null);
+
+    const { result } = renderHook(
+      () => useApiPaginatedQuery(['test-no-items'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    // Should return empty items array without errors
+    expect(result.current.items).toEqual([]);
+    expect(result.current.error).toBeNull();
+    expect(unhandledRejections.length).toBe(0);
+  });
+
+  it('should handle API response with undefined items property', async () => {
+    const queryFn = vi.fn().mockResolvedValue({
+      data: { statusCode: 200, data: { items: undefined } },
+    });
+
+    dataCache.set.mockResolvedValue(undefined);
+    dataCache.get.mockResolvedValue(null);
+
+    const { result } = renderHook(
+      () => useApiPaginatedQuery(['test-undefined-items'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.items).toEqual([]);
+    expect(result.current.error).toBeNull();
+    expect(unhandledRejections.length).toBe(0);
+  });
+
+  it('should handle API response with null items property', async () => {
+    const queryFn = vi.fn().mockResolvedValue({
+      data: { statusCode: 200, data: { items: null } },
+    });
+
+    dataCache.set.mockResolvedValue(undefined);
+    dataCache.get.mockResolvedValue(null);
+
+    const { result } = renderHook(
+      () => useApiPaginatedQuery(['test-null-items'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.items).toEqual([]);
+    expect(result.current.error).toBeNull();
+    expect(unhandledRejections.length).toBe(0);
+  });
 });
