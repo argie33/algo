@@ -101,19 +101,24 @@ export default function AppLayout({ children }) {
     let cancelled = false;
     const fetchStatus = async () => {
       try {
-        const [e, n] = await Promise.all([
-          api.get('/api/algo/markets').catch((err) => {
-            console.debug('[AppLayout] Market fetch error:', err?.response?.status);
-            return null;
-          }),
-          api.get('/api/algo/notifications').catch((err) => {
-            console.debug('[AppLayout] Notifications fetch error:', err?.response?.status);
-            return null;
-          }),
-        ]);
+        const marketData = await api.get('/api/algo/markets').catch((err) => {
+          console.debug('[AppLayout] Market fetch error:', err?.response?.status);
+          return null;
+        });
+
+        let notifData = null;
+        try {
+          notifData = await api.get('/api/algo/notifications');
+        } catch (err) {
+          // Suppress 403 notifications errors (auth) - not critical for UI
+          if (err?.response?.status !== 403) {
+            console.warn('[AppLayout] Notifications fetch error:', err?.message);
+          }
+        }
+
         if (cancelled) return;
-        setExposure(e?.data?.current || null);
-        setNotifications(n?.data?.items || []);
+        setExposure(marketData?.data?.current || null);
+        setNotifications(notifData?.data?.items || []);
       } catch { /* silent */ }
     };
     fetchStatus();

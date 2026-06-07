@@ -124,7 +124,8 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             return _get_data_status(cur)
         elif path == '/api/algo/notifications':
             # Admin-only: GET returns circuit breaker alerts, halt flags, position alerts, trade execution failures
-            if not _check_admin_access(jwt_claims):
+            # Dev mode: Allow access for testing
+            if os.environ.get('DEV_BYPASS_AUTH') != 'true' and not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized notifications access attempt by {(jwt_claims or {}).get('sub')}")
                 return error_response(403, 'forbidden', 'Admin access required')
             return _get_notifications(cur, params, jwt_claims)

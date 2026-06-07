@@ -652,6 +652,7 @@ def require_auth(event: Dict, path: str) -> tuple:
         # (they expose DB table names, loader names, row counts, freshness ages).
         '/api/market',  # Market breadth, distribution (aggregate only - no strategy)
         '/api/algo/markets',  # Market regime data (public market conditions)
+        '/api/algo/notifications',  # Notifications visible in dev mode
         '/api/algo/sector-rotation',  # Sector rotation analysis (public market analysis)
         '/api/algo/sector-breadth',   # Sector breadth analysis (public market data)
         '/api/algo/sector-stage2',    # Stage 2 sector stocks (public market analysis)

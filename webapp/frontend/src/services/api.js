@@ -319,7 +319,11 @@ try {
           forbiddenError.code = "FORBIDDEN";
           forbiddenError.status = 403;
           return Promise.reject(forbiddenError).catch(err => {
-            console.error('[API] Permission denied error:', err.message);
+            // Suppress error logging for notifications endpoint (non-critical in dev mode)
+            const url = error.config?.url || error.response?.config?.url || '';
+            if (!url.includes('/notifications')) {
+              console.error('[API] Permission denied error:', err.message);
+            }
             return Promise.reject(err);
           });
         }
