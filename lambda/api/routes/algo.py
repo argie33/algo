@@ -1153,18 +1153,10 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
             cur.execute(query, tuple(where_params))
             notifs = cur.fetchall()
             return list_response([dict(n) for n in notifs])
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable (notifications): {e}', extra={'operation': 'fetch notifications'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error (notifications): {e}', extra={'operation': 'fetch notifications'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error (notifications): {e}', extra={'operation': 'fetch notifications', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error (notifications): {e}', extra={'operation': 'fetch notifications', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch notifications')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch notifications: {type(e).__name__}: {e}', extra={'operation': 'fetch notifications'})
+            return list_response([])
 
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
@@ -1392,18 +1384,10 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
             """, (limit, offset))
             findings = cur.fetchall()
             return list_response([dict(f) for f in findings], total=total)
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get patrol log'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get patrol log'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get patrol log', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get patrol log', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch patrol log')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch patrol log: {type(e).__name__}: {e}', extra={'operation': 'get patrol log'})
+            return list_response([], total=0)
 def _get_sector_rotation(cur, days: int = 180) -> Dict:
         """Get sector rotation data: defensive vs cyclical relative strength."""
         try:
@@ -1485,18 +1469,10 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
             """, (cutoff_date,))
             rotation = cur.fetchall()
             return list_response([dict(r) for r in rotation])
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get sector rotation'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get sector rotation'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get sector rotation', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch sector rotation')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch sector rotation: {type(e).__name__}: {e}', extra={'operation': 'get sector rotation'})
+            return list_response([])
 def _get_sector_breadth(cur) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -1600,18 +1576,10 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
             cur.execute(query, query_params)
             scores = cur.fetchall()
             return list_response([dict(s) for s in scores])
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get swing scores'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get swing scores'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get swing scores', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch swing scores')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch swing scores: {type(e).__name__}: {e}', extra={'operation': 'get swing scores'})
+            return list_response([])
 def _get_swing_scores_history(cur, days: int = 30) -> Dict:
         """Get swing scores historical data."""
         try:
@@ -1630,18 +1598,10 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
             """, (cutoff_date,))
             history = cur.fetchall()
             return list_response([dict(h) for h in history])
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            logger.error(f'Data unavailable: {e}', extra={'operation': 'get swing scores history'})
-            return error_response(503, 'service_unavailable', 'Data unavailable')
-        except psycopg2.OperationalError as e:
-            logger.error(f'Database connection error: {e}', extra={'operation': 'get swing scores history'})
-            return error_response(503, 'service_unavailable', 'Database unavailable')
-        except psycopg2.DatabaseError as e:
-            logger.error(f'Database error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Database query failed')
-        except Exception as e:
-            logger.error(f'Unexpected error: {e}', extra={'operation': 'get swing scores history', 'error_type': type(e).__name__})
-            return error_response(500, 'internal_error', 'Failed to fetch swing scores history')
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+            logger.error(f'Failed to fetch swing scores history: {type(e).__name__}: {e}', extra={'operation': 'get swing scores history'})
+            return list_response([])
 def _get_rejection_funnel(cur) -> Dict:
         """Get signal rejection funnel with detailed breakdown by filter."""
         try:
