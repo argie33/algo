@@ -24,7 +24,7 @@ export default function PETrendChart({ sectorName, industryName }) {
   }
 
   const chartData = trendData.map(item => ({
-    date: new Date(item.date).toLocaleDateString(),
+    date: item.date ? new Date(item.date).toLocaleDateString() : "—",
     avgPrice: item.avgPrice !== null ? parseFloat(item.avgPrice) : null,
     stockCount: item.stockCount || 0,
   })).filter(item => item.avgPrice !== null);
