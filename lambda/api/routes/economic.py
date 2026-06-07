@@ -32,6 +32,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return _get_yield_curve_full(cur)
             elif path == '/api/economic/calendar':
                 try:
+                    cur.execute("SET LOCAL statement_timeout = '5000ms'")
                     start_date = params.get('start_date', [None])[0] if params else None
                     end_date = params.get('end_date', [None])[0] if params else None
                     query_params = []
@@ -42,6 +43,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if end_date:
                         date_filter += " AND event_date <= %s"
                         query_params.append(end_date)
+                    else:
+                        date_filter += " AND event_date >= CURRENT_DATE - INTERVAL '90 days'"
                     query = """
                         SELECT event_date, event_name, country, importance,
                                category, event_time,
@@ -51,10 +54,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         FROM economic_calendar
                         WHERE 1=1
                     """ + date_filter + """
-                        ORDER BY event_date ASC
+                        ORDER BY event_date DESC
                         LIMIT 200
                     """
-                    events = execute_with_timeout(cur, query, params=query_params, timeout_sec=3)
+                    cur.execute(query, tuple(query_params))
+                    events = cur.fetchall()
                     freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
                     return list_response([dict(e) for e in events] if events else [], data_freshness=freshness)
                 except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable) as e:

@@ -232,25 +232,25 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("SAVEPOINT dist_days")
                 cur.execute("SET LOCAL statement_timeout = '8s'")
                 cur.execute("""
-                    WITH sessions AS (
-                        SELECT symbol, date,
-                                   close,
-                                   LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
-                                   volume,
-                                   AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol,
-                                   (CURRENT_DATE - date)::INTEGER AS days_ago
+                    WITH recent_sessions AS (
+                        SELECT symbol, date, close, volume,
+                               LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
                         FROM price_daily
                         WHERE symbol IN ('^GSPC', '^IXIC', '^NYA', '^DJI')
-                              AND date >= CURRENT_DATE - INTERVAL '65 days'
+                              AND date >= CURRENT_DATE - INTERVAL '35 days'
+                    ),
+                    volume_window AS (
+                        SELECT symbol, date, close, volume, prev_close,
+                               AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol
+                        FROM recent_sessions
                     )
-                    SELECT symbol, date, days_ago,
+                    SELECT symbol, date, (CURRENT_DATE - date)::INTEGER AS days_ago,
                                ROUND(((close - prev_close) / NULLIF(prev_close, 0) * 100)::NUMERIC, 2) AS change_pct,
                                ROUND((volume::NUMERIC / NULLIF(avg_vol, 0))::NUMERIC, 2) AS volume_ratio
-                    FROM sessions
+                    FROM volume_window
                     WHERE prev_close IS NOT NULL
                           AND close < prev_close * 0.998
                           AND (avg_vol IS NULL OR volume > avg_vol * 1.01)
-                          AND date >= CURRENT_DATE - INTERVAL '35 days'
                     ORDER BY symbol, date DESC
                 """)
                 rows = cur.fetchall()
@@ -276,13 +276,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 cur.execute("RELEASE SAVEPOINT dist_days")
                 return json_response(200, result)
             except Exception as e:
-                logger.warning(f"Distribution days query failed ({type(e).__name__}) — returning empty. DB may be under write load.")
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT dist_days")
                     cur.execute("RELEASE SAVEPOINT dist_days")
                 except Exception as sp_err:
                     logger.debug(f"Failed to rollback dist_days savepoint: {sp_err}")
-                return json_response(200, {})
+                code, error_type, message = handle_db_error(e, 'distribution days query')
+                return error_response(code, error_type, message)
         elif path == '/api/market/seasonality':
             # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
             monthly_data = []
@@ -304,8 +304,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if not worst_month or r_dict.get('avg_return', 0) < worst_month.get('avg_return', 0):
                         worst_month = r_dict
             except Exception as e:
-                logger.warning(f"Exception: {e}")
-                monthly_data = []
+                code, error_type, message = handle_db_error(e, 'seasonality monthly query')
+                return error_response(code, error_type, message)
 
             dow_data = []
             best_dow = None
@@ -325,8 +325,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     if not worst_dow or r_dict.get('avg_return', 0) < worst_dow.get('avg_return', 0):
                         worst_dow = r_dict
             except Exception as e:
-                logger.warning(f"Exception: {e}")
-                dow_data = []
+                code, error_type, message = handle_db_error(e, 'seasonality day of week query')
+                return error_response(code, error_type, message)
 
             return json_response(200, {
                 'monthly': monthly_data or [],
@@ -388,7 +388,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     'bullish_pct': float(aaii_current['bullish'] or 0) if aaii_current else None
                 }
             except Exception as e:
-                sentiment_data['aaii'] = {'current': None, 'history': [], 'data': [], 'trend': None, 'bullish_pct': None}
+                code, error_type, message = handle_db_error(e, 'AAII sentiment query')
+                return error_response(code, error_type, message)
 
             # NAAIM manager exposure
             try:
@@ -417,8 +418,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     'bearish_pct': float(naaim_current['bearish'] or 0) if naaim_current else None
                 }
             except Exception as e:
-                logger.warning(f"Exception: {e}")
-                sentiment_data['naaim'] = {'current': None, 'history': [], 'trend': None, 'bullish_pct': None, 'bearish_pct': None}
+                code, error_type, message = handle_db_error(e, 'NAAIM sentiment query')
+                return error_response(code, error_type, message)
 
             # Fear & Greed
             try:
@@ -448,8 +449,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     'data': fg_rows
                 }
             except Exception as e:
-                logger.warning(f"Exception: {e}")
-                sentiment_data['fearGreed'] = {'current': {'value': None, 'label': None}, 'history': [], 'trend': None, 'data': []}
+                code, error_type, message = handle_db_error(e, 'fear/greed sentiment query')
+                return error_response(code, error_type, message)
 
             return json_response(200, sentiment_data)
         elif path == '/api/market/fear-greed':
@@ -523,8 +524,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 else:
                     return json_response(200, {'current': None, 'history': [], 'signals': {}})
             except Exception as e:
-                logger.warning(f"NAAIM query failed ({type(e).__name__}): {e}")
-                return json_response(200, {'current': None, 'history': [], 'moving_averages': {}, 'signals': {'extreme_bullish': False, 'extreme_bearish': False}})
+                code, error_type, message = handle_db_error(e, 'NAAIM query')
+                return error_response(code, error_type, message)
         elif path == '/api/market/latest':
             return _get_market_latest(cur)
         elif path == '/api/market/cap-distribution':
@@ -541,12 +542,14 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
 def _get_fear_greed_history(cur, days: int = 30) -> Dict:
     """Get fear/greed index history with signals."""
     try:
+        cur.execute("SET LOCAL statement_timeout = '5000ms'")
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
         cur.execute("""
             SELECT date, fear_greed_value as value, fear_greed_label as label
             FROM fear_greed_index
             WHERE date >= %s
             ORDER BY date ASC
+            LIMIT 100
         """, (cutoff_date,))
         history_rows = cur.fetchall()
 

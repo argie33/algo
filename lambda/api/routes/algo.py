@@ -268,12 +268,10 @@ def _get_last_run(cur) -> Dict:
             'halted': halted,
             'phases': phases,
         })
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        logger.error(f'Data unavailable: {e}', extra={'operation': 'get last run'})
-        return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
-    except Exception as e:
-        logger.warning(f'Exception in get_last_run: {e}')
-        return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        code, error_type, message = handle_db_error(e, 'get last run')
+        return error_response(code, error_type, message)
 
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
@@ -1756,6 +1754,7 @@ _TIER_CONFIG = {
 def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
+            cur.execute("SET LOCAL statement_timeout = '8000ms'")
             cur.execute("""
                 SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
@@ -1783,23 +1782,15 @@ def _get_markets(cur) -> Dict:
 
             try:
                 cur.execute("""
-                    SELECT date as max_date FROM sector_ranking ORDER BY date DESC LIMIT 1
+                    SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
+                    FROM sector_ranking
+                    WHERE date = (SELECT MAX(date) FROM sector_ranking)
+                    ORDER BY current_rank
+                    LIMIT 20
                 """)
-                max_date_row = cur.fetchone()
-                max_date = max_date_row['max_date'] if max_date_row else None
-
-                if max_date:
-                    cur.execute("""
-                        SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
-                        FROM sector_ranking
-                        WHERE date = %s
-                        ORDER BY current_rank
-                    """, (max_date,))
-                    sectors = [dict(s) for s in cur.fetchall()]
-                else:
-                    sectors = []
+                sectors = [dict(s) for s in cur.fetchall()]
             except Exception as e:
-                logger.warning(f"API exception: {e}")
+                logger.warning(f"[MARKETS] sector_ranking query failed: {e}")
                 sectors = []
 
             market_health = None
