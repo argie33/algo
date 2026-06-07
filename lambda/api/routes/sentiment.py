@@ -188,13 +188,13 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             return error_response(404, 'not_found', f'No sentiment handler for {path}')
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f"Schema not available for sentiment {path}: {str(e)}")
-            return json_response(200, {})
+            return error_response(503, 'schema_mismatch', 'Database schema not yet available. Please try again after migrations complete.')
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
             logger.error(f"Database error in sentiment {path}: {str(e)}")
             return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
         except Exception as e:
             logger.error(f"Unexpected error in sentiment {path}: {str(e)}")
-            return json_response(200, {})
+            return error_response(500, 'internal_error', 'An unexpected error occurred while fetching sentiment data.')
 
 def _get_vix_data(cur) -> Dict:
         """Get latest VIX data and historical trend."""
@@ -221,10 +221,10 @@ def _get_vix_data(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f"Schema not available for VIX data: {str(e)}")
-            return json_response(200, {'latest': None, 'history': [], 'signal': 'neutral'})
+            return error_response(503, 'schema_mismatch', 'VIX data not yet available')
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
             logger.error(f"Database error in VIX data: {str(e)}")
             return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
         except Exception as e:
             logger.error(f"Unexpected error in VIX data: {str(e)}")
-            return json_response(200, {'latest': None, 'history': [], 'signal': 'neutral'})
+            return error_response(500, 'internal_error', 'An unexpected error occurred while fetching VIX data.')

@@ -21,8 +21,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     """, timeout_sec=3)
                     freshness = check_data_freshness(cur, 'market_health_daily', 'date', warning_days=1)
                     return list_response([dict(r) for r in rows] if rows else [], data_freshness=freshness)
-                except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-                    return list_response([])
+                except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+                    logger.warning(f"VIX table not available: {str(e)}")
+                    return error_response(503, 'schema_mismatch', 'VIX data not yet available')
             elif path == '/api/economic/leading-indicators':
                 return _get_leading_indicators(cur)
             elif path == '/api/economic/indicators':
@@ -56,8 +57,9 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     events = execute_with_timeout(cur, query, params=query_params, timeout_sec=3)
                     freshness = check_data_freshness(cur, 'economic_calendar', 'event_date', warning_days=7)
                     return list_response([dict(e) for e in events] if events else [], data_freshness=freshness)
-                except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable):
-                    return list_response([])
+                except (psycopg2.errors.UndefinedColumn, psycopg2.errors.UndefinedTable) as e:
+                    logger.warning(f"Economic calendar table not available: {str(e)}")
+                    return error_response(503, 'schema_mismatch', 'Economic calendar data not yet available')
             elif path == '/api/economic':
                 # Combine all economic data
                 return _get_leading_indicators(cur)
@@ -227,13 +229,13 @@ def _get_leading_indicators(cur) -> Dict:
 
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f"Schema not available for leading indicators: {str(e)}")
-            return json_response(200, {'indicators': []})
+            return error_response(503, 'schema_mismatch', 'Database schema not yet available. Please try again after migrations complete.')
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
             logger.error(f"Database error in leading indicators: {str(e)}")
             return error_response(503, 'service_unavailable', 'Database temporarily unavailable.')
         except Exception as e:
             logger.error(f"Error fetching leading indicators: {str(e)}")
-            return json_response(200, {'indicators': []})
+            return error_response(500, 'internal_error', 'An unexpected error occurred while fetching economic indicators.')
 def _get_yield_curve_full(cur) -> Dict:
         """Get yield curve and credit spread data formatted for EconomicDashboard."""
         try:
@@ -363,7 +365,7 @@ def _get_yield_curve_full(cur) -> Dict:
 
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.warning(f'Schema not available for yield curve: {e}')
-            return error_response(503, 'schema_error', 'Database schema mismatch or migration issue')
+            return error_response(503, 'schema_mismatch', 'Database schema not yet available. Please try again after migrations complete.')
         except psycopg2.OperationalError as e:
             logger.error(f'Database connection error: {e}')
             return error_response(503, 'connection_error', 'Database temporarily unavailable.')
