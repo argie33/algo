@@ -723,12 +723,12 @@ function SqsHistogram({ rows }) {
           <div className="card-sub">Composite signal quality across BUY signals</div>
         </div>
       </div>
-      <div className="card-body">
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column' }}>
         {maxCount === 1 && data.every(d => d.count === 0) ? (
           <Empty title="No SQS data" desc="No quality scores joined to current signals." />
         ) : (
           <>
-            <div style={{ height: 220 }}>
+            <div style={{ flex: 1, minHeight: 240, width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
