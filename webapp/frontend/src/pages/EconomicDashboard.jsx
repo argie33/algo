@@ -414,7 +414,7 @@ function EconomicDashboardPage() {
                         <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`${(+v).toFixed(2)} σ`, 'FCI']} />
                         <ReferenceLine y={0} stroke="var(--border-2)" strokeDasharray="4 4" />
                         <Area type="monotone" dataKey="fci" stroke="var(--purple)" strokeWidth={2}
-                          fill={fci.at(-1)?.fci > 0 ? 'url(#fciUp)' : 'url(#fciDn)'} />
+                          fill={fci.at(-1)?.fci > 0 ? 'url(#fciUp)' : 'url(#fciDn)'} connectNulls={true} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -447,7 +447,7 @@ function EconomicDashboardPage() {
                         <Tooltip contentStyle={TT} labelFormatter={fmtD}
                           formatter={v => [`${Math.round(+v * 100)} bps`, 'Spread']} />
                         <ReferenceLine y={0} stroke="var(--danger)" strokeDasharray="4 4" />
-                        <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#spreadGrad)" />
+                        <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#spreadGrad)" connectNulls={true} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -497,7 +497,7 @@ function EconomicDashboardPage() {
                       <XAxis dataKey="maturity" stroke="var(--text-3)" fontSize={11} />
                       <YAxis stroke="var(--text-3)" fontSize={11} domain={[0, 'auto']} tickFormatter={v => `${v}%`} />
                       <Tooltip contentStyle={TT} formatter={v => [`${(+v).toFixed(3)}%`, 'Yield']} />
-                      <Line type="monotone" dataKey="yield" stroke="var(--brand)" strokeWidth={2.5}
+                      <Line type="monotone" dataKey="yield" stroke="var(--brand)" strokeWidth={2.5} connectNulls={true}
                         dot={{ fill: 'var(--brand)', r: 4 }} activeDot={{ r: 6 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -622,7 +622,7 @@ function EconomicDashboardPage() {
                           <YAxis stroke="var(--text-3)" fontSize={10} />
                           <Tooltip contentStyle={TT} labelFormatter={fmtD}
                             formatter={v => [v != null ? `${((+v)/1000).toFixed(1)}M` : '—', 'Job Openings']} />
-                          <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#joltsGrad)" />
+                          <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#joltsGrad)" connectNulls={true} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -808,7 +808,7 @@ function EconomicDashboardPage() {
                         <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
                         <YAxis stroke="var(--text-3)" fontSize={10} domain={['auto', 'auto']} />
                         <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`${(+v).toFixed(1)}`, 'USD Index']} />
-                        <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#dollarGrad)" />
+                        <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#dollarGrad)" connectNulls={true} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -836,7 +836,7 @@ function EconomicDashboardPage() {
                         <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
                         <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => `$${(+v).toFixed(0)}`} domain={['auto', 'auto']} />
                         <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`$${(+v).toFixed(2)}`, 'WTI Crude']} />
-                        <Area type="monotone" dataKey="value" stroke="var(--amber)" strokeWidth={2} fill="url(#oilGrad)" />
+                        <Area type="monotone" dataKey="value" stroke="var(--amber)" strokeWidth={2} fill="url(#oilGrad)" connectNulls={true} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>

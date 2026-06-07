@@ -1358,7 +1358,11 @@ function YieldCurveCard() {
   const order = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
   const curve = order
     .filter(k => data.currentCurve[k] != null)
-    .map(k => ({ maturity: k, yield: parseFloat(data.currentCurve[k]) }));
+    .map(k => {
+      const val = parseFloat(data.currentCurve[k]);
+      return { maturity: k, yield: isFinite(val) ? val : null };
+    })
+    .filter(d => d.yield != null);
 
   if (!curve.length) return <Empty title="Yield Curve" desc="No maturities available" wrap />;
 
