@@ -32,7 +32,8 @@ export const getLogger = (name) => {
   const safeStringify = (obj) => {
     try {
       return JSON.stringify(obj);
-    } catch {
+    } catch (err) {
+      console.error('[Logger] Failed to stringify object:', err?.message || err);
       return String(obj);
     }
   };

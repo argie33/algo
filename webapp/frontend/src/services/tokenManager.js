@@ -28,7 +28,8 @@ export const tokenManager = {
 
       // Fall back to sessionStorage (cleared on browser close)
       return sessionStorage.getItem(TOKEN_KEYS[type] || type) || null;
-    } catch {
+    } catch (err) {
+      console.error('[TokenManager] Failed to get token:', err?.message || err);
       return null;
     }
   },

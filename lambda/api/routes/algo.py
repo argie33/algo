@@ -959,8 +959,9 @@ def _get_circuit_breakers(cur) -> Dict:
                     'description': 'Insufficient closed trades (need 10+)'})
 
             any_halted = any(b['triggered'] for b in breakers)
+            triggered_count = sum(1 for b in breakers if b['triggered'])
             freshness = check_data_freshness(cur, 'algo_portfolio_snapshots', 'snapshot_date', warning_days=1)
-            return json_response(200, {'breakers': breakers, 'system_halted': any_halted, 'data_freshness': freshness})
+            return json_response(200, {'breakers': breakers, 'any_triggered': any_halted, 'triggered_count': triggered_count, 'data_freshness': freshness})
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch circuit breakers')
@@ -1534,14 +1535,16 @@ def _get_sector_breadth(cur) -> Dict:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
                 cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-            except Exception: pass
+            except Exception as sp_err:
+                logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
             logger.warning(f'Sector breadth data unavailable: {e}')
             return list_response([])
         except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
                 cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-            except Exception: pass
+            except Exception as sp_err:
+                logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
             logger.warning(f'Sector breadth query failed ({type(e).__name__}) — returning empty. DB may be under write load.')
             return list_response([])
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:

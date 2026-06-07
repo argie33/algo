@@ -17,7 +17,8 @@ export const theme = {
   getTheme() {
     try {
       return localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
-    } catch {
+    } catch (err) {
+      console.error('[Theme] Failed to get theme:', err?.message || err);
       return DEFAULT_THEME;
     }
   },

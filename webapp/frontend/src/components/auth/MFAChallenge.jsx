@@ -32,7 +32,8 @@ function MFAChallenge({
       } else {
         setError("MFA verification is not configured. Please contact support.");
       }
-    } catch {
+    } catch (err) {
+      console.error('[MFAChallenge] Verification failed:', err?.message || err);
       setError("Verification failed. Please try again.");
     } finally {
       setLoading(false);

@@ -26,7 +26,8 @@ const ForgotPasswordForm = ({ onBack, onForgotPasswordSuccess }) => {
       } else {
         setError(result.error || "Failed to send reset email.");
       }
-    } catch {
+    } catch (err) {
+      console.error('[ForgotPasswordForm] Reset email send failed:', err?.message || err);
       setError("Failed to send reset email. Please try again.");
     } finally {
       setLoading(false);

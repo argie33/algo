@@ -100,7 +100,13 @@ class BalanceSheetLoader(OptimalLoader):
                 logging.debug("No %s balance sheet data for %s", self.period, symbol)
                 return None
             since_year = int(since.year) if since else 2000
-            return [r for r in rows if r.get("fiscal_year", 0) > since_year] or None
+            filtered = [r for r in rows if r.get("fiscal_year", 0) > since_year]
+            if len(filtered) < len(rows):
+                logging.debug(
+                    f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
+                    f"(watermark incremental load — keeping {len(filtered)} newer rows)"
+                )
+            return filtered or None
         except Exception as e:
             logging.error("SEC EDGAR error for %s: %s", symbol, e)
             return None

@@ -39,7 +39,8 @@ export const storageToken = {
     const key = type === 'access' ? STORAGE_KEYS.TOKEN : STORAGE_KEYS[`${type.toUpperCase()}_TOKEN`];
     try {
       return localStorage.getItem(key) || null;
-    } catch {
+    } catch (err) {
+      console.error(`[Storage] Failed to get ${type} token:`, err?.message || err);
       return null;
     }
   },
@@ -80,7 +81,8 @@ export const storageTheme = {
   get() {
     try {
       return localStorage.getItem(STORAGE_KEYS.THEME) || 'dark';
-    } catch {
+    } catch (err) {
+      console.error('[Storage] Failed to get theme:', err?.message || err);
       return 'dark';
     }
   },
@@ -110,7 +112,8 @@ export const storageSession = {
     try {
       const value = sessionStorage.getItem(key);
       return value ? JSON.parse(value) : null;
-    } catch {
+    } catch (err) {
+      console.error(`[Storage] Failed to get session ${key}:`, err?.message || err);
       return null;
     }
   },
@@ -143,7 +146,8 @@ export const storagePreferences = {
   getRememberMe() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEYS.REMEMBER_ME) || 'false');
-    } catch {
+    } catch (err) {
+      console.error('[Storage] Failed to get remember me preference:', err?.message || err);
       return false;
     }
   },

@@ -437,7 +437,8 @@ export default function TradingSignals() {
           expandedKey={expandedKey} setExpandedKey={setExpandedKey} />
       </ErrorBoundary>
     </div>
-  );
+  </ErrorBoundary>
+);
 }
 
 // ─── slider field ──────────────────────────────────────────────────────────

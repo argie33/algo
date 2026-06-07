@@ -119,7 +119,9 @@ export default function AppLayout({ children }) {
         if (cancelled) return;
         setExposure(marketData?.data?.current || null);
         setNotifications(notifData?.data?.items || []);
-      } catch { /* silent */ }
+      } catch (err) {
+        console.error('[AppLayout] Status fetch failed:', err?.message || err);
+      }
     };
     fetchStatus();
     const id = setInterval(fetchStatus, 30000);

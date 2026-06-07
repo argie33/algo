@@ -145,7 +145,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
                     cur.execute("RELEASE SAVEPOINT technicals_breadth")
-                except Exception: pass
+                except Exception as sp_err:
+                    logger.debug(f"Failed to rollback technicals_breadth savepoint: {sp_err}")
                 base['breadth'] = {}
             # Build 30-day McClellan Oscillator history from market_exposure_daily.
             # The factors JSONB column stores the true McClellan value (19-EMA minus
@@ -212,7 +213,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT top_movers")
                     cur.execute("RELEASE SAVEPOINT top_movers")
-                except Exception: pass
+                except Exception as sp_err:
+                    logger.debug(f"Failed to rollback top_movers savepoint: {sp_err}")
             items = [dict(m) for m in movers] if movers else []
             gainers = sorted([m for m in items if (m.get('pct_change') or 0) >= 0],
                                  key=lambda x: -(x.get('pct_change') or 0))[:10]
@@ -278,7 +280,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 try:
                     cur.execute("ROLLBACK TO SAVEPOINT dist_days")
                     cur.execute("RELEASE SAVEPOINT dist_days")
-                except Exception: pass
+                except Exception as sp_err:
+                    logger.debug(f"Failed to rollback dist_days savepoint: {sp_err}")
                 return json_response(200, {})
         elif path == '/api/market/seasonality':
             # Seasonality tables are market-wide aggregates (SPY-based), no per-symbol filtering
@@ -840,7 +843,8 @@ def _get_correlation_matrix(cur) -> Dict:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT correlation_matrix")
             cur.execute("RELEASE SAVEPOINT correlation_matrix")
-        except Exception: pass
+        except Exception as sp_err:
+            logger.debug(f"Failed to rollback correlation_matrix savepoint: {sp_err}")
         code, error_type, message = handle_db_error(e, 'get correlation matrix')
         return error_response(code, error_type, message)
 

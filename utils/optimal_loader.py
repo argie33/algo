@@ -641,8 +641,22 @@ class OptimalLoader(ABC):
 
         rows = self.transform(rows)
         before_quality = len(rows)
-        rows = [r for r in rows if self._validate_row(r)]
-        self._stats["rows_quality_dropped"] += before_quality - len(rows)
+        validated_rows = []
+        for r in rows:
+            if not self._validate_row(r):
+                logger.debug(
+                    f"Row validation failed: {r.get('symbol', 'unknown')} "
+                    f"[{r.get('date', 'unknown')}] — missing required field"
+                )
+            else:
+                validated_rows.append(r)
+        rows = validated_rows
+        dropped_count = before_quality - len(rows)
+        if dropped_count > 0:
+            logger.warning(
+                f"Quality check: Dropped {dropped_count} row(s) due to validation failure"
+            )
+        self._stats["rows_quality_dropped"] += dropped_count
 
         # Bloom dedup (cheap pre-filter)
         dedup = self._get_dedup()
