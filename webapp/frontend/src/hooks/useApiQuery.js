@@ -257,8 +257,8 @@ export const useApiPaginatedQuery = (
   } : null;
 
   return {
-    items: (rawData && Array.isArray(rawData.items)) ? rawData.items : [],
-    pagination: (rawData && rawData.pagination) ? rawData.pagination : {
+    items: Array.isArray(rawData?.items) ? rawData.items : [],
+    pagination: (rawData?.pagination && typeof rawData.pagination === 'object') ? rawData.pagination : {
       total: 0, limit: 50, offset: 0, page: 1, totalPages: 1, hasNext: false, hasPrev: false,
     },
     loading: isLoading,
