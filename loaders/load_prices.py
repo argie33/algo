@@ -542,17 +542,22 @@ class PriceLoader(OptimalLoader):
             logger.warning(f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}, elapsed {elapsed_sec:.0f}s")
             return {s: None for s in symbols}
 
-        # Issue #1 FIX (Blocker #1): Early abort if rate limiting persists at batch >= 20
-        # Prevents slow bleed to timeout when yfinance is rate-limiting heavily.
-        # At batch=20 with persistent 429s, loader could take 400+ min for 5700 symbols.
-        # If batch is still >= 20 with 5+ rate limit errors, yfinance is likely down/blocked.
-        # Better to fail fast and trigger failsafe than wait through hopeless retry loop.
-        if batch_size >= 20 and self._rate_limit_errors >= 5:
+        # Issue #1 FIX (Blocker #1): Proactive early abort if rate limiting detected at batch >= 20
+        # CRITICAL: Fail-fast rather than wait through hopeless retry loops.
+        # At batch=20 with persistent 429s, loader could take 400+ min for 5000+ symbols.
+        # If we've hit 3+ rate limit errors, yfinance is clearly degraded. Timing is context-aware:
+        #   - EOD (85-min pipeline): abort immediately after 3 errors (tight deadline, fail-fast required)
+        #   - Morning (450-min pipeline): abort after 3 errors + 30s duration (allow brief recovery)
+        # This prevents: batch 150→20→10→5→1 cascade where load time balloons from 15 min → 200+ min
+        if batch_size >= 20 and self._rate_limit_errors >= 3:
             error_duration = (time.time() - self._rate_limit_error_start_time) if self._rate_limit_error_start_time else 0
-            if error_duration > 60:  # Only if rate limiting persisted >1 min
+            should_abort = self._is_eod_pipeline or error_duration > 30
+            if should_abort:
+                context = "EOD (fail-fast)" if self._is_eod_pipeline else f"persistent {error_duration:.0f}s"
                 logger.critical(
-                    f"[RATE_LIMIT_EARLY_ABORT] Batch size {batch_size} with {self._rate_limit_errors} rate limit errors "
-                    f"persisting for {error_duration:.0f}s. yfinance severely degraded. Aborting early to prevent timeout."
+                    f"[RATE_LIMIT_EARLY_ABORT] Batch size {batch_size} with {self._rate_limit_errors} rate limit errors ({context}). "
+                    f"yfinance API severely degraded. Aborting early to prevent timeout cascade. "
+                    f"Phase 1 failsafe will retry when API recovers."
                 )
                 return {s: None for s in symbols}
 
@@ -591,7 +596,8 @@ class PriceLoader(OptimalLoader):
 
         # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
         # Issue #6: Instead of failing completely, reduce batch size to avoid timeout
-        if self._rate_limit_error_start_time is not None:
+        # ISSUE #1 FIX: Skip circuit breaker if early abort already triggered (prevents false retry loop)
+        if self._rate_limit_error_start_time is not None and not (batch_size >= 20 and self._rate_limit_errors >= 3):
             error_duration = time.time() - self._rate_limit_error_start_time
             if error_duration > self._rate_limit_circuit_break_threshold:
                 logger.warning(
