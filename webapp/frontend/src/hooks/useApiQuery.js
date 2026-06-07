@@ -33,24 +33,32 @@ export const useApiQuery = (
   const { data: rawData, isLoading, error, ...rest } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
-      let lastError = null;
       try {
         const response = await queryFn();
         const freshData = extractData(response);
         // Cache successful result for fallback
-        dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+        try {
+          await dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+        } catch (cacheErr) {
+          console.warn('[useApiQuery] Failed to cache data:', cacheErr.message);
+          // Continue anyway - cache failure shouldn't break the query
+        }
         return freshData;
       } catch (err) {
-        lastError = err;
         console.warn('[useApiQuery] Query failed:', err.message);
         // Try to return cached data as fallback when all retries exhausted
-        const cachedData = await dataCache.get(actualCacheKey);
-        if (cachedData) {
-          console.info('[useApiQuery] Returning cached fallback for:', actualCacheKey);
-          if (Array.isArray(cachedData)) {
-            return cachedData;
+        try {
+          const cachedData = await dataCache.get(actualCacheKey);
+          if (cachedData) {
+            console.info('[useApiQuery] Returning cached fallback for:', actualCacheKey);
+            if (Array.isArray(cachedData)) {
+              return cachedData;
+            }
+            return { ...cachedData, fromCache: true };
           }
-          return { ...cachedData, fromCache: true };
+        } catch (cacheErr) {
+          console.warn('[useApiQuery] Failed to retrieve cached fallback:', cacheErr.message);
+          // Continue to throw original error
         }
         throw err;
       }
@@ -153,18 +161,28 @@ export const useApiPaginatedQuery = (
         const response = await queryFn();
         const freshData = extractPaginatedData(response);
         // Cache successful result for fallback
-        dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+        try {
+          await dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+        } catch (cacheErr) {
+          console.warn('[useApiPaginatedQuery] Failed to cache data:', cacheErr.message);
+          // Continue anyway - cache failure shouldn't break the query
+        }
         return freshData;
       } catch (err) {
         console.warn('[useApiPaginatedQuery] Query failed:', err.message);
         // Try to return cached data as fallback when all retries exhausted
-        const cachedData = await dataCache.get(actualCacheKey);
-        if (cachedData) {
-          console.info('[useApiPaginatedQuery] Returning cached fallback for:', actualCacheKey);
-          if (Array.isArray(cachedData)) {
-            return cachedData;
+        try {
+          const cachedData = await dataCache.get(actualCacheKey);
+          if (cachedData) {
+            console.info('[useApiPaginatedQuery] Returning cached fallback for:', actualCacheKey);
+            if (Array.isArray(cachedData)) {
+              return cachedData;
+            }
+            return { ...cachedData, fromCache: true };
           }
-          return { ...cachedData, fromCache: true };
+        } catch (cacheErr) {
+          console.warn('[useApiPaginatedQuery] Failed to retrieve cached fallback:', cacheErr.message);
+          // Continue to throw original error
         }
         throw err;
       }

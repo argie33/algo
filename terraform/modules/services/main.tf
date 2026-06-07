@@ -419,6 +419,31 @@ resource "aws_cloudfront_response_headers_policy" "api_cors" {
   }
 }
 
+# ISSUE #17 FIX: Response headers policy for S3 static assets (config.js, SPA files)
+# Ensures browsers can access resources from CloudFront origin and fetch config.js without CORS errors
+resource "aws_cloudfront_response_headers_policy" "s3_cors" {
+  count   = var.cloudfront_enabled ? 1 : 0
+  name    = "${var.project_name}-s3-cors-${var.environment}"
+  comment = "CORS headers for static assets served from S3 (index.html, config.js, etc.)"
+
+  cors_config {
+    access_control_allow_credentials = false
+    access_control_allow_headers {
+      items = ["Content-Type", "Accept"]
+    }
+    access_control_allow_methods {
+      items = ["GET", "HEAD", "OPTIONS"]
+    }
+    access_control_allow_origins {
+      items = ["*"]
+    }
+    access_control_expose_headers {
+      items = ["Content-Length", "Content-Type", "ETag"]
+    }
+    origin_override = false
+  }
+}
+
 # OAC for CloudFront S3 origin - securely signs requests to S3
 resource "aws_cloudfront_origin_access_control" "frontend" {
   count                             = var.cloudfront_enabled ? 1 : 0
@@ -461,6 +486,8 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     cache_policy_id        = data.aws_cloudfront_cache_policy.managed_caching_optimized.id
     viewer_protocol_policy = "redirect-to-https"
+    # Apply CORS headers to all S3 origin responses so browsers can access resources cross-origin
+    response_headers_policy_id = var.cloudfront_enabled ? aws_cloudfront_response_headers_policy.s3_cors[0].id : null
   }
 
   ordered_cache_behavior {
@@ -473,6 +500,19 @@ resource "aws_cloudfront_distribution" "frontend" {
     cache_policy_id            = data.aws_cloudfront_cache_policy.managed_caching_disabled.id
     origin_request_policy_id   = data.aws_cloudfront_origin_request_policy.managed_all_viewer_except_host.id
     response_headers_policy_id = var.cloudfront_enabled ? aws_cloudfront_response_headers_policy.api_cors[0].id : null
+    viewer_protocol_policy     = "https-only"
+  }
+
+  # ISSUE #17 FIX: Cache behavior for config.js - must NEVER be cached to ensure dynamic config is loaded
+  ordered_cache_behavior {
+    path_pattern     = "/config.js*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "S3Frontend"
+    compress         = false  # Small file, compression overhead not worth it
+
+    cache_policy_id            = data.aws_cloudfront_cache_policy.managed_caching_disabled.id
+    response_headers_policy_id = var.cloudfront_enabled ? aws_cloudfront_response_headers_policy.s3_cors[0].id : null
     viewer_protocol_policy     = "https-only"
   }
 

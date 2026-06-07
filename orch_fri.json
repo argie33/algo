@@ -1,1 +1,0 @@
-{"statusCode": 200, "body": "{\"status\": \"success\", \"message\": \"Orchestrator completed successfully\", \"run_id\": \"RUN-2026-06-05-135852\", \"phases\": {\"1\": {\"name\": \"data_freshness\", \"status\": \"halt\", \"summary\": \"Stale or missing critical data\"}}, \"skipped\": false, \"reason\": \"\", \"source\": \"eventbridge\", \"lambda_timeout_seconds\": 599}"}

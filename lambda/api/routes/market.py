@@ -101,6 +101,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     return error_response(503, 'service_unavailable', 'Failed to fetch market technicals data')
 
                 base = dict(rows[0]) if rows else {}
+                # Ensure breadth and mcclellan_oscillator are always present
+                if 'breadth' not in base:
+                    base['breadth'] = {}
+                if 'mcclellan_oscillator' not in base:
+                    base['mcclellan_oscillator'] = []
+
                 # Compute today's advancing/declining counts from price_daily.
                 # SAVEPOINT isolation: a timeout here must not abort the outer transaction.
                 try:
@@ -168,6 +174,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 return json_response(200, base)
             elif path == '/api/market/top-movers':
                 movers = []
+                gainers = []
+                losers = []
                 try:
                     cur.execute("SAVEPOINT top_movers")
                     cur.execute("SET LOCAL statement_timeout = '8s'")
@@ -212,7 +220,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                                  key=lambda x: -(x.get('pct_change') or 0))[:10]
                 losers = sorted([m for m in items if (m.get('pct_change') or 0) < 0],
                                 key=lambda x: (x.get('pct_change') or 0))[:10]
-                return json_response(200, {'gainers': gainers, 'losers': losers})
+                return json_response(200, {'gainers': gainers or [], 'losers': losers or [], 'items': items})
             elif path == '/api/market/distribution-days':
                 DIST_INDEX_NAMES = {'^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^NYA': 'NYSE Composite', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000'}
                 try:
@@ -315,8 +323,8 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     dow_data = []
 
                 return json_response(200, {
-                    'monthly': monthly_data,
-                    'day_of_week': dow_data,
+                    'monthly': monthly_data or [],
+                    'day_of_week': dow_data or [],
                     'summary': {
                         'best_month': {
                             'name': best_month.get('month_name') if best_month else None,
@@ -370,10 +378,11 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                         'current': aaii_current,
                         'history': aaii_rows,
                         'trend': aaii_trend,
+                        'data': aaii_rows,
                         'bullish_pct': float(aaii_current['bullish'] or 0) if aaii_current else None
                     }
                 except Exception as e:
-                    sentiment_data['aaii'] = {'current': None, 'history': [], 'trend': None}
+                    sentiment_data['aaii'] = {'current': None, 'history': [], 'data': [], 'trend': None, 'bullish_pct': None}
 
                 # NAAIM manager exposure
                 try:
@@ -403,7 +412,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     }
                 except Exception as e:
                     logger.warning(f"Exception: {e}")
-                    sentiment_data['naaim'] = {'current': None, 'history': [], 'trend': None}
+                    sentiment_data['naaim'] = {'current': None, 'history': [], 'trend': None, 'bullish_pct': None, 'bearish_pct': None}
 
                 # Fear & Greed
                 try:
@@ -429,81 +438,87 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                             'label': fg_current.get('label') if fg_current else None
                         },
                         'history': fg_rows,
-                        'trend': fg_trend
+                        'trend': fg_trend,
+                        'data': fg_rows
                     }
                 except Exception as e:
                     logger.warning(f"Exception: {e}")
-                    sentiment_data['fearGreed'] = {'current': {'value': None, 'label': None}, 'history': [], 'trend': None}
+                    sentiment_data['fearGreed'] = {'current': {'value': None, 'label': None}, 'history': [], 'trend': None, 'data': []}
 
                 return json_response(200, sentiment_data)
             elif path == '/api/market/fear-greed':
                 range_days = _parse_range_param(params) if params else 30
                 return _get_fear_greed_history(cur, range_days)
             elif path == '/api/market/naaim':
-                cur.execute("""
-                    SELECT date, naaim_number_mean, bullish, bearish
-                    FROM naaim
-                    ORDER BY date ASC
-                    LIMIT 52
-                """)
-                rows = cur.fetchall()
-                if not rows:
-                    return json_response(200, {
-                        'current': None,
-                        'history': [],
-                        'moving_averages': {},
-                        'signals': {'extreme_bullish': False, 'extreme_bearish': False}
-                    })
+                try:
+                    cur.execute("SET LOCAL statement_timeout = '5000ms'")
+                    cur.execute("""
+                        SELECT date, naaim_number_mean, bullish, bearish
+                        FROM naaim
+                        ORDER BY date ASC
+                        LIMIT 52
+                    """)
+                    rows = cur.fetchall()
+                    if not rows:
+                        return json_response(200, {
+                            'current': None,
+                            'history': [],
+                            'moving_averages': {},
+                            'signals': {'extreme_bullish': False, 'extreme_bearish': False}
+                        })
 
-                history = []
-                for r in rows:
-                    r_dict = dict(r)
-                    history.append({
-                        'date': str(r_dict['date']),
-                        'value': float(r_dict['naaim_number_mean'] or 0),
-                        'bullish_pct': float(r_dict.get('bullish', 0) or 0),
-                        'bearish_pct': float(r_dict.get('bearish', 0) or 0)
-                    })
+                    history = []
+                    for r in rows:
+                        r_dict = dict(r)
+                        history.append({
+                            'date': str(r_dict.get('date') or ''),
+                            'value': float(r_dict.get('naaim_number_mean') or 0),
+                            'bullish_pct': float(r_dict.get('bullish') or 0),
+                            'bearish_pct': float(r_dict.get('bearish') or 0)
+                        })
 
-                if history:
-                    current = history[-1]
-                    values = [h['value'] for h in history]
+                    if history:
+                        current = history[-1]
+                        values = [h['value'] for h in history]
 
-                    # Compute moving averages
-                    ma_10 = sum(values[-10:]) / min(10, len(values)) if len(values) >= 10 else None
-                    ma_20 = sum(values[-20:]) / min(20, len(values)) if len(values) >= 20 else None
-                    ma_50 = sum(values[-50:]) / min(50, len(values)) if len(values) >= 50 else None
+                        # Compute moving averages
+                        ma_10 = sum(values[-10:]) / min(10, len(values)) if len(values) >= 10 else None
+                        ma_20 = sum(values[-20:]) / min(20, len(values)) if len(values) >= 20 else None
+                        ma_50 = sum(values[-50:]) / min(50, len(values)) if len(values) >= 50 else None
 
-                    # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
-                    curr_val = current['value'] or 0
-                    signals = {
-                        'extreme_bullish': curr_val > 80,
-                        'extreme_bearish': curr_val < 20,
-                        'overbought': curr_val > 70,
-                        'oversold': curr_val < 30,
-                        'above_50': curr_val > 50,
-                        'below_50': curr_val <= 50
-                    }
-
-                    return json_response(200, {
-                        'current': current['value'],
-                        'bullish_pct': current['bullish_pct'],
-                        'bearish_pct': current['bearish_pct'],
-                        'history': history,
-                        'moving_averages': {
-                            'ma_10': round(ma_10, 2) if ma_10 else None,
-                            'ma_20': round(ma_20, 2) if ma_20 else None,
-                            'ma_50': round(ma_50, 2) if ma_50 else None
-                        },
-                        'signals': signals,
-                        'interpretation': {
-                            'meaning': 'Manager equity allocation %; 0=all cash, 100=fully invested',
-                            'current_stance': 'bullish' if curr_val > 50 else 'bearish',
-                            'extremity': 'extreme_bullish' if curr_val > 80 else 'extreme_bearish' if curr_val < 20 else 'normal'
+                        # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
+                        curr_val = current['value'] or 0
+                        signals = {
+                            'extreme_bullish': curr_val > 80,
+                            'extreme_bearish': curr_val < 20,
+                            'overbought': curr_val > 70,
+                            'oversold': curr_val < 30,
+                            'above_50': curr_val > 50,
+                            'below_50': curr_val <= 50
                         }
-                    })
-                else:
-                    return json_response(200, {'current': None, 'history': [], 'signals': {}})
+
+                        return json_response(200, {
+                            'current': current['value'],
+                            'bullish_pct': current['bullish_pct'],
+                            'bearish_pct': current['bearish_pct'],
+                            'history': history,
+                            'moving_averages': {
+                                'ma_10': round(ma_10, 2) if ma_10 else None,
+                                'ma_20': round(ma_20, 2) if ma_20 else None,
+                                'ma_50': round(ma_50, 2) if ma_50 else None
+                            },
+                            'signals': signals,
+                            'interpretation': {
+                                'meaning': 'Manager equity allocation %; 0=all cash, 100=fully invested',
+                                'current_stance': 'bullish' if curr_val > 50 else 'bearish',
+                                'extremity': 'extreme_bullish' if curr_val > 80 else 'extreme_bearish' if curr_val < 20 else 'normal'
+                            }
+                        })
+                    else:
+                        return json_response(200, {'current': None, 'history': [], 'signals': {}})
+                except Exception as e:
+                    logger.warning(f"NAAIM query failed ({type(e).__name__}): {e}")
+                    return json_response(200, {'current': None, 'history': [], 'moving_averages': {}, 'signals': {'extreme_bullish': False, 'extreme_bearish': False}})
             elif path == '/api/market/latest':
                 return _get_market_latest(cur)
             elif path == '/api/market/cap-distribution':

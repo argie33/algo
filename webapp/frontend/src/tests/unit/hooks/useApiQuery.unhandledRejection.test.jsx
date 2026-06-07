@@ -1,0 +1,229 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useApiQuery, useApiPaginatedQuery } from '../../../hooks/useApiQuery';
+import * as dataCache from '../../../services/dataCache';
+import React from 'react';
+
+// Mock the dataCache module
+vi.mock('../../../services/dataCache', () => ({
+  get: vi.fn(),
+  set: vi.fn(),
+}));
+
+describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
+  let queryClient;
+  let unhandledRejections = [];
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: 0 }, // Disable retries for testing
+      },
+    });
+
+    unhandledRejections = [];
+
+    // Capture unhandled rejections
+    const handleRejection = (e) => {
+      unhandledRejections.push(e.reason || e);
+    };
+
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    // Cleanup after each test
+    return () => {
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    unhandledRejections = [];
+  });
+
+  const wrapper = ({ children }) => (
+    React.createElement(QueryClientProvider, { client: queryClient }, children)
+  );
+
+  it('should catch API errors without unhandled rejections', async () => {
+    const mockError = new Error('API failed');
+    const queryFn = vi.fn().mockRejectedValue(mockError);
+
+    const { result } = renderHook(
+      () => useApiQuery(['test-key'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBeDefined();
+    });
+
+    // Should not have any unhandled rejections
+    await waitFor(
+      () => {
+        expect(unhandledRejections.length).toBe(0);
+      },
+      { timeout: 1000 }
+    );
+
+    expect(result.current.error?.message).toContain('API failed');
+  });
+
+  it('should handle cache failures gracefully', async () => {
+    const mockData = { test: 'data' };
+    const queryFn = vi.fn().mockResolvedValue({
+      data: { success: true, data: mockData },
+    });
+
+    // Mock cache.set to throw
+    dataCache.set.mockRejectedValue(new Error('Cache write failed'));
+    dataCache.get.mockResolvedValue(null);
+
+    const { result } = renderHook(
+      () => useApiQuery(['test-key'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    // Cache failure should not cause unhandled rejection
+    expect(unhandledRejections.length).toBe(0);
+    expect(result.current.data).toEqual(mockData);
+  });
+
+  it('should return cached fallback without unhandled rejections', async () => {
+    const mockError = new Error('Network error');
+    const cachedData = { cached: true };
+    const queryFn = vi.fn().mockRejectedValue(mockError);
+
+    // Mock cache retrieval
+    dataCache.get.mockResolvedValue(cachedData);
+
+    const { result } = renderHook(
+      () => useApiQuery(['test-key'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    // Should return cached data without unhandled rejections
+    expect(unhandledRejections.length).toBe(0);
+    expect(result.current.data).toEqual({ ...cachedData, fromCache: true });
+  });
+
+  it('should handle cache retrieval failures', async () => {
+    const mockError = new Error('Network error');
+    const queryFn = vi.fn().mockRejectedValue(mockError);
+
+    // Mock cache retrieval to fail
+    dataCache.get.mockRejectedValue(new Error('Cache read failed'));
+
+    const { result } = renderHook(
+      () => useApiQuery(['test-key'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBeDefined();
+    });
+
+    // Both cache read and API call failed, but no unhandled rejections
+    expect(unhandledRejections.length).toBe(0);
+    expect(result.current.error?.message).toContain('Network error');
+  });
+
+  it('should properly log errors without throwing', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mockError = new Error('Test error');
+    const queryFn = vi.fn().mockRejectedValue(mockError);
+
+    dataCache.get.mockResolvedValue(null);
+
+    renderHook(() => useApiQuery(['test-key'], queryFn), { wrapper });
+
+    await waitFor(() => {
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[useApiQuery] Query failed'),
+        expect.anything()
+      );
+    });
+
+    expect(unhandledRejections.length).toBe(0);
+    consoleWarnSpy.mockRestore();
+  });
+});
+
+describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
+  let queryClient;
+  let unhandledRejections = [];
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: 0 },
+      },
+    });
+
+    unhandledRejections = [];
+
+    const handleRejection = (e) => {
+      unhandledRejections.push(e.reason || e);
+    };
+
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    unhandledRejections = [];
+  });
+
+  const wrapper = ({ children }) => (
+    React.createElement(QueryClientProvider, { client: queryClient }, children)
+  );
+
+  it('should handle paginated query errors without unhandled rejections', async () => {
+    const mockError = new Error('Paginated API failed');
+    const queryFn = vi.fn().mockRejectedValue(mockError);
+
+    dataCache.get.mockResolvedValue(null);
+
+    const { result } = renderHook(
+      () => useApiPaginatedQuery(['test-paginated'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBeDefined();
+    });
+
+    expect(unhandledRejections.length).toBe(0);
+    expect(result.current.error?.message).toContain('Paginated API failed');
+  });
+
+  it('should return empty items array on error', async () => {
+    const queryFn = vi.fn().mockRejectedValue(new Error('API error'));
+    dataCache.get.mockResolvedValue(null);
+
+    const { result } = renderHook(
+      () => useApiPaginatedQuery(['test-paginated'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBeDefined();
+    });
+
+    expect(result.current.items).toEqual([]);
+    expect(unhandledRejections.length).toBe(0);
+  });
+});

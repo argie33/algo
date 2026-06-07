@@ -274,7 +274,7 @@ function RunDetail({ detail, onBack }) {
             </div>
           </div>
           <div className="card-body">
-            <div style={{ height: 300 }}>
+            <div className="chart-container" style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={r.equity_curve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>

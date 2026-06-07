@@ -24,10 +24,14 @@ export default defineConfig(({ mode }) => {
         jsxRuntime: 'automatic'
       })
     ],
+    // ISSUE #17 FIX: Ensure public folder files are copied to dist during build
+    publicDir: 'public',
     build: {
       outDir: "dist",
       sourcemap: isDevelopment,
       chunkSizeWarningLimit: 500,
+      // Ensure build completes even if there are unused assets
+      emptyOutDir: true,
       rollupOptions: {
         external: (id) => {
           // Don't externalize any dependencies - bundle everything for compatibility

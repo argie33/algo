@@ -137,10 +137,14 @@ const _checkApiHealth = async () => {
     const response = await fetch(`${currentConfig.baseURL}/api/health`, {
       method: "GET",
       signal: AbortSignal.timeout(3000),
+    }).catch(error => {
+      console.debug('[API] Health check failed:', error.message);
+      throw error;
     });
     apiHealthy = response?.ok;
     lastHealthCheck = now;
   } catch (error) {
+    console.debug('[API] Health check error (non-critical):', error.message);
     apiHealthy = false;
     lastHealthCheck = now;
   }
@@ -184,9 +188,13 @@ export const setRefreshCallback = (fn) => {
 };
 
 const processQueue = (error, token = null) => {
-  failedQueue.forEach((prom) =>
-    error ? prom.reject(error) : prom.resolve(token)
-  );
+  failedQueue.forEach((prom) => {
+    try {
+      error ? prom.reject(error) : prom.resolve(token);
+    } catch (e) {
+      console.error('[API] Error processing queue item:', e.message);
+    }
+  });
   failedQueue = [];
 };
 
@@ -259,7 +267,10 @@ try {
                 originalRequest._retried = true;
                 return api(originalRequest);
               })
-              .catch((err) => Promise.reject(err));
+              .catch((err) => {
+                console.error('[API] Queued request failed after token refresh:', err.message);
+                return Promise.reject(err);
+              });
           }
 
           isRefreshing = true;
@@ -274,11 +285,15 @@ try {
                 processQueue(null, newToken);
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 isRefreshing = false;
-                return api(originalRequest);
+                return api(originalRequest).catch(apiError => {
+                  console.error('[API] Retried request after refresh failed:', apiError.message);
+                  return Promise.reject(apiError);
+                });
               }
             } catch (refreshError) {
               processQueue(refreshError, null);
               isRefreshing = false;
+              console.error('[API] Token refresh failed:', refreshError.message);
               // After failed refresh, if still within grace period, allow user to retry
               // Otherwise force logout
               if (now - lastTokenRefreshTime > TOKEN_REFRESH_GRACE_PERIOD) {
@@ -303,9 +318,14 @@ try {
           const forbiddenError = new Error("You do not have permission to perform this action.");
           forbiddenError.code = "FORBIDDEN";
           forbiddenError.status = 403;
-          return Promise.reject(forbiddenError);
+          return Promise.reject(forbiddenError).catch(err => {
+            console.error('[API] Permission denied error:', err.message);
+            return Promise.reject(err);
+          });
         }
 
+        // For all other errors, ensure they're properly logged before rejecting
+        console.error('[API] Request failed with status', error.response?.status || 'unknown', ':', error.message);
         return Promise.reject(error);
       }
     );

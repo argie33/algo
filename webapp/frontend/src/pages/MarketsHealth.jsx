@@ -365,7 +365,7 @@ function IndicesStrip() {
     () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=30`),
     { staleTime: 60000 }
   );
-  const symbolMap = batchData?.symbols || {};
+  const symbolMap = (batchData && typeof batchData === 'object' && batchData.symbols) ? batchData.symbols : {};
   return (
     <div className="card card-pad" style={{ marginTop: 'var(--space-4)' }}>
       <div className="sect-head">
@@ -611,7 +611,7 @@ function ExposureHistory({ markets }) {
         </div>
       </div>
       <div className="card-body" style={{ padding: 'var(--space-4)', width: '100%', minWidth: 0 }}>
-        <div style={{ height: 320, width: '100%', minWidth: 0 }}>
+        <div className="chart-container" style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
@@ -658,7 +658,7 @@ function BreadthCard({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
+        <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={56}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -717,7 +717,7 @@ function NewHighsLowsCard({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
+        <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={64}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -747,11 +747,11 @@ function NewHighsLowsCard({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SentimentCard({ markets, sentiment, loading }) {
-  const aaiiHistory = sentiment?.aaii?.history || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  const aaiiHistory = sentiment?.aaii?.history || sentiment?.aaii?.data || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
   const naaim = sentiment?.naaim?.current ?? null;
   const fearGreed = sentiment?.fearGreed?.current?.value ?? null;
   if (loading) return <Empty title="Investor Sentiment" desc="Loading…" wrap />;
-  if (!aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
+  if (!aaiiHistory || !Array.isArray(aaiiHistory) || !aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
   const data = aaiiHistory.slice().reverse().map(s => ({
     date: s.date,
     bull: parseFloat(s.bullish || 0),
@@ -769,7 +769,7 @@ function SentimentCard({ markets, sentiment, loading }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
+        <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -864,7 +864,7 @@ function VixCard({ markets }) {
 
 function InternalsCard({ data, loading }) {
   if (loading || !data) return <Empty title="Market Internals" desc={loading ? "Loading…" : "No data"} wrap />;
-  const breadth = data?.breadth || {};
+  const breadth = (data && typeof data === 'object' && data.breadth) ? data.breadth : {};
   const advancing = parseInt(breadth?.advancing) || 0;
   const declining = parseInt(breadth?.declining) || 0;
   const unchanged = parseInt(breadth?.unchanged) || 0;
@@ -872,7 +872,8 @@ function InternalsCard({ data, loading }) {
   const advPct = total ? (advancing / total) * 100 : 0;
   const decPct = total ? (declining / total) * 100 : 0;
   const adRatio = declining > 0 ? (advancing / declining) : 0;
-  const mcclellan = (data?.mcclellan_oscillator || []).reverse().map(d => ({
+  const mcData = Array.isArray(data?.mcclellan_oscillator) ? data.mcclellan_oscillator : [];
+  const mcclellan = mcData.reverse().map(d => ({
     date: d?.date, value: parseFloat(d?.advance_decline_line || 0),
   }));
   return (
@@ -890,7 +891,7 @@ function InternalsCard({ data, loading }) {
           <div className="stile"><div className="stile-label">A/D Ratio</div><div className={`stile-value ${adRatio > 1 ? 'up' : 'down'}`}>{num(adRatio, 2)}</div><div className="stile-sub">{unchanged} unch.</div></div>
         </div>
         {mcclellan.length > 1 && (
-          <div style={{ height: 140, width: '100%', minWidth: 0 }}>
+          <div className="chart-container" style={{ height: 140 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={mcclellan} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <defs>
@@ -920,8 +921,10 @@ function InternalsCard({ data, loading }) {
 
 function TopMoversCard({ data, loading }) {
   if (loading || !data) return <Empty title="Top Movers" desc={loading ? "Loading…" : "No data"} wrap />;
-  const gainers = (data.gainers || []);
-  const losers = (data.losers || []);
+  const gainers = Array.isArray(data.gainers) ? data.gainers : [];
+  const losers = Array.isArray(data.losers) ? data.losers : [];
+  const totalGainers = Array.isArray(data.gainers) ? data.gainers.length : 0;
+  const totalLosers = Array.isArray(data.losers) ? data.losers.length : 0;
   return (
     <div className="card">
       <div className="card-head">
@@ -933,14 +936,14 @@ function TopMoversCard({ data, loading }) {
       <div className="card-body">
         <div className="eyebrow up" style={{ marginBottom: 6 }}>
           Gainers
-          {(data.gainers || []).length > 6 && <span className="t-xs muted"> ({gainers.length} of {(data.gainers || []).length})</span>}
+          {totalGainers > 6 && <span className="t-xs muted"> ({gainers.length} of {totalGainers})</span>}
         </div>
         {gainers.length === 0 ? <div className="muted t-xs">—</div> : gainers.map((g, i) => (
           <Mover key={i} symbol={g.symbol} chg={g.pct_change ?? g.change_pct ?? g.changePercent} dir="up" />
         ))}
         <div className="eyebrow down" style={{ marginTop: 'var(--space-3)', marginBottom: 6, borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--space-3)' }}>
           Losers
-          {(data.losers || []).length > 6 && <span className="t-xs muted"> ({losers.length} of {(data.losers || []).length})</span>}
+          {totalLosers > 6 && <span className="t-xs muted"> ({losers.length} of {totalLosers})</span>}
         </div>
         {losers.length === 0 ? <div className="muted t-xs">—</div> : losers.map((l, i) => (
           <Mover key={i} symbol={l.symbol} chg={l.pct_change ?? l.change_pct ?? l.changePercent} dir="down" />
@@ -967,12 +970,14 @@ function Mover({ symbol, chg, dir }) {
 function SeasonalityCard({ data, loading }) {
   if (loading) return <Empty title="Seasonality Context" desc="Loading…" wrap />;
   if (!data) return null;
-  const bestMonth = data.summary?.best_month;
-  const worstMonth = data.summary?.worst_month;
-  const bestDay = data.summary?.best_day;
-  const worstDay = data.summary?.worst_day;
+  const summary = (data && typeof data === 'object' && data.summary) ? data.summary : {};
+  const bestMonth = summary?.best_month;
+  const worstMonth = summary?.worst_month;
+  const bestDay = summary?.best_day;
+  const worstDay = summary?.worst_day;
   const currentMonthNum = new Date().getMonth() + 1;
-  const currentMonthData = (data.monthly || []).find(m => m.month === currentMonthNum);
+  const monthlyArray = Array.isArray(data.monthly) ? data.monthly : [];
+  const currentMonthData = monthlyArray.find(m => m.month === currentMonthNum);
   return (
     <div className="card">
       <div className="card-head">
@@ -1006,15 +1011,15 @@ function SeasonalityCard({ data, loading }) {
             <div className="stile-sub">{worstDay ? `Worst: ${worstDay.name}` : '—'}</div>
           </div>
         </div>
-        {data.monthly?.length > 0 && (
+        {monthlyArray.length > 0 && (
           <div style={{ marginTop: 'var(--space-4)', height: 80, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <BarChart data={monthlyArray} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                 <XAxis dataKey="month_name" tick={{ fill: C.textFaint, fontSize: 9 }} tickFormatter={m => String(m).slice(0, 3)} />
                 <YAxis hide />
                 <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v >= 0 ? '+' : ''}${num(v, 2)}%`, 'Hist. Avg']} />
                 <Bar dataKey="avg_return">
-                  {(data.monthly || []).map((m, i) => (
+                  {monthlyArray.map((m, i) => (
                     <Cell key={i} fill={(m.avg_return || 0) >= 0 ? C.success : C.danger} fillOpacity={0.7} />
                   ))}
                 </Bar>
@@ -1047,11 +1052,11 @@ const SECTOR_ETFS = [
 
 function SectorTile({ etf, name, weight, onSelect, prices = [] }) {
   const series = Array.isArray(prices) ? prices : [];
-  const last = series[0]?.close ?? series[series.length - 1]?.close;
-  const prev = series[1]?.close ?? series[series.length - 2]?.close;
+  const last = (series && series.length > 0) ? (series[0]?.close ?? (series.length > 0 ? series[series.length - 1]?.close : null)) : null;
+  const prev = (series && series.length > 1) ? (series[1]?.close ?? (series.length > 1 ? series[series.length - 2]?.close : null)) : null;
   const lastN = last != null ? parseFloat(last) : null;
   const prevN = prev != null ? parseFloat(prev) : null;
-  const chgPct = lastN && prevN ? ((lastN - prevN) / prevN) * 100 : null;
+  const chgPct = lastN && prevN && prevN !== 0 ? ((lastN - prevN) / prevN) * 100 : null;
 
   // Color by intensity: green up, red down
   const intensity = chgPct == null ? 0 : Math.min(Math.abs(chgPct) / 3, 1);
@@ -1106,7 +1111,7 @@ function SectorHeatMap({ onSelect }) {
     () => api.get(`/api/prices/batch-history?symbols=${etfSymbols}&timeframe=daily&limit=2`),
     { staleTime: 30000, refetchInterval: 60000 }
   );
-  const symbolMap = batchData?.symbols || {};
+  const symbolMap = (batchData && typeof batchData === 'object' && batchData.symbols) ? batchData.symbols : {};
   return (
     <div className="card">
       <div className="card-head">
@@ -1198,7 +1203,7 @@ function SectorRotationMap({ markets, onSelect }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: 360, width: '100%', position: 'relative', minWidth: 0 }}>
+        <div className="chart-container" style={{ height: 360, position: 'relative' }}>
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 24 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -1284,7 +1289,7 @@ function SectorRotationSignalCard() {
         </span>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
+        <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={items.map(d => ({
               date: fmtDate(d.date),
@@ -1353,22 +1358,26 @@ function YieldCurveCard() {
   );
 
   if (loading && !data) return <Empty title="Yield Curve" desc="Loading…" wrap />;
-  if (error || !data?.currentCurve) return <Empty title="Yield Curve" desc="Treasury data not available" wrap />;
+  const currentCurve = (data && typeof data === 'object' && data.currentCurve) ? data.currentCurve : {};
+  if (error || !currentCurve || typeof currentCurve !== 'object' || Object.keys(currentCurve).length === 0) {
+    return <Empty title="Yield Curve" desc="Treasury data not available" wrap />;
+  }
 
   const order = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
   const curve = order
-    .filter(k => data.currentCurve[k] != null)
+    .filter(k => currentCurve[k] != null)
     .map(k => {
-      const val = parseFloat(data.currentCurve[k]);
+      const val = parseFloat(currentCurve[k]);
       return { maturity: k, yield: isFinite(val) ? val : null };
     })
     .filter(d => d.yield != null);
 
   if (!curve.length) return <Empty title="Yield Curve" desc="No maturities available" wrap />;
 
-  const spread2y10y = data.spreads?.T10Y2Y;
-  const spread3m10y = data.spreads?.T10Y3M;
-  const isInverted = data.isInverted;
+  const spreads = (data && typeof data === 'object' && data.spreads) ? data.spreads : {};
+  const spread2y10y = spreads?.T10Y2Y;
+  const spread3m10y = spreads?.T10Y3M;
+  const isInverted = data?.isInverted;
 
   return (
     <div className="card">
@@ -1463,10 +1472,10 @@ function VolTermStructureCard() {
     () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=2`),
     { staleTime: 60000, refetchInterval: 60000 }
   );
-  const symbolMap = batchData?.symbols || {};
+  const symbolMap = (batchData && typeof batchData === 'object' && batchData.symbols) ? batchData.symbols : {};
 
   const getLastClose = (sym) => {
-    const series = symbolMap[sym] || [];
+    const series = Array.isArray(symbolMap[sym]) ? symbolMap[sym] : [];
     const last = series[0]?.close ?? series[series.length - 1]?.close;
     return last != null ? parseFloat(last) : null;
   };
@@ -1498,7 +1507,7 @@ function VolTermStructureCard() {
         </span>
       </div>
       <div className="card-body">
-        <div style={{ height: 200, width: '100%', minWidth: 0 }}>
+        <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
@@ -1542,9 +1551,9 @@ function DistributionDaysTimeline() {
   );
 
   if (loading && !data) return <Empty title="Distribution Days" desc="Loading…" wrap />;
-  if (error || !data) return <Empty title="Distribution Days" desc="Distribution days data not loaded" wrap />;
+  if (error || !data || typeof data !== 'object') return <Empty title="Distribution Days" desc="Distribution days data not loaded" wrap />;
 
-  const indices = ['^GSPC', '^IXIC', '^DJI', '^NYA'].filter(k => data[k]);
+  const indices = ['^GSPC', '^IXIC', '^DJI', '^NYA'].filter(k => data[k] && typeof data[k] === 'object');
   if (!indices.length) return <Empty title="Distribution Days" desc="No index data available" wrap />;
 
   return (
@@ -1560,7 +1569,8 @@ function DistributionDaysTimeline() {
       <div className="card-body">
         {indices.map(sym => {
           const idx = data[sym];
-          const days = (idx.days || []).slice().sort((a, b) => (a.days_ago ?? 0) - (b.days_ago ?? 0));
+          const daysArray = Array.isArray(idx?.days) ? idx.days : [];
+          const days = daysArray.slice().sort((a, b) => (a.days_ago ?? 0) - (b.days_ago ?? 0));
           // Build last 25-day timeline; oldest left → newest right
           const timeline = days.reverse();
           const sigColor = idx.signal === 'NORMAL' ? C.success

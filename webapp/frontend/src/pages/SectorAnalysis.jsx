@@ -162,7 +162,7 @@ function MansfieldRotation({ sectors }) {
   if (data.length === 0) return <Empty title="No sector RS data" />;
 
   return (
-    <div style={{ width: '100%', height: 380, position: 'relative' }}>
+    <div className="chart-container" style={{ height: 380, position: 'relative' }}>
       <ResponsiveContainer width="100%" height="100%">
         <ScatterChart margin={{ top: 16, right: 24, bottom: 32, left: 0 }}>
           <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -258,7 +258,7 @@ function MomentumSpider({ sectors }) {
   }
 
   return (
-    <div style={{ width: '100%', height: 320 }}>
+    <div className="chart-container" style={{ height: 320 }}>
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data}>
           <PolarGrid stroke="var(--border-soft)" />
@@ -326,7 +326,7 @@ function SectorRelativeChart({ sectors }) {
   }
 
   return (
-    <div style={{ width: '100%', height: 320 }}>
+    <div className="chart-container" style={{ height: 320 }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={merged} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -365,7 +365,7 @@ function SectorBreadthChart() {
   const sorted = [...breadthData].sort((a, b) => b.pct_above_200d - a.pct_above_200d);
 
   return (
-    <div style={{ width: '100%', height: Math.max(300, sorted.length * 28 + 40) }}>
+    <div className="chart-container" style={{ height: Math.max(300, sorted.length * 28 + 40) }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={sorted} layout="vertical"
                   margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
@@ -402,7 +402,7 @@ function Stage2LeadersChart() {
   const sorted = [...dataItems].sort((a, b) => b.pct_stage_2 - a.pct_stage_2);
 
   return (
-    <div style={{ width: '100%', height: Math.max(300, sorted.length * 28 + 40) }}>
+    <div className="chart-container" style={{ height: Math.max(300, sorted.length * 28 + 40) }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={sorted} layout="vertical"
                   margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
@@ -467,7 +467,7 @@ function DefensiveCyclicalChart() {
           </div>
         </div>
       </div>
-      <div style={{ width: '100%', height: 260 }}>
+      <div className="chart-container" style={{ height: 260 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -531,7 +531,7 @@ function DailyStrengthChart({ name, type, range }) {
   const priceColor = aboveMA20 ? 'var(--success)' : aboveMA10 ? 'var(--amber)' : 'var(--danger)';
 
   return (
-    <div style={{ width: '100%', height: 300 }}>
+    <div className="chart-container" style={{ height: 300 }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
@@ -612,7 +612,7 @@ function RankingTrendChart({ name, type, range }) {
         </div>
       </div>
 
-      <div style={{ width: '100%', height: 280 }}>
+      <div className="chart-container" style={{ height: 280 }}>
         {ranks.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={history} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
@@ -674,7 +674,7 @@ function SparklineTrend({ name, type }) {
 
   const data = rows.map(r => ({ date: r.date, score: r.dailyStrengthScore }));
   return (
-    <div style={{ width: 90, height: 30 }}>
+    <div className="chart-container" style={{ width: 90, height: 30 }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
           <YAxis hide domain={['dataMin', 'dataMax']} />

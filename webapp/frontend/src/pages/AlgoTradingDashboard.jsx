@@ -894,7 +894,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
           {/* Signal Rejection Funnel */}
           {funnelTiers.length > 0 && (
             <SectionCard title={`Signal Filter Funnel (${rejectionFunnel?.summary?.total_initial || 0} total)`} sx={{ marginBottom: 'var(--space-4)' }}>
-              <div style={{ height: 160 }}>
+              <div className="chart-container" style={{ height: 160 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={funnelTiers} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />

@@ -82,11 +82,30 @@ window.addEventListener("unhandledrejection", function (e) {
     url: window.location.href,
     timestamp: new Date().toISOString(),
     promiseState: "rejected",
+    reason: e.reason?.message || String(e.reason),
+    stack: e.reason?.stack,
   };
 
-  logger.error("UnhandledPromiseRejection", e.reason, errorContext);
+  // Always log unhandled rejections
+  if (e.reason instanceof Error) {
+    logger.error("UnhandledPromiseRejection", e.reason, errorContext);
+    console.error("[UnhandledRejection]", {
+      message: e.reason.message,
+      stack: e.reason.stack,
+      context: errorContext
+    });
+  } else {
+    const error = new Error(String(e.reason));
+    logger.error("UnhandledPromiseRejection", error, errorContext);
+    console.error("[UnhandledRejection]", {
+      reason: e.reason,
+      context: errorContext
+    });
+  }
 
-  // Let all errors through for debugging
+  // Prevent unhandled rejection from crashing the app
+  // The error is now logged and visible to developers
+  e.preventDefault();
   return false;
 });
 
@@ -117,7 +136,14 @@ const checkAndClearStaleCache = async () => {
           );
 
           // Wait for all caches to be deleted before continuing
-          await Promise.all(cacheNamesToDelete.map(name => caches.delete(name)));
+          await Promise.all(
+            cacheNamesToDelete.map(name =>
+              caches.delete(name).catch(err => {
+                console.warn(`Failed to delete cache '${name}':`, err.message);
+                // Don't rethrow - continue deleting other caches
+              })
+            )
+          );
           logger.info(`Cleared ${cacheNamesToDelete.length} stale cache stores`);
         } catch (error) {
           logger.warn("Failed to clear caches on version change", error);
@@ -148,7 +174,10 @@ const checkAndClearStaleCache = async () => {
 
 // Run cache check asynchronously (non-blocking)
 // Completes before app render, so first page load gets clean caches
-checkAndClearStaleCache().catch(() => {});
+// Always attach catch handler to prevent unhandled rejection
+checkAndClearStaleCache().catch((err) => {
+  console.warn('[Cache] Background cache check failed:', err.message);
+});
 
 
 // Wait for config.js to load before configuring Amplify and rendering app.

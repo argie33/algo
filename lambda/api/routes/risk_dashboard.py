@@ -13,7 +13,7 @@ import psycopg2, json
 from typing import Dict, Any
 import logging
 from datetime import datetime, timedelta, date
-from .utils import error_response, success_response, json_response, safe_limit, handle_db_error, check_data_freshness
+from .utils import error_response, success_response, json_response, safe_limit, handle_db_error, check_data_freshness, execute_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +79,11 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
 
         # VIX metrics
         try:
-            cur.execute("""
+            rows = execute_with_timeout(cur, """
                 SELECT vix_level FROM market_health_daily
                 ORDER BY date DESC LIMIT 1
-            """)
-            row = cur.fetchone()
+            """, timeout_sec=5)
+            row = rows[0] if rows else None
             if row:
                 vix = float(row['vix_level']) if row['vix_level'] else None
                 if vix is None or vix <= 25:
@@ -103,7 +103,7 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
 
         # Position sizing statistics
         try:
-            cur.execute("""
+            rows = execute_with_timeout(cur, """
                 SELECT
                     COUNT(*) as total_trades,
                     AVG(cascade_multiplier) as avg_cascade,
@@ -112,8 +112,8 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
                     AVG(position_size_pct) as avg_position_size_pct
                 FROM algo_position_sizing_audit
                 WHERE created_at >= NOW() - INTERVAL '30 days'
-            """)
-            row = cur.fetchone()
+            """, timeout_sec=8)
+            row = rows[0] if rows else None
             if row:
                 result['position_sizing_stats'] = {
                     'trades_30d': row['total_trades'] or 0,
@@ -127,16 +127,16 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
 
         # Exit rules distribution (top 5)
         try:
-            cur.execute("""
+            exit_rows = execute_with_timeout(cur, """
                 SELECT exit_rule, COUNT(*) as count
                 FROM algo_exit_rules_distribution
                 WHERE created_at >= NOW() - INTERVAL '30 days'
                 GROUP BY exit_rule
                 ORDER BY count DESC
                 LIMIT 5
-            """)
+            """, timeout_sec=8)
             rules = {}
-            for row in cur.fetchall():
+            for row in exit_rows:
                 rules[row['exit_rule']] = row['count']
             result['exit_rules_distribution'] = rules
         except Exception as e:
@@ -151,13 +151,13 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
 
 def _fetch_drawdown_info(cur) -> Dict[str, Any]:
     """Get current portfolio drawdown and thresholds."""
-    cur.execute("""
+    rows = execute_with_timeout(cur, """
         SELECT MAX(total_portfolio_value) AS peak,
                (SELECT total_portfolio_value FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1) AS current
         FROM algo_portfolio_snapshots
-    """)
-    row = cur.fetchone()
+    """, timeout_sec=8)
+    row = rows[0] if rows else None
     if not row or not row['peak'] or not row['current']:
         return {'current_drawdown_pct': 0, 'status': 'no_history'}
 
@@ -187,12 +187,12 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
 def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
     try:
-        cur.execute("""
+        rows = execute_with_timeout(cur, """
             SELECT exposure_pct, regime, halt_reasons
             FROM market_exposure_daily
             ORDER BY date DESC LIMIT 1
-        """)
-        row = cur.fetchone()
+        """, timeout_sec=5)
+        row = rows[0] if rows else None
         if row:
             exposure_pct = float(row['exposure_pct']) if row['exposure_pct'] else 100
             tier = row['regime'] or 'NORMAL'
@@ -239,7 +239,7 @@ def _get_exposure_tier_info(cur) -> Dict:
 def _get_position_sizing_audit(cur, days: int) -> Dict:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
     try:
-        cur.execute("""
+        audit_rows = execute_with_timeout(cur, """
             SELECT symbol, signal_date, entry_price, stop_loss_price,
                    base_shares, final_shares, position_size_pct,
                    cascade_multiplier, reasons_json, created_at
@@ -247,10 +247,10 @@ def _get_position_sizing_audit(cur, days: int) -> Dict:
             WHERE created_at >= NOW() - INTERVAL '1 day' * %s
             ORDER BY created_at DESC
             LIMIT 100
-        """, (days,))
+        """, (days,), timeout_sec=10)
 
         items = []
-        for row in cur.fetchall():
+        for row in audit_rows:
             try:
                 reasons = json.loads(row['reasons_json']) if row['reasons_json'] else {}
             except (json.JSONDecodeError, TypeError):
