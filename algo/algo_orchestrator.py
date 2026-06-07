@@ -210,6 +210,8 @@ class Orchestrator:
 
         ISSUE #8 FIX: When Phase 1 detects stale data, set halt flag to stop
         Phase 5 from generating full-intensity signals during degradation.
+
+        ISSUE #10 FIX: Track multiple halt events in a day for escalation.
         """
         try:
             import boto3
@@ -218,13 +220,56 @@ class Orchestrator:
             table = dynamodb.Table(table_name)
 
             now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
+
+            # ISSUE #10 FIX: Check if halt flag was already set today (escalation tracking)
+            halt_count = 1
+            halt_escalated = False
+            response = table.get_item(Key={'key': self.HALT_FLAG_DYNAMODB_KEY})
+            if 'Item' in response and response['Item'].get('halt_flag') is True:
+                # Flag already set today - this is a repeat failure requiring escalation
+                first_trigger = response['Item'].get('triggered_at', '')
+                if first_trigger:
+                    try:
+                        first_dt = datetime.fromisoformat(first_trigger.replace('Z', '+00:00'))
+                        first_et = first_dt.astimezone(ZoneInfo("America/New_York"))
+                        # Same trading day = escalate
+                        if first_et.date() == now_et.date():
+                            halt_count = response['Item'].get('halt_count', 1) + 1
+                            halt_escalated = True
+                            logger.critical(
+                                f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
+                                f"Halt #{halt_count} in same day. "
+                                f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
+                                f"Reason: {reason[:100]}"
+                            )
+                            # Send escalation alert if repeated failures
+                            if halt_count >= 2:
+                                try:
+                                    self.alerts.send_position_alert(
+                                        'HALT_ESCALATION',
+                                        f'HALT_REPEAT_{halt_count}',
+                                        f'Halt flag triggered {halt_count} times on {now_et.date()}. '
+                                        f'Repeated data quality issues. Manual investigation required.',
+                                        {'halt_count': halt_count, 'first_at': first_trigger, 'latest_reason': reason[:100]}
+                                    )
+                                except Exception as alert_err:
+                                    logger.warning(f"Could not send escalation alert: {alert_err}")
+                    except Exception as escalation_err:
+                        logger.warning(f"Could not check halt escalation: {escalation_err}")
+
             table.put_item(Item={
                 'key': self.HALT_FLAG_DYNAMODB_KEY,
                 'halt_flag': True,
                 'triggered_at': now_utc.isoformat(),
                 'reason': reason or 'Phase 1 degraded: stale data detected',
+                'halt_count': halt_count,
             })
-            logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
+
+            if halt_escalated and halt_count >= 2:
+                logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
+            else:
+                logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
             return True
         except Exception as e:
             logger.error(f"[ERROR] Failed to set halt flag: {e}")
