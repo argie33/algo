@@ -78,9 +78,9 @@ const CircuitBreaker = {
   failureCount: 0,
   successCount: 0,
   lastFailureTime: 0,
-  FAILURE_THRESHOLD: 8, // Open circuit after 8 failures (faster detection of sustained outages)
+  FAILURE_THRESHOLD: 5, // Open circuit after 5 failures (faster detection of sustained outages)
   SUCCESS_THRESHOLD: 3, // Close circuit after 3 successes in half-open state
-  RECOVERY_TIMEOUT: 60000, // 60 seconds before attempting recovery (more responsive to temporary outages)
+  RECOVERY_TIMEOUT: 30000, // 30 seconds before attempting recovery (faster recovery for better UX)
 };
 
 const checkCircuitBreaker = () => {
