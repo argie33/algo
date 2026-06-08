@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Monitor morning prep pipeline data freshness for 8 critical tables.
-Checks if data is <1 day old and has ≥90% symbol coverage.
+Checks if data is <1 day old and has >=90% symbol coverage.
 Runs every 5 minutes until data is fresh or Monday 5 PM ET.
 """
 
@@ -14,6 +14,11 @@ from pathlib import Path
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import pytz
+
+# Fix encoding for Windows
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # Get database credentials from environment
 def get_db_config():
@@ -155,16 +160,16 @@ def print_status(results, iteration):
     now = datetime.now(et)
 
     print(f"\n{'='*80}")
-    print(f"📊 Pipeline Freshness Check #{iteration} - {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    print(f"[FRESHNESS CHECK #{iteration}] {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
     print(f"{'='*80}")
 
     all_fresh = True
     for r in results:
         if r['error']:
-            print(f"❌ {r['table']:25} | ERROR: {r['error']}")
+            print(f"[ERROR] {r['table']:25} | {r['error']}")
             all_fresh = False
         else:
-            status = "✅ FRESH" if r['is_fresh'] and r['coverage_pct'] >= 90 else "⚠️  STALE"
+            status = "[FRESH]" if r['is_fresh'] and r['coverage_pct'] >= 90 else "[STALE]"
             print(f"{status} | {r['table']:25} | Last: {r['max_date']} ({r['age_hours']:.1f}h old) | Symbols: {r['symbol_count']:4} ({r['coverage_pct']:5.1f}%)")
             if not r['is_fresh']:
                 all_fresh = False
@@ -173,9 +178,9 @@ def print_status(results, iteration):
 
     print(f"{'='*80}")
     if all_fresh:
-        print("🎉 ALL TABLES FRESH WITH ≥90% COVERAGE - Pipeline successful!")
+        print("[SUCCESS] ALL TABLES FRESH WITH >=90% COVERAGE - Pipeline successful!")
     else:
-        print("⏳ Waiting for fresh data...")
+        print("[WAITING] Waiting for fresh data...")
 
     return all_fresh
 
@@ -196,10 +201,10 @@ def should_stop_monitoring():
     return False
 
 def main():
-    print("🔍 Starting Pipeline Freshness Monitor")
-    print(f"⏰ Target: Fresh data from Monday 2 AM ET morning prep pipeline")
-    print(f"🛑 Stop condition: Data fresh OR Monday 5 PM ET")
-    print(f"📋 Monitoring 8 critical tables")
+    print("[START] Starting Pipeline Freshness Monitor")
+    print("[TARGET] Fresh data from Monday 2 AM ET morning prep pipeline")
+    print("[STOP] Data fresh OR Monday 5 PM ET")
+    print("[INFO] Monitoring 8 critical tables")
 
     conn = connect_db()
     if not conn:
