@@ -198,6 +198,67 @@ router.get('/evaluate', async (req, res) => {
 });
 
 /**
+ * GET /api/algo/last-run
+ * Get the last orchestrator run status and phase information
+ */
+router.get('/last-run', requireAuth, async (req, res) => {
+  try {
+    ensureConnection();
+    const pool = getPool();
+
+    const result = await pool.query(`
+      SELECT
+        run_id, run_at, success, halted, error_message,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'action_type', phase_name,
+              'status', status
+            ) ORDER BY created_at
+          ) FILTER (WHERE phase_name IS NOT NULL),
+          '[]'::json
+        ) as phases
+      FROM algo_audit_log
+      WHERE action_type LIKE 'phase_%'
+      GROUP BY run_id, run_at, success, halted, error_message
+      ORDER BY run_at DESC
+      LIMIT 1
+    `);
+
+    if (result.rows.length === 0) {
+      return sendSuccess(res, {
+        run_id: null,
+        run_at: null,
+        success: null,
+        halted: null,
+        error_message: null,
+        phases: []
+      });
+    }
+
+    const run = result.rows[0];
+    return sendSuccess(res, {
+      run_id: run.run_id,
+      run_at: run.run_at,
+      success: run.success,
+      halted: run.halted,
+      error_message: run.error_message,
+      phases: run.phases || []
+    });
+  } catch (error) {
+    logger.error('Error in /algo/last-run:', { error: error.message });
+    return sendSuccess(res, {
+      run_id: null,
+      run_at: null,
+      success: null,
+      halted: null,
+      error_message: null,
+      phases: []
+    });
+  }
+});
+
+/**
  * GET /api/algo/positions
  * Get active positions enriched with stop/target levels (from latest open trade),
  * sector (from company_profile), and Minervini stage / RS (from trend_template_data).
