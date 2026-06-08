@@ -1237,37 +1237,31 @@ def _validate_morning_prep_completion(cur: Any, run_date: _date, verbose: bool =
             except Exception as e:
                 missing_completions.append(f"{loader}: query error: {str(e)[:50]}")
 
-        # Also check symbol coverage for key tables (90% minimum for all morning prep outputs)
+        # Check that key output tables have a minimum number of fresh symbols.
+        # These tables only contain data for qualifying stocks (~300-1400), NOT all active symbols.
+        # Checking coverage against all active (10,000+) would always fail due to ETF/unlisted symbols.
+        # Use absolute minimums based on observed production baselines.
         coverage_check_tables = {
-            'buy_sell_daily': 'entries/exits from morning prep',
-            'signal_quality_scores': 'signal quality rankings',
-            'swing_trader_scores': 'swing trader rankings',
+            'buy_sell_daily': ('entries/exits from morning prep', 300),
+            'signal_quality_scores': ('signal quality rankings', 300),
+            'swing_trader_scores': ('swing trader rankings', 300),
         }
 
         try:
-            # Get expected symbol count
-            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-            expected_count_result = cur.fetchone()
-            expected_symbols = expected_count_result[0] if expected_count_result else 4500
-
-            for table, desc in coverage_check_tables.items():
+            for table, (desc, min_symbols) in coverage_check_tables.items():
                 cur.execute(
                     f"SELECT COUNT(DISTINCT symbol) FROM {table} WHERE updated_at >= %s",
                     (run_date,)
                 )
                 count_result = cur.fetchone()
                 actual_symbols = count_result[0] if count_result else 0
-                coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
-                # ISSUE #2 BLOCKER FIX: Gradual degradation for output tables (same as loaders)
-                if coverage < 80:
-                    # Critical: too incomplete
-                    incomplete_coverage.append(f"{table}: CRITICAL {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%, need minimum 80%)")
-                elif coverage < 90:
-                    # Warning: tradeable but with reduced sizing
-                    logger.warning(f"[MORNING_PREP_VALIDATION] ⚠️  {table} ({desc}): {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%). Below optimal but above minimum.")
+                if actual_symbols < min_symbols:
+                    incomplete_coverage.append(
+                        f"{table}: only {actual_symbols} symbols updated today (minimum {min_symbols} required)"
+                    )
                 elif verbose:
-                    logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {table}: {actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%)")
+                    logger.debug(f"[MORNING_PREP_VALIDATION] ✓ {table}: {actual_symbols} fresh symbols (min {min_symbols})")
 
         except Exception as cov_e:
             logger.debug(f"[MORNING_PREP_VALIDATION] Could not check coverage: {cov_e}")
@@ -2605,9 +2599,17 @@ def run(
             except Exception as mp_check_err:
                 logger.warning(f"[MORNING_PREP_VALIDATION] Could not validate morning prep: {mp_check_err} (proceeding with caution)")
 
-        # CRITICAL FIX: Check data completeness EARLY before any failsafe triggering
-        # If current data is incomplete (<95%), triggering failsafe won't help (loader itself failing)
-        # Better to HALT and alert ops than to repeatedly trigger failing loaders
+        # Check data completeness EARLY before any failsafe triggering.
+        # Uses absolute minimums, NOT percentage-of-all-active-symbols, because:
+        # - active symbols = 10,000+ (includes ETFs, newly listed symbols without history)
+        # - price_daily covers ~7,700 symbols; technical/signals cover ~300-6,000
+        # - Percentage checks against 10,000+ always fail, causing false halts
+        #
+        # Minimum viable counts (based on production baselines):
+        # - price_daily: 3,000 (enough for reliable signal generation)
+        # - technical_data_daily: 2,000 (normal: 3,600-6,200)
+        # - buy_sell_daily: 300 (normal: 900-1,400 qualifying stocks)
+        # - swing_trader_scores: 300 (enough candidates for 12 max positions)
         try:
             with DatabaseContext('read') as _early_comp_cur:
                 _early_comp_cur.execute("SET statement_timeout = 10000")
@@ -2617,40 +2619,36 @@ def run(
                 _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s", (expected_date,))
                 price_row = _early_comp_cur.fetchone()
                 price_symbols = price_row[0] if price_row else 0
-                price_coverage = (price_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-                if price_coverage < 95:
+                if price_symbols < 3000:
                     early_completeness_warnings.append(
-                        f"price_daily: {price_symbols}/{expected_symbols} symbols ({price_coverage:.1f}%, need >95%)"
+                        f"price_daily: only {price_symbols} symbols (need >= 3000, 0.0%)"
                     )
 
                 # Check technical_data_daily completeness
                 _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE updated_at >= %s", (expected_date,))
                 tech_row = _early_comp_cur.fetchone()
                 tech_symbols = tech_row[0] if tech_row else 0
-                tech_coverage = (tech_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-                if tech_coverage < 95:
+                if tech_symbols < 2000:
                     early_completeness_warnings.append(
-                        f"technical_data_daily: {tech_symbols}/{expected_symbols} symbols ({tech_coverage:.1f}%, need >95%)"
+                        f"technical_data_daily: only {tech_symbols} symbols (need >= 2000, 0.0%)"
                     )
 
                 # Check buy_sell_daily completeness
                 _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE updated_at >= %s", (expected_date,))
                 buys_row = _early_comp_cur.fetchone()
                 buys_symbols = buys_row[0] if buys_row else 0
-                buys_coverage = (buys_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-                if buys_coverage < 95:
+                if buys_symbols < 300:
                     early_completeness_warnings.append(
-                        f"buy_sell_daily: {buys_symbols}/{expected_symbols} symbols ({buys_coverage:.1f}%, need >95%)"
+                        f"buy_sell_daily: only {buys_symbols} signals (need >= 300, 0.0%)"
                     )
 
-                # ISSUE #6 FIX: Check swing_trader_scores completeness (critical for Phase 5 ranking)
+                # Check swing_trader_scores completeness (critical for Phase 5 ranking)
                 _early_comp_cur.execute("SELECT COUNT(DISTINCT symbol) FROM swing_trader_scores WHERE date >= %s", (expected_date,))
                 swing_row = _early_comp_cur.fetchone()
                 swing_symbols = swing_row[0] if swing_row else 0
-                swing_coverage = (swing_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-                if swing_coverage < 95:
+                if swing_symbols < 300:
                     early_completeness_warnings.append(
-                        f"swing_trader_scores: {swing_symbols}/{expected_symbols} symbols ({swing_coverage:.1f}%, need >95%)"
+                        f"swing_trader_scores: only {swing_symbols} scores (need >= 300, 0.0%)"
                     )
 
                 # ISSUE #14 FIX: Symbol coverage tracking and adaptive failsafe triggering
