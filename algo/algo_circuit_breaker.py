@@ -250,7 +250,7 @@ class CircuitBreaker:
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
-              AND trade_id NOT LIKE 'EXT-%'
+              AND trade_id NOT LIKE 'EXT-%%'
             ORDER BY exit_date DESC, id DESC
             LIMIT 10
             """,
@@ -295,7 +295,7 @@ class CircuitBreaker:
                 FROM algo_trades
                 WHERE status = %s AND exit_date IS NOT NULL
                   AND exit_r_multiple IS NOT NULL
-                  AND trade_id NOT LIKE 'EXT-%'
+                  AND trade_id NOT LIKE 'EXT-%%'
                 ORDER BY exit_date DESC LIMIT 30
             ) recent_trades
             """,
@@ -317,7 +317,7 @@ class CircuitBreaker:
                 """SELECT trade_id, profit_loss_pct, exit_r_multiple, exit_date
                    FROM algo_trades
                    WHERE status = %s AND exit_date IS NOT NULL AND exit_r_multiple IS NOT NULL
-                     AND trade_id NOT LIKE 'EXT-%'
+                     AND trade_id NOT LIKE 'EXT-%%'
                    ORDER BY exit_date DESC LIMIT 15""",
                 (TradeStatus.CLOSED.value,)
             )
