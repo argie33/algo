@@ -78,6 +78,20 @@ TIER_SHORT = {
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
+PHASE_NAMES = {
+    "phase_0":  "Pre-flight",
+    "phase_1":  "Data",
+    "phase_2":  "Circuits",
+    "phase_3":  "Positions",
+    "phase_3a": "Reconcile",
+    "phase_3b": "Exposure",
+    "phase_4":  "Exits",
+    "phase_4b": "Pyramid",
+    "phase_5":  "Signals",
+    "phase_6":  "Entries",
+    "phase_7":  "Wrap-up",
+}
+
 # ── mascot ────────────────────────────────────────────────────────────────────
 # Each line is exactly 5 visible chars — consistent width prevents wobble
 MASCOT_FRAMES = [
@@ -584,6 +598,7 @@ def fetch_health(c):
               SELECT 'price_daily'    tbl,'CRIT' role, MAX(date)::date latest,(CURRENT_DATE-MAX(date)::date) age,3  stale FROM price_daily       UNION ALL
               SELECT 'buy_sell_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM buy_sell_daily  UNION ALL
               SELECT 'swing_scores',  'CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM swing_trader_scores UNION ALL
+              SELECT 'exposure_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM market_exposure_daily UNION ALL
               SELECT 'technicals',    'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM technical_data_daily UNION ALL
               SELECT 'market_health', 'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    7         FROM market_health_daily UNION ALL
               SELECT 'trend_template','IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    7         FROM trend_template_data UNION ALL
@@ -1777,9 +1792,21 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             sc    = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
             si    = "+" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "!")
             phase_badges.append(f"[{sc}]{si}{short}[/]")
-        halt_r = run.get("halt_reason") or ""
+        halt_r  = run.get("halt_reason") or ""
+        summary = run.get("summary") or ""
         if halt_r:
             rows.append(Text.from_markup(f"[{Y}]Halt: {halt_r[:55]}[/]"))
+        elif summary and isinstance(summary, str):
+            rows.append(Text.from_markup(f"[dim]{summary[:60]}[/]"))
+        # Compact phase count: N completed · M halted · P errored
+        n_ok  = len(run.get("phases_completed") or [])
+        n_hlt = len(run.get("phases_halted") or [])
+        n_err = len(run.get("phases_errored") or [])
+        if n_ok + n_hlt + n_err > 0:
+            ok_s  = f"[{G}]{n_ok} done[/]"
+            hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
+            err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
+            rows.append(Text.from_markup(f"  {ok_s}{hlt_s}{err_s}"))
     elif act and not act.get("_error"):
         for p in (act.get("phases") or []):
             at = p.get("action_type", "")
