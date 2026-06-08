@@ -150,7 +150,10 @@ function AlgoTradingDashboardPage() {
     return (Array.isArray(positionsResp?.items) ? positionsResp.items : Array.isArray(positionsResp) ? positionsResp : []);
   }, [positionsResp]);
 
-  const posFreshness = positionsResp?.data_freshness;
+  const posFreshness = useMemo(() => {
+    if (!positionsResp || typeof positionsResp !== 'object') return null;
+    return positionsResp.data_freshness || null;
+  }, [positionsResp]);
 
   const data = {
     scores:           scores || [],
