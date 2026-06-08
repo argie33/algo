@@ -1,6 +1,6 @@
-# ⚠️  WARNING: environment = "dev" is LIVE CAPITAL, NOT PAPER TRADING.
-# All resources named "-dev" suffix, but alpaca_paper_trading = false (line 53).
-# This environment executes REAL trades with REAL money via Alpaca.
+# ⚠️  WARNING: environment = "dev" — paper trading enabled (alpaca_paper_trading = true, line 54).
+# All resources named "-dev" suffix. Paper trades only — no real money.
+# See steering/algo.md for full context.
 # See steering/algo.md for full context.
 environment  = "dev"
 aws_region   = "us-east-1"
