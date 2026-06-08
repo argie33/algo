@@ -58,7 +58,8 @@ def run(
     logger.info("[PHASE 5] Starting signal generation from price data")
 
     try:
-        # Quick sanity check: prices loaded?
+        # Quick sanity check: prices loaded? If today has partial coverage (intraday seed),
+        # fall back to the most recent date with full data (same logic as Phase 1).
         with DatabaseContext('read') as cur:
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
@@ -66,10 +67,26 @@ def run(
             )
             symbol_count = cur.fetchone()[0] or 0
 
+        price_date = run_date
+        if symbol_count < 1000:
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT date, COUNT(DISTINCT symbol) FROM price_daily "
+                    "GROUP BY date ORDER BY date DESC LIMIT 5"
+                )
+                for row in cur.fetchall():
+                    if row[1] >= 1000:
+                        price_date = row[0]
+                        symbol_count = row[1]
+                        break
+
         if symbol_count == 0:
             logger.error(f"[PHASE 5] No price data for {run_date}")
             log_phase_result_fn(5, 'signal_generation', 'halt', 'No price data available')
             return PhaseResult(5, 'signal_generation', 'halted', {}, True, 'No price data')
+
+        if price_date != run_date:
+            logger.info(f"[PHASE 5] run_date={run_date} has partial coverage; using price_date={price_date} ({symbol_count} symbols)")
 
         logger.info(f"[PHASE 5] Computing signals for {symbol_count} symbols...")
 
@@ -81,10 +98,10 @@ def run(
         # Generate signals for all symbols
         start_compute = time.time()
         with DatabaseContext('read') as cur:
-            # Get all symbols with prices today
+            # Get all symbols with prices on the most recent complete date
             cur.execute(
                 "SELECT DISTINCT symbol FROM price_daily WHERE date = %s ORDER BY symbol",
-                (run_date,)
+                (price_date,)
             )
             symbols = [row[0] for row in cur.fetchall()]
 

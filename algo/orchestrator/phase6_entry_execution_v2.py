@@ -153,9 +153,9 @@ def run(
                 entry_price - (2.0 * atr)  # 2x ATR stop
             )
 
-            # Only execute if stop is reasonable (min 3% below entry)
+            # Only execute if stop is reasonable (min 1.5% below entry; ETFs like SPY have tighter ATR)
             risk_pct = ((entry_price - stop_loss) / entry_price) * 100
-            if risk_pct < 3:
+            if risk_pct < 1.5:
                 logger.info(f"[PHASE 6] {symbol}: Risk too small ({risk_pct:.1f}%), skipping")
                 continue
 
