@@ -845,14 +845,54 @@ All API errors return specific error types instead of generic "error" messages, 
 - `schema_error` (503): Database schema mismatch or migration issue. Action: Check RDS schema version.
 - `connection_error` (503): RDS/database connection failed. Action: Verify RDS Proxy and network connectivity.
 - `query_error` (503): Database query execution failed. Action: Check CloudWatch logs for SQL error details.
+- `route_load_error` (503): Route handler module failed to import. Action: Check CloudWatch logs for import error details. This error is returned when a single route module has a syntax error or missing dependency, but does not prevent the entire API from working. Other endpoints continue to function normally. See "Route Import Resilience" below.
 - `auth_error` (403): JWT validation or Cognito authorization failed. Action: Verify token expiry and Cognito config.
 - `cognito_config_error` (500): Cognito environment variables not configured. Action: Check Lambda env vars (COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, COGNITO_REGION).
+- `database_config_error` (500): Database environment variables not configured. Action: See "Environment Variable Validation Errors" below.
+- `cors_config_error` (500): Frontend URL not configured for CORS. Action: See "Environment Variable Validation Errors" below.
+- `configuration_error` (500): Generic environment configuration error. Action: See "Environment Variable Validation Errors" below.
 - `email_verification_error` (500): Cognito email verification operation failed. Action: Check Cognito user pool email sending permissions.
 - `data_access_error` (500): Code bug accessing data fields (AttributeError, KeyError, IndexError). Action: Check CloudWatch logs for stack trace.
 - `no_data_error` (500): Required data table is empty or missing. Action: Check loader execution and data freshness.
+
+**Environment Variable Validation Errors (500):**
+When Lambda starts with missing or misconfigured environment variables, it returns a detailed error response to help diagnose configuration issues:
+```json
+{
+  "error": "database_config_error|cognito_config_error|cors_config_error|configuration_error",
+  "message": "Service configuration incomplete",
+  "missing_config": [
+    "DB_HOST missing: RDS Proxy endpoint (e.g., my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com)",
+    "COGNITO_CLIENT_ID missing: Required when COGNITO_USER_POOL_ID is set (find in AWS Cognito console → App clients)"
+  ],
+  "details": "Ensure all required environment variables are set in Lambda configuration"
+}
+```
+The `missing_config` array provides specific guidance for each missing variable:
+- **DB_HOST**: Must be RDS Proxy endpoint (contains 'proxy'), not direct RDS. Example: `algo-db-proxy.proxy-xxxxx.us-east-1.rds.amazonaws.com`
+- **DB_PASSWORD**: Provide via `DB_PASSWORD` env var or `DB_SECRET_ARN` pointing to Secrets Manager secret
+- **DB_NAME**: Database name (defaults to 'stocks' if not set)
+- **DB_USER**: Database username (defaults to 'stocks' if not set)
+- **COGNITO_CLIENT_ID**: Required if `COGNITO_USER_POOL_ID` is set. Find in AWS Cognito console → App clients
+- **COGNITO_REGION**: AWS region for Cognito (e.g., 'us-east-1'). Required in Lambda environment
+- **FRONTEND_URL**: Frontend domain for CORS (e.g., 'https://myapp.example.com'). Set in Lambda env vars or Secrets Manager (`algo/cloudfront-domain`)
+
+**Action:** Check Lambda environment variables in AWS console. If missing, update Lambda configuration and redeploy via Terraform or GitHub Actions.
 - `data_processing_error` (500): Generic data processing failure. Action: Check loader logs for specific error.
 - `timeout` (504): Request exceeded 30-second timeout. Action: Increase RDS statement_timeout or optimize query.
 - `invalid_input` (400): Client sent invalid query parameters or request body. Action: Check API parameter validation.
+
+**Route Import Resilience (Issue #6):**
+API router imports route handler modules gracefully at Lambda cold-start. If a single route module fails to import (syntax error, missing dependency, etc.), the router:
+1. Logs the import error with module name and error details
+2. Continues loading other route modules (does not crash entire API)
+3. Returns 503 `route_load_error` when a request matches the failed route
+4. Other endpoints continue functioning normally
+5. Health endpoints always work (if health module loads)
+
+Implementation: `lambda/api/api_router.py` imports each route module in a try-except block and maintains `_ROUTE_IMPORT_ERRORS` dict. Routes that failed are skipped in `HANDLERS` dict. When a request path matches a failed route in `_HANDLER_CONFIG`, `route_request()` returns 503 with diagnostic error.
+
+Debugging: Check CloudWatch logs for "Failed to import routes.{module_name}" messages at cold-start. Module name and error type are logged server-side for investigation.
 
 **Response Extraction & Data Safety:**
 - Frontend `responseNormalizer.js` safely handles null/undefined values in API responses, filtering out bad items before returning to components.

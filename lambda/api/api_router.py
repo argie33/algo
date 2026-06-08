@@ -5,27 +5,67 @@ from pathlib import Path
 # Ensure routes module can be imported
 sys.path.insert(0, str(Path(__file__).parent))
 
-from routes import (algo, financials, earnings, signals, prices, stocks,
-                    sectors, industries, market, economic, sentiment,
-                    scores, research, audit, trades, admin, contact, settings, health, risk_dashboard,
-                    data_coverage)
-
 logger = logging.getLogger(__name__)
 
-# Health endpoints (basic is public, detailed/pipeline are authenticated) must be checked first
-PUBLIC_HANDLERS = {'/api/health': health, '/health': health}
+# Import routes gracefully - if a single module fails, others still work
+_ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import
+_AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
 
-HANDLERS = {
-    '/api/algo/risk-dashboard': risk_dashboard,  # must come before /api/algo
-    '/api/algo': algo, '/api/financials': financials, '/api/earnings': earnings,
-    '/api/signals': signals, '/api/prices': prices, '/api/stocks': stocks,
-    '/api/sectors': sectors, '/api/industries': industries,
-    '/api/market': market, '/api/economic': economic, '/api/sentiment': sentiment,
-    '/api/scores': scores, '/api/research': research, '/api/audit': audit,
-    '/api/trades': trades, '/api/admin': admin,
-    '/api/contact': contact, '/api/settings': settings,
-    '/api/data-coverage': data_coverage,
-}
+_ROUTE_MODULES = [
+    'algo', 'financials', 'earnings', 'signals', 'prices', 'stocks',
+    'sectors', 'industries', 'market', 'economic', 'sentiment',
+    'scores', 'research', 'audit', 'trades', 'admin', 'contact', 'settings', 'health', 'risk_dashboard',
+    'data_coverage'
+]
+
+for module_name in _ROUTE_MODULES:
+    try:
+        module = __import__(f'routes.{module_name}', fromlist=[module_name])
+        _AVAILABLE_ROUTES[module_name] = module
+    except Exception as e:
+        _ROUTE_IMPORT_ERRORS[module_name] = f"{type(e).__name__}: {str(e)[:100]}"
+        logger.error(f"Failed to import routes.{module_name}: {type(e).__name__}: {str(e)}", exc_info=True)
+
+# Build handler mappings from available routes (some may be missing if they failed to import)
+PUBLIC_HANDLERS = {}
+HANDLERS = {}
+
+# Health endpoints must be public and checked first
+if 'health' in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS['/api/health'] = _AVAILABLE_ROUTES['health']
+    PUBLIC_HANDLERS['/health'] = _AVAILABLE_ROUTES['health']
+else:
+    logger.error("CRITICAL: health route module failed to import - health endpoints will not work")
+
+# Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
+_HANDLER_CONFIG = [
+    ('/api/algo/risk-dashboard', 'risk_dashboard'),
+    ('/api/algo', 'algo'),
+    ('/api/financials', 'financials'),
+    ('/api/earnings', 'earnings'),
+    ('/api/signals', 'signals'),
+    ('/api/prices', 'prices'),
+    ('/api/stocks', 'stocks'),
+    ('/api/sectors', 'sectors'),
+    ('/api/industries', 'industries'),
+    ('/api/market', 'market'),
+    ('/api/economic', 'economic'),
+    ('/api/sentiment', 'sentiment'),
+    ('/api/scores', 'scores'),
+    ('/api/research', 'research'),
+    ('/api/audit', 'audit'),
+    ('/api/trades', 'trades'),
+    ('/api/admin', 'admin'),
+    ('/api/contact', 'contact'),
+    ('/api/settings', 'settings'),
+    ('/api/data-coverage', 'data_coverage'),
+]
+
+for path, module_name in _HANDLER_CONFIG:
+    if module_name in _AVAILABLE_ROUTES:
+        HANDLERS[path] = _AVAILABLE_ROUTES[module_name]
+    else:
+        logger.warning(f"Route {path} skipped - module routes.{module_name} failed to import")
 
 def _add_cors_headers(response):
     """Add CORS headers to response (applies to both success and error responses)."""
@@ -63,6 +103,18 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
             except Exception as e:
                 logger.error(f"Handler error for {path}: {e}", exc_info=True)
                 return _add_cors_headers(_format_handler_error(e))
+
+    # Check if the path matches a route module that failed to import
+    # More specific routes are checked first (they appear first in _HANDLER_CONFIG)
+    for route_path, module_name in _HANDLER_CONFIG:
+        if module_name in _ROUTE_IMPORT_ERRORS and path.startswith(route_path):
+            error = _ROUTE_IMPORT_ERRORS[module_name]
+            logger.error(f"Route {path} requested but handler module {module_name} failed to import: {error}")
+            return _add_cors_headers({
+                "statusCode": 503,
+                "errorType": "route_load_error",
+                "message": f"Route handler unavailable: {module_name} module failed to load"
+            })
 
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
