@@ -482,36 +482,34 @@ router.get('/markets', async (req, res) => {
     }
 
     return sendSuccess(res, {
-      data: {
-        current: latest ? {
-          date: latest.date,
-          exposure_pct: parseFloat(latest.exposure_pct),
-          raw_score: parseFloat(latest.raw_score),
-          regime: latest.regime,
-          distribution_days: latest.distribution_days,
-          factors: latest.factors,
-          halt_reasons: latest.halt_reasons,
-        } : null,
-        active_tier: policy,
-        history: historyResult.rows.map(r => ({
-          date: r.date,
-          exposure_pct: parseFloat(r.exposure_pct),
-          regime: r.regime,
-          distribution_days: r.distribution_days,
-        })),
-        market_health: health,
-        sectors: sectorsResult.rows.map(r => ({
-          name: r.sector_name,
-          rank: r.current_rank,
-          momentum: parseFloat(r.momentum_score || 0),
-        })),
-        sentiment: sentimentResult.rows.map(r => ({
-          date: r.date,
-          bullish: parseFloat(r.bullish || 0),
-          bearish: parseFloat(r.bearish || 0),
-          neutral: parseFloat(r.neutral || 0),
-        })),
-      }
+      current: latest ? {
+        date: latest.date,
+        exposure_pct: parseFloat(latest.exposure_pct),
+        raw_score: parseFloat(latest.raw_score),
+        regime: latest.regime,
+        distribution_days: latest.distribution_days,
+        factors: latest.factors,
+        halt_reasons: latest.halt_reasons,
+      } : null,
+      active_tier: policy,
+      history: historyResult.rows.map(r => ({
+        date: r.date,
+        exposure_pct: parseFloat(r.exposure_pct),
+        regime: r.regime,
+        distribution_days: r.distribution_days,
+      })),
+      market_health: health,
+      sectors: sectorsResult.rows.map(r => ({
+        name: r.sector_name,
+        rank: r.current_rank,
+        momentum: parseFloat(r.momentum_score || 0),
+      })),
+      sentiment: sentimentResult.rows.map(r => ({
+        date: r.date,
+        bullish: parseFloat(r.bullish || 0),
+        bearish: parseFloat(r.bearish || 0),
+        neutral: parseFloat(r.neutral || 0),
+      })),
     });
   } catch (error) {
     logger.error('Error in /algo/markets:', { error: error.message });
@@ -1440,7 +1438,7 @@ router.get('/trade/:tradeId', async (req, res) => {
     if (result.rows.length === 0) {
       return sendError(res, 'Trade not found', 404);
     }
-    return sendSuccess(res, { data: result.rows[0] });
+    return sendSuccess(res, result.rows[0]);
   } catch (error) {
     logger.error('Error in /algo/trade/:id:', { error: error.message });
     return sendDatabaseError(res, error, 'An error occurred while fetching trade details');
@@ -1758,7 +1756,7 @@ router.get('/data-quality', async (req, res) => {
                         : checks.some(c => c.status === 'WARNING') ? 'warning'
                         : 'ok';
 
-    return sendSuccess(res, { data: { status: overall_status, checks } });
+    return sendSuccess(res, { status: overall_status, checks });
   } catch (error) {
     logger.error('Error in /algo/data-quality:', { error: error.message });
     return sendDatabaseError(res, error, 'An error occurred while checking data quality');
