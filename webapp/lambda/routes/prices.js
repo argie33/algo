@@ -10,6 +10,7 @@ const express = require('express');
 const { getPool } = require('../utils/database');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 
 const router = express.Router();
 
@@ -71,22 +72,27 @@ router.get('/history/:symbol', async (req, res) => {
       ) as total
     `, [symbol.toUpperCase()]);
 
-    const data = result.rows.map(row => ({
-      date: row.date,
-      open: parseFloat(row.open),
-      high: parseFloat(row.high),
-      low: parseFloat(row.low),
-      close: parseFloat(row.close),
-      volume: parseInt(row.volume),
-      adj_close: parseFloat(row.adj_close)
-    }));
+    // Validate query results
+    validateQueryResult(result, { requireRows: false });
+    const total = extractCount(countResult, 'total');
+
+    // Validate and coerce field types
+    const validated = validateAndCoerceRows(result, {
+      date: { type: 'date', required: true },
+      open: { type: 'float', required: true },
+      high: { type: 'float', required: true },
+      low: { type: 'float', required: true },
+      close: { type: 'float', required: true },
+      volume: { type: 'int', required: true },
+      adj_close: { type: 'float', required: false, defaultValue: null }
+    });
 
     return sendSuccess(res, {
       symbol: symbol.toUpperCase(),
       timeframe: timeframe,
-      data: data.reverse(), // Return oldest first
+      data: validated.reverse(), // Return oldest first
       pagination: {
-        total: parseInt(countResult.rows[0].total),
+        total: total,
         limit: limit,
         offset: offset
       }
@@ -154,20 +160,35 @@ router.get('/batch-history', async (req, res) => {
 
     const result = await pool.query(priceQuery, [symbolList]);
 
+    // Validate query result
+    validateQueryResult(result, { requireRows: false });
+
+    // Validate and coerce field types
+    const validated = validateAndCoerceRows(result, {
+      symbol: { type: 'string', required: true },
+      date: { type: 'date', required: true },
+      open: { type: 'float', required: true },
+      high: { type: 'float', required: true },
+      low: { type: 'float', required: true },
+      close: { type: 'float', required: true },
+      volume: { type: 'int', required: true },
+      adj_close: { type: 'float', required: false, defaultValue: null }
+    });
+
     // Group results by symbol and apply limit/offset per symbol
     const dataBySymbol = {};
-    result.rows.forEach(row => {
+    validated.forEach(row => {
       if (!dataBySymbol[row.symbol]) {
         dataBySymbol[row.symbol] = [];
       }
       dataBySymbol[row.symbol].push({
         date: row.date,
-        open: parseFloat(row.open),
-        high: parseFloat(row.high),
-        low: parseFloat(row.low),
-        close: parseFloat(row.close),
-        volume: parseInt(row.volume),
-        adj_close: parseFloat(row.adj_close)
+        open: row.open,
+        high: row.high,
+        low: row.low,
+        close: row.close,
+        volume: row.volume,
+        adj_close: row.adj_close
       });
     });
 

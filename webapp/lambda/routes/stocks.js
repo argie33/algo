@@ -10,6 +10,7 @@ const express = require('express');
 const { getPool } = require('../utils/database');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows, extractSingleRow, extractCount } = require('../utils/responseValidation');
 
 const router = express.Router();
 
@@ -69,10 +70,24 @@ router.get('/', async (req, res) => {
       WHERE ${whereClause}
     `, params);
 
+    // Validate query results
+    validateQueryResult(result, { requireRows: false });
+    const total = extractCount(countResult, 'total');
+
+    // Validate and coerce field types
+    const validated = validateAndCoerceRows(result, {
+      symbol: { type: 'string', required: true },
+      company_name: { type: 'string', required: false },
+      sector: { type: 'string', required: false },
+      industry: { type: 'string', required: false },
+      market_cap: { type: 'float', required: false, defaultValue: null },
+      is_sp500: { type: 'bool', required: false, defaultValue: false }
+    });
+
     return sendSuccess(res, {
-      items: result.rows,
+      items: validated,
       pagination: {
-        total: parseInt(countResult.rows[0].total),
+        total: total,
         limit: limit,
         offset: offset
       }
@@ -144,8 +159,24 @@ router.get('/deep-value', async (req, res) => {
       LIMIT $1
     `, [limit]);
 
+    // Validate query result - for this large numeric query, keep flexible coercion
+    validateQueryResult(result, { requireRows: false });
+
+    const validated = result.rows.map(row => {
+      const coerced = {};
+      for (const [key, value] of Object.entries(row)) {
+        // Coerce all numeric-looking fields
+        if (typeof value === 'number' || (typeof value === 'string' && !isNaN(value) && value !== '')) {
+          coerced[key] = typeof value === 'number' ? value : parseFloat(value);
+        } else {
+          coerced[key] = value;
+        }
+      }
+      return coerced;
+    });
+
     return sendSuccess(res, {
-      items: result.rows
+      items: validated
     });
 
   } catch (error) {
@@ -183,11 +214,29 @@ router.get('/:ticker', async (req, res) => {
       WHERE ss.symbol = $1
     `, [ticker.toUpperCase()]);
 
+    // Validate query result
+    validateQueryResult(result, { requireRows: false });
+
     if (result.rows.length === 0) {
       return sendError(res, `Stock ${ticker} not found`, 404);
     }
 
-    return sendSuccess(res, result.rows[0]);
+    // Validate and coerce field types
+    const validated = extractSingleRow(result, {
+      symbol: { type: 'string', required: true },
+      company_name: { type: 'string', required: false },
+      sector: { type: 'string', required: false },
+      industry: { type: 'string', required: false },
+      website: { type: 'string', required: false },
+      exchange: { type: 'string', required: false },
+      market_cap: { type: 'float', required: false, defaultValue: null },
+      pe_ratio: { type: 'float', required: false, defaultValue: null },
+      pb_ratio: { type: 'float', required: false, defaultValue: null },
+      ps_ratio: { type: 'float', required: false, defaultValue: null },
+      dividend_yield: { type: 'float', required: false, defaultValue: null }
+    });
+
+    return sendSuccess(res, validated);
   } catch (error) {
     logger.error('Error fetching stock detail:', { error: error.message });
     return sendError(res, `Failed to fetch stock details: ${error.message}`, 500);
