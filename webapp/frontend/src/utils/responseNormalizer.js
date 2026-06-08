@@ -71,10 +71,10 @@ export const extractData = (response) => {
 
   // Handle paginated responses (items + pagination)
   // CRITICAL: Check that items is actually an array (not null/undefined)
-  if (data.items && Array.isArray(data.items)) {
+  // Use Array.isArray alone (not && data.items) to handle empty arrays correctly
+  if (Array.isArray(data.items)) {
     // Filter out null/undefined items, but preserve falsy values like 0, false, ""
-    // Extra safety: use fallback in case data.items is somehow null/falsy
-    const filteredItems = (data.items ?? []).filter(item => item !== null && item !== undefined);
+    const filteredItems = data.items.filter(item => item !== null && item !== undefined);
     return {
       items: filteredItems,
       pagination: data.pagination || {
@@ -190,8 +190,8 @@ export const extractPaginatedData = (response) => {
 
   // Handle direct items (new standardized format)
   if (Array.isArray(data.items)) {
-    // Extra safety: use fallback in case data.items is somehow falsy
-    const items = (data.items ?? []).filter(item => item !== null && item !== undefined);
+    // Filter out null/undefined items but preserve other falsy values (0, false, "")
+    const items = data.items.filter(item => item !== null && item !== undefined);
     return {
       items,
       pagination: data.pagination || {
@@ -208,8 +208,8 @@ export const extractPaginatedData = (response) => {
 
   // Handle nested data.items (for backward compatibility)
   if (data.data && Array.isArray(data.data.items)) {
-    // Extra safety: use fallback in case data.data.items is somehow falsy
-    const items = (data.data.items ?? []).filter(item => item !== null && item !== undefined);
+    // Filter out null/undefined items but preserve other falsy values (0, false, "")
+    const items = data.data.items.filter(item => item !== null && item !== undefined);
     return {
       items,
       pagination: data.data.pagination || {
