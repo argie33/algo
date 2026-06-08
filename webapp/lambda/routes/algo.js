@@ -1335,7 +1335,9 @@ router.get('/performance', authenticateToken, async (req, res) => {
       FROM algo_trades WHERE status = 'closed' AND exit_date IS NOT NULL
       ORDER BY exit_date ASC
     `);
-    const trades = tradesResult.rows;
+
+    // Validate result structures
+    validateQueryResult(tradesResult, { requireRows: false });
 
     // Get portfolio snapshots for return-series-based metrics
     const snapsResult = await pool.query(`
@@ -1343,7 +1345,25 @@ router.get('/performance', authenticateToken, async (req, res) => {
       FROM algo_portfolio_snapshots
       ORDER BY snapshot_date ASC
     `);
-    const snaps = snapsResult.rows;
+
+    validateQueryResult(snapsResult, { requireRows: false });
+
+    const trades = validateAndCoerceRows(tradesResult, {
+      trade_id: { type: 'int', required: true },
+      exit_date: { type: 'date', required: true },
+      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 },
+      profit_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+      exit_r_multiple: { type: 'float', required: false, defaultValue: 0 },
+      trade_duration_days: { type: 'int', required: false, defaultValue: 0 },
+      entry_price: { type: 'float', required: false },
+      exit_price: { type: 'float', required: false }
+    });
+
+    const snaps = validateAndCoerceRows(snapsResult, {
+      snapshot_date: { type: 'date', required: true },
+      total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
+      daily_return_pct: { type: 'float', required: false, defaultValue: 0 }
+    });
 
     // ---- Trade-based metrics ----
     const wins = trades.filter(t => parseFloat(t.profit_loss_dollars) > 0);
@@ -1591,8 +1611,15 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
         'max_total_risk_pct', 'vix_max_threshold', 'max_weekly_loss_pct',
       ]]
     );
+
+    // Validate config result
+    validateQueryResult(cfgResult, { requireRows: false });
+
     const cfg = {};
-    cfgResult.rows.forEach(r => { cfg[r.key] = parseFloat(r.value); });
+    validateAndCoerceRows(cfgResult, {
+      key: { type: 'string', required: true },
+      value: { type: 'string', required: true }
+    }).forEach(r => { cfg[r.key] = parseFloat(r.value); });
     const thresh = {
       drawdown:           cfg.halt_drawdown_pct ?? 20,
       daily_loss:         cfg.max_daily_loss_pct ?? 2,
@@ -1608,7 +1635,16 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       FROM algo_portfolio_snapshots
       ORDER BY snapshot_date DESC LIMIT 30
     `);
-    const snaps = snapResult.rows;
+
+    // Validate snapshot result
+    validateQueryResult(snapResult, { requireRows: false });
+
+    const snaps = validateAndCoerceRows(snapResult, {
+      snapshot_date: { type: 'date', required: true },
+      total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
+      daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
+      max_drawdown_pct: { type: 'float', required: false, defaultValue: 0 }
+    });
     const latest = snaps[0] || {};
 
     // Compute current portfolio drawdown from peak (use last 30 snapshots)
@@ -1636,9 +1672,16 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       WHERE status = 'closed' AND exit_date IS NOT NULL
       ORDER BY exit_date DESC LIMIT 50
     `);
+
+    // Validate closed trades result
+    validateQueryResult(closedTrades, { requireRows: false });
+
+    const closedTradesRows = validateAndCoerceRows(closedTrades, {
+      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 }
+    });
     let consec = 0;
-    for (const r of closedTrades.rows) {
-      if (parseFloat(r.profit_loss_dollars || 0) < 0) consec += 1;
+    for (const r of closedTradesRows) {
+      if ((r.profit_loss_dollars || 0) < 0) consec += 1;
       else break;
     }
 
@@ -1659,23 +1702,48 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       ) snap
       WHERE p.status = 'open'
     `);
-    const openRiskRow = openRiskResult.rows[0] || {};
-    const openRiskDollars = parseFloat(openRiskRow.open_risk || 0);
-    const portValue = parseFloat(openRiskRow.port_value || 0);
+
+    // Validate open risk result
+    validateQueryResult(openRiskResult, { minRows: 1, maxRows: 1 });
+
+    const openRiskRow = validateAndCoerceRow(openRiskResult.rows[0], {
+      open_risk: { type: 'float', required: false, defaultValue: 0 },
+      port_value: { type: 'float', required: false, defaultValue: 0 }
+    });
+    const openRiskDollars = openRiskRow.open_risk || 0;
+    const portValue = openRiskRow.port_value || 0;
     const totalRiskPct = portValue > 0 ? (openRiskDollars / portValue) * 100 : 0;
 
     // VIX
     const vixResult = await pool.query(`
       SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1
     `);
-    const vix = vixResult.rows[0] ? parseFloat(vixResult.rows[0].vix_level || 0) : 0;
+
+    // Validate vix result
+    validateQueryResult(vixResult, { requireRows: false });
+
+    const vix = vixResult.rows.length > 0
+      ? validateAndCoerceRow(vixResult.rows[0], {
+          vix_level: { type: 'float', required: false, defaultValue: 0 }
+        }).vix_level
+      : 0;
 
     // Market stage
     const stageResult = await pool.query(`
       SELECT market_stage, market_trend FROM market_health_daily ORDER BY date DESC LIMIT 1
     `);
-    const stage = stageResult.rows[0] ? parseInt(stageResult.rows[0].market_stage || 1) : 1;
-    const trend = stageResult.rows[0]?.market_trend || 'unknown';
+
+    // Validate stage result
+    validateQueryResult(stageResult, { requireRows: false });
+
+    const stageData = stageResult.rows.length > 0
+      ? validateAndCoerceRow(stageResult.rows[0], {
+          market_stage: { type: 'int', required: false, defaultValue: 1 },
+          market_trend: { type: 'string', required: false, defaultValue: 'unknown' }
+        })
+      : { market_stage: 1, market_trend: 'unknown' };
+    const stage = stageData.market_stage;
+    const trend = stageData.market_trend;
 
     const breakers = [
       { id: 'drawdown', label: 'Portfolio Drawdown',
