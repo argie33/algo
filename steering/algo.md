@@ -159,6 +159,85 @@ If you need to rebuild the schema:
 
 **Why:** Previous system had too many decision paths (schedule-based expected dates, multiple grace periods, market-open vs intraday rules). User reported "never succeeds fully with entire dataset" — system was halting on false positives (stale data checks triggered when data was actually OK). Simplified to just: "must be fresh, period."
 
+## Orchestrator Execution History — Issue #6 Fix
+
+**Problem:** No visible audit trail of previous orchestrator runs. Users can't diagnose:
+- Why `swing_trader_scores` got stuck
+- Whether data loading is systematic (always fails the same loaders) or random (transient)
+- Historical pattern of which phases halt most often
+
+**Solution:** New `orchestrator_execution_log` table tracks every orchestrator run:
+- **What:** run_id, run_date, overall_status (success/halted/error/skipped), phase_results JSONB
+- **Why:** Enables pattern analysis, root-cause diagnosis, SLA reporting
+- **When logged:** After every orchestrator run (complete or halted)
+
+### Using Execution History
+
+**CLI (Local):**
+```bash
+python scripts/orchestrator-history.py recent [days]      # View recent runs (default 7 days)
+python scripts/orchestrator-history.py failed [days]      # View failed/halted runs (default 30 days)
+python scripts/orchestrator-history.py patterns [days]    # Which phases halt most often
+python scripts/orchestrator-history.py stats [days]       # Success/fail rates
+python scripts/orchestrator-history.py details <RUN_ID>   # Full details of one run
+python scripts/orchestrator-history.py latest             # Show latest run with all phases
+```
+
+**API (via Frontend):**
+- `GET /api/algo/execution/recent?days=7&limit=50` — Recent runs with pagination
+- `GET /api/algo/execution/failed?days=30` — Failed/halted runs for diagnostics
+- `GET /api/algo/execution/details/<RUN_ID>` — Full phase-by-phase breakdown
+- `GET /api/algo/execution/patterns?days=30` — Phase halt frequency analysis
+- `GET /api/algo/execution/stats?days=7` — Success/halt/error rates
+
+All API endpoints require admin access (JWT cognito:groups includes 'admin').
+
+### Example Diagnostics
+
+**Find root cause of repeated halts:**
+```bash
+python scripts/orchestrator-history.py failed 30
+# Output: Shows which phases halted, how often, what the reason was
+# Reveals patterns: e.g., "Phase 1 halted 5 times: coverage < 75%"
+```
+
+**Verify morning pipeline reliability:**
+```bash
+python scripts/orchestrator-history.py patterns 7
+# Output: Phase 5 halts 3 times (swing_trader_scores stale)
+#         Phase 1 halts 2 times (prices not loaded)
+# Action: Check if morning loaders (2:00 AM) are completing
+```
+
+**Check if outage is resolved:**
+```bash
+python scripts/orchestrator-history.py recent 1
+# Output: Latest 10 runs from today
+# Success rate in status column shows if system is recovering
+```
+
+**Database queries (for advanced debugging):**
+```sql
+-- Runs that halted in the past 7 days, sorted by frequency
+SELECT overall_status, COUNT(*) as count
+FROM orchestrator_execution_log
+WHERE run_date >= CURRENT_DATE - 7
+GROUP BY overall_status
+ORDER BY count DESC;
+
+-- Which phase halts most often
+SELECT phase_results->>'name' as phase, COUNT(*) as halt_count
+FROM orchestrator_execution_log, jsonb_array_elements(phase_results)
+WHERE run_date >= CURRENT_DATE - 30 AND phase_results->>'status' = 'halt'
+GROUP BY phase_results->>'name'
+ORDER BY halt_count DESC;
+
+-- Specific run with all details
+SELECT run_id, run_date, overall_status, phase_results, summary
+FROM orchestrator_execution_log
+WHERE run_id = 'RUN-2026-06-07-093045';
+```
+
 ## Data Quality & Resilience Improvements
 
 **Summary:** System has been hardened with sophisticated failure detection, recovery, and data quality mechanisms across all critical paths.
