@@ -228,6 +228,47 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                 if action_type not in VALID_ACTION_TYPES:
                     return error_response(400, 'bad_request', f'Invalid action_type: {action_type}')
             return _get_algo_audit_log(cur, limit, offset, action_type)
+        elif path == '/api/algo/execution/recent':
+            # FIXED Issue #6: View recent orchestrator execution history
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
+            days_str = params.get('days', [None])[0] if params else None
+            days = safe_days(days_str, default=7, max_val=90)
+            limit_str = params.get('limit', [None])[0] if params else None
+            limit = safe_limit(limit_str, max_val=1000, default=50)
+            return _get_orchestrator_execution_recent(cur, days, limit)
+        elif path == '/api/algo/execution/failed':
+            # View failed/halted runs for diagnostics
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
+            days_str = params.get('days', [None])[0] if params else None
+            days = safe_days(days_str, default=30, max_val=90)
+            return _get_orchestrator_execution_failed(cur, days)
+        elif path.startswith('/api/algo/execution/details/'):
+            # View details of a specific orchestrator run
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
+            run_id = path.split('/api/algo/execution/details/')[-1]
+            return _get_orchestrator_execution_details(cur, run_id)
+        elif path == '/api/algo/execution/patterns':
+            # Analyze halt patterns - which phases halt most often
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
+            days_str = params.get('days', [None])[0] if params else None
+            days = safe_days(days_str, default=30, max_val=90)
+            return _get_orchestrator_execution_patterns(cur, days)
+        elif path == '/api/algo/execution/stats':
+            # View execution statistics
+            if not _check_admin_access(jwt_claims):
+                logger.warning(f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}")
+                return error_response(403, 'forbidden', 'Admin access required')
+            days_str = params.get('days', [None])[0] if params else None
+            days = safe_days(days_str, default=7, max_val=90)
+            return _get_orchestrator_execution_stats(cur, days)
         else:
             return error_response(404, 'not_found', f'No algo handler for {path}')
 
@@ -2158,3 +2199,142 @@ def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'get algo audit log', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to fetch audit log')
+
+# FIXED Issue #6: Orchestrator execution history endpoints
+def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> Dict:
+        """Return recent orchestrator execution runs."""
+        try:
+            cur.execute("""
+                SELECT run_id, run_date, started_at, completed_at, overall_status,
+                       phases_completed, phases_halted, phases_errored, summary
+                FROM orchestrator_execution_log
+                WHERE run_date >= CURRENT_DATE - %s
+                ORDER BY started_at DESC
+                LIMIT %s
+            """, (days, limit))
+            rows = cur.fetchall()
+            return list_response([dict(r) for r in rows], total=len(rows), limit=limit)
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution recent'})
+            return error_response(503, 'service_unavailable', 'Execution history unavailable')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'get orchestrator execution recent'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except Exception as e:
+            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution recent'})
+            return error_response(500, 'internal_error', 'Failed to fetch execution history')
+
+def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
+        """Return failed/halted orchestrator runs."""
+        try:
+            cur.execute("""
+                SELECT run_id, run_date, started_at, overall_status, summary, halt_reason
+                FROM orchestrator_execution_log
+                WHERE run_date >= CURRENT_DATE - %s
+                  AND overall_status IN ('halted', 'error')
+                ORDER BY started_at DESC
+            """, (days,))
+            rows = cur.fetchall()
+            return list_response([dict(r) for r in rows], total=len(rows))
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution failed'})
+            return error_response(503, 'service_unavailable', 'Execution history unavailable')
+        except Exception as e:
+            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution failed'})
+            return error_response(500, 'internal_error', 'Failed to fetch failed runs')
+
+def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
+        """Return full details of a specific orchestrator run."""
+        try:
+            cur.execute("""
+                SELECT run_id, run_date, started_at, completed_at, overall_status,
+                       phase_results, summary, halt_reason, phases_completed,
+                       phases_halted, phases_errored
+                FROM orchestrator_execution_log
+                WHERE run_id = %s
+            """, (run_id,))
+            row = cur.fetchone()
+            if not row:
+                return error_response(404, 'not_found', f'Run {run_id} not found')
+
+            result = dict(row)
+            # Parse phase_results JSONB
+            if result.get('phase_results'):
+                try:
+                    result['phase_results'] = json.loads(result['phase_results'])
+                except:
+                    pass
+            return success_response(result)
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution details'})
+            return error_response(503, 'service_unavailable', 'Execution history unavailable')
+        except Exception as e:
+            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution details'})
+            return error_response(500, 'internal_error', 'Failed to fetch execution details')
+
+def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
+        """Analyze halt patterns - which phases halt most often."""
+        try:
+            cur.execute("""
+                SELECT
+                    phase_results->>'name' as phase_name,
+                    COUNT(*) as halt_count,
+                    array_agg(DISTINCT phase_results->>'summary') as reasons
+                FROM orchestrator_execution_log,
+                     jsonb_array_elements(phase_results) as phase_results
+                WHERE run_date >= CURRENT_DATE - %s
+                  AND phase_results->>'status' = 'halt'
+                GROUP BY phase_results->>'name'
+                ORDER BY halt_count DESC
+            """, (days,))
+            rows = cur.fetchall()
+            patterns = [
+                {
+                    'phase': r['phase_name'],
+                    'total_halts': r['halt_count'],
+                    'example_reasons': r['reasons'][:3] if r['reasons'] else []
+                }
+                for r in rows
+            ]
+            return success_response({'patterns': patterns, 'period_days': days})
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution patterns'})
+            return error_response(503, 'service_unavailable', 'Execution history unavailable')
+        except Exception as e:
+            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution patterns'})
+            return error_response(500, 'internal_error', 'Failed to analyze halt patterns')
+
+def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
+        """Return execution statistics."""
+        try:
+            cur.execute("""
+                SELECT
+                    overall_status,
+                    COUNT(*) as count
+                FROM orchestrator_execution_log
+                WHERE run_date >= CURRENT_DATE - %s
+                GROUP BY overall_status
+            """, (days,))
+            rows = cur.fetchall()
+
+            stats_by_status = {r['overall_status']: r['count'] for r in rows}
+            total = sum(stats_by_status.values())
+
+            success_count = stats_by_status.get('success', 0)
+            halt_count = stats_by_status.get('halted', 0)
+            error_count = stats_by_status.get('error', 0)
+
+            return success_response({
+                'total_runs': total,
+                'by_status': stats_by_status,
+                'success_rate': f"{(success_count / total * 100):.1f}%" if total > 0 else "N/A",
+                'halt_rate': f"{(halt_count / total * 100):.1f}%" if total > 0 else "N/A",
+                'error_rate': f"{(error_count / total * 100):.1f}%" if total > 0 else "N/A",
+                'period_days': days
+            })
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution stats'})
+            return error_response(503, 'service_unavailable', 'Execution history unavailable')
+        except Exception as e:
+            logger.error(f'Error: {e}', extra={'operation': 'get orchestrator execution stats'})
+            return error_response(500, 'internal_error', 'Failed to compute execution statistics')
