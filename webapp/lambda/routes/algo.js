@@ -760,11 +760,9 @@ router.get('/exposure-policy', async (req, res) => {
       : null;
 
     return sendSuccess(res, {
-      data: {
-        current_exposure_pct: exp,
-        active_tier: active,
-        all_tiers: tiers,
-      }
+      current_exposure_pct: exp,
+      active_tier: active,
+      all_tiers: tiers,
     });
   } catch (error) {
     logger.error('Error in /algo/exposure-policy:', { error: error.message });
@@ -1296,44 +1294,42 @@ router.get('/performance', authenticateToken, async (req, res) => {
     }
 
     return sendSuccess(res, {
-      data: {
-        // Trade counts
-        total_trades: trades.length,
-        winning_trades: wins.length,
-        losing_trades: losses.length,
+      // Trade counts
+      total_trades: trades.length,
+      winning_trades: wins.length,
+      losing_trades: losses.length,
 
-        // Win/loss profile
-        win_rate_pct: Math.round(winRate * 1000) / 10,
-        avg_win_pct: Math.round(avgWinPct * 100) / 100,
-        avg_loss_pct: Math.round(avgLossPct * 100) / 100,
-        avg_win_r: Math.round(avgWinR * 100) / 100,
-        avg_loss_r: Math.round(avgLossR * 100) / 100,
+      // Win/loss profile
+      win_rate_pct: Math.round(winRate * 1000) / 10,
+      avg_win_pct: Math.round(avgWinPct * 100) / 100,
+      avg_loss_pct: Math.round(avgLossPct * 100) / 100,
+      avg_win_r: Math.round(avgWinR * 100) / 100,
+      avg_loss_r: Math.round(avgLossR * 100) / 100,
 
-        // Expectancy
-        expectancy_r: Math.round(expectancyR * 1000) / 1000,
-        profit_factor: profitFactor === Infinity ? null : Math.round(profitFactor * 100) / 100,
+      // Expectancy
+      expectancy_r: Math.round(expectancyR * 1000) / 1000,
+      profit_factor: profitFactor === Infinity ? null : Math.round(profitFactor * 100) / 100,
 
-        // Total
-        total_pnl_dollars: Math.round(totalPnl * 100) / 100,
-        gross_win_dollars: Math.round(grossWin * 100) / 100,
-        gross_loss_dollars: Math.round(grossLoss * 100) / 100,
-        total_return_pct: Math.round(totalReturn * 100) / 100,
+      // Total
+      total_pnl_dollars: Math.round(totalPnl * 100) / 100,
+      gross_win_dollars: Math.round(grossWin * 100) / 100,
+      gross_loss_dollars: Math.round(grossLoss * 100) / 100,
+      total_return_pct: Math.round(totalReturn * 100) / 100,
 
-        // Risk-adjusted
-        sharpe_annualized: Math.round(sharpe * 100) / 100,
-        sortino_annualized: Math.round(sortino * 100) / 100,
-        calmar_ratio: Math.round(calmar * 100) / 100,
-        max_drawdown_pct: Math.round(maxDD * 100) / 100,
+      // Risk-adjusted
+      sharpe_annualized: Math.round(sharpe * 100) / 100,
+      sortino_annualized: Math.round(sortino * 100) / 100,
+      calmar_ratio: Math.round(calmar * 100) / 100,
+      max_drawdown_pct: Math.round(maxDD * 100) / 100,
 
-        // Streaks + duration
-        current_streak: currentStreak,
-        best_win_streak: bestWinStreak,
-        worst_loss_streak: worstLossStreak,
-        avg_hold_days: Math.round(avgHoldDays * 10) / 10,
+      // Streaks + duration
+      current_streak: currentStreak,
+      best_win_streak: bestWinStreak,
+      worst_loss_streak: worstLossStreak,
+      avg_hold_days: Math.round(avgHoldDays * 10) / 10,
 
-        // Sample sizes
-        portfolio_snapshots: snaps.length,
-      }
+      // Sample sizes
+      portfolio_snapshots: snaps.length,
     });
   } catch (error) {
     logger.error('Error in /algo/performance:', { error: error.message });
