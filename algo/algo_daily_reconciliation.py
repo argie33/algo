@@ -155,9 +155,9 @@ class DailyReconciliation:
                 cur.execute("""
                     SELECT market_trend, distribution_days_4w
                     FROM market_health_daily
-                    WHERE date <= %s::TEXT
+                    WHERE date <= %s
                     ORDER BY date DESC LIMIT 1
-                """, (str(reconcile_date),))
+                """, (reconcile_date,))
 
                 market = cur.fetchone()
                 market_trend = market[0] if market else 'unknown'
