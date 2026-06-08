@@ -208,7 +208,7 @@ def main():
 
     conn = connect_db()
     if not conn:
-        print("❌ Failed to connect to database")
+        print("[ERROR] Failed to connect to database")
         return 1
 
     iteration = 0
@@ -224,24 +224,24 @@ def main():
 
             # Stop if all fresh
             if all_fresh:
-                print(f"\n✅ SUCCESS: All tables fresh with ≥90% symbol coverage!")
-                print(f"⏱️  Completed in {(time.time() - start_time)/60:.1f} minutes")
+                print(f"\n[SUCCESS] All tables fresh with >=90% symbol coverage!")
+                print(f"[DURATION] Completed in {(time.time() - start_time)/60:.1f} minutes")
                 return 0
 
             # Stop if past Monday 5 PM ET
             if should_stop_monitoring():
                 et = pytz.timezone('US/Eastern')
                 now = datetime.now(et)
-                print(f"\n⏰ Reached deadline: {now.strftime('%A %I:%M %p %Z')}")
-                print(f"❌ Pipeline data not fully fresh by Monday EOD (5 PM ET)")
+                print(f"\n[DEADLINE] Reached deadline: {now.strftime('%A %I:%M %p %Z')}")
+                print(f"[ERROR] Pipeline data not fully fresh by Monday EOD (5 PM ET)")
                 return 1
 
             # Wait 5 minutes before next check (300 seconds)
-            print(f"⏳ Next check in 5 minutes...")
+            print(f"[WAITING] Next check in 5 minutes...")
             time.sleep(300)
 
     except KeyboardInterrupt:
-        print("\n⚠️  Monitoring interrupted by user")
+        print("\n[INTERRUPTED] Monitoring interrupted by user")
         return 1
     finally:
         if conn:
