@@ -92,22 +92,21 @@ PHASE_NAMES = {
     "phase_7":  "Wrap-up",
 }
 
-# ── mascot (dancing man) — rebuilt from scratch ────────────────────────────────
+# ── mascot (dancing monkey) ──────────────────────────────────────────────────
 # Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
 # MASCOT_W=13 = 1 border + 11 content + 1 border, padding=(0,0).
-# Wider panel (was 9) makes the dancer much more visible.
-# Frame 7 = CB-fired freeze pose.
+# @ = ears, \{~~~}/ = wide shoulders, |{~~~}| = body. Frame 7 = CB panic freeze.
 MASCOT_W = 13  # 1 left border + 11 content + 1 right border
 
 MASCOT_FRAMES = [
-    ("    \\o/    ", "     |     ", "    / \\    ", "   _/ \\_   "),  # 0  groove
-    ("    \\o/    ", "     |     ", "     /\\    ", "     _/\\   "),  # 1  step R
-    ("    \\o/    ", "     |     ", "    / \\    ", "   _/      "),   # 2  lean L
-    ("    \\o/    ", "     |     ", "    /\\     ", "   \\/      "),   # 3  step L
-    ("    \\O/    ", "     |     ", "    /V\\    ", "   _/ \\_   "),  # 4  star jump
-    ("    -o-    ", "     |     ", "    / \\    ", "   _/ \\_   "),  # 5  chill
-    ("     o     ", "     |     ", "    / \\    ", "   _/ \\_   "),  # 6  meh
-    ("    \\o/    ", "     |     ", "     ||    ", "   _||_    "),   # 7  freeze (CB)
+    ("  @(^_^)@  ", "  \\{~~~}/  ", "  |{~~~}|  ", "  _|   |_  "),  # 0  groove
+    ("  @(^_^)@  ", "  |{~~~}/  ", "  |{~~~}|  ", "  _|   /   "),  # 1  lean R
+    ("  @(^_^)@  ", "  \\{~~~}|  ", "  |{~~~}|  ", "   \\   |_  "),  # 2  lean L
+    ("  @(^_^)@  ", "  \\{~~~}|  ", "  |{~~~}|  ", "  _\\   |_  "),  # 3  step L
+    (" /@(^_^)@\\ ", "   {~~~}   ", "  /|   |\\  ", " /      \\  "),  # 4  star jump
+    ("  @(-_-)@  ", "  \\{~~~}/  ", "  |{~~~}|  ", "  _|   |_  "),  # 5  chill
+    ("  @(o_o)@  ", "  \\{~~~}/  ", "  |{~~~}|  ", "  _|   |_  "),  # 6  meh
+    ("  @(O_O)!  ", "  !{~~~}!  ", "  |{~~~}|  ", "  _|   |_  "),  # 7  freeze (CB)
 ]
 MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
@@ -2284,66 +2283,55 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
         refresh_s = f"  [dim]↻{secs}s[/]"
 
-    # Outer: top row (compact mascot + header) then content rows
+    hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s)
+
     outer = Layout()
     outer.split_column(
-        Layout(name="top", size=MASCOT_H),
-        Layout(name="r1",  ratio=1),
-        Layout(name="r2",  ratio=1),
-        Layout(name="pos", ratio=2),   # positions gets 2x height
-        Layout(name="r3",  ratio=1),
-        Layout(name="r4",  ratio=1),
+        Layout(name="top",      size=9),    # orch + market header + monkey
+        Layout(name="r1",       ratio=2),   # exposure | circuit (wide 2-col)
+        Layout(name="r2",       ratio=1),   # portfolio | perf | eco
+        Layout(name="r3",       ratio=2),   # signals | sectors
+        Layout(name="activity", ratio=2),   # algo activity — doubled height
+        Layout(name="pos",      ratio=2),   # positions + recent trades at bottom
     )
 
-    # Top row: header panel on the left, compact dancing man on the right
+    # Top row: Orch (left, wider) | Market header (right, compact) | Monkey
     outer["top"].split_row(
+        Layout(name="orch",   ratio=2),
         Layout(name="hdr",    ratio=1),
         Layout(name="mascot", size=MASCOT_W),
     )
-
-    cb_fired = cb.get("any", False)
-    fired_names = [b["lbl"] for b in (cb.get("bs") or []) if b.get("fired")]
-    if cb_fired:
-        fired_str = " · ".join(fired_names)
-        hdr_content = Text.from_markup(
-            f"[bold bright_red]⚠ CB FIRED: {fired_str}[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}"
-        )
-        hdr_panel = Panel(Align(hdr_content, vertical="middle"), title="[bold white]ALGO OPS DASHBOARD[/]", border_style="bright_red", padding=(0, 1))
-    else:
-        hdr_content = Text.from_markup(
-            f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}"
-        )
-        hdr_panel = Panel(Align(hdr_content, vertical="middle"), title="[bold white]ALGO OPS DASHBOARD[/]", border_style="blue", padding=(0, 1))
-
+    outer["top"]["orch"].update(panel_orch(run, cfg, risk))
     outer["top"]["hdr"].update(hdr_panel)
     outer["top"]["mascot"].update(mascot_compact(data, frame))
 
-    # Row 1: Market (full) | Exposure Score Breakdown | Circuit Breakers
+    # Row 1: Exposure Score Breakdown | Circuit Breakers (2 wide panels)
     outer["r1"].split_row(
-        Layout(panel_market_full(mkt, sentiment),  name="market"),
-        Layout(panel_exposure_compact(exp_f),      name="exposure"),
-        Layout(panel_circuit(cb),                  name="circuit"),
+        Layout(panel_exposure_compact(exp_f), name="exposure"),
+        Layout(panel_circuit(cb),             name="circuit"),
     )
 
-    # Row 2: Portfolio | Performance + sparkline | Economic pulse
+    # Row 2: Portfolio | Performance | Economic pulse
     outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg, risk=risk),               name="portfolio"),
         Layout(panel_performance_spark(perf, rec, perf_anl),       name="perf"),
         Layout(panel_economic_pulse(eco, econ_cal),                 name="eco"),
     )
 
-    # Row 3: Positions (full width, 2x height) — includes pending trades
-    outer["pos"].update(panel_positions(pos, compact, trades=rec))
-
-    # Row 4: Signals | Sectors (exposure + ranking) — signals gets more space (more data)
+    # Row 3: Signals (wider) | Sectors
     outer["r3"].split_row(
         Layout(panel_signals_compact(sig, sig_eval), ratio=3, name="signals"),
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
     )
 
-    # Row 5: Activity + health + notifications (full width — exposure moved to r1)
-    outer["r4"].update(
-        panel_status(act, hlth, notifs, algo_metrics, loader, audit, run=run, exec_hist=exec_hist, cfg=cfg)
+    # Row 4: Activity — full width, doubled height for run history detail
+    outer["activity"].update(panel_status(act, hlth, notifs, algo_metrics, loader, audit,
+                                          run=run, exec_hist=exec_hist, cfg=cfg))
+
+    # Row 5: Positions | Recent Trades — both trade-related, natural pairing
+    outer["pos"].split_row(
+        Layout(panel_positions(pos, compact, trades=rec),  ratio=3, name="positions"),
+        Layout(panel_recent_trades(rec),                   ratio=2, name="recent_trades"),
     )
 
     return outer
