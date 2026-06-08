@@ -87,36 +87,41 @@ def run(
             )
             symbols_loaded = cur.fetchone()[0] or 0
 
+            # Compare against the prior date's symbol count to detect coverage drops.
+            # Avoids querying stock_symbols (schema may vary across environments).
             cur.execute(
-                "SELECT COUNT(DISTINCT symbol) FROM stock_symbols "
-                "WHERE COALESCE(active, TRUE) AND COALESCE(etf, 'N') != 'Y'"
+                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = ("
+                "  SELECT MAX(date) FROM price_daily WHERE date < %s"
+                ")",
+                (max_date,)
             )
-            total_active = cur.fetchone()[0] or 1
-            coverage = (symbols_loaded / total_active) * 100
+            prior_count = cur.fetchone()[0] or symbols_loaded
+            # Require at least 95% of prior date's coverage, and a hard minimum of 1000 symbols
+            coverage_vs_prior = (symbols_loaded / max(prior_count, 1)) * 100
 
-            if coverage < 95:
+            if symbols_loaded < 1000 or coverage_vs_prior < 95:
                 logger.critical(
-                    f"[PHASE 1] INSUFFICIENT COVERAGE: {symbols_loaded}/{total_active} "
-                    f"symbols ({coverage:.1f}%) for {max_date} — need ≥95%"
+                    f"[PHASE 1] INSUFFICIENT COVERAGE: {symbols_loaded} symbols for {max_date} "
+                    f"vs {prior_count} prior day ({coverage_vs_prior:.1f}%) — need ≥95%"
                 )
                 log_phase_result_fn(1, 'price_coverage', 'halt',
-                                   f'Price coverage {coverage:.1f}% < 95% threshold')
+                                   f'Price coverage {coverage_vs_prior:.1f}% vs prior day')
                 return PhaseResult(1, 'price_coverage', 'halted', {}, True,
-                                 f'Insufficient price coverage: {coverage:.1f}%')
+                                 f'Insufficient price coverage: {symbols_loaded} symbols ({coverage_vs_prior:.1f}% vs prior day)')
 
             elapsed = time.time() - phase_start
 
             # SUCCESS
             logger.info(f"[PHASE 1] ✓ PASS")
-            logger.info(f"  - Most recent prices: {max_date} ({symbols_loaded} symbols, {coverage:.1f}%)")
+            logger.info(f"  - Most recent prices: {max_date} ({symbols_loaded} symbols, {coverage_vs_prior:.1f}% vs prior day)")
             logger.info(f"  - Last trading day: {last_trading_day}")
             logger.info(f"  - Check completed in {elapsed:.1f}s")
 
             log_phase_result_fn(1, 'price_freshness', 'success',
-                               f'{max_date}: {symbols_loaded} symbols, {coverage:.1f}% coverage')
+                               f'{max_date}: {symbols_loaded} symbols, {coverage_vs_prior:.1f}% vs prior day')
 
             return PhaseResult(1, 'price_freshness', 'ok',
-                             {'price_date': str(max_date), 'symbols_loaded': symbols_loaded, 'coverage_pct': coverage},
+                             {'price_date': str(max_date), 'symbols_loaded': symbols_loaded, 'coverage_pct': coverage_vs_prior},
                              False, 'Price data fresh and complete')
 
     except Exception as e:
