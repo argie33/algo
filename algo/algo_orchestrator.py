@@ -19,6 +19,7 @@ from algo.algo_market_calendar import MarketCalendar
 from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from algo.algo_trade_executor import TradeExecutor
 from utils.database_context import DatabaseContext
+from utils.orchestrator_execution_tracker import get_tracker
 import logging
 from monitoring.metrics_context import TimeBlock, log_metrics_summary, clear_metrics_buffer
 
@@ -44,6 +45,9 @@ class Orchestrator:
         self.verbose = verbose
         self.phase_results = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
+        # FIXED Issue #6: Initialize execution tracker for audit trail logging
+        self.execution_tracker = get_tracker()
+        self.execution_tracker.set_run_context(self.run_id, self.run_date)
         # FIXED Issue #8: Use DynamoDB lock manager instead of filesystem lock for distributed locking in Fargate
         from utils.dynamodb_lock_manager import DynamoDBLockManager
         self.lock_manager = DynamoDBLockManager()
@@ -428,23 +432,34 @@ class Orchestrator:
         return False
 
     def _kill_long_running_loaders(self) -> None:
-        """CRITICAL: Kill analytics loaders if approaching next orchestrator run.
+        """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
 
         Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
-        iterate 5000+ symbols with yfinance rate limits and can run 6+ hours. If any is still
-        running when orchestrator fires, t4g.micro RDS OOMs. This check prevents that.
+        iterate 5000+ symbols with yfinance rate limits and can run 6+ hours.
+
+        Critical-path loaders (signal_quality_scores, swing_trader_scores, buy_sell_daily, technical_data_daily)
+        should complete within 30-90 minutes (per steering doc line 91). If still running 15 min
+        before next orchestrator run, they're hung and consuming RDS connections.
+
+        If any is still running when orchestrator fires, RDS connection pool exhaustion occurs.
+        This check prevents that.
 
         Dynamic timeout: calculate time until next orchestrator run, subtract 15 min buffer.
         Orchestrator runs at: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET (Mon-Fri only)
 
         ISSUE #5 FIX: Verifies task termination to prevent hung tasks consuming RDS connections.
+        ISSUE #1 FIX: Added critical-path loaders to kill check (swing_trader_scores, buy_sell_daily,
+                      signal_quality_scores, technical_data_daily).
         """
         try:
             import boto3
             ecs = boto3.client('ecs', region_name=os.getenv('AWS_REGION', 'us-east-1'))
             cluster = os.getenv('ECS_CLUSTER_ARN', 'algo-cluster')
 
+            # Both analytics (6+ hour) and critical-path (30-90 min) loaders
             analytics_loaders = {'company_profile', 'analyst_sentiment', 'stability_metrics', 'value_metrics'}
+            critical_path_loaders = {'signal_quality_scores', 'swing_trader_scores', 'buy_sell_daily', 'technical_data_daily'}
+            monitored_loaders = analytics_loaders | critical_path_loaders
 
             # Calculate time until next orchestrator run (in ET)
             now_utc = datetime.now(timezone.utc)
@@ -498,13 +513,13 @@ class Orchestrator:
                 # Extract loader name from task definition (format: algo-LOADER_NAME-loader:1)
                 task_def = task.get('taskDefinitionArn', '')
                 loader_name = None
-                for analytics_loader in analytics_loaders:
-                    if analytics_loader in task_def:
-                        loader_name = analytics_loader
+                for loader in monitored_loaders:
+                    if loader in task_def:
+                        loader_name = loader
                         break
 
                 if not loader_name:
-                    continue  # Skip non-analytics loaders
+                    continue  # Skip non-monitored loaders
 
                 started_at = task.get('startedAt')
                 if not started_at:
@@ -522,7 +537,7 @@ class Orchestrator:
 
                     # ISSUE #5: Issue stop request
                     try:
-                        ecs.stop_task(cluster=cluster, task=task_arn, reason=f'Analytics loader killing before next orchestrator run')
+                        ecs.stop_task(cluster=cluster, task=task_arn, reason=f'Loader hung beyond timeout before next orchestrator run')
                     except Exception as stop_err:
                         logger.error(f"[TASK_TERMINATION] stop_task() call failed: {stop_err}")
                         failed_terminations.append((loader_name, task_arn, str(stop_err)))
@@ -544,7 +559,7 @@ class Orchestrator:
                     self.alerts.send_position_alert(
                         'TASK_TERMINATION',
                         'HUNG_LOADER_TERMINATION_FAILED',
-                        f'Failed to terminate {len(failed_terminations)} hung analytics loaders. RDS connections may not be released. '
+                        f'Failed to terminate {len(failed_terminations)} hung loaders. RDS connections may not be released. '
                         f'Check CloudWatch logs and manually stop: {", ".join([arn.split("/")[-1] for _, arn, _ in failed_terminations])}',
                         {'failed_tasks': [{'loader': name, 'task_arn': arn, 'error': err} for name, arn, err in failed_terminations]}
                     )
@@ -644,6 +659,8 @@ class Orchestrator:
             'status': status,
             'summary': summary,
         }
+        # FIXED Issue #6: Also log to execution tracker for audit trail
+        self.execution_tracker.log_phase_result(phase_num, name, status, summary)
         if self.verbose:
             logger.info(f"\n-> Phase {phase_num} {status}: {summary}")
         try:
@@ -836,6 +853,8 @@ class Orchestrator:
             status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
             logger.info(f"\n Market closed: {status['reason']}")
             logger.info("Skipping all trading phases.\n")
+            # FIXED Issue #6: Log skipped runs to execution log
+            self.execution_tracker.save_execution_log('skipped', status['reason'])
             return {'success': True, 'skipped': True, 'reason': f"Market closed: {status['reason']}"}
 
         # Concurrency lock — prevent two orchestrators running at once
@@ -1076,6 +1095,22 @@ class Orchestrator:
             'success': not any_error,
             'halted': any_halt,
         }
+
+        # FIXED Issue #6: Save execution log for audit trail
+        try:
+            if any_error:
+                overall_status = 'error'
+                halt_reason = next((p['summary'] for p in self.phase_results.values() if p['status'] == 'error'), None)
+            elif any_halt:
+                overall_status = 'halted'
+                halt_reason = next((p['summary'] for p in self.phase_results.values() if p['status'] == 'halt'), None)
+            else:
+                overall_status = 'success'
+                halt_reason = None
+
+            self.execution_tracker.save_execution_log(overall_status, halt_reason)
+        except Exception as e:
+            logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
         try:

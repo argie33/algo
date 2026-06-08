@@ -1672,6 +1672,28 @@ CREATE TABLE IF NOT EXISTS algo_audit_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Orchestrator execution history — audit trail of each orchestrator run
+-- FIXED Issue #6: Provides visibility into previous orchestrator runs, phase outcomes, and execution patterns
+CREATE TABLE IF NOT EXISTS orchestrator_execution_log (
+    id SERIAL PRIMARY KEY,
+    run_id VARCHAR(50) NOT NULL UNIQUE,
+    run_date DATE NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP,
+    overall_status VARCHAR(20) NOT NULL,  -- 'success', 'halted', 'error', 'skipped'
+    phase_results JSONB,                  -- Array of {phase: int, name: string, status: string, summary: string}
+    summary TEXT,                         -- Brief human-readable summary of the run
+    halt_reason TEXT,                     -- If halted, why (e.g. "Phase 1 degraded: coverage < 75%")
+    phases_completed INTEGER,             -- Number of phases that executed
+    phases_halted INTEGER,                -- Number of phases that halted
+    phases_errored INTEGER,               -- Number of phases that errored
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_run_date ON orchestrator_execution_log(run_date DESC);
+CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_status ON orchestrator_execution_log(overall_status);
+CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_started ON orchestrator_execution_log(started_at DESC);
+
 -- Daily algo performance metrics (computed from audit_log)
 CREATE TABLE IF NOT EXISTS algo_metrics_daily (
     date DATE PRIMARY KEY,

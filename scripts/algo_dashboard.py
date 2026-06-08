@@ -1382,44 +1382,46 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     rows.append(Rule(style="dim"))
 
-    # Row 4: Top 4 sector rankings in 2 pairs — with momentum score
+    # Top sector rankings with 1-week and 4-week rank changes
     valid_srank = [r for r in (srank or [])
-                   if not (isinstance(srank, dict) and srank.get("_error"))][:4]
+                   if not (isinstance(srank, dict) and srank.get("_error"))][:6]
     if valid_srank:
-        items = valid_srank[:4]
-        for a, b in zip(items[::2], items[1::2] + [None]):
-            na  = (a.get("sector_name") or "")[:7]
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup("[dim]Top sectors by rank (momentum score, ▲▼= rank change vs 1wk/4wk):[/]"))
+        for a, b in zip(valid_srank[::2], valid_srank[1::2] + [None]):
+            na  = (a.get("sector_name") or "")[:10]
             mma = a.get("momentum_score")
-            ms_a = f"[dim]·{float(mma):.0f}[/]" if mma is not None else ""
-            la  = f"[{G}]#{a['current_rank']}[/][dim]{na}[/]{ms_a}{rdelta(a, wk4='rank_4w_ago')}"
+            ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
+            la  = f"[{G}]#{a['current_rank']}[/] [dim]{na}[/]{ms_a}{rdelta(a, wk4='rank_4w_ago')}"
             if b:
-                nb  = (b.get("sector_name") or "")[:7]
+                nb  = (b.get("sector_name") or "")[:10]
                 mmb = b.get("momentum_score")
-                ms_b = f"[dim]·{float(mmb):.0f}[/]" if mmb is not None else ""
-                rows.append(Text.from_markup(f" {la}  [{G}]#{b['current_rank']}[/][dim]{nb}[/]{ms_b}{rdelta(b, wk4='rank_4w_ago')}"))
+                ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
+                rows.append(Text.from_markup(f" {la}    [{G}]#{b['current_rank']}[/] [dim]{nb}[/]{ms_b}{rdelta(b, wk4='rank_4w_ago')}"))
             else:
                 rows.append(Text.from_markup(f" {la}"))
 
-    # Rows 5-6: Top industries (2 pairs) — CY color distinguishes from sectors; show momentum
+    # Top industries (sub-sector groups)
     valid_irank = irank if (irank and not (isinstance(irank, dict) and irank.get("_error"))) else []
     if valid_irank:
-        items = valid_irank[:4]
-        for a, b in zip(items[::2], items[1::2] + [None]):
-            na  = (a.get("industry") or "")[:8]
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup("[dim]Top industries (sub-sector groups, ▲▼= vs 1wk):[/]"))
+        for a, b in zip(valid_irank[:4][::2], valid_irank[:4][1::2] + [None]):
+            na  = (a.get("industry") or "")[:12]
             mma = a.get("momentum_score")
-            ms_a = f"[dim]·{float(mma):.0f}[/]" if mma is not None else ""
-            la  = f"[{CY}]#{a['current_rank']}[/][white]{na}[/]{ms_a}{rdelta(a)}"
+            ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
+            la  = f"[{CY}]#{a['current_rank']}[/] [white]{na}[/]{ms_a}{rdelta(a)}"
             if b:
-                nb  = (b.get("industry") or "")[:8]
+                nb  = (b.get("industry") or "")[:12]
                 mmb = b.get("momentum_score")
-                ms_b = f"[dim]·{float(mmb):.0f}[/]" if mmb is not None else ""
-                rows.append(Text.from_markup(f" {la}  [{CY}]#{b['current_rank']}[/][white]{nb}[/]{ms_b}{rdelta(b)}"))
+                ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
+                rows.append(Text.from_markup(f" {la}    [{CY}]#{b['current_rank']}[/] [white]{nb}[/]{ms_b}{rdelta(b)}"))
             else:
                 rows.append(Text.from_markup(f" {la}"))
 
     if not rows:
-        return Panel(Text("no data", style="dim"), title="[bold]SECTORS[/]", border_style="cyan", padding=(0, 1))
-    return Panel(Group(*rows), title="[bold cyan]SECTORS[/]", border_style="cyan", padding=(0, 1))
+        return Panel(Text("no data", style="dim"), title="[bold]SECTORS & INDUSTRIES[/]", border_style="cyan", padding=(0, 1))
+    return Panel(Group(*rows), title="[bold cyan]SECTORS & INDUSTRIES[/]", border_style="cyan", padding=(0, 1))
 
 
 def panel_economic_pulse(eco, econ_cal=None):
@@ -1744,15 +1746,15 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None):
     valid_metrics = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))) else []
     if valid_metrics:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Daily actions:[/]"))
+        rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
         for m in valid_metrics[:3]:
             d   = m.get("date")
-            d_s = d.strftime("%m/%d") if hasattr(d, "strftime") else str(d or "--")
+            d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
             ta  = int(m.get("total_actions") or 0)
             en  = int(m.get("entries") or 0)
             ex  = int(m.get("exits") or 0)
             rows.append(Text.from_markup(
-                f"  [dim]{d_s}:[/] [white]{ta}[/][dim] acts, [/][{G}]{en}[/][dim]E [/][{R}]{ex}[/][dim]X[/]"
+                f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"
             ))
 
     # Data loader status (errors/stale from data_loader_status table)
@@ -1801,7 +1803,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None):
 
     if not rows:
         rows.append(Text("no activity", style="dim"))
-    return Panel(Group(*rows), title="[bold yellow]ACTIVITY & HEALTH[/]", border_style="yellow", padding=(0, 1))
+    return Panel(Group(*rows), title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]", border_style="yellow", padding=(0, 1))
 
 
 # ── mascot sidebar ────────────────────────────────────────────────────────────
