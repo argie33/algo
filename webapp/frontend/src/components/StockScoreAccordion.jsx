@@ -10,7 +10,7 @@ import {
   useTheme,
   alpha,
 } from '@mui/material';
-import { ExpandMore, TrendingUp, Stars } from '@mui/icons-material';
+import { ExpandMore, Award } from '@mui/icons-material';
 import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
 
 const num = (v, dp = 1) => formatNumber(v, dp);

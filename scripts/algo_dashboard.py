@@ -927,22 +927,46 @@ def panel_orch(run, cfg, risk=None):
         sts  = ("[bold bright_green]✔ COMPLETED[/]" if run.get("success") and not run.get("halted")
                 else ("[bold yellow]~ HALTED[/]" if run.get("halted")
                 else "[bold bright_red]✗ ERROR[/]"))
+
         pbadges = []
-        for p in run.get("phases", []):
-            at = p.get("action_type", "")
-            if not at.startswith("phase_"): continue
-            num = at.split("_")[1] if "_" in at else "?"
-            ps  = p.get("status", "")
-            pc  = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
-            pi  = "✓" if ps == "success" else ("~" if ps in ("halt", "warn") else "✗")
-            pbadges.append(f"[{pc}]Phase {num}{pi}[/]")
-        phases_str = " ".join(pbadges) if pbadges else "[dim]—[/]"
+        # exec_log source: structured per-phase objects with names + statuses
+        if run.get("_source") == "exec_log":
+            for p in (run.get("phase_results") or []):
+                raw = (p.get("name") or p.get("phase", "")).lower()
+                parts = raw.split("_")
+                base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
+                short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
+                ps    = (p.get("status") or "").lower()
+                pc    = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
+                pi    = "✓" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "✗")
+                pbadges.append(f"[{pc}]{pi}{short}[/]")
+            # Show halt reason if halted
+            halt_r = run.get("halt_reason") or ""
+            summary = run.get("summary") or ""
+            extra = f"\n[{Y}]Halt: {halt_r[:50]}[/]" if halt_r else (f"\n[dim]{summary[:50]}[/]" if summary else "")
+        else:
+            # audit_log fallback: only phase number available
+            for p in run.get("phases", []):
+                at = p.get("action_type", "")
+                if not at.startswith("phase_"): continue
+                parts = at.split("_")
+                if len(parts) > 2: continue  # skip sub-phases; only top-level
+                num  = parts[1] if len(parts) > 1 else "?"
+                short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:9]
+                ps   = p.get("status", "")
+                pc   = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
+                pi   = "✓" if ps == "success" else ("~" if ps in ("halt", "warn") else "✗")
+                pbadges.append(f"[{pc}]{pi}{short}[/]")
+            extra = ""
+
+        phases_str = "  ".join(pbadges) if pbadges else "[dim]—[/]"
         body = Text.from_markup(
             f"{sts}  [dim]{age}[/]\n"
             f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
             f"[dim]{config_line}[/]\n"
-            f"[dim]Next run:[/] [white]{next_run}[/]  {phases_str}"
-            + var_line
+            f"[dim]Next run:[/] [white]{next_run}[/]\n"
+            f"{phases_str}"
+            + extra + var_line
         )
     return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
