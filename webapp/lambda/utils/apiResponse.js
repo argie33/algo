@@ -36,13 +36,23 @@ module.exports = {
       });
     }
 
-    // If object has items and pagination keys, return as-is (already in proper format)
-    if (data?.items !== undefined && data?.pagination !== undefined) {
+    // If object has pagination, return as-is without wrapping in data
+    // Paginated responses should have their array data at top level (items, signals, patterns, etc.)
+    if (data?.pagination !== undefined) {
+      return res.status(statusCode).json({
+        success: true,
+        statusCode: statusCode,
+        ...data,  // Spread all properties (signals/items/patterns/etc. and pagination)
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // If object has items key, return with items at top level (not wrapped in data)
+    if (data?.items !== undefined) {
       return res.status(statusCode).json({
         success: true,
         statusCode: statusCode,
         items: data.items,
-        pagination: data.pagination,
         timestamp: new Date().toISOString()
       });
     }

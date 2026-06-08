@@ -180,9 +180,19 @@ router.get('/evaluate', async (req, res) => {
       ORDER BY s.date DESC, s.symbol
     `);
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     // Transform into evaluation objects
     // Thresholds match algo_filter_pipeline.py: tier1=45 (session 31), tier4=40 (session 30)
-    const evaluated = result.rows.map(row => {
+    const evaluated = validateAndCoerceRows(result, {
+      symbol: { type: 'string', required: true },
+      date: { type: 'date', required: true },
+      trend_score: { type: 'int', required: false, defaultValue: 0 },
+      pct_from_52w_low: { type: 'float', required: false, defaultValue: 0 },
+      completeness_pct: { type: 'float', required: false, defaultValue: 0 },
+      sqs: { type: 'int', required: false, defaultValue: 0 }
+    }).map(row => {
       const tier1 = row.completeness_pct >= 45;
       const tier3 = row.trend_score >= 8;
       const tier4 = row.sqs >= 40;
@@ -320,10 +330,38 @@ router.get('/positions', authenticateToken, async (req, res) => {
       ORDER BY p.position_value DESC
     `);
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     const sf = (v) => v == null ? null : parseFloat(v);
 
     return sendSuccess(res, {
-      items: result.rows.map(row => {
+      items: validateAndCoerceRows(result, {
+        position_id: { type: 'int', required: true },
+        symbol: { type: 'string', required: true },
+        quantity: { type: 'float', required: true },
+        avg_entry_price: { type: 'float', required: false },
+        current_price: { type: 'float', required: false },
+        position_value: { type: 'float', required: false },
+        unrealized_pnl: { type: 'float', required: false },
+        unrealized_pnl_pct: { type: 'float', required: false },
+        status: { type: 'string', required: false },
+        stage_in_exit_plan: { type: 'string', required: false },
+        days_since_entry: { type: 'int', required: false },
+        stop_loss_price: { type: 'float', required: false },
+        target_1_price: { type: 'float', required: false },
+        target_2_price: { type: 'float', required: false },
+        target_3_price: { type: 'float', required: false },
+        target_1_r_multiple: { type: 'float', required: false },
+        target_2_r_multiple: { type: 'float', required: false },
+        target_3_r_multiple: { type: 'float', required: false },
+        sector: { type: 'string', required: false },
+        industry: { type: 'string', required: false },
+        weinstein_stage: { type: 'int', required: false },
+        minervini_trend_score: { type: 'int', required: false },
+        percent_from_52w_low: { type: 'float', required: false },
+        percent_from_52w_high: { type: 'float', required: false }
+      }).map(row => {
         const entry = sf(row.avg_entry_price);
         const current = sf(row.current_price);
         const stop = sf(row.stop_loss_price);
@@ -435,19 +473,36 @@ router.get('/trades', authenticateToken, async (req, res) => {
       pool.query('SELECT COUNT(*) as total FROM algo_trades')
     ]);
 
+    // Validate result structures
+    validateQueryResult(result, { requireRows: false });
+    validateQueryResult(countResult, { minRows: 1, maxRows: 1 });
+    const total = extractCount(countResult, 'total');
+
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      trade_id: { type: 'int', required: true },
+      symbol: { type: 'string', required: true },
+      signal_date: { type: 'date', required: false },
+      trade_date: { type: 'date', required: true },
+      entry_price: { type: 'float', required: false },
+      entry_quantity: { type: 'float', required: false },
+      status: { type: 'string', required: false },
+      exit_date: { type: 'date', required: false },
+      exit_price: { type: 'float', required: false },
+      exit_r_multiple: { type: 'float', required: false },
+      profit_loss_pct: { type: 'float', required: false, defaultValue: 0 },
+      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 },
+      trade_duration_days: { type: 'int', required: false }
+    });
+
     return sendSuccess(res, {
-      items: result.rows.map(row => ({
-        ...row,
-        entry_price: parseFloat(row.entry_price),
-        exit_price: row.exit_price ? parseFloat(row.exit_price) : null,
-        profit_loss_pct: parseFloat(row.profit_loss_pct || 0)
-      })),
+      items: validated,
       pagination: {
-        total: parseInt(countResult.rows[0].total),
+        total,
         limit,
         offset,
         page: Math.floor(offset / limit) + 1,
-        totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
+        totalPages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
