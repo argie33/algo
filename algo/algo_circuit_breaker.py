@@ -301,12 +301,28 @@ class CircuitBreaker:
         )
         row = cur.fetchone()
         if not row or row[3] is None or int(row[3]) < 10:
+            logger.info(f"  [WIN_RATE_DEBUG] total={row[3] if row else 'None'} — insufficient, skipping")
             return {'halted': False, 'reason': 'Insufficient closed trades (< 10)'}
 
         wins = int(row[0] or 0)
         losses = int(row[1] or 0)
         int(row[2] or 0)  # breakeven trades (excluded from win rate calculation)
         total = int(row[3])
+        logger.info(f"  [WIN_RATE_DEBUG] wins={wins} losses={losses} total={total}")
+        # Debug: show actual trade values being counted
+        try:
+            cur.execute(
+                """SELECT trade_id, profit_loss_pct, exit_r_multiple, exit_date
+                   FROM algo_trades
+                   WHERE status = %s AND exit_date IS NOT NULL AND exit_r_multiple IS NOT NULL
+                   ORDER BY exit_date DESC LIMIT 15""",
+                (TradeStatus.CLOSED.value,)
+            )
+            debug_rows = cur.fetchall()
+            for dr in debug_rows:
+                logger.info(f"  [WIN_RATE_DEBUG] trade={dr[0]} pnl={dr[1]} r={dr[2]} exit={dr[3]}")
+        except Exception as _debug_err:
+            logger.warning(f"  [WIN_RATE_DEBUG] debug query failed: {_debug_err}")
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator
