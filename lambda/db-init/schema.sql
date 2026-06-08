@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS stock_symbols (
 );
 CREATE INDEX IF NOT EXISTS idx_stock_symbols_etf ON stock_symbols(etf);
 CREATE INDEX IF NOT EXISTS idx_stock_symbols_active ON stock_symbols(active);
+-- Migration: add active column if table was created before it was in the schema
+ALTER TABLE stock_symbols ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 
 -- Daily OHLCV price data
 CREATE TABLE IF NOT EXISTS price_daily (
