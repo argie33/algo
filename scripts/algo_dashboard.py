@@ -93,39 +93,41 @@ PHASE_NAMES = {
 }
 
 # ── mascot ────────────────────────────────────────────────────────────────────
-# Each line is exactly 5 visible chars — consistent width prevents wobble
+# Each frame is 4 lines (arms, torso, legs, feet) — exactly 5 visible chars each.
+# Torso line "|" separates the raised arms from the legs so they don't look like
+# a second pair of arms.  Frame 7 is ONLY used when a circuit breaker fires.
 MASCOT_FRAMES = [
-    (" \\o/ ", "  |  ", " / \\ ", "_/ \\_"),  # 0  groove  — arms up, wide feet
-    (" \\o/ ", "  |  ", "  /\\ ", "  _/\\"),  # 1  step right — arms up, step right
-    (" /o\\ ", " /|  ", " / \\ ", "_/   "),   # 2  lean left — leaning, left foot planted
-    (" \\o/ ", " \\|  ", "  /\\ ", "\\_/  "),  # 3  step left — arms up, left kick
-    (" \\O/ ", "  |  ", " /V\\ ", "_/ \\_"),  # 4  star jump — arms up, V-legs (no double arms)
-    ("  o  ", " -|- ", " / \\ ", "_/ \\_"),   # 5  rest — arms from torso only, feet flat
-    ("  o/ ", "  |  ", " / \\ ", "/   \\"),   # 6  stumble — one arm from head, clean torso
-    (" \\o/ ", "  |  ", "  || ", "_||_ "),   # 7  freeze — arms up, legs locked together
+    (" \\o/ ", "  |  ", " / \\ ", "_/ \\_"),  # 0  groove — arms up, wide stance
+    (" \\o/ ", "  |  ", "  /\\ ", "  _/\\"),  # 1  step R — arms up, right step
+    (" \\o/ ", "  |  ", " / \\ ", "_/   "),   # 2  lean L — arms up, weight on left foot
+    (" \\o/ ", "  |  ", " /\\  ", "\\/_  "),  # 3  step L — arms up, left step (mirror of 1)
+    (" \\O/ ", "  |  ", " /V\\ ", "_/ \\_"),  # 4  star   — big jump, V-legs
+    (" -o- ", "  |  ", " / \\ ", "_/ \\_"),   # 5  chill  — arms flat, feet planted
+    ("  o  ", "  |  ", " / \\ ", "_/ \\_"),   # 6  meh    — no arms (caution/correction)
+    (" \\o/ ", "  |  ", "  || ", "_||_ "),   # 7  freeze — CB fired only
 ]
 MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
     "bright_yellow", "white", "yellow", "bright_red",
 ]
-LOAD_SEQ = [0, 1, 2, 3, 1, 0, 2, 3]
+LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
 
 def mascot_pose(data: dict, frame: int) -> int:
-    cb   = data.get("cb") or {}
-    mkt  = data.get("mkt") or {}
-    tier = mkt.get("tier", "unknown")
-    if cb.get("any"):
-        return [6, 7][(frame // 8) % 2]   # 1fps slow shake when circuit breaker fired
-    tier_ranges: Dict[str, List[int]] = {
-        "confirmed_uptrend": [0, 1, 2, 3],
-        "healthy_uptrend":   [0, 1, 2],
-        "pressure":          [1, 3, 4],
-        "caution":           [4, 5, 6],
-        "correction":        [6, 7, 5],
+    if (data.get("cb") or {}).get("any"):
+        return 7  # freeze only when circuit breaker fires
+    tier = (data.get("mkt") or {}).get("tier", "unknown")
+    # Each sequence has unique frame indices — no pose repeats within a cycle
+    # to prevent the animation from appearing stuck.
+    seqs: Dict[str, List[int]] = {
+        "confirmed_uptrend": [4, 1, 0, 3],   # JUMP→stepR→groove→stepL
+        "healthy_uptrend":   [0, 1, 4, 3],   # groove→stepR→JUMP→stepL
+        "pressure":          [0, 1, 2, 3],   # groove→stepR→leanL→stepL
+        "caution":           [0, 5, 2, 6],   # groove→chill→leanL→meh
+        "correction":        [5, 6],          # chill→meh (subdued 2-frame)
     }
-    r = tier_ranges.get(tier, [0, 1, 2, 3])
-    return r[(frame // 4) % len(r)]   # 2fps smooth dancing
+    r = seqs.get(tier, [0, 1, 4, 3])
+    return r[(frame // 4) % len(r)]
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
@@ -474,12 +476,14 @@ def fetch_perf(c):
         exp = round(wr / 100 * avg_win - (1 - wr / 100) * avg_loss, 2) if trades else 0.0
         avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
         avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
+        recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct") or 0))
+                       for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
         return {"n": len(trades), "w": len(wins), "l": len(losses),
                 "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
                 "sharpe": sharpe, "maxdd": round(maxdd, 1),
                 "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
                 "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
-                "equity_vals": equity_vals}
+                "equity_vals": equity_vals, "recent_rets": recent_rets}
     except Exception as e:
         return {"_error": str(e)}
 
@@ -524,15 +528,31 @@ def fetch_signals(c):
     try:
         sig = q1(c, """
             SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
-            WHERE signal='BUY' AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY')""")
-        total_r = q1(c, "SELECT COUNT(*) AS n FROM buy_sell_daily WHERE date=(SELECT MAX(date) FROM buy_sell_daily)")
+            WHERE signal='BUY' AND timeframe='Daily'
+              AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe='Daily')""")
+        total_r = q1(c, """SELECT COUNT(*) AS n FROM buy_sell_daily
+                           WHERE timeframe='Daily' AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE timeframe='Daily')""")
         total_n = int(total_r["n"] or 0) if total_r else 0
-        top = q(c, """
-            SELECT s.symbol, s.score, cp.sector
-            FROM swing_trader_scores s
-            LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-            WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
-            ORDER BY s.score DESC LIMIT 10""")
+
+        # Actual BUY signals with rich setup detail
+        buy_sigs = q(c, """
+            SELECT b.symbol, b.signal_type, b.stage_number, b.signal_quality_score,
+                   b.entry_quality_score, b.close, b.buylevel, b.stoplevel,
+                   b.risk_reward_ratio, b.volume_surge_pct, b.rs_rating,
+                   b.breakout_quality, b.base_type, b.reason,
+                   cp.sector,
+                   s.score AS swing_score
+            FROM buy_sell_daily b
+            LEFT JOIN company_profile cp ON cp.ticker = b.symbol
+            LEFT JOIN (
+                SELECT DISTINCT ON (symbol) symbol, score
+                FROM swing_trader_scores ORDER BY symbol, date DESC
+            ) s ON s.symbol = b.symbol
+            WHERE b.signal='BUY' AND b.timeframe='Daily'
+              AND b.date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe='Daily')
+            ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
+            LIMIT 12""")
+
         grades_r = q(c, """
             SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
                    COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
@@ -542,17 +562,19 @@ def fetch_signals(c):
             FROM swing_trader_scores
             WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
         grades = grades_r[0] if grades_r else {}
+
+        # Near-misses: scored stocks close to BUY threshold
         near = q(c, """
             SELECT s.symbol, s.score, cp.sector
             FROM swing_trader_scores s
             LEFT JOIN company_profile cp ON cp.ticker = s.symbol
             WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
               AND s.score BETWEEN 55 AND 69
-            ORDER BY s.score DESC LIMIT 6""")
+            ORDER BY s.score DESC LIMIT 4""")
+
         return {"n": int(sig["n"] or 0) if sig else 0, "total": total_n,
                 "date": sig["d"] if sig else None,
-                "top": top, "pass": [s for s in top if float(s.get("score") or 0) >= 60],
-                "grades": grades, "near": near}
+                "buy_sigs": buy_sigs, "grades": grades, "near": near}
     except Exception as e:
         return {"_error": str(e)}
 
@@ -809,6 +831,15 @@ def fetch_loader_status(c):
     except Exception as e:
         return {"_error": str(e)}
 
+def fetch_exec_history(c):
+    try:
+        return q(c, """SELECT run_id, started_at, completed_at, overall_status,
+                              phases_completed, phases_halted, phases_errored, halt_reason
+                       FROM orchestrator_execution_log
+                       ORDER BY started_at DESC LIMIT 10""")
+    except Exception as e:
+        return {"_error": str(e)}
+
 def fetch_audit_log(c):
     try:
         rows = q(c, """SELECT action_type, symbol, status, created_at,
@@ -907,6 +938,7 @@ FETCHERS = {
     "irank":        fetch_industry_ranking,
     "loader":       fetch_loader_status,
     "audit":        fetch_audit_log,
+    "exec_hist":    fetch_exec_history,
 }
 
 def load_all() -> dict:
@@ -1143,8 +1175,6 @@ def panel_portfolio(port, cfg):
     if cum is not None:
         cc = G if float(cum) >= 0 else R
         cum_s = f"\n[dim]Total Return:[/] [{cc}]{sign(float(cum))}{float(cum):.2f}%[/]"
-        if mxdd is not None:
-            cum_s += f"  [dim]Max Drawdown:[/][{R}]{float(mxdd):.1f}%[/]"
     conc_s = f"\n[dim]Largest Position:[/] [white]{float(lgpos):.1f}%[/]" if lgpos is not None else ""
     txt   = Text.from_markup(
         f"[bold white]{fmt_money(pv)}[/]{snap_s}\n"
@@ -1187,17 +1217,15 @@ def panel_performance_spark(perf, rec, perf_anl=None):
         f"[dim]Avg Loss:[/][{R}]{fmt_money(perf.get('avg_loss'))}[/]"
     )]
 
-    # Equity sparkline
-    eq_vals = perf.get("equity_vals") or []
-    if len(eq_vals) >= 5:
-        spark = sparkline(eq_vals, width=24)
-        first_v = next((v for v in eq_vals if v > 0), None)
-        if first_v:
-            total_rtn = (eq_vals[-1] - first_v) / first_v * 100
-            rc = G if total_rtn >= 0 else R
-            rows.append(Text.from_markup(
-                f"{spark} [{rc}]{sign(total_rtn)}{total_rtn:.1f}%[/]"
-            ))
+    # Recent daily returns (last 5 snapshots) — replaces sparkline
+    recent_rets = perf.get("recent_rets") or []
+    if recent_rets:
+        parts = []
+        for dt, ret in recent_rets[-5:]:
+            rc = G if ret >= 0 else R
+            d_s = dt.strftime("%a") if hasattr(dt, "strftime") else str(dt)[:3]
+            parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
+        rows.append(Text.from_markup("  ".join(parts)))
 
     # Rolling analytics from algo_performance_daily (only show if populated)
     if perf_anl and not perf_anl.get("_error"):
@@ -1330,22 +1358,19 @@ def panel_positions(pos, compact=False, trades=None):
 
 
 def panel_signals_compact(sig, sig_eval=None):
-    """Signals & breadth — compact (top 10 scores in 2-col grid)."""
+    """Signals & screening — actual BUY signals from buy_sell_daily with setup detail."""
     if not sig or sig.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]SIGNALS[/]", border_style="magenta", padding=(0, 1))
     raw   = sig.get("n", 0)
     total = sig.get("total", 0)
-    top   = sig.get("top", [])[:10]
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-    pct_s = f"{raw / total * 100:.1f}%" if total > 0 else "--"
     g     = sig.get("grades") or {}
     ga, gb, gc, gd, gt = (int(g.get(k) or 0) for k in ("a","b","c","d","total"))
-    if gt == 0: gt = 1
 
     def _shorten_reason(r: str) -> str:
         r = r.lower()
-        if "52w" in r or "52-w" in r or "52 w" in r or ("low" in r and "proximity" in r): return "52wLow"
+        if "52w" in r or "52-w" in r or ("low" in r and "proximity" in r): return "52wLow"
         if "sector" in r and ("cap" in r or "concentr" in r or "already" in r):  return "SctCap"
         if "industry" in r and ("cap" in r or "concentr" in r or "already" in r): return "IndCap"
         if "stage" in r:  return "Stage"
@@ -1353,12 +1378,18 @@ def panel_signals_compact(sig, sig_eval=None):
         if "rs" in r or "relative strength" in r: return "RS"
         return r[:7].title()
 
-    # Header line 1: date + score grades + buy signal count
-    hdr1 = (f"[dim]{ds}[/]  [{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]"
-            f"  [bold white]{raw}[/][dim] buy signals / {total} scored[/]")
+    def _shorten_type(t: str) -> str:
+        t = (t or "").replace("WEEKLY_", "W_").replace("STAGE_2", "S2").replace("STAGE2", "S2")
+        t = t.replace("BREAKOUT", "BKT").replace("MOMENTUM", "MOM").replace("REVERSAL", "REV")
+        t = t.replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
+        return t[:10]
 
+    # Header: date + swing score grade distribution + buy signal count
+    hdr1 = (f"[dim]{ds}[/]  [{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]"
+            f"  [bold white]{raw}[/][dim] buy signals / {total} screened[/]")
     rows = [Text.from_markup(hdr1)]
 
+    # Signal evaluation funnel
     if sig_eval and not sig_eval.get("_error"):
         ev_tot = sig_eval.get("total", 0)
         ev_t1  = sig_eval.get("t1", 0)
@@ -1368,53 +1399,61 @@ def panel_signals_compact(sig, sig_eval=None):
         ev_t5  = sig_eval.get("t5", 0)
         ev_avg = sig_eval.get("avg_score", 0)
         ev_c   = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        # Signal evaluation funnel: screened → through each filter tier → selected
         rows.append(Text.from_markup(
-            f"[dim]Screened:[/][white]{ev_tot}[/]"
-            f"[dim] →Mkt:[/][white]{ev_t1}[/]"
-            f"[dim] →Score:[/][white]{ev_t2}[/]"
-            f"[dim] →Risk:[/][white]{ev_t3}[/]"
-            f"[dim] →Sector:[/][white]{ev_t4}[/]"
-            f"[dim] →Selected:[/][{ev_c}]{ev_t5}[/]"
-            f"[dim]  avg score: {ev_avg:.0f}[/]"
+            f"[dim]Funnel:[/][white]{ev_tot}[/]"
+            f"[dim]→Mkt:[/][white]{ev_t1}[/]"
+            f"[dim]→Score:[/][white]{ev_t2}[/]"
+            f"[dim]→Risk:[/][white]{ev_t3}[/]"
+            f"[dim]→Sector:[/][white]{ev_t4}[/]"
+            f"[dim]→Final:[/][{ev_c}]{ev_t5}[/]"
+            f"[dim]  avg:{ev_avg:.0f}[/]"
         ))
         rejected = sig_eval.get("rejected") or []
         if rejected:
             parts = [f"[dim]{_shorten_reason(rj['evaluation_reason'])}:[/][white]{rj['n']}[/]"
                      for rj in rejected[:3]]
-            rows.append(Text.from_markup("[dim]Top rejection reasons:[/] " + "  ".join(parts)))
+            rows.append(Text.from_markup("[dim]Filtered:[/] " + "  ".join(parts)))
 
+    # Actual BUY signals from buy_sell_daily — the real actionable list
+    buy_sigs = sig.get("buy_sigs") or []
     rows.append(Rule(style="dim"))
-    rows.append(Text.from_markup("[dim]Top stocks by swing score (grade  symbol  score/100):[/]"))
-    top6 = top[:6]
-    for a, b in zip(top6[::2], top6[1::2] + [None]):
-        sa = float(a.get("score") or 0)
-        ca = G if sa >= 80 else CY
-        sec_a = (a.get("sector") or "")[:8]
-        left = f"[{ca}]{grade(sa)} {a['symbol']:<6} {sa:.0f}[/][dim] {sec_a}[/]"
-        if b:
-            sb = float(b.get("score") or 0)
-            cb2 = G if sb >= 80 else CY
-            sec_b = (b.get("sector") or "")[:8]
-            right = f"[{cb2}]{grade(sb)} {b['symbol']:<6} {sb:.0f}[/][dim] {sec_b}[/]"
-            rows.append(Text.from_markup(f"  {left}    {right}"))
-        else:
-            rows.append(Text.from_markup(f"  {left}"))
+    if buy_sigs:
+        rows.append(Text.from_markup(
+            "[dim]BUY signals  sym    stg  type       Q    R:R  vol%  RS [/]"
+        ))
+        for bs in buy_sigs[:10]:
+            sym    = (bs.get("symbol") or "--")[:6]
+            stg    = bs.get("stage_number")
+            sig_t  = _shorten_type(bs.get("signal_type") or "")
+            sq     = bs.get("signal_quality_score") or bs.get("entry_quality_score")
+            rr     = bs.get("risk_reward_ratio")
+            vsurge = bs.get("volume_surge_pct")
+            rs     = bs.get("rs_rating")
+            bq     = (bs.get("breakout_quality") or "")[:3]
 
-    # Near-miss signals (scores 55–69 — almost qualified)
+            stg_s  = f"S{stg}" if stg else "  "
+            sq_s   = f"{sq:.0f}" if sq is not None else "--"
+            rr_s   = f"{rr:.1f}" if rr is not None else "--"
+            vs_s   = f"{vsurge:+.0f}%" if vsurge is not None else "--"
+            rs_s   = f"{rs}" if rs is not None else "--"
+            sq_c   = G if (sq or 0) >= 70 else (Y if (sq or 0) >= 50 else "white")
+            rr_c   = G if (rr or 0) >= 2.5 else (Y if (rr or 0) >= 1.5 else "white")
+            vs_c   = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
+
+            rows.append(Text.from_markup(
+                f"  [{sq_c}]{sym:<6}[/] [dim]{stg_s}  {sig_t:<10}[/]"
+                f"[{sq_c}]{sq_s:>4}[/] [{rr_c}]{rr_s:>4}[/] [{vs_c}]{vs_s:>5}[/]"
+                f" [dim]{rs_s:>3}[/]"
+            ))
+    else:
+        rows.append(Text.from_markup("[dim]no BUY signals today[/]"))
+
+    # Near-miss swing scores (approaching threshold)
     near = sig.get("near") or []
     if near:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[dim]Near misses (score 55–69, almost qualified):[/]"))
-        for a, b in zip(near[::2], near[1::2] + [None]):
-            sa = float(a.get("score") or 0)
-            left = f"[dim]{a['symbol']:<6} {sa:.0f}[/]"
-            if b:
-                sb = float(b.get("score") or 0)
-                right = f"[dim]{b['symbol']:<6} {sb:.0f}[/]"
-                rows.append(Text.from_markup(f"  {left}    {right}"))
-            else:
-                rows.append(Text.from_markup(f"  {left}"))
+        parts = [f"[dim]{a['symbol']} {float(a.get('score') or 0):.0f}[/]" for a in near[:4]]
+        rows.append(Text.from_markup("[dim]Near misses (swing 55-69):[/] " + "  ".join(parts)))
 
     return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS & SCREENING[/]", border_style="magenta", padding=(0, 1))
 
@@ -1766,9 +1805,36 @@ def panel_exposure_compact(exp_f):
                  border_style="blue", padding=(0, 1))
 
 
-def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, run=None):
+def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, run=None, exec_hist=None):
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
     rows: list = []
+
+    # Execution history summary — last 7 runs
+    valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
+    if valid_hist:
+        n_ok  = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
+        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
+        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
+        total_h = len(valid_hist)
+        wr_h  = n_ok / total_h * 100 if total_h else 0
+        wc_h  = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
+        badges = []
+        for r in valid_hist[:7]:
+            s = (r.get("overall_status") or "").lower()
+            if s in ("success", "completed"): badges.append(f"[{G}]✓[/]")
+            elif s == "halted":               badges.append(f"[{Y}]~[/]")
+            else:                             badges.append(f"[{R}]✗[/]")
+        rows.append(Text.from_markup(
+            f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
+            f"  [{wc_h}]{n_ok}/{total_h} success[/]"
+            + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
+            + (f"  [{R}]{n_err} error[/]" if n_err else "")
+        ))
+        # Most recent halt reason if any
+        last_halt = next((r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"), None)
+        if last_halt and last_halt.get("halt_reason"):
+            rows.append(Text.from_markup(f"  [{Y}]↳ {(last_halt['halt_reason'] or '')[:55]}[/]"))
+        rows.append(Rule(style="dim"))
 
     # Run ID + age — prefer exec_log source over activity log
     run_id = (run.get("run_id") or "") if run and not run.get("_error") else ""
@@ -1953,7 +2019,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
 
-MASCOT_H = 8   # 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border
+MASCOT_H = 7   # 1 top border + 1 blank + 4 pose lines + 1 bottom border
 MASCOT_W = 9   # 1 left border + 1 pad + 5 pose chars + 1 pad + 1 right border
 
 
@@ -1961,14 +2027,14 @@ def mascot_compact(data: dict, frame: int) -> Panel:
     fi   = mascot_pose(data, frame)
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
+    w    = MASCOT_W - 2  # panel content width = total - 2 borders
     return Panel(
         Group(
             Text(""),
-            Text(pose[0], style=f"bold {mc}", justify="center"),
-            Text(pose[1], style=f"bold {mc}", justify="center"),
-            Text(pose[2], style=f"bold {mc}", justify="center"),
-            Text(pose[3], style=f"bold {mc}", justify="center"),
-            Text(""),
+            Text(pose[0].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[1].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[2].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[3].center(w), style=f"bold {mc}", justify="left"),
         ),
         border_style=mc,
         padding=(0, 0),
@@ -1984,14 +2050,14 @@ def loading_layout(frame: int) -> Layout:
     pose = MASCOT_FRAMES[fi]
     dots = "." * ((frame // 2 % 4) + 1)             # dots cycle at ~1Hz
 
+    w = MASCOT_W - 2
     mascot_panel = Panel(
         Group(
             Text(""),
-            Text(pose[0], style=f"bold {mc}", justify="center"),
-            Text(pose[1], style=f"bold {mc}", justify="center"),
-            Text(pose[2], style=f"bold {mc}", justify="center"),
-            Text(pose[3], style=f"bold {mc}", justify="center"),
-            Text(""),
+            Text(pose[0].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[1].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[2].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[3].center(w), style=f"bold {mc}", justify="left"),
         ),
         border_style=mc,
         padding=(0, 0),
@@ -2061,6 +2127,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     irank        = data.get("irank")         or []
     loader       = data.get("loader")        or []
     audit        = data.get("audit")         or []
+    exec_hist    = data.get("exec_hist")     or []
 
     now_et = datetime.now(ET)
     mkt_s  = "[bold bright_green]● OPEN[/]" if is_open() else "[dim]● CLOSED[/]"
@@ -2130,7 +2197,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     # Row 5: Exposure factors | Activity + health + notifications
     outer["r4"].split_row(
         Layout(panel_exposure_compact(exp_f), ratio=3, name="exposure"),
-        Layout(panel_status(act, hlth, notifs, algo_metrics, loader, audit, run=run), ratio=2, name="status"),
+        Layout(panel_status(act, hlth, notifs, algo_metrics, loader, audit, run=run, exec_hist=exec_hist), ratio=2, name="status"),
     )
 
     return outer
