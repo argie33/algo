@@ -49,7 +49,7 @@ def connect_db():
         conn = psycopg2.connect(**config)
         return conn
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"[ERROR] Database connection failed: {e}")
         return None
 
 def get_table_freshness(conn, table_name):
