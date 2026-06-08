@@ -1435,7 +1435,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:20]}[/] [dim]{wks}wk[/]{scores_s}{str_s}"
         ))
 
-    # Rows 2-3: Current portfolio holdings by sector (top 3)
+    # Holdings by sector: 2-col pairs, up to 6 sectors
     if pos:
         pv = float(port.get("total_portfolio_value") or 0)
         sd: dict = {}
@@ -1448,16 +1448,28 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             sd[sec]["val"] += val
             sd[sec]["n"]   += 1
             sd[sec]["pnls"].append(pnl)
-        rows.append(Text.from_markup("[dim]Current holdings by sector:[/]"))
-        for sec, dv in sorted(sd.items(), key=lambda x: -x[1]["val"])[:3]:
+        sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
+        total_secs  = len(sorted_secs)
+        show_secs   = sorted_secs[:6]
+        hdr_more    = f" [dim](top 6 of {total_secs})[/]" if total_secs > 6 else ""
+        rows.append(Text.from_markup(f"[dim]Holdings by sector:{hdr_more}[/]"))
+
+        def fmt_sec_item(sec, dv):
             pct     = dv["val"] / pv * 100 if pv else 0
             avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
             pc      = G if avg_pnl >= 0 else R
-            bar_f   = int(min(pct, 30) / 30 * 4)
-            bar     = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (4 - bar_f)}[/]"
-            rows.append(Text.from_markup(
-                f" [white]{sec[:14]:<14}[/] {bar} [dim]{dv['n']} pos  {pct:.0f}% of portfolio[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% P&L[/]"
-            ))
+            bar_f   = int(min(pct, 30) / 30 * 3)
+            bar_s   = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (3 - bar_f)}[/]"
+            return (f"[white]{sec[:11]:<11}[/]{bar_s}"
+                    f"[dim]{pct:.0f}%[/] [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}%[/]")
+
+        for a, b in zip(show_secs[::2], show_secs[1::2] + [None]):
+            left = fmt_sec_item(*a)
+            if b:
+                right = fmt_sec_item(*b)
+                rows.append(Text.from_markup(f" {left}   {right}"))
+            else:
+                rows.append(Text.from_markup(f" {left}"))
 
     # Top sector rankings with 1-week and 4-week rank changes
     valid_srank = [r for r in (srank or [])
@@ -2055,12 +2067,12 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         hdr_content = Text.from_markup(
             f"[bold bright_red]⚠ CB FIRED: {fired_str}[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]"
         )
-        hdr_panel = Panel(Align(hdr_content, vertical="middle"), border_style="bright_red", padding=(0, 1))
+        hdr_panel = Panel(Align(hdr_content, vertical="middle"), title="[bold white]ALGO OPS DASHBOARD[/]", border_style="bright_red", padding=(0, 1))
     else:
         hdr_content = Text.from_markup(
-            f"[bold white]ALGO OPS DASHBOARD[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]"
+            f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]"
         )
-        hdr_panel = Panel(Align(hdr_content, vertical="middle"), border_style="blue", padding=(0, 1))
+        hdr_panel = Panel(Align(hdr_content, vertical="middle"), title="[bold white]ALGO OPS DASHBOARD[/]", border_style="blue", padding=(0, 1))
 
     outer["top"]["hdr"].update(hdr_panel)
     outer["top"]["mascot"].update(mascot_compact(data, frame))
