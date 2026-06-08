@@ -97,49 +97,51 @@ class SignalsDailyLoader(OptimalLoader):
                         logger.warning(f"{symbol}: Technical data missing for {end} - signals cannot be generated")
                         return []
 
-                # ISSUE #5 + #7 FIX: Validate BOTH upstream loader completeness before generating signals
-                # buy_sell_daily depends on:
-                # 1. price_daily (open, high, low, close, volume)
-                # 2. technical_data_daily (all technical indicators)
-                # If either loader completed partially (<95%), buy_sell_daily must not run.
+                # Validate upstream loader completeness before generating signals.
+                # buy_sell_daily depends on price_daily and technical_data_daily.
+                #
+                # DENOMINATOR FIX: Use price_daily count as the denominator, NOT all active symbols.
+                # Reason: active symbol count (10,000+) includes ETFs and newly listed symbols
+                # without price history. Comparing against all active symbols gives misleadingly
+                # low coverage even on successful load days (e.g., 73% when 80%+ loaded fine).
+                #
+                # THRESHOLD: 70% of price symbols must have technical data (normal days: ~80-83%).
+                # This correctly identifies partial failures (e.g., 46% on June 5 = anomaly)
+                # while allowing normal operations to proceed.
 
-                cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-                cur_row = cur.fetchone()
-                expected_symbols = cur_row[0] if cur_row else 4500
-
-                # Check price_daily completeness
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
                     (end,)
                 )
                 cur_row = cur.fetchone()
                 price_coverage_symbols = cur_row[0] if cur_row else 0
-                price_coverage = (price_coverage_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
-                # Check technical_data_daily completeness
+                # Require at least 3000 symbols with prices before generating signals
+                if price_coverage_symbols < 3000:
+                    logger.warning(
+                        f"{symbol}: price_daily incomplete for {end}: only "
+                        f"{price_coverage_symbols} symbols (expected >= 3000). "
+                        f"Rejecting all signals until stock_prices_daily completes."
+                    )
+                    self._log_rejection_if_available(symbol, end, "price_daily_incomplete_coverage")
+                    return []
+
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM technical_data_daily WHERE date = %s",
                     (end,)
                 )
                 cur_row = cur.fetchone()
                 tech_coverage_symbols = cur_row[0] if cur_row else 0
-                tech_coverage = (tech_coverage_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
+                # Technical coverage relative to price coverage (normal: 80-83%)
+                tech_coverage = (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
 
-                # Block signal generation if either dependency <95% complete
-                if price_coverage < 95:
-                    logger.warning(
-                        f"{symbol}: price_daily incomplete for {end}: "
-                        f"{price_coverage_symbols}/{expected_symbols} symbols ({price_coverage:.1f}%). "
-                        f"buy_sell_daily must not run until stock_prices_daily completes. Rejecting all signals."
-                    )
-                    self._log_rejection_if_available(symbol, end, "price_daily_incomplete_coverage")
-                    return []
-
-                if tech_coverage < 95:
+                # Block if technical data covers < 70% of price symbols (normal is 80-83%)
+                if tech_coverage < 70:
                     logger.warning(
                         f"{symbol}: technical_data_daily incomplete for {end}: "
-                        f"{tech_coverage_symbols}/{expected_symbols} symbols ({tech_coverage:.1f}%). "
-                        f"buy_sell_daily must not run until loader completes. Rejecting all signals."
+                        f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols "
+                        f"({tech_coverage:.1f}%, expected >= 70%). "
+                        f"buy_sell_daily must not run until technical_data_daily completes. Rejecting all signals."
                     )
                     self._log_rejection_if_available(symbol, end, "technical_data_incomplete_coverage")
                     return []
