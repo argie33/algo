@@ -1826,11 +1826,12 @@ router.get("/indices", async (req, res) => {
 
 // Advanced Market Internals - Comprehensive breadth, MA analysis, and positioning
 router.get("/internals", async (req, res) => {
+  // Fail fast if database is unavailable
+  if (!query) {
+    return sendError(res, 'Database service unavailable', 503);
+  }
 
   try {
-    if (!query) {
-      return sendError(res, "Database service unavailable", 500);
-    }
 
     // Get latest market date from cache once (5 min TTL) - used by multiple queries
     const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
