@@ -32,19 +32,21 @@ def _compute_atr(symbol: str, period: int = 14) -> Optional[float]:
     """Compute ATR for symbol from recent price data."""
     try:
         with DatabaseContext('read') as cur:
-            cur.execute("""
-                SELECT
-                    AVG(high - low) as atr
-                FROM price_daily
-                WHERE symbol = %s
-                  AND date > (CURRENT_DATE - INTERVAL '%d days')
-                ORDER BY date DESC
-                LIMIT %d
-            """ % (symbol, period * 2, period))
+            cur.execute(f"""
+                SELECT AVG(daily_range) as atr
+                FROM (
+                    SELECT high - low as daily_range
+                    FROM price_daily
+                    WHERE symbol = %s
+                      AND date <= CURRENT_DATE
+                    ORDER BY date DESC
+                    LIMIT {period}
+                ) recent
+            """, (symbol,))
             result = cur.fetchone()
             return float(result[0]) if result and result[0] else None
     except Exception as e:
-        logger.debug(f"Could not compute ATR for {symbol}: {e}")
+        logger.warning(f"Could not compute ATR for {symbol}: {e}")
         return None
 
 
@@ -66,7 +68,7 @@ def _compute_sma_50(symbol: str) -> Optional[float]:
             result = cur.fetchone()
             return float(result[0]) if result and result[0] else None
     except Exception as e:
-        logger.debug(f"Could not compute SMA_50 for {symbol}: {e}")
+        logger.warning(f"Could not compute SMA_50 for {symbol}: {e}")
         return None
 
 
@@ -81,7 +83,7 @@ def _get_latest_close(symbol: str) -> Optional[float]:
             result = cur.fetchone()
             return float(result[0]) if result and result[0] else None
     except Exception as e:
-        logger.debug(f"Could not get close for {symbol}: {e}")
+        logger.warning(f"Could not get close for {symbol}: {e}")
         return None
 
 
