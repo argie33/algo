@@ -62,11 +62,21 @@ function normalizeSuccessResponse(body, httpStatusCode) {
 
   // Paginated list with data key (convert to items)
   if (body?.pagination && !body?.items) {
-    const items = body.data || body.results || [];
+    const itemsSource = body.data || body.results || [];
+    // Check if extracted items contain an error object (e.g., nested { success: false })
+    if (typeof itemsSource === 'object' && itemsSource !== null && itemsSource.success === false) {
+      return {
+        success: false,
+        statusCode: body.statusCode || 500,
+        error: itemsSource.error || itemsSource.message || 'Request failed',
+        timestamp
+      };
+    }
+    const items = Array.isArray(itemsSource) ? itemsSource : [];
     return {
       success: true,
       statusCode: statusCode,
-      items: Array.isArray(items) ? items : [items],
+      items: items,
       pagination: body.pagination,
       timestamp
     };
@@ -118,19 +128,29 @@ function normalizeResponse(body, statusCode) {
 
   // If it has pagination but items under different key
   if (body?.pagination && !body?.items) {
-    const items = body.data || body.results || [];
+    const itemsSource = body.data || body.results || [];
+    // Check if extracted items contain an error object (e.g., nested { success: false })
+    if (typeof itemsSource === 'object' && itemsSource !== null && itemsSource.success === false) {
+      return {
+        success: false,
+        statusCode: statusCode,
+        error: itemsSource.error || itemsSource.message || 'Request failed',
+        timestamp
+      };
+    }
+    const items = Array.isArray(itemsSource) ? itemsSource : [];
     return {
       success: !isError,
       statusCode: statusCode,
-      items: Array.isArray(items) ? items : [items],
+      items: items,
       pagination: body.pagination,
       error: isError ? (body.error || 'Request failed') : null,
       timestamp
     };
   }
 
-  // Single object response
-  if (body?.data && !body?.success && !Array.isArray(body.data)) {
+  // Single object response (including falsy values like 0, false, "")
+  if ('data' in body && !body?.success && !Array.isArray(body.data)) {
     return {
       success: !isError,
       statusCode: statusCode,
