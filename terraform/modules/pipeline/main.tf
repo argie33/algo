@@ -905,10 +905,10 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       }
 
       # Load only daily prices (not weekly/monthly) for morning prep.
+      # CRITICAL LOADER (FAIL-CLOSED): Must complete before technicals and signals can be computed.
       # Override LOADER_INTERVALS to "1d" so only daily prices are loaded (~15 min vs 6+ hours).
       # The full 1d/1wk/1mo load runs in the EOD pipeline at 4:05pm ET.
-      # OPTIMIZED: Reduce parallelism from 4→2 to stay within yfinance rate limits when loading 5000+ symbols.
-      # This adds ~10-15 min but prevents rate-limit cascades that could push to 90+ min timeout.
+      # parallelism=1 (serial execution to prevent rate limiting, with 7.5h buffer before 9:30 AM deadline)
       MorningPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -924,7 +924,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
               Environment = [
                 { Name = "LOADER_INTERVALS", Value = "1d" },
                 { Name = "LOADER_ASSET_CLASSES", Value = "stock" },
-                { Name = "LOADER_PARALLELISM", Value = "2" }
+                { Name = "LOADER_PARALLELISM", Value = "1" }
               ]
             }]
           }
@@ -947,23 +947,40 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         ]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          # Fail-open: If prices fail after retries, use yesterday's prices and continue
-          Next       = "MorningFallback"
-          ResultPath = "$.priceError"
+          Next       = "LogMorningPriceFailure"
+          ResultPath = "$.loaderError"
         }]
         Next = "MorningTechnicals"
       }
 
-      # Fallback: If stock prices fails, use yesterday's prices and continue with morning prep.
-      # This prevents 1 slow loader from blocking the entire pipeline.
-      # Phase 1 freshness checks will log the staleness but proceed (fail-open).
-      MorningFallback = {
-        Type = "Pass"
+      LogMorningPriceFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
         Parameters = {
-          "fallback_note.$" = "$.priceError"
-          "message"         = "Stock prices load failed or timed out. Using yesterday's prices for technicals and signals. Phase 1 will flag this as stale."
+          loader_name       = "stock_prices_daily (morning)"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+          is_critical_loader = true
         }
-        Next = "MorningTechnicals"
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MorningPriceFailureHalt"
+          ResultPath  = "$.handlerError"
+        }]
+        Next = "MorningPriceFailureHalt"
+      }
+
+      MorningPriceFailureHalt = {
+        Type  = "Fail"
+        Error = "CRITICAL_LOADER_FAILURE"
+        Cause = "stock_prices_daily failed during morning prep. Pipeline halted to prevent trading on stale data. Morning prep needs 7.5 hours to complete before market open. Check CloudWatch logs for details (yfinance rate limiting, RDS issues, or network problems)."
       }
 
       MorningTechnicals = {
