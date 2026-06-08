@@ -172,5 +172,24 @@ module.exports = {
       message: message,
       timestamp: new Date().toISOString()
     });
+  },
+
+  // Database error response - distinguishes connection errors (503) from query errors (500)
+  // Used by routes to handle database failures appropriately
+  sendDatabaseError: (res, error, defaultMessage = 'An error occurred') => {
+    const isConnectionError = (
+      error?.code === 'DB_CONNECTION_FAILED' ||
+      error?.httpStatus === 503 ||
+      error?.message?.includes('not initialized') ||
+      error?.message?.includes('no longer available') ||
+      error?.message?.includes('connection')
+    );
+
+    const statusCode = isConnectionError ? 503 : 500;
+    const message = isConnectionError
+      ? 'Database connection unavailable. Please try again later.'
+      : defaultMessage;
+
+    return module.exports.sendError(res, message, statusCode);
   }
 };

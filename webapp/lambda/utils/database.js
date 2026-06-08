@@ -430,6 +430,20 @@ function getPool() {
 }
 
 /**
+ * Ensure database connection is available before executing operations
+ * Throws with code 'DB_CONNECTION_FAILED' if connection is unavailable
+ * Used by routes to validate connection hasn't dropped after middleware check
+ */
+function ensureConnection() {
+  if (!pool || !dbInitialized) {
+    const error = new Error("Database connection is no longer available");
+    error.code = "DB_CONNECTION_FAILED";
+    throw error;
+  }
+  return pool;
+}
+
+/**
  * Execute a database query with performance monitoring and optimization
  */
 async function query(text, params = []) {
@@ -506,23 +520,32 @@ async function query(text, params = []) {
       code: error.code,
     });
 
-    // Enhanced error classification for better debugging
-    if (
+    // Categorize connection-level errors (503 - Service Unavailable)
+    const isConnectionError = (
       error.message.includes("connect") ||
       error.message.includes("ENOTFOUND") ||
       error.message.includes("ECONNREFUSED") ||
+      error.message.includes("ECONNRESET") ||
+      error.message.includes("ECONNABORTED") ||
       error.message.includes("timeout") ||
+      error.message.includes("not initialized") ||
+      error.message.includes("no longer available") ||
       error.code === "ETIMEDOUT" ||
       error.code === "ECONNRESET" ||
-      error.code === "ECONNABORTED"
-    ) {
-      console.error("Database connection error - no fallback available");
-      error.message = `Database connection failed: ${error.message}`;
+      error.code === "ECONNABORTED" ||
+      error.code === "DB_CONNECTION_FAILED" ||
+      error.code === "DB_POOL_NOT_AVAILABLE"
+    );
+
+    if (isConnectionError) {
+      console.error("Database connection error - should return 503");
+      // Mark error so routes can detect this is a connection failure (503), not a query failure (500)
+      error.code = "DB_CONNECTION_FAILED";
+      error.httpStatus = 503;
       throw error;
     }
 
     // Always throw errors to expose issues instead of silently returning null
-    // Previous behavior masked real database problems and made debugging impossible
     console.error("Database query error:", {
       code: error.code,
       message: error.message,
@@ -641,6 +664,7 @@ module.exports = {
   initializeDatabase,
   initializeSchema,
   getPool,
+  ensureConnection,
   getDbConfig,
   query,
   transaction,
