@@ -796,7 +796,7 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
       pass: Number(f.count) || 0,
       reject: Number(f.rejection_count) || 0,
     }));
-  const overallStatus = dataStatus?.ready_to_trade ? 'ok' : dataQuality?.accuracy_check === 'warning' ? 'warning' : 'error';
+  const overallStatus = dataStatus?.ready_to_trade ? 'ok' : dataQuality?.status === 'warning' ? 'warning' : 'error';
   const statusColor2 = overallStatus === 'ok' ? 'var(--success)' : overallStatus === 'warning' ? 'var(--amber)' : 'var(--danger)';
 
   const phaseStatusMap = {};
