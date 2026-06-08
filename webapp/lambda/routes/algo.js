@@ -1622,13 +1622,25 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
       LIMIT $1
     `, [limit]);
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      snapshot_date: { type: 'date', required: true },
+      total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
+      daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
+      unrealized_pnl_pct: { type: 'float', required: false, defaultValue: 0 },
+      position_count: { type: 'int', required: false, defaultValue: 0 }
+    });
+
     return sendSuccess(res, {
-      items: result.rows.reverse().map(r => ({
+      items: validated.reverse().map(r => ({
         snapshot_date: r.snapshot_date,
-        total_portfolio_value: parseFloat(r.total_portfolio_value || 0),
-        daily_return_pct: parseFloat(r.daily_return_pct || 0),
-        unrealized_pnl_pct: parseFloat(r.unrealized_pnl_pct || 0),
-        position_count: parseInt(r.position_count || 0),
+        total_portfolio_value: r.total_portfolio_value || 0,
+        daily_return_pct: r.daily_return_pct || 0,
+        unrealized_pnl_pct: r.unrealized_pnl_pct || 0,
+        position_count: r.position_count || 0,
       }))
     });
   } catch (error) {
@@ -1662,8 +1674,21 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
 
     const result = await pool.query(query_str, params);
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     return sendSuccess(res, {
-      items: result.rows.map(r => ({
+      items: validateAndCoerceRows(result, {
+        id: { type: 'int', required: true },
+        action_type: { type: 'string', required: false },
+        symbol: { type: 'string', required: false },
+        action_date: { type: 'date', required: false },
+        details: { type: 'string', required: false },
+        actor: { type: 'string', required: false },
+        status: { type: 'string', required: false },
+        error_message: { type: 'string', required: false },
+        created_at: { type: 'date', required: false }
+      }).map(r => ({
         id: r.id,
         action_type: r.action_type,
         symbol: r.symbol,
@@ -1698,10 +1723,34 @@ router.get('/trade/:tradeId', async (req, res) => {
        WHERE t.trade_id = $1`,
       [req.params.tradeId]
     );
+
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     if (result.rows.length === 0) {
       return sendError(res, 'Trade not found', 404);
     }
-    return sendSuccess(res, result.rows[0]);
+
+    // Validate and coerce the single row
+    const trade = validateAndCoerceRow(result.rows[0], {
+      trade_id: { type: 'int', required: true },
+      symbol: { type: 'string', required: false },
+      entry_price: { type: 'float', required: false },
+      exit_price: { type: 'float', required: false },
+      profit_loss_dollars: { type: 'float', required: false },
+      profit_loss_pct: { type: 'float', required: false },
+      status: { type: 'string', required: false },
+      position_id: { type: 'int', required: false },
+      quantity: { type: 'float', required: false },
+      current_qty: { type: 'float', required: false },
+      current_price: { type: 'float', required: false },
+      unrealized_pnl: { type: 'float', required: false },
+      unrealized_pnl_pct: { type: 'float', required: false },
+      target_levels_hit: { type: 'string', required: false },
+      current_stop_price: { type: 'float', required: false }
+    });
+
+    return sendSuccess(res, trade);
   } catch (error) {
     logger.error('Error in /algo/trade/:id:', { error: error.message });
     return sendDatabaseError(res, error, 'An error occurred while fetching trade details');
