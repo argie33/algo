@@ -6,7 +6,7 @@ import os
 from utils.database_context import DatabaseContext
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from utils.trade_status import TradeStatus, PositionStatus
 from algo.algo_config import get_config, get_api_timeout
 from algo.algo_notifications import notify
@@ -68,6 +68,11 @@ class DailyReconciliation:
                 logger.info(f"   {sync_result['message']}")
                 if sync_result.get('orphan_symbols'):
                     logger.info(f"   Orphans flagged: {', '.join(sync_result['orphan_symbols'][:5])}")
+
+                # 1b2. Reconcile actual Alpaca fill prices with DB exit records
+                fill_result = self.reconcile_exit_fills(cur, reconcile_date)
+                logger.info(f"\n1b2. Exit Fill Reconciliation:")
+                logger.info(f"   {fill_result['message']}")
 
                 # 1c. Compute MAE/MFE metrics for recently closed trades (E3 analytics)
                 mae_result = self.compute_closed_trade_metrics(cur)
@@ -284,6 +289,102 @@ class DailyReconciliation:
         except Exception as e:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
+
+    def reconcile_exit_fills(self, cur, reconcile_date) -> dict:
+        """Update DB trade exit prices with actual Alpaca fill prices.
+
+        Phase 4 marks trades 'closed' immediately using the last known market price
+        when placing market exit orders before market open. This reconciles those
+        estimated prices with actual Alpaca fill prices after market opens.
+        """
+        if not self._alpaca_key or not self._alpaca_secret:
+            return {'updated': 0, 'message': 'No Alpaca credentials'}
+        try:
+            import requests
+            from algo.algo_config import get_api_timeout
+
+            since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            resp = requests.get(
+                f'{self._alpaca_base_url}/v2/orders',
+                params={'status': 'closed', 'side': 'sell', 'after': since,
+                        'direction': 'desc', 'limit': 500},
+                headers={'APCA-API-KEY-ID': self._alpaca_key,
+                         'APCA-API-SECRET-KEY': self._alpaca_secret},
+                timeout=get_api_timeout(),
+            )
+            if resp.status_code != 200:
+                return {'updated': 0, 'message': f'Alpaca orders API {resp.status_code}'}
+
+            orders = resp.json()
+            if not isinstance(orders, list):
+                return {'updated': 0, 'message': 'Unexpected Alpaca response format'}
+
+            updated = 0
+            two_days_ago = reconcile_date - timedelta(days=2)
+
+            for order in orders:
+                if order.get('status') != 'filled' or order.get('side') != 'sell':
+                    continue
+                symbol = order.get('symbol')
+                filled_price_str = order.get('filled_avg_price')
+                if not symbol or not filled_price_str:
+                    continue
+                try:
+                    filled_price = float(filled_price_str)
+                except (TypeError, ValueError):
+                    continue
+                if filled_price <= 0:
+                    continue
+
+                cur.execute("SAVEPOINT reconcile_fill")
+                try:
+                    cur.execute("""
+                        SELECT trade_id, entry_price, stop_loss_price, entry_quantity
+                        FROM algo_trades
+                        WHERE symbol = %s
+                          AND status = 'closed'
+                          AND exit_date >= %s
+                          AND exit_date <= %s
+                        ORDER BY exit_date DESC LIMIT 1
+                    """, (symbol, two_days_ago, reconcile_date))
+
+                    row = cur.fetchone()
+                    if not row:
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        continue
+
+                    trade_id, entry_price, stop_loss_price, entry_qty = row
+                    entry_price = float(entry_price or 0)
+                    stop_loss_price = float(stop_loss_price or 0)
+                    entry_qty = int(entry_qty or 0)
+                    if entry_price <= 0:
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        continue
+
+                    pnl_pct = (filled_price - entry_price) / entry_price * 100.0
+                    pnl_dollars = (filled_price - entry_price) * entry_qty
+                    risk = entry_price - stop_loss_price
+                    exit_r_multiple = ((filled_price - entry_price) / risk) if risk > 0 else 0.0
+
+                    cur.execute("""
+                        UPDATE algo_trades
+                        SET exit_price = %s, profit_loss_pct = %s,
+                            profit_loss_dollars = %s, exit_r_multiple = %s,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE trade_id = %s
+                    """, (filled_price, pnl_pct, pnl_dollars, exit_r_multiple, trade_id))
+
+                    cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                    updated += 1
+                    logger.info(f"   Exit fill reconciled: {symbol} {trade_id} @ ${filled_price:.2f} ({pnl_pct:.1f}%)")
+                except Exception as e:
+                    cur.execute("ROLLBACK TO SAVEPOINT reconcile_fill")
+                    logger.warning(f"   Exit fill reconcile failed for {symbol}: {e}")
+
+            return {'updated': updated, 'message': f'Reconciled {updated} exit fills with actual Alpaca prices'}
+        except Exception as e:
+            logger.warning(f'Exit fill reconciliation error: {e}')
+            return {'updated': 0, 'message': f'Error: {e}'}
 
     def sync_alpaca_positions(self, cur):
         """Pull live positions from Alpaca and import any not in algo_positions.
@@ -644,17 +745,19 @@ class DailyReconciliation:
             updates = 0
             for trade_id, symbol, entry_date, exit_date, entry_price, exit_price, r_mult in trades_to_update:
                 try:
+                    cur.execute("SAVEPOINT mae_mfe_update")
                     entry_price = float(entry_price)
                     exit_price = float(exit_price or entry_price)
 
                     cur.execute("""
                         SELECT high, low FROM price_daily
-                        WHERE symbol = %s AND date >= %s::TEXT AND date <= %s::TEXT
+                        WHERE symbol = %s AND date >= %s AND date <= %s
                         ORDER BY date ASC
-                    """, (symbol, str(entry_date), str(exit_date)))
+                    """, (symbol, entry_date, exit_date))
 
                     prices = cur.fetchall()
                     if not prices:
+                        cur.execute("RELEASE SAVEPOINT mae_mfe_update")
                         continue
 
                     highs = [float(p[0]) if p[0] is not None else entry_price for p in prices]
@@ -674,8 +777,10 @@ class DailyReconciliation:
                         WHERE trade_id = %s
                     """, (round(mae_pct, 4), round(mfe_pct, 4), trade_id))
 
+                    cur.execute("RELEASE SAVEPOINT mae_mfe_update")
                     updates += 1
                 except Exception as e:
+                    cur.execute("ROLLBACK TO SAVEPOINT mae_mfe_update")
                     logger.warning(f"Failed to compute MAE/MFE for trade {trade_id}: {e}")
 
             return {'updated': updates, 'reason': f'Computed MAE/MFE for {updates} closed trades'}
