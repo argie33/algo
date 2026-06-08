@@ -947,8 +947,8 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         ]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next       = "LogMorningPriceFailure"
-          ResultPath = "$.loaderError"
+          Next        = "LogMorningPriceFailure"
+          ResultPath  = "$.loaderError"
         }]
         Next = "MorningTechnicals"
       }
@@ -957,9 +957,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "stock_prices_daily (morning)"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
+          loader_name        = "stock_prices_daily (morning)"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = true
         }
         ResultPath = "$.failureLog"
