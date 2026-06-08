@@ -108,10 +108,10 @@ def validate_environment():
     """
     errors = []
     required_vars = {
-        'DB_HOST': 'Database host (RDS endpoint or proxy)',
-        'DB_PASSWORD': 'Database password (from env var or Secrets Manager via DB_SECRET_ARN)',
-        'DB_NAME': 'Database name',
-        'DB_USER': 'Database username',
+        'DB_HOST': 'RDS Proxy endpoint (e.g., my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com)',
+        'DB_PASSWORD': 'Database password (set via DB_PASSWORD env var or fetch from DB_SECRET_ARN)',
+        'DB_NAME': 'Database name (defaults to "stocks" if not set)',
+        'DB_USER': 'Database username (defaults to "stocks" if not set)',
     }
 
     # SECURITY FIX H-01: If Cognito authentication is enabled, ALL Cognito vars must be set
@@ -122,12 +122,12 @@ def validate_environment():
         cognito_region = os.getenv('COGNITO_REGION', '').strip()
 
         if not cognito_client_id:
-            errors.append('COGNITO_CLIENT_ID: Required for JWT audience validation when authentication is enabled')
+            errors.append('COGNITO_CLIENT_ID missing: Required when COGNITO_USER_POOL_ID is set (find in AWS Cognito console → App clients)')
         if not cognito_region:
             # Default to us-east-1, but still validate it's explicitly set in production
             is_lambda = 'AWS_LAMBDA_FUNCTION_NAME' in os.environ
             if is_lambda:
-                errors.append('COGNITO_REGION: Required in Lambda environment')
+                errors.append('COGNITO_REGION missing: Required in Lambda (e.g., us-east-1)')
 
     # SECURITY FIX: In production, FRONTEND_URL must be explicitly set for CORS
     # IMPROVEMENT: Try to fetch CloudFront domain from Secrets Manager if not set
@@ -148,7 +148,7 @@ def validate_environment():
 
         # Validation: FRONTEND_URL or localhost must be available
         if not frontend_url and not allow_localhost:
-            errors.append('FRONTEND_URL: Must be set for production CORS (or set ALLOW_LOCALHOST_CORS=true for dev)')
+            errors.append('FRONTEND_URL missing: Set to frontend domain (e.g., https://myapp.example.com) for CORS, or enable ALLOW_LOCALHOST_CORS=true for dev')
 
     missing_secret_arn = not os.getenv('DB_SECRET_ARN')
     missing_password = not os.getenv('DB_PASSWORD')
@@ -156,7 +156,7 @@ def validate_environment():
     for var, description in required_vars.items():
         if var == 'DB_PASSWORD':
             if missing_secret_arn and missing_password:
-                errors.append(f"{var}: Neither DB_SECRET_ARN nor DB_PASSWORD provided")
+                errors.append(f"DB_PASSWORD missing: Provide either DB_PASSWORD directly or DB_SECRET_ARN pointing to Secrets Manager secret")
         elif var in ['DB_NAME', 'DB_USER']:
             if not os.getenv(var) and var == 'DB_NAME':
                 logger.info(f"{var}: using default 'stocks'")
@@ -164,7 +164,7 @@ def validate_environment():
                 logger.info(f"{var}: using default 'stocks'")
         else:
             if not os.getenv(var):
-                errors.append(f"{var}: required for {description}")
+                errors.append(f"{var} missing: {description}")
 
     # FIXED Issue #15: Validate DB_HOST points to proxy (now required, not optional)
     db_host = os.getenv('DB_HOST', '')
@@ -176,7 +176,7 @@ def validate_environment():
     if is_likely_direct_rds and not is_localhost:
         # SECURITY FIX S-12: Don't log actual DB_HOST in error messages (exposes infrastructure)
         logger.error(f"FATAL: DB_HOST appears to be direct RDS, not proxy. Connection pooling REQUIRED. Use RDS Proxy endpoint.")
-        errors.append(f"DB_HOST: Must point to RDS Proxy, not direct RDS endpoint")
+        errors.append(f"DB_HOST invalid: Must use RDS Proxy endpoint (contains 'proxy'), not direct RDS. Connection pooling is required for production.")
 
     return len(errors) == 0, errors
 
@@ -811,13 +811,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cors_headers = get_cors_headers(event)
         logger.error(f'[ENV_VALIDATION_FAILED] {ENV_VALIDATION_ERROR}')
 
+        # Parse error message to extract individual errors for clearer diagnostics
+        error_list = [e.strip() for e in ENV_VALIDATION_ERROR.split(';') if e.strip()]
+
         # Determine specific config error type for better client diagnostics
         error_type = 'configuration_error'
-        if 'COGNITO' in ENV_VALIDATION_ERROR:
+        if any('COGNITO' in e for e in error_list):
             error_type = 'cognito_config_error'
-        elif 'DB_' in ENV_VALIDATION_ERROR or 'database' in ENV_VALIDATION_ERROR.lower():
+        elif any('DB_' in e or 'database' in e.lower() for e in error_list):
             error_type = 'database_config_error'
-        elif 'FRONTEND_URL' in ENV_VALIDATION_ERROR:
+        elif any('FRONTEND_URL' in e for e in error_list):
             error_type = 'cors_config_error'
 
         return {
@@ -826,7 +829,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({
                 'error': error_type,
                 'message': 'Service configuration incomplete',
-                'details': 'Check server logs for configuration issues'
+                'missing_config': error_list,
+                'details': 'Ensure all required environment variables are set in Lambda configuration'
             })
         }
 
