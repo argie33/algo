@@ -30,7 +30,21 @@ The frontend build must properly embed API URL and Cognito credentials at build 
 2. Reads Cognito credentials (user pool ID, client ID, domain) from arguments or env vars
 3. Calls `setup-prod.js` to generate `public/config.js` with runtime configuration
 4. Runs Vite build, which includes config.js in the bundle
-5. Outputs to `dist/config.js` for deployment to S3/CloudFront
+5. **Injects cache-bust parameter** into `index.html`: replaces `<script src="/config.js">` with `<script src="/config.js?v=<buildHash>">` to force browsers and CDN to fetch fresh config
+6. Outputs to `dist/config.js` for deployment to S3/CloudFront
+
+**Service Worker Cache Invalidation Strategy:**
+The frontend implements multi-layer cache invalidation to prevent stale config.js from persisting after deploys:
+- **Layer 1 (Build-time):** Cache-bust parameter (`?v=<buildHash>`) injected into config.js script tag ensures CDN/browser don't serve cached copy when URL changes
+- **Layer 2 (Load-time):** `main.jsx` detects deploy by comparing stored cache version + config URL hash against current values. On mismatch:
+  - Clears ALL service worker caches (not just api-* caches)
+  - Unregisters all service workers
+  - Clears performance timings to reset browser state
+- **Layer 3 (Stale detection):** If config.js fails to load after 3 polling attempts (150ms), likely due to stale service worker cache, automatically:
+  - Unregisters remaining service workers
+  - Performs hard reload (`window.location.reload(true)`) to bypass all caches
+
+This prevents the "API 404" error that occurs when config.js is stale and points to a wrong API_URL.
 
 **GitHub Actions Build Flow (deploy-all-infrastructure.yml lines 1078-1140):**
 1. Terraform creates CloudFront and Cognito resources, exports their IDs as outputs

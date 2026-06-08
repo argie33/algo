@@ -148,6 +148,7 @@ jobs:
       algo_lambda_name: ${{ steps.outputs.outputs.algo_lambda_name }}
       frontend_bucket: ${{ steps.outputs.outputs.frontend_bucket }}
       cloudfront_id: ${{ steps.outputs.outputs.cloudfront_id }}
+      cloudfront_distribution_id: ${{ steps.outputs.outputs.cloudfront_distribution_id }}
       api_gateway_endpoint: ${{ steps.outputs.outputs.api_gateway_endpoint }}
       website_url: ${{ steps.outputs.outputs.website_url }}
       cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
@@ -756,6 +757,7 @@ jobs:
           echo "algo_lambda_name=${ALGO}" >> $GITHUB_OUTPUT
           echo "frontend_bucket=${BUCKET}" >> $GITHUB_OUTPUT
           echo "cloudfront_id=${CF}" >> $GITHUB_OUTPUT
+          echo "cloudfront_distribution_id=${CF}" >> $GITHUB_OUTPUT
           echo "api_gateway_endpoint=${API_GW}" >> $GITHUB_OUTPUT
           echo "website_url=${WEBSITE_URL}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=${POOL_ID}" >> $GITHUB_OUTPUT
@@ -1145,9 +1147,10 @@ jobs:
             exit 1
           fi
 
-          # Use default domain if not provided
+          # Validate Cognito domain is present (required for auth)
           if [ -z "$COGNITO_DOMAIN" ] || [ "$COGNITO_DOMAIN" = "null" ] || [ "$COGNITO_DOMAIN" = "None" ]; then
-            COGNITO_DOMAIN="https://algo-dev.auth.us-east-1.amazoncognito.com"
+            echo "[ERROR] COGNITO_DOMAIN from Terraform is empty - cannot build"
+            exit 1
           fi
 
           # Build using build-prod.js with explicit arguments (cross-platform)
@@ -1223,15 +1226,27 @@ jobs:
             --exclude "*" --include "*.wasm"
           echo "[OK] Frontend synced to s3://${BUCKET}/"
 
-      - name: Invalidate CloudFront
+      - name: Invalidate CloudFront Cache
         run: |
-          CF_ID="${{ needs.terraform.outputs.cloudfront_id }}"
-          if [ -n "$CF_ID" ] && [ "$CF_ID" != "None" ]; then
-            aws cloudfront create-invalidation \
-              --distribution-id "$CF_ID" --paths "/*" \
-              --query 'Invalidation.Id' --output text
-            echo "[OK] CloudFront invalidation created"
+          DIST_ID="${{ needs.terraform.outputs.cloudfront_distribution_id }}"
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            echo "ERROR: CloudFront distribution ID not found or empty"
+            exit 1
           fi
+
+          echo "Creating CloudFront cache invalidation for distribution: $DIST_ID"
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DIST_ID" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+
+          if [ -z "$INVALIDATION_ID" ] || [ "$INVALIDATION_ID" = "None" ]; then
+            echo "ERROR: Failed to create CloudFront invalidation"
+            exit 1
+          fi
+
+          echo "[OK] CloudFront cache invalidation created (ID: $INVALIDATION_ID)"
 
   #
   # Run Database Migrations (after Terraform, parallel with Lambda/frontend deploys)

@@ -155,9 +155,21 @@ def fmt_age(ts):
 def fmt_money(v):
     if v is None: return "--"
     v = float(v)
-    if abs(v) >= 1e6: return f"${v / 1e6:.2f}M"
-    if abs(v) >= 1e3: return f"${v:,.0f}"
-    return f"${v:.2f}"
+    s = "-" if v < 0 else ""
+    av = abs(v)
+    if av >= 1e6: return f"{s}${av / 1e6:.2f}M"
+    if av >= 1e3: return f"{s}${av:,.0f}"
+    return f"{s}${av:.2f}"
+
+def fmt_money_short(v):
+    """Compact dollar format: $45K, $1.2M, $850 — for narrow table columns."""
+    if v is None: return "--"
+    v = float(v)
+    s = "-" if v < 0 else ""
+    av = abs(v)
+    if av >= 1e6: return f"{s}${av/1e6:.1f}M"
+    if av >= 1e3: return f"{s}${av/1e3:.0f}K"
+    return f"{s}${av:.0f}"
 
 def grade(s):
     s = float(s)
@@ -726,7 +738,7 @@ def fetch_industry_ranking(c):
     try:
         return q(c, """SELECT industry, current_rank, momentum_score, rank_1w_ago
                        FROM industry_ranking
-                       WHERE date_recorded >= CURRENT_DATE - 5
+                       WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
                        ORDER BY current_rank LIMIT 10""")
     except Exception as e:
         return {"_error": str(e)}
@@ -1043,11 +1055,16 @@ def panel_portfolio(port, cfg):
     cum   = port.get("cumulative_return_pct")
     mxdd  = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
+    snap  = port.get("snapshot_date")
     max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
     pct_c = float(cfg.get("max_pos_pct") or 0) if cfg else 0
     bp    = pv * pct_c / 100 if (pv and pct_c) else cash
     slots = max_n - npos if max_n else None
     slots_s = f"  [dim]open slots:[/][white]{slots}[/]" if slots is not None else ""
+    snap_s = ""
+    if snap is not None:
+        snap_age = fmt_age(snap)
+        snap_s = f"  [dim]snapshot {snap_age}[/]"
     cum_s = ""
     if cum is not None:
         cc = G if float(cum) >= 0 else R
@@ -1056,7 +1073,7 @@ def panel_portfolio(port, cfg):
             cum_s += f"  [dim]Max Drawdown:[/][{R}]{float(mxdd):.1f}%[/]"
     conc_s = f"\n[dim]Largest Position:[/] [white]{float(lgpos):.1f}%[/]" if lgpos is not None else ""
     txt   = Text.from_markup(
-        f"[bold white]{fmt_money(pv)}[/]\n"
+        f"[bold white]{fmt_money(pv)}[/]{snap_s}\n"
         f"[dim]Cash:[/] [white]{fmt_money(cash)}[/]  [dim]Positions:[/][white]{npos}[/]{slots_s}\n"
         f"[dim]Today's Return:[/]  [{G if dr  >= 0 else R}]{sign(dr)}{dr:.2f}%[/]\n"
         f"[dim]Unrealized P&L:[/]  [{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]\n"
@@ -1166,6 +1183,7 @@ def panel_positions(pos, compact=False, trades=None):
     t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
               padding=(0, 1), row_styles=["", "dim"], expand=True)
     t.add_column("Symbol",  style="bold white", no_wrap=True, min_width=6)
+    t.add_column("Val",     justify="right",    no_wrap=True, min_width=5)
     t.add_column("Entry",   justify="right",    no_wrap=True)
     t.add_column("Price",   justify="right",    no_wrap=True)
     t.add_column("P&L%",    justify="right",    no_wrap=True, min_width=7)
@@ -1181,6 +1199,7 @@ def panel_positions(pos, compact=False, trades=None):
     for p in pos:
         entry = float(p.get("avg_entry_price") or 0)
         price = float(p.get("current_price")   or 0)
+        pval  = float(p.get("position_value")  or 0) if p.get("position_value") else None
         stop  = float(p.get("stop_loss_price") or 0) if p.get("stop_loss_price") else None
         t1    = float(p.get("target_1_price")  or 0) if p.get("target_1_price")  else None
         pnl   = float(p.get("unrealized_pnl_pct") or 0)
@@ -1196,6 +1215,7 @@ def panel_positions(pos, compact=False, trades=None):
         dc    = R if (dist or 99) < 3 else (Y if (dist or 99) < 5 else "white")
         row = [
             p.get("symbol") or "--",
+            fmt_money_short(pval) if pval is not None else "--",
             f"${entry:.2f}", f"${price:.2f}",
             Text(f"{sign(pnl)}{pnl:.2f}%", style=pc),
             Text(f"{sign(rmul or 0)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
@@ -1380,13 +1400,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
                 f" [white]{sec[:14]:<14}[/] {bar} [dim]{dv['n']} pos  {pct:.0f}% of portfolio[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% P&L[/]"
             ))
 
-    rows.append(Rule(style="dim"))
-
     # Top sector rankings with 1-week and 4-week rank changes
     valid_srank = [r for r in (srank or [])
                    if not (isinstance(srank, dict) and srank.get("_error"))][:6]
     if valid_srank:
-        rows.append(Rule(style="dim"))
+        if rows:
+            rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Top sectors by rank (momentum score, ▲▼= rank change vs 1wk/4wk):[/]"))
         for a, b in zip(valid_srank[::2], valid_srank[1::2] + [None]):
             na  = (a.get("sector_name") or "")[:10]
@@ -1518,13 +1537,12 @@ def panel_economic_pulse(eco, econ_cal=None):
         from datetime import date
         today = date.today()
         seen_keys = set()
-        for ev in valid_cal[:2]:
+        for ev in valid_cal[:4]:
             ed      = ev.get("event_date")
             full_nm = (ev.get("event_name") or "")
             name    = full_nm[:24]
-            key     = (str(ed) + full_nm[:18]).lower()
+            key     = (str(ed) + full_nm[:24]).lower()
             if key in seen_keys: continue
-            if any(key.startswith(k[:len(key)]) or k.startswith(key) for k in seen_keys): continue
             seen_keys.add(key)
             imp  = (ev.get("importance") or "LOW").upper()
             ic   = IMP_C.get(imp, "dim")
@@ -1806,154 +1824,81 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None):
     return Panel(Group(*rows), title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]", border_style="yellow", padding=(0, 1))
 
 
-# ── mascot sidebar ────────────────────────────────────────────────────────────
+# ── mascot panel (compact — dancing man only) ────────────────────────────────
 
-def mascot_sidebar(data: dict, frame: int, secs_to_refresh: Optional[int] = None) -> Panel:
-    cb      = data.get("cb")   or {}
-    mkt     = data.get("mkt")  or {}
-    port    = data.get("port") or {}
-    perf    = data.get("perf") or {}
-    run     = data.get("run")  or {}
-    notifs  = data.get("notifs") or []
+MASCOT_H = 7   # 1 top border + 1 blank + 3 pose lines + 1 blank + 1 bottom border
+MASCOT_W = 9   # 1 left border + 1 pad + 5 pose chars + 1 pad + 1 right border
 
+
+def mascot_compact(data: dict, frame: int) -> Panel:
     fi   = mascot_pose(data, frame)
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
-    tier = mkt.get("tier", "unknown")
-    tc   = TIER_COLOR.get(tier, "dim")
-    lbl  = TIER_SHORT.get(tier, "ALGO")
-    exp_s  = f"{float(mkt.get('pct') or 0):.0f}%" if mkt.get("pct") is not None else "--"
-    vix_v  = mkt.get("vix")
-    spy_chg = mkt.get("spy_chg")
-
-    lines: list = [
-        Text(""),
-        Text(pose[0], style=f"bold {mc}", justify="center"),
-        Text(pose[1], style=f"bold {mc}", justify="center"),
-        Text(pose[2], style=f"bold {mc}", justify="center"),
-        Text(""),
-    ]
-
-    if cb.get("any"):
-        n_cb = cb.get("n", 0)
-        lines += [
-            Text("!! CB FIRED", style="bold bright_red", justify="center"),
-            Text(f"{n_cb} breaker{'s' if n_cb != 1 else ''}", style=R, justify="center"),
-        ]
-    else:
-        lines += [
-            Text(lbl, style=f"bold {tc}", justify="center"),
-            Text(f"exposure {exp_s}", style="dim", justify="center"),
-        ]
-        if vix_v is not None:
-            vc = R if vix_v >= 30 else (Y if vix_v >= 20 else "green")
-            lines.append(Text(f"VIX {vix_v:.1f}", style=vc, justify="center"))
-        if spy_chg is not None:
-            sc = G if spy_chg >= 0 else R
-            lines.append(Text(f"SPY {sign(spy_chg)}{spy_chg:.1f}%", style=sc, justify="center"))
-
-    # Separator
-    lines.append(Text("──────────────", style="dim", justify="center"))
-
-    # Portfolio snapshot
-    pv   = port.get("total_portfolio_value")
-    dr   = port.get("daily_return_pct")
-    npos = port.get("position_count")
-    urp  = port.get("unrealized_pnl_pct")
-    if pv is not None:
-        lines.append(Text(fmt_money(float(pv)), style="bold white", justify="center"))
-    if dr is not None:
-        dr_v = float(dr)
-        dr_c = G if dr_v >= 0 else R
-        lines.append(Text(f"{sign(dr_v)}{dr_v:.2f}% today", style=dr_c, justify="center"))
-    if urp is not None:
-        urp_v = float(urp)
-        urp_c = G if urp_v >= 0 else R
-        lines.append(Text(f"{sign(urp_v)}{urp_v:.2f}% unrlzd", style=urp_c, justify="center"))
-    if npos is not None:
-        lines.append(Text(f"{npos} positions", style="dim", justify="center"))
-
-    # Trading performance summary
-    wr  = perf.get("wr")
-    pnl = perf.get("pnl")
-    n_t = perf.get("n", 0)
-    if n_t and n_t > 0:
-        lines.append(Text("──────────────", style="dim", justify="center"))
-        if wr is not None:
-            wr_c = G if float(wr) >= 50 else R
-            lines.append(Text(f"{float(wr):.0f}% win rate", style=wr_c, justify="center"))
-        if pnl is not None:
-            pnl_v = float(pnl)
-            pnl_c = G if pnl_v >= 0 else R
-            lines.append(Text(f"P&L {fmt_money(pnl_v)}", style=pnl_c, justify="center"))
-        lines.append(Text(f"{n_t} trades", style="dim", justify="center"))
-
-    # Last run status
-    if run and not run.get("_error") and run.get("run_at"):
-        age = fmt_age(run.get("run_at"))
-        st_s = "✓ last run" if run.get("success") and not run.get("halted") else "~ halted" if run.get("halted") else "✗ error"
-        st_c = G if run.get("success") and not run.get("halted") else (Y if run.get("halted") else R)
-        lines.append(Text("──────────────", style="dim", justify="center"))
-        lines.append(Text(st_s, style=st_c, justify="center"))
-        lines.append(Text(age, style="dim", justify="center"))
-
-    # Unread notifications
-    unread = [n for n in notifs if not n.get("seen", True)] if notifs else []
-    if unread:
-        lines.append(Text(f"● {len(unread)} alert{'s' if len(unread) != 1 else ''}", style="bold yellow", justify="center"))
-
-    if secs_to_refresh is not None:
-        lines += [Text(""), Text(f"refresh in {secs_to_refresh}s", style="dim", justify="center")]
-
     return Panel(
-        Group(*lines),
-        title="[bold white]ALGO[/]",
-        border_style=mc,
-        padding=(0, 0),
-    )
-
-
-# ── loading layout — mascot always in upper right ─────────────────────────────
-
-def loading_layout(frame: int) -> Layout:
-    """Show mascot in sidebar + loading message in main — same structure as full dashboard."""
-    fi   = LOAD_SEQ[(frame // 4) % len(LOAD_SEQ)]   # 2fps animation
-    mc   = MASCOT_COLORS[fi]
-    pose = MASCOT_FRAMES[fi]
-    dots = "." * ((frame // 2 % 4) + 1)             # dots cycle at ~1Hz
-
-    sidebar = Panel(
         Group(
             Text(""),
             Text(pose[0], style=f"bold {mc}", justify="center"),
             Text(pose[1], style=f"bold {mc}", justify="center"),
             Text(pose[2], style=f"bold {mc}", justify="center"),
             Text(""),
-            Text(f"Loading{dots}", style="dim", justify="center"),
         ),
-        title="[bold white]ALGO[/]",
         border_style=mc,
         padding=(0, 0),
     )
 
+
+# ── loading layout — mascot compact in top-right ──────────────────────────────
+
+def loading_layout(frame: int) -> Layout:
+    """Show compact mascot in top-right corner with loading message below."""
+    fi   = LOAD_SEQ[(frame // 4) % len(LOAD_SEQ)]   # 2fps animation
+    mc   = MASCOT_COLORS[fi]
+    pose = MASCOT_FRAMES[fi]
+    dots = "." * ((frame // 2 % 4) + 1)             # dots cycle at ~1Hz
+
+    mascot_panel = Panel(
+        Group(
+            Text(""),
+            Text(pose[0], style=f"bold {mc}", justify="center"),
+            Text(pose[1], style=f"bold {mc}", justify="center"),
+            Text(pose[2], style=f"bold {mc}", justify="center"),
+            Text(""),
+        ),
+        border_style=mc,
+        padding=(0, 0),
+    )
+
+    hdr_text = Text.from_markup(
+        f"[bold white]ALGO OPS DASHBOARD[/]  [dim]{dots}[/]"
+    )
+    hdr_panel = Panel(
+        Align(hdr_text, vertical="middle"),
+        border_style="blue",
+        padding=(0, 1),
+    )
+
     loading_body = Text.from_markup(
-        f"\n\n\n[bold white]  ALGO OPS DASHBOARD[/]\n\n"
-        f"  [dim]Fetching market data{dots}[/]\n\n"
+        f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
         f"  [dim]Connecting to database...[/]"
     )
-    main = Panel(
+    main_panel = Panel(
         Align(loading_body, align="left", vertical="middle"),
         border_style="blue",
         padding=(0, 1),
     )
 
     layout = Layout()
-    layout.split_row(
-        Layout(name="main",    ratio=1),
-        Layout(name="sidebar", size=18),
+    layout.split_column(
+        Layout(name="top", size=MASCOT_H),
+        Layout(name="main", ratio=1),
     )
-    layout["main"].update(main)
-    layout["sidebar"].update(sidebar)
+    layout["top"].split_row(
+        Layout(name="hdr",    ratio=1),
+        Layout(name="mascot", size=MASCOT_W),
+    )
+    layout["top"]["hdr"].update(hdr_panel)
+    layout["top"]["mascot"].update(mascot_panel)
+    layout["main"].update(main_panel)
     return layout
 
 
@@ -1995,22 +1940,21 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     if watch_interval is not None and last_load_time is not None:
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
 
-    # Outer split: main content | mascot sidebar
+    # Outer: top row (compact mascot + header) then content rows
     outer = Layout()
-    outer.split_row(
-        Layout(name="main",    ratio=1),
-        Layout(name="sidebar", size=18),
+    outer.split_column(
+        Layout(name="top", size=MASCOT_H),
+        Layout(name="r1",  ratio=1),
+        Layout(name="r2",  ratio=1),
+        Layout(name="pos", ratio=2),   # positions gets 2x height
+        Layout(name="r3",  ratio=1),
+        Layout(name="r4",  ratio=1),
     )
 
-    # Main content: header + 5 rows using ratio splits (adapts to terminal height)
-    main = Layout()
-    main.split_column(
-        Layout(name="hdr",  size=1),
-        Layout(name="r1",   ratio=1),
-        Layout(name="r2",   ratio=1),
-        Layout(name="pos",  ratio=2),  # positions gets 2x height
-        Layout(name="r3",   ratio=1),
-        Layout(name="r4",   ratio=1),
+    # Top row: header panel on the left, compact dancing man on the right
+    outer["top"].split_row(
+        Layout(name="hdr",    ratio=1),
+        Layout(name="mascot", size=MASCOT_W),
     )
 
     cb_fired = cb.get("any", False)
@@ -2018,48 +1962,48 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     fired_names = [b["lbl"] for b in (cb.get("bs") or []) if b.get("fired")]
     if cb_fired:
         fired_str = " · ".join(fired_names)
-        hdr_rule = Rule(
-            f"[bold bright_red]⚠ CB FIRED: {fired_str}[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]",
-            style="bright_red"
+        hdr_content = Text.from_markup(
+            f"[bold bright_red]⚠ CB FIRED: {fired_str}[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]"
         )
+        hdr_panel = Panel(Align(hdr_content, vertical="middle"), border_style="bright_red", padding=(0, 1))
     else:
-        hdr_rule = Rule(
-            f"[bold white]ALGO OPS DASHBOARD[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]",
-            style="blue"
+        hdr_content = Text.from_markup(
+            f"[bold white]ALGO OPS DASHBOARD[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]"
         )
-    main["hdr"].update(hdr_rule)
+        hdr_panel = Panel(Align(hdr_content, vertical="middle"), border_style="blue", padding=(0, 1))
+
+    outer["top"]["hdr"].update(hdr_panel)
+    outer["top"]["mascot"].update(mascot_compact(data, frame))
 
     # Row 1: Orchestrator | Market (full: regime + internals) | Circuit Breakers
-    main["r1"].split_row(
+    outer["r1"].split_row(
         Layout(panel_orch(run, cfg, risk),              name="orch"),
         Layout(panel_market_full(mkt, sentiment),       name="market"),
         Layout(panel_circuit(cb),                       name="circuit"),
     )
 
     # Row 2: Portfolio | Performance + sparkline | Economic pulse
-    main["r2"].split_row(
+    outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg),                          name="portfolio"),
         Layout(panel_performance_spark(perf, rec, perf_anl),       name="perf"),
         Layout(panel_economic_pulse(eco, econ_cal),                 name="eco"),
     )
 
     # Row 3: Positions (full width, 2x height) — includes pending trades
-    main["pos"].update(panel_positions(pos, compact, trades=rec))
+    outer["pos"].update(panel_positions(pos, compact, trades=rec))
 
     # Row 4: Signals | Sectors (exposure + ranking) — signals gets more space (more data)
-    main["r3"].split_row(
+    outer["r3"].split_row(
         Layout(panel_signals_compact(sig, sig_eval), ratio=3, name="signals"),
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
     )
 
     # Row 5: Exposure factors | Activity + health + notifications
-    main["r4"].split_row(
+    outer["r4"].split_row(
         Layout(panel_exposure_compact(exp_f), ratio=3, name="exposure"),
         Layout(panel_status(act, hlth, notifs, algo_metrics, loader, audit), ratio=2, name="status"),
     )
 
-    outer["main"].update(main)
-    outer["sidebar"].update(mascot_sidebar(data, frame, secs))
     return outer
 
 
@@ -2208,6 +2152,7 @@ PANELS:
     Avg Loss R      Average R-multiple on losing trades (should be < 1.0)
 
   POSITIONS — currently open trades
+    Val             Current dollar value of the position ($45K, $1.2M)
     Entry           Average cost basis per share
     Price           Current market price
     P&L%            Unrealized gain/loss %

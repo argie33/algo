@@ -125,60 +125,82 @@ window.addEventListener("unhandledrejection", function (e) {
 // Application initialization
 
 // Smart service worker and cache management
-// Only clear stale caches on deploy version change, not on every load
+// Detect configuration staleness and aggressively clear caches on deploy
 const checkAndClearStaleCache = async () => {
   const CACHE_VERSION_KEY = 'app-cache-version';
+  const CONFIG_HASH_KEY = 'app-config-hash';
   const CURRENT_VERSION = import.meta.env.VITE_BUILD_TIME || new Date().toISOString().split('T')[0];
 
   try {
-    // Check if we have a cached version stored
+    // Detect config staleness by checking if config.js URL has cache-bust parameter
+    // If the URL in index.html has a v= parameter, compute a hash of it
+    // This helps us detect when a new build was deployed (new cache-bust value)
+    let configUrlHash = '';
+    const scripts = Array.from(document.querySelectorAll('script'));
+    const configScript = scripts.find(s => s.src && s.src.includes('config.js'));
+    if (configScript && configScript.src) {
+      // Extract and hash the config.js URL (including any v= parameter)
+      // This uniquely identifies the deployed version
+      configUrlHash = configScript.src;
+    }
+
     const storedVersion = localStorage.getItem(CACHE_VERSION_KEY);
+    const storedConfigHash = localStorage.getItem(CONFIG_HASH_KEY);
 
-    if (storedVersion && storedVersion !== CURRENT_VERSION) {
-      logger.info(`Cache version changed (${storedVersion} → ${CURRENT_VERSION}), clearing stale caches`);
+    // Trigger cache clear if EITHER version or config URL changed
+    const versionChanged = storedVersion && storedVersion !== CURRENT_VERSION;
+    const configChanged = storedConfigHash && storedConfigHash !== configUrlHash;
 
-      // Phase 1: Clear caches BEFORE unregistering service workers
-      // This ensures old workers don't serve stale content during unregistration
+    if (versionChanged || configChanged) {
+      const reason = versionChanged ? `version (${storedVersion} → ${CURRENT_VERSION})` : 'config URL';
+      logger.info(`Deploy detected via ${reason}, clearing all stale caches`);
+
+      // Phase 1: Clear ALL caches aggressively (not just api-*)
+      // This ensures stale config.js and all related resources are removed
       if ("caches" in window) {
         try {
           const cacheNames = await caches.keys();
-          // Delete API response caches that may have stale endpoints
-          const cacheNamesToDelete = cacheNames.filter(name =>
-            name.startsWith('api-') || name.includes('http') || name === 'v1'
-          );
 
-          // Wait for all caches to be deleted before continuing
+          // Delete all caches on version change to ensure fresh config load
           await Promise.all(
-            cacheNamesToDelete.map(name =>
+            cacheNames.map(name =>
               caches.delete(name).catch(err => {
                 console.warn(`Failed to delete cache '${name}':`, err.message);
-                // Don't rethrow - continue deleting other caches
               })
             )
           );
-          logger.info(`Cleared ${cacheNamesToDelete.length} stale cache stores`);
+          logger.info(`Cleared ${cacheNames.length} cache stores (full purge on deploy)`);
         } catch (error) {
-          logger.warn("Failed to clear caches on version change", error);
+          logger.warn("Failed to clear caches on deploy detection", error);
         }
       }
 
-      // Phase 2: Unregister old service workers (after caches are cleared)
-      // This prevents race condition where old worker serves stale assets
+      // Phase 2: Unregister all service workers (after caches are cleared)
+      // This forces browser to fetch fresh resources from network
       if ("serviceWorker" in navigator) {
         try {
           const registrations = await navigator.serviceWorker.getRegistrations();
-          for (let registration of registrations) {
-            await registration.unregister();
-          }
-          logger.info(`Unregistered ${registrations.length} old service worker(s)`);
+          await Promise.all(
+            registrations.map(reg => reg.unregister())
+          );
+          logger.info(`Unregistered ${registrations.length} service worker(s) on deploy`);
         } catch (error) {
           logger.warn("Failed to unregister service workers", error);
         }
       }
+
+      // Phase 3: Clear HTTP cache headers by invalidating browser's cached state
+      // Ensure next page load hits network for critical resources
+      if (performance && performance.clearResourceTimings) {
+        performance.clearResourceTimings();
+      }
     }
 
-    // Update stored version (after cleanup complete)
+    // Update stored identifiers (after cleanup complete)
     localStorage.setItem(CACHE_VERSION_KEY, CURRENT_VERSION);
+    if (configUrlHash) {
+      localStorage.setItem(CONFIG_HASH_KEY, configUrlHash);
+    }
   } catch (error) {
     logger.warn("Cache version check failed (non-critical)", error);
   }
@@ -223,6 +245,8 @@ const waitForConfig = async () => {
   return new Promise((resolve, reject) => {
     const CONFIG_TIMEOUT = 10000; // 10 seconds (increased from 5s for slow networks)
     let configLoaded = false;
+    let detectionAttempts = 0;
+    const MAX_STALE_DETECTION_ATTEMPTS = 3; // Detect stale config after 3 attempts
 
     const timeout = setTimeout(() => {
       if (!configLoaded) {
@@ -247,6 +271,8 @@ const waitForConfig = async () => {
     // Poll for config with adaptive frequency
     // Check for ENVIRONMENT property instead of API_URL (which is intentionally empty in dev mode)
     const pollInterval = setInterval(() => {
+      detectionAttempts++;
+
       if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
         configLoaded = true;
         clearTimeout(timeout);
@@ -257,6 +283,36 @@ const waitForConfig = async () => {
         });
         configureAmplify();
         resolve();
+      }
+
+      // Stale config detection: if config still not loaded after multiple attempts,
+      // and service worker is present, likely the service worker is serving stale config.js
+      // Force reload to clear service worker cache
+      if (detectionAttempts >= MAX_STALE_DETECTION_ATTEMPTS && !configLoaded) {
+        if ("serviceWorker" in navigator) {
+          logger.warn(
+            "Config load stalled - likely stale service worker cache. " +
+            "Clearing service workers and reloading...",
+            { attempts: detectionAttempts }
+          );
+          clearTimeout(timeout);
+          clearInterval(pollInterval);
+
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            Promise.all(registrations.map(r => r.unregister()))
+              .then(() => {
+                // Hard reload bypasses all caches
+                window.location.reload(true);
+              })
+              .catch(err => {
+                logger.warn("Failed to unregister during stale detection", err);
+                window.location.reload(true);
+              });
+          }).catch(err => {
+            logger.warn("Failed to get registrations during stale detection", err);
+            window.location.reload(true);
+          });
+        }
       }
     }, 50);
   });

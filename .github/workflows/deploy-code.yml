@@ -137,6 +137,15 @@ jobs:
           if not outputs.get('algo_lambda_function_name'):
             print("ERROR: algo_lambda_function_name output missing")
             sys.exit(1)
+          if not outputs.get('cognito_user_pool_id'):
+            print("ERROR: cognito_user_pool_id output missing - cannot configure authentication")
+            sys.exit(1)
+          if not outputs.get('cognito_user_pool_client_id'):
+            print("ERROR: cognito_user_pool_client_id output missing - cannot configure authentication")
+            sys.exit(1)
+          if not outputs.get('cognito_domain_url'):
+            print("ERROR: cognito_domain_url output missing - cannot configure authentication")
+            sys.exit(1)
 
           # Export all outputs to GitHub Actions
           github_output = os.environ.get('GITHUB_OUTPUT')
@@ -1314,6 +1323,7 @@ jobs:
           import json
           import os
           import subprocess
+          import sys
 
           website_url = "${{ needs.resolve-infra.outputs.website_url }}"
           cognito_pool_id = "${{ needs.resolve-infra.outputs.cognito_user_pool_id }}"
@@ -1344,16 +1354,16 @@ jobs:
               print(f"CloudFront discovery failed: {e} - using relative paths")
 
           if not cognito_pool_id or cognito_pool_id in ['null', 'None', '***', '']:
-            print("WARNING: Cognito user pool ID not available")
-            cognito_pool_id = ""
+            print("ERROR: Cognito user pool ID from Terraform is empty - cannot build")
+            sys.exit(1)
 
           if not cognito_client_id or cognito_client_id in ['null', 'None', '***', '']:
-            print("WARNING: Cognito client ID not available")
-            cognito_client_id = ""
+            print("ERROR: Cognito client ID from Terraform is empty - cannot build")
+            sys.exit(1)
 
           if not cognito_domain or cognito_domain in ['null', 'None', '***', '']:
-            print("WARNING: Cognito domain not available")
-            cognito_domain = f"https://algo-dev.auth.{region}.amazoncognito.com"
+            print("ERROR: Cognito domain from Terraform is empty - cannot build")
+            sys.exit(1)
 
           # Generate config.js with string concatenation (avoids YAML parsing issues)
           config_js = "window.__CONFIG__ = {" + "\n"

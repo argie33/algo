@@ -76,6 +76,22 @@ try {
     env,
   });
 
+  // Inject build hash into index.html for config.js cache busting
+  console.log("📝 Injecting cache-bust parameter into index.html...");
+  const buildHash = Date.now().toString(36); // Short unique identifier
+  const indexHtmlPath = path.join(projectRoot, "dist", "index.html");
+
+  if (fs.existsSync(indexHtmlPath)) {
+    let indexContent = fs.readFileSync(indexHtmlPath, "utf8");
+    // Replace config.js src with cache-busted version
+    indexContent = indexContent.replace(
+      '<script src="/config.js"',
+      `<script src="/config.js?v=${buildHash}"`
+    );
+    fs.writeFileSync(indexHtmlPath, indexContent, "utf8");
+    console.log(`✓ Cache-bust parameter added: ?v=${buildHash}`);
+  }
+
   // Verify dist/config.js exists
   const distConfigPath = path.join(projectRoot, "dist", "config.js");
   if (!fs.existsSync(distConfigPath)) {
