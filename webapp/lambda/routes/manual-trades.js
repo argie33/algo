@@ -7,6 +7,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const { createInputValidationMiddleware, inputSchemas } = require('../middleware/dataValidationMiddleware');
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows, validateAndCoerceRow } = require('../utils/responseValidation');
 const router = express.Router();
 
 // Require authentication for all manual trades operations
@@ -27,9 +28,22 @@ router.get('/', async (req, res) => {
       [userId]
     );
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      id: { type: 'int', required: true },
+      symbol: { type: 'string', required: true },
+      trade_type: { type: 'string', required: false },
+      quantity: { type: 'float', required: false },
+      price: { type: 'float', required: false },
+      execution_date: { type: 'date', required: false }
+    });
+
     return sendSuccess(res, {
-      trades: result.rows || [],
-      count: result.rowCount || 0
+      trades: validated,
+      count: validated.length
     });
   } catch (err) {
     console.error('Error fetching manual trades', err);
@@ -53,11 +67,24 @@ router.get('/:id', async (req, res) => {
       [id, userId]
     );
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     if (result.rowCount === 0) {
       return sendError(res, 'Trade not found', 404, 'NOT_FOUND');
     }
 
-    return sendSuccess(res, result.rows[0]);
+    // Validate and coerce the single row
+    const trade = validateAndCoerceRow(result.rows[0], {
+      id: { type: 'int', required: true },
+      symbol: { type: 'string', required: true },
+      trade_type: { type: 'string', required: false },
+      quantity: { type: 'float', required: false },
+      price: { type: 'float', required: false },
+      execution_date: { type: 'date', required: false }
+    });
+
+    return sendSuccess(res, trade);
   } catch (err) {
     console.error('Error fetching trade', err);
     return sendError(res, 'Failed to fetch trade', 500, 'DB_ERROR');
@@ -91,11 +118,17 @@ router.post('/', createInputValidationMiddleware(inputSchemas.manualTrade), asyn
       [userId, symbol.toUpperCase(), tradeType, qty, prc, tradeDate]
     );
 
-    if (result.rowCount === 0) {
-      return sendError(res, 'Failed to create trade', 500);
-    }
+    // Validate result structure
+    validateQueryResult(result, { minRows: 1, maxRows: 1 });
 
-    const trade = result.rows[0];
+    const trade = validateAndCoerceRow(result.rows[0], {
+      id: { type: 'int', required: true },
+      symbol: { type: 'string', required: true },
+      trade_type: { type: 'string', required: false },
+      quantity: { type: 'float', required: false },
+      price: { type: 'float', required: false },
+      execution_date: { type: 'date', required: false }
+    });
 
     // Update portfolio_holdings with the new position (for buy/sell trades)
     if (['BUY', 'SELL'].includes(tradeType)) {
@@ -129,11 +162,19 @@ router.patch('/:id', createInputValidationMiddleware(inputSchemas.manualTrade), 
       [id, userId]
     );
 
+    // Validate existing result
+    validateQueryResult(existingResult, { requireRows: false });
+
     if (existingResult.rowCount === 0) {
       return sendError(res, 'Trade not found', 404);
     }
 
-    const existing = existingResult.rows[0];
+    const existing = validateAndCoerceRow(existingResult.rows[0], {
+      symbol: { type: 'string', required: true },
+      type: { type: 'string', required: false },
+      quantity: { type: 'float', required: false },
+      execution_price: { type: 'float', required: false }
+    });
 
     // Prepare update values
     const newSymbol = symbol ? symbol.toUpperCase() : existing.symbol;
@@ -163,9 +204,25 @@ router.patch('/:id', createInputValidationMiddleware(inputSchemas.manualTrade), 
       [newSymbol, newType, newQty, newPrice, newDate, newOrderValue, newComm, id]
     );
 
+    // Validate update result
+    validateQueryResult(result, { minRows: 1, maxRows: 1 });
+
     if (result.rowCount === 0) {
       return sendError(res, 'Trade not found', 404);
     }
+
+    // Validate and coerce the updated trade
+    const updatedTrade = validateAndCoerceRow(result.rows[0], {
+      id: { type: 'int', required: true },
+      symbol: { type: 'string', required: true },
+      trade_type: { type: 'string', required: false },
+      quantity: { type: 'float', required: false },
+      price: { type: 'float', required: false },
+      order_value: { type: 'float', required: false },
+      commission: { type: 'float', required: false },
+      total_cost: { type: 'float', required: false },
+      execution_date: { type: 'date', required: false }
+    });
 
     // Recompute portfolio holdings for the symbol
     if (['BUY', 'SELL'].includes(existing.type)) {
@@ -183,7 +240,7 @@ router.patch('/:id', createInputValidationMiddleware(inputSchemas.manualTrade), 
       }
     }
 
-    return sendSuccess(res, result.rows[0]);
+    return sendSuccess(res, updatedTrade);
   } catch (err) {
     console.error('Error updating trade:', err.message);
     return sendError(res, 'Failed to update trade', 500);
@@ -254,13 +311,13 @@ async function updatePortfolioHoldings(userId, symbol, side, quantity, price) {
     }
 
     await dbQuery(
-      `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id, symbol) DO UPDATE SET
          quantity = $3,
          average_cost = $4,
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, symbol, newQty, newAvgCost, price, newQty * price]
+      [userId, symbol, newQty, newAvgCost, price]
     );
   } else if (side === 'SELL') {
     const currentResult = await dbQuery(
@@ -284,7 +341,7 @@ async function updatePortfolioHoldings(userId, symbol, side, quantity, price) {
     } else {
       await dbQuery(
         `UPDATE portfolio_holdings
-         SET quantity = $3, market_value = $3 * current_price, updated_at = CURRENT_TIMESTAMP
+         SET quantity = $3, updated_at = CURRENT_TIMESTAMP
          WHERE user_id = $1 AND symbol = $2`,
         [userId, symbol, newQty]
       );
