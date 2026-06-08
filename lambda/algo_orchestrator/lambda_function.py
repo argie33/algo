@@ -71,6 +71,32 @@ def lambda_handler(event, context):
                 'body': json.dumps({'status': 'error', 'message': 'Event must be a JSON object'})
             }
 
+        # Seed mode: insert price rows directly into price_daily so today's intraday
+        # price is visible to circuit breakers before the EOD pipeline runs.
+        # Usage: {"seed_prices": [{"symbol": "SPY", "date": "2026-06-08", "open": 743.35,
+        #          "high": 745.18, "low": 744.99, "close": 745.16, "volume": 50000}]}
+        if event.get('seed_prices'):
+            from utils.database_context import DatabaseContext
+            rows = event['seed_prices']
+            inserted = []
+            with DatabaseContext('write') as cur:
+                for row in rows:
+                    cur.execute(
+                        """INSERT INTO price_daily (symbol, date, open, high, low, close, volume, adj_close)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (symbol, date) DO UPDATE
+                             SET open=EXCLUDED.open, high=EXCLUDED.high, low=EXCLUDED.low,
+                                 close=EXCLUDED.close, volume=EXCLUDED.volume,
+                                 adj_close=EXCLUDED.adj_close""",
+                        (row['symbol'], row['date'], row.get('open'), row.get('high'),
+                         row.get('low'), row['close'], row.get('volume'), row.get('adj_close', row['close']))
+                    )
+                    inserted.append(f"{row['symbol']}@{row['date']}={row['close']}")
+            logger.info(f"[SEED] Inserted/updated prices: {inserted}")
+            if not event.get('then_run_orchestrator'):
+                return {'statusCode': 200, 'body': json.dumps({'status': 'seeded', 'rows': inserted})}
+            # Continue to run orchestrator with fresh prices
+
         # Parse event payload
         source = event.get('source', 'eventbridge')
         is_test = event.get('test', False)
