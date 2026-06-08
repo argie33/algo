@@ -1704,52 +1704,76 @@ def panel_exposure_compact(exp_f):
                  border_style="blue", padding=(0, 1))
 
 
-def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None):
+def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, run=None):
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
     rows: list = []
 
-    # Activity phases
-    if act and not act.get("_error"):
-        rid    = (act.get("run_id") or "")[:26]
-        phases = act.get("phases") or []
-        recent = act.get("recent_actions") or []
-        if rid:
-            rows.append(Text.from_markup(f"[dim]Run:[/] [white]{rid}[/]"))
-        phase_badges = []
-        for p in phases:
+    # Run ID + age — prefer exec_log source over activity log
+    run_id = (run.get("run_id") or "") if run and not run.get("_error") else ""
+    run_at = run.get("run_at") if run else None
+    if not run_id and act and not act.get("_error"):
+        run_id = (act.get("run_id") or "")[:26]
+        run_at = act.get("run_at")
+    if run_id:
+        age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
+        rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:26]}[/]{age_s}"))
+
+    # Phase grid — named phases from exec_log, or numbered fallback from audit_log
+    phase_badges = []
+    if run and not run.get("_error") and run.get("_source") == "exec_log":
+        for p in (run.get("phase_results") or []):
+            raw   = (p.get("name") or p.get("phase", "")).lower()
+            parts = raw.split("_")
+            base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
+            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
+            ps    = (p.get("status") or "").lower()
+            sc    = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
+            si    = "+" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "!")
+            phase_badges.append(f"[{sc}]{si}{short}[/]")
+        halt_r = run.get("halt_reason") or ""
+        if halt_r:
+            rows.append(Text.from_markup(f"[{Y}]Halt: {halt_r[:55]}[/]"))
+    elif act and not act.get("_error"):
+        for p in (act.get("phases") or []):
             at = p.get("action_type", "")
             if not at.startswith("phase_"): continue
             parts = at.split("_")
-            num = parts[1] if len(parts) > 1 else "?"
-            st  = p.get("status", "")
-            sc  = G if st == "success" else (Y if st in ("halt","warn","halted") else R)
-            si  = "+" if st == "success" else ("~" if st in ("halt","warn","halted") else "!")
-            phase_badges.append(f"[{sc}]{si}P{num}[/]")
-        if phase_badges:
-            rows.append(Text.from_markup(" ".join(phase_badges)))
+            if len(parts) > 2: continue  # skip sub-phases
+            num   = parts[1] if len(parts) > 1 else "?"
+            short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:9]
+            st    = p.get("status", "")
+            sc    = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
+            si    = "+" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "!")
+            phase_badges.append(f"[{sc}]{si}{short}[/]")
+    if phase_badges:
+        rows.append(Text.from_markup("  ".join(phase_badges)))
 
-        trade_evts = [a for a in recent if a.get("action_type") in
-                      ("entry_executed","exit_executed","entry_rejected","position_exited")]
-        for a in trade_evts[:3]:
-            at  = a.get("action_type", "")
-            det = a.get("details") or {}
-            if isinstance(det, str):
-                try: det = json.loads(det)
-                except: det = {}
-            sym = det.get("symbol", "")
-            ic  = G if "executed" in at else R
-            lbl = at.replace("_", " ").title()[:20]
-            rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
+    # Recent trade events (entry/exit/order) from audit_log
+    recent = (act.get("recent_actions") or []) if (act and not act.get("_error")) else []
+    trade_evts = [a for a in recent if a.get("action_type") in
+                  ("entry_executed","exit_executed","entry_rejected","position_exited",
+                   "order_placed","order_rejected")]
+    for a in trade_evts[:4]:
+        at  = a.get("action_type", "")
+        det = a.get("details") or {}
+        if isinstance(det, str):
+            try: det = json.loads(det)
+            except: det = {}
+        sym = det.get("symbol", "")
+        ic  = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
+        lbl = at.replace("_", " ").title()[:20]
+        rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
 
     # Data health (stale tables only)
     if hlth:
         rows.append(Rule(style="dim"))
         stale = [r for r in hlth if r.get("st") != "ok"]
         if not stale:
-            all_ok_txt = "  ".join(
-                f"[{G}]✓[/][dim]{r.get('tbl','')[:8]}[/]" for r in hlth[:4]
-            )
             rows.append(Text.from_markup(f"[{G}]✓ Data OK[/]  [dim]{len(hlth)} tables[/]"))
+            crit = [r for r in hlth if r.get("role") == "CRIT"]
+            if crit:
+                crit_parts = "  ".join(f"[{G}]✓[/][dim]{r.get('tbl','')[:13]}[/]" for r in crit)
+                rows.append(Text.from_markup(f"  {crit_parts}"))
         else:
             for r in stale[:4]:
                 nm  = (r.get("tbl") or "--")[:10]
@@ -1789,7 +1813,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None):
     if valid_metrics:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
-        for m in valid_metrics[:3]:
+        for m in valid_metrics[:5]:
             d   = m.get("date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
             ta  = int(m.get("total_actions") or 0)

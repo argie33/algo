@@ -272,9 +272,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "stock_prices_daily"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
+          loader_name        = "stock_prices_daily"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = true
         }
         ResultPath = "$.failureLog"
@@ -284,8 +284,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           MaxAttempts     = 2
           BackoffRate     = 2.0
         }]
-        # CRITICAL LOADER (FAIL-CLOSED): Don't catch errors. If handler fails, let pipeline fail loudly.
-        # This forces underlying issues (yfinance rate limiting, RDS problems) to be fixed rather than masked.
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PriceLoadFailureHalt"
+          ResultPath  = "$.handlerError"
+        }]
         Next = "PriceLoadFailureHalt"
       }
 
@@ -625,9 +628,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "swing_trader_scores"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
+          loader_name        = "swing_trader_scores"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = true
         }
         ResultPath = "$.failureLog"
@@ -637,8 +640,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           MaxAttempts     = 2
           BackoffRate     = 2.0
         }]
-        # CRITICAL LOADER (FAIL-CLOSED): swing_trader_scores is needed for Phase 5 signal generation.
-        # If it fails, pipeline halts to prevent trading on incomplete data.
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SwingScoresFailureHalt"
+          ResultPath  = "$.handlerError"
+        }]
         Next = "SwingScoresFailureHalt"
       }
 
