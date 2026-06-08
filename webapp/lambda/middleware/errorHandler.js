@@ -43,6 +43,12 @@ const errorHandler = (err, req, res, _next) => {
     message = "Dependency Error";
     details = "Missing required dependencies";
     code = 'DEPENDENCY_ERROR';
+  } else if (err.code === 'DB_CONNECTION_FAILED') {
+    // Database connection explicitly failed (ensureConnection() thrown error)
+    status = 503;
+    message = "Database service unavailable";
+    details = "Cannot connect to database. Please try again later.";
+    code = 'DB_CONNECTION_FAILED';
   } else if (err.code === 'ECONNREFUSED' && err.address) {
     status = 503;
     message = "Database Connection Error";
