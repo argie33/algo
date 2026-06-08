@@ -6,7 +6,7 @@ import os
 from utils.database_context import DatabaseContext
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date as _date_type
 from utils.trade_status import TradeStatus, PositionStatus
 from algo.algo_config import get_config, get_api_timeout
 from algo.algo_notifications import notify
@@ -38,6 +38,10 @@ class DailyReconciliation:
         """Run full daily reconciliation."""
         if not reconcile_date:
             reconcile_date = datetime.now(timezone.utc).date()
+        elif isinstance(reconcile_date, str):
+            reconcile_date = datetime.strptime(reconcile_date, '%Y-%m-%d').date()
+        elif hasattr(reconcile_date, 'date') and not isinstance(reconcile_date, _date_type):
+            reconcile_date = reconcile_date.date()
 
         try:
             logger.info(f"\n{'='*70}")

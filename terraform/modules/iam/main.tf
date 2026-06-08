@@ -688,22 +688,26 @@ data "aws_iam_policy_document" "ecs_task" {
     }
   }
 
-  # DynamoDB (halt flag, distributed locks, watermarks)
-  # Used by: orchestrator halt flag check, distributed locking, watermark tracking
+  # DynamoDB (halt flag, distributed locks, watermarks, phase1 cache)
+  # Used by: orchestrator halt flag check, distributed locking, watermark tracking, Phase 1 freshness cache
   statement {
     sid    = "DynamoDBHaltFlagAndLocks"
     effect = "Allow"
 
     actions = [
       "dynamodb:GetItem",
+      "dynamodb:PutItem",
       "dynamodb:UpdateItem",
+      "dynamodb:DeleteItem",
       "dynamodb:Query",
       "dynamodb:Scan"
     ]
 
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-*",
-      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/orchestrator-*"
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/orchestrator-*",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_orchestrator_state",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_phase1_cache"
     ]
   }
 
@@ -941,7 +945,8 @@ data "aws_iam_policy_document" "lambda_algo" {
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/database*",
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/alpaca*",
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/fred*",
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/orchestrator*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/orchestrator*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-algo-secrets*"
     ]
   }
 
@@ -1032,7 +1037,8 @@ data "aws_iam_policy_document" "lambda_algo" {
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-${var.environment}",
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-status-${var.environment}",
-      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_orchestrator_state"
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_orchestrator_state",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_phase1_cache"
     ]
   }
 
@@ -1278,6 +1284,18 @@ data "aws_iam_policy_document" "developer" {
   }
 
   # Step Functions (start executions and check status for manual testing)
+  # ListStateMachines is account-level and must use "*" — it does not support resource ARN scoping
+  statement {
+    sid    = "StepFunctionsList"
+    effect = "Allow"
+
+    actions = [
+      "states:ListStateMachines"
+    ]
+
+    resources = ["*"]
+  }
+
   statement {
     sid    = "StepFunctionsStartExecution"
     effect = "Allow"
@@ -1287,7 +1305,6 @@ data "aws_iam_policy_document" "developer" {
       "states:DescribeExecution",
       "states:GetExecutionHistory",
       "states:ListExecutions",
-      "states:ListStateMachines",
       "states:DescribeStateMachine"
     ]
 

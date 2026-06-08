@@ -1134,8 +1134,33 @@ resource "aws_dynamodb_table" "orchestrator_state" {
   })
 }
 
+# Phase 1 data freshness cache — avoids repeated DB queries within same trading session.
+# Name algo_phase1_cache is the code default (CACHE_TABLE env var). Uses underscore naming
+# for consistency with algo_orchestrator_state (both are global, not environment-scoped).
+# Access: ECS loaders (invalidation on completion/failure) + orchestrator Lambda (read/write).
+
+resource "aws_dynamodb_table" "phase1_cache" {
+  name         = "algo_phase1_cache"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "cache_key"
+
+  attribute {
+    name = "cache_key"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "algo-phase1-cache"
+  })
+}
+
 # Orchestrator Lambda already has comprehensive DynamoDB access defined in iam/main.tf
-# (lambda_algo policy lines 982-1000). No redundant policy needed here.
+# (lambda_algo policy includes algo_phase1_cache and algo_orchestrator_state).
 # Circuit breaker Lambda has its own DynamoDB access defined in monitoring/circuit-breaker.tf (line 80-85)
 
 # CRITICAL: DynamoDB Halt Check Failure Alarm
