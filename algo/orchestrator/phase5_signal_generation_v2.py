@@ -95,15 +95,17 @@ def run(
         signals = []
         errors = []
 
-        # Generate signals for all symbols
+        # Generate signals for all symbols (cap at 2000 highest-volume to stay within Lambda timeout)
+        MAX_SYMBOLS = 2000
         start_compute = time.time()
         with DatabaseContext('read') as cur:
-            # Get all symbols with prices on the most recent complete date
             cur.execute(
-                "SELECT DISTINCT symbol FROM price_daily WHERE date = %s ORDER BY symbol",
-                (price_date,)
+                "SELECT symbol FROM price_daily WHERE date = %s ORDER BY volume DESC NULLS LAST LIMIT %s",
+                (price_date, MAX_SYMBOLS)
             )
             symbols = [row[0] for row in cur.fetchall()]
+        if symbol_count > MAX_SYMBOLS:
+            logger.info(f"[PHASE 5] Capped to top {MAX_SYMBOLS} by volume (of {symbol_count} total)")
 
         logger.info(f"[PHASE 5] Generating signals for {len(symbols)} symbols...")
 
