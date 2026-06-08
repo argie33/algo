@@ -1169,6 +1169,71 @@ def panel_circuit(cb):
                  title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
 
 
+def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s=""):
+    """Compact market header — fits alongside orch + monkey in the top row."""
+    rows = [Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}")]
+    if mkt and not mkt.get("_error"):
+        tier    = mkt.get("tier", "unknown")
+        tc      = TIER_COLOR.get(tier, "dim")
+        lbl     = TIER_SHORT.get(tier, "LOADING")
+        exp     = mkt.get("pct")
+        exp_s   = f"{float(exp):.0f}%" if exp is not None else "--"
+        bar     = exp_bar(exp or 0, w=8)
+        vix     = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
+        vc      = R if (mkt.get("vix") or 0) >= 30 else (Y if (mkt.get("vix") or 0) >= 20 else G)
+        dist    = str(mkt.get("dist") or "--")
+        stage   = str(mkt.get("stage") or "--")
+        spy_raw = mkt.get("spy"); spy_chg = mkt.get("spy_chg")
+        spy_chg_s = (f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
+                     if spy_chg is not None else "")
+        spy_s   = f"  SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}" if spy_raw else ""
+        rows.append(Text.from_markup(
+            f"[{tc}][bold]{lbl}[/]  [dim]exp[/][{tc}]{exp_s}[/]{bar}  "
+            f"VIX:[{vc}]{vix}[/]  [dim]Dist:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{spy_s}"
+        ))
+        upvol = mkt.get("upvol"); nh = mkt.get("nh"); nl = mkt.get("nl"); adr = mkt.get("adr")
+        if upvol is not None:
+            uvc    = G if upvol >= 60 else (Y if upvol >= 50 else R)
+            nhnl   = (nh or 0) - (nl or 0)
+            nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R)
+            adr_s  = f"  [dim]A/D:[/][white]{adr:.1f}[/]" if adr is not None else ""
+            rows.append(Text.from_markup(
+                f"[dim]UpVol:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
+                f"[dim]NH:[/][{G}]{nh or '--'}[/] [dim]NL:[/][{R}]{nl or '--'}[/]  "
+                f"[dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]"
+            ))
+        pcr = mkt.get("pcr"); bmom = mkt.get("bmom"); ycs = mkt.get("ycs"); fed = mkt.get("fed")
+        parts4 = []
+        if pcr  is not None:
+            pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
+            parts4.append(f"[dim]P/C:[/][{pcr_c}]{pcr:.2f}[/]")
+        if bmom is not None:
+            bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
+            parts4.append(f"[dim]Breadth Mom:[/][{bmc}]{bmom:.1f}[/]")
+        if ycs  is not None:
+            yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
+            parts4.append(f"[dim]Yld Curve:[/][{yc_c}]{ycs:+.2f}[/]")
+        if fed:
+            parts4.append(f"[dim]Fed:[/][white]{fed[:20]}[/]")
+        if parts4:
+            rows.append(Text.from_markup("  ".join(parts4)))
+        halts  = mkt.get("halts") or []
+        halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
+        hc_col = Y if halts else DIM
+        line5  = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
+        if sentiment and not sentiment.get("_error"):
+            fg_v   = sentiment.get("fg", 0)
+            fg_lbl = (sentiment.get("label") or "")[:14]
+            fg_c   = sentiment.get("color", "dim")
+            fg_bar = int(fg_v / 100 * 6)
+            fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
+            line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f} — {fg_lbl}[/] {fg_bar_s}"
+        rows.append(Text.from_markup(line5))
+    else:
+        rows.append(Text("no market data", style="dim"))
+    return Panel(Group(*rows), title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
+
+
 def panel_portfolio(port, cfg, risk=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
@@ -1511,6 +1576,41 @@ def panel_signals_compact(sig, sig_eval=None):
         rows.append(Text.from_markup("[dim]Near BUY (swing 55-69):[/] " + "  ".join(parts)))
 
     return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS & SCREENING[/]", border_style="magenta", padding=(0, 1))
+
+
+def panel_recent_trades(trades):
+    """Closed/recent trade history — sits alongside positions panel."""
+    if not trades:
+        return Panel(Text("no recent trades", style="dim"),
+                     title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 1))
+    t = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
+              padding=(0, 1), row_styles=["", "dim"], expand=True)
+    t.add_column("Sym",  style="bold white", no_wrap=True, min_width=4)
+    t.add_column("Date", style="dim",        no_wrap=True, min_width=5)
+    t.add_column("P&L$", justify="right",    no_wrap=True, min_width=6)
+    t.add_column("P&L%", justify="right",    no_wrap=True, min_width=5)
+    t.add_column("R",    justify="right",    no_wrap=True, min_width=4)
+    t.add_column("St",   style="dim",        no_wrap=True, min_width=4)
+    for tr in trades[:10]:
+        sym    = tr.get("symbol") or "--"
+        date   = tr.get("exit_date") or tr.get("trade_date")
+        date_s = date.strftime("%b%d") if hasattr(date, "strftime") else str(date or "--")[:5]
+        pnl_d  = float(tr.get("profit_loss_dollars") or 0)
+        pnl_p  = float(tr.get("profit_loss_pct") or 0)
+        rmul   = tr.get("exit_r_multiple")
+        status = (tr.get("status") or "")
+        is_closed = status == "closed"
+        pc  = G if pnl_d > 0 else (R if is_closed else Y)
+        si  = f"[{G}]✓[/]" if pnl_d > 0 else (f"[{R}]✗[/]" if is_closed else f"[{Y}]▷[/]")
+        t.add_row(
+            Text.from_markup(f"{si} {sym}"),
+            date_s,
+            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if is_closed else "--", style=pc),
+            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if is_closed else "--",      style=pc),
+            Text(f"{float(rmul):.2f}R" if rmul is not None else "--",       style=pc),
+            status[:4],
+        )
+    return Panel(t, title="[bold cyan]RECENT TRADES[/]", border_style="cyan", padding=(0, 0))
 
 
 def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
