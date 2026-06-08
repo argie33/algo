@@ -185,6 +185,11 @@ def run(
 
                 risk_dollars = portfolio_value * 0.01  # 1% risk per trade
                 shares = max(1, int(risk_dollars / (entry_price - stop_loss)))
+                # Cap at 8% position limit (same threshold as PreTradeChecks)
+                max_shares_by_position = max(1, int(portfolio_value * 0.08 / entry_price))
+                if shares > max_shares_by_position:
+                    shares = max_shares_by_position
+                    logger.info(f"[PHASE 6] {symbol}: shares capped to {shares} (8% position limit)")
                 logger.info(f"[PHASE 6] {symbol}: portfolio=${portfolio_value:.0f} risk_$=${risk_dollars:.0f} shares={shares}")
 
                 try:
