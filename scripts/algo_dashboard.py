@@ -93,21 +93,21 @@ PHASE_NAMES = {
 }
 
 # ── mascot (dancing man) — rebuilt from scratch ────────────────────────────────
-# Each frame: 4 lines, each exactly 7 visible chars (pre-padded — no justify needed).
-# Panel: MASCOT_W=9 = 1 border + 7 content + 1 border, padding=(0,0).
-# Pre-padding avoids Rich centering quirks on Windows terminals.
-# Frame 7 is used ONLY when a circuit breaker fires.
-MASCOT_W = 9   # 1 left border + 7 content + 1 right border
+# Each frame: 4 lines, each exactly 11 visible chars (pre-padded, no centering math).
+# MASCOT_W=13 = 1 border + 11 content + 1 border, padding=(0,0).
+# Wider panel (was 9) makes the dancer much more visible.
+# Frame 7 = CB-fired freeze pose.
+MASCOT_W = 13  # 1 left border + 11 content + 1 right border
 
 MASCOT_FRAMES = [
-    ("  \\o/  ", "   |   ", "  / \\  ", " _/ \\_ "),  # 0  groove  — arms up, wide stance
-    ("  \\o/  ", "   |   ", "   /\\  ", "   _/\\ "),  # 1  step R  — right foot forward
-    ("  \\o/  ", "   |   ", "  / \\  ", " _/    "),   # 2  lean L  — weight on left
-    ("  \\o/  ", "   |   ", "  /\\   ", " \\/    "),   # 3  step L  — left foot forward
-    ("  \\O/  ", "   |   ", "  /V\\  ", " _/ \\_ "),  # 4  star    — big jump, V-legs
-    ("  -o-  ", "   |   ", "  / \\  ", " _/ \\_ "),  # 5  chill   — arms flat
-    ("   o   ", "   |   ", "  / \\  ", " _/ \\_ "),  # 6  meh     — no arms
-    ("  \\o/  ", "   |   ", "   ||  ", " _||_  "),   # 7  freeze  — CB fired only
+    ("    \\o/    ", "     |     ", "    / \\    ", "   _/ \\_   "),  # 0  groove
+    ("    \\o/    ", "     |     ", "     /\\    ", "     _/\\   "),  # 1  step R
+    ("    \\o/    ", "     |     ", "    / \\    ", "   _/      "),   # 2  lean L
+    ("    \\o/    ", "     |     ", "    /\\     ", "   \\/      "),   # 3  step L
+    ("    \\O/    ", "     |     ", "    /V\\    ", "   _/ \\_   "),  # 4  star jump
+    ("    -o-    ", "     |     ", "    / \\    ", "   _/ \\_   "),  # 5  chill
+    ("     o     ", "     |     ", "    / \\    ", "   _/ \\_   "),  # 6  meh
+    ("    \\o/    ", "     |     ", "     ||    ", "   _||_    "),   # 7  freeze (CB)
 ]
 MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
@@ -118,15 +118,16 @@ LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
 def mascot_pose(data: dict, frame: int) -> int:
     if (data.get("cb") or {}).get("any"):
-        return [6, 7][(frame // 4) % 2]   # fast CB shake
+        # Panic dance: jump → freeze → groove → freeze (very obviously animated)
+        return [4, 7, 0, 7][(frame // 2) % 4]
     tier = (data.get("mkt") or {}).get("tier", "unknown")
-    # frame // 2 → pose changes every 2 frames = ~0.25s at 8fps (clearly visible)
+    # frame // 2 → pose changes every ~0.25s at 8fps (clearly visible)
     seqs: Dict[str, List[int]] = {
-        "confirmed_uptrend": [4, 1, 0, 3],   # jump-step-groove-step
-        "healthy_uptrend":   [0, 1, 4, 3],   # groove-step-jump-step
-        "pressure":          [0, 1, 2, 3],   # groove-step-lean-step
-        "caution":           [0, 5, 2, 6],   # groove-chill-lean-meh
-        "correction":        [0, 5, 1, 6],   # still moves — groove-chill-step-meh
+        "confirmed_uptrend": [4, 1, 0, 3],
+        "healthy_uptrend":   [0, 1, 4, 3],
+        "pressure":          [0, 1, 2, 3],
+        "caution":           [0, 5, 2, 6],
+        "correction":        [0, 5, 1, 6],
     }
     r = seqs.get(tier, [0, 1, 4, 3])
     return r[(frame // 2) % len(r)]
@@ -845,10 +846,17 @@ def fetch_loader_status(c):
 
 def fetch_exec_history(c):
     try:
-        return q(c, """SELECT run_id, started_at, completed_at, overall_status,
-                              phases_completed, phases_halted, phases_errored, halt_reason
-                       FROM orchestrator_execution_log
-                       ORDER BY started_at DESC LIMIT 10""")
+        # Try with phase array columns first; fall back if they don't exist yet
+        try:
+            return q(c, """SELECT run_id, started_at, completed_at, overall_status,
+                                  phases_completed, phases_halted, phases_errored, halt_reason
+                           FROM orchestrator_execution_log
+                           ORDER BY started_at DESC LIMIT 10""")
+        except Exception:
+            return q(c, """SELECT run_id, started_at, completed_at, overall_status,
+                                  halt_reason
+                           FROM orchestrator_execution_log
+                           ORDER BY started_at DESC LIMIT 10""")
     except Exception as e:
         return {"_error": str(e)}
 
@@ -1479,14 +1487,20 @@ def panel_signals_compact(sig, sig_eval=None):
                 f" [dim]{entry_s:>7} {stop_s:>7} {rs_s:>3}[/]"
             ))
     else:
-        rows.append(Text.from_markup("[dim]no BUY signals today[/]"))
+        # Explain why there are no signals — don't just say "none"
+        if total == 0:
+            rows.append(Text.from_markup(
+                f"[{Y}]No signals — buy_sell_daily may be stale (check Data Health)[/]"
+            ))
+        else:
+            rows.append(Text.from_markup(f"[dim]0 BUY signals from {total} screened[/]"))
 
     # Near-miss swing scores (approaching threshold)
     near = sig.get("near") or []
     if near:
         rows.append(Rule(style="dim"))
-        parts = [f"[dim]{a['symbol']} {float(a.get('score') or 0):.0f}[/]" for a in near[:4]]
-        rows.append(Text.from_markup("[dim]Near misses (swing 55-69):[/] " + "  ".join(parts)))
+        parts = [f"[{CY}]{a['symbol']}[/][dim] {float(a.get('score') or 0):.0f}[/]" for a in near[:6]]
+        rows.append(Text.from_markup("[dim]Near BUY (swing 55-69):[/] " + "  ".join(parts)))
 
     return Panel(Group(*rows), title="[bold magenta]BUY SIGNALS & SCREENING[/]", border_style="magenta", padding=(0, 1))
 
@@ -1869,15 +1883,31 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             rows.append(Text.from_markup(f"  [{Y}]↳ {(last_halt['halt_reason'] or '')[:55]}[/]"))
         rows.append(Rule(style="dim"))
 
-    # Run ID + age — prefer exec_log source over activity log
+    # Current run status — shown prominently even when history is empty
     run_id = (run.get("run_id") or "") if run and not run.get("_error") else ""
     run_at = run.get("run_at") if run else None
     if not run_id and act and not act.get("_error"):
         run_id = (act.get("run_id") or "")[:26]
         run_at = act.get("run_at")
     if run_id:
-        age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
-        rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:26]}[/]{age_s}"))
+        age_s  = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
+        r_stat = ""
+        if run and not run.get("_error"):
+            if run.get("success"):   r_stat = f"  [{G}]✓ COMPLETED[/]"
+            elif run.get("halted"):  r_stat = f"  [{Y}]~ HALTED[/]"
+            elif run.get("errored"): r_stat = f"  [{R}]✗ ERROR[/]"
+        rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}"))
+
+        # Show phases_completed/halted/errored counts from the run object
+        if run and not run.get("_error"):
+            n_done = len(run.get("phases_completed") or [])
+            n_hlt  = len(run.get("phases_halted") or [])
+            n_err  = len(run.get("phases_errored") or [])
+            if n_done + n_hlt + n_err > 0:
+                done_s = f"[{G}]{n_done} phases ✓[/]"
+                hlt_s  = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
+                err_s  = f"  [{R}]{n_err} errored[/]" if n_err else ""
+                rows.append(Text.from_markup(f"  {done_s}{hlt_s}{err_s}"))
 
     # Phase detail — named phases from exec_log with per-phase status and key data
     phase_badges = []
@@ -2090,15 +2120,15 @@ def mascot_compact(data: dict, frame: int) -> Panel:
     fi   = mascot_pose(data, frame)
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
-    # No justify= — strings are pre-padded to exactly 7 chars (the panel's content width).
+    # No justify= — strings are pre-padded to exactly 11 chars (panel content width).
     return Panel(
         Group(
-            Text(" " * 7),
+            Text(" " * 11),
             Text(pose[0], style=f"bold {mc}", no_wrap=True),
             Text(pose[1], style=f"bold {mc}", no_wrap=True),
             Text(pose[2], style=f"bold {mc}", no_wrap=True),
             Text(pose[3], style=f"bold {mc}", no_wrap=True),
-            Text(" " * 7),
+            Text(" " * 11),
         ),
         border_style=mc,
         padding=(0, 0),
@@ -2114,15 +2144,15 @@ def loading_layout(frame: int) -> Layout:
     pose = MASCOT_FRAMES[fi]
     dots = "." * ((frame // 2 % 4) + 1)             # dots cycle at ~1Hz
 
-    # Same pre-padded approach as mascot_compact
+    # Same pre-padded approach as mascot_compact (11-char strings)
     mascot_panel = Panel(
         Group(
-            Text(" " * 7),
+            Text(" " * 11),
             Text(pose[0], style=f"bold {mc}", no_wrap=True),
             Text(pose[1], style=f"bold {mc}", no_wrap=True),
             Text(pose[2], style=f"bold {mc}", no_wrap=True),
             Text(pose[3], style=f"bold {mc}", no_wrap=True),
-            Text(" " * 7),
+            Text(" " * 11),
         ),
         border_style=mc,
         padding=(0, 0),
