@@ -95,8 +95,9 @@ def run(
         signals = []
         errors = []
 
-        # Generate signals for all symbols (cap at 2000 highest-volume to stay within Lambda timeout)
-        MAX_SYMBOLS = 2000
+        # Generate signals for highest-volume symbols to stay within Lambda timeout.
+        # At ~270ms/symbol (6 indicator queries * ~45ms/query), 200 symbols = ~54s in Phase 5.
+        MAX_SYMBOLS = 200
         start_compute = time.time()
         with DatabaseContext('read') as cur:
             cur.execute(
