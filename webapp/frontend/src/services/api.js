@@ -186,7 +186,7 @@ if (typeof window !== "undefined" && window.location?.hostname === "localhost") 
 // In production, use currentConfig which already checks window.__CONFIG__ as fallback (line 14-20)
 let api = axios.create({
   baseURL: currentConfig.baseURL,
-  timeout: 35000, // Match Vite proxy timeout (30s Lambda + 5s buffer)
+  timeout: 28000, // 28s timeout before Lambda 30s limit to prevent hanging
   headers: {
     "Content-Type": "application/json",
   },

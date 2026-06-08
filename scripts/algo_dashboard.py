@@ -1170,7 +1170,7 @@ def panel_circuit(cb):
                  title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
 
 
-def panel_portfolio(port, cfg):
+def panel_portfolio(port, cfg, risk=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
     pv    = float(port.get("total_portfolio_value") or 0)
@@ -1204,6 +1204,15 @@ def panel_portfolio(port, cfg):
         f"[dim]Buying Power:[/]    [white]{fmt_money(bp)}[/]"
         + cum_s + conc_s
     )
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
+        var_line = Text.from_markup(
+            f"[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]  "
+            f"[dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]  "
+            f"[dim]Beta:[/][{beta_c}]{risk['beta']:.2f}[/]  "
+            f"[dim]Top-5 Conc:[/][white]{risk['conc5']:.0f}%[/]"
+        )
+        return Panel(Group(txt, var_line), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
     return Panel(txt, title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
 
@@ -1852,9 +1861,44 @@ def panel_exposure_compact(exp_f):
                  border_style="blue", padding=(0, 1))
 
 
-def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, run=None, exec_hist=None):
+def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, run=None, exec_hist=None, cfg=None):
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
     rows: list = []
+
+    # ── Run status + schedule + mode + trading config ────────────────────────────
+    run_valid = run and not run.get("_error")
+    act_valid = act and not act.get("_error")
+    run_id_top = (run.get("run_id") or "") if run_valid else ((act.get("run_id") or "") if act_valid else "")
+    run_at_top = (run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None))
+    if run_id_top or run_at_top:
+        sts = (
+            f"[bold bright_green]✔ COMPLETED[/]" if (run_valid and run.get("success") and not run.get("halted"))
+            else (f"[bold yellow]~ HALTED[/]" if (run_valid and run.get("halted"))
+            else (f"[bold bright_red]✘ ERROR[/]" if (run_valid and run.get("errored"))
+            else "[dim]RUN[/]"))
+        )
+        age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
+        rows.append(Text.from_markup(f"{sts}{age_s}"))
+    cfg_v = cfg or {}
+    mode  = cfg_v.get("mode", "")
+    en    = cfg_v.get("enabled", True)
+    mc    = G if "LIVE" in str(mode) else Y
+    ec    = G if en else R
+    en_s  = "ENABLED" if en else "DISABLED"
+    next_r = next_run_str()
+    rows.append(Text.from_markup(
+        f"[{mc}]{mode or 'PAPER'}[/]  [{ec}]{en_s}[/]  [dim]Next run:[/] [white]{next_r}[/]"
+    ))
+    # Trading config params — visible context for position sizing decisions
+    cfg_parts = []
+    if cfg_v.get("max_pos_n"):    cfg_parts.append(f"[dim]slots:[/][white]{cfg_v['max_pos_n']}[/]")
+    if cfg_v.get("max_sec_n"):   cfg_parts.append(f"[dim]sector≤4:[/][white]{cfg_v['max_sec_n']}[/]")
+    if cfg_v.get("base_risk"):   cfg_parts.append(f"[dim]risk:[/][white]{cfg_v['base_risk']}%[/]")
+    if cfg_v.get("t1_r"):        cfg_parts.append(f"[dim]T1:[/][white]{cfg_v['t1_r']}R[/]")
+    if cfg_v.get("pyramid"):     cfg_parts.append(f"[{G}]pyr✓[/]")
+    if cfg_parts:
+        rows.append(Text.from_markup("  ".join(cfg_parts)))
+    rows.append(Rule(style="dim"))
 
     # Execution history summary — last 7 runs
     valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
@@ -1900,9 +1944,13 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
         # Show phases_completed/halted/errored counts from the run object
         if run and not run.get("_error"):
-            n_done = len(run.get("phases_completed") or [])
-            n_hlt  = len(run.get("phases_halted") or [])
-            n_err  = len(run.get("phases_errored") or [])
+            def _pc(v):
+                if isinstance(v, list): return len(v)
+                if isinstance(v, int):  return v
+                return 0
+            n_done = _pc(run.get("phases_completed"))
+            n_hlt  = _pc(run.get("phases_halted"))
+            n_err  = _pc(run.get("phases_errored"))
             if n_done + n_hlt + n_err > 0:
                 done_s = f"[{G}]{n_done} phases ✓[/]"
                 hlt_s  = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -1957,9 +2005,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
-        n_ok  = len(run.get("phases_completed") or [])
-        n_hlt = len(run.get("phases_halted") or [])
-        n_err = len(run.get("phases_errored") or [])
+        n_ok  = _pc(run.get("phases_completed"))
+        n_hlt = _pc(run.get("phases_halted"))
+        n_err = _pc(run.get("phases_errored"))
         if n_ok + n_hlt + n_err > 0:
             ok_s  = f"[{G}]{n_ok} phases done[/]"
             hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -2270,16 +2318,16 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     outer["top"]["hdr"].update(hdr_panel)
     outer["top"]["mascot"].update(mascot_compact(data, frame))
 
-    # Row 1: Orchestrator | Market (full: regime + internals) | Circuit Breakers
+    # Row 1: Market (full) | Exposure Score Breakdown | Circuit Breakers
     outer["r1"].split_row(
-        Layout(panel_orch(run, cfg, risk),              name="orch"),
-        Layout(panel_market_full(mkt, sentiment),       name="market"),
-        Layout(panel_circuit(cb),                       name="circuit"),
+        Layout(panel_market_full(mkt, sentiment),  name="market"),
+        Layout(panel_exposure_compact(exp_f),      name="exposure"),
+        Layout(panel_circuit(cb),                  name="circuit"),
     )
 
     # Row 2: Portfolio | Performance + sparkline | Economic pulse
     outer["r2"].split_row(
-        Layout(panel_portfolio(port, cfg),                          name="portfolio"),
+        Layout(panel_portfolio(port, cfg, risk=risk),               name="portfolio"),
         Layout(panel_performance_spark(perf, rec, perf_anl),       name="perf"),
         Layout(panel_economic_pulse(eco, econ_cal),                 name="eco"),
     )
@@ -2293,10 +2341,9 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
     )
 
-    # Row 5: Exposure factors | Activity + health + notifications
-    outer["r4"].split_row(
-        Layout(panel_exposure_compact(exp_f), ratio=3, name="exposure"),
-        Layout(panel_status(act, hlth, notifs, algo_metrics, loader, audit, run=run, exec_hist=exec_hist), ratio=2, name="status"),
+    # Row 5: Activity + health + notifications (full width — exposure moved to r1)
+    outer["r4"].update(
+        panel_status(act, hlth, notifs, algo_metrics, loader, audit, run=run, exec_hist=exec_hist, cfg=cfg)
     )
 
     return outer
