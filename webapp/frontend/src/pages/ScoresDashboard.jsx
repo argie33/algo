@@ -492,7 +492,7 @@ function RankingsTab({
 }
 
 // ─── factor detail (expanded) ──────────────────────────────────────────────
-function FactorDetail({ stock, marketAvgs, sectorAvgs, onNavigate, onClose }) {
+function _FactorDetail({ stock, marketAvgs, sectorAvgs, onNavigate, onClose }) {
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
       <div className="card-head">

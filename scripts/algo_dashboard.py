@@ -571,7 +571,7 @@ def fetch_activity(c):
             WHERE action_type IN ('entry_executed','exit_executed','entry_rejected',
                                   'position_exited','order_placed','order_rejected')
             ORDER BY created_at DESC LIMIT 6""")
-        return {"run_id": rid, "phases": phases, "recent_actions": recent_actions}
+        return {"run_id": rid, "run_at": run_at, "phases": phases, "recent_actions": recent_actions}
     except Exception as e:
         return {"_error": str(e)}
 

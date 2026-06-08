@@ -10,7 +10,7 @@ import {
   useTheme,
   alpha,
 } from '@mui/material';
-import { ExpandMore, Award } from '@mui/icons-material';
+import { ExpandMore, Star } from '@mui/icons-material';
 import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
 
 const num = (v, dp = 1) => formatNumber(v, dp);
@@ -109,7 +109,7 @@ const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) 
 
   const FactorSection = ({ factor, stock, sectorAvg, marketAvg }) => {
     const stockScore = stock[factor.scoreKey];
-    const Icon = Award;
+    const Icon = Star;
 
     return (
       <Grid item xs={12} sm={6} md={4} lg={2.4}>

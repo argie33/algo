@@ -69,16 +69,27 @@ def get_table_freshness(conn, table_name):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Different queries for different table structures
             if table_name == 'sector_ranking':
-                # sector_ranking uses 'date' column
+                # sector_ranking uses 'date' column and sector_name
                 cur.execute(f"""
                     SELECT
                         MAX(date)::TEXT as max_date,
-                        COUNT(DISTINCT sector) as sector_count
+                        COUNT(DISTINCT sector_name) as sector_count
                     FROM {table_name}
                 """)
                 result = cur.fetchone()
                 max_date_str = result['max_date']
                 symbol_count = result['sector_count'] or 0
+            elif table_name == 'market_health_daily':
+                # market_health_daily has no symbol column, just one row per date
+                cur.execute(f"""
+                    SELECT
+                        MAX(date)::TEXT as max_date,
+                        COUNT(*) as row_count
+                    FROM {table_name}
+                """)
+                result = cur.fetchone()
+                max_date_str = result['max_date']
+                symbol_count = 1  # Just track if it has recent data
             else:
                 # All other tables use 'symbol' and 'date' columns
                 cur.execute(f"""
@@ -111,9 +122,14 @@ def get_table_freshness(conn, table_name):
             # Data is fresh if <24 hours old
             is_fresh = age_hours < 24
 
-            # Calculate coverage (assuming ~500 symbols in S&P 500 + others)
-            # Use 500 as baseline for coverage %
-            coverage_pct = (symbol_count / 500.0) * 100 if symbol_count > 0 else 0
+            # Calculate coverage
+            if table_name in ['market_health_daily', 'sector_ranking']:
+                # These tables are considered "fresh" if they have recent data
+                coverage_pct = 100.0 if symbol_count > 0 else 0.0
+            else:
+                # For symbol-based tables, use ~8000 as baseline (extended universe)
+                # S&P 500 + Russell 2000 + others
+                coverage_pct = (symbol_count / 8000.0) * 100 if symbol_count > 0 else 0
 
             return {
                 'table': table_name,
@@ -125,6 +141,11 @@ def get_table_freshness(conn, table_name):
                 'error': None
             }
     except Exception as e:
+        # Reset transaction on error
+        try:
+            conn.rollback()
+        except:
+            pass
         return {
             'table': table_name,
             'max_date': None,
@@ -189,16 +210,18 @@ def should_stop_monitoring():
     et = pytz.timezone('US/Eastern')
     now = datetime.now(et)
 
-    # Check if it's Monday and after 5 PM ET
-    if now.weekday() == 0:  # 0 = Monday
-        if now.hour >= 17:  # 5 PM = 17:00
-            return True
+    # Only stop if we reach Monday 5 PM ET or later
+    # weekday: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
 
-    # Check if it's after Monday (Tuesday or later)
-    if now.weekday() > 0:
-        return True
-
-    return False
+    if now.weekday() == 0:  # It's Monday
+        if now.hour >= 17:  # At or after 5 PM
+            return True  # Stop: deadline reached
+        else:
+            return False  # Continue: still Monday morning/afternoon
+    elif 1 <= now.weekday() <= 4:  # Tue-Fri: past Monday
+        return True  # Stop: past deadline
+    else:  # Sat (5) or Sun (6): before Monday
+        return False  # Continue: waiting for Monday morning pipeline
 
 def main():
     print("[START] Starting Pipeline Freshness Monitor")
