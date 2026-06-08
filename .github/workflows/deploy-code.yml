@@ -1473,25 +1473,36 @@ jobs:
           echo "[OK] Frontend synced to s3://${BUCKET}/"
           echo " S3 sync completed successfully"
 
-      - name: Invalidate CloudFront
+      - name: Invalidate CloudFront Cache
         run: |
-          CF_ID="${{ needs.resolve-infra.outputs.cloudfront_distribution_id }}"
-          # Fall back to discovery if output was masked
-          if [ -z "$CF_ID" ] || [ "$CF_ID" = "***" ]; then
-            CF_ID=$(aws cloudfront list-distributions \
+          DIST_ID="${{ needs.resolve-infra.outputs.cloudfront_distribution_id }}"
+
+          # Fall back to discovery if output was masked or empty
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "***" ]; then
+            echo "Attempting to discover CloudFront distribution..."
+            DIST_ID=$(aws cloudfront list-distributions \
               --query 'DistributionList.Items[0].Id' \
               --output text 2>/dev/null || echo "")
           fi
-          if [ -n "$CF_ID" ] && [ "$CF_ID" != "None" ]; then
-            INVALIDATION_ID=$(aws cloudfront create-invalidation \
-              --distribution-id "$CF_ID" \
-              --paths "/*" \
-              --query 'Invalidation.Id' \
-              --output text)
-            echo "[OK] CloudFront invalidation created: $INVALIDATION_ID"
-          else
-            echo "[ALERT] Could not find CloudFront distribution for invalidation"
+
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            echo "ERROR: CloudFront distribution ID not found"
+            exit 1
           fi
+
+          echo "Creating CloudFront cache invalidation for distribution: $DIST_ID"
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DIST_ID" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+
+          if [ -z "$INVALIDATION_ID" ] || [ "$INVALIDATION_ID" = "None" ]; then
+            echo "ERROR: Failed to create CloudFront invalidation"
+            exit 1
+          fi
+
+          echo "[OK] CloudFront cache invalidation created (ID: $INVALIDATION_ID)"
 
   # ------------------------------------------------------------
   # Export Developer Credentials (for programmatic use)
