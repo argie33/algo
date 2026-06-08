@@ -81,14 +81,14 @@ SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 # ── mascot ────────────────────────────────────────────────────────────────────
 # Each line is exactly 5 visible chars — consistent width prevents wobble
 MASCOT_FRAMES = [
-    (" \\o/ ", "  |  ", " / \\ "),   # 0  groove
-    (" \\o/ ", "  |  ", "  /\\ "),   # 1  sway right
-    (" /o\\ ", " /|  ", " / \\ "),   # 2  lean left  (fixed: legs ≠ body)
-    (" \\o/ ", " \\|  ", "  /\\ "),  # 3  sway left  (fixed: arms up, body+feet balance)
-    (" \\o/ ", " \\|/ ", " | | "),   # 4  star jump
-    ("  o  ", "  |  ", " / \\ "),   # 5  rest
-    ("  o/ ", "  |\\ ", " / \\ "),   # 6  stumble    (fixed: both legs visible)
-    (" _o_ ", "  |  ", "  /\\ "),   # 7  freeze (correction)
+    (" \\o/ ", "  |  ", " / \\ ", "|   |"),   # 0  groove  — wide-stance feet
+    (" \\o/ ", "  |  ", "  /\\ ", "  / |"),   # 1  sway right — weight shifts right
+    (" /o\\ ", " /|  ", " / \\ ", "|  / "),   # 2  lean left — left-weighted
+    (" \\o/ ", " \\|  ", "  /\\ ", "  /| "),  # 3  sway left — right kick
+    (" \\O/ ", " \\|/ ", " /V\\ ", " | | "),  # 4  star jump — V-legs, O=excited
+    ("  o  ", " -|- ", " / \\ ", "|   |"),   # 5  rest — T-pose arms, planted
+    ("  o/ ", "  |\\ ", " / \\ ", "/   |"),   # 6  stumble — off-balance
+    (" _o_ ", " _|_ ", "  /\\ ", "  /\\ "),  # 7  freeze — rigid arms+legs
 ]
 MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
@@ -264,6 +264,38 @@ def sparkline(values: list, width: int = 24) -> str:
 # ── fetchers ──────────────────────────────────────────────────────────────────
 
 def fetch_run(c):
+    # Primary: orchestrator_execution_log has structured named phase data
+    try:
+        row = q1(c, """
+            SELECT run_id, started_at, completed_at, overall_status,
+                   phase_results, summary, halt_reason,
+                   phases_completed, phases_halted, phases_errored
+            FROM orchestrator_execution_log
+            ORDER BY started_at DESC LIMIT 1""")
+        if row:
+            pr = row.get("phase_results") or []
+            if isinstance(pr, str):
+                try: pr = json.loads(pr)
+                except: pr = []
+            overall = (row.get("overall_status") or "").lower()
+            return {
+                "run_id":    row.get("run_id"),
+                "run_at":    row.get("completed_at") or row.get("started_at"),
+                "success":   overall in ("success", "completed"),
+                "halted":    overall == "halted",
+                "errored":   overall in ("error", "failed"),
+                "summary":   row.get("summary"),
+                "halt_reason": row.get("halt_reason"),
+                "phases_completed": row.get("phases_completed") or [],
+                "phases_halted":    row.get("phases_halted") or [],
+                "phases_errored":   row.get("phases_errored") or [],
+                "phase_results":    pr,
+                "_source": "exec_log",
+            }
+    except Exception:
+        pass
+
+    # Fallback: reconstruct from algo_audit_log
     try:
         latest = q1(c, """
             SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
@@ -276,7 +308,8 @@ def fetch_run(c):
         halted  = any(p["status"] == "halt"  for p in phases)
         errored = any(p["status"] == "error" for p in phases)
         return {"run_id": rid, "run_at": latest["run_at"],
-                "success": bool(phases) and not errored, "halted": halted, "phases": phases}
+                "success": bool(phases) and not errored, "halted": halted,
+                "phases": phases, "_source": "audit_log"}
     except Exception as e:
         return {"_error": str(e)}
 
@@ -522,11 +555,13 @@ def fetch_sector_ranking(c):
 def fetch_activity(c):
     try:
         latest = q1(c, """
-            SELECT details->>'run_id' AS run_id FROM algo_audit_log
+            SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
+            FROM algo_audit_log
             WHERE details->>'run_id' IS NOT NULL
             GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
         if not latest or not latest.get("run_id"): return {}
-        rid = latest["run_id"]
+        rid    = latest["run_id"]
+        run_at = latest.get("run_at")
         phases = q(c, """
             SELECT action_type, status, details, created_at
             FROM algo_audit_log WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
@@ -1824,11 +1859,14 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             ))
 
     # Data loader status (errors/stale from data_loader_status table)
-    valid_loader = loader if (loader and not (isinstance(loader, dict) and loader.get("_error"))) else []
+    valid_loader   = loader if (loader and not (isinstance(loader, dict) and loader.get("_error"))) else []
     problem_loader = [r for r in valid_loader if (r.get("status") or "") in ("error", "failed", "stale")]
+    running_loader = [r for r in valid_loader if (r.get("status") or "") == "loading"]
+    ok_count       = len(valid_loader) - len(problem_loader) - len(running_loader)
     if problem_loader:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues):[/]"))
+        ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
+        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
         for r in problem_loader[:3]:
             nm  = (r.get("table_name") or "--")[:14]
             st  = r.get("status") or "?"
@@ -1840,14 +1878,16 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")
             ))
     elif valid_loader:
-        running = [r for r in valid_loader if (r.get("status") or "") == "loading"]
-        if running:
+        if running_loader:
             rows.append(Rule(style="dim"))
-            for r in running[:3]:
+            for r in running_loader[:3]:
                 nm   = (r.get("table_name") or "")[:12]
                 pct  = r.get("completion_pct")
                 pct_s = f" {float(pct):.0f}%" if pct is not None else ""
                 rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
+        elif ok_count > 0:
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup(f"[{G}]✓ Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
     # Audit log — most recent notable actions
     valid_audit = audit if (audit and not (isinstance(audit, dict) and audit.get("_error"))) else []
@@ -1874,7 +1914,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
 
-MASCOT_H = 7   # 1 top border + 1 blank + 3 pose lines + 1 blank + 1 bottom border
+MASCOT_H = 8   # 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border
 MASCOT_W = 9   # 1 left border + 1 pad + 5 pose chars + 1 pad + 1 right border
 
 
@@ -1888,6 +1928,7 @@ def mascot_compact(data: dict, frame: int) -> Panel:
             Text(pose[0], style=f"bold {mc}", justify="center"),
             Text(pose[1], style=f"bold {mc}", justify="center"),
             Text(pose[2], style=f"bold {mc}", justify="center"),
+            Text(pose[3], style=f"bold {mc}", justify="center"),
             Text(""),
         ),
         border_style=mc,
@@ -1910,6 +1951,7 @@ def loading_layout(frame: int) -> Layout:
             Text(pose[0], style=f"bold {mc}", justify="center"),
             Text(pose[1], style=f"bold {mc}", justify="center"),
             Text(pose[2], style=f"bold {mc}", justify="center"),
+            Text(pose[3], style=f"bold {mc}", justify="center"),
             Text(""),
         ),
         border_style=mc,
@@ -2049,7 +2091,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     # Row 5: Exposure factors | Activity + health + notifications
     outer["r4"].split_row(
         Layout(panel_exposure_compact(exp_f), ratio=3, name="exposure"),
-        Layout(panel_status(act, hlth, notifs, algo_metrics, loader, audit), ratio=2, name="status"),
+        Layout(panel_status(act, hlth, notifs, algo_metrics, loader, audit, run=run), ratio=2, name="status"),
     )
 
     return outer
