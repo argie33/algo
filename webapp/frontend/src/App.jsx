@@ -51,8 +51,9 @@ function App() {
 
   if (isMarketingPage) {
     return (
-      <Suspense fallback={LOADING}>
-        <Routes>
+      <ErrorBoundary>
+        <Suspense fallback={LOADING}>
+          <Routes>
           {/* Root goes directly to the app */}
           <Route path="/" element={<Navigate to="/app/markets" replace />} />
 
@@ -88,7 +89,8 @@ function App() {
 
           <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
         </Routes>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 

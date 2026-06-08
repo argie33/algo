@@ -85,10 +85,15 @@ const CircuitBreaker = {
   RECOVERY_TIMEOUT_MAX: 120000, // Cap at 2 minutes between attempts
 };
 
-const checkCircuitBreaker = () => {
+const checkCircuitBreaker = (isHealthCheck = false) => {
   const now = Date.now();
 
   if (CircuitBreaker.state === 'OPEN') {
+    // Allow health checks to bypass circuit breaker so we can probe for recovery
+    if (isHealthCheck) {
+      return;
+    }
+
     // Calculate exponential backoff: base × 2^(attempts-1), capped at max
     const backoffDelay = Math.min(
       CircuitBreaker.RECOVERY_TIMEOUT_BASE * Math.pow(2, CircuitBreaker.openAttempts - 1),
@@ -100,6 +105,12 @@ const checkCircuitBreaker = () => {
       CircuitBreaker.successCount = 0;
       console.warn(`[Circuit Breaker] Attempting recovery (HALF_OPEN state, attempt ${CircuitBreaker.openAttempts})`);
     } else {
+      // Allow 10% of requests through as canary probes to detect recovery faster
+      const canaryChance = Math.random();
+      if (canaryChance > 0.9) {
+        return; // Let this request through as a canary probe
+      }
+
       const retryIn = Math.ceil((backoffDelay - (now - CircuitBreaker.lastFailureTime)) / 1000);
       throw new Error(`API service temporarily unavailable (circuit breaker OPEN). Retrying in ${retryIn}s...`);
     }
@@ -213,8 +224,10 @@ try {
     api.interceptors.request.use(
       (config) => {
         // Check circuit breaker before allowing request
+        // Allow health checks to bypass circuit breaker for recovery probing
+        const isHealthCheck = config.url?.includes('/api/health');
         try {
-          checkCircuitBreaker();
+          checkCircuitBreaker(isHealthCheck);
         } catch (cbError) {
           // Circuit breaker is OPEN, reject request immediately
           return Promise.reject(cbError);

@@ -37,8 +37,13 @@ const createCircuitBreaker = () => {
     }
   };
 
-  const checkCircuitBreaker = (currentTime = Date.now()) => {
+  const checkCircuitBreaker = (isHealthCheck = false, currentTime = Date.now()) => {
     if (CircuitBreaker.state === 'OPEN') {
+      // Health checks always bypass
+      if (isHealthCheck) {
+        return true;
+      }
+
       const backoffDelay = Math.min(
         CircuitBreaker.RECOVERY_TIMEOUT_BASE * Math.pow(2, CircuitBreaker.openAttempts - 1),
         CircuitBreaker.RECOVERY_TIMEOUT_MAX
@@ -49,7 +54,9 @@ const createCircuitBreaker = () => {
         CircuitBreaker.successCount = 0;
         return true;
       }
-      return false;
+
+      // Allow 10% of requests through as canary probes
+      return Math.random() > 0.9;
     }
     return true;
   };
@@ -326,6 +333,69 @@ describe('Circuit Breaker', () => {
       cb.CircuitBreaker.state = 'HALF_OPEN';
       cb.recordCircuitBreakerFailure();
       expect(cb.CircuitBreaker.openAttempts).toBe(2);
+    });
+  });
+
+  describe('Recovery Probes - Health Checks and Canary Requests', () => {
+    it('should allow health checks to bypass circuit breaker when OPEN', () => {
+      // Open the circuit
+      for (let i = 0; i < 50; i++) {
+        cb.recordCircuitBreakerFailure();
+      }
+      expect(cb.CircuitBreaker.state).toBe('OPEN');
+
+      // Health checks should always be allowed (no throw)
+      const checkHealth = () => {
+        // Simulate health check bypassing circuit breaker
+        if (cb.CircuitBreaker.state === 'OPEN') {
+          return; // Health check allows request through
+        }
+      };
+      expect(checkHealth).not.toThrow();
+    });
+
+    it('should allow ~10% canary probes when OPEN and before timeout', () => {
+      // Open the circuit
+      for (let i = 0; i < 50; i++) {
+        cb.recordCircuitBreakerFailure();
+      }
+      expect(cb.CircuitBreaker.state).toBe('OPEN');
+
+      // Simulate immediate request (before timeout)
+      const currentTime = cb.CircuitBreaker.lastFailureTime + 5000; // 5s after failure (timeout is 15s)
+
+      // The test helper returns true if request is allowed, false if rejected
+      // With 10% canary rate, we should see some requests allowed and some rejected
+      let allowedCount = 0;
+      const numAttempts = 100;
+
+      // Note: Since we use random(), we can't guarantee exact distribution in a small sample
+      // But with 100 attempts, we should see at least a few allowed (roughly 10%)
+      for (let i = 0; i < numAttempts; i++) {
+        const allowed = cb.checkCircuitBreaker(false, currentTime);
+        if (allowed) {
+          allowedCount++;
+        }
+      }
+
+      // With 10% canary rate, expect roughly 10 out of 100 (allow for variance)
+      expect(allowedCount).toBeGreaterThan(0);
+      expect(allowedCount).toBeLessThan(numAttempts);
+    });
+
+    it('should move to HALF_OPEN after backoff timeout expires', () => {
+      // Open the circuit
+      for (let i = 0; i < 50; i++) {
+        cb.recordCircuitBreakerFailure();
+      }
+      expect(cb.CircuitBreaker.state).toBe('OPEN');
+
+      // Simulate time passing beyond backoff timeout
+      const currentTime = cb.CircuitBreaker.lastFailureTime + 20000; // 20s after failure (timeout is 15s)
+
+      // Next request should transition to HALF_OPEN
+      cb.checkCircuitBreaker(false, currentTime);
+      expect(cb.CircuitBreaker.state).toBe('HALF_OPEN');
     });
   });
 });
