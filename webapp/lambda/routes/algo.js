@@ -690,22 +690,20 @@ router.get('/data-status', async (req, res) => {
     const ready_to_trade = result.rows.length > 0 && criticalStale.length === 0;
 
     return sendSuccess(res, {
-      data: {
-        summary: counts,
-        critical_stale: criticalStale.map(r => r.table_name),
-        ready_to_trade,
-        sources: result.rows.map(r => ({
-          table: r.table_name,
-          frequency: r.frequency,
-          role: r.role,
-          latest: r.latest_date,
-          age_days: r.age_days !== null ? parseInt(r.age_days) : null,
-          rows: parseInt(r.row_count),
-          status: r.status,
-          last_audit: null,
-          error: null,
-        })),
-      }
+      summary: counts,
+      critical_stale: criticalStale.map(r => r.table_name),
+      ready_to_trade,
+      sources: result.rows.map(r => ({
+        table: r.table_name,
+        frequency: r.frequency,
+        role: r.role,
+        latest: r.latest_date,
+        age_days: r.age_days !== null ? parseInt(r.age_days) : null,
+        rows: parseInt(r.row_count),
+        status: r.status,
+        last_audit: null,
+        error: null,
+      })),
     });
   } catch (error) {
     logger.error('Error in /algo/data-status:', { error: error.message });
@@ -1576,11 +1574,9 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
     ];
 
     return sendSuccess(res, {
-      data: {
-        any_triggered: breakers.some(b => b.triggered),
-        triggered_count: breakers.filter(b => b.triggered).length,
-        breakers,
-      }
+      any_triggered: breakers.some(b => b.triggered),
+      triggered_count: breakers.filter(b => b.triggered).length,
+      breakers,
     });
   } catch (error) {
     logger.error('Error in /algo/circuit-breakers:', { error: error.message });
@@ -1793,17 +1789,15 @@ router.get('/rejection-funnel', async (req, res) => {
     const t5 = t5_pass || 0;
 
     return sendSuccess(res, {
-      data: {
-        date: eval_date,
-        total_signals: total || 0,
-        tiers: [
-          { tier: 1, name: 'Data Quality', pass: t1, reject: (total - t1) },
-          { tier: 2, name: 'Market Health', pass: t2, reject: (t1 - t2) },
-          { tier: 3, name: 'Trend Confirmation', pass: t3, reject: (t2 - t3) },
-          { tier: 4, name: 'Signal Quality', pass: t4, reject: (t3 - t4) },
-          { tier: 5, name: 'Portfolio Health', pass: t5, reject: (t4 - t5) },
-        ],
-      }
+      date: eval_date,
+      total_signals: total || 0,
+      tiers: [
+        { tier: 1, name: 'Data Quality', pass: t1, reject: (total - t1) },
+        { tier: 2, name: 'Market Health', pass: t2, reject: (t1 - t2) },
+        { tier: 3, name: 'Trend Confirmation', pass: t3, reject: (t2 - t3) },
+        { tier: 4, name: 'Signal Quality', pass: t4, reject: (t3 - t4) },
+        { tier: 5, name: 'Portfolio Health', pass: t5, reject: (t4 - t5) },
+      ],
     });
   } catch (error) {
     logger.error('Error in /algo/rejection-funnel:', { error: error.message });
