@@ -515,12 +515,32 @@ def main():
                 return 1
 
             tech_data_date = result[0]
+            if not isinstance(tech_data_date, date):
+                tech_data_date = date.fromisoformat(str(tech_data_date))
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
             today_et = datetime.now(ZoneInfo("America/New_York")).date()
-            tech_data_age = (today_et - (tech_data_date if isinstance(tech_data_date, date) else date.fromisoformat(str(tech_data_date)))).days
+            tech_data_age = (today_et - tech_data_date).days
 
-            if tech_data_age > 1:
-                logger.error(f"[DEPENDENCY] technical_data_daily is {tech_data_age}+ days old - too stale for signal generation")
+            # Compare against last trading day, not calendar days.
+            # On Monday, Friday's data is 2 calendar days old but 0 trading days stale.
+            from algo.algo_market_calendar import MarketCalendar
+            last_trading_day = today_et
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(last_trading_day):
+                    break
+                last_trading_day -= timedelta(days=1)
+            # Allow data from the last 2 trading days (covers Monday with Friday data)
+            prev_trading_day = last_trading_day - timedelta(days=1)
+            for _ in range(7):
+                if MarketCalendar.is_trading_day(prev_trading_day):
+                    break
+                prev_trading_day -= timedelta(days=1)
+
+            if tech_data_date < prev_trading_day:
+                logger.error(
+                    f"[DEPENDENCY] technical_data_daily is {tech_data_age}+ days old (data: {tech_data_date}, "
+                    f"last trading day: {last_trading_day}) - too stale for signal generation"
+                )
                 return 1
 
             # Check coverage: technical_data_daily must have at least 75% symbol coverage
