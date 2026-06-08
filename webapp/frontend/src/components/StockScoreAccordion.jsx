@@ -74,7 +74,7 @@ const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) 
     );
   }
 
-  const DataField = ({ label, value, format = 'text', color = null, unit = '' }) => {
+  const _DataField = ({ label, value, format = 'text', color = null, unit = '' }) => {
     if (value === null || value === undefined || value === '') {
       return null;
     }
