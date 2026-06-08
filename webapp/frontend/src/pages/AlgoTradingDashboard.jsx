@@ -140,13 +140,14 @@ function AlgoTradingDashboardPage() {
   }, [r1,r2,r5,r6,r7,r8,r11,r12,r13,r14,r15,r16,r17,r18]);
 
   const configMap = useMemo(() => {
-    const items = config?.items || (Array.isArray(config) ? config : []);
-    return items.reduce((acc, row) => { acc[row.key] = row; return acc; }, {});
+    if (typeof config === 'object' && config !== null && !Array.isArray(config)) {
+      return config.data || config;
+    }
+    return {};
   }, [config]);
 
   const positions = useMemo(() => {
-    const raw = positionsResp?.items || (Array.isArray(positionsResp) ? positionsResp : []);
-    return raw;
+    return (Array.isArray(positionsResp?.items) ? positionsResp.items : Array.isArray(positionsResp) ? positionsResp : []);
   }, [positionsResp]);
 
   const posFreshness = positionsResp?.data_freshness;
@@ -1009,7 +1010,9 @@ function PipelineTab({ policy, _markets, dataQuality, dataStatus, rejectionFunne
 // ============================================================================
 function ConfigTab({ config }) {
   if (!config) return <div style={{ padding: 'var(--space-3)' }}><div className="alert alert-info">Config not loaded</div></div>;
-  const entries = Object.entries(config).sort((a, b) => a[0].localeCompare(b[0]));
+  const entries = Object.entries(config)
+    .filter(([, val]) => val && typeof val === 'object' && 'value' in val)
+    .sort((a, b) => a[0].localeCompare(b[0]));
   return (
     <div style={{ padding: 'var(--space-3)' }}>
       <div className="t-xs muted" style={{ marginBottom: 'var(--space-3)', display: 'block' }}>

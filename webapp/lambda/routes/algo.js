@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Swing Trading Algo API Routes
  *
  * Endpoints:
@@ -11,9 +11,9 @@
  */
 
 const express = require('express');
-const { getPool } = require('../utils/database');
+const { getPool, ensureConnection } = require('../utils/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
-const { sendSuccess, sendError } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendDatabaseError } = require('../utils/apiResponse');
 const paginationConfig = require('../config/pagination');
 const logger = require('../utils/logger');
 
@@ -27,6 +27,7 @@ const requireAuth = authenticateToken;
  */
 router.get('/status', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
     // Parallelize all 4 independent queries
@@ -106,7 +107,7 @@ router.get('/status', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/status:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching algorithm status', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching algorithm status');
   }
 });
 
@@ -116,10 +117,11 @@ router.get('/status', async (req, res) => {
  */
 router.get('/evaluate', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
     // OPTIMIZED: Single batch query instead of N+1 pattern
-    // Was: 150 round-trips (1 initial query + 3 queries × 50 signals)
+    // Was: 150 round-trips (1 initial query + 3 queries Ã— 50 signals)
     // Now: 1 query with CTEs joining all scoring data
     const result = await pool.query(`
       WITH latest_signals AS (
@@ -191,7 +193,7 @@ router.get('/evaluate', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/evaluate:', { error: error.message });
-    return sendError(res, 'An error occurred while evaluating signals', 500);
+    return sendDatabaseError(res, error, 'An error occurred while evaluating signals');
   }
 });
 
@@ -202,6 +204,7 @@ router.get('/evaluate', async (req, res) => {
  */
 router.get('/positions', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
     const result = await pool.query(`
@@ -314,7 +317,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/positions:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching positions', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching positions');
   }
 });
 
@@ -324,6 +327,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
  */
 router.get('/trades', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'trades');
 
@@ -368,7 +372,7 @@ router.get('/trades', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/trades:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching trade history', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching trade history');
   }
 });
 
@@ -378,6 +382,7 @@ router.get('/trades', authenticateToken, async (req, res) => {
  */
 router.get('/config', requireAuth, requireAdmin, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
     const result = await pool.query(`
@@ -403,18 +408,19 @@ router.get('/config', requireAuth, requireAdmin, async (req, res) => {
       };
     });
 
-    return sendSuccess(res, { data: config });
+    return sendSuccess(res, config);
   } catch (error) {
     logger.error('Error in /algo/config:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching configuration', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching configuration');
   }
 });
 
 // ============================================================
-// MARKET EXPOSURE — for the Markets page
+// MARKET EXPOSURE â€” for the Markets page
 // ============================================================
 router.get('/markets', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
     // Parallelize all 5 independent queries
@@ -458,19 +464,19 @@ router.get('/markets', async (req, res) => {
       const tiers = [
         { name: 'confirmed_uptrend', min: 80, max: 100, risk_mult: 1.0, max_new: 5,
           min_grade: 'B', halt: false, color: 'green',
-          description: 'Healthy bull market — full deployment' },
+          description: 'Healthy bull market â€” full deployment' },
         { name: 'healthy_uptrend', min: 60, max: 80, risk_mult: 0.85, max_new: 4,
           min_grade: 'B', halt: false, color: 'lightgreen',
-          description: 'Bull market with caution — slightly reduced risk' },
+          description: 'Bull market with caution â€” slightly reduced risk' },
         { name: 'pressure', min: 40, max: 60, risk_mult: 0.5, max_new: 2,
           min_grade: 'A', halt: false, color: 'yellow',
-          description: 'Uptrend under pressure — defensive posture' },
+          description: 'Uptrend under pressure â€” defensive posture' },
         { name: 'caution', min: 20, max: 40, risk_mult: 0.25, max_new: 1,
           min_grade: 'A', halt: true, color: 'orange',
-          description: 'Major caution — entries halted unless exceptional' },
+          description: 'Major caution â€” entries halted unless exceptional' },
         { name: 'correction', min: 0, max: 20, risk_mult: 0.0, max_new: 0,
           min_grade: 'A+', halt: true, color: 'red',
-          description: 'Market correction — preserve capital' },
+          description: 'Market correction â€” preserve capital' },
       ];
       policy = tiers.find(t => exposurePct >= t.min && exposurePct <= t.max) || tiers[0];
     }
@@ -509,15 +515,16 @@ router.get('/markets', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/markets:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching market data', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching market data');
   }
 });
 
 // ============================================================
-// SWING TRADER SCORES — for ranking display
+// SWING TRADER SCORES â€” for ranking display
 // ============================================================
 router.get('/swing-scores', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, 0, 'signals');
     const minScore = parseFloat(req.query.min_score) || 0;
@@ -574,15 +581,16 @@ router.get('/swing-scores', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/swing-scores:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching swing scores', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching swing scores');
   }
 });
 
 // ============================================================
-// SWING SCORES HISTORY — score counts over time
+// SWING SCORES HISTORY â€” score counts over time
 // ============================================================
 router.get('/swing-scores-history', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const days = Math.min(parseInt(req.query.days) || 30, 180);
 
@@ -616,18 +624,19 @@ router.get('/swing-scores-history', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/swing-scores-history:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching score history', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching score history');
   }
 });
 
 // ============================================================
-// DATA FRESHNESS — for monitoring (computed dynamically from source tables)
+// DATA FRESHNESS â€” for monitoring (computed dynamically from source tables)
 // ============================================================
 router.get('/data-status', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
-    // Compute data freshness dynamically — don't rely on pre-populated audit table
+    // Compute data freshness dynamically â€” don't rely on pre-populated audit table
     // which would show false "ready_to_trade: true" when empty.
     const result = await pool.query(`
       SELECT table_name, frequency, role, latest_date,
@@ -702,19 +711,20 @@ router.get('/data-status', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/data-status:', { error: error.message });
-    return sendError(res, 'An error occurred while checking data status', 500);
+    return sendDatabaseError(res, error, 'An error occurred while checking data status');
   }
 });
 
 // ============================================================
-// EXPOSURE POLICY — current tier rules
+// EXPOSURE POLICY â€” current tier rules
 // ============================================================
 router.get('/exposure-policy', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const tiers = [
       { name: 'confirmed_uptrend', min_pct: 80, max_pct: 100,
-        description: 'Healthy bull market — full deployment',
+        description: 'Healthy bull market â€” full deployment',
         risk_multiplier: 1.0, max_new_positions_today: 5,
         min_swing_score: 60, min_swing_grade: 'B',
         halt_new_entries: false, color: 'green' },
@@ -760,12 +770,12 @@ router.get('/exposure-policy', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/exposure-policy:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching exposure policy', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching exposure policy');
   }
 });
 
 // ============================================================
-// RUN ORCHESTRATOR — trigger the daily algo workflow from UI (admin only)
+// RUN ORCHESTRATOR â€” trigger the daily algo workflow from UI (admin only)
 // ============================================================
 router.post('/run', requireAuth, requireAdmin, async (req, res) => {
   const { spawn } = require('child_process');
@@ -830,7 +840,7 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // ============================================================
-// RUN DATA PATROL — trigger watchdog from UI (admin only)
+// RUN DATA PATROL â€” trigger watchdog from UI (admin only)
 // ============================================================
 router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
   const { spawn } = require('child_process');
@@ -876,10 +886,11 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // ============================================================
-// PATROL HISTORY — recent patrol log entries (admin only)
+// PATROL HISTORY â€” recent patrol log entries (admin only)
 // ============================================================
 router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'logs');
     const minSeverity = req.query.min_severity || 'warn';
@@ -911,15 +922,16 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/patrol-log:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching patrol logs', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching patrol logs');
   }
 });
 
 // ============================================================
-// NOTIFICATIONS — surface CRITICAL events to UI as toasts
+// NOTIFICATIONS â€” surface CRITICAL events to UI as toasts
 // ============================================================
 router.get('/notifications', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'logs');
     const kind = req.query.kind || null;
@@ -958,13 +970,14 @@ router.get('/notifications', authenticateToken, async (req, res) => {
     return sendSuccess(res, { items: result.rows });
   } catch (error) {
     logger.error('Error fetching notifications:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching notifications', 503);
+    return sendDatabaseError(res, error, 'An error occurred while fetching notifications');
   }
 });
 
 // Mark single notification as read (PATCH)
 router.patch('/notifications/:id/read', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { id } = req.params;
     const result = await pool.query(
@@ -974,26 +987,28 @@ router.patch('/notifications/:id/read', authenticateToken, requireAdmin, async (
     return sendSuccess(res, { updated: result.rowCount, timestamp: new Date() });
   } catch (error) {
     logger.error('Error marking notification as read:', { error: error.message });
-    return sendError(res, 'An error occurred while updating notification', 500);
+    return sendDatabaseError(res, error, 'An error occurred while updating notification');
   }
 });
 
 // Delete single notification
 router.delete('/notifications/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { id } = req.params;
     const result = await pool.query(`DELETE FROM algo_notifications WHERE id = $1`, [id]);
     return sendSuccess(res, { deleted: result.rowCount, timestamp: new Date() });
   } catch (error) {
     logger.error('Error deleting notification:', { error: error.message });
-    return sendError(res, 'An error occurred while deleting notification', 500);
+    return sendDatabaseError(res, error, 'An error occurred while deleting notification');
   }
 });
 
 // Batch mark as seen (legacy endpoint)
 router.post('/notifications/seen', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const ids = req.body?.ids || [];
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -1006,12 +1021,12 @@ router.post('/notifications/seen', authenticateToken, async (req, res) => {
     return sendSuccess(res, { marked: result.rowCount, timestamp: new Date() });
   } catch (error) {
     logger.error('Error marking notifications as seen:', { error: error.message });
-    return sendError(res, 'An error occurred while updating notifications', 500);
+    return sendDatabaseError(res, error, 'An error occurred while updating notifications');
   }
 });
 
 // ============================================================
-// PRE-TRADE SIMULATION — what would the algo do? (admin only)
+// PRE-TRADE SIMULATION â€” what would the algo do? (admin only)
 // ============================================================
 router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
   const { spawn } = require('child_process');
@@ -1056,10 +1071,11 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
 
 // ============================================================
 // ============================================================
-// PRE-TRADE SIMULATION — Impact analysis before execution
+// PRE-TRADE SIMULATION â€” Impact analysis before execution
 // ============================================================
 router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { symbol, entry_price, position_dollars, position_pct } = req.body;
 
@@ -1112,7 +1128,7 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
       return sendError(res, `Stock ${symbol} not found`, 404);
     }
 
-    // Get current positions in same sector — join company_profile since algo_positions
+    // Get current positions in same sector â€” join company_profile since algo_positions
     // has no sector column.
     const sectorResult = await pool.query(`
       SELECT SUM(p.position_value) as sector_invested, COUNT(*) as sector_count
@@ -1172,14 +1188,15 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
     });
   } catch (error) {
     logger.error('Pre-trade simulation error:', { error: error.message });
-    return sendError(res, 'An error occurred while analyzing trade impact', 500);
+    return sendDatabaseError(res, error, 'An error occurred while analyzing trade impact');
   }
 });
 
-// PERFORMANCE METRICS — Sharpe, Sortino, Calmar, max DD, profit factor
+// PERFORMANCE METRICS â€” Sharpe, Sortino, Calmar, max DD, profit factor
 // ============================================================
 router.get('/performance', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
     // Get all closed trades for trade-based metrics
@@ -1322,7 +1339,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/performance:', { error: error.message });
-    return sendError(res, 'An error occurred while calculating performance metrics', 500);
+    return sendDatabaseError(res, error, 'An error occurred while calculating performance metrics');
   }
 });
 
@@ -1333,6 +1350,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
  */
 router.get('/equity-curve', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'portfolio');
     const result = await pool.query(`
@@ -1354,15 +1372,16 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/equity-curve:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching equity curve', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching equity curve');
   }
 });
 
 // ============================================================
-// AUDIT LOG — every algo decision logged (admin only)
+// AUDIT LOG â€” every algo decision logged (admin only)
 // ============================================================
 router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'audit');
     const actionFilter = req.query.action_type || null;
@@ -1397,15 +1416,16 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/audit-log:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching audit logs', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching audit logs');
   }
 });
 
 // ============================================================
-// TRADE DETAIL — full reasoning for a single trade
+// TRADE DETAIL â€” full reasoning for a single trade
 // ============================================================
 router.get('/trade/:tradeId', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const result = await pool.query(
       `SELECT t.*, p.position_id, p.quantity AS current_qty, p.current_price,
@@ -1423,16 +1443,17 @@ router.get('/trade/:tradeId', async (req, res) => {
     return sendSuccess(res, { data: result.rows[0] });
   } catch (error) {
     logger.error('Error in /algo/trade/:id:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching trade details', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching trade details');
   }
 });
 
 
 // ============================================================
-// CIRCUIT BREAKERS — current state of all 7 kill-switches (admin only)
+// CIRCUIT BREAKERS â€” current state of all 7 kill-switches (admin only)
 // ============================================================
 router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
 
     // Pull config (with sensible defaults if rows missing)
@@ -1553,7 +1574,7 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       { id: 'market_stage', label: 'Market Stage',
         current: stage, threshold: 4,
         unit: '', triggered: stage === 4,
-        description: `Market in stage ${stage} (${trend}) — stage 4 = downtrend halts entries` },
+        description: `Market in stage ${stage} (${trend}) â€” stage 4 = downtrend halts entries` },
       { id: 'weekly_loss', label: 'Weekly Loss',
         current: Math.round(weeklyLossPct * 100) / 100, threshold: thresh.weekly_loss,
         unit: '%', triggered: weeklyLossPct >= thresh.weekly_loss,
@@ -1569,15 +1590,16 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/circuit-breakers:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching circuit breaker status', 500);
+    return sendDatabaseError(res, error, 'An error occurred while fetching circuit breaker status');
   }
 });
 
 // ============================================================
-// SECTOR BREADTH — % of stocks above 50d / 200d MA per sector
+// SECTOR BREADTH â€” % of stocks above 50d / 200d MA per sector
 // ============================================================
 router.get('/sector-breadth', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
       WITH latest_tt AS (
@@ -1611,15 +1633,16 @@ router.get('/sector-breadth', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/sector-breadth:', { error: error.message });
-    return sendError(res, 'An error occurred while calculating sector breadth', 500);
+    return sendDatabaseError(res, error, 'An error occurred while calculating sector breadth');
   }
 });
 
 // ============================================================
-// SECTOR STAGE-2 LEADERS — Stage 2 stocks per sector
+// SECTOR STAGE-2 LEADERS â€” Stage 2 stocks per sector
 // ============================================================
 router.get('/sector-stage2', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
       WITH latest_tt AS (
@@ -1657,15 +1680,16 @@ router.get('/sector-stage2', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/sector-stage2:', { error: error.message });
-    return sendError(res, 'An error occurred while analyzing sector stage 2 leaders', 500);
+    return sendDatabaseError(res, error, 'An error occurred while analyzing sector stage 2 leaders');
   }
 });
 
 // ============================================================
-// SECTOR ROTATION SIGNAL — defensive vs cyclical leadership timeline
+// SECTOR ROTATION SIGNAL â€” defensive vs cyclical leadership timeline
 // ============================================================
 router.get('/sector-rotation', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'security');
 
@@ -1689,7 +1713,7 @@ router.get('/sector-rotation', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/sector-rotation:', { error: error.message });
-    return sendError(res, 'An error occurred while analyzing sector rotation', 503);
+    return sendDatabaseError(res, error, 'An error occurred while analyzing sector rotation');
   }
 });
 
@@ -1703,6 +1727,7 @@ router.get('/sector-rotation', async (req, res) => {
  */
 router.get('/data-quality', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
       SELECT
@@ -1736,7 +1761,7 @@ router.get('/data-quality', async (req, res) => {
     return sendSuccess(res, { data: { status: overall_status, checks } });
   } catch (error) {
     logger.error('Error in /algo/data-quality:', { error: error.message });
-    return sendError(res, 'An error occurred while checking data quality', 503);
+    return sendDatabaseError(res, error, 'An error occurred while checking data quality');
   }
 });
 
@@ -1746,6 +1771,7 @@ router.get('/data-quality', async (req, res) => {
  */
 router.get('/rejection-funnel', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const eval_date = req.query.date || new Date().toISOString().split('T')[0];
 
@@ -1787,7 +1813,7 @@ router.get('/rejection-funnel', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/rejection-funnel:', { error: error.message });
-    return sendError(res, 'An error occurred while analyzing rejection funnel', 503);
+    return sendDatabaseError(res, error, 'An error occurred while analyzing rejection funnel');
   }
 });
 
@@ -1798,6 +1824,7 @@ router.get('/rejection-funnel', async (req, res) => {
  */
 router.get('/orders/pending', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
       SELECT
@@ -1831,7 +1858,7 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error in /algo/orders/pending:', { error: error.message });
-    return sendError(res, 'An error occurred while fetching pending orders', 503);
+    return sendDatabaseError(res, error, 'An error occurred while fetching pending orders');
   }
 });
 
@@ -1841,6 +1868,7 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
  */
 router.get('/execution-quality', authenticateToken, async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);  // Clamp to [1, 365]
 
@@ -1922,3 +1950,4 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
 });
 
 module.exports = router;
+
