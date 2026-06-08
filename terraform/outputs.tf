@@ -132,7 +132,7 @@ output "api_url" {
 }
 
 output "api_gateway_endpoint" {
-  description = "API Gateway endpoint URL (for deployments)"
+  description = "API Gateway endpoint for frontend"
   value       = module.services.api_gateway_endpoint
 }
 
