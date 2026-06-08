@@ -3,6 +3,7 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { getMarketDataPath } = require("../utils/market-data-path");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require("../utils/logger");
 const router = express.Router();
 
@@ -88,6 +89,8 @@ router.get("/leading-indicators", async (req, res) => {
           return { rows: [] };
         })
       ]);
+      validateQueryResult(ecResult, { requireRows: false });
+      validateQueryResult(calResult, { requireRows: false });
       result = ecResult;
       calendarResult = calResult;
     } catch (e) {
@@ -472,6 +475,8 @@ router.get("/yield-curve-full", async (req, res) => {
     `;
 
     const result = await query(yieldCurveQuery);
+    validateQueryResult(result, { requireRows: false });
+
     const dataBySeriesAndDate = {};
 
     // Organize data by series and date
@@ -636,6 +641,7 @@ router.get("/calendar", async (req, res) => {
       `,
         queryParams
       );
+      validateQueryResult(calendarResult, { requireRows: false });
     } catch (tableError) {
       console.warn("Economic calendar table not available:", tableError.message);
       // Table doesn't exist or query failed - return empty results
@@ -679,6 +685,7 @@ router.get("/:indicator", async (req, res) => {
       ORDER BY date DESC
       LIMIT 100
     `, [seriesId]);
+    validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
       return sendError(res, `Indicator not found: ${indicator}`, 404);

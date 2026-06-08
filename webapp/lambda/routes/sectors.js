@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require('../utils/logger');
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.get("/", async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     // Parallelize data and count queries
-    const [result, countResult] = await Promise.all([
+    const [dataResult, countResult] = await Promise.all([
       query(`
       WITH recent_prices AS (
         SELECT symbol, date, close,
@@ -83,12 +84,14 @@ router.get("/", async (req, res) => {
     `, [limitNum, offset]),
       query(`SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL`)
     ]);
+    validateQueryResult(dataResult, { requireRows: false });
+    validateQueryResult(countResult, { requireRows: false });
 
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
     const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
 
-    const sectors = (result?.rows || []).map((row, idx) => {
+    const sectors = (dataResult?.rows || []).map((row, idx) => {
       const composite = sf(row.composite_score);
       const perf20d = sf(row.perf_20d);
       const momentumLabel = composite !== null && composite >= 60 ? 'Strong' : composite !== null && composite >= 45 ? 'Moderate' : 'Weak';
@@ -155,6 +158,7 @@ router.get("/trends-batch", async (req, res) => {
         AND date >= CURRENT_DATE - INTERVAL '${daysNum} days'
       ORDER BY sector, date ASC
     `, sectors);
+    validateQueryResult(resultObj, { requireRows: false });
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
@@ -209,6 +213,7 @@ router.get("/:sector/trend", async (req, res) => {
       GROUP BY pd.date
       ORDER BY pd.date ASC
     `, [sector]);
+    validateQueryResult(resultObj, { requireRows: false });
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
@@ -253,6 +258,7 @@ router.get("/:sector/trend", async (req, res) => {
       ORDER BY date DESC
       LIMIT 100
     `, [sector]);
+    validateQueryResult(result, { requireRows: false });
 
     if (result.length === 0) {
       return sendError(res, `No price data for sector: ${sector}`, 404);
@@ -297,6 +303,7 @@ router.get("/:sector", async (req, res) => {
       WHERE cp.sector = $1
       GROUP BY cp.sector
     `, [sector]);
+    validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
       return sendError(res, `Sector not found: ${sector}`, 404);

@@ -2,6 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require('../utils/logger');
 const router = express.Router();
 
@@ -66,6 +67,8 @@ router.get("/data", async (req, res) => {
       query(countQueryStr, countParams),
       query(queryStr, params)
     ]);
+    validateQueryResult(countResult, { requireRows: false });
+    validateQueryResult(result, { requireRows: false });
     const total = parseInt(countResult.rows[0]?.total || 0);
 
     return sendPaginated(res, result.rows || [], {
@@ -149,10 +152,12 @@ router.get("/analyst", async (req, res) => {
     }
 
     const countResult = await query(countQueryStr, countParams);
+    validateQueryResult(countResult, { requireRows: false });
     const total = parseInt(countResult.rows[0]?.total || 0);
     const totalPages = Math.ceil(total / limitNum);
 
     const result = await query(queryStr, params);
+    validateQueryResult(result, { requireRows: false });
     return sendPaginated(res, result.rows || [], {
       page: pageNum,
       limit: limitNum,
@@ -326,6 +331,9 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
         [symbol]
       )
     ]);
+    validateQueryResult(sentimentResult, { requireRows: false });
+    validateQueryResult(upgradeResult, { requireRows: false });
+    validateQueryResult(momentumResult, { requireRows: false });
 
     const row = sentimentResult.rows[0] || null;
     const total = row ? (parseInt(row.analyst_count) || 0) : 0;

@@ -12,6 +12,7 @@ try {
 }
 
 const { sendSuccess, sendError, sendPaginated, sendNotFound, sendBadRequest } = require('../utils/apiResponse');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require('../utils/logger');
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
@@ -536,6 +537,7 @@ router.get("/breadth", async (req, res) => {
     `;
 
     const result = await query(breadthQuery, [latestDate]);
+    validateQueryResult(result, { requireRows: false });
 
     if (
       !result ||
@@ -818,6 +820,9 @@ router.get("/volatility", async (req, res) => {
       query(marketVolatilityQuery)
     ]);
 
+    validateQueryResult(result, { requireRows: false });
+    validateQueryResult(marketVolatilityResult, { requireRows: false });
+
     // Use market volatility data if available, fallback to VIX data if available
     let responseData = null;
     if (marketVolatilityResult && marketVolatilityResult.rows && marketVolatilityResult.rows.length > 0) {
@@ -1013,6 +1018,7 @@ router.get("/seasonality", async (req, res) => {
       `;
 
       const cycleReturnsResult = await query(cycleReturnsQuery, [currentYear - 30]);
+      validateQueryResult(cycleReturnsResult, { requireRows: false });
 
       // Map results to presidential cycle positions
       if (cycleReturnsResult.rows.length > 0) {
@@ -1052,6 +1058,7 @@ router.get("/seasonality", async (req, res) => {
       `;
 
       const monthlyResult = await query(monthlyStatsQuery);
+      validateQueryResult(monthlyResult, { requireRows: false });
 
       if (monthlyResult && monthlyResult.rows && monthlyResult.rows.length > 0) {
         monthlySeasonality = monthlyResult.rows.map((m) => {
@@ -1153,6 +1160,7 @@ router.get("/seasonality", async (req, res) => {
       `;
 
       const dowResult = await query(dowQuery);
+      validateQueryResult(dowResult, { requireRows: false });
 
       if (dowResult && dowResult.rows && dowResult.rows.length > 0) {
         dowEffects = dowResult.rows.map((d) => {
@@ -1569,6 +1577,7 @@ router.get("/correlation", async (req, res) => {
          ORDER BY symbol, date DESC`,
         [analysisSymbols]
       );
+      validateQueryResult(batchPriceResult, { requireRows: false });
 
       // Build Map<symbol, prices[]> for fast in-memory lookups
       const pricesBySymbol = new Map();
@@ -1790,6 +1799,8 @@ router.get("/indices", async (req, res) => {
     `;
 
     const indicesResult = await query(indicesQuery);
+    validateQueryResult(indicesResult, { requireRows: false });
+
     const indexMap = {
       '^GSPC': 'S&P 500',
       '^IXIC': 'NASDAQ Composite',

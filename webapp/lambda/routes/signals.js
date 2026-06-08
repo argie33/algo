@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require('../utils/logger');
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
@@ -46,6 +47,7 @@ router.get("/", async (req, res) => {
       `SELECT COUNT(*) as total FROM ${tableName} bsd ${whereClause}`,
       params
     );
+    validateQueryResult(countResultObj, { requireRows: false });
     const countRows = Array.isArray(countResultObj) ? countResultObj : (countResultObj?.rows || []);
     const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
@@ -75,6 +77,7 @@ router.get("/", async (req, res) => {
       ORDER BY bsd.date DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `, [...params, limit, offset]);
+    validateQueryResult(resultObj, { requireRows: false });
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
 
@@ -126,6 +129,12 @@ router.get("/stocks", async (req, res) => {
 
     // Get signals for regular stocks (exclude major indices/ETFs)
     // Return all trading plan details + technical data
+    const countResultObj = await query(
+      `SELECT COUNT(*) as total FROM ${tableName} bsd ${whereClause}`,
+      params
+    );
+    validateQueryResult(countResultObj, { requireRows: false });
+
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -179,6 +188,7 @@ router.get("/stocks", async (req, res) => {
       ORDER BY bsd.date DESC, bsd.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `, [...params, limit, offset]);
+    validateQueryResult(resultObj, { requireRows: false });
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
     return sendSuccess(res, { items: result }, 200);
@@ -206,6 +216,11 @@ router.get("/etf", async (req, res) => {
     }
 
     // Get signals for major indices/ETFs with basic enrichment
+    const countResultObj = await query(
+      `SELECT COUNT(*) as total FROM ${tableName} bsd WHERE LOWER(bsd.signal) IN ('buy', 'sell')`
+    );
+    validateQueryResult(countResultObj, { requireRows: false });
+
     const resultObj = await query(`
       SELECT
         bsd.id,
@@ -224,6 +239,7 @@ router.get("/etf", async (req, res) => {
       ORDER BY bsd.date DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
+    validateQueryResult(resultObj, { requireRows: false });
 
     const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
     return sendSuccess(res, { items: result }, 200);

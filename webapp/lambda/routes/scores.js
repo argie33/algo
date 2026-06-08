@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const logger = require('../utils/logger');
 const router = express.Router();
 
@@ -31,6 +32,7 @@ router.get("/", async (req, res) => {
       `SELECT COUNT(*) as total FROM stock_scores ss LEFT JOIN stock_symbols sy ON sy.symbol = ss.symbol ${whereClause}`,
       params
     );
+    validateQueryResult(countResult, { requireRows: false });
     const total = parseInt(countResult?.rows[0]?.total || 0);
 
     // Get paginated results
@@ -50,6 +52,7 @@ router.get("/", async (req, res) => {
       ORDER BY ss.${sortField} ${sortDir}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `, [...params, limitNum, offset]);
+    validateQueryResult(resultObj, { requireRows: false });
 
     const scores = resultObj?.rows || [];
     const totalPages = Math.ceil(total / limitNum);
@@ -104,6 +107,7 @@ router.get("/stockscores", async (req, res) => {
       `SELECT COUNT(*) as total FROM stock_scores sc LEFT JOIN stock_symbols ss ON ss.symbol = sc.symbol ${whereClause}`,
       params
     );
+    validateQueryResult(countResult, { requireRows: false });
     const total = parseInt(countResult?.rows[0]?.total || 0);
 
     // Get paginated results - Optimized: removed slow price_daily join with window function
@@ -138,6 +142,7 @@ router.get("/stockscores", async (req, res) => {
       ORDER BY sc.${sortField} ${sortDir}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `, [...params, limitNum, offsetNum]);
+    validateQueryResult(resultObj, { requireRows: false });
 
     const scores = (resultObj?.rows || []).map(row => {
       const compositeScore = parseFloat(row.composite_score || 0);
@@ -197,6 +202,7 @@ router.get("/:symbol", async (req, res) => {
       `SELECT * FROM stock_scores WHERE symbol = $1`,
       [symbol.toUpperCase()]
     );
+    validateQueryResult(result, { requireRows: false });
 
     if (!result?.rows || result.rows.length === 0) {
       return sendError(res, `No scores found for symbol ${symbol}`, 404);
