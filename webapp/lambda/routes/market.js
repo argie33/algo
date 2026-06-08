@@ -505,6 +505,10 @@ function getMarketStatus() {
 
 // Get market breadth indicators - CONSOLIDATED INTO /data
 router.get("/breadth", async (req, res) => {
+  // Fail fast if database is unavailable
+  if (!query) {
+    return sendError(res, 'Database service unavailable', 503);
+  }
 
   try {
     // Get latest market date from cache (5 min TTL)
@@ -577,6 +581,10 @@ router.get("/breadth", async (req, res) => {
 
 // McClellan Oscillator endpoint - Advanced breadth momentum indicator
 router.get("/mcclellan-oscillator", async (req, res) => {
+  // Fail fast if database is unavailable
+  if (!query) {
+    return sendError(res, 'Database service unavailable', 503);
+  }
 
   try {
     // Check if price_daily table exists
@@ -682,6 +690,10 @@ router.get("/mcclellan-oscillator", async (req, res) => {
 
 // Distribution Days endpoint - IBD methodology
 router.get("/distribution-days", async (req, res) => {
+  // Fail fast if database is unavailable
+  if (!query) {
+    return sendError(res, 'Database service unavailable', 503);
+  }
 
   try {
     // Check if distribution_days table exists
@@ -769,6 +781,11 @@ router.get("/distribution-days", async (req, res) => {
 
 // Get market volatility
 router.get("/volatility", async (req, res) => {
+  // Fail fast if database is unavailable
+  if (!query) {
+    return sendError(res, 'Database service unavailable', 503);
+  }
+
   try {
     // Get VIX and volatility data
     const volatilityQuery = `
@@ -821,6 +838,10 @@ router.get("/volatility", async (req, res) => {
 
 // Get market indicators
 router.get("/indicators", async (req, res) => {
+  // Fail fast if database is unavailable
+  if (!query) {
+    return sendError(res, 'Database service unavailable', 503);
+  }
 
   try {
     // Get market indicators data from individual stocks
@@ -910,6 +931,10 @@ router.get("/indicators", async (req, res) => {
 
 // Market seasonality endpoint
 router.get("/seasonality", async (req, res) => {
+  // Fail fast if database is unavailable
+  if (!query) {
+    return sendError(res, 'Database service unavailable', 503);
+  }
 
   try {
     const currentDate = new Date();

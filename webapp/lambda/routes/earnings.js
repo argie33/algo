@@ -9,6 +9,7 @@ const express = require('express');
 const { getPool } = require('../utils/database');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
 
 const router = express.Router();
 
@@ -53,10 +54,26 @@ router.get('/', async (req, res) => {
       LIMIT $${params.length + 1}
     `, [...params, limit]);
 
+    // Validate query result structure
+    validateQueryResult(result, { requireRows: false });
+
+    // Validate and coerce field types
+    const validated = validateAndCoerceRows(result, {
+      symbol: { type: 'string', required: true },
+      company_name: { type: 'string', required: false },
+      earnings_date: { type: 'date', required: true },
+      fiscal_quarter: { type: 'string', required: false },
+      fiscal_year: { type: 'int', required: false },
+      estimated_eps: { type: 'float', required: false, defaultValue: null },
+      reported_eps: { type: 'float', required: false, defaultValue: null },
+      surprise_pct: { type: 'float', required: false, defaultValue: null },
+      status: { type: 'string', required: false }
+    });
+
     return sendSuccess(res, {
-      items: result.rows || [],
+      items: validated,
       pagination: {
-        total: result.rows.length,
+        total: validated.length,
         limit: limit
       }
     });

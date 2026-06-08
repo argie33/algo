@@ -36,6 +36,17 @@ module.exports = {
       });
     }
 
+    // If object has items and pagination keys, return as-is (already in proper format)
+    if (data?.items !== undefined && data?.pagination !== undefined) {
+      return res.status(statusCode).json({
+        success: true,
+        statusCode: statusCode,
+        items: data.items,
+        pagination: data.pagination,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // For objects, wrap under "data" key for consistent envelope
     return res.status(statusCode).json({
       success: true,

@@ -110,46 +110,22 @@ export const extractData = (response) => {
         success: true,
       };
     }
-    // If data.data is an object, check for errors before spreading
-    if (typeof data.data === 'object' && data.data !== null) {
-      // If the nested data has success: false, treat it as an error
-      if (data.data.success === false) {
-        const errorMsg = data.data.message || data.data.error || 'API request failed';
-        const error = new Error(errorMsg);
-        error.code = data.data.errorType;
-        error.status = httpStatus;
-        throw error;
-      }
-      // Otherwise, spread the data and ensure success is set appropriately
-      return {
-        ...data.data,
-        statusCode: httpStatus,
-        success: data.data.success !== undefined ? data.data.success : true,
-      };
-    } else {
-      return {
-        data: data.data,
-        statusCode: httpStatus,
-        success: true,
-      };
-    }
+    // For objects, return the data directly without spreading
+    // Spreading could mask the actual data structure or overwrite fields
+    return {
+      data: data.data,
+      statusCode: httpStatus,
+      success: true,
+    };
   }
 
   // Fallback: return the whole data object with statusCode if it's an object
-  // BUT: Don't spread arrays - this would turn them into objects with numeric keys!
+  // Error responses with success: false are already caught by the statusCode check above
   if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-    // Check for errors in the fallback case too
-    if (data.success === false) {
-      const errorMsg = data.message || data.error || 'API request failed';
-      const error = new Error(errorMsg);
-      error.code = data.errorType;
-      error.status = httpStatus;
-      throw error;
-    }
     return {
       ...data,
       statusCode: httpStatus,
-      success: data.success !== undefined ? data.success : true,
+      success: true,
     };
   }
 

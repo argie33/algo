@@ -9,6 +9,7 @@ const { sendSuccess, sendError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const paginationConfig = require("../config/pagination");
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const router = express.Router();
 
 // Protect all audit endpoints with auth + admin role
@@ -40,6 +41,9 @@ router.get("/trades", async (req, res) => {
 
     const result = await query(sql, params);
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     // Get total count
     let countSql = "SELECT COUNT(*) as total FROM algo_audit_log";
     if (symbol) {
@@ -51,16 +55,33 @@ router.get("/trades", async (req, res) => {
       symbol ? [symbol] : []
     );
 
+    // Validate count result
+    validateQueryResult(countResult, { minRows: 1, maxRows: 1 });
+    const total = extractCount(countResult, 'total');
+
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      id: { type: 'int', required: true },
+      action_type: { type: 'string', required: true },
+      symbol: { type: 'string', required: false },
+      action_date: { type: 'date', required: false },
+      details: { type: 'string', required: false },
+      actor: { type: 'string', required: false },
+      status: { type: 'string', required: false },
+      error_message: { type: 'string', required: false },
+      created_at: { type: 'date', required: false }
+    });
+
     return sendSuccess(res, {
-      items: result.rows,
+      items: validated,
       pagination: {
         limit,
         offset,
-        total: parseInt(countResult.rows[0]?.total || 0)
+        total
       }
     });
   } catch (err) {
-    console.error("Error fetching trade audit logs:", err);
+    logger.error("Error fetching trade audit logs:", { error: err.message });
     return sendError(res, "Failed to fetch trade audit logs", 500, err.message);
   }
 });
@@ -75,18 +96,36 @@ router.get("/config", async (req, res) => {
       [limit, offset]
     );
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     const countResult = await query("SELECT COUNT(*) as total FROM algo_config_audit");
 
+    // Validate count result
+    validateQueryResult(countResult, { minRows: 1, maxRows: 1 });
+    const total = extractCount(countResult, 'total');
+
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      id: { type: 'int', required: true },
+      key: { type: 'string', required: true },
+      old_value: { type: 'string', required: false },
+      new_value: { type: 'string', required: false },
+      changed_by: { type: 'string', required: false },
+      changed_at: { type: 'date', required: false },
+      reason: { type: 'string', required: false }
+    });
+
     return sendSuccess(res, {
-      items: result.rows,
+      items: validated,
       pagination: {
         limit,
         offset,
-        total: parseInt(countResult.rows[0]?.total || 0)
+        total
       }
     });
   } catch (err) {
-    console.error("Error fetching config audit logs:", err);
+    logger.error("Error fetching config audit logs:", { error: err.message });
     return sendError(res, "Failed to fetch config audit logs", 500, err.message);
   }
 });
@@ -110,6 +149,9 @@ router.get("/safeguards", async (req, res) => {
 
     const result = await query(sql, params);
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     const countSql = symbol
       ? "SELECT COUNT(*) as total FROM safeguard_audit_log WHERE symbol = $1"
       : "SELECT COUNT(*) as total FROM safeguard_audit_log";
@@ -119,16 +161,31 @@ router.get("/safeguards", async (req, res) => {
       symbol ? [symbol] : []
     );
 
+    // Validate count result
+    validateQueryResult(countResult, { minRows: 1, maxRows: 1 });
+    const total = extractCount(countResult, 'total');
+
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      id: { type: 'int', required: true },
+      safeguard_name: { type: 'string', required: true },
+      symbol: { type: 'string', required: false },
+      triggered: { type: 'bool', required: true },
+      reason: { type: 'string', required: false },
+      impact: { type: 'string', required: false },
+      timestamp: { type: 'date', required: true }
+    });
+
     return sendSuccess(res, {
-      items: result.rows,
+      items: validated,
       pagination: {
         limit,
         offset,
-        total: parseInt(countResult.rows[0]?.total || 0)
+        total
       }
     });
   } catch (err) {
-    console.error("Error fetching safeguard audit logs:", err);
+    logger.error("Error fetching safeguard audit logs:", { error: err.message });
     return sendError(res, "Failed to fetch safeguard audit logs", 500, err.message);
   }
 });
@@ -146,9 +203,22 @@ router.get("/summary", async (req, res) => {
         (SELECT MAX(timestamp) FROM safeguard_audit_log) as last_safeguard
     `);
 
-    return sendSuccess(res, result.rows[0]);
+    // Validate result structure
+    validateQueryResult(result, { minRows: 1, maxRows: 1 });
+
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      trade_actions: { type: 'int', required: false, defaultValue: 0 },
+      config_changes: { type: 'int', required: false, defaultValue: 0 },
+      safeguard_activations: { type: 'int', required: false, defaultValue: 0 },
+      last_trade_action: { type: 'date', required: false },
+      last_config_change: { type: 'date', required: false },
+      last_safeguard: { type: 'date', required: false }
+    });
+
+    return sendSuccess(res, validated[0]);
   } catch (err) {
-    console.error("Error fetching audit summary:", err);
+    logger.error("Error fetching audit summary:", { error: err.message });
     return sendError(res, "Failed to fetch audit summary", 500, err.message);
   }
 });

@@ -94,9 +94,10 @@ const errorHandler = (err, req, res, _next) => {
   }
 
   // Canonical error response - matching unified pattern
-  // { error: "message", success: false, timestamp: ISO }
+  // { error: "message", statusCode: 500, success: false, timestamp: ISO }
   const response = {
     error: message,
+    statusCode: status,
     success: false,
     timestamp: new Date().toISOString()
   };
