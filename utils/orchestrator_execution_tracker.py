@@ -32,6 +32,31 @@ class OrchestratorExecutionTracker:
         self.run_date = run_date
         self.started_at = datetime.now(timezone.utc)
 
+    def _ensure_table_exists(self) -> None:
+        """Create orchestrator_execution_log if it doesn't exist (self-healing)."""
+        with DatabaseContext('write') as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS orchestrator_execution_log (
+                    id SERIAL PRIMARY KEY,
+                    run_id VARCHAR(50) NOT NULL UNIQUE,
+                    run_date DATE NOT NULL,
+                    started_at TIMESTAMP NOT NULL,
+                    completed_at TIMESTAMP,
+                    overall_status VARCHAR(20) NOT NULL,
+                    phase_results JSONB,
+                    summary TEXT,
+                    halt_reason TEXT,
+                    phases_completed INTEGER,
+                    phases_halted INTEGER,
+                    phases_errored INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_run_date
+                ON orchestrator_execution_log(run_date DESC)
+            """)
+
     def log_phase_result(self, phase_num: int, name: str, status: str, summary: str) -> None:
         """Record a phase result. Called by orchestrator.log_phase_result()."""
         self.phase_results[phase_num] = {
@@ -53,6 +78,11 @@ class OrchestratorExecutionTracker:
         if not self.run_id or not self.run_date:
             logger.warning("[EXECUTION_LOG] Cannot save: run context not set")
             return False
+
+        try:
+            self._ensure_table_exists()
+        except Exception:
+            pass  # Non-critical; proceed and let INSERT fail with clearer error if needed
 
         try:
             completed_at = datetime.now(timezone.utc)

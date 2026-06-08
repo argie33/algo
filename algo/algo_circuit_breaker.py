@@ -279,6 +279,10 @@ class CircuitBreaker:
 
         Win rate = wins / (wins + losses), excluding break-even trades to avoid dilution.
         """
+        # Exclude trades closed today without a confirmed fill price (exit_r_multiple IS NULL).
+        # Phase 4 marks trades 'closed' immediately when placing market orders, before Alpaca
+        # confirms the fill. These pre-fill closings have NULL exit_r_multiple and inflated
+        # loss counts. Requiring exit_r_multiple IS NOT NULL ensures we only count confirmed exits.
         cur.execute(
             """
             SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
@@ -289,6 +293,7 @@ class CircuitBreaker:
                 SELECT profit_loss_pct
                 FROM algo_trades
                 WHERE status = %s AND exit_date IS NOT NULL
+                  AND exit_r_multiple IS NOT NULL
                 ORDER BY exit_date DESC LIMIT 30
             ) recent_trades
             """,
