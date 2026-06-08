@@ -99,6 +99,26 @@ def run(
             # Require at least 95% of prior date's coverage, and a hard minimum of 1000 symbols
             coverage_vs_prior = (symbols_loaded / max(prior_count, 1)) * 100
 
+            # If today has partial data (e.g. intraday seed or in-progress EOD load),
+            # evaluate coverage against the prior date instead — that's what matters for
+            # knowing whether signals are ready for the current session.
+            if symbols_loaded < 1000 and max_date == run_date:
+                logger.info(
+                    f"[PHASE 1] Today ({max_date}) has partial coverage ({symbols_loaded} symbols) — "
+                    f"EOD loader in progress or intraday seed. Checking prior date ({last_trading_day})."
+                )
+                symbols_loaded = prior_count
+                cur.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = ("
+                    "  SELECT MAX(date) FROM price_daily WHERE date < %s"
+                    ")",
+                    (last_trading_day,)
+                )
+                row = cur.fetchone()
+                prior_prior_count = row[0] if row else symbols_loaded
+                coverage_vs_prior = (symbols_loaded / max(prior_prior_count, 1)) * 100
+                max_date = last_trading_day
+
             if symbols_loaded < 1000 or coverage_vs_prior < 95:
                 logger.critical(
                     f"[PHASE 1] INSUFFICIENT COVERAGE: {symbols_loaded} symbols for {max_date} "
