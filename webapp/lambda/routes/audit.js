@@ -52,7 +52,7 @@ router.get("/trades", async (req, res) => {
     );
 
     return sendSuccess(res, {
-      data: result.rows,
+      items: result.rows,
       pagination: {
         limit,
         offset,
@@ -78,7 +78,7 @@ router.get("/config", async (req, res) => {
     const countResult = await query("SELECT COUNT(*) as total FROM algo_config_audit");
 
     return sendSuccess(res, {
-      data: result.rows,
+      items: result.rows,
       pagination: {
         limit,
         offset,
@@ -120,7 +120,7 @@ router.get("/safeguards", async (req, res) => {
     );
 
     return sendSuccess(res, {
-      data: result.rows,
+      items: result.rows,
       pagination: {
         limit,
         offset,

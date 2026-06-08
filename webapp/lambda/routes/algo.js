@@ -1890,7 +1890,7 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
     return sendSuccess(res, { metrics });
   } catch (error) {
     logger.error('Error in /algo/execution-quality:', { error: error.message });
-    return sendError(res, 'An error occurred while analyzing execution quality', 503);
+    return sendDatabaseError(res, error, 'An error occurred while analyzing execution quality');
   }
 });
 
@@ -1901,6 +1901,7 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
  */
 router.get('/signal-performance-by-pattern', async (req, res) => {
   try {
+    ensureConnection();
     const pool = getPool();
     const result = await pool.query(`
       SELECT
@@ -1933,7 +1934,7 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
     return sendSuccess(res, { patterns, timestamp: new Date() }, 200);
   } catch (error) {
     logger.error("Error in /algo/signal-performance-by-pattern:", { error: error.message });
-    return sendError(res, 'An error occurred while analyzing signal performance', 500);
+    return sendDatabaseError(res, error, 'An error occurred while analyzing signal performance');
   }
 });
 

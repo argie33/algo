@@ -54,7 +54,7 @@ router.get('/', async (req, res) => {
     `, [...params, limit]);
 
     return sendSuccess(res, {
-      data: result.rows || [],
+      items: result.rows || [],
       pagination: {
         total: result.rows.length,
         limit: limit
