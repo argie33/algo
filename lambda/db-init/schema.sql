@@ -3048,6 +3048,7 @@ ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_upper DECIMAL(12, 4
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_middle DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS bb_lower DECIMAL(12, 4);
 ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS volume_ma_50 BIGINT;
+ALTER TABLE technical_data_daily ADD COLUMN IF NOT EXISTS price_data_age_days INTEGER;
 
 -- company_profile: add market_cap so routes can use it instead of unpopulated key_metrics
 ALTER TABLE company_profile ADD COLUMN IF NOT EXISTS market_cap BIGINT;

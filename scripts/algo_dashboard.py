@@ -95,14 +95,14 @@ PHASE_NAMES = {
 # ── mascot ────────────────────────────────────────────────────────────────────
 # Each line is exactly 5 visible chars — consistent width prevents wobble
 MASCOT_FRAMES = [
-    (" \\o/ ", "  |  ", " / \\ ", "|   |"),   # 0  groove  — wide-stance feet
-    (" \\o/ ", "  |  ", "  /\\ ", "  / |"),   # 1  sway right — weight shifts right
-    (" /o\\ ", " /|  ", " / \\ ", "|  / "),   # 2  lean left — left-weighted
-    (" \\o/ ", " \\|  ", "  /\\ ", "  /| "),  # 3  sway left — right kick
-    (" \\O/ ", " \\|/ ", " /V\\ ", " | | "),  # 4  star jump — V-legs, O=excited
-    ("  o  ", " -|- ", " / \\ ", "|   |"),   # 5  rest — T-pose arms, planted
-    ("  o/ ", "  |\\ ", " / \\ ", "/   |"),   # 6  stumble — off-balance
-    (" _o_ ", " _|_ ", "  /\\ ", "  /\\ "),  # 7  freeze — rigid arms+legs
+    (" \\o/ ", "  |  ", " / \\ ", "_/ \\_"),  # 0  groove  — arms up, wide feet
+    (" \\o/ ", "  |  ", "  /\\ ", "  _/\\"),  # 1  step right — arms up, step right
+    (" /o\\ ", " /|  ", " / \\ ", "_/   "),   # 2  lean left — leaning, left foot planted
+    (" \\o/ ", " \\|  ", "  /\\ ", "\\_/  "),  # 3  step left — arms up, left kick
+    (" \\O/ ", "  |  ", " /V\\ ", "_/ \\_"),  # 4  star jump — arms up, V-legs (no double arms)
+    ("  o  ", " -|- ", " / \\ ", "_/ \\_"),   # 5  rest — arms from torso only, feet flat
+    ("  o/ ", "  |  ", " / \\ ", "/   \\"),   # 6  stumble — one arm from head, clean torso
+    (" \\o/ ", "  |  ", "  || ", "_||_ "),   # 7  freeze — arms up, legs locked together
 ]
 MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",

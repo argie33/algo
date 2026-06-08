@@ -104,6 +104,11 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def _fetch_vix_data(self, start: date, end: date) -> dict:
         """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}."""
+        from algo.algo_market_calendar import MarketCalendar
+        today = datetime.now(ZoneInfo("America/New_York")).date()
+        if not MarketCalendar.is_trading_day(today):
+            logger.info(f"Market closed today ({today}) — skipping VIX yfinance fetch")
+            return {}
         try:
             from utils.yfinance_wrapper import YFinanceWrapper
             ticker = YFinanceWrapper.get_ticker("^VIX")
@@ -335,6 +340,13 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     - Distribution Days timeline (^GSPC / ^IXIC / ^NYA / ^DJI)
     Returns the number of rows upserted.
     """
+    # On non-trading days yfinance aggressively rate-limits index/VIX fetches.
+    # Skip the fetch — existing price_daily data is still current from the last trading day.
+    from algo.algo_market_calendar import MarketCalendar
+    today = datetime.now(ZoneInfo("America/New_York")).date()
+    if not MarketCalendar.is_trading_day(today):
+        logger.info(f"Market closed today ({today}) — skipping VIX/index yfinance fetch")
+        return 0
     try:
         from utils.yfinance_wrapper import YFinanceWrapper
 
