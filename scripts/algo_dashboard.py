@@ -92,19 +92,22 @@ PHASE_NAMES = {
     "phase_7":  "Wrap-up",
 }
 
-# ── mascot ────────────────────────────────────────────────────────────────────
-# Each frame is 4 lines (arms, torso, legs, feet) — exactly 5 visible chars each.
-# Torso line "|" separates the raised arms from the legs so they don't look like
-# a second pair of arms.  Frame 7 is ONLY used when a circuit breaker fires.
+# ── mascot (dancing man) — rebuilt from scratch ────────────────────────────────
+# Each frame: 4 lines, each exactly 7 visible chars (pre-padded — no justify needed).
+# Panel: MASCOT_W=9 = 1 border + 7 content + 1 border, padding=(0,0).
+# Pre-padding avoids Rich centering quirks on Windows terminals.
+# Frame 7 is used ONLY when a circuit breaker fires.
+MASCOT_W = 9   # 1 left border + 7 content + 1 right border
+
 MASCOT_FRAMES = [
-    (" \\o/ ", "  |  ", " / \\ ", "_/ \\_"),  # 0  groove — arms up, wide stance
-    (" \\o/ ", "  |  ", "  /\\ ", "  _/\\"),  # 1  step R — arms up, right step
-    (" \\o/ ", "  |  ", " / \\ ", "_/   "),   # 2  lean L — arms up, weight on left foot
-    (" \\o/ ", "  |  ", " /\\  ", "\\/_  "),  # 3  step L — arms up, left step (mirror of 1)
-    (" \\O/ ", "  |  ", " /V\\ ", "_/ \\_"),  # 4  star   — big jump, V-legs
-    (" -o- ", "  |  ", " / \\ ", "_/ \\_"),   # 5  chill  — arms flat, feet planted
-    ("  o  ", "  |  ", " / \\ ", "_/ \\_"),   # 6  meh    — no arms (caution/correction)
-    (" \\o/ ", "  |  ", "  || ", "_||_ "),   # 7  freeze — CB fired only
+    ("  \\o/  ", "   |   ", "  / \\  ", " _/ \\_ "),  # 0  groove  — arms up, wide stance
+    ("  \\o/  ", "   |   ", "   /\\  ", "   _/\\ "),  # 1  step R  — right foot forward
+    ("  \\o/  ", "   |   ", "  / \\  ", " _/    "),   # 2  lean L  — weight on left
+    ("  \\o/  ", "   |   ", "  /\\   ", " \\/    "),   # 3  step L  — left foot forward
+    ("  \\O/  ", "   |   ", "  /V\\  ", " _/ \\_ "),  # 4  star    — big jump, V-legs
+    ("  -o-  ", "   |   ", "  / \\  ", " _/ \\_ "),  # 5  chill   — arms flat
+    ("   o   ", "   |   ", "  / \\  ", " _/ \\_ "),  # 6  meh     — no arms
+    ("  \\o/  ", "   |   ", "   ||  ", " _||_  "),   # 7  freeze  — CB fired only
 ]
 MASCOT_COLORS = [
     "bright_green", "green", "bright_cyan", "cyan",
@@ -115,18 +118,18 @@ LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
 def mascot_pose(data: dict, frame: int) -> int:
     if (data.get("cb") or {}).get("any"):
-        return [6, 7][(frame // 8) % 2]   # slow shake when CB fires — still animated
+        return [6, 7][(frame // 4) % 2]   # fast CB shake
     tier = (data.get("mkt") or {}).get("tier", "unknown")
-    # All sequences use unique frame indices so no pose is held twice in a row.
+    # frame // 2 → pose changes every 2 frames = ~0.25s at 8fps (clearly visible)
     seqs: Dict[str, List[int]] = {
-        "confirmed_uptrend": [4, 1, 0, 3],   # JUMP→stepR→groove→stepL
-        "healthy_uptrend":   [0, 1, 4, 3],   # groove→stepR→JUMP→stepL
-        "pressure":          [0, 1, 2, 3],   # groove→stepR→leanL→stepL
-        "caution":           [0, 5, 2, 6],   # groove→chill→leanL→meh
-        "correction":        [5, 6],          # chill→meh (subdued 2-frame)
+        "confirmed_uptrend": [4, 1, 0, 3],   # jump-step-groove-step
+        "healthy_uptrend":   [0, 1, 4, 3],   # groove-step-jump-step
+        "pressure":          [0, 1, 2, 3],   # groove-step-lean-step
+        "caution":           [0, 5, 2, 6],   # groove-chill-lean-meh
+        "correction":        [0, 5, 1, 6],   # still moves — groove-chill-step-meh
     }
     r = seqs.get(tier, [0, 1, 4, 3])
-    return r[(frame // 4) % len(r)]
+    return r[(frame // 2) % len(r)]
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
@@ -571,9 +574,19 @@ def fetch_signals(c):
               AND s.score BETWEEN 55 AND 69
             ORDER BY s.score DESC LIMIT 4""")
 
+        # Signal count trend: last 7 trading days
+        trend = q(c, """
+            SELECT date,
+                   COUNT(*) FILTER (WHERE signal='BUY') AS buy_n,
+                   COUNT(*) AS total_n
+            FROM buy_sell_daily
+            WHERE timeframe='Daily' AND date >= CURRENT_DATE - 14
+            GROUP BY date ORDER BY date DESC LIMIT 7""")
+
         return {"n": int(sig["n"] or 0) if sig else 0, "total": total_n,
                 "date": sig["d"] if sig else None,
-                "buy_sigs": buy_sigs, "grades": grades, "near": near}
+                "buy_sigs": buy_sigs, "grades": grades, "near": near,
+                "trend": trend}
     except Exception as e:
         return {"_error": str(e)}
 
@@ -1385,8 +1398,26 @@ def panel_signals_compact(sig, sig_eval=None):
 
     # Header: date + swing score grade distribution + buy signal count
     hdr1 = (f"[dim]{ds}[/]  [{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]"
-            f"  [bold white]{raw}[/][dim] buy signals / {total} screened[/]")
+            f"  [bold white]{raw}[/][dim] buys / {total} screened[/]")
     rows = [Text.from_markup(hdr1)]
+
+    # 7-day signal trend (mini sparkline of buy counts)
+    trend = sig.get("trend") or []
+    if len(trend) >= 2:
+        buy_counts = [int(t.get("buy_n") or 0) for t in reversed(trend)]
+        max_b = max(buy_counts) if buy_counts else 1
+        spark_chars = "▁▂▃▄▅▆▇█"
+        spark = "".join(spark_chars[min(7, int(v / max(max_b, 1) * 7.9))] for v in buy_counts)
+        trend_parts = []
+        for t in trend[:5]:
+            d_obj = t.get("date")
+            d_s   = d_obj.strftime("%d") if hasattr(d_obj, "strftime") else str(d_obj or "")[-2:]
+            bn    = int(t.get("buy_n") or 0)
+            tc    = G if bn >= 5 else (Y if bn >= 1 else R)
+            trend_parts.append(f"[dim]{d_s}:[/][{tc}]{bn}[/]")
+        rows.append(Text.from_markup(
+            f"[dim]7d:[/][{CY}]{spark}[/]  " + "  ".join(trend_parts)
+        ))
 
     # Signal evaluation funnel
     if sig_eval and not sig_eval.get("_error"):
@@ -1399,28 +1430,28 @@ def panel_signals_compact(sig, sig_eval=None):
         ev_avg = sig_eval.get("avg_score", 0)
         ev_c   = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
         rows.append(Text.from_markup(
-            f"[dim]Funnel:[/][white]{ev_tot}[/]"
-            f"[dim]→Mkt:[/][white]{ev_t1}[/]"
-            f"[dim]→Score:[/][white]{ev_t2}[/]"
-            f"[dim]→Risk:[/][white]{ev_t3}[/]"
-            f"[dim]→Sector:[/][white]{ev_t4}[/]"
-            f"[dim]→Final:[/][{ev_c}]{ev_t5}[/]"
-            f"[dim]  avg:{ev_avg:.0f}[/]"
+            f"[dim]Funnel {ev_tot}[/]"
+            f"[dim]→Mkt[/][white]{ev_t1}[/]"
+            f"[dim]→Score[/][white]{ev_t2}[/]"
+            f"[dim]→Risk[/][white]{ev_t3}[/]"
+            f"[dim]→Sec[/][white]{ev_t4}[/]"
+            f"[dim]→[/][{ev_c}]{ev_t5}[/]"
+            f"[dim] avg:{ev_avg:.0f}[/]"
         ))
         rejected = sig_eval.get("rejected") or []
         if rejected:
             parts = [f"[dim]{_shorten_reason(rj['evaluation_reason'])}:[/][white]{rj['n']}[/]"
-                     for rj in rejected[:3]]
-            rows.append(Text.from_markup("[dim]Filtered:[/] " + "  ".join(parts)))
+                     for rj in rejected[:4]]
+            rows.append(Text.from_markup("[dim]Top filters:[/] " + "  ".join(parts)))
 
     # Actual BUY signals from buy_sell_daily — the real actionable list
     buy_sigs = sig.get("buy_sigs") or []
     rows.append(Rule(style="dim"))
     if buy_sigs:
         rows.append(Text.from_markup(
-            "[dim]BUY signals  sym    stg  type       Q    R:R  vol%  RS [/]"
+            "[dim]sym    stg  type        Q   R:R  vol%   entry   stop  RS[/]"
         ))
-        for bs in buy_sigs[:10]:
+        for bs in buy_sigs[:12]:
             sym    = (bs.get("symbol") or "--")[:6]
             stg    = bs.get("stage_number")
             sig_t  = _shorten_type(bs.get("signal_type") or "")
@@ -1428,21 +1459,24 @@ def panel_signals_compact(sig, sig_eval=None):
             rr     = bs.get("risk_reward_ratio")
             vsurge = bs.get("volume_surge_pct")
             rs     = bs.get("rs_rating")
-            bq     = (bs.get("breakout_quality") or "")[:3]
+            entry  = bs.get("buylevel") or bs.get("close")
+            stop   = bs.get("stoplevel")
 
-            stg_s  = f"S{stg}" if stg else "  "
-            sq_s   = f"{sq:.0f}" if sq is not None else "--"
-            rr_s   = f"{rr:.1f}" if rr is not None else "--"
-            vs_s   = f"{vsurge:+.0f}%" if vsurge is not None else "--"
-            rs_s   = f"{rs}" if rs is not None else "--"
-            sq_c   = G if (sq or 0) >= 70 else (Y if (sq or 0) >= 50 else "white")
-            rr_c   = G if (rr or 0) >= 2.5 else (Y if (rr or 0) >= 1.5 else "white")
-            vs_c   = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
+            stg_s   = f"S{stg}" if stg else "  "
+            sq_s    = f"{sq:.0f}" if sq is not None else "--"
+            rr_s    = f"{rr:.1f}" if rr is not None else "--"
+            vs_s    = f"{vsurge:+.0f}%" if vsurge is not None else "--"
+            rs_s    = f"{rs}" if rs is not None else "--"
+            entry_s = f"${float(entry):.2f}" if entry is not None else "  --  "
+            stop_s  = f"${float(stop):.2f}" if stop is not None else "  --  "
+            sq_c    = G if (sq or 0) >= 70 else (Y if (sq or 0) >= 50 else "white")
+            rr_c    = G if (rr or 0) >= 2.5 else (Y if (rr or 0) >= 1.5 else "white")
+            vs_c    = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
 
             rows.append(Text.from_markup(
-                f"  [{sq_c}]{sym:<6}[/] [dim]{stg_s}  {sig_t:<10}[/]"
-                f"[{sq_c}]{sq_s:>4}[/] [{rr_c}]{rr_s:>4}[/] [{vs_c}]{vs_s:>5}[/]"
-                f" [dim]{rs_s:>3}[/]"
+                f"[{sq_c}]{sym:<6}[/][dim]{stg_s} {sig_t:<11}[/]"
+                f"[{sq_c}]{sq_s:>4}[/][{rr_c}]{rr_s:>4}[/][{vs_c}]{vs_s:>5}[/]"
+                f" [dim]{entry_s:>7} {stop_s:>7} {rs_s:>3}[/]"
             ))
     else:
         rows.append(Text.from_markup("[dim]no BUY signals today[/]"))
@@ -1845,30 +1879,59 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
         rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:26]}[/]{age_s}"))
 
-    # Phase grid — named phases from exec_log, or numbered fallback from audit_log
+    # Phase detail — named phases from exec_log with per-phase status and key data
     phase_badges = []
     if run and not run.get("_error") and run.get("_source") == "exec_log":
-        for p in (run.get("phase_results") or []):
+        halt_r  = run.get("halt_reason") or ""
+        summary = run.get("summary") or ""
+        if halt_r:
+            rows.append(Text.from_markup(f"[{Y}]Halt: {halt_r[:60]}[/]"))
+        elif summary and isinstance(summary, str):
+            rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
+
+        phase_results = run.get("phase_results") or []
+        for p in phase_results:
             raw   = (p.get("name") or p.get("phase", "")).lower()
             parts = raw.split("_")
             base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
             ps    = (p.get("status") or "").lower()
-            sc    = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
-            si    = "+" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "!")
-            phase_badges.append(f"[{sc}]{si}{short}[/]")
-        halt_r  = run.get("halt_reason") or ""
-        summary = run.get("summary") or ""
-        if halt_r:
-            rows.append(Text.from_markup(f"[{Y}]Halt: {halt_r[:55]}[/]"))
-        elif summary and isinstance(summary, str):
-            rows.append(Text.from_markup(f"[dim]{summary[:60]}[/]"))
-        # Compact phase count: N completed · M halted · P errored
+            sc    = G if ps in ("success", "completed", "ok") else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
+            si    = "✓" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
+            phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
+
+            # Show error or key data for failed/halted phases
+            err = p.get("error") or ""
+            pdata = p.get("data") or {}
+            if isinstance(pdata, str):
+                try: pdata = json.loads(pdata)
+                except: pdata = {}
+            if err and ps not in ("success", "completed", "ok"):
+                rows.append(Text.from_markup(f"  [{sc}]↳ {err[:62]}[/]"))
+            elif ps in ("halt", "halted") and pdata:
+                reason = (pdata.get("halt_reason") or pdata.get("reason") or "")[:55]
+                if reason:
+                    rows.append(Text.from_markup(f"  [{Y}]↳ {reason}[/]"))
+            elif ps in ("success", "completed", "ok") and pdata:
+                # Surface a key metric per phase if available
+                for key in ("signals_generated", "entries_executed", "exits_executed",
+                             "positions_checked", "orders_placed", "symbols_checked",
+                             "trades_executed", "checks_passed", "score"):
+                    val = pdata.get(key)
+                    if val is not None:
+                        rows.append(Text.from_markup(
+                            f"  [dim]{short}:[/] [white]{key.replace('_', ' ')}={val}[/]"
+                        ))
+                        break
+
+        if phase_badges:
+            rows.append(Text.from_markup("  ".join(phase_badges)))
+
         n_ok  = len(run.get("phases_completed") or [])
         n_hlt = len(run.get("phases_halted") or [])
         n_err = len(run.get("phases_errored") or [])
         if n_ok + n_hlt + n_err > 0:
-            ok_s  = f"[{G}]{n_ok} done[/]"
+            ok_s  = f"[{G}]{n_ok} phases done[/]"
             hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
             err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
             rows.append(Text.from_markup(f"  {ok_s}{hlt_s}{err_s}"))
@@ -1877,15 +1940,15 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             at = p.get("action_type", "")
             if not at.startswith("phase_"): continue
             parts = at.split("_")
-            if len(parts) > 2: continue  # skip sub-phases
+            if len(parts) > 2: continue
             num   = parts[1] if len(parts) > 1 else "?"
             short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:9]
             st    = p.get("status", "")
             sc    = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
-            si    = "+" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "!")
-            phase_badges.append(f"[{sc}]{si}{short}[/]")
-    if phase_badges:
-        rows.append(Text.from_markup("  ".join(phase_badges)))
+            si    = "✓" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "✗")
+            phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
+        if phase_badges:
+            rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Recent trade events (entry/exit/order) from audit_log
     recent = (act.get("recent_actions") or []) if (act and not act.get("_error")) else []
@@ -2017,23 +2080,25 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
+# MASCOT_W defined above in the mascot section.
+# MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
 
-MASCOT_H = 8   # 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border
-MASCOT_W = 9   # 1 left border + 1 pad + 5 pose chars + 1 pad + 1 right border
+MASCOT_H = 8
 
 
 def mascot_compact(data: dict, frame: int) -> Panel:
     fi   = mascot_pose(data, frame)
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
+    # No justify= — strings are pre-padded to exactly 7 chars (the panel's content width).
     return Panel(
         Group(
-            Text(""),
-            Text(pose[0], style=f"bold {mc}", justify="center"),
-            Text(pose[1], style=f"bold {mc}", justify="center"),
-            Text(pose[2], style=f"bold {mc}", justify="center"),
-            Text(pose[3], style=f"bold {mc}", justify="center"),
-            Text(""),
+            Text(" " * 7),
+            Text(pose[0], style=f"bold {mc}", no_wrap=True),
+            Text(pose[1], style=f"bold {mc}", no_wrap=True),
+            Text(pose[2], style=f"bold {mc}", no_wrap=True),
+            Text(pose[3], style=f"bold {mc}", no_wrap=True),
+            Text(" " * 7),
         ),
         border_style=mc,
         padding=(0, 0),
@@ -2044,19 +2109,20 @@ def mascot_compact(data: dict, frame: int) -> Panel:
 
 def loading_layout(frame: int) -> Layout:
     """Show compact mascot in top-right corner with loading message below."""
-    fi   = LOAD_SEQ[(frame // 4) % len(LOAD_SEQ)]   # 2fps animation
+    fi   = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]   # 4fps loading animation
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
     dots = "." * ((frame // 2 % 4) + 1)             # dots cycle at ~1Hz
 
+    # Same pre-padded approach as mascot_compact
     mascot_panel = Panel(
         Group(
-            Text(""),
-            Text(pose[0], style=f"bold {mc}", justify="center"),
-            Text(pose[1], style=f"bold {mc}", justify="center"),
-            Text(pose[2], style=f"bold {mc}", justify="center"),
-            Text(pose[3], style=f"bold {mc}", justify="center"),
-            Text(""),
+            Text(" " * 7),
+            Text(pose[0], style=f"bold {mc}", no_wrap=True),
+            Text(pose[1], style=f"bold {mc}", no_wrap=True),
+            Text(pose[2], style=f"bold {mc}", no_wrap=True),
+            Text(pose[3], style=f"bold {mc}", no_wrap=True),
+            Text(" " * 7),
         ),
         border_style=mc,
         padding=(0, 0),
@@ -2100,7 +2166,8 @@ def loading_layout(frame: int) -> Layout:
 
 def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
                      frame: int = 0, watch_interval: Optional[int] = None,
-                     last_load_time: Optional[float] = None) -> Layout:
+                     last_load_time: Optional[float] = None,
+                     refreshing: bool = False) -> Layout:
     run      = data.get("run")         or {}
     cfg      = data.get("cfg")         or {}
     mkt      = data.get("mkt")         or {}
@@ -2131,9 +2198,13 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     now_et = datetime.now(ET)
     mkt_s  = "[bold bright_green]● OPEN[/]" if is_open() else "[dim]● CLOSED[/]"
     ts     = now_et.strftime("%a %b %d  %I:%M %p ET")
-    secs: Optional[int] = None
-    if watch_interval is not None and last_load_time is not None:
+
+    refresh_s = ""
+    if refreshing:
+        refresh_s = "  [cyan]↻[/]"
+    elif watch_interval is not None and last_load_time is not None:
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
+        refresh_s = f"  [dim]↻{secs}s[/]"
 
     # Outer: top row (compact mascot + header) then content rows
     outer = Layout()
@@ -2153,17 +2224,16 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     )
 
     cb_fired = cb.get("any", False)
-    cb_n     = cb.get("n", 0)
     fired_names = [b["lbl"] for b in (cb.get("bs") or []) if b.get("fired")]
     if cb_fired:
         fired_str = " · ".join(fired_names)
         hdr_content = Text.from_markup(
-            f"[bold bright_red]⚠ CB FIRED: {fired_str}[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]"
+            f"[bold bright_red]⚠ CB FIRED: {fired_str}[/]  {mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}"
         )
         hdr_panel = Panel(Align(hdr_content, vertical="middle"), title="[bold white]ALGO OPS DASHBOARD[/]", border_style="bright_red", padding=(0, 1))
     else:
         hdr_content = Text.from_markup(
-            f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]"
+            f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}"
         )
         hdr_panel = Panel(Align(hdr_content, vertical="middle"), title="[bold white]ALGO OPS DASHBOARD[/]", border_style="blue", padding=(0, 1))
 
@@ -2255,13 +2325,15 @@ def run_watch(interval: int, compact: bool) -> None:
         try:
             while True:
                 frame[0] += 1
-                if loading[0] or result[0] is None:
+                if result[0] is None:
+                    # First load only — show loading screen until we have data
                     live.update(loading_layout(frame[0]))
                 else:
+                    # Keep showing existing data during background refresh (no flash)
                     live.update(render_dashboard(
                         result[0], compact=compact, elapsed=elapsed[0],
                         frame=frame[0], watch_interval=interval,
-                        last_load_time=last_load[0]))
+                        last_load_time=last_load[0], refreshing=loading[0]))
                     if not loading[0] and (time.monotonic() - last_load[0]) >= interval:
                         threading.Thread(target=reload, daemon=True).start()
                 time.sleep(0.125)
