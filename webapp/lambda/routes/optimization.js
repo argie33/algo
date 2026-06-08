@@ -3,6 +3,7 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 const { authenticateToken } = require("../middleware/auth");
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -63,6 +64,7 @@ router.get("/analysis", async (req, res) => {
        LIMIT 20`,
       queryArgs
     );
+    validateQueryResult(result, { requireRows: false });
 
     if (!result.rows || result.rows.length === 0) {
       return sendError(res, "No optimization data available — run loadstockscores.py and loadfactormetrics.py first", 404);

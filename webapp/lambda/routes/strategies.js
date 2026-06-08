@@ -4,6 +4,7 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const { authenticateToken } = require("../middleware/auth");
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -37,7 +38,8 @@ router.get("/covered-calls", async (req, res) => {
 
     const countSql = `SELECT COUNT(*) as total FROM covered_call_opportunities`;
     const countResult = await query(countSql, []);
-    const total = countResult.rows?.[0]?.total || 0;
+    validateQueryResult(countResult, { requireRows: false });
+    const total = extractCount(countResult, 'total');
     const totalPages = Math.ceil(total / limitNum);
 
     if (total === 0) {
@@ -61,7 +63,22 @@ router.get("/covered-calls", async (req, res) => {
     `;
 
     const result = await query(sql, [limitNum, offset]);
-    const opportunities = (result.rows || []).map(row => ({
+    validateQueryResult(result, { requireRows: false });
+
+    const validated = validateAndCoerceRows(result, {
+      id: { type: 'int' },
+      symbol: { type: 'string', required: true },
+      strike: { type: 'float' },
+      expiration_date: { type: 'date' },
+      premium: { type: 'float' },
+      breakeven_pct: { type: 'float' },
+      return_pct: { type: 'float' },
+      days_to_expiration: { type: 'int' },
+      data_date: { type: 'date' },
+      created_at: { type: 'date' }
+    });
+
+    const opportunities = validated.map(row => ({
       id: row.id,
       symbol: row.symbol,
       strike: row.strike,

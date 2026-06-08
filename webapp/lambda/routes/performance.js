@@ -10,6 +10,7 @@ const express = require('express');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const { authenticateToken } = require('../middleware/auth');
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -94,6 +95,9 @@ async function getPerformanceMetrics(req, res) {
       query(sharpeQuery),
       query(ddQuery)
     ]);
+    validateQueryResult(result, { requireRows: false });
+    validateQueryResult(sharpeResult, { requireRows: false });
+    validateQueryResult(ddResult, { requireRows: false });
 
     const metrics = result.rows[0] || {};
 
@@ -176,6 +180,7 @@ async function getRecentTrades(req, res) {
     `;
 
     const result = await query(tradesQuery, [parseInt(limit)]);
+    validateQueryResult(result, { requireRows: false });
 
     const trades = result.rows.map(row => ({
       trade_id: row.trade_id,

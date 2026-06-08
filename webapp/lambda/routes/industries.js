@@ -2,6 +2,7 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 const router = express.Router();
 
 // Helper function to get industries ranked by composite score with performance metrics
@@ -79,8 +80,8 @@ async function fetchIndustries(req, res) {
     `, [limitNum, offset]),
       query(`SELECT COUNT(DISTINCT industry) as count FROM company_profile WHERE industry IS NOT NULL`)
     ]);
-
-    const total = parseInt(countResult?.rows[0]?.count || 0);
+    validateQueryResult(result, { requireRows: false });
+    const total = extractCount(countResult, 'count');
 
     const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
 
@@ -165,6 +166,7 @@ router.get("/trends-batch", async (req, res) => {
       FROM prices
       ORDER BY industry, date ASC
     `, industries);
+    validateQueryResult(result, { requireRows: false });
 
     const grouped = {};
     (result?.rows || []).forEach(row => {
@@ -210,6 +212,7 @@ router.get("/:industry", async (req, res) => {
       WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
       GROUP BY cp.industry
     `, [industry]);
+    validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
       return sendError(res, `Industry not found: ${industry}`, 404);
@@ -259,6 +262,7 @@ router.get("/:industry/trend", async (req, res) => {
       FROM prices
       ORDER BY date ASC
     `, [industry]);
+    validateQueryResult(result, { requireRows: false });
 
     if (!result?.rows || result.rows.length === 0) {
       return sendSuccess(res, { industry, trendData: [] });
@@ -304,6 +308,7 @@ router.get("/trend/industry/:industryName", async (req, res) => {
       FROM prices
       ORDER BY date ASC
     `, [industryName]);
+    validateQueryResult(result, { requireRows: false });
 
     if (!result?.rows || result.rows.length === 0) {
       return sendError(res, `No trend data found for industry: ${industryName}`, 404);

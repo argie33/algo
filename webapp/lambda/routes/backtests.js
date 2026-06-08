@@ -4,6 +4,7 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse'
 const { authenticateToken } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const paginationConfig = require('../config/pagination');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 
 const router = express.Router();
 const requireAuth = authenticateToken;
@@ -59,9 +60,30 @@ router.get('/', requireAuth, async (req, res, next) => {
       query(q, [...params, parseInt(limit), parseInt(offset)]),
       query(countQ, strategy_name ? [strategy_name] : [])
     ]);
-    const total = countResult.rows[0].total;
+    validateQueryResult(result, { requireRows: false });
+    const total = extractCount(countResult, 'total');
 
-    return sendPaginated(res, result.rows, {
+    const validated = validateAndCoerceRows(result, {
+      run_id: { type: 'int', required: true },
+      run_name: { type: 'string', required: true },
+      run_timestamp: { type: 'date' },
+      strategy_name: { type: 'string', required: true },
+      start_date: { type: 'date' },
+      end_date: { type: 'date' },
+      num_trades: { type: 'int' },
+      num_winning_trades: { type: 'int' },
+      num_losing_trades: { type: 'int' },
+      win_rate: { type: 'float' },
+      avg_win: { type: 'float' },
+      avg_loss: { type: 'float' },
+      total_return: { type: 'float' },
+      max_drawdown: { type: 'float' },
+      sharpe: { type: 'float' },
+      sortino_ratio: { type: 'float' },
+      profit_factor: { type: 'float' }
+    });
+
+    return sendPaginated(res, validated, {
       limit: parseInt(limit),
       offset: parseInt(offset),
       total,
@@ -119,11 +141,28 @@ router.get('/:run_id', requireAuth, async (req, res, next) => {
       query(tradesQ, [run_id, parseInt(limit), parseInt(offset)]),
       query(tradeCountQ, [run_id])
     ]);
-    const tradeTotal = tradeCountResult.rows[0].total;
+    validateQueryResult(tradesResult, { requireRows: false });
+    const tradeTotal = extractCount(tradeCountResult, 'total');
+
+    const validatedTrades = validateAndCoerceRows(tradesResult, {
+      trade_id: { type: 'int', required: true },
+      run_id: { type: 'int', required: true },
+      symbol: { type: 'string', required: true },
+      entry_date: { type: 'date' },
+      exit_date: { type: 'date' },
+      entry_price: { type: 'float' },
+      exit_price: { type: 'float' },
+      return_pct: { type: 'float' },
+      outcome: { type: 'string' },
+      exit_reason: { type: 'string' },
+      days_held: { type: 'int' },
+      quantity: { type: 'float' },
+      profit_loss: { type: 'float' }
+    });
 
     return sendSuccess(res, {
       run,
-      trades: tradesResult.rows,
+      trades: validatedTrades,
       trade_pagination: {
         limit: parseInt(limit),
         offset: parseInt(offset),

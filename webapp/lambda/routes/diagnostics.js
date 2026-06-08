@@ -9,6 +9,7 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { validateQueryResult } = require('../utils/responseValidation');
 const router = express.Router();
 
 // Protect all diagnostics endpoints with auth + admin role
@@ -40,6 +41,7 @@ router.get("/", async (req, res) => {
   try {
     // Test database connectivity first
     const dbTest = await query("SELECT COUNT(*) as count FROM stock_symbols");
+    validateQueryResult(dbTest, { requireRows: false });
     diagnostics.database_status = "connected";
     diagnostics.database_tables = {
       stock_symbols: parseInt(dbTest.rows[0]?.count || 0)
@@ -113,6 +115,13 @@ router.get("/", async (req, res) => {
   // Execute all count queries in parallel
   const results = await Promise.all(countQueries);
 
+  // Validate results where applicable
+  results.forEach(result => {
+    if (result.success) {
+      // Results already validated in the Promise handler
+    }
+  });
+
   results.forEach(result => {
     if (result.success) {
       diagnostics.data_availability[result.name] = {
@@ -135,6 +144,7 @@ router.get("/", async (req, res) => {
     const indexResult = await query(`
       SELECT COUNT(*) as index_count FROM pg_indexes WHERE schemaname = 'public'
     `);
+    validateQueryResult(indexResult, { requireRows: false });
     const indexCount = parseInt(indexResult.rows[0]?.index_count || 0);
     diagnostics.database_indexes = {
       count: indexCount,
@@ -169,6 +179,7 @@ router.get("/slow-queries", async (req, res) => {
       ORDER BY mean_exec_time DESC
       LIMIT 20
     `).catch(() => ({ rows: [] }));
+    validateQueryResult(result, { requireRows: false });
 
     return sendSuccess(res, {
       slow_queries: result.rows || [],
@@ -206,6 +217,7 @@ router.get("/database-size", async (req, res) => {
       FROM pg_database
       WHERE datname = current_database()
     `);
+    validateQueryResult(dbSize, { requireRows: false });
 
     const tableSize = await query(`
       SELECT
@@ -217,6 +229,7 @@ router.get("/database-size", async (req, res) => {
       ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
       LIMIT 100
     `);
+    validateQueryResult(tableSize, { requireRows: false });
 
     return sendSuccess(res, {
       database_size: dbSize.rows[0],

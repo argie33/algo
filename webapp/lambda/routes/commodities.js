@@ -41,6 +41,7 @@ try {
 const { sendSuccess, sendError, sendPaginated, sendBadRequest, sendNotFound } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const paginationConfig = require('../config/pagination');
+const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
 
 // Helper function to check database availability before making queries
 function checkDatabaseAvailable(res) {
@@ -72,11 +73,19 @@ router.get("/", async (req, res) => {
       `, [limit, offset]),
       query("SELECT COUNT(*) as total FROM commodity_categories")
     ]);
+    validateQueryResult(result, { requireRows: false });
+    const total = extractCount(countResult, 'total');
 
-    return sendPaginated(res, result.rows, {
+    const validated = validateAndCoerceRows(result, {
+      id: { type: 'int' },
+      category: { type: 'string' },
+      symbols: { type: 'string' }
+    });
+
+    return sendPaginated(res, validated, {
       limit,
       offset,
-      total: parseInt(countResult.rows[0]?.total || 0),
+      total,
       page: Math.ceil((offset / limit) + 1)
     });
   } catch (error) {
@@ -108,6 +117,7 @@ router.get("/categories", async (req, res) => {
       GROUP BY cc.symbol, cc.category, cc.subcategory, cc.unit, cc.exchange
       ORDER BY cc.category, cc.symbol
     `);
+    validateQueryResult(result, { requireRows: false });
 
     const categories = result.rows.map(row => ({
       symbol: row.symbol,
@@ -156,6 +166,7 @@ router.get("/full/:symbol", async (req, res) => {
       LEFT JOIN commodity_categories cc ON cp.symbol = cc.symbol
       WHERE cp.symbol = $1
     `, [symbol]);
+    validateQueryResult(priceResult, { requireRows: false });
 
     if (priceResult.rows.length === 0) {
       return sendNotFound(res, `No data available for symbol: ${symbol}`);
@@ -179,6 +190,7 @@ router.get("/full/:symbol", async (req, res) => {
       ORDER BY report_date DESC
       LIMIT 1
     `, [symbol]);
+    validateQueryResult(cotResult, { requireRows: false });
 
     const cotData = cotResult.rows.length > 0 ? {
       reportDate: cotResult.rows[0].report_date,
@@ -202,6 +214,7 @@ router.get("/full/:symbol", async (req, res) => {
       WHERE symbol = $1
       ORDER BY month
     `, [symbol]);
+    validateQueryResult(seasonalityResult, { requireRows: false });
 
     return sendSuccess(res, {
       symbol: symbol,
@@ -271,6 +284,7 @@ router.get("/prices", async (req, res) => {
     params.push(parseInt(limit) || 50);
 
     const result = await query(sql, params);
+    validateQueryResult(result, { requireRows: false });
 
     const prices = result.rows.map(row => ({
       symbol: row.symbol,
@@ -347,6 +361,9 @@ router.get("/market-summary", async (req, res) => {
         GROUP BY cc.category
       `)
     ]);
+    validateQueryResult(pricesResult, { requireRows: false });
+    validateQueryResult(totalVolumeResult, { requireRows: false });
+    validateQueryResult(categoryResult, { requireRows: false });
 
     const prices = pricesResult.rows;
     const totalVolume = totalVolumeResult;
@@ -420,6 +437,7 @@ router.get("/cot/:symbol", async (req, res) => {
       ORDER BY report_date DESC
       LIMIT 52
     `, [symbol]);
+    validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
       return sendNotFound(res, `No COT data available for symbol: ${symbol}`);
@@ -459,6 +477,7 @@ router.get("/cot/:symbol", async (req, res) => {
       `SELECT name FROM commodity_prices WHERE symbol = $1 LIMIT 1`,
       [symbol]
     );
+    validateQueryResult(nameResult, { requireRows: false });
 
     return sendSuccess(res, {
       symbol: symbol,
@@ -502,6 +521,7 @@ router.get("/seasonality/:symbol", async (req, res) => {
       WHERE symbol = $1
       ORDER BY month ASC
     `, [symbol]);
+    validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
       return sendNotFound(res, `No seasonality data available for symbol: ${symbol}`);
@@ -517,6 +537,7 @@ router.get("/seasonality/:symbol", async (req, res) => {
       `SELECT name FROM commodity_prices WHERE symbol = $1 LIMIT 1`,
       [symbol]
     );
+    validateQueryResult(nameResult, { requireRows: false });
 
     const seasonality = result.rows.map(row => ({
       month: safeInt(row.month),
@@ -571,6 +592,7 @@ router.get("/correlations", async (req, res) => {
     `;
 
     const result = await query(sql, [minCorrValue]);
+    validateQueryResult(result, { requireRows: false });
 
     const correlations = result.rows.map(row => {
       const coeff = parseFloat(row.coefficient) || 0;
@@ -631,6 +653,7 @@ router.get("/technicals/:symbol", async (req, res) => {
       ORDER BY date DESC
       LIMIT 252
     `, [symbol]);
+    validateQueryResult(result, { requireRows: false });
 
     const technicals = result.rows
       .reverse()
@@ -683,6 +706,7 @@ router.get("/macro", async (req, res) => {
       FROM commodity_macro_drivers
       ORDER BY series_id, date DESC
     `);
+    validateQueryResult(result, { requireRows: false });
 
     const macroBySeriesAndDate = {};
 
@@ -736,6 +760,7 @@ router.get("/events", async (req, res) => {
       ORDER BY event_date ASC
       LIMIT 50
     `);
+    validateQueryResult(result, { requireRows: false });
 
     const events = result.rows.map(row => ({
       name: row.event_name,

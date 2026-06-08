@@ -2,6 +2,7 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 const logger = require('../utils/logger');
+const { validateQueryResult } = require('../utils/responseValidation');
 const router = express.Router();
 
 // GET /api/status - Quick API status check
@@ -9,6 +10,7 @@ router.get("/", async (req, res) => {
   try {
     // Quick health check
     const result = await query("SELECT COUNT(*) as count FROM stock_symbols");
+    validateQueryResult(result, { requireRows: false });
     const symbolCount = parseInt(result.rows[0].count);
 
     return sendSuccess(res, {

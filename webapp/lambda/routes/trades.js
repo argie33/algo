@@ -10,6 +10,7 @@ const { query: dbQuery, safeFloat, safeInt } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
 const router = express.Router();
 
 // Alpaca API service
@@ -158,6 +159,7 @@ router.get('/', async (req, res) => {
       `;
 
       const result = await dbQuery(dataQuery, params);
+      validateQueryResult(result, { requireRows: false });
 
       result.rows.forEach(row => {
         allTrades.push({
@@ -276,6 +278,7 @@ router.get('/summary', async (req, res) => {
         FROM trades
         ORDER BY execution_date DESC
       `);
+      validateQueryResult(result, { requireRows: false });
 
       result.rows.forEach(row => {
         allTrades.push({
