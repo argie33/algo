@@ -611,6 +611,38 @@ Run this daily to track trends. Alert if any step consistently takes >80% of all
 - **Pipeline completes before 9:30 AM:** Ensures data is fresh for Phase 1 freshness check
 - **No intraday data issues:** Orchestrator intraday pricing (Phase 3) only active 9:30 AM - 4 PM ET Mon-Fri; uses fallback to daily prices outside market hours
 
+## Step Functions Pipeline Reliability (ISSUE #1 FIX)
+
+**Problem:** Pipelines were gracefully degrading when critical loaders failed, masking failures instead of fixing them. Phase 1 would detect stale data and halt, preventing trading but hiding the root cause.
+
+**Solution:** Fail-closed semantics for critical loaders. If a critical loader fails, the entire pipeline halts loudly with a clear error message.
+
+**Critical Loaders (FAIL-CLOSED):**
+- `stock_prices_daily`: All downstream loaders depend on it
+- `swing_trader_scores`: Needed for Phase 5 signal generation
+- `stock_symbols`: Reference data; blocks price loading
+
+**Non-Critical Loaders (FAIL-OPEN):**
+- `sector_ranking`, `algo_metrics_daily`, `technical_data_daily` (with fallback): Continue if they fail, Phase 1 monitors data quality
+
+**Implementation:**
+- `lambda/loader_failure_handler.py`: Raises exception for critical loaders (causing Step Functions to halt)
+- `terraform/modules/pipeline/main.tf`: Critical loader failures transition to terminal "Fail" states instead of proceeding
+- `EodBulkPrices` failure → `PriceLoadFailureHalt` (Fail state with clear error message)
+- `SwingScores` failure → `SwingScoresFailureHalt` (Fail state)
+- Morning pipeline `MorningPrices` failure → `MorningPriceFailureHalt` (Fail state)
+
+**Benefits:**
+- Real failures are fixed instead of masked
+- Phase 1 no longer halts on stale data that doesn't reflect a true failure
+- Pipeline status (halted vs succeeding) directly indicates data quality
+- CloudWatch and SNS alerts now indicate actual problems, not graceful degradation
+
+**Monitoring:**
+- Step Functions execution history shows Fail states with clear error causes
+- SNS alerts now indicate "CRITICAL" failures requiring investigation
+- CloudWatch metrics include Mode dimension (FailClosed vs FailOpen)
+
 ## Orchestrator Phases
 
 1. **Phase 1:** Data freshness (halt if stale) — **FAIL-CLOSED**
