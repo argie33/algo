@@ -589,13 +589,40 @@ router.get('/markets', async (req, res) => {
       `)
     ]);
 
-    const latest = latestResult.rows[0] || null;
-    const health = healthResult.rows[0] || null;
+    // Validate all result structures
+    validateQueryResult(latestResult, { requireRows: false });
+    validateQueryResult(historyResult, { requireRows: false });
+    validateQueryResult(healthResult, { requireRows: false });
+    validateQueryResult(sectorsResult, { requireRows: false });
+    validateQueryResult(sentimentResult, { requireRows: false });
+
+    const latest = latestResult.rows[0]
+      ? validateAndCoerceRow(latestResult.rows[0], {
+          date: { type: 'date', required: false },
+          exposure_pct: { type: 'float', required: false },
+          raw_score: { type: 'float', required: false },
+          regime: { type: 'string', required: false },
+          distribution_days: { type: 'int', required: false },
+          factors: { type: 'string', required: false },
+          halt_reasons: { type: 'string', required: false },
+          created_at: { type: 'date', required: false }
+        })
+      : null;
+
+    const health = healthResult.rows[0]
+      ? validateAndCoerceRow(healthResult.rows[0], {
+          date: { type: 'date', required: false },
+          market_trend: { type: 'string', required: false },
+          market_stage: { type: 'int', required: false },
+          distribution_days_4w: { type: 'int', required: false },
+          vix_level: { type: 'float', required: false }
+        })
+      : null;
 
     // Determine active tier policy
     let policy = null;
     if (latest) {
-      const exposurePct = parseFloat(latest.exposure_pct);
+      const exposurePct = latest.exposure_pct || 0;
       const tiers = [
         { name: 'confirmed_uptrend', min: 80, max: 100, risk_mult: 1.0, max_new: 5,
           min_grade: 'B', halt: false, color: 'green',
@@ -616,34 +643,55 @@ router.get('/markets', async (req, res) => {
       policy = tiers.find(t => exposurePct >= t.min && exposurePct <= t.max) || tiers[0];
     }
 
+    // Validate and coerce all rows
+    const historyRows = validateAndCoerceRows(historyResult, {
+      date: { type: 'date', required: false },
+      exposure_pct: { type: 'float', required: false },
+      regime: { type: 'string', required: false },
+      distribution_days: { type: 'int', required: false }
+    });
+
+    const sectorsRows = validateAndCoerceRows(sectorsResult, {
+      sector_name: { type: 'string', required: false },
+      current_rank: { type: 'int', required: false },
+      momentum_score: { type: 'float', required: false, defaultValue: 0 }
+    });
+
+    const sentimentRows = validateAndCoerceRows(sentimentResult, {
+      date: { type: 'date', required: false },
+      bullish: { type: 'float', required: false, defaultValue: 0 },
+      bearish: { type: 'float', required: false, defaultValue: 0 },
+      neutral: { type: 'float', required: false, defaultValue: 0 }
+    });
+
     return sendSuccess(res, {
       current: latest ? {
         date: latest.date,
-        exposure_pct: parseFloat(latest.exposure_pct),
-        raw_score: parseFloat(latest.raw_score),
+        exposure_pct: latest.exposure_pct || 0,
+        raw_score: latest.raw_score || 0,
         regime: latest.regime,
         distribution_days: latest.distribution_days,
         factors: latest.factors,
         halt_reasons: latest.halt_reasons,
       } : null,
       active_tier: policy,
-      history: historyResult.rows.map(r => ({
+      history: historyRows.map(r => ({
         date: r.date,
-        exposure_pct: parseFloat(r.exposure_pct),
+        exposure_pct: r.exposure_pct || 0,
         regime: r.regime,
         distribution_days: r.distribution_days,
       })),
       market_health: health,
-      sectors: sectorsResult.rows.map(r => ({
+      sectors: sectorsRows.map(r => ({
         name: r.sector_name,
         rank: r.current_rank,
-        momentum: parseFloat(r.momentum_score || 0),
+        momentum: r.momentum_score || 0,
       })),
-      sentiment: sentimentResult.rows.map(r => ({
+      sentiment: sentimentRows.map(r => ({
         date: r.date,
-        bullish: parseFloat(r.bullish || 0),
-        bearish: parseFloat(r.bearish || 0),
-        neutral: parseFloat(r.neutral || 0),
+        bullish: r.bullish || 0,
+        bearish: r.bearish || 0,
+        neutral: r.neutral || 0,
       })),
     });
   } catch (error) {
@@ -1076,8 +1124,20 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
       [allowedSevs, limit]
     );
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     return sendSuccess(res, {
-      items: result.rows.map(r => ({
+      items: validateAndCoerceRows(result, {
+        id: { type: 'int', required: true },
+        patrol_run_id: { type: 'string', required: false },
+        check_name: { type: 'string', required: false },
+        severity: { type: 'string', required: false },
+        target_table: { type: 'string', required: false },
+        message: { type: 'string', required: false },
+        details: { type: 'string', required: false },
+        created_at: { type: 'date', required: false }
+      }).map(r => ({
         id: r.id,
         run_id: r.patrol_run_id,
         check_name: r.check_name,
@@ -1135,7 +1195,22 @@ router.get('/notifications', authenticateToken, async (req, res) => {
 
     const result = await pool.query(sql, params);
 
-    return sendSuccess(res, { items: result.rows });
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
+    return sendSuccess(res, {
+      items: validateAndCoerceRows(result, {
+        id: { type: 'int', required: true },
+        kind: { type: 'string', required: false },
+        severity: { type: 'string', required: false },
+        title: { type: 'string', required: false },
+        message: { type: 'string', required: false },
+        symbol: { type: 'string', required: false },
+        details: { type: 'string', required: false },
+        seen: { type: 'bool', required: false },
+        created_at: { type: 'date', required: false }
+      })
+    });
   } catch (error) {
     logger.error('Error fetching notifications:', { error: error.message });
     return sendDatabaseError(res, error, 'An error occurred while fetching notifications');
@@ -1953,15 +2028,25 @@ router.get('/sector-rotation', async (req, res) => {
       [limit]
     );
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     return sendSuccess(res, {
-      items: result.rows.map(r => ({
+      items: validateAndCoerceRows(result, {
+        date: { type: 'date', required: false },
+        sector: { type: 'string', required: false },
+        signal: { type: 'string', required: false },
+        strength: { type: 'float', required: false, defaultValue: 0 },
+        rank: { type: 'int', required: false },
+        details: { type: 'string', required: false }
+      }).map(r => ({
         date: r.date,
         sector: r.sector,
         signal: r.signal,
-        strength: parseFloat(r.strength || 0),
+        strength: r.strength || 0,
         rank: r.rank,
         // details JSONB may contain extended metrics from algo_sector_rotation.py
-        ...(r.details || {}),
+        ...(r.details ? (typeof r.details === 'string' ? JSON.parse(r.details) : r.details) : {}),
       }))
     });
   } catch (error) {
