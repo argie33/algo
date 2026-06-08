@@ -477,6 +477,26 @@ class SignalsDailyLoader(OptimalLoader):
             )
         return signals
 
+    # Columns with DECIMAL(8,4) precision — max 9999.9999
+    # High-priced stocks (ASML, BLK, CAT, etc.) can produce values ≥10000 for
+    # percentage/ratio fields, causing PostgreSQL numeric field overflow on COPY.
+    _DECIMAL84_COLS = frozenset({
+        "signal_strength", "volume_surge_pct", "rsi", "adx",
+        "pct_from_ema21", "pct_from_sma50", "mansfield_rs", "sata_score",
+        "risk_reward_ratio", "risk_pct", "entry_quality_score", "signal_quality_score",
+        "position_size_recommendation", "current_gain_pct", "stage_confidence", "strength",
+    })
+    _DECIMAL84_MAX = 9999.9999
+
+    def transform(self, rows):
+        """Cap DECIMAL(8,4) columns to prevent numeric field overflow on high-price stocks."""
+        for row in rows:
+            for col in self._DECIMAL84_COLS:
+                v = row.get(col)
+                if v is not None and isinstance(v, (int, float)) and abs(v) > self._DECIMAL84_MAX:
+                    row[col] = self._DECIMAL84_MAX if v > 0 else -self._DECIMAL84_MAX
+        return rows
+
 def main():
     parser = argparse.ArgumentParser(description="Load daily trading signals")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols")

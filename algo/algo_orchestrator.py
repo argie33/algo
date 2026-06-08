@@ -936,7 +936,7 @@ class Orchestrator:
                     self._phase1_result = phase1_result
                     if phase1_result.halted:
                         logger.error("\nPhase 1 failed: prices not loaded or coverage insufficient.")
-                        self.log_phase_result(1, 'data_freshness', 'halt', phase1_result.summary)
+                        self.log_phase_result(1, 'data_freshness', 'halt', phase1_result.error or '')
                         self.phase_7_reconcile()
                         return self._final_report()
                 phase_1_elapsed = time.time() - phase_1_start
