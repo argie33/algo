@@ -1868,11 +1868,23 @@ router.get('/data-quality', async (req, res) => {
       ORDER BY status ASC, last_check_at DESC
     `);
 
-    const checks = result.rows.map(r => ({
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
+    const checks = validateAndCoerceRows(result, {
+      loader_name: { type: 'string', required: true },
+      table_name: { type: 'string', required: true },
+      latest_data_date: { type: 'string', required: false },
+      age_hours: { type: 'float', required: false, defaultValue: 0 },
+      max_age_hours: { type: 'int', required: false },
+      row_count_today: { type: 'int', required: false },
+      status: { type: 'string', required: false },
+      error_message: { type: 'string', required: false }
+    }).map(r => ({
       loader: r.loader_name,
       table: r.table_name,
       latest_date: r.latest_data_date,
-      age_hours: Math.round(r.age_hours * 10) / 10,
+      age_hours: Math.round((r.age_hours || 0) * 10) / 10,
       max_age_hours: r.max_age_hours,
       row_count: r.row_count_today,
       status: r.status,
@@ -1912,9 +1924,19 @@ router.get('/rejection-funnel', async (req, res) => {
       WHERE eval_date = $1::DATE
     `, [eval_date]);
 
-    const row = result.rows[0] || {
-      total: 0, t1_pass: 0, t2_pass: 0, t3_pass: 0, t4_pass: 0, t5_pass: 0
-    };
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
+    const row = result.rows[0]
+      ? validateAndCoerceRow(result.rows[0], {
+          total: { type: 'int', required: false, defaultValue: 0 },
+          t1_pass: { type: 'int', required: false, defaultValue: 0 },
+          t2_pass: { type: 'int', required: false, defaultValue: 0 },
+          t3_pass: { type: 'int', required: false, defaultValue: 0 },
+          t4_pass: { type: 'int', required: false, defaultValue: 0 },
+          t5_pass: { type: 'int', required: false, defaultValue: 0 }
+        })
+      : { total: 0, t1_pass: 0, t2_pass: 0, t3_pass: 0, t4_pass: 0, t5_pass: 0 };
 
     const { total, t1_pass, t2_pass, t3_pass, t4_pass, t5_pass } = row;
     const t1 = t1_pass || 0;
@@ -1959,14 +1981,26 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
       LIMIT 20
     `);
 
-    const pending_orders = result.rows.map(r => ({
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
+    const pending_orders = validateAndCoerceRows(result, {
+      id: { type: 'int', required: true },
+      trade_id: { type: 'int', required: false },
+      symbol: { type: 'string', required: true },
+      order_type: { type: 'string', required: false },
+      side: { type: 'string', required: false },
+      requested_shares: { type: 'float', required: false },
+      requested_price: { type: 'float', required: false, defaultValue: 0 },
+      order_timestamp: { type: 'date', required: false }
+    }).map(r => ({
       order_id: r.id,
       trade_id: r.trade_id,
       symbol: r.symbol,
       order_type: r.order_type,
       side: r.side,
       requested_shares: r.requested_shares,
-      requested_price: parseFloat(r.requested_price || 0),
+      requested_price: r.requested_price || 0,
       order_timestamp: r.order_timestamp,
     }));
 
@@ -2008,18 +2042,29 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
       WHERE order_timestamp >= NOW() - MAKE_INTERVAL(days => $1)
     `, [days]);
 
-    const row = result.rows[0] || {};
+    // Validate result structure
+    validateQueryResult(result, { minRows: 1, maxRows: 1 });
+
+    const row = validateAndCoerceRow(result.rows[0], {
+      total_orders: { type: 'int', required: false, defaultValue: 0 },
+      filled: { type: 'int', required: false, defaultValue: 0 },
+      rejected: { type: 'int', required: false, defaultValue: 0 },
+      partial: { type: 'int', required: false, defaultValue: 0 },
+      avg_fill_rate: { type: 'float', required: false, defaultValue: 0 },
+      avg_slippage_bps: { type: 'float', required: false, defaultValue: 0 },
+      max_slippage_bps: { type: 'float', required: false, defaultValue: 0 }
+    });
 
     const metrics = {
       period: `last ${days} days`,
-      total_orders: parseInt(row.total_orders || 0),
-      filled: parseInt(row.filled || 0),
-      rejected: parseInt(row.rejected || 0),
-      partial: parseInt(row.partial || 0),
-      fill_rate_pct: parseFloat(row.avg_fill_rate || 0).toFixed(2),
-      avg_slippage_bps: parseFloat(row.avg_slippage_bps || 0).toFixed(2),
-      max_slippage_bps: parseFloat(row.max_slippage_bps || 0).toFixed(2),
-      slippage_alert: parseFloat(row.avg_slippage_bps || 0) > 100,
+      total_orders: row.total_orders || 0,
+      filled: row.filled || 0,
+      rejected: row.rejected || 0,
+      partial: row.partial || 0,
+      fill_rate_pct: (row.avg_fill_rate || 0).toFixed(2),
+      avg_slippage_bps: (row.avg_slippage_bps || 0).toFixed(2),
+      max_slippage_bps: (row.max_slippage_bps || 0).toFixed(2),
+      slippage_alert: (row.avg_slippage_bps || 0) > 100,
     };
 
     return sendSuccess(res, { metrics });
@@ -2055,15 +2100,27 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
       ORDER BY total_trades DESC
     `);
 
-    const patterns = result.rows.map(r => ({
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
+    const patterns = validateAndCoerceRows(result, {
+      pattern: { type: 'string', required: false, defaultValue: 'Unknown' },
+      total_trades: { type: 'int', required: false, defaultValue: 0 },
+      winning_trades: { type: 'int', required: false, defaultValue: 0 },
+      losing_trades: { type: 'int', required: false, defaultValue: 0 },
+      closed_trades: { type: 'int', required: false, defaultValue: 0 },
+      avg_return_pct: { type: 'float', required: false, defaultValue: 0 },
+      total_pnl: { type: 'float', required: false, defaultValue: 0 },
+      win_rate_pct: { type: 'float', required: false, defaultValue: 0 }
+    }).map(r => ({
       pattern: r.pattern,
-      total_trades: r.total_trades,
+      total_trades: r.total_trades || 0,
       winning_trades: r.winning_trades || 0,
       losing_trades: r.losing_trades || 0,
       closed_trades: r.closed_trades || 0,
-      avg_return_pct: parseFloat(r.avg_return_pct || 0),
-      total_pnl: parseFloat(r.total_pnl || 0),
-      win_rate_pct: parseFloat(r.win_rate_pct || 0)
+      avg_return_pct: r.avg_return_pct || 0,
+      total_pnl: r.total_pnl || 0,
+      win_rate_pct: r.win_rate_pct || 0
     }));
 
     return sendSuccess(res, { patterns, timestamp: new Date() }, 200);
