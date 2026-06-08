@@ -66,13 +66,14 @@ _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
 
 def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List[str]:
-    """Get list of active stock symbols from database with timeout protection.
+    """Get list of active symbols (stocks and ETFs) from database with timeout protection.
 
     Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,
              load_income_statement.py, load_key_metrics.py, loadpricedaily.py,
              load_quality_metrics.py, and others
 
     Originally defined identically in 19 different files. Consolidated 2026-05-18.
+    FIXED 2026-06-07: Include ETFs (was filtering them out, breaking 95% validation)
 
     Args:
         max_symbols: Limit results to N symbols (default: None = all)
@@ -109,7 +110,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
         def fetch_symbols():
             try:
                 with DatabaseContext('read') as cur:
-                    cur.execute("SELECT symbol FROM stock_symbols WHERE COALESCE(etf, 'N') != 'Y' ORDER BY symbol")
+                    cur.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
                     rows = cur.fetchall()
                     result['symbols'] = [row[0] for row in rows]
             except Exception as e:
