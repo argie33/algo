@@ -120,7 +120,7 @@ def run(
 
     logger.info(f"[PHASE 6] Processing {len(qualified_trades)} qualified signals")
 
-    trade_executor = TradeExecutor(config=config, dry_run=dry_run)
+    trade_executor = TradeExecutor(config=config)
     executed_count = 0
     failed_count = 0
 
@@ -168,20 +168,42 @@ def run(
             )
 
             if not dry_run:
-                # Actually execute trade (via broker API)
+                # Position size: risk 1% of portfolio per trade
+                # shares = (portfolio * 0.01) / (entry - stop)
                 try:
-                    trade_executor.execute_buy(
+                    with DatabaseContext('read') as pcur:
+                        pcur.execute(
+                            "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+                            "ORDER BY snapshot_date DESC LIMIT 1"
+                        )
+                        row = pcur.fetchone()
+                        portfolio_value = float(row[0]) if row and row[0] else 75000.0
+                except Exception:
+                    portfolio_value = 75000.0
+
+                risk_dollars = portfolio_value * 0.01  # 1% risk per trade
+                shares = max(1, int(risk_dollars / (entry_price - stop_loss)))
+                logger.info(f"[PHASE 6] {symbol}: portfolio=${portfolio_value:.0f} risk_$=${risk_dollars:.0f} shares={shares}")
+
+                try:
+                    result = trade_executor.execute_trade(
                         symbol=symbol,
-                        quantity=100,  # TODO: Size based on risk/portfolio
                         entry_price=entry_price,
-                        stop_loss=stop_loss,
+                        shares=float(shares),
+                        stop_loss_price=stop_loss,
+                        signal_date=run_date,
+                        entry_date=run_date,
                     )
-                    executed_count += 1
+                    if result.get('success'):
+                        executed_count += 1
+                        logger.info(f"[PHASE 6] {symbol}: ENTERED trade_id={result.get('trade_id')}")
+                    else:
+                        logger.warning(f"[PHASE 6] {symbol}: Execute returned not-success: {result.get('message')}")
+                        failed_count += 1
                 except Exception as exec_err:
                     logger.error(f"[PHASE 6] {symbol}: Execution failed: {exec_err}")
                     failed_count += 1
             else:
-                # Dry run: log only
                 logger.info(f"[PHASE 6] DRY-RUN: Would execute {symbol}")
                 executed_count += 1
 
