@@ -115,10 +115,9 @@ LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
 def mascot_pose(data: dict, frame: int) -> int:
     if (data.get("cb") or {}).get("any"):
-        return 7  # freeze only when circuit breaker fires
+        return [6, 7][(frame // 8) % 2]   # slow shake when CB fires — still animated
     tier = (data.get("mkt") or {}).get("tier", "unknown")
-    # Each sequence has unique frame indices — no pose repeats within a cycle
-    # to prevent the animation from appearing stuck.
+    # All sequences use unique frame indices so no pose is held twice in a row.
     seqs: Dict[str, List[int]] = {
         "confirmed_uptrend": [4, 1, 0, 3],   # JUMP→stepR→groove→stepL
         "healthy_uptrend":   [0, 1, 4, 3],   # groove→stepR→JUMP→stepL
@@ -2019,7 +2018,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
 
-MASCOT_H = 7   # 1 top border + 1 blank + 4 pose lines + 1 bottom border
+MASCOT_H = 8   # 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border
 MASCOT_W = 9   # 1 left border + 1 pad + 5 pose chars + 1 pad + 1 right border
 
 
@@ -2027,14 +2026,14 @@ def mascot_compact(data: dict, frame: int) -> Panel:
     fi   = mascot_pose(data, frame)
     mc   = MASCOT_COLORS[fi]
     pose = MASCOT_FRAMES[fi]
-    w    = MASCOT_W - 2  # panel content width = total - 2 borders
     return Panel(
         Group(
             Text(""),
-            Text(pose[0].center(w), style=f"bold {mc}", justify="left"),
-            Text(pose[1].center(w), style=f"bold {mc}", justify="left"),
-            Text(pose[2].center(w), style=f"bold {mc}", justify="left"),
-            Text(pose[3].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[0], style=f"bold {mc}", justify="center"),
+            Text(pose[1], style=f"bold {mc}", justify="center"),
+            Text(pose[2], style=f"bold {mc}", justify="center"),
+            Text(pose[3], style=f"bold {mc}", justify="center"),
+            Text(""),
         ),
         border_style=mc,
         padding=(0, 0),
@@ -2050,14 +2049,14 @@ def loading_layout(frame: int) -> Layout:
     pose = MASCOT_FRAMES[fi]
     dots = "." * ((frame // 2 % 4) + 1)             # dots cycle at ~1Hz
 
-    w = MASCOT_W - 2
     mascot_panel = Panel(
         Group(
             Text(""),
-            Text(pose[0].center(w), style=f"bold {mc}", justify="left"),
-            Text(pose[1].center(w), style=f"bold {mc}", justify="left"),
-            Text(pose[2].center(w), style=f"bold {mc}", justify="left"),
-            Text(pose[3].center(w), style=f"bold {mc}", justify="left"),
+            Text(pose[0], style=f"bold {mc}", justify="center"),
+            Text(pose[1], style=f"bold {mc}", justify="center"),
+            Text(pose[2], style=f"bold {mc}", justify="center"),
+            Text(pose[3], style=f"bold {mc}", justify="center"),
+            Text(""),
         ),
         border_style=mc,
         padding=(0, 0),
