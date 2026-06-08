@@ -60,9 +60,11 @@ function normalizeSuccessResponse(body, httpStatusCode) {
     };
   }
 
-  // Paginated list with data key (convert to items)
+  // Paginated list with custom key (signals, patterns, results, data, etc.)
   if (body?.pagination && !body?.items) {
-    const itemsSource = body.data || body.results || [];
+    // Look for array data in common keys: data, results, signals, patterns, records, etc.
+    let itemsSource = body.data || body.results || body.signals || body.patterns || body.records || [];
+
     // Check if extracted items contain an error object (e.g., nested { success: false })
     if (typeof itemsSource === 'object' && itemsSource !== null && itemsSource.success === false) {
       return {
@@ -72,6 +74,18 @@ function normalizeSuccessResponse(body, httpStatusCode) {
         timestamp
       };
     }
+
+    // If nothing found in common keys, return body as-is with pagination preserved
+    // (it might use a custom key or have data at a different level)
+    if (!itemsSource || itemsSource.length === 0) {
+      return {
+        success: true,
+        statusCode: statusCode,
+        ...body,  // Preserve all properties
+        timestamp
+      };
+    }
+
     const items = Array.isArray(itemsSource) ? itemsSource : [];
     return {
       success: true,
@@ -92,8 +106,22 @@ function normalizeSuccessResponse(body, httpStatusCode) {
     };
   }
 
-  // Fallback: if no data/items structure, wrap body as data
-  // This handles legacy responses that don't follow the standard format
+  // Fallback: if no data/items structure detected, check for other array keys first
+  // to avoid losing data from responses with custom array keys
+  const arrayKeys = ['signals', 'patterns', 'records', 'results', 'transactions'];
+  for (const key of arrayKeys) {
+    if (Array.isArray(body?.[key])) {
+      // Return as-is to preserve the custom key structure
+      return {
+        success: true,
+        statusCode: statusCode,
+        ...body,
+        timestamp
+      };
+    }
+  }
+
+  // Finally, wrap non-standard responses in data
   return {
     success: true,
     statusCode: statusCode,
@@ -128,7 +156,9 @@ function normalizeResponse(body, statusCode) {
 
   // If it has pagination but items under different key
   if (body?.pagination && !body?.items) {
-    const itemsSource = body.data || body.results || [];
+    // Look for array data in common keys: data, results, signals, patterns, records, etc.
+    let itemsSource = body.data || body.results || body.signals || body.patterns || body.records || [];
+
     // Check if extracted items contain an error object (e.g., nested { success: false })
     if (typeof itemsSource === 'object' && itemsSource !== null && itemsSource.success === false) {
       return {
@@ -138,6 +168,18 @@ function normalizeResponse(body, statusCode) {
         timestamp
       };
     }
+
+    // If nothing found in common keys, return body as-is with pagination preserved
+    if (!itemsSource || itemsSource.length === 0) {
+      return {
+        success: !isError,
+        statusCode: statusCode,
+        ...body,  // Preserve all properties including custom keys
+        error: isError ? (body.error || 'Request failed') : null,
+        timestamp
+      };
+    }
+
     const items = Array.isArray(itemsSource) ? itemsSource : [];
     return {
       success: !isError,
@@ -170,11 +212,28 @@ function normalizeResponse(body, statusCode) {
     };
   }
 
-  // Default: wrap in data
+  // Before wrapping in data, check for responses with custom array keys (signals, patterns, etc.)
+  // to preserve their structure instead of losing them in a data wrapper
+  const customArrayKeys = ['signals', 'patterns', 'records', 'results', 'transactions', 'events'];
+  for (const key of customArrayKeys) {
+    if (Array.isArray(body?.[key])) {
+      // Return as-is to preserve the custom key structure
+      return {
+        success: !isError,
+        statusCode: statusCode,
+        ...body,
+        error: isError ? (body.error || 'Request failed') : null,
+        timestamp
+      };
+    }
+  }
+
+  // Default: wrap truly unstructured responses in data
   return {
     success: !isError,
     statusCode: statusCode,
     data: body || null,
+    error: isError ? (body.error || 'Request failed') : null,
     timestamp
   };
 }
