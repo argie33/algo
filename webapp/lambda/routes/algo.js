@@ -688,9 +688,20 @@ router.get('/swing-scores', async (req, res) => {
       params
     );
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     return sendSuccess(res, {
-      items: result.rows.map(r => {
-        const score = parseFloat(r.score);
+      items: validateAndCoerceRows(result, {
+        symbol: { type: 'string', required: true },
+        date: { type: 'date', required: true },
+        score: { type: 'float', required: true },
+        components: { type: 'string', required: false },
+        short_name: { type: 'string', required: false },
+        sector: { type: 'string', required: false },
+        industry: { type: 'string', required: false }
+      }).map(r => {
+        const score = r.score;
         let grade = 'C';
         if (score >= 80) grade = 'A';
         else if (score >= 70) grade = 'B';
@@ -741,19 +752,33 @@ router.get('/swing-scores-history', async (req, res) => {
       [days]
     );
 
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     return sendSuccess(res, {
-      items: result.rows.map(r => ({
-        eval_date: r.eval_date,
-        date: r.eval_date,
-        total: parseInt(r.total),
-        grade_aplus: parseInt(r.score_high), // scores >= 80
-        grade_a: parseInt(r.score_medium), // scores 60-79
-        pass_count: parseInt(r.score_high) + parseInt(r.score_medium), // A+ and A grades
-        low_scores: parseInt(r.score_low),
-        high_scores: parseInt(r.score_high),
-        medium_scores: parseInt(r.score_medium),
-        avg_score: parseFloat(r.avg_score),
-      }))
+      items: validateAndCoerceRows(result, {
+        eval_date: { type: 'date', required: true },
+        total: { type: 'int', required: false, defaultValue: 0 },
+        score_high: { type: 'int', required: false, defaultValue: 0 },
+        score_medium: { type: 'int', required: false, defaultValue: 0 },
+        score_low: { type: 'int', required: false, defaultValue: 0 },
+        avg_score: { type: 'float', required: false, defaultValue: 0 }
+      }).map(r => {
+        const scoreHigh = r.score_high || 0;
+        const scoreMedium = r.score_medium || 0;
+        return {
+          eval_date: r.eval_date,
+          date: r.eval_date,
+          total: r.total || 0,
+          grade_aplus: scoreHigh, // scores >= 80
+          grade_a: scoreMedium, // scores 60-79
+          pass_count: scoreHigh + scoreMedium, // A+ and A grades
+          low_scores: r.score_low || 0,
+          high_scores: scoreHigh,
+          medium_scores: scoreMedium,
+          avg_score: r.avg_score || 0,
+        };
+      })
     });
   } catch (error) {
     logger.error('Error in /algo/swing-scores-history:', { error: error.message });
@@ -814,27 +839,41 @@ router.get('/data-status', async (req, res) => {
         table_name
     `);
 
-    const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
-    result.rows.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
 
-    const criticalStale = result.rows.filter(
+    // Validate and coerce row types
+    const validated = validateAndCoerceRows(result, {
+      table_name: { type: 'string', required: true },
+      frequency: { type: 'string', required: false },
+      role: { type: 'string', required: false },
+      latest_date: { type: 'date', required: false },
+      age_days: { type: 'int', required: false },
+      row_count: { type: 'int', required: false, defaultValue: 0 },
+      status: { type: 'string', required: false }
+    });
+
+    const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
+    validated.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+
+    const criticalStale = validated.filter(
       r => r.status !== 'ok' && (r.role || '') === 'CRITICAL'
     );
 
     // Only mark ready_to_trade true if we actually have data rows to check
-    const ready_to_trade = result.rows.length > 0 && criticalStale.length === 0;
+    const ready_to_trade = validated.length > 0 && criticalStale.length === 0;
 
     return sendSuccess(res, {
       summary: counts,
       critical_stale: criticalStale.map(r => r.table_name),
       ready_to_trade,
-      sources: result.rows.map(r => ({
+      sources: validated.map(r => ({
         table: r.table_name,
         frequency: r.frequency,
         role: r.role,
         latest: r.latest_date,
-        age_days: r.age_days !== null ? parseInt(r.age_days) : null,
-        rows: parseInt(r.row_count),
+        age_days: r.age_days,
+        rows: r.row_count,
         status: r.status,
         last_audit: null,
         error: null,
@@ -1812,16 +1851,25 @@ router.get('/sector-breadth', async (req, res) => {
       HAVING COUNT(*) > 5
       ORDER BY cp.sector
     `);
+
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     return sendSuccess(res, {
-      items: result.rows.map(r => ({
+      items: validateAndCoerceRows(result, {
+        sector: { type: 'string', required: true },
+        total_stocks: { type: 'int', required: false, defaultValue: 0 },
+        above_50d: { type: 'int', required: false, defaultValue: 0 },
+        above_200d: { type: 'int', required: false, defaultValue: 0 }
+      }).map(r => ({
         sector: r.sector,
-        total_stocks: parseInt(r.total_stocks),
-        above_50d: parseInt(r.above_50d),
-        above_200d: parseInt(r.above_200d),
-        pct_above_50d: r.total_stocks > 0
-          ? Math.round((r.above_50d / r.total_stocks) * 1000) / 10 : 0,
-        pct_above_200d: r.total_stocks > 0
-          ? Math.round((r.above_200d / r.total_stocks) * 1000) / 10 : 0,
+        total_stocks: r.total_stocks || 0,
+        above_50d: r.above_50d || 0,
+        above_200d: r.above_200d || 0,
+        pct_above_50d: (r.total_stocks || 0) > 0
+          ? Math.round(((r.above_50d || 0) / (r.total_stocks || 0)) * 1000) / 10 : 0,
+        pct_above_200d: (r.total_stocks || 0) > 0
+          ? Math.round(((r.above_200d || 0) / (r.total_stocks || 0)) * 1000) / 10 : 0,
       }))
     });
   } catch (error) {
@@ -1858,17 +1906,29 @@ router.get('/sector-stage2', async (req, res) => {
       HAVING COUNT(*) > 5
       ORDER BY stage_2 DESC
     `);
+
+    // Validate result structure
+    validateQueryResult(result, { requireRows: false });
+
     return sendSuccess(res, {
-      items: result.rows.map(r => ({
+      items: validateAndCoerceRows(result, {
+        sector: { type: 'string', required: true },
+        total_stocks: { type: 'int', required: false, defaultValue: 0 },
+        stage_1: { type: 'int', required: false, defaultValue: 0 },
+        stage_2: { type: 'int', required: false, defaultValue: 0 },
+        stage_3: { type: 'int', required: false, defaultValue: 0 },
+        stage_4: { type: 'int', required: false, defaultValue: 0 },
+        avg_trend_score: { type: 'float', required: false }
+      }).map(r => ({
         sector: r.sector,
-        total: parseInt(r.total_stocks),
-        stage_1: parseInt(r.stage_1 || 0),
-        stage_2: parseInt(r.stage_2 || 0),
-        stage_3: parseInt(r.stage_3 || 0),
-        stage_4: parseInt(r.stage_4 || 0),
-        pct_stage_2: r.total_stocks > 0
-          ? Math.round((r.stage_2 / r.total_stocks) * 1000) / 10 : 0,
-        avg_trend_score: r.avg_trend_score ? parseFloat(r.avg_trend_score) : null,
+        total: r.total_stocks || 0,
+        stage_1: r.stage_1 || 0,
+        stage_2: r.stage_2 || 0,
+        stage_3: r.stage_3 || 0,
+        stage_4: r.stage_4 || 0,
+        pct_stage_2: (r.total_stocks || 0) > 0
+          ? Math.round(((r.stage_2 || 0) / (r.total_stocks || 0)) * 1000) / 10 : 0,
+        avg_trend_score: r.avg_trend_score,
       }))
     });
   } catch (error) {
