@@ -12,6 +12,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
 import ErrorBoundary from '../components/ErrorBoundary';
+import StockScoreAccordion from '../components/StockScoreAccordion';
 
 const num = (v, dp = 1) => formatNumber(v, dp);
 const pct = (v, dp = 2) => formatPercentageChange(v, dp);
@@ -478,13 +479,13 @@ function RankingsTab({
       </div>
 
       {detail && (
-        <FactorDetail
-          stock={detail}
-          marketAvgs={marketAvgs}
-          sectorAvgs={sectorAvgs}
-          onNavigate={onNavigate}
-          onClose={() => onExpand(detail.symbol)}
-        />
+        <div style={{ marginTop: 'var(--space-4)' }}>
+          <StockScoreAccordion
+            stocks={[detail]}
+            marketAvgs={marketAvgs}
+            sectorAvgs={sectorAvgs}
+          />
+        </div>
       )}
     </>
   );

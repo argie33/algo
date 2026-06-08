@@ -124,110 +124,89 @@ window.addEventListener("unhandledrejection", function (e) {
 
 // Application initialization
 
-// Smart service worker and cache management
-// Detect configuration staleness and aggressively clear caches on deploy
-const checkAndClearStaleCache = async () => {
-  const CACHE_VERSION_KEY = 'app-cache-version';
+// Fetch config.js explicitly to bypass service worker cache
+// This ensures config.js is always fresh from the network, preventing stale API_URL issues
+const fetchConfigExplicitly = async () => {
   const CONFIG_HASH_KEY = 'app-config-hash';
-  const CURRENT_VERSION = import.meta.env.VITE_BUILD_TIME || new Date().toISOString().split('T')[0];
 
   try {
-    // Detect config staleness by checking if config.js URL has cache-bust parameter
-    // If the URL in index.html has a v= parameter, compute a hash of it
-    // This helps us detect when a new build was deployed (new cache-bust value)
-    let configUrlHash = '';
-    const scripts = Array.from(document.querySelectorAll('script'));
-    const configScript = scripts.find(s => s.src && s.src.includes('config.js'));
-    if (configScript && configScript.src) {
-      // Extract and hash the config.js URL (including any v= parameter)
-      // This uniquely identifies the deployed version
-      configUrlHash = configScript.src;
+    // Build cache-bust parameter (same as in index.html script tag)
+    // This forces a fresh fetch even if browser has cached the response
+    const configUrl = `/config.js?v=${Date.now().toString(36)}&bypass=${Math.random()}`;
+
+    // Fetch with explicit no-cache directive to bypass all caches (service worker, browser, CDN)
+    const response = await fetch(configUrl, {
+      cache: 'no-store',  // Bypass all caches - force network fetch
+      headers: {
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
+
+    if (!response.ok) {
+      // Log fetch error but don't throw - fall back to script-tag loaded config
+      logger.warn(`Explicit config.js fetch returned ${response.status}`, {
+        status: response.status,
+        statusText: response.statusText,
+        url: configUrl
+      });
+      return; // Fall back to window.__CONFIG__ from script tag
     }
 
-    const storedVersion = localStorage.getItem(CACHE_VERSION_KEY);
-    const storedConfigHash = localStorage.getItem(CONFIG_HASH_KEY);
+    const configText = await response.text();
 
-    // Trigger cache clear if EITHER version or config URL changed
-    const versionChanged = storedVersion && storedVersion !== CURRENT_VERSION;
-    const configChanged = storedConfigHash && storedConfigHash !== configUrlHash;
+    // Evaluate the config (it sets window.__CONFIG__ globally)
+    // Use Function() instead of eval() for slightly better scoping
+    try {
+      new Function(configText)();
 
-    if (versionChanged || configChanged) {
-      const reason = versionChanged ? `version (${storedVersion} → ${CURRENT_VERSION})` : 'config URL';
-      logger.info(`Deploy detected via ${reason}, clearing all stale caches`);
+      // Verify config was loaded
+      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
+        logger.info("Explicit config.js fetch succeeded, using fresh config", {
+          apiUrl: window.__CONFIG__.API_URL || '(empty - using Vite proxy)',
+          buildTime: window.__CONFIG__.BUILD_TIME
+        });
 
-      // Phase 1: Clear ALL caches aggressively (not just api-*)
-      // This ensures stale config.js and all related resources are removed
-      if ("caches" in window) {
-        try {
-          const cacheNames = await caches.keys();
-
-          // Delete all caches on version change to ensure fresh config load
-          await Promise.all(
-            cacheNames.map(name =>
-              caches.delete(name).catch(err => {
-                console.warn(`Failed to delete cache '${name}':`, err.message);
-              })
-            )
-          );
-          logger.info(`Cleared ${cacheNames.length} cache stores (full purge on deploy)`);
-        } catch (error) {
-          logger.warn("Failed to clear caches on deploy detection", error);
-        }
+        // Store the BUILD_TIME to detect future deploys (simpler than hashing URLs)
+        localStorage.setItem(CONFIG_HASH_KEY, window.__CONFIG__.BUILD_TIME || 'unknown');
+      } else {
+        logger.warn("Fetched config.js but window.__CONFIG__ not properly set after evaluation");
       }
-
-      // Phase 2: Unregister all service workers (after caches are cleared)
-      // This forces browser to fetch fresh resources from network
-      if ("serviceWorker" in navigator) {
-        try {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(
-            registrations.map(reg => reg.unregister())
-          );
-          logger.info(`Unregistered ${registrations.length} service worker(s) on deploy`);
-        } catch (error) {
-          logger.warn("Failed to unregister service workers", error);
-        }
-      }
-
-      // Phase 3: Clear HTTP cache headers by invalidating browser's cached state
-      // Ensure next page load hits network for critical resources
-      if (performance && performance.clearResourceTimings) {
-        performance.clearResourceTimings();
-      }
-    }
-
-    // Update stored identifiers (after cleanup complete)
-    localStorage.setItem(CACHE_VERSION_KEY, CURRENT_VERSION);
-    if (configUrlHash) {
-      localStorage.setItem(CONFIG_HASH_KEY, configUrlHash);
+    } catch (evalError) {
+      logger.warn("Failed to evaluate fetched config.js", evalError);
     }
   } catch (error) {
-    logger.warn("Cache version check failed (non-critical)", error);
+    // Network error or timeout - this is ok, we'll use script-tag loaded config
+    logger.info("Explicit config.js fetch failed (expected in offline mode)", {
+      error: error.message
+    });
   }
 };
 
-// Run cache check asynchronously (non-blocking)
-// Completes before app render, so first page load gets clean caches
-// Always attach catch handler to prevent unhandled rejection
-checkAndClearStaleCache().catch((err) => {
-  console.warn('[Cache] Background cache check failed:', err.message);
+// Fetch config explicitly to bypass service worker cache
+// Run before app initialization to ensure fresh config
+const configFetchPromise = fetchConfigExplicitly().catch((err) => {
+  logger.warn('[Config] Explicit fetch failed (non-critical)', err.message);
 });
 
 
 // Wait for config.js to load before configuring Amplify and rendering app.
 // Ensures window.__CONFIG__ is available when AuthContext initializes.
-// This is CRITICAL: API calls are blocked until this completes.
+// The explicit fetch above should provide a fresh copy, but we also wait for the script-tag fallback.
 const waitForConfig = async () => {
-  // If config already loaded (synchronously), proceed immediately
+  // If config already loaded (synchronously from script tag), proceed immediately
   // In dev mode, API_URL is intentionally empty (Vite proxy handles /api/*)
   // So check for the object existence, not the URL value
   if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
-    logger.info("Config already loaded, using immediately");
+    logger.info("Config already loaded", {
+      apiUrl: window.__CONFIG__.API_URL || '(empty - using Vite proxy)',
+      environment: window.__CONFIG__.ENVIRONMENT,
+    });
     configureAmplify();
     return;
   }
 
-  // Check if config.js failed to load
+  // Check if config.js script tag failed to load
   if (window.__CONFIG_ERROR__) {
     const error = new Error(
       'Configuration file (config.js) failed to load. ' +
@@ -241,12 +220,11 @@ const waitForConfig = async () => {
     throw error;
   }
 
-  // Otherwise, wait for config script to execute with validation
+  // Otherwise, wait for config script tag to execute with validation
+  // (The explicit fetch above should have already provided a fresh copy)
   return new Promise((resolve, reject) => {
-    const CONFIG_TIMEOUT = 10000; // 10 seconds (increased from 5s for slow networks)
+    const CONFIG_TIMEOUT = 5000; // 5 seconds - config should be available quickly now that we're fetching it explicitly
     let configLoaded = false;
-    let detectionAttempts = 0;
-    const MAX_STALE_DETECTION_ATTEMPTS = 3; // Detect stale config after 3 attempts
 
     const timeout = setTimeout(() => {
       if (!configLoaded) {
@@ -258,68 +236,31 @@ const waitForConfig = async () => {
           timeoutMs: CONFIG_TIMEOUT,
         };
         const error = new Error(
-          'Configuration failed to load within 10 seconds. ' +
-          'Likely causes: (1) config.js not deployed to S3, (2) S3 permissions issue, ' +
-          '(3) CloudFront cache issue, or (4) network connectivity. ' +
-          'Actions: Check browser DevTools Network tab for config.js status, verify S3 deployment, check CloudFront distribution.'
+          'Configuration failed to load within 5 seconds. ' +
+          'Actions: (1) Check browser DevTools Network tab for config.js request status, ' +
+          '(2) Verify config.js is deployed to S3, (3) Check S3 bucket permissions, (4) Verify CloudFront distribution is active.'
         );
         logger.error("ConfigLoadTimeout", error, debugInfo);
         reject(error);
       }
     }, CONFIG_TIMEOUT);
 
-    // Poll for config with adaptive frequency
-    // Check for ENVIRONMENT property instead of API_URL (which is intentionally empty in dev mode)
+    // Poll for config loading (check every 100ms since we're now fetching explicitly)
     const pollInterval = setInterval(() => {
-      detectionAttempts++;
-
       if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
         configLoaded = true;
         clearTimeout(timeout);
         clearInterval(pollInterval);
-        logger.info("Config loaded successfully", {
-          apiUrl: window.__CONFIG__.API_URL || '(empty - using Vite proxy)',
-          environment: window.__CONFIG__.ENVIRONMENT,
-        });
+        logger.info("Config loaded successfully (from script tag fallback)");
         configureAmplify();
         resolve();
       }
-
-      // Stale config detection: if config still not loaded after multiple attempts,
-      // and service worker is present, likely the service worker is serving stale config.js
-      // Force reload to clear service worker cache
-      if (detectionAttempts >= MAX_STALE_DETECTION_ATTEMPTS && !configLoaded) {
-        if ("serviceWorker" in navigator) {
-          logger.warn(
-            "Config load stalled - likely stale service worker cache. " +
-            "Clearing service workers and reloading...",
-            { attempts: detectionAttempts }
-          );
-          clearTimeout(timeout);
-          clearInterval(pollInterval);
-
-          navigator.serviceWorker.getRegistrations().then(registrations => {
-            Promise.all(registrations.map(r => r.unregister()))
-              .then(() => {
-                // Hard reload bypasses all caches
-                window.location.reload(true);
-              })
-              .catch(err => {
-                logger.warn("Failed to unregister during stale detection", err);
-                window.location.reload(true);
-              });
-          }).catch(err => {
-            logger.warn("Failed to get registrations during stale detection", err);
-            window.location.reload(true);
-          });
-        }
-      }
-    }, 50);
+    }, 100);
   });
 };
 
-// Wait for config before rendering app. Use Promise.all to ensure order.
-const configPromise = waitForConfig();
+// Wait for both explicit fetch and config loading before rendering app
+const configPromise = configFetchPromise.then(() => waitForConfig());
 
 // Create React Query client
 const queryClient = new QueryClient({

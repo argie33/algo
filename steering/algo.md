@@ -34,17 +34,13 @@ The frontend build must properly embed API URL and Cognito credentials at build 
 6. Outputs to `dist/config.js` for deployment to S3/CloudFront
 
 **Service Worker Cache Invalidation Strategy:**
-The frontend implements multi-layer cache invalidation to prevent stale config.js from persisting after deploys:
-- **Layer 1 (Build-time):** Cache-bust parameter (`?v=<buildHash>`) injected into config.js script tag ensures CDN/browser don't serve cached copy when URL changes
-- **Layer 2 (Load-time):** `main.jsx` detects deploy by comparing stored cache version + config URL hash against current values. On mismatch:
-  - Clears ALL service worker caches (not just api-* caches)
-  - Unregisters all service workers
-  - Clears performance timings to reset browser state
-- **Layer 3 (Stale detection):** If config.js fails to load after 3 polling attempts (150ms), likely due to stale service worker cache, automatically:
-  - Unregisters remaining service workers
-  - Performs hard reload (`window.location.reload(true)`) to bypass all caches
+The frontend ensures config.js is always fresh via explicit fetch with cache bypass:
+- **Explicit Fetch:** `main.jsx` fetches config.js explicitly using `fetch()` with `cache: 'no-store'` and custom cache headers (`Pragma: no-cache`, `Cache-Control: no-cache, no-store, must-revalidate`) to bypass all caches (service worker, browser, CDN)
+- **Cache-Bust Parameter:** Config URL includes dynamic cache-bust parameter (`?v=<timestamp>&bypass=<random>`) to further ensure freshness on every load
+- **Script Tag Fallback:** If explicit fetch fails (e.g., offline), app falls back to config.js loaded from script tag in index.html
+- **Build-Time Injection:** Cache-bust parameter is also injected into index.html at build time to force browser/CDN to fetch fresh copy when script tag URL changes
 
-This prevents the "API 404" error that occurs when config.js is stale and points to a wrong API_URL.
+This prevents the "API 404" error that occurs when config.js is stale. The explicit fetch approach is simpler and more reliable than previous service-worker-detection logic, since it forces a network fetch regardless of cache state.
 
 **GitHub Actions Build Flow (deploy-all-infrastructure.yml lines 1078-1140):**
 1. Terraform creates CloudFront and Cognito resources, exports their IDs as outputs
@@ -113,25 +109,35 @@ If you need to rebuild the schema:
 
 **Loaders:** 37 total (9 core via Step Functions, 28 supporting via EventBridge). Core loaders: stock_symbols, stock_prices_daily, technical_data_daily, market_health_daily, trend_template_data, buy_sell_daily, signal_quality_scores, algo_metrics_daily, swing_trader_scores.
 
-**LOADER_PARALLELISM (Dynamic Configuration):** All loaders read thread-pool concurrency via `loader_config.get_parallelism(loader_name)` which queries DynamoDB first, then falls back to `LOADER_PARALLELISM` environment variable. This allows updating parallelism without redeploying Terraform or restarting loaders (changes picked up at next loader startup). Default values from Terraform:
-- **stock_prices_daily (SERIAL EXECUTION)**: parallelism=1 (ISSUE #RATE_LIMIT_429 fix)
-  - Reduced from parallelism=6 to eliminate yfinance 429 rate limiting errors
-  - Root cause: 6 concurrent threads created contention on shared NAT gateway IP
-  - Solution: serial execution prevents rate limit cascade and timeout failures
-  - Execution time: 5000 symbols / 30 batch_size * 2s interval = ~334s (5.5 min) — fits comfortably in 7200s timeout
-  - No performance impact: 5.5 min << 85-min EOD window
-- **Critical path loaders**: technical_data_daily (parallelism=2), buy_sell_daily (parallelism=3), signal_quality_scores (parallelism=2), swing_trader_scores (parallelism=2)
-- **Analytics loaders**: company_profile (parallelism=2), analyst_sentiment (parallelism=2), stability_metrics (parallelism=2), value_metrics (parallelism=2), growth_metrics (parallelism=2), quality_metrics (parallelism=2)
-- **Small loaders**: parallelism=1 to avoid rate limiting or because data size is small
-- **Justification**: RDS Proxy multiplexes 24 loaders (up to 96 direct connections) into 20-30 persistent RDS connections, reducing TCP handshake overhead by 75%. Even with parallelism=2-4 per loader, the proxy pools connections efficiently, preventing "too many connections" errors.
-- **Updating parallelism dynamically (FIXED ISSUE #13):**
-  - Initialize DynamoDB table: `python scripts/initialize-loader-config.py --environment dev`
-  - List current config: `python scripts/update-loader-parallelism.py --list --environment dev`
-  - Update single loader: `python scripts/update-loader-parallelism.py --loader technical_data_daily --parallelism 3 --environment dev`
-  - Update multiple: `python scripts/update-loader-parallelism.py --loader technical_data_daily --parallelism 3 --loader buy_sell_daily --parallelism 4 --environment dev`
-  - Reset to defaults: `python scripts/update-loader-parallelism.py --reset --environment dev`
-  - Batch update from JSON: `python scripts/update-loader-parallelism.py --from-file updates.json --environment dev`
-  - Changes are effective at next loader startup (5-minute DynamoDB cache TTL on reads)
+**LOADER_PARALLELISM (FIXED ISSUE #7: Adaptive Per-Loader Parallelism):** Loaders read thread-pool concurrency via `loader_config.get_parallelism(loader_name)`, which implements RDS-aware adaptive parallelism. No manual tuning required.
+
+**How it works:**
+1. **Base configuration**: `loader_config.get_parallelism(loader_name)` reads from:
+   - DynamoDB config table (if available) - allows manual overrides
+   - Environment variable `LOADER_PARALLELISM` - fallback
+   - Default: 1 (conservative for safety)
+
+2. **Adaptive RDS adjustment** (automatic): Before execution, `_compute_adaptive_parallelism()` checks RDS connection pool saturation:
+   - If RDS connections > 400 (80% of 500): reduce parallelism by 50%
+   - If RDS connections > 450 (90% of 500): reduce to per-loader minimum constraint
+   - Never exceeds per-loader maximum constraint (prevents rate limiting)
+   - Always respects per-loader minimum (e.g., stock_prices_daily min=1)
+
+3. **Per-loader constraints** (automatic, no config needed):
+   - **stock_prices_daily**: min=1, max=3 (fixed at 1 to prevent yfinance 429 rate limiting, can scale to 3 if RDS allows)
+   - **technical_data_daily**: min=1, max=8 (scales based on RDS availability)
+   - **buy_sell_daily**: min=1, max=6 (critical path, conservative scaling)
+   - **signal_quality_scores**: min=1, max=6
+   - **swing_trader_scores**: min=1, max=6
+   - **Analytics loaders**: min=1, max=8 (company_profile, analyst_sentiment, stability_metrics, value_metrics, growth_metrics, quality_metrics)
+
+**Manual override (if needed):**
+- Initialize DynamoDB table: `python scripts/initialize-loader-config.py --environment dev`
+- List current config: `python scripts/update-loader-parallelism.py --list --environment dev`
+- Override single loader: `python scripts/update-loader-parallelism.py --loader technical_data_daily --parallelism 4 --environment dev`
+- Reset to adaptive defaults: `python scripts/update-loader-parallelism.py --reset --environment dev`
+
+**Justification**: RDS Proxy multiplexes 24 loaders (up to 96 direct connections) into 20-30 persistent RDS connections, reducing TCP handshake overhead by 75%. Adaptive per-loader parallelism prevents both rate-limiting (stock_prices_daily) and RDS exhaustion (technical_data_daily), without manual intervention. Changes take effect at next loader startup.
 
 **RDS Proxy (Connection Pooling):**
 - **Architecture:** `aws_db_proxy` multiplexes client connections to RDS

@@ -232,8 +232,18 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
       # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
-      # parallelism=4, batch=100, cpu=2048: ~1.5-2h expected, 6h timeout for safety.
+      # CRITICAL LOADER (FAIL-CLOSED): Must succeed or entire pipeline halts.
+      # parallelism=1, batch=100, cpu=2048: ~5.5min expected (serial execution to prevent rate limiting)
       # Timeout hierarchy: ECS container timeout (25200=7h) < Step Functions state timeout (21600=6h)
+      #
+      # ISSUE #1 FIX: Removed graceful degradation. If stock_prices_daily fails after retries,
+      # the entire pipeline halts loudly so we know about the failure and can fix it,
+      # rather than masking it and proceeding with stale data.
+      #
+      # Root causes addressed in production:
+      # - yfinance rate limiting: Reduced parallelism from 6 to 1 (serial execution)
+      # - RDS pool exhaustion: Enabled RDS Proxy (multiplexes 24 loaders → 20-30 connections)
+      # - Market close data lag: Market close polling added (15s timeouts, rapid checks)
       EodBulkPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -265,6 +275,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           loader_name       = "stock_prices_daily"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
+          is_critical_loader = true
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -273,12 +284,16 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           MaxAttempts     = 2
           BackoffRate     = 2.0
         }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "ParallelTechnicals"
-          ResultPath  = "$.logError"
-        }]
-        Next = "ParallelTechnicals"
+        # CRITICAL LOADER (FAIL-CLOSED): Don't catch errors. If handler fails, let pipeline fail loudly.
+        # This forces underlying issues (yfinance rate limiting, RDS problems) to be fixed rather than masked.
+        Next = "PriceLoadFailureHalt"
+      }
+
+      # Fail-closed terminal state: pipeline halts when critical loader fails
+      PriceLoadFailureHalt = {
+        Type  = "Fail"
+        Error = "CRITICAL_LOADER_FAILURE"
+        Cause = "stock_prices_daily failed after retries. Pipeline halted to prevent trading on stale data. Check CloudWatch logs for details."
       }
 
       # ── Step 2: Technical indicators + market health (both read price_daily) ─
@@ -613,6 +628,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           loader_name       = "swing_trader_scores"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
+          is_critical_loader = true
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -621,12 +637,16 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           MaxAttempts     = 2
           BackoffRate     = 2.0
         }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "SectorRanking"
-          ResultPath  = "$.logError"
-        }]
-        Next = "SectorRanking"
+        # CRITICAL LOADER (FAIL-CLOSED): swing_trader_scores is needed for Phase 5 signal generation.
+        # If it fails, pipeline halts to prevent trading on incomplete data.
+        Next = "SwingScoresFailureHalt"
+      }
+
+      # Fail-closed terminal state: pipeline halts when swing_trader_scores fails
+      SwingScoresFailureHalt = {
+        Type  = "Fail"
+        Error = "CRITICAL_LOADER_FAILURE"
+        Cause = "swing_trader_scores failed after retries. Pipeline halted because signals cannot be generated without trader scores. Check CloudWatch logs for details."
       }
 
       # ── Step 8c: Sector ranking (depends on stock_scores) ──────────────

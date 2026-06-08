@@ -51,6 +51,7 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
 
     Args:
         max_retries: Number of retry attempts on transient errors (increased from 3 to 5 for connection pool congestion)
+                     Note: max_retries=0 means 1 attempt (0 retries after first), max_retries=1 means 2 attempts, etc.
         timeout: Connection timeout in seconds
         debug: If True, log detailed connection attempts
 
@@ -66,10 +67,12 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
         raise psycopg2.OperationalError("Missing required database configuration")
 
     last_error = None
-    for attempt in range(1, max_retries + 1):
+    # max_retries=0 means 1 total attempt (no retries), so range should be (1, 2)
+    # max_retries=1 means 2 total attempts (1 retry), so range should be (1, 3)
+    for attempt in range(1, max_retries + 2):
         try:
             if debug:
-                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries}: {db_config['host']}")
+                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: {db_config['host']}")
 
             conn = psycopg2.connect(
                 host=db_config['host'],
@@ -86,7 +89,7 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
             return conn
         except psycopg2.OperationalError as e:
             last_error = e
-            if attempt < max_retries:
+            if attempt <= max_retries:
                 import time
                 wait_time = min(2 ** (attempt - 1), 10)  # Exponential backoff, max 10s
                 if debug:
@@ -94,6 +97,6 @@ def get_db_connection(max_retries: int = 5, timeout: int = 10, debug: bool = Fal
                 time.sleep(wait_time)
             else:
                 if debug:
-                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries} attempts: {e}")
+                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries + 1} attempts: {e}")
 
     raise last_error if last_error else psycopg2.OperationalError("Failed to connect to database")
