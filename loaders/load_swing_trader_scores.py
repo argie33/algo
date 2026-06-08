@@ -267,9 +267,14 @@ class SwingTraderScoresLoader(OptimalLoader):
         )
 
     def _validate_source_dependencies(self, symbol: str, end_date: date) -> Optional[List[str]]:
-        """ISSUE #5 FIX: Validate all 4 source tables have data for symbol AND are complete (>95% coverage).
+        """Validate all 4 source tables have data for THIS SYMBOL on end_date.
 
-        Returns: None if all sources OK, list of failure reasons if any source missing or incomplete.
+        Per-symbol check only — no batch coverage check. Reason: batch coverage
+        against all active symbols (10,000+) would always fail since source tables
+        only contain data for qualifying symbols (~300-6000). The algo only needs
+        a good candidate pool, not 100% of all active symbols.
+
+        Returns: None if all sources OK, list of failure reasons if any source missing.
         """
         failures = []
         source_tables = [
@@ -281,35 +286,13 @@ class SwingTraderScoresLoader(OptimalLoader):
 
         try:
             with DatabaseContext('read') as cur:
-                # Get expected symbol count for coverage checks
-                cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-                cur_row = cur.fetchone()
-                expected_symbols = cur_row[0] if cur_row else 4500
-
-                # Check each source table for both existence AND completeness
                 for table_name, required_col in source_tables:
-                    # Check if this symbol has data in source table
                     cur.execute(
                         f"SELECT COUNT(*) FROM {table_name} WHERE symbol = %s AND date = %s",
                         (symbol, end_date)
                     )
-                    count = cur.fetchone()[0]
-                    if count == 0:
+                    if cur.fetchone()[0] == 0:
                         failures.append(f"{table_name}_missing")
-                    else:
-                        # Source has data for this symbol, but check if source table is COMPLETE
-                        # If loader was incomplete (missed some symbols), swing_trader_scores becomes
-                        # incomplete too, causing cascading failures in Phase 5
-                        cur.execute(
-                            f"SELECT COUNT(DISTINCT symbol) FROM {table_name} WHERE date = %s",
-                            (end_date,)
-                        )
-                        cur_row = cur.fetchone()
-                        actual_symbols = cur_row[0] if cur_row else 0
-                        coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
-
-                        if coverage < 95:
-                            failures.append(f"{table_name}_incomplete_{coverage:.0f}pct")
 
         except Exception as e:
             logger.debug(f"Source validation failed for {symbol}: {e}")

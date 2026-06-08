@@ -74,43 +74,25 @@ class SignalQualityScoresLoader(OptimalLoader):
         else:
             start = since - timedelta(days=100)
 
-        # ISSUE #8 FIX: Validate buy_sell_daily COMPLETENESS before computing scores
-        # If buy_sell_daily loader was incomplete (missed symbols), signal quality becomes
-        # incomplete too, causing cascading failures in Phase 5 filtering
-        # ENHANCED: Log why scores are skipped to improve morning pipeline observability
+        # Validate buy_sell_daily has run before computing quality scores.
+        # buy_sell_daily generates signals only for stocks meeting filter criteria (~500-1500 symbols).
+        # Comparing against all active symbols (10,000+) will ALWAYS fail 95% threshold.
+        # Instead: require at least 300 buy/sell signals exist for end date.
         try:
             with DatabaseContext('read') as cur:
-                # Check if buy_sell_daily has completed for end date
-                cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active=true")
-                cur_row = cur.fetchone()
-                expected_symbols = cur_row[0] if cur_row else 4500
-
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = %s AND signal_type IN ('BUY', 'SELL')",
                     (end,)
                 )
                 cur_row = cur.fetchone()
                 actual_symbols = cur_row[0] if cur_row else 0
-                coverage = (actual_symbols / expected_symbols * 100) if expected_symbols > 0 else 0
 
-                if coverage < 95:
+                if actual_symbols < 300:
                     logger.critical(
                         f"[SIGNAL_QUALITY_SKIPPED] {symbol}: buy_sell_daily INCOMPLETE for {end}: "
-                        f"{actual_symbols}/{expected_symbols} symbols ({coverage:.1f}%, REQUIRE >95%). "
-                        f"signal_quality_scores cannot run until buy_sell_daily is >95% complete. Rejecting scores."
+                        f"only {actual_symbols} signals (expected >= 300). "
+                        f"signal_quality_scores cannot run until buy_sell_daily completes. Rejecting scores."
                     )
-                    # Emit metric for morning pipeline observability
-                    try:
-                        from algo.algo_metrics import MetricsPublisher
-                        m = MetricsPublisher()
-                        m.put_metric('SignalQualityScoresSkipped', 1, unit='Count', dimensions={
-                            'symbol': symbol,
-                            'date': str(end),
-                            'buy_sell_coverage_pct': f'{coverage:.0f}'
-                        })
-                        m.flush()
-                    except Exception:
-                        pass
                     return []
         except Exception as e:
             logger.debug(f"Could not validate buy_sell_daily completeness: {e}")
