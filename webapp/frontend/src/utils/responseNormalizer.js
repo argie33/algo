@@ -168,6 +168,14 @@ export const extractPaginatedData = (response) => {
     const error = new Error(errorMsg);
     error.code = data.errorType;
     error.status = data.statusCode || response.status;
+    error.details = {
+      originalMessage: data.error || data.message,
+      errorType: data.errorType,
+      statusCode: data.statusCode || response.status,
+      timestamp: data.timestamp,
+      requestId: data.requestId,
+      context: data.context,
+    };
     throw error;
   }
 
@@ -177,6 +185,14 @@ export const extractPaginatedData = (response) => {
     const error = new Error(data.message || data.error || `API error: ${httpStatus}`);
     error.code = data.errorType;
     error.status = httpStatus;
+    error.details = {
+      originalMessage: data.message || data.error,
+      errorType: data.errorType,
+      statusCode: httpStatus,
+      timestamp: data.timestamp,
+      requestId: data.requestId,
+      context: data.context,
+    };
     throw error;
   }
 

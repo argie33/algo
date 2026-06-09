@@ -1263,7 +1263,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
     return Panel(Group(*rows), title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
 
 
-def panel_portfolio(port, cfg, risk=None):
+def panel_portfolio(port, cfg, risk=None, perf=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
     pv    = float(port.get("total_portfolio_value") or 0)
@@ -1279,34 +1279,59 @@ def panel_portfolio(port, cfg, risk=None):
     pct_c = float(cfg.get("max_pos_pct") or 0) if cfg else 0
     bp    = pv * pct_c / 100 if (pv and pct_c) else cash
     slots = max_n - npos if max_n else None
-    slots_s = f"  [dim]open slots:[/][white]{slots}[/]" if slots is not None else ""
-    snap_s = ""
-    if snap is not None:
-        snap_age = fmt_age(snap)
-        snap_s = f"  [dim]snapshot {snap_age}[/]"
-    cum_s = ""
-    if cum is not None:
-        cc = G if float(cum) >= 0 else R
-        cum_s = f"\n[dim]Total Return:[/] [{cc}]{sign(float(cum))}{float(cum):.2f}%[/]"
-    conc_s = f"\n[dim]Largest Position:[/] [white]{float(lgpos):.1f}%[/]" if lgpos is not None else ""
-    txt   = Text.from_markup(
-        f"[bold white]{fmt_money(pv)}[/]{snap_s}\n"
-        f"[dim]Cash:[/] [white]{fmt_money(cash)}[/]  [dim]Positions:[/][white]{npos}[/]{slots_s}\n"
-        f"[dim]Today's Return:[/]  [{G if dr  >= 0 else R}]{sign(dr)}{dr:.2f}%[/]\n"
-        f"[dim]Unrealized P&L:[/]  [{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]\n"
-        f"[dim]Buying Power:[/]    [white]{fmt_money(bp)}[/]"
-        + cum_s + conc_s
-    )
+    slots_s = f"  [dim]slots:[/][white]{slots}[/]" if slots is not None else ""
+    snap_s  = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
+
+    rows: list = []
+
+    # Line 1: portfolio value + snapshot age
+    rows.append(Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}"))
+
+    # Line 2: cash + positions + slots + buying power
+    rows.append(Text.from_markup(
+        f"[dim]Cash:[/] [white]{fmt_money(cash)}[/]  "
+        f"[dim]Pos:[/][white]{npos}[/]{slots_s}  "
+        f"[dim]BP:[/][white]{fmt_money(bp)}[/]"
+    ))
+
+    # Line 3: daily return + unrealized P&L
+    rows.append(Text.from_markup(
+        f"[dim]Day:[/] [{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]  "
+        f"[dim]Unrlzd:[/] [{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]"
+    ))
+
+    # Line 4: cumulative return + max drawdown (always show, "--" when missing)
+    cum_v  = float(cum) if cum is not None else None
+    mxdd_v = float(mxdd) if mxdd is not None else (
+        float((perf or {}).get("maxdd") or 0) if perf and not perf.get("_error") else None)
+    cc     = G if (cum_v or 0) >= 0 else R
+    cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v or 0)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
+    dd_v   = abs(mxdd_v) if mxdd_v is not None else None
+    dd_c   = R if (dd_v or 0) >= 15 else (Y if (dd_v or 0) >= 5 else G)
+    mxdd_s = f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]MaxDD:[/] [dim]--[/]"
+    rows.append(Text.from_markup(f"{cum_s}  {mxdd_s}"))
+
+    # Line 5: largest position concentration (when available)
+    if lgpos is not None:
+        lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else "white")
+        rows.append(Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{float(lgpos):.1f}%[/]"))
+
+    # Line 6: equity sparkline (portfolio value over time)
+    equity_vals = (perf or {}).get("equity_vals") or [] if (perf and not perf.get("_error")) else []
+    if len(equity_vals) >= 3:
+        rows.append(Text.from_markup(f"[dim]Equity:[/] {sparkline(equity_vals, width=34)}"))
+
+    # VaR metrics (compact one-liner)
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        var_line = Text.from_markup(
-            f"[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]  "
-            f"[dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]  "
-            f"[dim]Beta:[/][{beta_c}]{risk['beta']:.2f}[/]  "
-            f"[dim]Top-5 Conc:[/][white]{risk['conc5']:.0f}%[/]"
-        )
-        return Panel(Group(txt, var_line), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
-    return Panel(txt, title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
+        rows.append(Text.from_markup(
+            f"[dim]VaR:[/][white]{risk['var95']:.2f}%[/]  "
+            f"[dim]CVaR:[/][white]{risk['cvar95']:.2f}%[/]  "
+            f"[dim]β:[/][{beta_c}]{risk['beta']:.2f}[/]  "
+            f"[dim]Conc5:[/][white]{risk['conc5']:.0f}%[/]"
+        ))
+
+    return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
 
 def panel_performance_spark(perf, rec, perf_anl=None):
@@ -1325,21 +1350,36 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     avg_r   = perf.get("avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
-    rows = [Text.from_markup(
-        f"[bold white]{perf.get('n', 0)} Trades[/]  "
-        f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]  "
-        f"[dim]Win Rate:[/][{G if (perf.get('wr') or 0) >= 50 else R}]{perf.get('wr', '--')}%[/]  "
-        f"[{str_c}]{str_s}[/]\n"
-        f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
-        f"[dim]Profit Factor:[/][{pf_c}]{pf_s}[/]  "
-        f"[dim]Sharpe:[/][white]{perf.get('sharpe') or '--'}[/]\n"
-        f"[dim]Expectancy:[/][{exp_c}]{fmt_money(exp)}[/]  "
-        f"[dim]Avg R:[/][white]{avg_r_s}[/]  "
-        f"[dim]Avg Win:[/][{G}]{fmt_money(perf.get('avg_win'))}[/]  "
-        f"[dim]Avg Loss:[/][{R}]{fmt_money(perf.get('avg_loss'))}[/]"
-    )]
+    wr_v = perf.get('wr') or 0
+    dd_v = perf.get('maxdd') or 0
+    dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
+    rows = [
+        Text.from_markup(
+            f"[bold white]{perf.get('n', 0)} Trades[/]  "
+            f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]  "
+            f"[dim]WR:[/][{G if wr_v >= 50 else R}]{wr_v}%[/]  "
+            f"[{str_c}]{str_s}[/]  "
+            f"[dim]MaxDD:[/][{dd_c}]{('-' if dd_v > 0 else '')}{dd_v:.1f}%[/]"
+        ),
+        Text.from_markup(
+            f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
+            f"[dim]PF:[/][{pf_c}]{pf_s}[/]  "
+            f"[dim]Sharpe:[/][white]{perf.get('sharpe') or '--'}[/]  "
+            f"[dim]Exp:[/][{exp_c}]{fmt_money(exp)}[/]  "
+            f"[dim]AvgR:[/][white]{avg_r_s}[/]"
+        ),
+        Text.from_markup(
+            f"[dim]AvgWin:[/][{G}]{fmt_money(perf.get('avg_win'))}[/]  "
+            f"[dim]AvgLoss:[/][{R}]{fmt_money(perf.get('avg_loss'))}[/]"
+        ),
+    ]
 
-    # Recent daily returns (last 5 snapshots) — replaces sparkline
+    # Equity curve sparkline (portfolio value history)
+    equity_vals = perf.get("equity_vals") or []
+    if len(equity_vals) >= 3:
+        rows.append(Text.from_markup(f"[dim]Equity:[/] {sparkline(equity_vals, width=38)}"))
+
+    # Recent daily returns (last 5 snapshots)
     recent_rets = perf.get("recent_rets") or []
     if recent_rets:
         parts = []
@@ -2285,6 +2325,204 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     return Panel(Group(*rows), title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]", border_style="yellow", padding=(0, 1))
 
 
+def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, audit=None, exec_hist=None):
+    """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
+    rows: list = []
+
+    # ── A: Run outcome ────────────────────────────────────────────────────────
+    run_valid = run and not run.get("_error")
+    act_valid = act and not act.get("_error")
+    run_at    = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
+    age_s     = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
+
+    if run_valid:
+        if run.get("success") and not run.get("halted"):
+            sts = f"[bold {G}]✔ COMPLETED[/]"
+        elif run.get("halted"):
+            sts = f"[bold {Y}]~ HALTED[/]"
+        elif run.get("errored"):
+            sts = f"[bold {R}]✗ ERROR[/]"
+        else:
+            sts = "[dim]UNKNOWN[/]"
+        rid = (run.get("run_id") or "")[:28]
+        rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
+        halt_r  = run.get("halt_reason") or ""
+        summary = run.get("summary") or ""
+        if halt_r:
+            rows.append(Text.from_markup(f"  [{Y}]↳ Halt: {halt_r[:72]}[/]"))
+        elif summary:
+            rows.append(Text.from_markup(f"  [dim]{summary[:72]}[/]"))
+    elif act_valid:
+        rows.append(Text.from_markup(f"[dim]Last run (audit):[/]  [dim]{fmt_age(run_at)}[/]"))
+    else:
+        rows.append(Text.from_markup("[dim]No run data — algo has not run yet[/]"))
+
+    # ── B: Phase badges + aggregated "what did it do?" metrics ───────────────
+    signals_gen  = 0
+    entries_exec = 0
+    exits_exec   = 0
+    phase_badges: list = []
+
+    def _pc(v):
+        if isinstance(v, list): return len(v)
+        if isinstance(v, int):  return v
+        return 0
+
+    if run_valid and run.get("_source") == "exec_log":
+        for p in (run.get("phase_results") or []):
+            raw   = (p.get("name") or p.get("phase", "")).lower()
+            parts_p = raw.split("_")
+            base  = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
+            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
+            ps    = (p.get("status") or "").lower()
+            sc    = G if ps in ("success", "completed", "ok") else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
+            si    = "✓" if ps in ("success", "completed", "ok") else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
+            phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
+            pdata = p.get("data") or {}
+            if isinstance(pdata, str):
+                try: pdata = json.loads(pdata)
+                except: pdata = {}
+            sg = pdata.get("signals_generated")
+            ee = pdata.get("entries_executed") or pdata.get("trades_executed")
+            xe = pdata.get("exits_executed")
+            if sg: signals_gen  = max(signals_gen,  int(sg))
+            if ee: entries_exec = max(entries_exec, int(ee))
+            if xe: exits_exec   = max(exits_exec,   int(xe))
+    elif run_valid or act_valid:
+        src = run if run_valid else act
+        for p in (src.get("phases") or []):
+            at = p.get("action_type", "")
+            if not at.startswith("phase_"): continue
+            parts_p = at.split("_")
+            if len(parts_p) > 2: continue
+            num   = parts_p[1] if len(parts_p) > 1 else "?"
+            short = PHASE_NAMES.get(f"phase_{num}", f"P{num}")[:8]
+            st    = p.get("status", "")
+            sc    = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
+            si    = "✓" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "✗")
+            phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
+
+    if phase_badges:
+        rows.append(Text.from_markup("  ".join(phase_badges)))
+
+    # Fallback: use algo_metrics for today's entry/exit counts
+    valid_metrics = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))) else []
+    today_m = valid_metrics[0] if valid_metrics else {}
+    if not entries_exec: entries_exec = int(today_m.get("entries") or 0)
+    if not exits_exec:   exits_exec   = int(today_m.get("exits")   or 0)
+
+    # "What did the algo do today?" summary — the core insight
+    action_parts = []
+    if signals_gen > 0:
+        action_parts.append(f"[dim]Signals found:[/][white]{signals_gen}[/]")
+    if entries_exec > 0:
+        action_parts.append(f"[dim]Entries executed:[/][{G}]{entries_exec}[/]")
+    else:
+        action_parts.append(f"[dim]Entries:[/][{DIM}]0[/]")
+    if exits_exec > 0:
+        action_parts.append(f"[dim]Exits executed:[/][{Y}]{exits_exec}[/]")
+    else:
+        action_parts.append(f"[dim]Exits:[/][{DIM}]0[/]")
+    if action_parts:
+        rows.append(Text.from_markup("  ".join(action_parts)))
+
+    # 5-day activity strip
+    if len(valid_metrics) >= 2:
+        day_parts = []
+        for m in valid_metrics[:5]:
+            d   = m.get("date")
+            d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
+            en  = int(m.get("entries") or 0)
+            ex  = int(m.get("exits")   or 0)
+            e_c = G if en > 0 else DIM
+            x_c = Y if ex > 0 else DIM
+            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}▲[/][{x_c}]{ex}▼[/]")
+        rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
+
+    rows.append(Rule(style="dim"))
+
+    # ── C: Run history (last 7 runs as badges) ───────────────────────────────
+    valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
+    if valid_hist:
+        n_ok  = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
+        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
+        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
+        total_h = len(valid_hist)
+        badges  = []
+        for r in valid_hist[:7]:
+            s = (r.get("overall_status") or "").lower()
+            badges.append(f"[{G}]✓[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]✗[/]"))
+        wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
+        rows.append(Text.from_markup(
+            f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
+            f"  [{wc}]{n_ok}/{total_h} success[/]"
+            + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
+            + (f"  [{R}]{n_err} error[/]"  if n_err  else "")
+        ))
+        last_halt = next((r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"), None)
+        if last_halt and last_halt.get("halt_reason"):
+            rows.append(Text.from_markup(f"  [{Y}]↳ {(last_halt['halt_reason'] or '')[:68]}[/]"))
+
+    rows.append(Rule(style="dim"))
+
+    # ── D: Data health (compact) ──────────────────────────────────────────────
+    if hlth:
+        stale = [r for r in hlth if r.get("st") != "ok"]
+        if not stale:
+            crit  = [r for r in hlth if r.get("role") == "CRIT"]
+            ok_s  = "  ".join(f"[{G}]✓[/][dim]{r.get('tbl','')[:10]}[/]" for r in crit[:5])
+            rows.append(Text.from_markup(f"[{G}]✓ Data OK[/]  [dim]{len(hlth)} tables[/]  {ok_s}"))
+        else:
+            stale_parts = []
+            for r in stale[:5]:
+                nm  = (r.get("tbl") or "--")[:9]
+                age = r.get("age") or "?"
+                cc  = "bold white" if r.get("role") == "CRIT" else "white"
+                stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/][dim]{age}d[/]")
+            rows.append(Text.from_markup("[dim]Data stale:[/] " + "  ".join(stale_parts)))
+
+    # Loader status (compact inline)
+    valid_loader   = loader if (loader and not (isinstance(loader, dict) and loader.get("_error"))) else []
+    problem_loader = [r for r in valid_loader if (r.get("status") or "") in ("error", "failed", "stale")]
+    running_loader = [r for r in valid_loader if (r.get("status") or "") == "loading"]
+    ok_count       = len(valid_loader) - len(problem_loader) - len(running_loader)
+    if problem_loader:
+        ldr_parts = [f"[{R if (r.get('status') or '') in ('error','failed') else Y}]{(r.get('table_name') or '')[:12]}[/]"
+                     for r in problem_loader[:3]]
+        rows.append(Text.from_markup(f"[dim]Loaders:[/] [{Y}]{len(problem_loader)} issues:[/] " + "  ".join(ldr_parts)))
+    elif running_loader:
+        rows.append(Text.from_markup(f"[{CY}]Loading:[/] [dim]{running_loader[0].get('table_name','')[:16]}[/]"))
+    else:
+        rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]✓ {ok_count} healthy[/]"))
+
+    # ── E: Notifications (compact) ────────────────────────────────────────────
+    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
+    if valid_notifs:
+        rows.append(Rule(style="dim"))
+        SEV_C  = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
+        _SHORT = {
+            "trading halted by circuit": "Halted:CB",
+            "circuit breaker":           "CB fired",
+            "position entered":          "Entered",
+            "position exited":           "Exited",
+            "daily loss limit":          "DailyLoss",
+            "max drawdown":              "MaxDD",
+        }
+        notif_parts = []
+        for n in valid_notifs[:5]:
+            sc    = SEV_C.get(n.get("severity", "info"), DIM)
+            raw_t = n.get("title") or ""
+            title = next((v for k, v in _SHORT.items() if k in raw_t.lower()), raw_t[:20])
+            age   = fmt_age(n.get("created_at"))
+            unread = "●" if not n.get("seen", True) else "·"
+            notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
+        rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
+
+    if not rows:
+        rows.append(Text("no activity", style="dim"))
+    return Panel(Group(*rows), title="[bold yellow]ALGO HEALTH[/]", border_style="yellow", padding=(0, 1))
+
+
 # ── mascot panel (compact — dancing man only) ────────────────────────────────
 # MASCOT_W defined above in the mascot section.
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
@@ -2417,10 +2655,10 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     outer = Layout()
     outer.split_column(
         Layout(name="top",      size=10),   # market header | exposure factors | monkey
-        Layout(name="r1",       ratio=2),   # circuit breakers (full width)
-        Layout(name="r2",       ratio=1),   # portfolio | perf | eco
+        Layout(name="r1",       ratio=1),   # circuit breakers — compact (was ratio=2)
+        Layout(name="r2",       ratio=2),   # portfolio | perf | eco — expanded (was ratio=1)
         Layout(name="r3",       ratio=2),   # signals | sectors
-        Layout(name="activity", ratio=2),   # algo activity — doubled height
+        Layout(name="activity", ratio=2),   # algo health
         Layout(name="pos",      ratio=2),   # positions + recent trades at bottom
     )
 
@@ -2434,14 +2672,14 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     outer["top"]["exposure"].update(panel_exposure_compact(exp_f))
     outer["top"]["mascot"].update(mascot_compact(data, frame))
 
-    # Row 1: Circuit Breakers + VaR/risk — full width (exposure moved to top row)
+    # Row 1: Circuit Breakers — compact, tight allocation
     outer["r1"].update(panel_circuit(cb, risk=risk))
 
-    # Row 2: Portfolio | Performance | Economic pulse
+    # Row 2: Portfolio | Performance | Economic pulse — more room to show data
     outer["r2"].split_row(
-        Layout(panel_portfolio(port, cfg, risk=risk),               name="portfolio"),
-        Layout(panel_performance_spark(perf, rec, perf_anl),       name="perf"),
-        Layout(panel_economic_pulse(eco, econ_cal),                 name="eco"),
+        Layout(panel_portfolio(port, cfg, risk=risk, perf=perf),    name="portfolio"),
+        Layout(panel_performance_spark(perf, rec, perf_anl),        name="perf"),
+        Layout(panel_economic_pulse(eco, econ_cal),                  name="eco"),
     )
 
     # Row 3: Signals (wider) | Sectors
@@ -2450,9 +2688,8 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
     )
 
-    # Row 4: Activity — full width, doubled height for run history detail
-    outer["activity"].update(panel_status(act, hlth, notifs, algo_metrics, loader, audit,
-                                          run=run, exec_hist=exec_hist, cfg=cfg))
+    # Row 4: Algo health — "did the algo work?" focus
+    outer["activity"].update(panel_algo_health(run, act, hlth, notifs, algo_metrics, loader, audit, exec_hist))
 
     # Row 5: Positions | Recent Trades — both trade-related, natural pairing
     outer["pos"].split_row(
