@@ -412,173 +412,95 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str = None) -> Dict:
             })
 
 def _get_algo_positions(cur, user_id: str = None) -> Dict:
-        """Get current open positions enriched with targets, sector, stage, and computed risk fields (scoped to user if user_id provided)."""
+        """Get current open positions from algo_trades (single source of truth).
+
+        Data derivation:
+        - algo_trades WHERE status IN ('open','filled','partially_filled','active')
+        - Latest price from price_daily
+        - Trade metadata (stop, targets) from the trade record
+        - Technical/fundamental data from supporting tables
+        """
         try:
-            # Ensure cognito_sub column exists (migration)
-            try:
-                # Check if column exists first
-                cur.execute("""
-                    SELECT column_name FROM information_schema.columns
-                    WHERE table_name='algo_positions' AND column_name='cognito_sub'
-                """)
-                if not cur.fetchone():
-                    # Column doesn't exist, create it
-                    cur.execute("ALTER TABLE algo_positions ADD COLUMN cognito_sub VARCHAR(255)")
-                    logger.info("Created cognito_sub column in algo_positions")
-            except Exception as e:
-                logger.warning(f"Migration check failed: {e} - continuing anyway")
-
-            # Build WHERE clause with optional user scoping
-            # If cognito_sub column doesn't exist yet, skip user filtering
-            user_filter = f"AND p.cognito_sub = %s" if user_id else ""
-            params = (user_id,) if user_id else ()
-
             cur.execute("SET LOCAL statement_timeout = '30000ms'")
-
-            try:
-                # Try query with user_id filter
-                cur.execute(f"""
-                WITH latest_trend AS (
+            cur.execute("""
+                WITH open_trades AS (
+                    -- All trades with active positions (source of truth)
                     SELECT DISTINCT ON (symbol)
-                        symbol, weinstein_stage, minervini_trend_score, percent_from_52w_low
-                    FROM trend_template_data
-                    WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                        symbol, trade_id, entry_quantity, entry_price,
+                        stop_loss_price, target_1_price, target_2_price, target_3_price,
+                        trade_date, entry_time
+                    FROM algo_trades
+                    WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+                        AND (exit_date IS NULL OR exit_date > CURRENT_DATE - 1)
+                    ORDER BY symbol, trade_date DESC
+                ),
+                latest_prices AS (
+                    SELECT DISTINCT ON (symbol) symbol, close as current_price
+                    FROM price_daily
                     ORDER BY symbol, date DESC
+                ),
+                trend AS (
+                    SELECT DISTINCT ON (symbol) symbol, weinstein_stage
+                    FROM trend_template_data
+                    ORDER BY symbol, date DESC
+                ),
+                swings AS (
+                    SELECT DISTINCT ON (symbol) symbol, score AS swing_score
+                    FROM swing_trader_scores
+                    ORDER BY symbol, date DESC
+                ),
+                days_held AS (
+                    SELECT symbol,
+                        EXTRACT(DAY FROM CURRENT_TIMESTAMP - entry_time)::INT as days_since_entry
+                    FROM open_trades
                 )
                 SELECT
-                    p.position_id, p.symbol, p.quantity, p.avg_entry_price, p.current_price,
-                    p.position_value, p.unrealized_pnl, p.unrealized_pnl_pct, p.status,
-                    p.days_since_entry, p.distribution_day_count, p.target_levels_hit,
-                    p.current_stop_price,
-                    p.current_stop_price AS stop_loss_price,
-                    p.stage_in_exit_plan, p.created_at, p.updated_at,
-                    -- Original entry trade: stop and targets
-                    ot.stop_loss_price AS trade_stop_price,
-                    ot.target_1_price, ot.target_2_price, ot.target_3_price,
-                    -- Sector from company_profile (with fallback to Unknown)
-                    COALESCE(cp.sector, 'Unknown') as sector,
-                    -- Stage / trend from trend_template_data
-                    lt.weinstein_stage,
-                    lt.minervini_trend_score,
-                    lt.percent_from_52w_low AS pct_from_52w_low,
-                    -- Computed: r_multiple = (current - entry) / (entry - stop)
+                    ot.symbol,
+                    ot.entry_price as avg_entry_price,
+                    COALESCE(lp.current_price, ot.entry_price) as current_price,
                     CASE
-                        WHEN p.avg_entry_price IS NOT NULL
-                             AND p.current_stop_price IS NOT NULL
-                             AND (p.avg_entry_price - p.current_stop_price) > 0
-                        THEN ROUND(
-                            ((p.current_price - p.avg_entry_price) /
-                             (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
-                    END AS r_multiple,
-                    -- open_risk_dollars = quantity * (entry_price - stop_price)
-                    CASE
-                        WHEN p.current_stop_price IS NOT NULL AND p.avg_entry_price > p.current_stop_price
-                        THEN ROUND((p.quantity * (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
-                    END AS open_risk_dollars,
-                    -- distance_to_stop_pct: positive = above stop, negative = stop already broken
-                    CASE
-                        WHEN p.current_stop_price IS NOT NULL AND p.current_price > 0
-                        THEN ROUND(
-                            ((p.current_price - p.current_stop_price) / p.current_price * 100)::NUMERIC, 2)
-                    END AS distance_to_stop_pct,
-                    -- distance_to_t1/t2/t3_pct: positive = target above current price
-                    CASE
-                        WHEN ot.target_1_price IS NOT NULL AND p.current_price > 0
-                        THEN ROUND(
-                            ((ot.target_1_price - p.current_price) / p.current_price * 100)::NUMERIC, 2)
-                    END AS distance_to_t1_pct,
-                    CASE
-                        WHEN ot.target_2_price IS NOT NULL AND p.current_price > 0
-                        THEN ROUND(
-                            ((ot.target_2_price - p.current_price) / p.current_price * 100)::NUMERIC, 2)
-                    END AS distance_to_t2_pct,
-                    CASE
-                        WHEN ot.target_3_price IS NOT NULL AND p.current_price > 0
-                        THEN ROUND(
-                            ((ot.target_3_price - p.current_price) / p.current_price * 100)::NUMERIC, 2)
-                    END AS distance_to_t3_pct
-                FROM algo_positions p
-                LEFT JOIN LATERAL (
-                    SELECT stop_loss_price, target_1_price, target_2_price, target_3_price
-                    FROM algo_trades at
-                    WHERE p.trade_ids_arr IS NOT NULL AND at.trade_id = ANY(p.trade_ids_arr)
-                    ORDER BY at.id ASC
-                    LIMIT 1
-                ) ot ON true
-                LEFT JOIN company_profile cp ON cp.ticker = p.symbol
-                LEFT JOIN latest_trend lt ON lt.symbol = p.symbol
-                WHERE LOWER(p.status) = 'open' {user_filter}
-                ORDER BY p.position_value DESC
-            """, params)
-                positions = cur.fetchall()
-            except psycopg2.errors.UndefinedColumn as e:
-                # cognito_sub column doesn't exist yet - retry without user filtering
-                if user_id and 'cognito_sub' in str(e):
-                    logger.warning(f"cognito_sub column missing, returning all positions (not filtered by user)")
-                    cur.execute(f"""
-                WITH latest_trend AS (
-                    SELECT DISTINCT ON (symbol)
-                        symbol, weinstein_stage, minervini_trend_score, percent_from_52w_low
-                    FROM trend_template_data
-                    WHERE date >= CURRENT_DATE - INTERVAL '14 days'
-                    ORDER BY symbol, date DESC
-                )
-                SELECT
-                    p.position_id, p.symbol, p.quantity, p.avg_entry_price, p.current_price,
-                    p.position_value, p.unrealized_pnl, p.unrealized_pnl_pct, p.status,
-                    p.days_since_entry, p.distribution_day_count, p.target_levels_hit,
-                    p.current_stop_price,
-                    p.current_stop_price AS stop_loss_price,
-                    p.stage_in_exit_plan, p.created_at, p.updated_at,
-                    ot.stop_loss_price AS trade_stop_price,
-                    ot.target_1_price, ot.target_2_price, ot.target_3_price,
-                    COALESCE(cp.sector, 'Unknown') as sector,
-                    lt.weinstein_stage,
-                    lt.minervini_trend_score,
-                    lt.percent_from_52w_low AS pct_from_52w_low,
-                    CASE
-                        WHEN p.avg_entry_price IS NOT NULL
-                             AND p.current_stop_price IS NOT NULL
-                             AND (p.avg_entry_price - p.current_stop_price) > 0
-                        THEN ROUND(
-                            ((p.current_price - p.avg_entry_price) /
-                             (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
-                    END AS r_multiple,
-                    CASE
-                        WHEN p.current_stop_price IS NOT NULL AND p.avg_entry_price > p.current_stop_price
-                        THEN ROUND((p.quantity * (p.avg_entry_price - p.current_stop_price))::NUMERIC, 2)
-                    END AS open_risk_dollars,
-                    CASE
-                        WHEN p.current_stop_price IS NOT NULL AND p.current_price > 0
-                        THEN ROUND(
-                            ((p.current_price - p.current_stop_price) / p.current_price * 100)::NUMERIC, 2)
-                    END AS distance_to_stop_pct
-                FROM algo_positions p
-                LEFT JOIN LATERAL (
-                    SELECT stop_loss_price, target_1_price, target_2_price, target_3_price
-                    FROM algo_trades at
-                    WHERE p.trade_ids_arr IS NOT NULL AND at.trade_id = ANY(p.trade_ids_arr)
-                    ORDER BY at.id ASC
-                    LIMIT 1
-                ) ot ON true
-                LEFT JOIN company_profile cp ON cp.ticker = p.symbol
-                LEFT JOIN latest_trend lt ON lt.symbol = p.symbol
-                WHERE LOWER(p.status) = 'open'
-                ORDER BY p.position_value DESC
+                        WHEN ot.entry_price > 0
+                        THEN (((COALESCE(lp.current_price, ot.entry_price) - ot.entry_price) / ot.entry_price) * 100)
+                        ELSE 0
+                    END as unrealized_pnl_pct,
+                    (ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::DECIMAL(14,2) as position_value,
+                    dh.days_since_entry,
+                    ot.stop_loss_price,
+                    ot.target_1_price,
+                    ot.target_2_price,
+                    ot.target_3_price,
+                    t.weinstein_stage,
+                    cp.sector,
+                    s.swing_score,
+                    ot.trade_id,
+                    ot.entry_quantity as quantity,
+                    'open' as status,
+                    ot.trade_date as created_at
+                FROM open_trades ot
+                LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
+                LEFT JOIN trend t ON ot.symbol = t.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = ot.symbol
+                LEFT JOIN swings s ON ot.symbol = s.symbol
+                LEFT JOIN days_held dh ON ot.symbol = dh.symbol
+                ORDER BY position_value DESC
             """)
-                    positions = cur.fetchall()
-                else:
-                    raise
+            positions = cur.fetchall()
 
             items = []
             for p in positions:
                 d = dict(p)
-                # Prefer current_stop_price (updated by monitor) over original trade stop
-                if d.get('current_stop_price') is None and d.get('trade_stop_price') is not None:
-                    d['current_stop_price'] = d['trade_stop_price']
-                    d['stop_loss_price'] = d['trade_stop_price']
+                # Add computed fields for API compatibility
+                unrealized_pnl = (d.get('position_value', 0) or 0) * (d.get('unrealized_pnl_pct', 0) or 0) / 100
+                d['unrealized_pnl'] = round(unrealized_pnl, 2)
+                d['r_multiple'] = None
+                if (d.get('avg_entry_price') and d.get('stop_loss_price') and
+                    float(d['avg_entry_price']) > float(d.get('stop_loss_price', 0))):
+                    d['r_multiple'] = round(
+                        (float(d.get('current_price', d['avg_entry_price'])) - float(d['avg_entry_price'])) /
+                        (float(d['avg_entry_price']) - float(d['stop_loss_price'])), 2)
                 items.append(d)
-            freshness = check_data_freshness(cur, 'algo_positions', 'updated_at', warning_days=1)
+
+            freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
             return json_response(200, {
                 'items': items,
                 'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
