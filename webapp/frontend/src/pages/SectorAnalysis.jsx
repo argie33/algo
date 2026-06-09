@@ -1011,7 +1011,9 @@ function SectorsView({ sectors, industries, isLoading, error }) {
             </div>
           </div>
           <div className="card-body">
-            <MansfieldRotation sectors={sortedSectors} />
+            <ErrorBoundary>
+              <MansfieldRotation sectors={sortedSectors} />
+            </ErrorBoundary>
           </div>
         </div>
         <div className="card">
@@ -1022,7 +1024,9 @@ function SectorsView({ sectors, industries, isLoading, error }) {
             </div>
           </div>
           <div className="card-body">
-            <MomentumSpider sectors={sortedSectors} />
+            <ErrorBoundary>
+              <MomentumSpider sectors={sortedSectors} />
+            </ErrorBoundary>
           </div>
         </div>
       </div>
@@ -1036,7 +1040,9 @@ function SectorsView({ sectors, industries, isLoading, error }) {
           </div>
         </div>
         <div className="card-body">
-          <SectorRelativeChart sectors={sortedSectors} />
+          <ErrorBoundary>
+            <SectorRelativeChart sectors={sortedSectors} />
+          </ErrorBoundary>
         </div>
       </div>
 
@@ -1050,7 +1056,9 @@ function SectorsView({ sectors, industries, isLoading, error }) {
             </div>
           </div>
           <div className="card-body">
-            <SectorBreadthChart />
+            <ErrorBoundary>
+              <SectorBreadthChart />
+            </ErrorBoundary>
           </div>
         </div>
         <div className="card">
@@ -1061,7 +1069,9 @@ function SectorsView({ sectors, industries, isLoading, error }) {
             </div>
           </div>
           <div className="card-body">
-            <Stage2LeadersChart />
+            <ErrorBoundary>
+              <Stage2LeadersChart />
+            </ErrorBoundary>
           </div>
         </div>
       </div>
@@ -1075,7 +1085,9 @@ function SectorsView({ sectors, industries, isLoading, error }) {
           </div>
         </div>
         <div className="card-body">
-          <DefensiveCyclicalChart />
+          <ErrorBoundary>
+            <DefensiveCyclicalChart />
+          </ErrorBoundary>
         </div>
       </div>
 
@@ -1105,31 +1117,33 @@ function SectorsView({ sectors, industries, isLoading, error }) {
           </div>
         </div>
         <div className="card-body" style={{ height: 380 }}>
-          {chartData.length === 0 ? (
-            <Empty title="No sector performance data" />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 80 }}>
-                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
-                <XAxis
-                  dataKey="name" stroke="var(--text-3)" fontSize={11}
-                  angle={-45} textAnchor="end" height={70} interval={0}
-                />
-                <YAxis stroke="var(--text-3)" fontSize={11}
-                       tickFormatter={(v) => `${v}%`} />
-                <Tooltip
-                  contentStyle={TT_STYLE}
-                  formatter={(v) => [`${v}%`, 'Performance']}
-                  labelFormatter={(l, p) => p?.[0]?.payload?.fullName || l}
-                />
-                <Bar dataKey="performance" radius={[4, 4, 0, 0]}>
-                  {chartData.map((d, i) => (
-                    <Cell key={i} fill={d.performance >= 0 ? 'var(--success)' : 'var(--danger)'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          <ErrorBoundary>
+            {chartData.length === 0 ? (
+              <Empty title="No sector performance data" />
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 80 }}>
+                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                  <XAxis
+                    dataKey="name" stroke="var(--text-3)" fontSize={11}
+                    angle={-45} textAnchor="end" height={70} interval={0}
+                  />
+                  <YAxis stroke="var(--text-3)" fontSize={11}
+                         tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={TT_STYLE}
+                    formatter={(v) => [`${v}%`, 'Performance']}
+                    labelFormatter={(l, p) => p?.[0]?.payload?.fullName || l}
+                  />
+                  <Bar dataKey="performance" radius={[4, 4, 0, 0]}>
+                    {chartData.map((d, i) => (
+                      <Cell key={i} fill={d.performance >= 0 ? 'var(--success)' : 'var(--danger)'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </ErrorBoundary>
         </div>
       </div>
 
@@ -1141,93 +1155,95 @@ function SectorsView({ sectors, industries, isLoading, error }) {
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
-          {error ? (
-            <div className="alert alert-warn" style={{ margin: 'var(--space-4)' }}>
-              <AlertCircle size={16} /><div>Sector data not available.</div>
-            </div>
-          ) : isLoading ? (
-            <Empty title="Loading sectors…" />
-          ) : sortedSectors.length === 0 ? (
-            <Empty title="No sector data available" />
-          ) : (
-            <div style={{ overflow: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>Sector</th>
-                    <th className="num">Rank</th>
-                    <th className="num">1W Ago</th>
-                    <th className="num">4W Ago</th>
-                    <th className="num">12W Ago</th>
-                    <th>Momentum</th>
-                    <th>Trend</th>
-                    <th className="num">1D %</th>
-                    <th className="num">5D %</th>
-                    <th className="num">20D %</th>
-                    <th>Trend (90d)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedSectors.map((s, i) => {
-                    const name = s.sector_name || s.sector;
-                    const key = `${name}-${i}`;
-                    const isOpen = expanded === key;
-                    const p1 = s.current_perf_1d ?? s.performance_1d;
-                    const p5 = s.current_perf_5d ?? s.performance_5d;
-                    const p20 = s.current_perf_20d ?? s.performance_20d;
-                    return (
-                      <React.Fragment key={key}>
-                        <tr onClick={() => setExpanded(isOpen ? null : key)}>
-                          <td style={{ width: 24 }}>
-                            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          </td>
-                          <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{name}</span></td>
-                          <td className="num">
-                            <span className="badge badge-brand mono tnum">
-                              #{s.current_rank ?? s.overall_rank ?? '—'}
-                            </span>
-                          </td>
-                          <td className="num mono tnum muted">
-                            {s.rank_1w_ago != null ? s.rank_1w_ago : '—'}
-                          </td>
-                          <td className="num mono tnum muted">
-                            {s.rank_4w_ago != null ? s.rank_4w_ago : '—'}
-                          </td>
-                          <td className="num mono tnum muted">
-                            {s.rank_12w_ago != null ? s.rank_12w_ago : '—'}
-                          </td>
-                          <td>
-                            <span className={`badge ${momentumBadge(s.current_momentum || s.momentum)}`}>
-                              {s.current_momentum || s.momentum || '—'}
-                            </span>
-                          </td>
-                          <td><TrendIcon trend={s.current_trend || s.trend} /></td>
-                          <td className="num">
-                            <span className={`mono tnum ${pctClass(p1)}`}>{fmtPct(p1)}</span>
-                          </td>
-                          <td className="num">
-                            <span className={`mono tnum ${pctClass(p5)}`}>{fmtPct(p5)}</span>
-                          </td>
-                          <td className="num">
-                            <span className={`mono tnum ${pctClass(p20)}`}>{fmtPct(p20)}</span>
-                          </td>
-                          <td><SparklineTrend name={name} type="sector" /></td>
-                        </tr>
-                        {isOpen && (
-                          <tr>
-                            <td colSpan={12} style={{ padding: 0 }}>
-                              <SectorDetail sector={s} industries={industries} />
+          <ErrorBoundary>
+            {error ? (
+              <div className="alert alert-warn" style={{ margin: 'var(--space-4)' }}>
+                <AlertCircle size={16} /><div>Sector data not available.</div>
+              </div>
+            ) : isLoading ? (
+              <Empty title="Loading sectors…" />
+            ) : sortedSectors.length === 0 ? (
+              <Empty title="No sector data available" />
+            ) : (
+              <div style={{ overflow: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>Sector</th>
+                      <th className="num">Rank</th>
+                      <th className="num">1W Ago</th>
+                      <th className="num">4W Ago</th>
+                      <th className="num">12W Ago</th>
+                      <th>Momentum</th>
+                      <th>Trend</th>
+                      <th className="num">1D %</th>
+                      <th className="num">5D %</th>
+                      <th className="num">20D %</th>
+                      <th>Trend (90d)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedSectors.map((s, i) => {
+                      const name = s.sector_name || s.sector;
+                      const key = `${name}-${i}`;
+                      const isOpen = expanded === key;
+                      const p1 = s.current_perf_1d ?? s.performance_1d;
+                      const p5 = s.current_perf_5d ?? s.performance_5d;
+                      const p20 = s.current_perf_20d ?? s.performance_20d;
+                      return (
+                        <React.Fragment key={key}>
+                          <tr onClick={() => setExpanded(isOpen ? null : key)}>
+                            <td style={{ width: 24 }}>
+                              {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </td>
+                            <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{name}</span></td>
+                            <td className="num">
+                              <span className="badge badge-brand mono tnum">
+                                #{s.current_rank ?? s.overall_rank ?? '—'}
+                              </span>
+                            </td>
+                            <td className="num mono tnum muted">
+                              {s.rank_1w_ago != null ? s.rank_1w_ago : '—'}
+                            </td>
+                            <td className="num mono tnum muted">
+                              {s.rank_4w_ago != null ? s.rank_4w_ago : '—'}
+                            </td>
+                            <td className="num mono tnum muted">
+                              {s.rank_12w_ago != null ? s.rank_12w_ago : '—'}
+                            </td>
+                            <td>
+                              <span className={`badge ${momentumBadge(s.current_momentum || s.momentum)}`}>
+                                {s.current_momentum || s.momentum || '—'}
+                              </span>
+                            </td>
+                            <td><TrendIcon trend={s.current_trend || s.trend} /></td>
+                            <td className="num">
+                              <span className={`mono tnum ${pctClass(p1)}`}>{fmtPct(p1)}</span>
+                            </td>
+                            <td className="num">
+                              <span className={`mono tnum ${pctClass(p5)}`}>{fmtPct(p5)}</span>
+                            </td>
+                            <td className="num">
+                              <span className={`mono tnum ${pctClass(p20)}`}>{fmtPct(p20)}</span>
+                            </td>
+                            <td><SparklineTrend name={name} type="sector" /></td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          {isOpen && (
+                            <tr>
+                              <td colSpan={12} style={{ padding: 0 }}>
+                                <SectorDetail sector={s} industries={industries} />
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </ErrorBoundary>
         </div>
       </div>
     </>
