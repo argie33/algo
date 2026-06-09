@@ -7,7 +7,7 @@ Live trading system: buys/sells stocks based on Minervini trend-following + fund
 | Component | Code | Deployment | Trigger |
 |-----------|------|------------|---------|
 | Orchestrator | `algo/algo_orchestrator.py` | Lambda algo-algo-dev | EventBridge: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET Mon-Fri |
-| Loaders (37 total: 10 core + 27 supporting) | `loaders/load_*.py` | ECS Fargate | 10 core via Step Functions EOD pipeline (4:05 PM ET, includes sector_ranking), 27 supporting via EventBridge schedules |
+| Loaders (37 total: 9 core + 28 supporting) | `loaders/load_*.py` | ECS Fargate | 9 core via Step Functions EOD pipeline (4:05 PM ET), 28 supporting via EventBridge schedules |
 | API | `lambda/api/lambda_function.py` | Lambda algo-api-dev | HTTP requests |
 | Frontend | `webapp/frontend/src/` | S3 + CloudFront | npm run build |
 | Database | PostgreSQL | RDS algo-db | Schema: `lambda/db-init/schema.sql` |
@@ -1170,7 +1170,7 @@ Expected peak: <350 connections (safe margin to 500 max).
   - Requirement: 27000s (7.5h) for full EOD pipeline
   - Actual: 21600s per EodBulkPrices task (6h), total ~8h with phases
   - Timeout strategy: Expected + 2-3x safety margin (adequate)
-- Loader configuration: 10 core + 27 supporting (verified in steering/algo.md)
+- Loader configuration: 9 core + 28 supporting (verified in steering/algo.md)
   - Core loaders: FAIL-CLOSED (halt on error)
   - Supporting loaders: FAIL-OPEN (continue with warning)
 
