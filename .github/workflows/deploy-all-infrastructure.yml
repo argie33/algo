@@ -1253,7 +1253,7 @@ jobs:
   #
   run-migrations:
     name: "2e. Run Database Migrations"
-    needs: terraform
+    needs: [terraform, build-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
@@ -1264,36 +1264,72 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install psycopg2
-        run: pip install --quiet psycopg2-binary
-
-      - name: Run Migrations
+      - name: Run Migrations via ECS
         continue-on-error: true
         run: |
-          echo "=== Running Database Migrations ==="
-          # Get secret name from terraform.tfvars (matches Terraform's naming pattern)
+          echo "=== Running Database Migrations via ECS (within VPC) ==="
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
           ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
-          SECRET_ID="${PROJECT}-db-credentials-${ENVIRONMENT}"
-          echo "Using secret: $SECRET_ID"
 
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id "$SECRET_ID" \
-            --query SecretString \
-            --output text 2>/dev/null || echo "{}")
-          if [ -z "$SECRET" ] || [ "$SECRET" = "{}" ]; then
-            echo "WARNING: Could not fetch database credentials from $SECRET_ID, skipping migrations"
+          # Look up ECS infrastructure by naming convention (set by Terraform)
+          CLUSTER=$(aws ecs list-clusters --query "clusterArns[?contains(@, '${PROJECT}') && contains(@, '${ENVIRONMENT}')]" --output text 2>/dev/null | head -1)
+          if [ -z "$CLUSTER" ]; then
+            echo "[WARN] Could not find ECS cluster for project=${PROJECT} env=${ENVIRONMENT}, skipping migrations"
             exit 0
           fi
-          # SECURITY: Pass credentials via stdin to avoid logging them in env vars
-          # Credentials never stored in GITHUB_ENV or shell exports that could be logged
-          echo "$SECRET" | python3 migrations/run.py apply --all --credentials-from-stdin 2>&1 || echo "[WARN] Migrations failed (non-blocking)"
+          echo "Using cluster: $CLUSTER"
+
+          # Use the market_health_daily loader task (smallest/fastest, has psycopg2 + DB env vars)
+          TASK_DEF=$(aws ecs list-task-definitions --family-prefix "${PROJECT}-market_health_daily-loader" --sort DESC --max-items 1 --query "taskDefinitionArns[0]" --output text 2>/dev/null)
+          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
+            echo "[WARN] Could not find loader task definition, skipping migrations"
+            exit 0
+          fi
+          echo "Using task definition: $TASK_DEF"
+
+          # Get private subnet and ECS security group for VPC network config
+          SUBNET=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=*${PROJECT}*private*" "Name=state,Values=available" \
+            --query "Subnets[0].SubnetId" --output text 2>/dev/null)
+          SG=$(aws ec2 describe-security-groups \
+            --filters "Name=tag:Name,Values=*${PROJECT}*ecs*" \
+            --query "SecurityGroups[0].GroupId" --output text 2>/dev/null)
+
+          if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ] || [ -z "$SG" ] || [ "$SG" = "None" ]; then
+            echo "[WARN] Could not find VPC network config (subnet=$SUBNET sg=$SG), skipping migrations"
+            exit 0
+          fi
+          echo "Network: subnet=$SUBNET sg=$SG"
+
+          # Container name matches Terraform naming: {project}-{loader_name}
+          CONTAINER="${PROJECT}-market_health_daily"
+
+          # Run migration as ECS task within VPC — has DB access, migrations code is in the image
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${SUBNET}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"${CONTAINER}\",\"command\":[\"python3\",\"migrations/run.py\",\"apply\",\"--all\"]}]}" \
+            --query "tasks[0].taskArn" --output text 2>&1)
+
+          if [ $? -ne 0 ] || [ -z "$TASK_ARN" ]; then
+            echo "[WARN] Failed to start migration ECS task: $TASK_ARN"
+            exit 0
+          fi
+          echo "Migration task started: $TASK_ARN"
+
+          # Wait up to 5 minutes for task to complete
+          echo "Waiting for migration task to complete..."
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN" --region "$AWS_REGION" 2>/dev/null || true
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query "tasks[0].containers[0].exitCode" --output text 2>/dev/null)
+          if [ "$EXIT_CODE" = "0" ]; then
+            echo "[OK] Migrations applied successfully"
+          else
+            echo "[WARN] Migration task exited with code ${EXIT_CODE} (non-blocking)"
+          fi
 
   #
   # Final Summary
