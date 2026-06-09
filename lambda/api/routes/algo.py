@@ -13,9 +13,6 @@ logger = logging.getLogger(__name__)
 def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
-        # In dev mode (DEV_BYPASS_AUTH=true), allow access to admin endpoints
-        if os.environ.get('DEV_BYPASS_AUTH') == 'true':
-            return True
         return False
     groups = jwt_claims.get('cognito:groups') or []
     return 'admin' in groups
