@@ -213,7 +213,10 @@ class PortfolioRisk:
 
                 cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
                 portfolio_row = cur.fetchone()
-                portfolio_value = float(portfolio_row[0]) if portfolio_row else 100000.0
+                if not portfolio_row:
+                    logger.error("No portfolio snapshot available - cannot compute risk metrics with real portfolio value")
+                    return None
+                portfolio_value = float(portfolio_row[0])
 
                 # Fetch SPY returns for the last 60 trading days (beta denominator)
                 cur.execute(
@@ -320,7 +323,10 @@ class PortfolioRisk:
 
                 cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
                 portfolio_row = cur.fetchone()
-                portfolio_value = float(portfolio_row[0]) if portfolio_row else 100000.0
+                if not portfolio_row:
+                    logger.error("No portfolio snapshot available - cannot compute risk metrics with real portfolio value")
+                    return None
+                portfolio_value = float(portfolio_row[0])
 
                 top_holdings = []
                 sector_exposure = {}

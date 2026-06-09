@@ -287,9 +287,8 @@ class PositionSizer:
                 return result
             return 0.0
         except Exception as e:
-            logger.error(f"WARNING: Could not fetch position values: {e}")
-            portfolio_value = self.get_portfolio_value()
-            return portfolio_value if portfolio_value > 0 else 999999.0
+            logger.error(f"ERROR: Could not fetch position values: {e} - failing closed to prevent inaccurate position sizing")
+            raise RuntimeError(f"Portfolio value unavailable - cannot calculate safe position size: {e}")
 
     def get_position_count(self):
         """Get count of active positions (Issue #26: Now checks capital, not just count).

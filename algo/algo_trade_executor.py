@@ -1050,7 +1050,9 @@ class TradeExecutor:
 
         # Bootstrap fallback: use configurable default so Phase 6 can proceed on first run.
         # PositionSizer uses the same default — position sizes will be consistent.
-        default_pv = float(self.config.get('default_portfolio_value', 100000.0)) if self.config else 100000.0
+        if not self.config or 'default_portfolio_value' not in self.config:
+            raise RuntimeError("CRITICAL: default_portfolio_value not configured - cannot execute trades without defined portfolio size")
+        default_pv = float(self.config.get('default_portfolio_value'))
         logger.warning(
             f"[PORTFOLIO] Using default ${default_pv:,.0f} (Alpaca unreachable, no snapshot). "
             "Phase 7 will create a real snapshot after this run."

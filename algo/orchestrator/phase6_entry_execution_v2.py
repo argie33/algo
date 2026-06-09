@@ -179,9 +179,12 @@ def run(
                             "ORDER BY snapshot_date DESC LIMIT 1"
                         )
                         row = pcur.fetchone()
-                        portfolio_value = float(row[0]) if row and row[0] else 75000.0
-                except Exception:
-                    portfolio_value = 75000.0
+                        if not row or not row[0]:
+                            raise RuntimeError("Cannot execute entries - portfolio value unavailable (no snapshot)")
+                        portfolio_value = float(row[0])
+                except Exception as e:
+                    logger.error(f"CRITICAL: Failed to fetch portfolio value for entry execution: {e}")
+                    raise
 
                 risk_dollars = portfolio_value * 0.01  # 1% risk per trade
                 shares = max(1, int(risk_dollars / (entry_price - stop_loss)))

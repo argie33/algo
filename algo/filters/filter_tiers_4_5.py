@@ -241,7 +241,9 @@ class FilterTiers45Mixin:
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
         )
         snap = cur.fetchone()
-        portfolio_value = float(snap[0]) if snap and snap[0] else 100000.0
+        if not snap or not snap[0]:
+            raise RuntimeError("Cannot apply exposure filter - portfolio value unavailable (no snapshot)")
+        portfolio_value = float(snap[0])
 
         # Drawdown adjustment from peak
         cur.execute(

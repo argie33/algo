@@ -274,10 +274,12 @@ class PyramidEngine:
                     "ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
-                portfolio_value = float(portfolio_row[0]) if portfolio_row and portfolio_row[0] else 100000
+                if not portfolio_row or not portfolio_row[0]:
+                    raise RuntimeError("No portfolio snapshot available for pyramid add pre-trade checks")
+                portfolio_value = float(portfolio_row[0])
         except Exception as e:
-            logger.warning(f"Could not get portfolio value for pretrade checks: {e}")
-            portfolio_value = 100000
+            logger.error(f"CRITICAL: Could not fetch real portfolio value for pyramid add pre-trade checks: {e}")
+            raise
 
         pretrade_checks = PreTradeChecks(self.config)
         position_value = r['add_size_shares'] * r['add_price']

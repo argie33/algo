@@ -55,7 +55,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 code, error_type, message = handle_db_error(e, 'mark notification as read')
                 logger.error(f'Failed to mark notification as read: {error_type} - {message}')
-                return json_response(200, {'status': 'error', 'message': message})
+                return json_response(code, {'errorType': error_type, 'message': message})
         if method == 'DELETE' and '/notifications/' in path:
             notif_id = path.split('/notifications/')[-1]
             if not _check_admin_access(jwt_claims):
@@ -77,7 +77,7 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
                 code, error_type, message = handle_db_error(e, 'delete notification')
                 logger.error(f'Failed to delete notification: {error_type} - {message}')
-                return json_response(200, {'status': 'error', 'message': message})
+                return json_response(code, {'errorType': error_type, 'message': message})
         if method == 'POST' and path == '/api/algo/patrol':
             if not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}")
@@ -2006,8 +2006,9 @@ def _get_data_quality(cur) -> Dict:
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to check data quality: {type(e).__name__}: {e}', extra={'operation': 'get data quality'})
-            return json_response(200, {'accuracy_check': 'error', 'last_check': None, 'tables': [], 'summary': {'critical': 0, 'errors': 0, 'warnings': 0, 'healthy': 0}})
+            code, error_type, message = handle_db_error(e, 'check data quality')
+            logger.error(f'Failed to check data quality: {error_type} - {message}')
+            return json_response(code, {'errorType': error_type, 'message': message})
 def _get_exposure_policy(cur) -> Dict:
         """Get detailed market exposure policy with calculation factors."""
         try:
