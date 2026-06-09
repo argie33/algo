@@ -348,33 +348,35 @@ function EconomicDashboardPage() {
           <>
             {/* Recession nowcasting */}
             {recession && (
-              <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
-                <div className="card-head">
-                  <div>
-                    <div className="card-title">Recession Nowcasting Model</div>
-                    <div className="card-sub">
-                      Composite probability across {recession.tiles.length} indicators — Sahm rule, yield curve, credit spreads, labor stress, vol regime
+              <ErrorBoundary>
+                <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+                  <div className="card-head">
+                    <div>
+                      <div className="card-title">Recession Nowcasting Model</div>
+                      <div className="card-sub">
+                        Composite probability across {recession.tiles.length} indicators — Sahm rule, yield curve, credit spreads, labor stress, vol regime
+                      </div>
+                    </div>
+                    <span className={`badge ${recession.composite >= 60 ? 'badge-danger' : recession.composite >= 35 ? 'badge-amber' : 'badge-success'}`}>
+                      {recession.composite}% probability
+                    </span>
+                  </div>
+                  <div className="card-body">
+                    <div className="bar" style={{ marginBottom: 'var(--space-5)', height: 8, borderRadius: 'var(--r-pill)' }}>
+                      <div className="bar-fill" style={{
+                        width: `${recession.composite}%`,
+                        background: recession.composite >= 60 ? 'var(--danger)' : recession.composite >= 35 ? 'var(--amber)' : 'var(--success)',
+                        borderRadius: 'var(--r-pill)',
+                      }} />
+                    </div>
+                    <div className="grid grid-3">
+                      {recession.tiles.map(t => (
+                        <RecessionTile key={t.label} {...t} />
+                      ))}
                     </div>
                   </div>
-                  <span className={`badge ${recession.composite >= 60 ? 'badge-danger' : recession.composite >= 35 ? 'badge-amber' : 'badge-success'}`}>
-                    {recession.composite}% probability
-                  </span>
                 </div>
-                <div className="card-body">
-                  <div className="bar" style={{ marginBottom: 'var(--space-5)', height: 8, borderRadius: 'var(--r-pill)' }}>
-                    <div className="bar-fill" style={{
-                      width: `${recession.composite}%`,
-                      background: recession.composite >= 60 ? 'var(--danger)' : recession.composite >= 35 ? 'var(--amber)' : 'var(--success)',
-                      borderRadius: 'var(--r-pill)',
-                    }} />
-                  </div>
-                  <div className="grid grid-3">
-                    {recession.tiles.map(t => (
-                      <RecessionTile key={t.label} {...t} />
-                    ))}
-                  </div>
-                </div>
-              </div>
+              </ErrorBoundary>
             )}
 
             {/* Key macro KPIs */}
@@ -388,15 +390,16 @@ function EconomicDashboardPage() {
             {/* FCI + Spread side by side */}
             <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
               {fci.length > 0 && (
-                <div className="card">
-                  <div className="card-head">
-                    <div>
-                      <div className="card-title">Financial Conditions Index</div>
-                      <div className="card-sub">Z-score: VIX + HY spread + IG spread − yield curve · higher = tighter</div>
+                <ErrorBoundary>
+                  <div className="card">
+                    <div className="card-head">
+                      <div>
+                        <div className="card-title">Financial Conditions Index</div>
+                        <div className="card-sub">Z-score: VIX + HY spread + IG spread − yield curve · higher = tighter</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="card-body" style={{ height: 260 }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <div className="card-body" style={{ height: 260 }}>
+                      <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={fci} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="fciUp" x1="0" y1="0" x2="0" y2="1">
@@ -416,24 +419,26 @@ function EconomicDashboardPage() {
                         <Area type="monotone" dataKey="fci" stroke="var(--purple)" strokeWidth={2}
                           fill={fci.at(-1)?.fci > 0 ? 'url(#fciUp)' : 'url(#fciDn)'} connectNulls={true} />
                       </AreaChart>
-                    </ResponsiveContainer>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                </div>
+                </ErrorBoundary>
               )}
 
               {spreadHist.length > 0 && (
-                <div className="card">
-                  <div className="card-head">
-                    <div>
-                      <div className="card-title">10Y − 2Y Yield Spread</div>
-                      <div className="card-sub">Below zero = inverted · preceded last 8 recessions</div>
+                <ErrorBoundary>
+                  <div className="card">
+                    <div className="card-head">
+                      <div>
+                        <div className="card-title">10Y − 2Y Yield Spread</div>
+                        <div className="card-sub">Below zero = inverted · preceded last 8 recessions</div>
+                      </div>
+                      <span className={`badge ${yieldData?.isInverted ? 'badge-danger' : 'badge-success'}`}>
+                        {yieldData?.isInverted ? 'INVERTED' : 'NORMAL'}
+                      </span>
                     </div>
-                    <span className={`badge ${yieldData?.isInverted ? 'badge-danger' : 'badge-success'}`}>
-                      {yieldData?.isInverted ? 'INVERTED' : 'NORMAL'}
-                    </span>
-                  </div>
-                  <div className="card-body" style={{ height: 260 }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <div className="card-body" style={{ height: 260 }}>
+                      <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={spreadHist} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="spreadGrad" x1="0" y1="0" x2="0" y2="1">
@@ -449,17 +454,18 @@ function EconomicDashboardPage() {
                         <ReferenceLine y={0} stroke="var(--danger)" strokeDasharray="4 4" />
                         <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#spreadGrad)" connectNulls={true} />
                       </AreaChart>
-                    </ResponsiveContainer>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                </div>
+                </ErrorBoundary>
               )}
             </div>
 
             {/* NAAIM professional positioning */}
-            {naaimData && <NaaimPanel naaim={naaimData} />}
+            {naaimData && <ErrorBoundary><NaaimPanel naaim={naaimData} /></ErrorBoundary>}
 
             {/* Credit spreads history */}
-            <CreditSpreadsPanel yieldData={yieldData} />
+            <ErrorBoundary><CreditSpreadsPanel yieldData={yieldData} /></ErrorBoundary>
           </>
         )}
 
@@ -491,7 +497,8 @@ function EconomicDashboardPage() {
                   </span>
                 </div>
                 <div className="card-body" style={{ height: 300 }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ErrorBoundary>
+                    <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={yieldCurve} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                       <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                       <XAxis dataKey="maturity" stroke="var(--text-3)" fontSize={11} />
@@ -500,7 +507,8 @@ function EconomicDashboardPage() {
                       <Line type="monotone" dataKey="yield" stroke="var(--brand)" strokeWidth={2.5} connectNulls={true}
                         dot={{ fill: 'var(--brand)', r: 4 }} activeDot={{ r: 6 }} />
                     </LineChart>
-                  </ResponsiveContainer>
+                    </ResponsiveContainer>
+                  </ErrorBoundary>
                 </div>
               </div>
             )}
@@ -661,7 +669,7 @@ function EconomicDashboardPage() {
             {/* TIPS Breakeven Inflation — market-implied expectations */}
             {(t5yieInd?.history?.length > 0 || t10yieInd?.history?.length > 0 ||
               yieldData?.breakevens?.history?.T5YIE?.length > 0) && (
-              <TipsBreakevenPanel t5y={t5yieInd} t10y={t10yieInd} yieldData={yieldData} />
+              <ErrorBoundary><TipsBreakevenPanel t5y={t5yieInd} t10y={t10yieInd} yieldData={yieldData} /></ErrorBoundary>
             )}
 
             {/* CPI vs Core PCE vs Fed Funds overlay */}
@@ -674,7 +682,7 @@ function EconomicDashboardPage() {
                   </div>
                 </div>
                 <div className="card-body" style={{ height: 300 }}>
-                  <InflationVsFedChart cpiHist={cpiInd.history} corePceHist={corePceInd?.history} fedHist={fedRate.history} />
+                  <ErrorBoundary><InflationVsFedChart cpiHist={cpiInd.history} corePceHist={corePceInd?.history} fedHist={fedRate.history} /></ErrorBoundary>
                 </div>
               </div>
             )}
@@ -695,10 +703,10 @@ function EconomicDashboardPage() {
             </div>
 
             {/* Economic Regime Clock */}
-            <EconomicRegimeClock indicators={indicators} yieldData={yieldData} phillyfed={phillyfedInd} />
+            <ErrorBoundary><EconomicRegimeClock indicators={indicators} yieldData={yieldData} phillyfed={phillyfedInd} /></ErrorBoundary>
 
             {/* Growth-Labor Barometer */}
-            <GrowthLaborBarometer indicators={indicators} phillyfed={phillyfedInd} />
+            <ErrorBoundary><GrowthLaborBarometer indicators={indicators} phillyfed={phillyfedInd} /></ErrorBoundary>
 
             {phillyfedInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={phillyfedInd} title="Philadelphia Fed Manufacturing Index" sub="Federal Reserve Bank of Philadelphia monthly survey — diffusion index, >0 = expansion, <0 = contraction" color="var(--brand)" /></div>}
             {cfnaiInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={cfnaiInd} title="Chicago Fed National Activity Index (CFNAI)" sub="85-indicator composite measuring US economic activity — above 0 = above historical trend" color="var(--cyan)" /></div>}
@@ -717,7 +725,7 @@ function EconomicDashboardPage() {
             </div>
 
             {/* Leading Economic Index - 6-month forward signal */}
-            <LEIPanel indicators={indicators} />
+            <ErrorBoundary><LEIPanel indicators={indicators} /></ErrorBoundary>
 
             {gdpInd && <IndHistory ind={gdpInd} title="Real GDP Growth" sub="Quarterly annualized real GDP — Bureau of Economic Analysis" color="var(--success)" />}
             {indproInd && <div style={{ marginTop: 'var(--space-4)' }}><IndHistory ind={indproInd} title="Industrial Production (YoY)" sub="Federal Reserve industrial output index — manufacturing, mining, utilities" color="var(--brand)" /></div>}
@@ -782,7 +790,7 @@ function EconomicDashboardPage() {
             </div>
 
             {/* Financial Stress Panel */}
-            <FinancialStressPanel stlfsiInd={stlfsiInd} anfciInd={anfciInd} yieldData={yieldData} />
+            <ErrorBoundary><FinancialStressPanel stlfsiInd={stlfsiInd} anfciInd={anfciInd} yieldData={yieldData} /></ErrorBoundary>
 
             {/* Dollar & Oil charts */}
             <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
@@ -795,8 +803,9 @@ function EconomicDashboardPage() {
                     </div>
                   </div>
                   <div className="card-body" style={{ height: 240 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={[...dollarInd.history].filter((_, i) => i % 5 === 0).sort((a,b) => new Date(a.date)-new Date(b.date))}
+                    <ErrorBoundary>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={[...dollarInd.history].filter((_, i) => i % 5 === 0).sort((a,b) => new Date(a.date)-new Date(b.date))}
                         margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="dollarGrad" x1="0" y1="0" x2="0" y2="1">
@@ -810,7 +819,8 @@ function EconomicDashboardPage() {
                         <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`${(+v).toFixed(1)}`, 'USD Index']} />
                         <Area type="monotone" dataKey="value" stroke="var(--brand)" strokeWidth={2} fill="url(#dollarGrad)" connectNulls={true} />
                       </AreaChart>
-                    </ResponsiveContainer>
+                      </ResponsiveContainer>
+                    </ErrorBoundary>
                   </div>
                 </div>
               )}
@@ -823,22 +833,24 @@ function EconomicDashboardPage() {
                     </div>
                   </div>
                   <div className="card-body" style={{ height: 240 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={[...oilInd.history].filter((_, i) => i % 5 === 0).sort((a,b) => new Date(a.date)-new Date(b.date))}
-                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="oilGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="var(--amber)" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="var(--amber)" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
-                        <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
-                        <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => `$${(+v).toFixed(0)}`} domain={['auto', 'auto']} />
-                        <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`$${(+v).toFixed(2)}`, 'WTI Crude']} />
-                        <Area type="monotone" dataKey="value" stroke="var(--amber)" strokeWidth={2} fill="url(#oilGrad)" connectNulls={true} />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <ErrorBoundary>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={[...oilInd.history].filter((_, i) => i % 5 === 0).sort((a,b) => new Date(a.date)-new Date(b.date))}
+                          margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="oilGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--amber)" stopOpacity={0.35} />
+                              <stop offset="100%" stopColor="var(--amber)" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                          <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10} tickFormatter={fmtM} interval="preserveStartEnd" />
+                          <YAxis stroke="var(--text-3)" fontSize={10} tickFormatter={v => `$${(+v).toFixed(0)}`} domain={['auto', 'auto']} />
+                          <Tooltip contentStyle={TT} labelFormatter={fmtD} formatter={v => [`$${(+v).toFixed(2)}`, 'WTI Crude']} />
+                          <Area type="monotone" dataKey="value" stroke="var(--amber)" strokeWidth={2} fill="url(#oilGrad)" connectNulls={true} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </ErrorBoundary>
                   </div>
                 </div>
               )}
