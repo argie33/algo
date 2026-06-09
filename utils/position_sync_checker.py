@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Position Sync Checker - Verify algo_trades and algo_positions alignment.
+Position Sync Checker - Verify algo_trades is the single source of truth.
 
-This utility checks that open positions in the database correctly match
-the open trades in algo_trades. It identifies:
-  - Orphaned positions (in algo_positions but not in algo_trades)
-  - Missing positions (in algo_trades but not in algo_positions)
-  - Stale positions (marked open but trade is closed)
-  - Quantity mismatches
+This utility verifies that algo_trades has consistent, valid position data.
+Since the dashboard and API now derive positions on-the-fly from algo_trades
+(not from the algo_positions cache table), this checker validates:
+  - Open trades have valid entry prices and quantities
+  - Closed trades have valid exit dates and P&L metrics
+  - No duplicate symbols in open trades (distinct on symbol)
+  - Data integrity of core trade fields
 
 Usage:
   from utils.position_sync_checker import PositionSyncChecker
@@ -37,106 +38,84 @@ class PositionSyncChecker:
         """Perform consistency checks against database."""
         issues = []
 
-        # 1. Check for orphaned positions (exist in positions table but no matching trade)
+        # 1. Check for trades with missing required entry fields
         cur.execute("""
-            SELECT ap.position_id, ap.symbol, ap.status, ap.quantity
-            FROM algo_positions ap
-            WHERE NOT EXISTS (
-                SELECT 1 FROM algo_trades at
-                WHERE at.symbol = ap.symbol
-                  AND at.status IN ('open', 'filled', 'partially_filled', 'active')
-            )
-            AND ap.status IN ('open', 'partial', 'pending_close')
+            SELECT trade_id, symbol, status
+            FROM algo_trades
+            WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+              AND (entry_price IS NULL OR entry_quantity IS NULL OR entry_time IS NULL)
         """)
-        orphaned = cur.fetchall()
-        if orphaned:
+        invalid_entry = cur.fetchall()
+        if invalid_entry:
             issues.append({
-                'type': 'ORPHANED_POSITIONS',
+                'type': 'INVALID_ENTRY_DATA',
                 'severity': 'HIGH',
-                'count': len(orphaned),
+                'count': len(invalid_entry),
                 'details': [
-                    f"{sym}: {pos_id} qty={qty} status={st}"
-                    for pos_id, sym, st, qty in orphaned
+                    f"{tid}: {sym} missing entry fields"
+                    for tid, sym, st in invalid_entry[:3]
                 ]
             })
 
-        # 2. Check for stale positions (marked open but trade is closed)
+        # 2. Check for trades with negative prices
         cur.execute("""
-            SELECT ap.position_id, ap.symbol, ap.status, at.status as trade_status
-            FROM algo_positions ap
-            JOIN algo_trades at ON at.symbol = ap.symbol
-            WHERE ap.status IN ('open', 'partial', 'pending_close')
-              AND at.status IN ('closed', 'cancelled', 'orphaned')
+            SELECT trade_id, symbol, entry_price, stop_loss_price
+            FROM algo_trades
+            WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+              AND (entry_price <= 0 OR stop_loss_price <= 0)
         """)
-        stale = cur.fetchall()
-        if stale:
+        negative_prices = cur.fetchall()
+        if negative_prices:
             issues.append({
-                'type': 'STALE_POSITIONS',
-                'severity': 'MEDIUM',
-                'count': len(stale),
-                'details': [
-                    f"{sym}: {pos_id} pos_status={ps} but trade_status={ts}"
-                    for pos_id, sym, ps, ts in stale
-                ]
-            })
-
-        # 3. Check for missing positions (trade is open but no position record)
-        cur.execute("""
-            SELECT at.trade_id, at.symbol, at.entry_quantity
-            FROM algo_trades at
-            WHERE at.status IN ('open', 'filled', 'partially_filled', 'active')
-              AND (at.exit_date IS NULL OR at.exit_date > CURRENT_DATE - 1)
-              AND NOT EXISTS (
-                  SELECT 1 FROM algo_positions ap
-                  WHERE ap.symbol = at.symbol AND ap.status IN ('open', 'partial', 'pending_close')
-              )
-        """)
-        missing = cur.fetchall()
-        if missing:
-            issues.append({
-                'type': 'MISSING_POSITIONS',
+                'type': 'NEGATIVE_PRICES',
                 'severity': 'HIGH',
-                'count': len(missing),
+                'count': len(negative_prices),
                 'details': [
-                    f"{sym}: {tid} qty={qty}"
-                    for tid, sym, qty in missing
+                    f"{tid}: {sym} entry={ep} stop={sp}"
+                    for tid, sym, ep, sp in negative_prices[:3]
                 ]
             })
 
-        # 4. Quantity check (for positions with multiple entries/pyramiding)
+        # 3. Check for duplicate open symbols (should be DISTINCT ON symbol)
         cur.execute("""
-            SELECT ap.symbol, ap.quantity, SUM(at.entry_quantity) as total_entry_qty,
-                   COUNT(*) as trade_count
-            FROM algo_positions ap
-            JOIN algo_trades at ON at.symbol = ap.symbol
-            WHERE ap.status IN ('open', 'partial', 'pending_close')
-              AND at.status IN ('open', 'filled', 'partially_filled', 'active')
-            GROUP BY ap.symbol, ap.quantity
-            HAVING ap.quantity != SUM(at.entry_quantity)
+            SELECT symbol, COUNT(*) as count
+            FROM algo_trades
+            WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+            GROUP BY symbol
+            HAVING COUNT(*) > 1
         """)
-        qty_mismatch = cur.fetchall()
-        if qty_mismatch:
+        duplicates = cur.fetchall()
+        if duplicates:
             issues.append({
-                'type': 'QUANTITY_MISMATCH',
+                'type': 'DUPLICATE_OPEN_POSITIONS',
                 'severity': 'MEDIUM',
-                'count': len(qty_mismatch),
+                'count': len(duplicates),
                 'details': [
-                    f"{sym}: position_qty={pq} but sum(trade_qty)={teq} ({tc} trades)"
-                    for sym, pq, teq, tc in qty_mismatch
+                    f"{sym}: {cnt} open trades"
+                    for sym, cnt in duplicates[:3]
                 ]
             })
 
-        # 5. Summary counts
+        # 4. Check for closed trades missing exit data
         cur.execute("""
-            SELECT
-                COUNT(*) FILTER (WHERE status IN ('open', 'partial', 'pending_close')) as positions_open,
-                COUNT(*) FILTER (WHERE status = 'closed') as positions_closed,
-                COUNT(*) FILTER (WHERE status = 'orphaned') as positions_orphaned
-            FROM algo_positions
+            SELECT trade_id, symbol
+            FROM algo_trades
+            WHERE status = 'closed'
+              AND (exit_date IS NULL OR exit_price IS NULL)
         """)
-        pos_counts = cur.fetchone()
-        pos_open, pos_closed, pos_orphaned = pos_counts if pos_counts else (0, 0, 0)
+        missing_exit = cur.fetchall()
+        if missing_exit:
+            issues.append({
+                'type': 'INCOMPLETE_CLOSED_TRADES',
+                'severity': 'MEDIUM',
+                'count': len(missing_exit),
+                'details': [
+                    f"{tid}: {sym} missing exit data"
+                    for tid, sym in missing_exit[:3]
+                ]
+            })
 
+        # 5. Summary counts from algo_trades (single source of truth)
         cur.execute("""
             SELECT
                 COUNT(*) FILTER (WHERE status IN ('open', 'filled', 'partially_filled', 'active')) as trades_open,
@@ -150,22 +129,21 @@ class PositionSyncChecker:
         # Build report
         is_consistent = len(issues) == 0
         summary = f"""
-== POSITION SYNC CONSISTENCY CHECK ==
+== ALGO_TRADES DATA INTEGRITY CHECK ==
 {datetime.now(timezone.utc).isoformat()}
+
+ARCHITECTURE: algo_trades is single source of truth
+- API and dashboard derive positions on-the-fly from algo_trades
+- algo_positions table is no longer used for position lookups
 
 STATUS: {'OK - CONSISTENT' if is_consistent else 'ISSUES FOUND'}
 
-POSITIONS TABLE:
-  - Open/Partial/Pending Close: {pos_open}
-  - Closed: {pos_closed}
-  - Orphaned: {pos_orphaned}
-
-TRADES TABLE:
+TRADES TABLE (Single Source of Truth):
   - Open/Active: {trades_open}
   - Closed: {trades_closed}
   - Cancelled: {trades_cancelled}
 
-ISSUES FOUND: {len(issues)}
+DATA INTEGRITY CHECKS: {len(issues)} issues found
 """
         if issues:
             summary += "\n"
@@ -181,10 +159,9 @@ ISSUES FOUND: {len(issues)}
             'is_consistent': is_consistent,
             'issues': issues,
             'counts': {
-                'positions_open': pos_open,
-                'positions_closed': pos_closed,
                 'trades_open': trades_open,
-                'trades_closed': trades_closed
+                'trades_closed': trades_closed,
+                'trades_cancelled': trades_cancelled
             }
         }
 
