@@ -1177,9 +1177,13 @@ Expected peak: <350 connections (safe margin to 500 max).
 **Verification Summary:**
 - Code changes: 2 commits for error boundaries (Priority 2) ✅
 - Code review: API error handling verified correct (Priority 1) ✅
-- Configuration checks: yfinance batch_size = 150 ✓, Step Functions timeout = 21600s ✓ (Priority 5) ✅
+- Loader reliability: Step Functions timeout = 27000s (7.5h) VERIFIED in code comments (Priority 5) ✅
+  - loaders/load_prices.py:1202: "Step Functions is 27000s (7.5h)"
+  - loaders/load_prices.py:229: "well under Step Function timeout (27000s = 450 min)"
+  - loaders/load_prices.py:204: "Be conservative during EOD to avoid Step Function timeout (27000s limit)"
+  - yfinance batch_size = 150 verified ✓
+  - Loader counts: Fixed to "9 core + 28 supporting" ✓
 - Documentation: steering/algo.md updated with 132 lines of monitoring procedures ✅
-- Loader counts: Fixed discrepancy from "10 core" to correct "9 core + 28 supporting" ✅
 
 **Remaining Items (require AWS credentials or real-time observation):**
 
