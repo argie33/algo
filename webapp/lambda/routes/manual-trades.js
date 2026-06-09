@@ -401,8 +401,8 @@ async function recomputeHoldings(userId, symbol) {
       );
     } else {
       await dbQuery(
-        `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $3 * $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [userId, symbol, totalQty, avgCost, 0]
       );
     }
