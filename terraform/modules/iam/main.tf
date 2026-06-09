@@ -1185,6 +1185,20 @@ data "aws_iam_policy_document" "eventbridge_scheduler" {
       "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
     ]
   }
+
+  # Step Functions StartExecution (required for EventBridge Scheduler → Step Functions targets)
+  statement {
+    sid    = "StepFunctionsStartExecution"
+    effect = "Allow"
+
+    actions = [
+      "states:StartExecution"
+    ]
+
+    resources = [
+      "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-*"
+    ]
+  }
 }
 
 # ============================================================
