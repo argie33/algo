@@ -1147,7 +1147,7 @@ def panel_market_full(mkt, sentiment=None):
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
 
 
-def panel_circuit(cb):
+def panel_circuit(cb, risk=None):
     if not cb or cb.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
     n_f   = cb.get("n", 0)
@@ -1165,12 +1165,23 @@ def panel_circuit(cb):
             ind = "[bold red] ![/]" if br["fired"] else ""
             return f"[{fc}]{br['lbl']}:[/]{br['cur']}{br['u']}[dim]/{br['thr']:.0f}{br['u']}[/]{hbar(br['cur'], br['thr'], w=4)}{ind}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
-    return Panel(Group(Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl),
-                 title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
+    parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+        beta_c   = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
+        var_parts = [
+            f"[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]",
+            f"[dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{risk['beta']:.2f}[/]",
+            f"[dim]Top-5 Conc:[/][white]{risk['conc5']:.0f}%[/]",
+        ]
+        if risk.get("svar") and float(risk.get("svar") or 0) > 0:
+            var_parts.append(f"[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]")
+        parts.append(Text.from_markup("  ".join(var_parts)))
+    return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS & RISK[/]", border_style="blue", padding=(0, 1))
 
 
-def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s=""):
-    """Compact market header — fits alongside orch + monkey in the top row."""
+def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None):
+    """Compact market header — fits alongside exposure factors + monkey in the top row."""
     rows = [Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}")]
     if mkt and not mkt.get("_error"):
         tier    = mkt.get("tier", "unknown")
@@ -1229,6 +1240,24 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s=""):
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
             line5 += f"  [dim]F&G:[/][{fg_c}]{fg_v:.0f} — {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
+        if cfg:
+            mode      = cfg.get("mode", "?")
+            mc2       = G if "LIVE" in str(mode) else Y
+            en_s      = "ENABLED" if cfg.get("enabled", True) else "DISABLED"
+            ec        = G if cfg.get("enabled", True) else R
+            pyr       = cfg.get("pyramid", False)
+            min_score = cfg.get("min_score")
+            max_n     = cfg.get("max_pos_n")
+            base_risk = cfg.get("base_risk")
+            t1r       = cfg.get("t1_r")
+            parts6    = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
+            if pyr:       parts6.append(f"[{G}]pyr✓[/]")
+            if min_score: parts6.append(f"[dim]score≥[/][white]{min_score}[/]")
+            if max_n:     parts6.append(f"[dim]slots:[/][white]{max_n}[/]")
+            if base_risk: parts6.append(f"[dim]risk:[/][white]{base_risk}%[/]")
+            if t1r:       parts6.append(f"[dim]T1:[/][white]{t1r}R[/]")
+            parts6.append(f"[dim]next:[/][white]{next_run_str()}[/]")
+            rows.append(Text.from_markup("  ".join(parts6)))
     else:
         rows.append(Text("no market data", style="dim"))
     return Panel(Group(*rows), title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
@@ -2383,7 +2412,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
         refresh_s = f"  [dim]↻{secs}s[/]"
 
-    hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s)
+    hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg)
 
     outer = Layout()
     outer.split_column(
@@ -2405,8 +2434,8 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     outer["top"]["exposure"].update(panel_exposure_compact(exp_f))
     outer["top"]["mascot"].update(mascot_compact(data, frame))
 
-    # Row 1: Circuit Breakers — full width (exposure moved to top row)
-    outer["r1"].update(panel_circuit(cb))
+    # Row 1: Circuit Breakers + VaR/risk — full width (exposure moved to top row)
+    outer["r1"].update(panel_circuit(cb, risk=risk))
 
     # Row 2: Portfolio | Performance | Economic pulse
     outer["r2"].split_row(
