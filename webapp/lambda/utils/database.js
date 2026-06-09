@@ -393,6 +393,13 @@ async function initializeSchema() {
     // Create materialized views for performance
     await initializeMaterializedViews();
 
+    // Fix portfolio_holdings schema to match code expectations
+    try {
+      await fixPortfolioHoldingsSchema();
+    } catch (err) {
+      console.warn("Portfolio holdings schema fix warning:", err.message);
+    }
+
     // Import and run webapp table initialization if available
     try {
       const { initializeWebappTables } = require('../webapp-db-init');
@@ -406,6 +413,64 @@ async function initializeSchema() {
     console.error("Schema initialization error:", error);
     // Don't throw - let the application continue with existing tables
     return false;
+  }
+}
+
+/**
+ * Fix portfolio_holdings schema issues:
+ * 1. Change user_id from INTEGER to VARCHAR(255)
+ * 2. Add missing columns: market_value, sector, unrealized_pl, unrealized_pl_percent
+ */
+async function fixPortfolioHoldingsSchema() {
+  if (!pool || !dbInitialized) {
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    // Get current column info
+    const columnsResult = await client.query(`
+      SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_name = 'portfolio_holdings' AND table_schema = 'public'
+    `);
+
+    const columns = new Map(columnsResult.rows.map(r => [r.column_name, r.data_type]));
+
+    // Fix user_id type if it's wrong
+    if (columns.has('user_id') && columns.get('user_id') !== 'character varying') {
+      console.log('Fixing portfolio_holdings.user_id type from INTEGER to VARCHAR(255)...');
+      // Create temp column with correct type
+      await client.query('ALTER TABLE portfolio_holdings ADD COLUMN user_id_new VARCHAR(255)');
+      // Copy and convert data
+      await client.query('UPDATE portfolio_holdings SET user_id_new = CAST(user_id AS VARCHAR(255))');
+      // Drop old column and rename
+      await client.query('ALTER TABLE portfolio_holdings DROP COLUMN user_id');
+      await client.query('ALTER TABLE portfolio_holdings RENAME COLUMN user_id_new TO user_id');
+      // Restore NOT NULL constraint
+      await client.query('ALTER TABLE portfolio_holdings ALTER COLUMN user_id SET NOT NULL');
+      console.log('Fixed portfolio_holdings.user_id type');
+    }
+
+    // Add missing columns
+    const columnsToAdd = {
+      market_value: 'DECIMAL(15,2)',
+      sector: 'VARCHAR(100)',
+      unrealized_pl: 'DECIMAL(15,2)',
+      unrealized_pl_percent: 'DECIMAL(8,4)',
+      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+    };
+
+    for (const [colName, colType] of Object.entries(columnsToAdd)) {
+      if (!columns.has(colName)) {
+        console.log(`Adding missing column portfolio_holdings.${colName}...`);
+        await client.query(`ALTER TABLE portfolio_holdings ADD COLUMN ${colName} ${colType}`);
+      }
+    }
+
+    console.log('Portfolio holdings schema fixed');
+  } finally {
+    client.release();
   }
 }
 

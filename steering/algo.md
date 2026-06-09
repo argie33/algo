@@ -33,14 +33,27 @@ The frontend build must properly embed API URL and Cognito credentials at build 
 5. **Injects cache-bust parameter** into `index.html`: replaces `<script src="/config.js">` with `<script src="/config.js?v=<buildHash>">` to force browsers and CDN to fetch fresh config
 6. Outputs to `dist/config.js` for deployment to S3/CloudFront
 
-**Service Worker Cache Invalidation Strategy:**
-The frontend ensures config.js is always fresh via explicit fetch with cache bypass:
-- **Explicit Fetch:** `main.jsx` fetches config.js explicitly using `fetch()` with `cache: 'no-store'` and custom cache headers (`Pragma: no-cache`, `Cache-Control: no-cache, no-store, must-revalidate`) to bypass all caches (service worker, browser, CDN)
-- **Cache-Bust Parameter:** Config URL includes dynamic cache-bust parameter (`?v=<timestamp>&bypass=<random>`) to further ensure freshness on every load
-- **Script Tag Fallback:** If explicit fetch fails (e.g., offline), app falls back to config.js loaded from script tag in index.html
-- **Build-Time Injection:** Cache-bust parameter is also injected into index.html at build time to force browser/CDN to fetch fresh copy when script tag URL changes
+**ISSUE #7: Config.js Cache Invalidation (Multi-Layer Approach):**
+If config.js is stale, the frontend receives outdated API_URL, causing "API 404" errors when trying to reach the wrong endpoint. This is prevented via four coordinated layers:
 
-This prevents the "API 404" error that occurs when config.js is stale. The explicit fetch approach is simpler and more reliable than previous service-worker-detection logic, since it forces a network fetch regardless of cache state.
+1. **Layer 1 — S3 Headers:** config.js uploaded with `Cache-Control: no-cache, no-store, must-revalidate` (tells S3 never cache)
+
+2. **Layer 2 — CloudFront Behavior:** Terraform defines `/config.js*` path with `Managed-CachingDisabled` policy (tells CloudFront TTL=0, never cache)
+
+3. **Layer 3 — Browser Fetch:** `main.jsx` fetches config.js explicitly on every load with:
+   - `cache: 'no-store'` directive (tells browser never cache)
+   - Custom headers: `Pragma: no-cache`, `Cache-Control: no-cache, no-store, must-revalidate` (double-reinforces no-cache)
+   - Runtime cache-bust: `?v=<timestamp>&bypass=<random>` (makes every URL unique, preventing any caching layer from reusing old response)
+
+4. **Layer 4 — Fallback:** If explicit fetch fails (offline), app loads config.js from script tag in index.html. Build process injects cache-bust parameter into script tag: `<script src="/config.js?v=<buildHash>"` (forces fresh on each deployment)
+
+**Why Four Layers:** Each layer prevents ONE type of cache failure:
+- S3 headers prevent server-side caching
+- CloudFront behavior prevents CDN caching
+- Browser fetch prevents browser/proxy caching
+- Cache-bust parameter prevents any layer from reusing old responses based on URL
+
+Explicit fetch is runtime, so if API_URL changes during a deployment, users get the new URL on next page load (not on next deployment). Script tag fallback ensures app works even if fetch fails.
 
 **GitHub Actions Build Flow (deploy-all-infrastructure.yml lines 1078-1140):**
 1. Terraform creates CloudFront and Cognito resources, exports their IDs as outputs
@@ -174,7 +187,7 @@ If you need to rebuild the schema:
 6. **Health check diagnostics:** Orchestrator startup logs table freshness, loader status, so we can see at a glance what's stale/broken.
 
 **Files:**
-- `algo/orchestrator/phase1_data_freshness_v2.py` (150 lines — checks latest price date, 95% symbol coverage, done in <1 minute)
+- `algo/orchestrator/phase1_data_freshness.py` (150 lines — checks latest price date, 95% symbol coverage, done in <1 minute)
 - `algo/algo_orchestrator.py` (imports v2 phase; _health_check_diagnostics method logs freshness at startup)
 
 **Why:** Previous system had too many decision paths (schedule-based expected dates, multiple grace periods, market-open vs intraday rules). User reported "never succeeds fully with entire dataset" — system was halting on false positives (stale data checks triggered when data was actually OK). Simplified to just: "must be fresh, period."
@@ -315,10 +328,17 @@ WHERE run_id = 'RUN-2026-06-07-093045';
 ### Signal Generation (On-the-Fly)
 - **Approach:** Phase 5 queries `price_daily` and computes signals in real-time using `SignalComputer`
 - **No pre-computed data:** No dependency on `technical_data_daily` or `buy_sell_daily` loaders
-- **Top by volume:** Processes top 200 symbols by volume within Lambda timeout budget (~54s)
-- **Quality ranking:** Minervini pass (+40), Weinstein stage 3+ (+20), VCP (+20), power trend (+20)
-- **File:** `algo/orchestrator/phase5_signal_generation_v2.py`
-- **Diagnosis:** CloudWatch logs show top 10 signals by quality score; if no signals, check price_daily coverage
+- **Pipeline within Phase 5:**
+  1. Fetch OHLC for all symbols in one query (used for close quality gate — no extra DB calls)
+  2. Minervini hard gate (skip if fails — saves 5 DB queries per symbol)
+  3. Quality score: Minervini score-scaled (5/8=30,6/8=33,7/8=37,8/8=40) + Weinstein Stage 2(+20) + VCP(+20) + base(+15) + power(+5) = 100 max; min 50
+  4. Close quality gate: skip symbols that close in bottom 40% of day's range (distribution signal)
+  5. Liquidity check on top 150 quality-scored candidates
+  6. SwingScore 7-component ranking on top 75 liquidity-passed candidates; min score 55 (grade C), or stricter per exposure tier
+  7. Final output sorted by swing_score (best setups first)
+- **Fallback:** If SwingScore errors >80%, falls back to quality-ranked liquidity-passed candidates
+- **File:** `algo/orchestrator/phase5_signal_generation.py`
+- **Diagnosis:** CloudWatch logs show "Minervini gate", "Liquidity check", "SwingScore" counts and top 10 signals
 
 ### Loader Execution Status Monitoring
 - **Status table:** `data_loader_status` tracks RUNNING/COMPLETED/FAILED per loader
