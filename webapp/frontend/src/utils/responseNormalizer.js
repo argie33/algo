@@ -37,6 +37,14 @@ export const extractData = (response) => {
     const error = new Error(errorMsg);
     error.code = data.errorType;
     error.status = data.statusCode || response.status;
+    error.details = {
+      originalMessage: data.error || data.message,
+      errorType: data.errorType,
+      statusCode: data.statusCode || response.status,
+      timestamp: data.timestamp,
+      requestId: data.requestId,
+      context: data.context,
+    };
     throw error;
   }
 
@@ -47,6 +55,14 @@ export const extractData = (response) => {
     const error = new Error(errorMsg);
     error.status = httpStatus;
     error.code = data.errorType;
+    error.details = {
+      originalMessage: data.message || data.error,
+      errorType: data.errorType,
+      statusCode: httpStatus,
+      timestamp: data.timestamp,
+      requestId: data.requestId,
+      context: data.context,
+    };
     throw error;
   }
 
@@ -200,20 +216,9 @@ export const extractPaginatedData = (response) => {
     };
   }
 
-  // Fallback: return empty items array instead of throwing (Issue #9)
-  // This handles API responses that return success without items structure
-  return {
-    items: [],
-    pagination: data.pagination || {
-      limit: data.limit || 100,
-      offset: data.offset || 0,
-      total: 0,
-      page: data.page || 1,
-      totalPages: 1,
-      hasNext: false,
-      hasPrev: false,
-    },
-  };
+  // Invalid response format: no items array found at expected paths
+  const preview = JSON.stringify(data).substring(0, 200);
+  throw new Error(`Unable to extract paginated data: response must contain 'items' array or 'data.items' array. Received: ${preview}`);
 };
 
 /**
