@@ -993,7 +993,8 @@ class Orchestrator:
                 with TimeBlock("phase_4_exit_execution"):
                     result = self.phase_4_exit_execution()
                     if not result:
-                        logger.critical("HALT: Phase 4 (Exit Execution) returned False — stopping pipeline")
+                        logger.critical("HALT: Phase 4 (Exit Execution) returned False — running Phase 7 for snapshot then stopping.")
+                        self.phase_7_reconcile()
                         return self._final_report()
                 phase_4_elapsed = time.time() - phase_4_start
                 logger.info(f"[PHASE 4] Completed in {phase_4_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
@@ -1041,7 +1042,9 @@ class Orchestrator:
                     if not result:
                         # ISSUE #10 FIX: Provide context about why Phase 6 halted
                         logger.critical("HALT: Phase 6 (Entry Execution) halted — no new signal-based trades will be entered. "
-                                      "See logs above for halt reason (likely data quality degradation). Stopping pipeline.")
+                                      "See logs above for halt reason. Running Phase 7 before exit.")
+                        # Phase 7 must still run — portfolio snapshot required for circuit breakers next invocation.
+                        self.phase_7_reconcile()
                         return self._final_report()
                 phase_6_elapsed = time.time() - phase_6_start
                 logger.info(f"[PHASE 6] Completed in {phase_6_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")

@@ -3,7 +3,7 @@
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
 Usage:
-  python scripts/algo_dashboard.py            # live view (mascot dances, Ctrl+C to exit)
+  python scripts/algo_dashboard.py            # live view (q or Ctrl+C to exit)
   python scripts/algo_dashboard.py -w         # watch mode, auto-refresh every 30s
   python scripts/algo_dashboard.py -w 60      # watch mode, refresh every 60s
   python scripts/algo_dashboard.py --compact  # narrow positions table
@@ -213,6 +213,50 @@ def is_open() -> bool:
     if n.weekday() >= 5: return False
     t = n.hour * 60 + n.minute
     return 570 <= t <= 960
+
+def mkt_hours_str() -> tuple:
+    """Returns (status_markup, countdown_str) reflecting pre-mkt/open/after-hrs/closed."""
+    from datetime import timedelta
+    n  = datetime.now(ET)
+    wd = n.weekday()
+    t  = n.hour * 60 + n.minute
+
+    def _fmt_mins(m):
+        h, mm = divmod(m, 60)
+        return f"{h}h{mm:02d}m" if h > 0 else f"{mm}m"
+
+    if wd >= 5:
+        days_ahead = 7 - wd  # sat→2, sun→1
+        open_dt = (n + timedelta(days=days_ahead)).replace(
+            hour=9, minute=30, second=0, microsecond=0)
+        diff_m = max(0, int((open_dt - n).total_seconds() / 60))
+        return "[dim]● CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
+
+    PRE_OPEN  = 4 * 60       # 4:00 AM
+    OPEN      = 9 * 60 + 30  # 9:30 AM
+    CLOSE     = 16 * 60      # 4:00 PM
+    AH_END    = 20 * 60      # 8:00 PM
+
+    if t < PRE_OPEN:
+        diff_m = OPEN - t
+        return "[dim]● CLOSED[/]", f"opens in {_fmt_mins(diff_m)}"
+    if t < OPEN:
+        diff_m = OPEN - t
+        return "[yellow]● PRE-MKT[/]", f"opens in {_fmt_mins(diff_m)}"
+    if t < CLOSE:
+        diff_m = CLOSE - t
+        return "[bold bright_green]● OPEN[/]", f"closes in {_fmt_mins(diff_m)}"
+    if t < AH_END:
+        next_days = 3 if wd == 4 else 1
+        open_dt = (n + timedelta(days=next_days)).replace(
+            hour=9, minute=30, second=0, microsecond=0)
+        diff_m = max(0, int((open_dt - n).total_seconds() / 60))
+        return "[dim]● AFTER-HRS[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
+    next_days = 3 if wd == 4 else 1
+    open_dt = (n + timedelta(days=next_days)).replace(
+        hour=9, minute=30, second=0, microsecond=0)
+    diff_m = max(0, int((open_dt - n).total_seconds() / 60))
+    return "[dim]● CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
 def next_run_str() -> str:
     from datetime import timedelta
@@ -524,7 +568,7 @@ def fetch_recent_trades(c):
         return q(c, """
             SELECT symbol, trade_date, exit_date, status,
                    profit_loss_dollars, profit_loss_pct, exit_r_multiple
-            FROM algo_trades ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 5""")
+            FROM algo_trades ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
     except:
         return []
 
@@ -992,6 +1036,61 @@ def load_all() -> dict:
     return out
 
 
+# ── halt reason helpers ───────────────────────────────────────────────────────
+
+def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, str]]:
+    """Return a list of (phase_label, reason) pairs drawn from phase-level data.
+
+    Falls back to top_level if no per-phase detail is found.
+    Tries multiple field names so the display is robust to orchestrator schema changes.
+    """
+    _FIELDS = ("halt_reason", "reason", "message", "error", "halt_message",
+               "circuit_breaker", "triggered_by", "details")
+    found: list[tuple[str, str]] = []
+    for p in (phase_results or []):
+        ps = (p.get("status") or "").lower()
+        if ps not in ("halt", "halted"):
+            continue
+        raw  = (p.get("name") or p.get("phase", "")).lower()
+        parts = raw.split("_")
+        base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
+        label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))
+        pdata = p.get("data") or {}
+        if isinstance(pdata, str):
+            try:    pdata = json.loads(pdata)
+            except: pdata = {}
+        detail = next(
+            (str(pdata[k]) for k in _FIELDS
+             if pdata.get(k) and len(str(pdata.get(k))) > 3),
+            ""
+        )
+        if detail:
+            found.append((label, detail))
+    if not found and top_level:
+        found.append(("", top_level))
+    return found
+
+
+def _fmt_phases_halted(phases_halted) -> str:
+    """Turn a phases_halted array into a compact human-readable label."""
+    if not phases_halted:
+        return ""
+    if isinstance(phases_halted, int):
+        return ""
+    if isinstance(phases_halted, str):
+        try:    phases_halted = json.loads(phases_halted)
+        except: phases_halted = [phases_halted]
+    if not isinstance(phases_halted, (list, tuple)):
+        return ""
+    names = []
+    for p in phases_halted:
+        raw   = str(p).lower()
+        parts = raw.split("_")
+        base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
+        names.append(PHASE_NAMES.get(base, raw.replace("phase_", "P")))
+    return ", ".join(names[:3])
+
+
 # ── panel builders ────────────────────────────────────────────────────────────
 
 def panel_orch(run, cfg, risk=None):
@@ -1055,7 +1154,12 @@ def panel_orch(run, cfg, risk=None):
             # Show halt reason if halted
             halt_r = run.get("halt_reason") or ""
             summary = run.get("summary") or ""
-            extra = f"\n[{Y}]Halt: {halt_r[:50]}[/]" if halt_r else (f"\n[dim]{summary[:50]}[/]" if summary else "")
+            if halt_r or run.get("halted"):
+                _details = _best_halt_reason(halt_r, run.get("phase_results"))
+                _lines   = [f"{lb+': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
+                extra    = ("\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines)) if _lines else ""
+            else:
+                extra = f"\n[dim]{summary[:50]}[/]" if summary else ""
         else:
             # audit_log fallback: only phase number available
             for p in run.get("phases", []):
@@ -1278,8 +1382,11 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
     pct_c = float(cfg.get("max_pos_pct") or 0) if cfg else 0
     bp    = pv * pct_c / 100 if (pv and pct_c) else cash
-    slots = max_n - npos if max_n else None
-    slots_s = f"  [dim]slots:[/][white]{slots}[/]" if slots is not None else ""
+    if max_n:
+        _sb   = mini_bar(npos, max_n, w=5)
+        pos_s = f"[dim]Pos:[/] {_sb}[dim]{npos}/{max_n}[/]"
+    else:
+        pos_s = f"[dim]Pos:[/][white]{npos}[/]"
     snap_s  = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
 
     rows: list = []
@@ -1287,10 +1394,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     # Line 1: portfolio value + snapshot age
     rows.append(Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}"))
 
-    # Line 2: cash + positions + slots + buying power
+    # Line 2: cash + positions (slot bar) + buying power
     rows.append(Text.from_markup(
         f"[dim]Cash:[/] [white]{fmt_money(cash)}[/]  "
-        f"[dim]Pos:[/][white]{npos}[/]{slots_s}  "
+        f"{pos_s}  "
         f"[dim]BP:[/][white]{fmt_money(bp)}[/]"
     ))
 
@@ -1369,6 +1476,12 @@ def panel_performance_spark(perf, rec, perf_anl=None):
         ),
     ]
 
+    # Equity curve sparkline
+    equity_vals = perf.get("equity_vals") or []
+    if len(equity_vals) >= 3:
+        sp = sparkline(equity_vals, width=28)
+        rows.append(Text.from_markup(f"[dim]Equity:[/] {sp}"))
+
     # Recent daily returns (last 5 snapshots)
     recent_rets = perf.get("recent_rets") or []
     if recent_rets:
@@ -1412,8 +1525,8 @@ def panel_performance_spark(perf, rec, perf_anl=None):
             if r_parts:
                 rows.append(Text.from_markup("  ".join(r_parts)))
 
-    # Recent closed trades — last 2 exits with result
-    recent = [t for t in rec if t.get("status") == "closed" and t.get("exit_date")][:2]
+    # Recent closed trades — last 3 exits with result
+    recent = [t for t in rec if t.get("status") == "closed" and t.get("exit_date")][:3]
     if recent:
         rows.append(Text.from_markup("[dim]Recent exits:[/]"))
         for t in recent:
@@ -1602,7 +1715,7 @@ def panel_signals_compact(sig, sig_eval=None):
         t.add_column("Entry", justify="right",     no_wrap=True, min_width=6)
         t.add_column("Stop",  justify="right",     no_wrap=True, min_width=6)
         t.add_column("Vol%",  justify="right",     no_wrap=True, min_width=5)
-        for bs in buy_sigs[:12]:
+        for bs in buy_sigs[:15]:
             sym    = bs.get("symbol") or "--"
             stg    = bs.get("stage_number")
             sig_t  = _shorten_type(bs.get("signal_type") or "")
@@ -1883,7 +1996,7 @@ def panel_economic_pulse(eco, econ_cal=None):
         from datetime import date
         today = date.today()
         seen_keys = set()
-        for ev in valid_cal[:4]:
+        for ev in valid_cal[:6]:
             ed      = ev.get("event_date")
             full_nm = (ev.get("event_name") or "")
             name    = full_nm[:24]
@@ -2091,10 +2204,14 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
             + (f"  [{R}]{n_err} error[/]" if n_err else "")
         ))
-        # Most recent halt reason if any
         last_halt = next((r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"), None)
-        if last_halt and last_halt.get("halt_reason"):
-            rows.append(Text.from_markup(f"  [{Y}]↳ {(last_halt['halt_reason'] or '')[:55]}[/]"))
+        if last_halt:
+            lhr  = last_halt.get("halt_reason") or ""
+            lph  = _fmt_phases_halted(last_halt.get("phases_halted"))
+            body = lhr or lph
+            if body:
+                ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
+                rows.append(Text.from_markup(f"  [{Y}]↳ {body[:55]}[/]{ph_s}"))
         rows.append(Rule(style="dim"))
 
     # Current run status — shown prominently even when history is empty
@@ -2128,8 +2245,10 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
     if run and not run.get("_error") and run.get("_source") == "exec_log":
         halt_r  = run.get("halt_reason") or ""
         summary = run.get("summary") or ""
-        if halt_r:
-            rows.append(Text.from_markup(f"[{Y}]Halt: {halt_r[:60]}[/]"))
+        if run.get("halted") or halt_r:
+            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+                prefix = f"{label}: " if label else ""
+                rows.append(Text.from_markup(f"[{Y}]↳ {prefix}{detail[:60]}[/]"))
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
@@ -2346,8 +2465,10 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r  = run.get("halt_reason") or ""
         summary = run.get("summary") or ""
-        if halt_r:
-            rows.append(Text.from_markup(f"  [{Y}]↳ Halt: {halt_r[:72]}[/]"))
+        if run.get("halted") or halt_r:
+            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+                prefix = f"{label}: " if label else ""
+                rows.append(Text.from_markup(f"  [{Y}]↳ {prefix}{detail[:80]}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary[:72]}[/]"))
     elif act_valid:
@@ -2458,8 +2579,13 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             + (f"  [{R}]{n_err} error[/]"  if n_err  else "")
         ))
         last_halt = next((r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"), None)
-        if last_halt and last_halt.get("halt_reason"):
-            rows.append(Text.from_markup(f"  [{Y}]↳ {(last_halt['halt_reason'] or '')[:68]}[/]"))
+        if last_halt:
+            lhr  = last_halt.get("halt_reason") or ""
+            lph  = _fmt_phases_halted(last_halt.get("phases_halted"))
+            body = lhr or lph
+            if body:
+                ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
+                rows.append(Text.from_markup(f"  [{Y}]↳ {body[:68]}[/]{ph_s}"))
 
     rows.append(Rule(style="dim"))
 
@@ -2596,7 +2722,9 @@ def loading_layout(frame: int) -> Layout:
 
     loading_body = Text.from_markup(
         f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
-        f"  [dim]Connecting to database...[/]"
+        f"  [dim]Connecting to database...[/]\n\n"
+        f"  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
+        f"[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]q[/][dim] quit[/]"
     )
     main_panel = Panel(
         Align(loading_body, align="left", vertical="middle"),
@@ -2735,8 +2863,10 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
         rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r  = run.get("halt_reason") or ""
         summary = run.get("summary") or ""
-        if halt_r:
-            rows.append(Text.from_markup(f"  [{Y}]↳ Halt: {halt_r}[/]"))
+        if run.get("halted") or halt_r:
+            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+                prefix = f"{label}: " if label else ""
+                rows.append(Text.from_markup(f"  [{Y}]↳ {prefix}{detail}[/]"))
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
@@ -2769,7 +2899,10 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             ic   = G if s in ("success", "completed") else (Y if s == "halted" else R)
             ii   = "✓" if s in ("success", "completed") else ("~" if s == "halted" else "✗")
             hr   = r.get("halt_reason") or ""
-            hr_s = f"  [{Y}]↳ {hr}[/]" if hr else ""
+            lph  = _fmt_phases_halted(r.get("phases_halted"))
+            body = hr or lph
+            ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
+            hr_s = f"  [{Y}]↳ {body}[/]{ph_s}" if body else ""
             rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     rows.append(Rule(style="dim"))
@@ -2958,7 +3091,8 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     exec_hist    = data.get("exec_hist")     or []
 
     now_et = datetime.now(ET)
-    mkt_s  = "[bold bright_green]● OPEN[/]" if is_open() else "[dim]● CLOSED[/]"
+    _mkt_badge, _mkt_cdown = mkt_hours_str()
+    mkt_s  = f"{_mkt_badge}  [dim]{_mkt_cdown}[/]"
     ts     = now_et.strftime("%a %b %d  %I:%M %p ET")
 
     refresh_s = ""
@@ -3060,6 +3194,8 @@ def run_once(compact: bool) -> None:
         try:
             while True:
                 key = _keypress()
+                if key == "q":
+                    break
                 if key in _KEY_MAP:
                     target = _KEY_MAP[key]
                     view_mode[0] = "normal" if view_mode[0] == target else target
@@ -3099,6 +3235,8 @@ def run_watch(interval: int, compact: bool) -> None:
         try:
             while True:
                 key = _keypress()
+                if key == "q":
+                    break
                 if key in _KEY_MAP:
                     target = _KEY_MAP[key]
                     view_mode[0] = "normal" if view_mode[0] == target else target
