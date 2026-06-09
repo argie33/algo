@@ -396,7 +396,7 @@ class DailyReconciliation:
             return {'updated': 0, 'message': f'Error: {e}'}
 
     def sync_alpaca_positions(self, cur):
-        """Pull live positions from Alpaca and import any not in algo_positions.
+        """Pull live positions from Alpaca and sync with algo_trades (single source of truth).
 
         Best practice: our DB should reflect what Alpaca actually holds.
         This catches:
@@ -404,8 +404,10 @@ class DailyReconciliation:
           - Positions we tracked but Alpaca never filled
           - Drift between systems
 
-        For positions in Alpaca but not us → import as 'imported_external'
-        For positions in us but not Alpaca → flag as orphaned (don't auto-close)
+        Since algo_trades is the single source of truth for the dashboard:
+        - Compare Alpaca positions against algo_trades (not algo_positions)
+        - Mark positions in algo_trades that don't exist in Alpaca as closed
+        - Import new Alpaca positions as external trades
         """
         if not self._alpaca_key or not self._alpaca_secret:
             return {'imported': 0, 'orphaned': 0, 'message': 'No Alpaca credentials'}
@@ -429,8 +431,17 @@ class DailyReconciliation:
         except Exception as e:
             return {'imported': 0, 'orphaned': 0, 'message': f'Fetch failed: {e}'}
 
+        # Check both algo_positions and algo_trades for open positions
         cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
         our_symbols = {row[0] for row in cur.fetchall()}
+
+        # Also check algo_trades (the actual source of truth)
+        cur.execute("""
+            SELECT DISTINCT symbol FROM algo_trades
+            WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+        """)
+        algo_trades_symbols = {row[0] for row in cur.fetchall()}
+        our_symbols.update(algo_trades_symbols)
 
         # Fetch actual portfolio value for position_size_pct calculation (not a hardcoded constant).
         cur.execute(
@@ -583,20 +594,31 @@ class DailyReconciliation:
         orphans = our_symbols - set(alpaca_symbols.keys())
         if orphans:
             for sym in orphans:
+                # Mark as orphaned in algo_positions (legacy)
                 cur.execute("""
                     UPDATE algo_positions
                     SET status = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE symbol = %s AND status = %s
                 """, (PositionStatus.ORPHANED.value, sym, PositionStatus.OPEN.value))
+
+                # Also close positions in algo_trades (single source of truth for dashboard)
+                # This ensures the dashboard doesn't show positions that don't exist in Alpaca
+                # Close both: trades with no exit_date AND trades with old exit_date but wrong status
+                cur.execute("""
+                    UPDATE algo_trades
+                    SET status = 'closed', exit_date = COALESCE(exit_date, CURRENT_DATE), updated_at = CURRENT_TIMESTAMP
+                    WHERE symbol = %s AND status IN ('open', 'filled', 'partially_filled', 'active')
+                """, (sym,))
+
                 # Alert: position missing from Alpaca
                 try:
                     notify(
                         severity='critical',
                         title='CRITICAL: Position Drift Detected',
                         message=f'{sym} shows as open in DB but not found in Alpaca. '
-                                f'May indicate liquidation or external closure.',
+                                f'Position closed in DB to match Alpaca reality. Manual verification recommended.',
                         symbol=sym,
-                        details={'symbol': sym, 'drift_type': 'orphaned_in_db'},
+                        details={'symbol': sym, 'drift_type': 'orphaned_in_db', 'action': 'closed_to_sync'},
                     )
                 except Exception as e:
                     logger.warning(f"  Could not send orphan alert: {e}")

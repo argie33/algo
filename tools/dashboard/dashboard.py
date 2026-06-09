@@ -1008,13 +1008,19 @@ def fetch_circuit(c):
         vix   = float(vix_v) if vix_v is not None else 0.0
         stage = int(h.get("market_stage") or 1) if h else 1
         rr    = q1(c, """
-            WITH lt AS (
-                SELECT DISTINCT ON (symbol) symbol, stop_loss_price
-                FROM algo_trades WHERE status='open' ORDER BY symbol, trade_date DESC
+            WITH open_trades AS (
+                SELECT DISTINCT ON (symbol) symbol, entry_quantity, stop_loss_price
+                FROM algo_trades WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+                  AND (exit_date IS NULL OR exit_date > CURRENT_DATE - 1)
+                ORDER BY symbol, trade_date DESC
+            ),
+            latest_prices AS (
+                SELECT DISTINCT ON (symbol) symbol, close as current_price
+                FROM price_daily ORDER BY symbol, date DESC
             )
-            SELECT SUM(GREATEST(p.current_price - lt.stop_loss_price, 0) * p.quantity) AS risk,
+            SELECT SUM(GREATEST(lp.current_price - ot.stop_loss_price, 0) * ot.entry_quantity) AS risk,
                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS pv
-            FROM algo_positions p LEFT JOIN lt ON lt.symbol = p.symbol WHERE p.status='open'""")
+            FROM open_trades ot LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol""")
         rp = float(rr["risk"] or 0) / float(rr["pv"] or 1) * 100 if rr and rr.get("risk") and rr.get("pv") else 0
         def th(k, d): return cfg.get(k, d)
         bs = [
@@ -1614,7 +1620,7 @@ def panel_positions(pos, compact=False, trades=None):
     for p in pos:
         entry = float(p.get("avg_entry_price") or 0)
         price = float(p.get("current_price")   or 0)
-        pval  = float(p.get("position_value")  or 0) if p.get("position_value") else None
+        pval  = float(p.get("position_value") or 0) if p.get("position_value") is not None else None
         stop  = float(p.get("stop_loss_price") or 0) if p.get("stop_loss_price") else None
         t1    = float(p.get("target_1_price")  or 0) if p.get("target_1_price")  else None
         pnl   = float(p.get("unrealized_pnl_pct") or 0)
@@ -2056,10 +2062,20 @@ def panel_economic_pulse(eco, econ_cal=None):
             f_v  = ev.get("forecast_value")
             a_v  = ev.get("actual_value")
             p_v  = ev.get("previous_value")
-            if ed == today:
+            ed_date = None
+            if ed:
+                try:
+                    if isinstance(ed, str):
+                        from datetime import datetime as dt
+                        ed_date = dt.strptime(ed[:10], "%Y-%m-%d").date()
+                    else:
+                        ed_date = ed if hasattr(ed, 'date') is False else ed.date()
+                except (ValueError, AttributeError):
+                    ed_date = None
+            if ed_date == today:
                 when = "TODAY"
-            elif ed is not None:
-                delta = (ed - today).days
+            elif ed_date is not None:
+                delta = (ed_date - today).days
                 when  = f"+{delta}d" if delta > 0 else "YST"
             else:
                 when = "--"
