@@ -10,20 +10,22 @@ from algo.algo_alerts import AlertManager
 
 logger = logging.getLogger(__name__)
 
-def _is_evening_run():
-    """Check if current time is evening (after 5 PM ET, before market close next day).
+def _is_live_evening_run(run_date):
+    """Return True only for same-day live runs after 5 PM ET.
 
-    Evening runs (5:30 PM ET) should recompute market exposure for next day's trading.
-    Intraday runs (morning 9:30 AM, afternoon 1 PM, pre-close 3 PM) use cached value.
+    Historical replays (run_date < today) never force-recompute — the data is
+    already settled for that date and recomputing would hit the wrong market data.
     """
+    from datetime import date as _today_date
+    if run_date < _today_date.today():
+        return False
     try:
         import pytz
         et_tz = pytz.timezone('US/Eastern')
         now_et = datetime.now(et_tz)
-        # Evening = after 5 PM (17:00)
         return now_et.hour >= 17
     except Exception as e:
-        logger.warning(f"Exception: {e}")
+        logger.warning(f"Could not determine run time: {e}")
         return False
 
 def run(
@@ -55,7 +57,7 @@ def run(
         me = MarketExposure()
         # Use cached market exposure (computed once per day at EOD) unless we're in evening refresh
         # Evening refresh (after 5 PM) recomputes for next day's trading decisions
-        force_recompute = _is_evening_run()
+        force_recompute = _is_live_evening_run(run_date)
         exposure = me.compute(run_date, force_recompute=force_recompute)
         cache_status = " ✓ cached" if exposure.get('_cached') else " (recomputed)"
         logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']}){cache_status}")
@@ -102,9 +104,10 @@ def run(
             logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
                        f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
 
+        tier_name = constraints['tier_name'] if constraints else 'unknown'
         log_phase_result_fn(
             '3b', 'exposure_policy', 'success',
-            f"tier={constraints['tier_name']}, "
+            f"tier={tier_name}, "
             f"{counts.get('tighten_stop', 0)} tighten, "
             f"{counts.get('partial_exit', 0)} partial, "
             f"{counts.get('force_exit', 0)} force_exit"

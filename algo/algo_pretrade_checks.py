@@ -80,7 +80,7 @@ class PreTradeChecks:
                     return (False, f"Position already open for {symbol}")
         except Exception as e:
             logger.warning(f"Failed to check for duplicate position: {e}")
-            # Continue anyway - DB error shouldn't block trade
+            return (False, f"Duplicate position check unavailable for {symbol} — blocking as safety measure")
 
         min_order_size = float(self.config.get('min_order_size_dollars', 100.0))
         if position_value < min_order_size:

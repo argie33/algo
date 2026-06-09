@@ -1,87 +1,95 @@
 #!/usr/bin/env python3
 """
-PHASE 6: ENTRY EXECUTION (Simplified)
+PHASE 6: ENTRY EXECUTION
 
-NEW APPROACH:
-1. For each qualified signal from Phase 5
-2. Compute ATR + SMA_50 on-demand (2 min for 50 symbols)
-3. Calculate entry price and stop loss
-4. Execute trade
-5. Done in 5 minutes
-
-OLD APPROACH (removed):
-- Depended on technical_data_daily being pre-computed
-- Complex exposure calculation logic
-- State management across phases
+For each qualified signal from Phase 5:
+1. Check halt flag before any entry
+2. Check exposure constraints from Phase 3b
+3. Run liquidity checks (ADV, dollar volume, price history age)
+4. Compute true ATR (max of H-L, |H-prev_C|, |L-prev_C|) anchored to run_date
+5. Compute SMA_50 anchored to run_date
+6. Stop loss: min(SMA_50 - ATR, entry - 2*ATR) — lower stop = more room for the trade
+7. Use PositionSizer for regime-aware, drawdown-adjusted sizing
+8. Run PreTradeChecks (size cap, duplicate prevention, minimum order)
+9. Execute trade
 """
 
 import logging
+import os
 import time
-from datetime import date as _date, datetime, timezone
-from zoneinfo import ZoneInfo
+from datetime import date as _date
 from typing import Any, Callable, Dict, List, Optional
 
 from utils.database_context import DatabaseContext
 from algo.algo_trade_executor import TradeExecutor
+from algo.algo_position_sizer import PositionSizer
+from algo.algo_pretrade_checks import PreTradeChecks
+from algo.algo_liquidity_checks import LiquidityChecks
 from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 
 
-def _compute_atr(symbol: str, period: int = 14) -> Optional[float]:
-    """Compute ATR for symbol from recent price data."""
+def _compute_true_atr(symbol: str, run_date: _date, period: int = 14) -> Optional[float]:
+    """True ATR: GREATEST(H-L, |H-prev_C|, |L-prev_C|) averaged over `period` days.
+
+    Fetches period+1 rows so the oldest row has a valid LAG(close). Anchored
+    to run_date to avoid look-ahead contamination in historical replays.
+    """
     try:
         with DatabaseContext('read') as cur:
-            cur.execute(f"""
-                SELECT AVG(daily_range) as atr
+            cur.execute("""
+                SELECT AVG(tr) AS atr
                 FROM (
-                    SELECT high - low as daily_range
+                    SELECT
+                        GREATEST(
+                            high - low,
+                            ABS(high - LAG(close) OVER (ORDER BY date)),
+                            ABS(low  - LAG(close) OVER (ORDER BY date))
+                        ) AS tr,
+                        ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
                     FROM price_daily
-                    WHERE symbol = %s
-                      AND date <= CURRENT_DATE
+                    WHERE symbol = %s AND date <= %s
                     ORDER BY date DESC
-                    LIMIT {period}
-                ) recent
-            """, (symbol,))
-            result = cur.fetchone()
-            return float(result[0]) if result and result[0] else None
+                    LIMIT %s
+                ) tr_data
+                WHERE tr IS NOT NULL AND rn <= %s
+            """, (symbol, run_date, period + 1, period))
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] else None
     except Exception as e:
         logger.warning(f"Could not compute ATR for {symbol}: {e}")
         return None
 
 
-def _compute_sma_50(symbol: str) -> Optional[float]:
-    """Compute 50-day simple moving average for symbol."""
+def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
+    """50-day SMA anchored to run_date."""
     try:
         with DatabaseContext('read') as cur:
             cur.execute("""
-                SELECT AVG(close) as sma_50
-                FROM (
-                    SELECT close
-                    FROM price_daily
-                    WHERE symbol = %s
-                      AND date <= CURRENT_DATE
-                    ORDER BY date DESC
-                    LIMIT 50
+                SELECT AVG(close) FROM (
+                    SELECT close FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                    ORDER BY date DESC LIMIT 50
                 ) recent
-            """, (symbol,))
-            result = cur.fetchone()
-            return float(result[0]) if result and result[0] else None
+            """, (symbol, run_date))
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] else None
     except Exception as e:
         logger.warning(f"Could not compute SMA_50 for {symbol}: {e}")
         return None
 
 
-def _get_latest_close(symbol: str) -> Optional[float]:
-    """Get latest close price for symbol."""
+def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
+    """Latest close price at or before run_date."""
     try:
         with DatabaseContext('read') as cur:
             cur.execute(
-                "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
-                (symbol,)
+                "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
+                (symbol, run_date)
             )
-            result = cur.fetchone()
-            return float(result[0]) if result and result[0] else None
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] else None
     except Exception as e:
         logger.warning(f"Could not get close for {symbol}: {e}")
         return None
@@ -97,21 +105,6 @@ def run(
     exposure_constraints: Dict = None,
     check_halt_flag: Callable = None,
 ) -> PhaseResult:
-    """Execute Phase 6: Enter trades based on qualified signals.
-
-    Args:
-        config: Configuration object
-        run_date: Trading date
-        dry_run: Whether running in dry-run mode
-        verbose: Whether to log verbose output
-        log_phase_result_fn: Function to log phase results
-        qualified_trades: Top signals from Phase 5
-        exposure_constraints: Portfolio exposure limits
-        check_halt_flag: Function to check if trading is halted
-
-    Returns:
-        PhaseResult with trade execution details
-    """
     phase_start = time.time()
     logger.info("[PHASE 6] Starting entry execution")
 
@@ -120,81 +113,147 @@ def run(
         log_phase_result_fn(6, 'entry_execution', 'success', 'No qualified signals')
         return PhaseResult(6, 'entry_execution', 'ok', {'entered': 0}, False, 'No signals to execute')
 
-    logger.info(f"[PHASE 6] Processing {len(qualified_trades)} qualified signals")
+    # Halt flag check before any trades
+    if check_halt_flag and check_halt_flag():
+        logger.warning("[PHASE 6] Halt flag set — skipping all entries")
+        log_phase_result_fn(6, 'entry_execution', 'halt', 'Halt flag active')
+        return PhaseResult(6, 'entry_execution', 'halted', {'entered': 0}, True, 'Halt flag active')
+
+    # Exposure policy check
+    if exposure_constraints and exposure_constraints.get('halt_new_entries'):
+        reason = exposure_constraints.get('halt_reason', 'Exposure policy halted new entries')
+        logger.warning(f"[PHASE 6] {reason}")
+        log_phase_result_fn(6, 'entry_execution', 'halt', reason)
+        return PhaseResult(6, 'entry_execution', 'halted', {'entered': 0}, True, reason)
+
+    max_entries = (
+        exposure_constraints.get('max_new_positions_today')
+        if exposure_constraints else None
+    )
+    logger.info(
+        f"[PHASE 6] Processing {len(qualified_trades)} qualified signals"
+        + (f" (cap: {max_entries}/day)" if max_entries else "")
+    )
 
     trade_executor = TradeExecutor(config=config)
+
+    # Wire tier's max_concentration_pct into sizer so correction/caution limits are respected.
+    # Each ExposurePolicy tier defines its own concentration ceiling (20%/16%/12%/10%).
+    tier_max_conc = exposure_constraints.get('max_concentration_pct') if exposure_constraints else None
+    sizer_config = dict(config or {})
+    if tier_max_conc is not None:
+        sizer_config['max_concentration_pct'] = tier_max_conc
+        logger.info(f"[PHASE 6] Position sizer: max_concentration_pct={tier_max_conc:.0f}% (from tier)")
+
+    sizer = PositionSizer(config=sizer_config)
+    liquidity = LiquidityChecks(config=config)
+
+    # Fetch portfolio value once — avoids one Alpaca API call per symbol
+    portfolio_value = sizer.get_portfolio_value()
+    logger.info(f"[PHASE 6] Portfolio value: ${portfolio_value:,.0f}")
+
+    try:
+        from config.credential_manager import get_credential_manager
+        creds = get_credential_manager().get_alpaca_credentials()
+        alpaca_key = creds.get('key')
+        alpaca_secret = creds.get('secret')
+    except Exception:
+        alpaca_key = None
+        alpaca_secret = None
+
+    pretrade = PreTradeChecks(
+        config=config,
+        alpaca_base_url=os.getenv('APCA_API_BASE_URL'),
+        alpaca_key=alpaca_key,
+        alpaca_secret=alpaca_secret,
+    )
+
     executed_count = 0
+    skipped_count = 0
     failed_count = 0
 
-    for i, signal in enumerate(qualified_trades):  # Process all qualified signals (portfolio limits enforce max exposure)
+    for signal in qualified_trades:
         try:
             symbol = signal.get('symbol')
-            quality = signal.get('quality_score', 0)
 
-            # Quick check: are we already trading this symbol?
-            # (Skip if position exists)
+            # Re-check halt flag each iteration — this loop can run for minutes
+            if check_halt_flag and check_halt_flag():
+                logger.warning(f"[PHASE 6] Halt flag set mid-loop at {symbol}, stopping")
+                break
 
-            # Compute on-demand: ATR + SMA_50 + latest close
-            atr = _compute_atr(symbol)
-            sma_50 = _compute_sma_50(symbol)
-            close = _get_latest_close(symbol)
+            # Liquidity: ADV, dollar volume, price history age
+            entry_price_hint = signal.get('entry_price') or 0
+            liq_ok, liq_reason = liquidity.run_all(symbol, entry_price_hint, run_date)
+            if not liq_ok:
+                logger.debug(f"[PHASE 6] {symbol}: liquidity — {liq_reason}")
+                skipped_count += 1
+                continue
+
+            # Compute price inputs anchored to run_date
+            atr = _compute_true_atr(symbol, run_date)
+            sma_50 = _compute_sma_50(symbol, run_date)
+            close = signal.get('entry_price') or _get_latest_close(symbol, run_date)
 
             if not all([atr, sma_50, close]):
-                logger.warning(f"[PHASE 6] {symbol}: Could not compute ATR/SMA_50/close, skipping")
-                failed_count += 1
+                logger.warning(f"[PHASE 6] {symbol}: missing ATR/SMA_50/close, skipping")
+                skipped_count += 1
                 continue
 
-            # Determine entry and stop
-            # Entry: Current close
-            # Stop: Either SMA_50 - ATR or max 2x ATR below entry
-            entry_price = close
-            stop_loss = max(
-                sma_50 - atr,  # Support-based stop
-                entry_price - (2.0 * atr)  # 2x ATR stop
+            entry_price = float(close)
+
+            # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
+            # SMA_50 - ATR = below moving-average support.
+            # entry - 2*ATR = volatility-based floor.
+            stop_loss = min(
+                sma_50 - atr,
+                entry_price - 2.0 * atr,
             )
 
-            # Only execute if stop is reasonable (min 1.5% below entry; ETFs like SPY have tighter ATR)
-            risk_pct = ((entry_price - stop_loss) / entry_price) * 100
+            risk_pct = (entry_price - stop_loss) / entry_price * 100
             if risk_pct < 1.5:
-                logger.info(f"[PHASE 6] {symbol}: Risk too small ({risk_pct:.1f}%), skipping")
+                logger.info(f"[PHASE 6] {symbol}: stop too tight ({risk_pct:.1f}%), skipping")
+                skipped_count += 1
+                continue
+            if risk_pct > 12.0:
+                logger.info(f"[PHASE 6] {symbol}: stop too wide ({risk_pct:.1f}%), skipping")
+                skipped_count += 1
                 continue
 
-            if risk_pct > 10:
-                logger.info(f"[PHASE 6] {symbol}: Risk too large ({risk_pct:.1f}%), skipping")
+            # Regime-aware, drawdown-adjusted sizing
+            sizing = sizer.calculate_position_size(
+                symbol=symbol,
+                entry_price=entry_price,
+                stop_loss_price=stop_loss,
+                signal_date=run_date,
+                portfolio_value=portfolio_value,
+            )
+
+            if sizing.get('status') != 'ok' or sizing.get('shares', 0) < 1:
+                logger.info(f"[PHASE 6] {symbol}: sizer blocked — {sizing.get('reason', 'unknown')}")
+                skipped_count += 1
                 continue
 
-            # Execute trade
+            shares = sizing['shares']
+            position_value = shares * entry_price
+
+            # Final hard-stop validation
+            pt_ok, pt_reason = pretrade.run_all(symbol, position_value, portfolio_value)
+            if not pt_ok:
+                logger.info(f"[PHASE 6] {symbol}: pre-trade check — {pt_reason}")
+                skipped_count += 1
+                continue
+
+            swing_info = (
+                f" swing={signal.get('swing_score', '?')}{signal.get('swing_grade', '')}"
+                if 'swing_score' in signal else ""
+            )
             logger.info(
                 f"[PHASE 6] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
-                f"risk={risk_pct:.1f}% quality={quality}"
+                f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
+                f"quality={signal.get('quality_score', 0)}{swing_info}"
             )
 
             if not dry_run:
-                # Position size: risk 1% of portfolio per trade
-                # shares = (portfolio * 0.01) / (entry - stop)
-                try:
-                    with DatabaseContext('read') as pcur:
-                        pcur.execute(
-                            "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
-                            "ORDER BY snapshot_date DESC LIMIT 1"
-                        )
-                        row = pcur.fetchone()
-                        if not row or not row[0]:
-                            raise RuntimeError("Cannot execute entries - portfolio value unavailable (no snapshot)")
-                        portfolio_value = float(row[0])
-                except Exception as e:
-                    logger.error(f"CRITICAL: Failed to fetch portfolio value for entry execution: {e}")
-                    raise
-
-                risk_dollars = portfolio_value * 0.01  # 1% risk per trade
-                shares = max(1, int(risk_dollars / (entry_price - stop_loss)))
-                # Cap at 8% position limit (same threshold as PreTradeChecks)
-                max_shares_by_position = max(1, int(portfolio_value * 0.08 / entry_price))
-                if shares > max_shares_by_position:
-                    shares = max_shares_by_position
-                    logger.info(f"[PHASE 6] {symbol}: shares capped to {shares} (8% position limit)")
-                logger.info(f"[PHASE 6] {symbol}: portfolio=${portfolio_value:.0f} risk_$=${risk_dollars:.0f} shares={shares}")
-
                 try:
                     result = trade_executor.execute_trade(
                         symbol=symbol,
@@ -207,28 +266,36 @@ def run(
                     if result.get('success'):
                         executed_count += 1
                         logger.info(f"[PHASE 6] {symbol}: ENTERED trade_id={result.get('trade_id')}")
+                        if max_entries and executed_count >= max_entries:
+                            logger.info(f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping")
+                            break
                     else:
-                        logger.warning(f"[PHASE 6] {symbol}: Execute returned not-success: {result.get('message')}")
+                        logger.warning(f"[PHASE 6] {symbol}: execute returned not-success: {result.get('message')}")
                         failed_count += 1
                 except Exception as exec_err:
-                    logger.error(f"[PHASE 6] {symbol}: Execution failed: {exec_err}")
+                    logger.error(f"[PHASE 6] {symbol}: execution error: {exec_err}")
                     failed_count += 1
             else:
-                logger.info(f"[PHASE 6] DRY-RUN: Would execute {symbol}")
+                logger.info(f"[PHASE 6] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")
                 executed_count += 1
+                if max_entries and executed_count >= max_entries:
+                    logger.info(f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping")
+                    break
 
         except Exception as e:
-            logger.error(f"[PHASE 6] Error processing signal: {e}", exc_info=True)
+            logger.error(f"[PHASE 6] Error processing {signal.get('symbol', '?')}: {e}", exc_info=True)
             failed_count += 1
 
     elapsed = time.time() - phase_start
-
-    logger.info(f"[PHASE 6] ✓ Entry execution complete: {executed_count} executed, {failed_count} failed in {elapsed:.1f}s")
+    logger.info(
+        f"[PHASE 6] Done in {elapsed:.1f}s: {executed_count} executed, "
+        f"{skipped_count} skipped, {failed_count} failed"
+    )
     log_phase_result_fn(6, 'entry_execution', 'success', f'{executed_count} trades executed')
 
     return PhaseResult(
         6, 'entry_execution', 'ok',
-        {'entered': executed_count, 'failed': failed_count},
+        {'entered': executed_count, 'skipped': skipped_count, 'failed': failed_count},
         False,
         f'Executed {executed_count} trades'
     )

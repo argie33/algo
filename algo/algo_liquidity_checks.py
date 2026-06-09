@@ -39,8 +39,8 @@ class LiquidityChecks:
             return True, "All liquidity checks passed"
 
         except Exception as e:
-            logger.warning(f"Liquidity check error for {symbol}: {e}")
-            return True, "Liquidity checks skipped (error)"
+            logger.warning(f"Liquidity check unavailable for {symbol}: {e} — blocking as safety measure")
+            return False, f"Liquidity checks unavailable ({type(e).__name__}) — blocking as safety measure"
 
     def _check_adv(self, symbol: str, signal_date) -> tuple:
         """

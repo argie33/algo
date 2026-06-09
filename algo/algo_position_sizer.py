@@ -448,7 +448,7 @@ class PositionSizer:
                 risk_dollars = risk_per_share * shares
 
             position_pct_of_portfolio = (position_value / portfolio_value * 100) if portfolio_value > 0 else 0
-            max_concentration = float(self.config.get('max_concentration_pct', 50.0))
+            max_concentration = float(self.config.get('max_concentration_pct', 20.0))
 
             if position_pct_of_portfolio > max_concentration:
                 return {

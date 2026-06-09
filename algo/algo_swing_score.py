@@ -110,12 +110,18 @@ class SwingTraderScore:
         """
         with DatabaseContext('read') as cur:
             try:
-                # Hard gates
+                # Hard gates — fail-closed: DB/infra error blocks scoring rather than passing silently
                 try:
                     gates = self._check_hard_gates(symbol, eval_date, industry, cur)
                 except Exception as gate_err:
-                    logger.warning(f"Swing score hard gates failed for {symbol}: {gate_err} (proceeding with soft pass)")
-                    gates = {'pass': True}
+                    logger.warning(f"Swing score hard gates unavailable for {symbol}: {gate_err} — blocking")
+                    return {
+                        'symbol': symbol,
+                        'eval_date': str(eval_date),
+                        'pass': False,
+                        'reason': f'Hard gates unavailable: {str(gate_err)[:60]}',
+                        'swing_score': 0.0,
+                    }
 
                 if not gates['pass']:
                     logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
@@ -299,18 +305,7 @@ class SwingTraderScore:
         except Exception as e:
             logger.debug(f"52w high extension check failed: {e}")
 
-        # Gate 4 & 5: Base count and base type
-        # estimated_base_count column does not exist in trend_template_data schema;
-        # gate is effectively disabled (count stays 0, never blocks).
-        estimated_base_count = 0
-
-        if estimated_base_count >= 4:
-            return {
-                'pass': False,
-                'reason': f'Base count {estimated_base_count} >= 4 (too many consolidations)',
-                'base_count': estimated_base_count,
-            }
-
+        # Gate 4: Base type quality check
         base_type = self._signals.classify_base_type(symbol, eval_date)
         if base_type.get('type') == 'wide_and_loose' or base_type.get('quality') == 'D':
             return {
@@ -357,7 +352,6 @@ class SwingTraderScore:
             'pass': True,
             'trend_score': trend_score,
             'stage': stage,
-            'base_count': estimated_base_count,
             'base_type': base_type.get('type'),
             'base_quality': base_type.get('quality'),
             'industry_rank': industry_rank,
