@@ -104,12 +104,15 @@ router.get("/", async (req, res) => {
       name: table.name,
       count: parseInt(result.rows[0]?.count || 0),
       success: true
-    })).catch(err => ({
-      name: table.name,
-      count: 0,
-      success: false,
-      error: err.message
-    }));
+    })).catch(err => {
+      logger.warn(`Failed to count table ${table.name}:`, { error: err.message });
+      return {
+        name: table.name,
+        count: 0,
+        success: false,
+        error: err.message
+      };
+    });
   });
 
   // Execute all count queries in parallel
@@ -178,7 +181,10 @@ router.get("/slow-queries", async (req, res) => {
       WHERE mean_exec_time > 100
       ORDER BY mean_exec_time DESC
       LIMIT 20
-    `).catch(() => ({ rows: [] }));
+    `).catch((err) => {
+      logger.warn('Failed to fetch performance statistics:', { error: err.message });
+      return { rows: [] };
+    });
     validateQueryResult(result, { requireRows: false });
 
     return sendSuccess(res, {
