@@ -857,15 +857,22 @@ def _get_correlation_matrix(cur) -> Dict:
 def _get_cap_distribution(cur) -> Dict:
     """Get market cap distribution across market cap buckets and sectors."""
     try:
+        # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
         cur.execute("""
-            SELECT symbol, sector, market_cap, market_cap_category
-            FROM stock_symbols
-            WHERE market_cap IS NOT NULL
-                  AND market_cap > 0
-                  AND sector IS NOT NULL
-                  AND COALESCE(etf, 'N') != 'Y'
-                  AND symbol NOT IN (SELECT symbol FROM etf_symbols)
-            ORDER BY market_cap DESC
+            SELECT ss.symbol, cp.sector, km.market_cap,
+                CASE
+                    WHEN km.market_cap >= 200000000000 THEN 'mega_cap'
+                    WHEN km.market_cap >= 10000000000 THEN 'large_cap'
+                    WHEN km.market_cap >= 2000000000 THEN 'mid_cap'
+                    WHEN km.market_cap >= 300000000 THEN 'small_cap'
+                    ELSE 'micro_cap'
+                END AS market_cap_category
+            FROM stock_symbols ss
+            JOIN company_profile cp ON ss.symbol = cp.symbol AND cp.sector IS NOT NULL
+            JOIN key_metrics km ON ss.symbol = km.symbol AND km.market_cap > 0
+            WHERE COALESCE(ss.etf, 'N') != 'Y'
+                  AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
+            ORDER BY km.market_cap DESC
         """)
         rows = cur.fetchall()
 
@@ -1052,7 +1059,7 @@ def _get_sector_overview(cur) -> Dict:
             cur.execute("""
                 SELECT DISTINCT sector, COUNT(*) as stock_count
                 FROM company_profile WHERE sector IS NOT NULL AND sector != ''
-                GROUP BY sector ORDER BY count DESC
+                GROUP BY sector ORDER BY stock_count DESC
             """)
             rows = cur.fetchall()
             return list_response(
