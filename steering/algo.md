@@ -1175,7 +1175,25 @@ Expected peak: <350 connections (safe margin to 500 max).
   - Supporting loaders: FAIL-OPEN (continue with warning)
 
 **Verification Summary:**
-- Code changes: 2 commits for error boundaries
-- Documentation: Updated steering/algo.md with 132 lines of monitoring procedures
-- Configuration checks: yfinance batch_size ✓, Step Functions timeout ✓
-- Infrastructure items: Awaiting AWS CLI authentication for final verification
+- Code changes: 2 commits for error boundaries (Priority 2) ✅
+- Code review: API error handling verified correct (Priority 1) ✅
+- Configuration checks: yfinance batch_size = 150 ✓, Step Functions timeout = 21600s ✓ (Priority 5) ✅
+- Documentation: steering/algo.md updated with 132 lines of monitoring procedures ✅
+- Loader counts: Fixed discrepancy from "10 core" to correct "9 core + 28 supporting" ✅
+
+**Remaining Items (require AWS credentials or real-time observation):**
+
+Priority 3 (Database Monitoring):
+- [ ] Actual CloudWatch monitoring during peak EOD loads (4:05-5:30 PM ET)
+  - Procedure documented: steering/algo.md lines 1010-1045
+  - Requires: CloudWatch access + real-time observation during 4:05 PM EOD pipeline
+  - Status: Can only be verified during actual EOD execution, not in evening
+
+Priority 4 (Infrastructure Readiness):
+- [ ] AWS RDS Proxy status = "available" (requires: aws rds describe-db-proxies --query)
+- [ ] CloudFront domain in Secrets Manager (requires: aws secretsmanager get-secret-value)
+- [ ] Cognito user pool configured (requires: aws cognito-idp describe-user-pool)
+- [ ] Lambda provisioned concurrency = 1 unit (requires: aws lambda get-provisioned-concurrency-config)
+- [ ] SNS email alerts subscribed (requires: aws sns list-subscriptions-by-topic)
+  - All procedures documented: steering/algo.md lines 1047-1095
+  - Status: Awaiting AWS CLI authentication to execute verification commands
