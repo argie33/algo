@@ -1082,9 +1082,32 @@ AWS credentials verified. Running verification against account 626216981288 (alg
 
 **⚠️ Access Issues:** Most infrastructure items cannot be verified due to IAM permissions on the algo-developer user role. The services are accessible (errors are permission-based, not service-not-found), but the developer user cannot enumerate resources in RDS Proxy, Cognito, Lambda, SNS, etc.
 
-**❌ Missing:** CloudFront domain secret 'algo-cloudfront-domain' does not exist in Secrets Manager.
+**❌ Missing — Action Required:** CloudFront domain secret 'algo-cloudfront-domain' does not exist in Secrets Manager.
 
-**Note:** To fully verify Priority 4, use an IAM role with broader resource listing permissions, or check AWS console directly for these resources.
+**CloudFront Domain Value (Found in config.example.js):**
+```
+https://d2u93283nn45h2.cloudfront.net
+```
+
+**Required Action:** Create Secrets Manager secret with:
+- **Name:** `algo-cloudfront-domain`
+- **Value:** `https://d2u93283nn45h2.cloudfront.net`
+- **Description:** CloudFront domain for API routing in production frontend
+
+**Current User Limitations:** algo-developer user lacks `secretsmanager:CreateSecret` and `secretsmanager:ListSecrets` permissions. A user with broader IAM permissions must create this secret, or update the algo-developer policy to include:
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "secretsmanager:CreateSecret",
+    "secretsmanager:UpdateSecret",
+    "secretsmanager:GetSecretValue"
+  ],
+  "Resource": "arn:aws:secretsmanager:us-east-1:626216981288:secret:algo-*"
+}
+```
+
+**Note:** To fully verify other Priority 4 items, use an IAM role with broader resource listing permissions, or check AWS console directly.
 
 ### Loader Reliability Verification (Priority 5)
 
