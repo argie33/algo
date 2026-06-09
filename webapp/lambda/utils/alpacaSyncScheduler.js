@@ -11,10 +11,8 @@ const { query } = require("./database");
 // Import Alpaca service
 const AlpacaService = require("./alpacaService");
 
-// Default user ID for background syncs
-// Use environment variable, fall back to default string IDs (matches database schema VARCHAR(100))
-const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID ||
-  (process.env.NODE_ENV === 'development' ? '1' : '2');
+// REMOVED: Default user ID - now syncs for all authenticated users
+// Each user's portfolio is synced with their actual Cognito UUID (req.user.sub)
 
 // Scheduler instance
 let syncScheduler = null;
@@ -41,8 +39,8 @@ function getAlpacaService() {
   return new AlpacaService(apiKey, secretKey, isPaper);
 }
 
-// Perform the actual sync (runs in background with timeout to prevent blocking)
-async function performAlpacaSync() {
+// Perform the actual sync for a specific user (runs in background with timeout to prevent blocking)
+async function performAlpacaSync(userId = null) {
   // Set 30 second timeout to prevent blocking the scheduler
   const syncTimeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error("Sync timeout: exceeded 30 seconds")), 30000)
@@ -83,74 +81,106 @@ async function performAlpacaSync() {
         return { status: "error", reason: "fetch_failed" };
       }
 
-        console.log(` [CRON] Retrieved ${positions.length} positions from Alpaca`);
-
-      // Batch database operations for better performance
-      try {
-        // Start deletion and batch inserts together (non-blocking approach)
-        await Promise.all([
-          // Clear existing holdings
-          query("DELETE FROM portfolio_holdings WHERE user_id = $1", [DEFAULT_USER_ID]),
-          // Batch insert holdings (use transaction-like approach)
-          (async () => {
-            // Insert holdings in batches of 10 to avoid massive queries
-            for (let i = 0; i < positions.length; i += 10) {
-              const batch = positions.slice(i, i + 10);
-              await Promise.all(
-                batch.map((position) =>
-                  query(
-                    `INSERT INTO portfolio_holdings
-                    (user_id, symbol, quantity, current_price, average_cost, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                    [
-                      DEFAULT_USER_ID,
-                      position.symbol,
-                      position.quantity,
-                      position.currentPrice,
-                      position.averageEntryPrice,
-                    ]
-                  ).catch((err) =>
-                    console.warn(`⚠️  Failed to insert ${position.symbol}:`, err.message)
-                  )
-                )
-              );
-            }
-          })(),
-        ]);
-
-        // Update portfolio performance
-        const portfolioValue = account.portfolioValue || 0;
-        const lastEquity = account.lastEquity || portfolioValue;
-        const dayChange = portfolioValue - lastEquity;
-        const dayChangePercent = lastEquity > 0 ? (dayChange / lastEquity) * 100 : 0;
-
-        await query(
-          `INSERT INTO portfolio_performance
-          (user_id, date, total_value, total_gain_loss, total_return_pct, created_at)
-          VALUES ($1, CURRENT_DATE, $2, $3, $4, CURRENT_TIMESTAMP)`,
-          [DEFAULT_USER_ID, portfolioValue, dayChange, dayChangePercent]
-        ).catch((err) => {
-          if (err.code === '23505') {
-            console.warn(` Portfolio performance for today already recorded, skipping update`);
-          } else {
-            console.error(` Database error during sync:`, err.message);
+      // If no userId provided, sync for all registered users
+      const usersToSync = userId ? [userId] : [];
+      if (!userId) {
+        try {
+          const usersResult = await query(
+            "SELECT DISTINCT user_id FROM user_dashboard_settings WHERE user_id IS NOT NULL"
+          );
+          usersToSync.push(...(usersResult.rows || []).map(row => row.user_id));
+          if (usersToSync.length === 0) {
+            console.log(` No users to sync`);
+            return { status: "skipped", reason: "no_users" };
           }
-        });
-
-        lastSyncTime = now;
-
-          console.log(` [CRON] Portfolio sync complete: $${portfolioValue?.toFixed(2)} portfolio value`);
-
-        return {
-          status: "success",
-          holdings_synced: positions.length,
-          portfolio_value: portfolioValue,
-          timestamp: new Date().toISOString(),
-        };
-      } catch (dbErr) {
-        console.error(" Database error during sync:", dbErr.message);
-        return { status: "error", reason: "database_error", details: dbErr.message };
+        } catch (err) {
+          console.error(" Failed to fetch users for sync:", err.message);
+          return { status: "error", reason: "user_fetch_failed", details: err.message };
+        }
       }
+
+      console.log(` [CRON] Retrieved ${positions.length} positions from Alpaca, syncing for ${usersToSync.length} user(s)`);
+
+      // Sync for each user
+      const syncResults = [];
+      for (const currentUserId of usersToSync) {
+        try {
+          // Batch database operations for better performance
+          await Promise.all([
+            // Clear existing holdings
+            query("DELETE FROM portfolio_holdings WHERE user_id = $1", [currentUserId]),
+            // Batch insert holdings (use transaction-like approach)
+            (async () => {
+              // Insert holdings in batches of 10 to avoid massive queries
+              for (let i = 0; i < positions.length; i += 10) {
+                const batch = positions.slice(i, i + 10);
+                await Promise.all(
+                  batch.map((position) =>
+                    query(
+                      `INSERT INTO portfolio_holdings
+                      (user_id, symbol, quantity, current_price, average_cost, created_at, updated_at)
+                      VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                      [
+                        currentUserId,
+                        position.symbol,
+                        position.quantity,
+                        position.currentPrice,
+                        position.averageEntryPrice,
+                      ]
+                    ).catch((err) =>
+                      console.warn(`⚠️  Failed to insert ${position.symbol} for user ${currentUserId}:`, err.message)
+                    )
+                  )
+                );
+              }
+            })(),
+          ]);
+
+          // Update portfolio performance
+          const portfolioValue = account.portfolioValue || 0;
+          const lastEquity = account.lastEquity || portfolioValue;
+          const dayChange = portfolioValue - lastEquity;
+          const dayChangePercent = lastEquity > 0 ? (dayChange / lastEquity) * 100 : 0;
+
+          await query(
+            `INSERT INTO portfolio_performance
+            (user_id, date, total_value, total_gain_loss, total_return_pct, created_at)
+            VALUES ($1, CURRENT_DATE, $2, $3, $4, CURRENT_TIMESTAMP)`,
+            [currentUserId, portfolioValue, dayChange, dayChangePercent]
+          ).catch((err) => {
+            if (err.code === '23505') {
+              console.warn(` Portfolio performance for user ${currentUserId} for today already recorded, skipping update`);
+            } else {
+              console.error(` Database error during sync for user ${currentUserId}:`, err.message);
+            }
+          });
+
+          syncResults.push({
+            user_id: currentUserId,
+            status: "success",
+            holdings_synced: positions.length,
+            portfolio_value: portfolioValue
+          });
+
+          console.log(` [CRON] Portfolio sync complete for user ${currentUserId}: $${portfolioValue?.toFixed(2)} portfolio value`);
+        } catch (dbErr) {
+          console.error(" Database error during sync for user:", currentUserId, dbErr.message);
+          syncResults.push({
+            user_id: currentUserId,
+            status: "error",
+            reason: "database_error",
+            details: dbErr.message
+          });
+        }
+      }
+
+      lastSyncTime = now;
+
+      return {
+        status: "success",
+        results: syncResults,
+        timestamp: new Date().toISOString(),
+      };
     } catch (error) {
       console.error(" Alpaca sync error:", error.message);
       return {

@@ -272,12 +272,19 @@ router.get('/summary', async (req, res) => {
 
     // 2. Get database trades (from trades table)
     try {
+      // Get user_id from authenticated token context
+      const userId = req.user?.sub || req.user?.id || null;
+      if (!userId) {
+        return sendError(res, 'Authentication required', 401);
+      }
+
       const result = await dbQuery(`
         SELECT
           symbol, side, quantity, execution_price, order_value, commission
         FROM trades
-        ORDER BY execution_date DESC
-      `);
+        WHERE user_id = $1
+        ORDER BY trade_date DESC
+      `, [userId]);
       validateQueryResult(result, { requireRows: false });
 
       result.rows.forEach(row => {
