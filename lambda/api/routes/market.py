@@ -64,9 +64,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 LIMIT 10
             """
 
-            # Execute with retry: start at 8s, retry at 12s if timeout
+            # Execute with retry: start at 15s, retry at 20s if timeout
+            # These complex self-joins on large datasets need more time to complete
             try:
-                breadth = execute_with_timeout(cur, breadth_query, timeout_sec=8, max_attempts=2, backoff_multiplier=1.5)
+                breadth = execute_with_timeout(cur, breadth_query, timeout_sec=15, max_attempts=2, backoff_multiplier=1.3)
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f'Breadth query timeout: {e}')
                 return error_response(504, 'timeout', 'Market breadth data query exceeded timeout')
@@ -177,7 +178,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             losers = []
             try:
                 cur.execute("SAVEPOINT top_movers")
-                cur.execute("SET LOCAL statement_timeout = '8s'")
+                cur.execute("SET LOCAL statement_timeout = '15s'")  # Complex join, allow more time
                 cur.execute("""
                     WITH latest_d AS (
                         SELECT date AS d FROM price_daily ORDER BY date DESC LIMIT 1
@@ -230,7 +231,7 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
             DIST_INDEX_NAMES = {'^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^NYA': 'NYSE Composite', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000'}
             try:
                 cur.execute("SAVEPOINT dist_days")
-                cur.execute("SET LOCAL statement_timeout = '8s'")
+                cur.execute("SET LOCAL statement_timeout = '15s'")  # Complex window function query
                 cur.execute("""
                     WITH recent_sessions AS (
                         SELECT symbol, date, close, volume,
@@ -677,7 +678,7 @@ def _get_correlation_matrix(cur) -> Dict:
         symbols = ['^GSPC', '^IXIC', 'SPY', 'QQQ', 'IVV', 'TLT', 'GLD']
 
         cur.execute("SAVEPOINT correlation_matrix")
-        cur.execute("SET LOCAL statement_timeout = '8s'")
+        cur.execute("SET LOCAL statement_timeout = '12s'")  # Query on 252 days of data
         cur.execute("""
             SELECT symbol, date, close
             FROM price_daily
