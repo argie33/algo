@@ -96,10 +96,11 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
         raise psycopg2.OperationalError("Missing required database configuration")
 
     last_error = None
-    for attempt in range(1, max_retries + 1):
+    # max_retries=0 means 1 attempt (no retries); use +2 so range(1,2) runs once
+    for attempt in range(1, max_retries + 2):
         try:
             if debug:
-                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries}: {db_config['host']}")
+                logger.debug(f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: {db_config['host']}")
 
             conn = psycopg2.connect(
                 host=db_config['host'],
