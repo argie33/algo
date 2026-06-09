@@ -14,6 +14,7 @@ COPY utils/ ./utils/
 COPY config/ ./config/
 COPY monitoring/ ./monitoring/
 COPY algo/ ./algo/
+COPY migrations/ ./migrations/
 
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser
