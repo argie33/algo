@@ -304,7 +304,7 @@ class FilterPipeline(FilterTiers12Mixin, FilterTier3Mixin, FilterTiers45Mixin):
 
                     # A2: Close Quality Gate — close must be in upper N% of day's range
                     if day_high and day_low and close is not None and day_high > day_low:
-                        min_close_quality_pct = float(self.config.get('min_close_quality_pct', 60.0))
+                        min_close_quality_pct = float(self.config.get('min_close_quality_pct', 40.0))
                         day_range = day_high - day_low
                         close_pct_of_range = ((close - day_low) / day_range * 100) if day_range > 0 else 0
                         if close_pct_of_range < min_close_quality_pct:

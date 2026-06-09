@@ -95,18 +95,19 @@ def run(
         signals = []
         errors = []
 
-        # Generate signals for highest-volume symbols to stay within Lambda timeout.
-        # At ~270ms/symbol (6 indicator queries * ~45ms/query), 200 symbols = ~54s in Phase 5.
-        MAX_SYMBOLS = 200
+        # Process ALL symbols for full market coverage (no sampling).
+        # Using on-demand signal computation is fast enough for complete coverage.
         start_compute = time.time()
         with DatabaseContext('read') as cur:
             cur.execute(
-                "SELECT symbol FROM price_daily WHERE date = %s ORDER BY volume DESC NULLS LAST LIMIT %s",
-                (price_date, MAX_SYMBOLS)
+                "SELECT symbol FROM price_daily WHERE date = %s ORDER BY symbol ASC",
+                (price_date,)
             )
             symbols = [row[0] for row in cur.fetchall()]
-        if symbol_count > MAX_SYMBOLS:
-            logger.info(f"[PHASE 5] Capped to top {MAX_SYMBOLS} by volume (of {symbol_count} total)")
+        if not symbols:
+            logger.error(f"[PHASE 5] No symbols found for {price_date}")
+            log_phase_result_fn(5, 'signal_generation', 'halt', 'No symbols in price_daily')
+            return PhaseResult(5, 'signal_generation', 'halted', {}, True, 'No symbols found')
 
         logger.info(f"[PHASE 5] Generating signals for {len(symbols)} symbols...")
 
@@ -181,7 +182,7 @@ def run(
         return PhaseResult(
             5, 'signal_generation', 'ok',
             {
-                'qualified_trades': signals_ranked[:50],  # Top 50 for Phase 6
+                'qualified_trades': signals_ranked,  # All qualified signals for Phase 6 (no arbitrary limit)
                 'total_signals': len(signals),
                 'errors': errors,
             },

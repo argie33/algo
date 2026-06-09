@@ -126,7 +126,7 @@ def run(
     executed_count = 0
     failed_count = 0
 
-    for i, signal in enumerate(qualified_trades[:50]):  # Max 50 trades per day
+    for i, signal in enumerate(qualified_trades):  # Process all qualified signals (portfolio limits enforce max exposure)
         try:
             symbol = signal.get('symbol')
             quality = signal.get('quality_score', 0)
