@@ -682,7 +682,7 @@ app.get("/api/signals/search", authenticateToken, cacheMiddleware(60), async (re
 app.use("/api/signals", cacheMiddleware(15), signalsRoutes);
 app.use("/api/strategies", cacheMiddleware(120), strategiesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);  // Mount more specific route first
-app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
+app.use("/api/trades", authenticateToken, cacheMiddleware(90), tradesRoutes);
 
 // Research and backtest routes
 app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
@@ -700,10 +700,6 @@ app.use("/api/stocks", cacheMiddleware(60), require("./routes/stocks"));
 app.use("/api/prices", cacheMiddleware(60), require("./routes/prices"));
 app.use("/api/financials", cacheMiddleware(120), require("./routes/financials"));
 app.use("/api/earnings", cacheMiddleware(60), require("./routes/earnings"));
-
-// SECURITY FIX #1: Apply authenticateToken BEFORE cacheMiddleware on /api/trades
-// to prevent cache bypass of authentication checks (cache must not bypass auth)
-app.use("/api/trades", authenticateToken);
 
 // Authentication routes
 app.use("/api/logout", logoutRoutes);

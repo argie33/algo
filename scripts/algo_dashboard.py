@@ -1907,7 +1907,7 @@ def panel_economic_pulse(eco, econ_cal=None):
                 when = "--"
             vals = ""
             if a_v is not None:
-                ac = G if float(a_v) <= float(f_v or a_v) else R
+                ac = G if float(a_v) <= float(f_v if f_v is not None else a_v) else R
                 vals = f" [{ac}]A={a_v:.1f}[/]"
             elif f_v is not None:
                 vals = f" [dim]F={f_v:.1f}[/]"
@@ -2068,6 +2068,11 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         rows.append(Text.from_markup("  ".join(cfg_parts)))
     rows.append(Rule(style="dim"))
 
+    def _pc(v):
+        if isinstance(v, list): return len(v)
+        if isinstance(v, int):  return v
+        return 0
+
     # Execution history summary — last 7 runs
     valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
     if valid_hist:
@@ -2112,10 +2117,6 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
 
         # Show phases_completed/halted/errored counts from the run object
         if run and not run.get("_error"):
-            def _pc(v):
-                if isinstance(v, list): return len(v)
-                if isinstance(v, int):  return v
-                return 0
             n_done = _pc(run.get("phases_completed"))
             n_hlt  = _pc(run.get("phases_halted"))
             n_err  = _pc(run.get("phases_errored"))

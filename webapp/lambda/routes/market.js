@@ -904,24 +904,26 @@ router.get("/indicators", async (req, res) => {
 
     const result = results[0].status === 'fulfilled' ? results[0].value : null;
     const breadthResult = results[1].status === 'fulfilled' ? results[1].value : null;
-    const breadth = breadthResult?.rows?.[0] || null;
+    const breadth = breadthResult?.rows?.[0] || {};
     const sentiment = results[2].status === 'fulfilled' ? (results[2].value.rows[0] || null) : null;
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       return sendNotFound(res, "No data found for this query");
     }
 
+    const bAdvancing = safeInt(breadth.advancing);
+    const bDeclining = safeInt(breadth.declining);
     return sendSuccess(res, {
       indices: result.rows,
       breadth: {
-        total_stocks: parseInt(breadth.total_stocks),
-        advancing: parseInt(breadth.advancing),
-        declining: parseInt(breadth.declining),
+        total_stocks: safeInt(breadth.total_stocks),
+        advancing: bAdvancing,
+        declining: bDeclining,
         advance_decline_ratio:
-          breadth.declining > 0
-            ? (breadth.advancing / breadth.declining).toFixed(2)
+          bDeclining > 0
+            ? parseFloat((bAdvancing / bDeclining).toFixed(2))
             : null,
-        avg_change: parseFloat(breadth.avg_change).toFixed(2),
+        avg_change: safeFixed(breadth.avg_change, 2),
       },
       sentiment: sentiment
     });
@@ -2060,7 +2062,7 @@ router.get("/internals", async (req, res) => {
           }
         },
         market_extremes: {
-          current_breadth_percentile: advancingPct.toFixed(2),
+          current_breadth_percentile: advancingPct != null ? parseFloat(advancingPct.toFixed(2)) : null,
           percentile_25: safeFixed(historicalBreadth.percentile_25_advancing, 2),
           percentile_50: safeFixed(historicalBreadth.percentile_50_advancing, 2),
           percentile_75: safeFixed(historicalBreadth.percentile_75_advancing, 2),
@@ -2075,9 +2077,11 @@ router.get("/internals", async (req, res) => {
         overextension_indicator: {
           level: overextensionLevel,
           signal: overextensionSignal,
-          breadth_score: advancingPct.toFixed(2),
-          ma200_score: advancingPercAboveMA200.toFixed(2),
-          composite_score: ((parseFloat(advancingPct) + parseFloat(advancingPercAboveMA200)) / 2).toFixed(2)
+          breadth_score: advancingPct != null ? parseFloat(advancingPct.toFixed(2)) : null,
+          ma200_score: advancingPercAboveMA200 != null ? parseFloat(advancingPercAboveMA200.toFixed(2)) : null,
+          composite_score: (advancingPct != null && advancingPercAboveMA200 != null)
+            ? parseFloat(((advancingPct + advancingPercAboveMA200) / 2).toFixed(2))
+            : null
         },
         positioning_metrics: {
           institutional: {

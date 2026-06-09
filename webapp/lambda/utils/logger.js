@@ -55,10 +55,11 @@ class Logger {
 
   output(logEntry) {
     if (this.environment === 'production') {
+      // Lambda → CloudWatch: emit structured JSON so logs are queryable
+      console.log(JSON.stringify(logEntry));
     } else {
       const { timestamp, level, message, service } = logEntry;
-        console.log(`[${timestamp}] [${level}] [${service}] ${message}`);
-      // Log additional context if present
+      console.log(`[${timestamp}] [${level}] [${service}] ${message}`);
       const contextKeys = Object.keys(logEntry).filter(
         (k) => !['timestamp', 'level', 'message', 'service', 'version', 'environment', 'correlationId'].includes(k)
       );
@@ -67,6 +68,7 @@ class Logger {
         contextKeys.forEach((k) => {
           context[k] = logEntry[k];
         });
+        console.log(JSON.stringify(context, null, 2));
       }
     }
   }
