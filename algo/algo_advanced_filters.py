@@ -416,12 +416,9 @@ class AdvancedFilters:
         if not row:
             return 0.0, None
         q = float(row[0]) if row[0] is not None else 50.0
-        bs = 50.0
-        cash = 50.0
-        # Weighted average; 50 = neutral, 100 = full points
-        avg = (q * 0.5) + (bs * 0.3) + (cash * 0.2)
-        pts = max(0.0, min(self.W_QUALITY_FIN, (avg - 50.0) * self.W_QUALITY_FIN / 30.0))
-        return pts, round(avg, 1)
+        # Linear scale: 50 = 0 pts (neutral quality), 100 = W_QUALITY_FIN pts (maximum)
+        pts = max(0.0, min(self.W_QUALITY_FIN, (q - 50.0) * self.W_QUALITY_FIN / 50.0))
+        return pts, round(q, 1)
 
     def _earnings_quality_score(self, symbol, cur):
         try:

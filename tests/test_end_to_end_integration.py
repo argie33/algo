@@ -241,8 +241,8 @@ class EndToEndIntegrationTest:
                 status = '[OK]' if checks[col] else '[MISSING]'
                 logger.info(f"  {status} Column {col}")
 
-            # Check phase1_data_freshness_v2.py for completion detection logic
-            phase1_path = Path(__file__).parent.parent / 'algo' / 'orchestrator' / 'phase1_data_freshness_v2.py'
+            # Check phase1_data_freshness.py for completion detection logic
+            phase1_path = Path(__file__).parent.parent / 'algo' / 'orchestrator' / 'phase1_data_freshness.py'
             try:
                 with open(phase1_path, 'r', encoding='utf-8', errors='replace') as f:
                     source = f.read()
@@ -258,7 +258,7 @@ class EndToEndIntegrationTest:
                 else:
                     return all(checks.values())
             except Exception as e:
-                logger.warning(f"  Could not verify phase1_data_freshness_v2.py: {e}")
+                logger.warning(f"  Could not verify phase1_data_freshness.py: {e}")
                 return all(checks.values())
 
         except Exception as e:

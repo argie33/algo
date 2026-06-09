@@ -593,12 +593,12 @@ class Orchestrator:
         Returns: True if all tables exist, False if any critical table is missing.
         """
         required_tables = [
-            'price_daily',
-            'technical_data_daily',
-            'buy_sell_daily',
-            'signal_quality_scores',
-            'market_health_daily',
-            'algo_audit_log',
+            'price_daily',           # Phase 1, Phase 5 signal generation
+            'trend_template_data',   # Phase 5 (SignalComputer — Minervini, Weinstein)
+            'technical_data_daily',  # Phase 4 exit engine (ATR, EMA for trail/break checks)
+            'market_health_daily',   # Phase 3b (exposure), Phase 4 (distribution days)
+            'market_exposure_daily', # Phase 3b (entry constraints)
+            'algo_audit_log',        # Audit trail
         ]
 
         try:

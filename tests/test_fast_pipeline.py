@@ -32,21 +32,24 @@ class TestFastPipeline(unittest.TestCase):
 
     def test_phase1_simplified(self):
         """Phase 1 should only check: prices loaded + 95% coverage."""
-        from algo.orchestrator.phase1_data_freshness_v2 import run as run_phase1
+        from datetime import timedelta
+        from algo.orchestrator.phase1_data_freshness import run as run_phase1
         from algo.algo_alerts import AlertManager
 
-        # Mock database
-        with patch('algo.orchestrator.phase1_data_freshness_v2.DatabaseContext') as mock_db:
+        with patch('algo.orchestrator.phase1_data_freshness.DatabaseContext') as mock_db:
             mock_cur = MagicMock()
             mock_db.return_value.__enter__.return_value = mock_cur
 
-            # Case 1: Prices loaded, 95% coverage
-            mock_cur.execute = MagicMock()
-            mock_cur.fetchone = MagicMock(side_effect=[
-                (5000,),  # 5000 symbols today
-                (5000,),  # 5000 active symbols
-                (date.today(),)  # Recently updated
-            ])
+            # Phase 1 calls fetchone() three times inside one DatabaseContext block:
+            #   1. MAX(date) FROM price_daily  → most recent trading date
+            #   2. COUNT symbols for that date → 5000
+            #   3. COUNT symbols for prior date → 5000
+            yesterday = date.today() - timedelta(days=1)
+            mock_cur.fetchone.side_effect = [
+                (yesterday,),  # MAX(date): yesterday's prices are loaded
+                (5000,),       # symbol count for yesterday
+                (5000,),       # prior day's symbol count (coverage baseline)
+            ]
 
             result = run_phase1(
                 config=None,
@@ -61,68 +64,97 @@ class TestFastPipeline(unittest.TestCase):
 
     def test_phase5_signal_computation(self):
         """Phase 5 should compute signals on-the-fly from prices."""
-        from algo.orchestrator.phase5_signal_generation_v2 import run as run_phase5
+        from algo.orchestrator.phase5_signal_generation import run as run_phase5
 
-        with patch('algo.orchestrator.phase5_signal_generation_v2.DatabaseContext') as mock_db:
-            with patch('algo.orchestrator.phase5_signal_generation_v2.SignalComputer'):
-                mock_cur = MagicMock()
-                mock_db.return_value.__enter__.return_value = mock_cur
+        with patch('algo.orchestrator.phase5_signal_generation.DatabaseContext') as mock_db, \
+             patch('algo.orchestrator.phase5_signal_generation.SignalComputer') as mock_signal, \
+             patch('algo.orchestrator.phase5_signal_generation.LiquidityChecks') as mock_liq, \
+             patch('algo.orchestrator.phase5_signal_generation.SwingTraderScore') as mock_swing:
 
-                # Mock: 100 symbols with prices today
-                mock_cur.execute = MagicMock()
-                mock_cur.fetchall = MagicMock(return_value=[
-                    (f"STOCK{i:03d}",) for i in range(100)
-                ])
+            mock_cur = MagicMock()
+            mock_db.return_value.__enter__.return_value = mock_cur
 
-                result = run_phase5(
-                    run_date=date.today(),
-                    dry_run=False,
-                    verbose=True,
-                    log_phase_result_fn=lambda *args: None,
-                    exposure_constraints={},
-                    check_halt_flag=lambda: False,
-                    phase1_degraded=False
-                )
+            # fetchone used for: (1) market_exposure_daily → will exception/proceed permissively,
+            # (2) symbol count check → 2000 symbols present.
+            mock_cur.fetchone.return_value = (2000,)
+            # fetchall: 100 symbols with (symbol, close, high, low) — close in upper range
+            mock_cur.fetchall.return_value = [
+                (f"STOCK{i:03d}", 53.0, 55.0, 48.0) for i in range(100)
+            ]
 
-                self.assertEqual(result.status, 'ok', "Phase 5 should compute signals")
+            # SignalComputer: every symbol passes Minervini gate with good scores
+            sc = MagicMock()
+            mock_signal.return_value = sc
+            sc.minervini_trend_template.return_value = {'pass': True, 'score': 7}
+            sc.weinstein_stage.return_value = {'stage': 2}
+            sc.base_detection.return_value = {'in_base': True}
+            sc.vcp_detection.return_value = {'is_vcp': False}
+            sc.power_trend.return_value = {'power_trend': False, 'return_21d': None}
+
+            # LiquidityChecks: all symbols pass
+            liq = MagicMock()
+            mock_liq.return_value = liq
+            liq.run_all.return_value = (True, "passed")
+
+            # SwingTraderScore: all symbols score 70 (grade B)
+            swing = MagicMock()
+            mock_swing.return_value = swing
+            swing.compute.return_value = {'pass': True, 'swing_score': 70.0, 'grade': 'B'}
+
+            result = run_phase5(
+                run_date=date.today(),
+                dry_run=False,
+                verbose=True,
+                log_phase_result_fn=lambda *args: None,
+                exposure_constraints={},
+                check_halt_flag=lambda: False,
+                phase1_degraded=False
+            )
+
+            self.assertEqual(result.status, 'ok', "Phase 5 should compute signals")
 
     def test_phase6_on_demand_stops(self):
         """Phase 6 should compute ATR + SMA_50 on-demand for each trade."""
-        from algo.orchestrator.phase6_entry_execution_v2 import run as run_phase6
-        from algo.orchestrator.phase6_entry_execution_v2 import _compute_atr, _compute_sma_50
+        from datetime import date
+        from algo.orchestrator.phase6_entry_execution import run as run_phase6
+        from algo.orchestrator.phase6_entry_execution import _compute_true_atr, _compute_sma_50
+
+        test_date = date(2026, 1, 15)
 
         # Test ATR computation
-        with patch('algo.orchestrator.phase6_entry_execution_v2.DatabaseContext') as mock_db:
+        with patch('algo.orchestrator.phase6_entry_execution.DatabaseContext') as mock_db:
             mock_cur = MagicMock()
             mock_db.return_value.__enter__.return_value = mock_cur
             mock_cur.fetchone = MagicMock(return_value=(2.5,))  # ATR = 2.5
 
-            atr = _compute_atr("AAPL")
+            atr = _compute_true_atr("AAPL", test_date)
             self.assertAlmostEqual(atr, 2.5, places=1)
 
         # Test SMA_50 computation
-        with patch('algo.orchestrator.phase6_entry_execution_v2.DatabaseContext') as mock_db:
+        with patch('algo.orchestrator.phase6_entry_execution.DatabaseContext') as mock_db:
             mock_cur = MagicMock()
             mock_db.return_value.__enter__.return_value = mock_cur
             mock_cur.fetchone = MagicMock(return_value=(150.0,))  # SMA_50 = 150
 
-            sma50 = _compute_sma_50("AAPL")
+            sma50 = _compute_sma_50("AAPL", test_date)
             self.assertAlmostEqual(sma50, 150.0, places=1)
 
     def test_no_technical_data_daily_dependency(self):
-        """Verify no code path depends on technical_data_daily table."""
+        """Verify neither Phase 5 nor Phase 6 issues SQL queries against technical_data_daily.
+
+        The docstrings may mention the table by name (as a non-dependency note), so we
+        check for actual SQL FROM clauses rather than bare string presence.
+        """
         import inspect
-        from algo.orchestrator import phase5_signal_generation_v2, phase6_entry_execution_v2
+        from algo.orchestrator import phase5_signal_generation, phase6_entry_execution
 
-        # Phase 5 should not reference technical_data_daily
-        phase5_source = inspect.getsource(phase5_signal_generation_v2)
-        self.assertNotIn('technical_data_daily', phase5_source,
-                        "Phase 5 v2 should not query technical_data_daily")
+        phase5_source = inspect.getsource(phase5_signal_generation)
+        self.assertNotIn('FROM technical_data_daily', phase5_source,
+                         "Phase 5 should not issue SQL queries against technical_data_daily")
 
-        # Phase 6 should not reference technical_data_daily
-        phase6_source = inspect.getsource(phase6_entry_execution_v2)
-        self.assertNotIn('technical_data_daily', phase6_source,
-                        "Phase 6 v2 should not query technical_data_daily")
+        phase6_source = inspect.getsource(phase6_entry_execution)
+        self.assertNotIn('FROM technical_data_daily', phase6_source,
+                         "Phase 6 should not issue SQL queries against technical_data_daily")
 
 
 class TestTimingImprovement(unittest.TestCase):
