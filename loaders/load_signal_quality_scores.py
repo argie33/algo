@@ -47,6 +47,27 @@ class SignalQualityScoresLoader(OptimalLoader):
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
 
+        # If buy_sell_daily doesn't have today's signals yet (e.g., morning prep runs before
+        # market open), fall back to the last date with available data rather than skipping.
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT MAX(date) FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL') AND date <= %s",
+                    (end,)
+                )
+                row = cur.fetchone()
+                last_bs_date = row[0] if row and row[0] else None
+                if last_bs_date:
+                    last_bs = last_bs_date if isinstance(last_bs_date, date) else date.fromisoformat(str(last_bs_date))
+                    if last_bs < end:
+                        logger.info(
+                            f"buy_sell_daily has data up to {last_bs}, not yet {end}. "
+                            f"Using {last_bs} as effective end date for signal quality computation."
+                        )
+                        end = last_bs
+        except Exception as e:
+            logger.debug(f"Could not check buy_sell_daily max date: {e}")
+
         # On ECS restart the in-memory watermark is empty, so since=None.
         # Read the actual DB max date to avoid re-querying 5 years of history.
         if since is None:

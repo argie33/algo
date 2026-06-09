@@ -93,7 +93,7 @@ $AwsDir = Split-Path $CredFile -Parent
 New-Item -ItemType Directory -Force -Path $AwsDir | Out-Null
 
 # Read existing credentials and replace or add the algo-developer block
-$Existing = if (Test-Path $CredFile) { Get-Content $CredFile -Raw } else { "" }
+$Existing = if (Test-Path $CredFile) { $r = Get-Content $CredFile -Raw; if ($r) { $r } else { "" } } else { "" }
 
 $NewBlock = @"
 [$Profile]
@@ -112,8 +112,9 @@ $Updated = if ($Existing -match $Pattern) {
 
 # Trim trailing whitespace and append new block
 $Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
-# Write credentials file (UTF8 without BOM using .NET to be compatible with AWS SDK)
-[System.IO.File]::WriteAllText($CredFile, $Updated, [System.Text.Encoding]::UTF8)
+# Write credentials file (UTF-8 without BOM — botocore rejects BOM in credentials files)
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($CredFile, $Updated, $utf8NoBom)
 
 # Clean up temp dir
 Remove-Item -Recurse -Force $TmpDir

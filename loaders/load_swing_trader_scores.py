@@ -60,6 +60,27 @@ class SwingTraderScoresLoader(OptimalLoader):
             while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
                 end = end - timedelta(days=1)
 
+            # Fall back to last date with signal_quality_scores if today's data isn't available yet
+            # (e.g., morning prep runs before today's EOD data has been computed)
+            try:
+                with DatabaseContext('read') as fbc:
+                    fbc.execute(
+                        "SELECT MAX(date) FROM signal_quality_scores WHERE date <= %s",
+                        (end,)
+                    )
+                    fb_row = fbc.fetchone()
+                    last_sqs_date = fb_row[0] if fb_row and fb_row[0] else None
+                    if last_sqs_date:
+                        last_sqs = last_sqs_date if isinstance(last_sqs_date, date) else date.fromisoformat(str(last_sqs_date))
+                        if last_sqs < end:
+                            logging.info(
+                                f"signal_quality_scores data up to {last_sqs}, not yet {end}. "
+                                f"Using {last_sqs} as effective end date."
+                            )
+                            end = last_sqs
+            except Exception as e:
+                logging.debug(f"Could not check signal_quality_scores max date: {e}")
+
             if since is None:
                 try:
                     with DatabaseContext('read') as wm_cur:
