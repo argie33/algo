@@ -160,6 +160,26 @@ class SectorRotationDetector:
 
     def _persist(self, eval_date, result):
         try:
+            details_dict = {
+                'defensive_lead_score': result.get('defensive_lead_score'),
+                'cyclical_weak_score': result.get('cyclical_weak_score'),
+                'defensive_rank_improvement_4w': result.get('defensive_rank_improvement_4w'),
+                'cyclical_rank_improvement_4w': result.get('cyclical_rank_improvement_4w'),
+                'spread_4w': result.get('spread_4w'),
+                'weeks_persistent': result.get('weeks_persistent'),
+                'reduce_exposure_pts': result.get('reduce_exposure_pts'),
+                'sector_data': result.get('sector_data', {}),
+            }
+
+            details_json = json.dumps(details_dict)
+
+            # Validate the JSON can be parsed back (catch bad data before DB insert)
+            try:
+                json.loads(details_json)
+            except (json.JSONDecodeError, ValueError) as je:
+                logger.error(f"Invalid JSON generated for sector_rotation {eval_date}: {je}", exc_info=True)
+                details_json = json.dumps({'error': 'JSON serialization failed', 'timestamp': str(eval_date)})
+
             with DatabaseContext('write') as cur:
                 cur.execute(
                     """INSERT INTO sector_rotation_signal
@@ -176,16 +196,7 @@ class SectorRotationDetector:
                         result['signal'],
                         round(result.get('defensive_lead_score', 0) / 100.0, 4),
                         1,
-                        json.dumps({
-                            'defensive_lead_score': result.get('defensive_lead_score'),
-                            'cyclical_weak_score': result.get('cyclical_weak_score'),
-                            'defensive_rank_improvement_4w': result.get('defensive_rank_improvement_4w'),
-                            'cyclical_rank_improvement_4w': result.get('cyclical_rank_improvement_4w'),
-                            'spread_4w': result.get('spread_4w'),
-                            'weeks_persistent': result.get('weeks_persistent'),
-                            'reduce_exposure_pts': result.get('reduce_exposure_pts'),
-                            'sector_data': result.get('sector_data', {}),
-                        }),
+                        details_json,
                     ),
                 )
         except Exception as e:

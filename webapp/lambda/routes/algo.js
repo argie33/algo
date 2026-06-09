@@ -756,6 +756,18 @@ router.get('/swing-scores', async (req, res) => {
         else if (score >= 60) grade = 'C';
         else grade = 'D';
 
+        const parseComponentsJSON = (components) => {
+          if (!components) return {};
+          if (typeof components === 'object') return components;
+          if (typeof components !== 'string') return {};
+          try {
+            return JSON.parse(components);
+          } catch (e) {
+            logger.warn(`Failed to parse swing_trader_scores components: ${components.substring(0, 100)}`, { error: e.message });
+            return {};
+          }
+        };
+
         return {
           symbol: r.symbol,
           date: r.date,
@@ -764,7 +776,7 @@ router.get('/swing-scores', async (req, res) => {
           grade: grade,
           pass_gates: score >= 60,
           fail_reason: score < 60 ? 'Score below threshold' : null,
-          components: r.components ? (typeof r.components === 'string' ? JSON.parse(r.components) : r.components) : {},
+          components: parseComponentsJSON(r.components),
           company_name: r.short_name,
           sector: r.sector,
           industry: r.industry,
@@ -2080,6 +2092,18 @@ router.get('/sector-rotation', async (req, res) => {
     // Validate result structure
     validateQueryResult(result, { requireRows: false });
 
+    const parseDetailsJSON = (details) => {
+      if (!details) return {};
+      if (typeof details === 'object') return details;
+      if (typeof details !== 'string') return {};
+      try {
+        return JSON.parse(details);
+      } catch (e) {
+        logger.warn(`Failed to parse sector_rotation_signal details: ${details.substring(0, 100)}`, { error: e.message });
+        return {};
+      }
+    };
+
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
         date: { type: 'date', required: false },
@@ -2094,12 +2118,11 @@ router.get('/sector-rotation', async (req, res) => {
         signal: r.signal,
         strength: r.strength || 0,
         rank: r.rank,
-        // details JSONB may contain extended metrics from algo_sector_rotation.py
-        ...(r.details ? (typeof r.details === 'string' ? JSON.parse(r.details) : r.details) : {}),
+        ...parseDetailsJSON(r.details),
       }))
     });
   } catch (error) {
-    logger.error('Error in /algo/sector-rotation:', { error: error.message });
+    logger.error('Error in /algo/sector-rotation:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing sector rotation');
   }
 });
