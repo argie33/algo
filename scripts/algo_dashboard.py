@@ -2387,29 +2387,26 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
 
     outer = Layout()
     outer.split_column(
-        Layout(name="top",      size=9),    # orch + market header + monkey
-        Layout(name="r1",       ratio=2),   # exposure | circuit (wide 2-col)
+        Layout(name="top",      size=10),   # market header | exposure factors | monkey
+        Layout(name="r1",       ratio=2),   # circuit breakers (full width)
         Layout(name="r2",       ratio=1),   # portfolio | perf | eco
         Layout(name="r3",       ratio=2),   # signals | sectors
         Layout(name="activity", ratio=2),   # algo activity — doubled height
         Layout(name="pos",      ratio=2),   # positions + recent trades at bottom
     )
 
-    # Top row: Orch (left, wider) | Market header (right, compact) | Monkey
+    # Top row: Market header (left) | 12-factor exposure (middle, wider) | Monkey
     outer["top"].split_row(
-        Layout(name="orch",   ratio=2),
-        Layout(name="hdr",    ratio=1),
-        Layout(name="mascot", size=MASCOT_W),
+        Layout(name="hdr",      ratio=1),
+        Layout(name="exposure", ratio=2),
+        Layout(name="mascot",   size=MASCOT_W),
     )
-    outer["top"]["orch"].update(panel_orch(run, cfg, risk))
     outer["top"]["hdr"].update(hdr_panel)
+    outer["top"]["exposure"].update(panel_exposure_compact(exp_f))
     outer["top"]["mascot"].update(mascot_compact(data, frame))
 
-    # Row 1: Exposure Score Breakdown | Circuit Breakers (2 wide panels)
-    outer["r1"].split_row(
-        Layout(panel_exposure_compact(exp_f), name="exposure"),
-        Layout(panel_circuit(cb),             name="circuit"),
-    )
+    # Row 1: Circuit Breakers — full width (exposure moved to top row)
+    outer["r1"].update(panel_circuit(cb))
 
     # Row 2: Portfolio | Performance | Economic pulse
     outer["r2"].split_row(
