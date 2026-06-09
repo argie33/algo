@@ -682,13 +682,13 @@ class Orchestrator:
     # ---------- Phase implementations ----------
 
     def phase_1_data_freshness(self):
-        """Thin delegation to phase1_data_freshness_v2 module (simplified).
+        """Thin delegation to phase1_data_freshness module.
 
         New version only checks: are today's prices loaded? 95%+ coverage?
         Removes all the complex grace period / hung task detection logic.
         """
         self.log_phase_start(1, 'DATA FRESHNESS CHECK')
-        from algo.orchestrator.phase1_data_freshness_v2 import run as run_phase1
+        from algo.orchestrator.phase1_data_freshness import run as run_phase1
         result = run_phase1(
             self.config,
             self.run_date, self.dry_run, self.alerts,
@@ -790,13 +790,13 @@ class Orchestrator:
         return True  # fail-open
 
     def phase_5_signal_generation(self) -> List[Dict[str, Any]]:
-        """Thin delegation to phase5_signal_generation_v2 module (simplified).
+        """Thin delegation to phase5_signal_generation module.
 
         New version: Compute signals on-the-fly from price data.
         No dependency on technical_data_daily.
         """
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
-        from algo.orchestrator.phase5_signal_generation_v2 import run as run_phase5
+        from algo.orchestrator.phase5_signal_generation import run as run_phase5
         result = run_phase5(
             self.run_date, self.dry_run,
             self.verbose, self.log_phase_result,
@@ -809,12 +809,12 @@ class Orchestrator:
         return not result.halted
 
     def phase_6_entry_execution(self) -> List[Dict[str, Any]]:
-        """Thin delegation to phase6_entry_execution_v2 module (simplified).
+        """Thin delegation to phase6_entry_execution module.
 
         New version: Compute ATR + SMA_50 on-demand, execute immediately.
         """
         self.log_phase_start(6, 'ENTRY EXECUTION')
-        from algo.orchestrator.phase6_entry_execution_v2 import run as run_phase6
+        from algo.orchestrator.phase6_entry_execution import run as run_phase6
         result = run_phase6(
             self.config,
             self.run_date, self.dry_run,
@@ -927,7 +927,7 @@ class Orchestrator:
                 phase_1_start = time.time()
                 logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
                 with TimeBlock("phase_1_data_freshness"):
-                    from algo.orchestrator.phase1_data_freshness_v2 import run as run_phase1
+                    from algo.orchestrator.phase1_data_freshness import run as run_phase1
                     phase1_result = run_phase1(
                         self.config,
                         self.run_date, self.dry_run, self.alerts,
