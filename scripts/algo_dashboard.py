@@ -2654,15 +2654,14 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
 
     outer = Layout()
     outer.split_column(
-        Layout(name="top",      size=10),   # market header | exposure factors | monkey
-        Layout(name="r1",       ratio=1),   # circuit breakers — compact (was ratio=2)
-        Layout(name="r2",       ratio=2),   # portfolio | perf | eco — expanded (was ratio=1)
-        Layout(name="r3",       ratio=2),   # signals | sectors
-        Layout(name="activity", ratio=2),   # algo health
-        Layout(name="pos",      ratio=2),   # positions + recent trades at bottom
+        Layout(name="top",  size=10),   # market header | exposure factors | monkey
+        Layout(name="r1",   ratio=2),   # circuit breakers (left) | algo health (right)
+        Layout(name="r2",   ratio=2),   # portfolio | perf | eco
+        Layout(name="r3",   ratio=2),   # signals | sectors
+        Layout(name="pos",  ratio=2),   # positions + recent trades
     )
 
-    # Top row: Market header (left) | 12-factor exposure (middle, wider) | Monkey
+    # Top row: Market header | 12-factor exposure | Monkey
     outer["top"].split_row(
         Layout(name="hdr",      ratio=1),
         Layout(name="exposure", ratio=2),
@@ -2672,10 +2671,13 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     outer["top"]["exposure"].update(panel_exposure_compact(exp_f))
     outer["top"]["mascot"].update(mascot_compact(data, frame))
 
-    # Row 1: Circuit Breakers — compact, tight allocation
-    outer["r1"].update(panel_circuit(cb, risk=risk))
+    # Row 1: Circuit Breakers (wider left) | Algo Health (narrower right) — side by side
+    outer["r1"].split_row(
+        Layout(panel_circuit(cb, risk=risk),                                               ratio=2, name="cb"),
+        Layout(panel_algo_health(run, act, hlth, notifs, algo_metrics, loader, audit, exec_hist), ratio=1, name="health"),
+    )
 
-    # Row 2: Portfolio | Performance | Economic pulse — more room to show data
+    # Row 2: Portfolio | Performance | Economic pulse
     outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg, risk=risk, perf=perf),    name="portfolio"),
         Layout(panel_performance_spark(perf, rec, perf_anl),        name="perf"),
@@ -2688,10 +2690,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
     )
 
-    # Row 4: Algo health — "did the algo work?" focus
-    outer["activity"].update(panel_algo_health(run, act, hlth, notifs, algo_metrics, loader, audit, exec_hist))
-
-    # Row 5: Positions | Recent Trades — both trade-related, natural pairing
+    # Row 4: Positions | Recent Trades
     outer["pos"].split_row(
         Layout(panel_positions(pos, compact, trades=rec),  ratio=3, name="positions"),
         Layout(panel_recent_trades(rec),                   ratio=2, name="recent_trades"),

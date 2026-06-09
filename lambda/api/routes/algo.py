@@ -1429,8 +1429,8 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> Dict:
             return list_response([dict(f) for f in findings], total=total)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
-            logger.error(f'Failed to fetch patrol log: {type(e).__name__}: {e}', extra={'operation': 'get patrol log'})
-            return list_response([], total=0)
+            logger.error(f'Failed to fetch patrol log: {type(e).__name__}: {str(e)}', extra={'operation': 'get patrol log'}, exc_info=True)
+            return error_response(500, 'internal_error', f'Failed to fetch patrol log: {type(e).__name__}')
 def _get_sector_rotation(cur, days: int = 180) -> Dict:
         """Get sector rotation data: defensive vs cyclical relative strength."""
         try:

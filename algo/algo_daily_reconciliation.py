@@ -172,11 +172,11 @@ class DailyReconciliation:
                     SELECT
                         COUNT(*) FILTER (WHERE profit_loss_dollars > 0) as wins,
                         COUNT(*) FILTER (WHERE profit_loss_dollars < 0) as losses,
-                        COALESCE(SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s), 0) as realized_pnl_today,
+                        COALESCE(SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s::date), 0) as realized_pnl_today,
                         COALESCE(SUM(profit_loss_dollars), 0) as cumulative_pnl
                     FROM algo_trades
                     WHERE status = %s
-                """, (reconcile_date, 'closed'))
+                """, (str(reconcile_date), 'closed'))
                 win_count, loss_count, realized_pnl_today, cumulative_pnl = cur.fetchone() or (0, 0, 0.0, 0.0)
                 win_count = int(win_count or 0)
                 loss_count = int(loss_count or 0)
