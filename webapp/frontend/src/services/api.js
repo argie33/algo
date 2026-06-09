@@ -79,8 +79,8 @@ const CircuitBreaker = {
   successCount: 0,
   lastFailureTime: 0,
   openAttempts: 0, // Track recovery attempts for exponential backoff
-  FAILURE_THRESHOLD: 50, // Open circuit after 50 consecutive failures (tolerate transient spikes)
-  SUCCESS_THRESHOLD: 3, // Close circuit after 3 successes in half-open state (ensure stability)
+  FAILURE_THRESHOLD: 150, // Open circuit after 150 failures (allow transient DNS/network spikes)
+  SUCCESS_THRESHOLD: 5, // Close circuit after 5 successes in half-open state (ensure stability)
   RECOVERY_TIMEOUT_BASE: 15000, // Start at 15 seconds before recovery attempt
   RECOVERY_TIMEOUT_MAX: 120000, // Cap at 2 minutes between attempts
 };
