@@ -173,9 +173,9 @@ If you need to rebuild the schema:
 5. **Morning prep visibility:** Phase 1 now checks if buy_sell_daily was updated since 2:45 AM. If not, sends alert so we know morning prep failed.
 6. **Health check diagnostics:** Orchestrator startup logs table freshness, loader status, so we can see at a glance what's stale/broken.
 
-**Files changed:**
-- `algo/orchestrator/phase1_data_freshness.py` (lines 1177-1260 data freshness logic, lines 280-290 grace period, lines 1556-1631 swing scores)
-- `algo/algo_orchestrator.py` (added _health_check_diagnostics method, called before Phase 1)
+**Files:**
+- `algo/orchestrator/phase1_data_freshness_v2.py` (150 lines — checks latest price date, 95% symbol coverage, done in <1 minute)
+- `algo/algo_orchestrator.py` (imports v2 phase; _health_check_diagnostics method logs freshness at startup)
 
 **Why:** Previous system had too many decision paths (schedule-based expected dates, multiple grace periods, market-open vs intraday rules). User reported "never succeeds fully with entire dataset" — system was halting on false positives (stale data checks triggered when data was actually OK). Simplified to just: "must be fresh, period."
 
@@ -290,65 +290,17 @@ WHERE run_id = 'RUN-2026-06-07-093045';
 **File:** `loaders/load_prices.py` lines 102-113, 146-186, 243-263, 705-710, 733-788, 816-821, 1732-1745
 **Impact:** 90%+ rate limit prevention, avoids batch reduction cascade, 5.5-6h full dataset with >99% success
 
-### Failsafe Completion Grace Period
-- **Duration:** 150 minutes (2.5 hours) base, configurable via `algo_config` table (`failsafe_grace_period_minutes`)
-- **Status-aware:** Checks loader RUNNING/COMPLETED status; extends grace if loader still running
-- **Fallback:** DynamoDB timestamp-based grace period if database unavailable
-- **File:** `algo/orchestrator/phase1_data_freshness.py` lines 280-352
-- **Impact:** Prevents redundant loader triggers while stock_prices_daily completes (2h+ with delays)
-
-### ECS Failsafe Verification with Adaptive Timeouts
-- **Adaptive polling:** 30s (normal load) → 120s (busy) → 180s (extreme load)
-- **Retry strategy:** Up to 3 attempts with increasing timeouts (lines 1421-1446 in phase1_data_freshness.py)
-- **Verification:** Confirms ECS task reaches RUNNING state before returning success
-- **File:** `algo/orchestrator/phase1_data_freshness.py` lines 17-220
-- **Impact:** Catches hung/failed tasks; accounts for Fargate startup variance (45-120s)
 
 ### Data Freshness Validation with Configurable Staleness
 - **Staleness columns:** `buy_sell_daily_age_days`, `technical_data_age_days`, `trend_template_age_days` in signal_quality_scores table
 - **Phase 5 filtering:** Rejects signals if data older than threshold (default 2 days, configurable as `signal_max_data_age_days`)
 - **Phase 1 monitoring:** Detects stale data and triggers failsafe loader if threshold exceeded
 
-## 23 Critical Data Loading Issues - Implementation Status
-
-**All 23 critical issues identified in system design have been addressed in code.** Each has explicit "ISSUE #X FIX" comments in phase1_data_freshness.py.
-
-**RED SEVERITY (Full-dataset failures):** ✅ All 6 implemented
-- #1 Market Close Data Lag: 1200s timeout + DynamoDB failure flag (line 1430-1463)
-- #2 Incomplete Loader Completion: <95% detection + failsafe retry (line 1719-1757)
-- #3 Hung Loader Detection: Task kill mechanism (line 336-391, 1873)
-- #6 Batch Size vs Rate Limiting: Dynamic reduction 150→50→20→1 (load_prices.py:73-92)
-- #7 Simplified Freshness Rule: 1-day rule + configurable cache TTL (line 1478-1545)
-- #13 ECS Task Scheduling: 180s poll timeout for Fargate (line 1953)
-
-**ORANGE SEVERITY (Data quality):** ✅ All 10 implemented
-- #4 Failsafe Grace Period: 150 min base + actual_running_at tracking (line 638)
-- #5 Swing Scores Dependencies: 4-source validation (line 2082-2110)
-- #8 Signal Quality Cascading: Upstream failure detection (line 2605-2650)
-- #9 Phase 1 Completeness: Symbol coverage % validation (line 1761-1811)
-- #10 Sector Ranking: Freshness check + halt logic (line 2226-2250)
-- #11 Morning/EOD Pipeline Overlap: Detection + monitoring (line 1824-1842)
-- #12 buy_sell_daily Dependencies: Technical data validation (line 2501-2530)
-- #19 Failsafe Timeout Verification: Secondary check (line 240-273)
-- #22 Cache Invalidation: INCOMPLETE detection (line 1519-1528)
-- #23 Hung Task Escalation: Zombie cleanup + stop verification (line 530-568, 1873)
-
-**YELLOW SEVERITY (Operational):** ✅ All 7 implemented
-- #14 Morning Prep Timing: 2:45 AM start + cache pre-warming (line 2755-2800)
-- #15 Data Age Tracking: Phase 5 blocking (line 1843-1863)
-- #16 Patrol Thresholds: Parameterized from algo_config (line 1654-1670)
-- #17 Signal Quality Timing: Handled via data age filtering
-- #18 Partial Loader Retry: Completeness gate (line 1742-1757)
-- #20 Circuit Breaker: Batch reduction instead of failure (load_prices.py:73-92)
-- #21 Correlation ID: Phase 1 logging (line 18-19), loader instances (load_prices.py)
-
-**Database Layer Enhancements (complementing data issues):**
+**Database Layer Enhancements:**
 - Query timeout wrapper: execute_with_timeout() in lambda/api/routes/utils.py
 - CORS headers: Ensured on all responses (success and error)
 - Connection pooling: RDS Proxy configured with 20-30 persistent connections
 - Retry logic: Exponential backoff (1.5x) for timeout recovery
-- **File:** `algo/orchestrator/phase5_signal_generation.py` lines 250-299 (filtering); `algo/orchestrator/phase1_data_freshness.py` (detection)
-- **Impact:** Prevents trading on stale fundamentals or technical data
 
 ### Data Patrol with Parameterized Quality Thresholds
 - **Configuration location:** `algo_config` table (read at startup, all thresholds tunable without code changes)
@@ -360,31 +312,23 @@ WHERE run_id = 'RUN-2026-06-07-093045';
 - **File:** `algo/algo_data_patrol.py` lines 44-98
 - **Impact:** Quality gates are tunable; can tighten/loosen without redeploy
 
-### Signal Waterfall with Per-Filter Rejection Tracking
-- **Filter breakdown:** Logs top 10 rejection reasons (tier + specific filter)
-- **CloudWatch metrics:** Publishes top 5 filters to CloudWatch for trending
-- **Tracking table:** `filter_rejection_log` stores rejection_reason and rejected_at_tier
-- **File:** `algo/orchestrator/phase5_signal_generation.py` lines 34-171
-- **Impact:** Can diagnose "why no signals" → market conditions vs overly-strict filters
+### Signal Generation (On-the-Fly)
+- **Approach:** Phase 5 queries `price_daily` and computes signals in real-time using `SignalComputer`
+- **No pre-computed data:** No dependency on `technical_data_daily` or `buy_sell_daily` loaders
+- **Top by volume:** Processes top 200 symbols by volume within Lambda timeout budget (~54s)
+- **Quality ranking:** Minervini pass (+40), Weinstein stage 3+ (+20), VCP (+20), power trend (+20)
+- **File:** `algo/orchestrator/phase5_signal_generation_v2.py`
+- **Diagnosis:** CloudWatch logs show top 10 signals by quality score; if no signals, check price_daily coverage
 
 ### Loader Execution Status Monitoring
 - **Status table:** `data_loader_status` tracks RUNNING/COMPLETED/FAILED per loader
-- **DynamoDB fallback:** Loader status cached in DynamoDB with 1-hour TTL for Phase 1 queries
-- **Used by:** Failsafe grace period logic (lines 300-315 in phase1_data_freshness.py)
+- **DynamoDB fallback:** Loader status cached in DynamoDB with 1-hour TTL
 - **File:** `terraform/modules/loaders/main.tf` lines 108-133
-- **Impact:** Real-time loader state visible to Phase 1; enables smart grace period extension
-
-### ECS Scheduling Delay Compensation
-- **Adaptive polling:** Adaptive timeouts (30s → 120s → 180s) account for Fargate startup variance
-- **Metrics tracking:** ECS scheduling latency published to CloudWatch
-- **Grace period:** Dynamic grace period extends if loader status shows RUNNING
-- **File:** Phase 1 failsafe (phase1_data_freshness.py) and loader status monitoring
-- **Impact:** Works reliably even when ECS cluster has scheduling pressure
+- **Impact:** Real-time loader state visible via CloudWatch and orchestrator startup diagnostics
 
 ### EOD Pipeline vs Morning Prep Coordination
 - **Status check:** Morning prep checks if EOD pipeline still running before proceeding
 - **Coordination:** If overlap detected, proceeds with warning (both pipelines can coexist but share RDS)
-- **File:** `algo/orchestrator/phase1_data_freshness.py` (pipeline overlap detection)
 - **Impact:** Prevents RDS connection saturation during overlap window
 
 ## Infrastructure Constraints
