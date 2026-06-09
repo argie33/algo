@@ -729,16 +729,24 @@ def fetch_health(c):
     try:
         return q(c, """
             SELECT tbl, role, latest, age,
-                   CASE WHEN age IS NULL OR age > stale THEN 'stale' ELSE 'ok' END AS st
+                   CASE WHEN age IS NULL OR age > stale_thresh THEN 'stale' ELSE 'ok' END AS st
             FROM (
-              SELECT 'price_daily'    tbl,'CRIT' role, MAX(date)::date latest,(CURRENT_DATE-MAX(date)::date) age,3  stale FROM price_daily       UNION ALL
-              SELECT 'buy_sell_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM buy_sell_daily  UNION ALL
-              SELECT 'swing_scores',  'CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM swing_trader_scores UNION ALL
-              SELECT 'exposure_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM market_exposure_daily UNION ALL
-              SELECT 'port_snapshot', 'CRIT',          MAX(snapshot_date)::date,(CURRENT_DATE-MAX(snapshot_date)::date),3 FROM algo_portfolio_snapshots UNION ALL
-              SELECT 'technicals',    'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    3         FROM technical_data_daily UNION ALL
-              SELECT 'market_health', 'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    7         FROM market_health_daily UNION ALL
-              SELECT 'trend_template','IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    7         FROM trend_template_data UNION ALL
+              SELECT 'price_daily'    tbl,'CRIT' role, MAX(date)::date latest,(CURRENT_DATE-MAX(date)::date) age,
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END stale_thresh FROM price_daily       UNION ALL
+              SELECT 'buy_sell_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM buy_sell_daily  UNION ALL
+              SELECT 'swing_scores',  'CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM swing_trader_scores UNION ALL
+              SELECT 'exposure_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM market_exposure_daily UNION ALL
+              SELECT 'port_snapshot', 'CRIT',          MAX(snapshot_date)::date,(CURRENT_DATE-MAX(snapshot_date)::date),
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(snapshot_date)::date)<=2 THEN 10 ELSE 3 END FROM algo_portfolio_snapshots UNION ALL
+              SELECT 'technicals',    'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM technical_data_daily UNION ALL
+              SELECT 'market_health', 'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 7 END FROM market_health_daily UNION ALL
+              SELECT 'trend_template','IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 7 END FROM trend_template_data UNION ALL
               SELECT 'sector_ranking','SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM sector_ranking UNION ALL
               SELECT 'economic_data', 'SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM economic_data
             ) s ORDER BY CASE role WHEN 'CRIT' THEN 1 WHEN 'IMP' THEN 2 ELSE 3 END, tbl""")
@@ -1655,23 +1663,7 @@ def panel_positions(pos, compact=False, trades=None):
             ]
         t.add_row(*row)
 
-    # Pending/queued trades below open positions
-    pending = [tr for tr in (trades or [])
-               if tr.get("status") in ("pending", "pending_new", "rejected")] if trades else []
-    if pending:
-        pend_rows = [Text.from_markup("[dim]Queued / Recent:[/]")]
-        for tr in pending[:4]:
-            st  = tr.get("status", "")
-            sym = tr.get("symbol") or "--"
-            td  = tr.get("trade_date")
-            age_s = fmt_age(td) if td else "--"
-            if st == "rejected":
-                pend_rows.append(Text.from_markup(f"  [{R}]✗ {sym}[/] [dim]{age_s} rejected[/]"))
-            else:
-                pend_rows.append(Text.from_markup(f"  [{Y}]▷ {sym}[/] [dim]{age_s} {st}[/]"))
-        content = Group(t, *pend_rows)
-    else:
-        content = t
+    content = t
 
     return Panel(content, title=f"[bold cyan]POSITIONS ({len(pos)})[/]  [dim][p] expand[/]", border_style="cyan", padding=(0, 0))
 
@@ -2066,8 +2058,7 @@ def panel_economic_pulse(eco, econ_cal=None):
             if ed:
                 try:
                     if isinstance(ed, str):
-                        from datetime import datetime as dt
-                        ed_date = dt.strptime(ed[:10], "%Y-%m-%d").date()
+                        ed_date = datetime.strptime(ed[:10], "%Y-%m-%d").date()
                     else:
                         ed_date = ed if hasattr(ed, 'date') is False else ed.date()
                 except (ValueError, AttributeError):
