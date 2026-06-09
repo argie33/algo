@@ -239,7 +239,7 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
                 EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0
             FROM signal_quality_scores
         """
-        rows = execute_with_timeout(cur, query, timeout_sec=15)
+        rows = execute_with_timeout(cur, query, timeout_sec=15, max_attempts=1)
         rows = [dict(row) for row in rows]
 
         tables = []
