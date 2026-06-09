@@ -12,10 +12,9 @@ const { query } = require("./database");
 const AlpacaService = require("./alpacaService");
 
 // Default user ID for background syncs
-// Use environment variable, fall back to default integer IDs
-const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID ?
-  parseInt(process.env.DEFAULT_USER_ID, 10) :
-  (process.env.NODE_ENV === 'development' ? 1 : 2);
+// Use environment variable, fall back to default string IDs (matches database schema VARCHAR(100))
+const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID ||
+  (process.env.NODE_ENV === 'development' ? '1' : '2');
 
 // Scheduler instance
 let syncScheduler = null;
@@ -102,12 +101,7 @@ async function performAlpacaSync() {
                   query(
                     `INSERT INTO portfolio_holdings
                     (user_id, symbol, quantity, current_price, average_cost, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT (user_id, symbol) DO UPDATE SET
-                      quantity = $3,
-                      current_price = $4,
-                      average_cost = $5,
-                      updated_at = CURRENT_TIMESTAMP`,
+                    VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
                     [
                       DEFAULT_USER_ID,
                       position.symbol,
@@ -116,7 +110,7 @@ async function performAlpacaSync() {
                       position.averageEntryPrice,
                     ]
                   ).catch((err) =>
-                    console.warn(`⚠️  Failed to insert/update ${position.symbol}:`, err.message)
+                    console.warn(`⚠️  Failed to insert ${position.symbol}:`, err.message)
                   )
                 )
               );
@@ -133,13 +127,15 @@ async function performAlpacaSync() {
         await query(
           `INSERT INTO portfolio_performance
           (user_id, date, total_value, total_gain_loss, total_return_pct, created_at)
-          VALUES ($1, CURRENT_DATE, $2, $3, $4, CURRENT_TIMESTAMP)
-          ON CONFLICT (user_id, date) DO UPDATE SET
-            total_value = $2,
-            total_gain_loss = $3,
-            total_return_pct = $4`,
+          VALUES ($1, CURRENT_DATE, $2, $3, $4, CURRENT_TIMESTAMP)`,
           [DEFAULT_USER_ID, portfolioValue, dayChange, dayChangePercent]
-        );
+        ).catch((err) => {
+          if (err.code === '23505') {
+            console.warn(` Portfolio performance for today already recorded, skipping update`);
+          } else {
+            console.error(` Database error during sync:`, err.message);
+          }
+        });
 
         lastSyncTime = now;
 

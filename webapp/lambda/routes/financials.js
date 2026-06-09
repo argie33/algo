@@ -68,7 +68,7 @@ router.get('/:ticker/balance-sheet', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching balance sheet:', { error: error.message });
+    logger.error('Error fetching balance sheet:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch balance sheet: ${error.message}`, 500);
   }
 });
@@ -125,7 +125,7 @@ router.get('/:ticker/income-statement', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching income statement:', { error: error.message });
+    logger.error('Error fetching income statement:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch income statement: ${error.message}`, 500);
   }
 });
@@ -182,7 +182,7 @@ router.get('/:ticker/cash-flow', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching cash flow:', { error: error.message });
+    logger.error('Error fetching cash flow:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch cash flow: ${error.message}`, 500);
   }
 });
@@ -232,7 +232,7 @@ router.get('/:ticker/key-metrics', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching key metrics:', { error: error.message });
+    logger.error('Error fetching key metrics:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch key metrics: ${error.message}`, 500);
   }
 });

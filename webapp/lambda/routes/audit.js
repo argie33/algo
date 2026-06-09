@@ -65,7 +65,7 @@ router.get("/trades", async (req, res) => {
       action_type: { type: 'string', required: true },
       symbol: { type: 'string', required: false },
       action_date: { type: 'date', required: false },
-      details: { type: 'string', required: false },
+      details: { type: 'raw', required: false },
       actor: { type: 'string', required: false },
       status: { type: 'string', required: false },
       error_message: { type: 'string', required: false },

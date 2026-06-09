@@ -159,7 +159,7 @@ async function getPerformanceMetrics(req, res) {
 
     return sendSuccess(res, response);
   } catch (error) {
-    logger.error('Error fetching performance metrics:', { error: error.message });
+    logger.error('Error fetching performance metrics:', { error: error.message, stack: error.stack });
     return sendError(res, 'Failed to fetch performance metrics', 500);
   }
 }
@@ -198,7 +198,7 @@ async function getRecentTrades(req, res) {
 
     return sendSuccess(res, trades);
   } catch (error) {
-    logger.error('Error fetching recent trades:', { error: error.message });
+    logger.error('Error fetching recent trades:', { error: error.message, stack: error.stack });
     return sendError(res, 'Failed to fetch recent trades', 500);
   }
 }

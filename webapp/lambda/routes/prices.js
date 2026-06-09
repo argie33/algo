@@ -99,7 +99,7 @@ router.get('/history/:symbol', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching price history:', { error: error.message });
+    logger.error('Error fetching price history:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch price history: ${error.message}`, 500);
   }
 });
@@ -205,7 +205,7 @@ router.get('/batch-history', async (req, res) => {
     return sendSuccess(res, { symbols: symbolData });
 
   } catch (error) {
-    logger.error('Error fetching batch price history:', { error: error.message });
+    logger.error('Error fetching batch price history:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch price history: ${error.message}`, 500);
   }
 });

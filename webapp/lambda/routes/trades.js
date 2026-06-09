@@ -331,7 +331,7 @@ router.get('/summary', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching trade summary:', { error: error.message });
+    logger.error('Error fetching trade summary:', { error: error.message, stack: error.stack });
     return sendError(res, 'Failed to fetch trade summary', 500);
   }
 });

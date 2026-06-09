@@ -310,15 +310,23 @@ async function updatePortfolioHoldings(userId, symbol, side, quantity, price) {
       newAvgCost = (parseFloat(current.quantity) * parseFloat(current.average_cost) + quantity * price) / newQty;
     }
 
-    await dbQuery(
-      `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       ON CONFLICT (user_id, symbol) DO UPDATE SET
-         quantity = $3,
-         average_cost = $4,
-         updated_at = CURRENT_TIMESTAMP`,
-      [userId, symbol, newQty, newAvgCost, price]
+    const existing = await dbQuery(
+      'SELECT quantity FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2',
+      [userId, symbol]
     );
+    if (existing.rows.length > 0) {
+      await dbQuery(
+        `UPDATE portfolio_holdings SET quantity = $3, average_cost = $4, current_price = $5, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1 AND symbol = $2`,
+        [userId, symbol, newQty, newAvgCost, price]
+      );
+    } else {
+      await dbQuery(
+        `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [userId, symbol, newQty, newAvgCost, price]
+      );
+    }
   } else if (side === 'SELL') {
     const currentResult = await dbQuery(
       'SELECT quantity FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2',
@@ -381,15 +389,23 @@ async function recomputeHoldings(userId, symbol) {
       [userId, symbol]
     );
   } else {
-    await dbQuery(
-      `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       ON CONFLICT (user_id, symbol) DO UPDATE SET
-         quantity = $3,
-         average_cost = $4,
-         updated_at = CURRENT_TIMESTAMP`,
-      [userId, symbol, totalQty, avgCost, 0, 0]
+    const existing = await dbQuery(
+      'SELECT quantity FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2',
+      [userId, symbol]
     );
+    if (existing.rows.length > 0) {
+      await dbQuery(
+        `UPDATE portfolio_holdings SET quantity = $3, average_cost = $4, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1 AND symbol = $2`,
+        [userId, symbol, totalQty, avgCost]
+      );
+    } else {
+      await dbQuery(
+        `INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [userId, symbol, totalQty, avgCost, 0, 0]
+      );
+    }
   }
 }
 

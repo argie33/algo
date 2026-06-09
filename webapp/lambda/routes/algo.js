@@ -125,7 +125,7 @@ router.get('/status', async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error('Error in /algo/status:', { error: error.message });
+    logger.error('Error in /algo/status:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching algorithm status');
   }
 });
@@ -221,7 +221,7 @@ router.get('/evaluate', async (req, res) => {
       top_qualified: qualified
     });
   } catch (error) {
-    logger.error('Error in /algo/evaluate:', { error: error.message });
+    logger.error('Error in /algo/evaluate:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while evaluating signals');
   }
 });
@@ -275,7 +275,7 @@ router.get('/last-run', requireAuth, async (req, res) => {
       phases: run.phases || []
     });
   } catch (error) {
-    logger.error('Error in /algo/last-run:', { error: error.message });
+    logger.error('Error in /algo/last-run:', { error: error.message, stack: error.stack });
     return sendSuccess(res, {
       run_id: null,
       run_at: null,
@@ -434,7 +434,7 @@ router.get('/positions', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error('Error in /algo/positions:', { error: error.message });
+    logger.error('Error in /algo/positions:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching positions');
   }
 });
@@ -506,7 +506,7 @@ router.get('/trades', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error('Error in /algo/trades:', { error: error.message });
+    logger.error('Error in /algo/trades:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching trade history');
   }
 });
@@ -545,7 +545,7 @@ router.get('/config', requireAuth, requireAdmin, async (req, res) => {
 
     return sendSuccess(res, config);
   } catch (error) {
-    logger.error('Error in /algo/config:', { error: error.message });
+    logger.error('Error in /algo/config:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching configuration');
   }
 });
@@ -695,7 +695,7 @@ router.get('/markets', async (req, res) => {
       })),
     });
   } catch (error) {
-    logger.error('Error in /algo/markets:', { error: error.message });
+    logger.error('Error in /algo/markets:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching market data');
   }
 });
@@ -784,7 +784,7 @@ router.get('/swing-scores', async (req, res) => {
       })
     });
   } catch (error) {
-    logger.error('Error in /algo/swing-scores:', { error: error.message });
+    logger.error('Error in /algo/swing-scores:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching swing scores');
   }
 });
@@ -841,7 +841,7 @@ router.get('/swing-scores-history', async (req, res) => {
       })
     });
   } catch (error) {
-    logger.error('Error in /algo/swing-scores-history:', { error: error.message });
+    logger.error('Error in /algo/swing-scores-history:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching score history');
   }
 });
@@ -940,7 +940,7 @@ router.get('/data-status', async (req, res) => {
       })),
     });
   } catch (error) {
-    logger.error('Error in /algo/data-status:', { error: error.message });
+    logger.error('Error in /algo/data-status:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while checking data status');
   }
 });
@@ -997,7 +997,7 @@ router.get('/exposure-policy', async (req, res) => {
       all_tiers: tiers,
     });
   } catch (error) {
-    logger.error('Error in /algo/exposure-policy:', { error: error.message });
+    logger.error('Error in /algo/exposure-policy:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching exposure policy');
   }
 });
@@ -1062,7 +1062,7 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
       output: result.output.join('')
     });
   } catch (error) {
-    logger.error('Error in /algo/run:', { error: error.message });
+    logger.error('Error in /algo/run:', { error: error.message, stack: error.stack });
     return sendError(res, 'An error occurred while running the algorithm', 500);
   }
 });
@@ -1108,7 +1108,7 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
       output: result.output.join('')
     });
   } catch (error) {
-    logger.error('Error in /algo/patrol:', { error: error.message });
+    logger.error('Error in /algo/patrol:', { error: error.message, stack: error.stack });
     return sendError(res, 'An error occurred while running data patrol', 500);
   }
 });
@@ -1147,7 +1147,7 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
         severity: { type: 'string', required: false },
         target_table: { type: 'string', required: false },
         message: { type: 'string', required: false },
-        details: { type: 'string', required: false },
+        details: { type: 'raw', required: false },
         created_at: { type: 'date', required: false }
       }).map(r => ({
         id: r.id,
@@ -1161,7 +1161,7 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
       }))
     });
   } catch (error) {
-    logger.error('Error in /algo/patrol-log:', { error: error.message });
+    logger.error('Error in /algo/patrol-log:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching patrol logs');
   }
 });
@@ -1218,13 +1218,13 @@ router.get('/notifications', authenticateToken, async (req, res) => {
         title: { type: 'string', required: false },
         message: { type: 'string', required: false },
         symbol: { type: 'string', required: false },
-        details: { type: 'string', required: false },
+        details: { type: 'raw', required: false },
         seen: { type: 'bool', required: false },
         created_at: { type: 'date', required: false }
       })
     });
   } catch (error) {
-    logger.error('Error fetching notifications:', { error: error.message });
+    logger.error('Error fetching notifications:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching notifications');
   }
 });
@@ -1241,7 +1241,7 @@ router.patch('/notifications/:id/read', authenticateToken, requireAdmin, async (
     );
     return sendSuccess(res, { updated: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    logger.error('Error marking notification as read:', { error: error.message });
+    logger.error('Error marking notification as read:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while updating notification');
   }
 });
@@ -1255,7 +1255,7 @@ router.delete('/notifications/:id', authenticateToken, requireAdmin, async (req,
     const result = await pool.query(`DELETE FROM algo_notifications WHERE id = $1`, [id]);
     return sendSuccess(res, { deleted: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    logger.error('Error deleting notification:', { error: error.message });
+    logger.error('Error deleting notification:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while deleting notification');
   }
 });
@@ -1275,7 +1275,7 @@ router.post('/notifications/seen', authenticateToken, async (req, res) => {
     );
     return sendSuccess(res, { marked: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    logger.error('Error marking notifications as seen:', { error: error.message });
+    logger.error('Error marking notifications as seen:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while updating notifications');
   }
 });
@@ -1442,7 +1442,7 @@ router.post('/pre-trade-impact', requireAuth, requireAdmin, async (req, res) => 
       recommendation: allOk ? 'READY TO TRADE' : 'CONSTRAINTS VIOLATED'
     });
   } catch (error) {
-    logger.error('Pre-trade simulation error:', { error: error.message });
+    logger.error('Pre-trade simulation error:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing trade impact');
   }
 });
@@ -1611,7 +1611,7 @@ router.get('/performance', authenticateToken, async (req, res) => {
       portfolio_snapshots: snaps.length,
     });
   } catch (error) {
-    logger.error('Error in /algo/performance:', { error: error.message });
+    logger.error('Error in /algo/performance:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while calculating performance metrics');
   }
 });
@@ -1656,7 +1656,7 @@ router.get('/equity-curve', authenticateToken, async (req, res) => {
       }))
     });
   } catch (error) {
-    logger.error('Error in /algo/equity-curve:', { error: error.message });
+    logger.error('Error in /algo/equity-curve:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching equity curve');
   }
 });
@@ -1695,7 +1695,7 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
         action_type: { type: 'string', required: false },
         symbol: { type: 'string', required: false },
         action_date: { type: 'date', required: false },
-        details: { type: 'string', required: false },
+        details: { type: 'raw', required: false },
         actor: { type: 'string', required: false },
         status: { type: 'string', required: false },
         error_message: { type: 'string', required: false },
@@ -1713,7 +1713,7 @@ router.get('/audit-log', requireAuth, requireAdmin, async (req, res) => {
       }))
     });
   } catch (error) {
-    logger.error('Error in /algo/audit-log:', { error: error.message });
+    logger.error('Error in /algo/audit-log:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching audit logs');
   }
 });
@@ -1764,7 +1764,7 @@ router.get('/trade/:tradeId', async (req, res) => {
 
     return sendSuccess(res, trade);
   } catch (error) {
-    logger.error('Error in /algo/trade/:id:', { error: error.message });
+    logger.error('Error in /algo/trade/:id:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching trade details');
   }
 });
@@ -1957,7 +1957,7 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       breakers,
     });
   } catch (error) {
-    logger.error('Error in /algo/circuit-breakers:', { error: error.message });
+    logger.error('Error in /algo/circuit-breakers:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching circuit breaker status');
   }
 });
@@ -2009,7 +2009,7 @@ router.get('/sector-breadth', async (req, res) => {
       }))
     });
   } catch (error) {
-    logger.error('Error in /algo/sector-breadth:', { error: error.message });
+    logger.error('Error in /algo/sector-breadth:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while calculating sector breadth');
   }
 });
@@ -2068,7 +2068,7 @@ router.get('/sector-stage2', async (req, res) => {
       }))
     });
   } catch (error) {
-    logger.error('Error in /algo/sector-stage2:', { error: error.message });
+    logger.error('Error in /algo/sector-stage2:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing sector stage 2 leaders');
   }
 });
@@ -2182,7 +2182,7 @@ router.get('/data-quality', async (req, res) => {
 
     return sendSuccess(res, { status: overall_status, checks });
   } catch (error) {
-    logger.error('Error in /algo/data-quality:', { error: error.message });
+    logger.error('Error in /algo/data-quality:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while checking data quality');
   }
 });
@@ -2242,7 +2242,7 @@ router.get('/rejection-funnel', async (req, res) => {
       ],
     });
   } catch (error) {
-    logger.error('Error in /algo/rejection-funnel:', { error: error.message });
+    logger.error('Error in /algo/rejection-funnel:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing rejection funnel');
   }
 });
@@ -2299,7 +2299,7 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
       approval_required: pending_orders.length > 0
     });
   } catch (error) {
-    logger.error('Error in /algo/orders/pending:', { error: error.message });
+    logger.error('Error in /algo/orders/pending:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while fetching pending orders');
   }
 });
@@ -2354,7 +2354,7 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
 
     return sendSuccess(res, { metrics });
   } catch (error) {
-    logger.error('Error in /algo/execution-quality:', { error: error.message });
+    logger.error('Error in /algo/execution-quality:', { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing execution quality');
   }
 });
@@ -2410,7 +2410,7 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
 
     return sendSuccess(res, { patterns, timestamp: new Date() }, 200);
   } catch (error) {
-    logger.error("Error in /algo/signal-performance-by-pattern:", { error: error.message });
+    logger.error("Error in /algo/signal-performance-by-pattern:", { error: error.message, stack: error.stack });
     return sendDatabaseError(res, error, 'An error occurred while analyzing signal performance');
   }
 });

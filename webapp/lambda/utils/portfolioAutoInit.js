@@ -198,11 +198,7 @@ class PortfolioAutoInit {
           await query(
             `INSERT INTO portfolio_performance (
               user_id, total_value, total_cost, total_return_percent, created_at
-            ) VALUES ($1, $2, $3, $4, NOW())
-            ON CONFLICT (user_id, date) DO UPDATE SET
-              total_value = $2,
-              total_cost = $3,
-              total_return_percent = $4`,
+            ) VALUES ($1, $2, $3, $4, NOW())`,
             [userId, totalMarketValue, totalCost, returnPercent]
           );
         } catch (e) {

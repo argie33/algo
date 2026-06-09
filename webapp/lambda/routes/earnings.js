@@ -79,7 +79,7 @@ router.get('/', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching earnings calendar:', { error: error.message });
+    logger.error('Error fetching earnings calendar:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch earnings calendar: ${error.message}`, 500);
   }
 });

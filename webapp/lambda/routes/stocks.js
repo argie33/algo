@@ -94,7 +94,7 @@ router.get('/', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching stocks:', { error: error.message });
+    logger.error('Error fetching stocks:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch stocks: ${error.message}`, 500);
   }
 });
@@ -180,7 +180,7 @@ router.get('/deep-value', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching deep-value stocks:', { error: error.message });
+    logger.error('Error fetching deep-value stocks:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch deep-value stocks: ${error.message}`, 500);
   }
 });
@@ -238,7 +238,7 @@ router.get('/:ticker', async (req, res) => {
 
     return sendSuccess(res, validated);
   } catch (error) {
-    logger.error('Error fetching stock detail:', { error: error.message });
+    logger.error('Error fetching stock detail:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch stock details: ${error.message}`, 500);
   }
 });
