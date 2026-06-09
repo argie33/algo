@@ -999,3 +999,135 @@ terraform state show aws_db_proxy_target.main
 **Halt flag stuck:** Use `python scripts/check_halt_flag.py` to check status. `--clear` flag resets it manually if needed. The auto-expiry logic should handle stale flags from prior trading days automatically.
 
 **Data patrol grace period & DynamoDB degradation:** Phase 1 uses a grace period to prevent redundant data patrol triggers when a patrol is already running. If DynamoDB is unavailable, the system gracefully falls back to checking the latest patrol timestamp directly from the database. This means data patrol monitoring continues even if DynamoDB is down, though with slightly less precision (uses database timestamps instead of DynamoDB tracking). Both mechanisms prevent rapid re-triggers within 60 minutes of the last successful patrol completion.
+
+## Production Readiness: Monitoring & Infrastructure
+
+### RDS Monitoring (Priority 3: Database Health)
+
+**CloudWatch Metrics Setup:**
+
+Monitor `DatabaseConnections` metric from `AWS/RDS` namespace for instance `algo-db`:
+
+```bash
+# View current peak connections (last hour)
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/RDS \
+  --metric-name DatabaseConnections \
+  --dimensions Name=DBInstanceIdentifier,Value=algo-db \
+  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 300 \
+  --statistics Average,Maximum
+```
+
+**Expected Connection Ranges:**
+- **EOD Pipeline (4:05-5:30 PM ET):** 20-35 RDS connections (safe; 500 max)
+- **Morning Prep (2:45-9:30 AM ET):** <30 connections (2-3 loaders running)
+- **API queries only:** 10-20 additional connections from Lambda
+
+**Alert Thresholds (CloudWatch alarms):**
+- Warning: >350 connections (70% utilization) — investigate slow queries
+- Critical: >450 connections (90% utilization) — immediate scale-up needed
+
+**Verify RDS Proxy is active:**
+```bash
+aws rds describe-db-proxies \
+  --query 'DBProxies[?DBProxyName==`algo-rds-proxy-dev`].Status'
+# Expected: "available"
+```
+
+**CPU Monitoring:**
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/RDS \
+  --metric-name CPUUtilization \
+  --dimensions Name=DBInstanceIdentifier,Value=algo-db \
+  --period 60 --statistics Maximum
+```
+
+Alert if CPU > 70% sustained or > 85% critical.
+
+### Infrastructure Pre-Deployment Checklist (Priority 4)
+
+Before production deployment, verify all components:
+
+**AWS Resources:**
+- [ ] RDS `algo-db` instance exists (t4g.small, 500 max connections)
+- [ ] RDS Proxy `algo-rds-proxy-dev` status = "available"
+- [ ] CloudFront distribution exists and domain in Secrets Manager
+- [ ] S3 bucket `algo-frontend-dev` configured with correct CORS
+- [ ] Cognito user pool created with correct callback URLs
+- [ ] Lambda `algo-api-dev` exists with provisioned concurrency = 1
+- [ ] EventBridge schedules configured (9:30 AM, 1 PM, 3 PM, 5:30 PM ET)
+- [ ] Step Functions state machine `algo-eod-pipeline-dev` created
+
+**Lambda Configuration:**
+- [ ] Environment: DB_HOST, DB_PORT, DB_USER, DB_NAME
+- [ ] Secrets: algo/database, algo/alpaca, algo/fred configured
+- [ ] VPC: Lambda in private subnet, egress to RDS Proxy + Cognito (port 443)
+- [ ] Timeout: 30 seconds minimum
+- [ ] Memory: 256 MB minimum
+- [ ] Provisioned concurrency active (1 unit)
+
+**SNS Alerts:**
+- [ ] Topic `algo-alerts-dev` exists
+- [ ] Email subscription for argeropolos@gmail.com confirmed
+- [ ] Test notification successful
+
+**Verification Commands:**
+```bash
+# RDS Proxy active
+aws rds describe-db-proxies --query 'DBProxies[?DBProxyName==`algo-rds-proxy-dev`].[Status]'
+
+# Lambda provisioned concurrency
+aws lambda get-provisioned-concurrency-config --function-name algo-api-dev
+
+# Cognito user pool
+aws cognito-idp describe-user-pool --user-pool-id <POOL_ID>
+```
+
+### Loader Reliability Verification (Priority 5)
+
+**Configuration Status (37 Loaders):**
+- **10 Core Loaders (FAIL-CLOSED):** Halt pipeline on error
+  - market_health_daily, portfolio_reconciliation, risk_calculations, etc.
+  - Errors trigger SNS alert + stop EOD pipeline
+
+- **27 Supporting Loaders (FAIL-OPEN):** Continue with warning
+  - earnings_calendar, economic_indicators, sentiment_data, etc.
+  - Errors logged as warnings; pipeline continues
+
+**Step Functions EOD Pipeline Verification:**
+- [ ] Total timeout: 27000 seconds (7.5 hours) for all batches
+- [ ] Phase 1 (core): stock_prices_daily, technical_data_daily, market_health
+- [ ] Phase 2 (supporting): 27 analytics loaders in parallel batches
+- [ ] Phase 3 (reconciliation): portfolio sync, risk calc, alerts
+- [ ] Retry logic: exponential backoff with 2 max retries
+- [ ] Error handlers: SNS notifications on core loader failure
+
+**yfinance Rate Limiting:**
+- [ ] batch_size = 100 symbols per request
+- [ ] Retry on 429: automatic backoff to 2+ second delay
+- [ ] Timeout per batch: 60 seconds max
+- [ ] stock_prices_daily: locked to parallelism=1 (prevents rate limit)
+
+**RDS Connection Pool Check During EOD:**
+```bash
+# Run every 5 minutes during 4:05-5:30 PM ET
+watch -n 300 'aws cloudwatch get-metric-statistics \
+  --namespace AWS/RDS \
+  --metric-name DatabaseConnections \
+  --dimensions Name=DBInstanceIdentifier,Value=algo-db \
+  --period 60 --statistics Maximum \
+  --start-time $(date -u -d "10 min ago" +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S)'
+```
+
+Expected peak: <350 connections (safe margin to 500 max).
+
+**Post-EOD Verification:**
+- [ ] All 37 loaders completed without core-loader errors
+- [ ] RDS peak connections < 350
+- [ ] RDS CPU remained < 70%
+- [ ] No "too many connections" errors in logs
+- [ ] Adaptive parallelism prevented rate-limiting (429 errors absent)
