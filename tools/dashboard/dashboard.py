@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import statistics
 import sys
@@ -21,6 +22,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
+logger = logging.getLogger(__name__)
+
 try:
     import msvcrt
     def _keypress() -> str:
@@ -29,6 +32,7 @@ try:
             return ch.decode("utf-8", errors="ignore").lower()
         return ""
 except ImportError:
+    # Not on Windows (AWS Linux, etc.)
     def _keypress() -> str:
         return ""
 
@@ -37,8 +41,8 @@ if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except AttributeError:
-        pass
+    except (AttributeError, ValueError):
+        pass  # AttributeError on older Python, ValueError on some environments
 
 try:
     import psycopg2, psycopg2.extras
@@ -536,31 +540,75 @@ def fetch_perf(c):
         return {"_error": str(e)}
 
 def fetch_positions(c):
+    """Fetch open positions from algo_trades (single source of truth).
+
+    Data derivation:
+    - algo_trades WHERE status IN ('open','filled','partially_filled','active')
+    - Latest price from price_daily
+    - Trade metadata (stop, targets) from the trade record
+    - Technical/fundamental data from supporting tables
+
+    This eliminates sync issues that occur when algo_positions table
+    drifts from algo_trades. Positions are now computed, not stored separately.
+    """
     try:
         return q(c, """
-            WITH lt AS (
-                SELECT DISTINCT ON (symbol) symbol, stop_loss_price, target_1_price
-                FROM algo_trades WHERE status='open' ORDER BY symbol, trade_date DESC
+            WITH open_trades AS (
+                -- All trades with active positions (source of truth)
+                SELECT DISTINCT ON (symbol)
+                    symbol, trade_id, entry_quantity, entry_price,
+                    stop_loss_price, target_1_price, target_2_price, target_3_price,
+                    trade_date, entry_time
+                FROM algo_trades
+                WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+                    AND (exit_date IS NULL OR exit_date > CURRENT_DATE - 1)
+                ORDER BY symbol, trade_date DESC
             ),
-            ltt AS (
+            latest_prices AS (
+                SELECT DISTINCT ON (symbol) symbol, close as current_price
+                FROM price_daily
+                ORDER BY symbol, date DESC
+            ),
+            trend AS (
                 SELECT DISTINCT ON (symbol) symbol, weinstein_stage
-                FROM trend_template_data ORDER BY symbol, date DESC
+                FROM trend_template_data
+                ORDER BY symbol, date DESC
             ),
-            lss AS (
+            swings AS (
                 SELECT DISTINCT ON (symbol) symbol, score AS swing_score
-                FROM swing_trader_scores ORDER BY symbol, date DESC
+                FROM swing_trader_scores
+                ORDER BY symbol, date DESC
+            ),
+            days_held AS (
+                SELECT symbol,
+                    EXTRACT(DAY FROM CURRENT_TIMESTAMP - entry_time)::INT as days_since_entry
+                FROM open_trades
             )
-            SELECT p.symbol, p.avg_entry_price, p.current_price,
-                   p.unrealized_pnl_pct, p.position_value, p.days_since_entry,
-                   lt.stop_loss_price, lt.target_1_price,
-                   ltt.weinstein_stage, cp.sector, lss.swing_score
-            FROM algo_positions p
-            LEFT JOIN lt  ON lt.symbol  = p.symbol
-            LEFT JOIN ltt ON ltt.symbol = p.symbol
-            LEFT JOIN company_profile cp ON cp.ticker = p.symbol
-            LEFT JOIN lss ON lss.symbol = p.symbol
-            WHERE p.status = 'open' ORDER BY p.position_value DESC""")
-    except:
+            SELECT
+                ot.symbol,
+                ot.entry_price as avg_entry_price,
+                COALESCE(lp.current_price, ot.entry_price) as current_price,
+                CASE
+                    WHEN ot.entry_price > 0
+                    THEN (((COALESCE(lp.current_price, ot.entry_price) - ot.entry_price) / ot.entry_price) * 100)
+                    ELSE 0
+                END as unrealized_pnl_pct,
+                (ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::DECIMAL(14,2) as position_value,
+                dh.days_since_entry,
+                ot.stop_loss_price,
+                ot.target_1_price,
+                t.weinstein_stage,
+                cp.sector,
+                s.swing_score
+            FROM open_trades ot
+            LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
+            LEFT JOIN trend t ON ot.symbol = t.symbol
+            LEFT JOIN company_profile cp ON cp.ticker = ot.symbol
+            LEFT JOIN swings s ON ot.symbol = s.symbol
+            LEFT JOIN days_held dh ON ot.symbol = dh.symbol
+            ORDER BY position_value DESC""")
+    except Exception as e:
+        logger.warning(f"fetch_positions failed: {e}")
         return []
 
 def fetch_recent_trades(c):
