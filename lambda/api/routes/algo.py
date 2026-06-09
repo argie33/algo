@@ -2262,8 +2262,9 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
             if result.get('phase_results'):
                 try:
                     result['phase_results'] = json.loads(result['phase_results'])
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f'Failed to parse phase_results JSON: {e}')
+                    result['phase_results'] = {}
             return success_response(result)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
             logger.error(f'Data unavailable: {e}', extra={'operation': 'get orchestrator execution details'})
