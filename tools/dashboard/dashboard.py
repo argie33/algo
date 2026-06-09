@@ -3,10 +3,10 @@
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
 Usage:
-  python scripts/algo_dashboard.py            # live view (q or Ctrl+C to exit)
-  python scripts/algo_dashboard.py -w         # watch mode, auto-refresh every 30s
-  python scripts/algo_dashboard.py -w 60      # watch mode, refresh every 60s
-  python scripts/algo_dashboard.py --compact  # narrow positions table
+  python tools/dashboard/dashboard.py            # live view (q or Ctrl+C to exit)
+  python tools/dashboard/dashboard.py -w         # watch mode, auto-refresh every 30s
+  python tools/dashboard/dashboard.py -w 60      # watch mode, refresh every 60s
+  python tools/dashboard/dashboard.py --compact  # narrow positions table
 """
 
 import argparse
