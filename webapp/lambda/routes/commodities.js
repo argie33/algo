@@ -321,6 +321,7 @@ router.get("/summary", async (req, res) => {
   try {
     return res.redirect(307, './market-summary');
   } catch (error) {
+    logger.error('Error in /commodities/summary:', { error: error.message, stack: error.stack });
     return sendError(res, error.message, 500);
   }
 });

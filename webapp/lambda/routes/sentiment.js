@@ -11,6 +11,7 @@ router.get("/", async (req, res) => {
   try {
     return sendSuccess(res, { message: "Sentiment API - use /summary, /data, /analyst for specific endpoints" });
   } catch (error) {
+    logger.error('Error in /sentiment:', { error: error.message, stack: error.stack });
     return sendError(res, error.message, 500);
   }
 });
@@ -79,6 +80,7 @@ router.get("/data", async (req, res) => {
       totalPages: Math.ceil(total / limitNum)
     });
   } catch (error) {
+    logger.error('Error in /sentiment/data:', { error: error.message, stack: error.stack });
     return sendError(res, `Failed to fetch sentiment data: ${error.message}`, 500);
   }
 });

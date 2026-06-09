@@ -24,6 +24,7 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
+    logger.error('Error in /status:', { error: errorMsg, stack: error?.stack });
     return sendSuccess(res, {
       status: "error",
       timestamp: new Date().toISOString(),

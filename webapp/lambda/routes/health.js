@@ -72,6 +72,7 @@ router.get("/detailed", async (req, res) => {
 
     return sendSuccess(res, response);
   } catch (error) {
+    logger.error('Error in /health/detailed:', { error: error.message, stack: error.stack });
     return sendError(res, "Detailed health check failed: " + error.message, 503);
   }
 });
@@ -159,6 +160,7 @@ router.get("/diagnostics", async (req, res) => {
 
     return sendSuccess(res, diagnostics);
   } catch (error) {
+    logger.error('Error in /health/diagnostics:', { error: error.message, stack: error.stack });
     return sendError(res, "Diagnostics check failed: " + error.message, 503);
   }
 });

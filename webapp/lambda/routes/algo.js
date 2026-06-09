@@ -1320,6 +1320,7 @@ router.post('/simulate', requireAuth, requireAdmin, async (req, res) => {
       output: result.output.join('')
     });
   } catch (error) {
+    logger.error('Error in /algo/simulate-execution:', { error: error.message, stack: error.stack });
     return sendError(res, 'An error occurred while simulating trade execution', 500);
   }
 });

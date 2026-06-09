@@ -3064,6 +3064,7 @@ router.get("/cap-distribution", async (req, res) => {
 
     return sendSuccess(res, result.rows || []);
   } catch (error) {
+    logger.error('Error in /market/distribution:', { error: error.message, stack: error.stack });
     return sendSuccess(res, []);
   }
 });
@@ -3100,6 +3101,7 @@ router.get("/naaim", async (req, res) => {
       history,
     });
   } catch (error) {
+    logger.error('Error in /market/naaim:', { error: error.message, stack: error.stack });
     return sendSuccess(res, null);
   }
 });
@@ -3135,6 +3137,7 @@ router.get("/", async (req, res) => {
       message: "Market overview - use /status, /technicals, /sentiment for detailed data"
     });
   } catch (error) {
+    logger.error('Error in /market:', { error: error.message, stack: error.stack });
     return sendSuccess(res, { message: "Market data not available" });
   }
 });
