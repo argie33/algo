@@ -1197,7 +1197,7 @@ def _get_notifications(cur, params: Dict = None, jwt_claims: Dict = None) -> Dic
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch notifications: {type(e).__name__}: {e}', extra={'operation': 'fetch notifications'})
-            return list_response([])
+            return error_response(500, 'internal_error', f'Failed to fetch notifications: {type(e).__name__}')
 
 def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
         """Analyze impact of a potential trade on portfolio constraints."""
@@ -1515,7 +1515,7 @@ def _get_sector_rotation(cur, days: int = 180) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch sector rotation: {type(e).__name__}: {e}', extra={'operation': 'get sector rotation'})
-            return list_response([])
+            return error_response(500, 'internal_error', f'Failed to fetch sector rotation: {type(e).__name__}')
 def _get_sector_breadth(cur) -> Dict:
         """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -1574,16 +1574,16 @@ def _get_sector_breadth(cur) -> Dict:
                 cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             except Exception as sp_err:
                 logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
-            logger.warning(f'Sector breadth data unavailable: {e}')
-            return list_response([])
+            logger.error(f'Sector breadth data unavailable: {type(e).__name__}: {e}', extra={'operation': 'get sector breadth'})
+            return error_response(500, 'internal_error', f'Failed to fetch sector breadth: {type(e).__name__}')
         except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT sector_breadth_check")
                 cur.execute("RELEASE SAVEPOINT sector_breadth_check")
             except Exception as sp_err:
                 logger.debug(f'Failed to rollback sector_breadth_check savepoint: {sp_err}')
-            logger.warning(f'Sector breadth query failed ({type(e).__name__}) — returning empty. DB may be under write load.')
-            return list_response([])
+            logger.error(f'Sector breadth query failed: {type(e).__name__}: {e}', extra={'operation': 'get sector breadth'})
+            return error_response(500, 'internal_error', f'Failed to fetch sector breadth: {type(e).__name__}')
 def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: str = None) -> Dict:
         """Get swing trade candidates with scoring."""
         try:
@@ -1622,7 +1622,7 @@ def _get_swing_scores(cur, limit: int = 100, min_score: float = None, symbol: st
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch swing scores: {type(e).__name__}: {e}', extra={'operation': 'get swing scores'})
-            return list_response([])
+            return error_response(500, 'internal_error', f'Failed to fetch swing scores: {type(e).__name__}')
 def _get_swing_scores_history(cur, days: int = 30) -> Dict:
         """Get swing scores historical data."""
         try:
@@ -1644,7 +1644,7 @@ def _get_swing_scores_history(cur, days: int = 30) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch swing scores history: {type(e).__name__}: {e}', extra={'operation': 'get swing scores history'})
-            return list_response([])
+            return error_response(500, 'internal_error', f'Failed to fetch swing scores history: {type(e).__name__}')
 def _get_rejection_funnel(cur) -> Dict:
         """Get signal rejection funnel with detailed breakdown by filter."""
         try:
