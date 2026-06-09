@@ -285,7 +285,7 @@ def _get_last_run(cur) -> Dict:
         """)
         latest = cur.fetchone()
         if not latest or not latest['run_id']:
-            return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
+            return json_response(200, {'run_id': None, 'run_at': None, 'halted': False, 'phases': []})
 
         run_id = latest['run_id']
         run_at = latest['run_at']
@@ -315,7 +315,7 @@ def _get_last_run(cur) -> Dict:
             psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, 'get last run')
         logger.error(f'Failed to fetch last run: {error_type} - {message}')
-        return json_response(200, {'run_id': None, 'run_at': None, 'success': False, 'halted': False, 'phases': []})
+        return json_response(code, {'errorType': error_type, 'message': message})
 
 def _get_algo_status(cur) -> Dict:
         """Get latest algo execution status plus latest portfolio snapshot."""
@@ -1225,7 +1225,9 @@ def _analyze_pre_trade_impact(cur, body: Dict) -> Dict:
                 ORDER BY snapshot_date DESC LIMIT 1
             """)
             snap = cur.fetchone()
-            portfolio_value = float(snap['total_portfolio_value']) if snap and snap['total_portfolio_value'] else 100000.0
+            if not snap or not snap['total_portfolio_value']:
+                return error_response(503, 'service_unavailable', 'Portfolio value unavailable - cannot analyze pre-trade impact')
+            portfolio_value = float(snap['total_portfolio_value'])
 
             cur.execute("""
                 SELECT sector, industry FROM company_profile WHERE ticker = %s
@@ -1830,7 +1832,7 @@ def _get_markets(cur) -> Dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch markets: {type(e).__name__}: {e}', extra={'operation': 'get markets'})
-            return json_response(200, {'success': False, 'current': {}, 'active_tier': None, 'history': [], 'sectors': [], 'market_health': None})
+            return json_response(503, {'errorType': 'service_unavailable', 'message': 'Failed to fetch markets: database connection failed'})
 
 def _get_algo_evaluate(cur) -> Dict:
         """Get comprehensive signal evaluation with candidate analysis and constraints."""
