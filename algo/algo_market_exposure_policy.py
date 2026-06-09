@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
 
 import math
+from datetime import date as _date
 from utils.database_context import DatabaseContext
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Four tiers aligned with RegimeManager vocabulary so both systems speak the same language.
+# Ranges mirror the regime thresholds in algo_market_exposure.py:
+#   confirmed_uptrend    >= 70%
+#   uptrend_under_pressure 45-70%
+#   caution              25-45%
+#   correction           < 25%
+#
+# Upper bounds are exclusive (except the top tier) — no boundary overlap.
 EXPOSURE_TIERS = [
     {
         'name': 'confirmed_uptrend',
-        'min_pct': 80,
+        'min_pct': 70,
         'max_pct': 100,
-        'description': 'Healthy bull market — full deployment',
+        'description': 'Confirmed bull market — full deployment',
         'risk_multiplier': 1.0,
         'max_new_positions_today': 5,
         'min_swing_score': 60.0,
@@ -20,62 +29,46 @@ EXPOSURE_TIERS = [
         'force_partial_at_r': None,
         'halt_new_entries': False,
         'force_exit_negative_r': False,
-        'max_concentration_pct': 50.0,
+        'max_concentration_pct': 20.0,
         'color': 'green',
     },
     {
-        'name': 'healthy_uptrend',
-        'min_pct': 60,
-        'max_pct': 80,
-        'description': 'Bull market with caution — slightly reduced risk',
-        'risk_multiplier': 0.85,
-        'max_new_positions_today': 4,
-        'min_swing_score': 65.0,
+        'name': 'uptrend_under_pressure',
+        'min_pct': 45,
+        'max_pct': 70,
+        'description': 'Uptrend intact but weakening — reduced position size',
+        'risk_multiplier': 0.65,
+        'max_new_positions_today': 3,
+        'min_swing_score': 68.0,
         'min_swing_grade': 'B',
-        'tighten_winners_at_r': 3.0,
+        'tighten_winners_at_r': 2.5,
         'force_partial_at_r': None,
         'halt_new_entries': False,
         'force_exit_negative_r': False,
-        'max_concentration_pct': 45.0,
-        'color': 'lightgreen',
-    },
-    {
-        'name': 'pressure',
-        'min_pct': 40,
-        'max_pct': 60,
-        'description': 'Uptrend under pressure — defensive posture',
-        'risk_multiplier': 0.5,
-        'max_new_positions_today': 2,
-        'min_swing_score': 70.0,
-        'min_swing_grade': 'A',
-        'tighten_winners_at_r': 2.0,
-        'force_partial_at_r': 3.0,
-        'halt_new_entries': False,
-        'force_exit_negative_r': False,
-        'max_concentration_pct': 35.0,
+        'max_concentration_pct': 16.0,
         'color': 'yellow',
     },
     {
         'name': 'caution',
-        'min_pct': 20,
-        'max_pct': 40,
-        'description': 'Major caution — entries halted unless exceptional',
-        'risk_multiplier': 0.25,
+        'min_pct': 25,
+        'max_pct': 45,
+        'description': 'Market under significant stress — entries halted',
+        'risk_multiplier': 0.35,
         'max_new_positions_today': 1,
         'min_swing_score': 75.0,
         'min_swing_grade': 'A',
         'tighten_winners_at_r': 1.5,
-        'force_partial_at_r': 2.0,
+        'force_partial_at_r': 2.5,
         'halt_new_entries': True,
         'force_exit_negative_r': False,
-        'max_concentration_pct': 25.0,
+        'max_concentration_pct': 12.0,
         'color': 'orange',
     },
     {
         'name': 'correction',
         'min_pct': 0,
-        'max_pct': 20,
-        'description': 'Market correction — preserve capital',
+        'max_pct': 25,
+        'description': 'Market correction — preserve capital, no new entries',
         'risk_multiplier': 0.0,
         'max_new_positions_today': 0,
         'min_swing_score': 100.0,
@@ -84,27 +77,29 @@ EXPOSURE_TIERS = [
         'force_partial_at_r': 1.5,
         'halt_new_entries': True,
         'force_exit_negative_r': True,
-        'max_concentration_pct': 15.0,
+        'max_concentration_pct': 10.0,
         'color': 'red',
     },
 ]
 
+
 def tier_for_exposure(exposure_pct):
     """Return the active policy tier for a given exposure %.
 
-    NaN or None exposure defaults to safest tier (CORRECTION) to fail-closed.
+    Upper bounds are exclusive so exact boundary values (e.g. 70.0) land in the
+    higher (more aggressive) tier, matching the >= thresholds in algo_market_exposure.py.
+    NaN or None defaults to correction (fail-closed).
     """
-    # Fail-closed on bad data: if exposure is None or NaN, use safest tier
     if exposure_pct is None or (isinstance(exposure_pct, float) and math.isnan(exposure_pct)):
-        return EXPOSURE_TIERS[-1]  # CORRECTION tier (safest)
-
-    for tier in EXPOSURE_TIERS:
-        if tier['min_pct'] <= exposure_pct <= tier['max_pct']:
-            return tier
-    # Fallback: clip
-    if exposure_pct < 0:
         return EXPOSURE_TIERS[-1]
-    return EXPOSURE_TIERS[0]
+
+    for i, tier in enumerate(EXPOSURE_TIERS):
+        is_last = i == len(EXPOSURE_TIERS) - 1
+        upper_ok = exposure_pct <= tier['max_pct'] if is_last else exposure_pct < tier['max_pct']
+        if tier['min_pct'] <= exposure_pct and upper_ok:
+            return tier
+
+    return EXPOSURE_TIERS[-1] if exposure_pct < 0 else EXPOSURE_TIERS[0]
 
 class ExposurePolicy:
     """Apply market exposure tier policies to portfolio state."""

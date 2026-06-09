@@ -367,14 +367,19 @@ class ExitEngine:
                     'new_stop': max(active_stop, entry_price),
                 }
 
-        # 8. DISTRIBUTION
+        # 8. DISTRIBUTION — reduce position and raise stop to at least breakeven.
+        # Full exit on market distribution is too blunt: it forces out positions that
+        # may still be working. Minervini/O'Neil use distribution days as a signal to
+        # tighten risk, not automatically liquidate. Partial exit books some profit while
+        # the raised stop protects the remainder.
         if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
             max_dd = int(self.config.get('max_distribution_days', 4))
             if dist_days_today > max_dd:
                 return {
                     'stage': 'distribution',
-                    'fraction': 1.0,
-                    'reason': f'Market distribution: {dist_days_today} dist days > {max_dd}',
+                    'fraction': 0.5,
+                    'new_stop': max(active_stop, entry_price),
+                    'reason': f'Market distribution: {dist_days_today} dist days > {max_dd} — reducing 50%, stop raised to breakeven',
                 }
 
         return None
@@ -479,7 +484,7 @@ class ExitEngine:
         try:
             cur.execute(
                 """
-                SELECT MAX(high) FROM price_daily
+                SELECT MAX(close) FROM price_daily
                 WHERE symbol = %s
                   AND date >= %s::date - MAKE_INTERVAL(days => %s)
                   AND date <= %s::date - MAKE_INTERVAL(days => %s)
@@ -489,10 +494,10 @@ class ExitEngine:
             row = cur.fetchone()
             if not row or not row[0]:
                 return False
-            max_high_in_window = float(row[0])
+            max_close_in_window = float(row[0])
             if entry_price <= 0:
                 return False
-            gain_pct = (max_high_in_window - entry_price) / entry_price * 100.0
+            gain_pct = (max_close_in_window - entry_price) / entry_price * 100.0
             return gain_pct >= threshold_pct
         except Exception as e:
             logger.error(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
@@ -555,16 +560,6 @@ class ExitEngine:
         except Exception as e:
             logger.error(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
             return None
-
-    def _is_td_sequential_top(self, cur, symbol, current_date) -> bool:
-        """Use rigorous DeMark TD Sequential — fires when sell-setup count = 9."""
-        try:
-            sc = SignalComputer()
-            td = sc.td_sequential(symbol, current_date)
-            return td.get('completed_9', False) and td.get('setup_type') == 'sell'
-        except Exception as e:
-            logger.error(f"Warning: _is_td_sequential_top({symbol}) failed: {e}")
-            return False
 
     def _get_td_state(self, cur, symbol, current_date) -> Dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection)."""

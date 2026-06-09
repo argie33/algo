@@ -148,6 +148,7 @@ class PortfolioRisk:
         Returns:
             dict with stressed VaR, or None if insufficient data
         """
+        import numpy as np
         try:
             with DatabaseContext('read') as cur:
                 cur.execute(

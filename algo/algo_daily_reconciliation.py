@@ -51,19 +51,18 @@ class DailyReconciliation:
             # 1. Fetch Alpaca account
             alpaca_data = self._fetch_alpaca_account()
             if not alpaca_data:
-                logger.error("CRITICAL: Alpaca account fetch failed — cannot reconcile")
+                logger.warning("Alpaca account fetch failed — writing snapshot with DB-computed positions (cash from prior snapshot)")
                 try:
                     notify('critical', title='Alpaca Connection Failed',
-                           message='Daily reconciliation cannot proceed without Alpaca account data')
+                           message='Reconciliation using DB-only fallback — cash balance may be stale')
                 except Exception as e:
-                    logger.warning(f"Failed to send Alpaca failure notification: {e} (proceeding with reconciliation halt)")
-                    # Note: notification failure doesn't block reconciliation halt, but we log it
-                return {'success': False, 'reason': 'Alpaca account fetch failed — reconciliation halted'}
-
-            logger.info(f"1. Alpaca Account:")
-            logger.info(f"   Portfolio Value: ${alpaca_data.get('portfolio_value', 0):,.2f}")
-            logger.info(f"   Cash: ${alpaca_data.get('cash', 0):,.2f}")
-            logger.info(f"   Equity: ${alpaca_data.get('equity', 0):,.2f}")
+                    logger.warning(f"Failed to send Alpaca failure notification: {e}")
+                alpaca_data = {}
+            else:
+                logger.info(f"1. Alpaca Account:")
+                logger.info(f"   Portfolio Value: ${alpaca_data.get('portfolio_value', 0):,.2f}")
+                logger.info(f"   Cash: ${alpaca_data.get('cash', 0):,.2f}")
+                logger.info(f"   Equity: ${alpaca_data.get('equity', 0):,.2f}")
 
             with DatabaseContext('write') as cur:
                 # 1b. Sync Alpaca positions into our DB (imports any external positions)
@@ -124,7 +123,13 @@ class DailyReconciliation:
                     logger.info(f"   {symbol}: {qty_f:.0f} @ ${entry_f:.2f} -> ${current_f:.2f} | {pnl:+,.2f} ({pnl_pct:+.2f}%)")
 
                 # 3. Calculate metrics
-                cash = alpaca_data.get('cash', 0)
+                cash = float(alpaca_data.get('cash') or 0)
+                if cash == 0:
+                    cur.execute("SELECT total_cash FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+                    prev_cash_row = cur.fetchone()
+                    if prev_cash_row and prev_cash_row[0]:
+                        cash = float(prev_cash_row[0])
+                        logger.info(f"   Cash (from prior snapshot): ${cash:,.2f}")
                 # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
                 # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
                 alpaca_portfolio_value = float(alpaca_data.get('portfolio_value', 0) or 0)

@@ -22,8 +22,8 @@ credit cycle research):
      3pt  NAAIM EXPOSURE        professional manager positioning (contrarian at extremes)
 
 Removed old "IBD MARKET STATE" 18pt factor (it double-counted distribution days and
-follow-through day logic). Now they are separate factors: FTD = 16pt (confirmation),
-DD = 9pt (pressure gauge).
+follow-through day logic). Now they are separate factors: FTD = 10pt (confirmation),
+DD = 8pt (pressure gauge).
 
 PLUS HARD VETOES (cap at ≤25-35%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
@@ -39,7 +39,7 @@ PLUS ECONOMIC REGIME OVERLAY (penalty, not a factor):
 
 Output:
     market_exposure_pct (0-100): drives dynamic risk allocation
-    state: 'confirmed_uptrend' | 'uptrend_under_pressure' | 'correction'
+    state: 'confirmed_uptrend' | 'uptrend_under_pressure' | 'caution' | 'correction'
     factors: dict of each input + sub-score
     halt_reasons: list of any active hard vetoes
 
@@ -295,9 +295,12 @@ class MarketExposure:
             if dd_count >= 6:
                 halt_reasons.append(f'{dd_count} distribution days >= 6')
                 cap = min(cap, 35.0)
-            # Veto 4: no follow-through day after correction signal
-            if not ftd.get('has_ftd'):
-                halt_reasons.append('No follow-through day in last 30 days')
+            # Veto 4: no follow-through day — only applies when SPY is actually below its
+            # 30-week MA (i.e., we're in a correction that needs confirming). In smooth
+            # uptrends SPY never drops enough to need an FTD, so requiring one would
+            # permanently cap exposure at 40% during the best trading environments.
+            if not ftd.get('has_ftd') and t30.get('price_below_ma'):
+                halt_reasons.append('No follow-through day while SPY below 30-week MA')
                 cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
             if cs.get('value') and cs['value'] > 8.5:

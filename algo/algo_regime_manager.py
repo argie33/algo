@@ -4,7 +4,7 @@
 Regime Manager — Single authoritative source for market regime and parameter adaptation.
 
 Reads from market_exposure_daily.regime (computed by algo_market_exposure.py).
-Maps regime to config multipliers that flow into PositionSizer, FilterPipeline, WeightOptimizer.
+Maps regime to config multipliers that flow into PositionSizer, ExposurePolicy, SwingTraderScore.
 """
 
 import logging
@@ -101,7 +101,7 @@ class RegimeManager:
     def get_regime_params(self, as_of_date: Optional[_date] = None) -> Dict[str, Any]:
         """Get parameter overrides for current regime."""
         regime = self.get_current_regime(as_of_date)
-        return self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS['confirmed_uptrend'])
+        return self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS['caution'])
 
     def get_position_size_multiplier(self, as_of_date: Optional[_date] = None) -> float:
         """Get position size multiplier (0.0 - 1.0)."""
