@@ -117,19 +117,10 @@ LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
 def mascot_pose(data: dict, frame: int) -> int:
     if (data.get("cb") or {}).get("any"):
-        # Panic dance: jump → freeze → groove → freeze (very obviously animated)
-        return [4, 7, 0, 7][(frame // 2) % 4]
-    tier = (data.get("mkt") or {}).get("tier", "unknown")
-    # frame // 2 → pose changes every ~0.25s at 8fps (clearly visible)
-    seqs: Dict[str, List[int]] = {
-        "confirmed_uptrend": [4, 1, 0, 3],
-        "healthy_uptrend":   [0, 1, 4, 3],
-        "pressure":          [0, 1, 2, 3],
-        "caution":           [0, 5, 2, 6],
-        "correction":        [0, 5, 1, 6],
-    }
-    r = seqs.get(tier, [0, 1, 4, 3])
-    return r[(frame // 2) % len(r)]
+        # Panic dance: mostly LOAD_SEQ energy, freeze face appears once per 20 poses (~5%)
+        seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
+        return seq[(frame // 2) % len(seq)]
+    return LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────

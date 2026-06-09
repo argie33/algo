@@ -2111,7 +2111,7 @@ router.get('/sector-rotation', async (req, res) => {
         signal: { type: 'string', required: false },
         strength: { type: 'float', required: false, defaultValue: 0 },
         rank: { type: 'int', required: false },
-        details: { type: 'string', required: false }
+        details: { type: 'raw', required: false }
       }).map(r => ({
         date: r.date,
         sector: r.sector,

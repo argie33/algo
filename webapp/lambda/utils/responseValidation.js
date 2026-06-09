@@ -75,6 +75,8 @@ function coerceValue(value, type = 'string', defaultValue = null) {
       return Boolean(value);
     case 'date':
       return value instanceof Date ? value : new Date(value);
+    case 'raw':
+      return value;
     case 'string':
     default:
       return String(value);
