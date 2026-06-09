@@ -162,10 +162,10 @@ The creative fixes automatically optimize within these constraints.
 
 ## Known Limitations & Future Improvements
 
-1. **Interval staggering delays (60s/120s)** are currently fixed - could be made adaptive based on workload size
+1. **Interval staggering delays (60s/120s)** are fixed in implementation; could be made adaptive based on workload size
 2. **Request interval cap (2.0s)** - could increase if needed for severely degraded API
-3. **Batch size learning** - currently per-instance; could be shared across loader instances via database
-4. **Parallelism** - currently 1 (serial); creative fixes assume this. If increased to 2+, request pacing becomes more critical
+3. **Batch size learning** - implemented per-instance; could be shared across loader instances via database
+4. **Parallelism** - set to 1 (serial); creative fixes assume this constraint. If increased to 2+, request pacing becomes more critical
 
 ## Testing Recommendations
 
