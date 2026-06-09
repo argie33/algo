@@ -17,6 +17,7 @@ import {
 import { api } from '../services/api';
 import PreviewModal from '../components/PreviewModal';
 import { formatNumber, formatCurrency } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 const num = (v, dp = 2) => formatNumber(v, dp);
@@ -38,7 +39,7 @@ const Pnl = ({ value, suffix = '' }) => {
 };
 
 // ─── main ──────────────────────────────────────────────────────────────────
-export default function TradeTracker() {
+function TradeTrackerContent() {
   const [tab, setTab] = useState('trades');
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -81,6 +82,14 @@ export default function TradeTracker() {
         onConfirm={handlePreviewConfirm}
       />
     </div>
+  );
+}
+
+export default function TradeTracker() {
+  return (
+    <ErrorBoundary>
+      <TradeTrackerContent />
+    </ErrorBoundary>
   );
 }
 

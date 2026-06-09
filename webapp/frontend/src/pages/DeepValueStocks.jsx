@@ -9,8 +9,9 @@ import {
 import { useApiQuery } from "../hooks/useApiQuery";
 import api from "../services/api";
 import { formatNumber, formatPercentageChange } from "../utils/formatters";
+import ErrorBoundary from "../components/ErrorBoundary";
 
-const DeepValueStocks = () => {
+const DeepValueStocksContent = () => {
   const [selectedStock, setSelectedStock] = useState(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -615,5 +616,11 @@ const DeepValueStocks = () => {
   );
 };
 
-export default DeepValueStocks;
+export default function DeepValueStocks() {
+  return (
+    <ErrorBoundary>
+      <DeepValueStocksContent />
+    </ErrorBoundary>
+  );
+}
 

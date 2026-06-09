@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const TT_STYLE = {
   background: 'var(--surface)',
@@ -71,7 +72,7 @@ const TABS = [
   { value: 'analyst', label: 'Analyst Detail' },
 ];
 
-export default function Sentiment() {
+function SentimentContent() {
   const [tab, setTab] = useState('overview');
   const [searchFilter, setSearchFilter] = useState('');
   const [filterSentiment, setFilterSentiment] = useState('all');
@@ -1565,6 +1566,14 @@ function Empty({ title, desc }) {
       <div className="empty-title">{title}</div>
       {desc && <div className="empty-desc">{desc}</div>}
     </div>
+  );
+}
+
+export default function Sentiment() {
+  return (
+    <ErrorBoundary>
+      <SentimentContent />
+    </ErrorBoundary>
   );
 }
 

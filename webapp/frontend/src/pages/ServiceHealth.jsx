@@ -9,6 +9,7 @@ import {
   RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle, Activity, Play,
 } from 'lucide-react';
 import { api } from '../services/api';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const fmtAgo = (ts) => {
   if (!ts) return '—';
@@ -26,7 +27,7 @@ const STATUS_VARIANT = {
   empty: 'badge',
 };
 
-export default function ServiceHealth() {
+function ServiceHealthContent() {
   const [patrolRunning, setPatrolRunning] = useState(false);
   const [patrolMsg, setPatrolMsg] = useState(null);
 
@@ -241,6 +242,14 @@ export default function ServiceHealth() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ServiceHealth() {
+  return (
+    <ErrorBoundary>
+      <ServiceHealthContent />
+    </ErrorBoundary>
   );
 }
 

@@ -20,6 +20,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { extractData } from '../utils/responseNormalizer';
 import { api } from '../services/api';
 import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // ─── format helpers ─────────────────────────────────────────────────────────
 const num = (v, dp = 2) => formatNumber(v, dp);
@@ -88,7 +89,7 @@ function computeRSI(series, period = 14) {
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
-export default function StockDetail() {
+function StockDetailContent() {
   const { symbol } = useParams();
   const navigate = useNavigate();
   const [tab, setTab] = useState('chart');
@@ -1030,5 +1031,13 @@ function Empty({ title, desc, wrap }) {
     </div>
   );
   return wrap ? <div className="card card-pad">{inner}</div> : inner;
+}
+
+export default function StockDetail() {
+  return (
+    <ErrorBoundary>
+      <StockDetailContent />
+    </ErrorBoundary>
+  );
 }
 

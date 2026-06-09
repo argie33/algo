@@ -11,8 +11,9 @@ import {
   Bell, X, CheckCircle, AlertCircle, AlertTriangle, XCircle,
   Clock, RefreshCw
 } from 'lucide-react';
+import ErrorBoundary from '../components/ErrorBoundary';
 
-const NotificationCenter = () => {
+const NotificationCenterContent = () => {
   const { user } = useAuth();
   const isAdmin = user?.isAdmin || false;
 
@@ -427,6 +428,12 @@ const NotificationCenter = () => {
     </div>
   );
 };
+
+const NotificationCenter = () => (
+  <ErrorBoundary>
+    <NotificationCenterContent />
+  </ErrorBoundary>
+);
 
 export default NotificationCenter;
 

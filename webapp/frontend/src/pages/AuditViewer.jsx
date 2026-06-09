@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../services/api';
+import ErrorBoundary from '../components/ErrorBoundary';
 
-const AuditViewer = () => {
+const AuditViewerContent = () => {
   const [limit, _setLimit] = useState(100);
   const [expandedId, setExpandedId] = useState(null);
   const [activeTab, setActiveTab] = useState('trades');
@@ -185,6 +186,12 @@ const AuditViewer = () => {
     </div>
   );
 };
+
+const AuditViewer = () => (
+  <ErrorBoundary>
+    <AuditViewerContent />
+  </ErrorBoundary>
+);
 
 export default AuditViewer;
 

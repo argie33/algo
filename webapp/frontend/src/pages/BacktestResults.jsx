@@ -15,6 +15,7 @@ import {
 import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import { formatNumber, formatPercentageChange } from '../utils/formatters';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
 const num = (v, dp = 2) => formatNumber(v, dp);
@@ -28,7 +29,7 @@ const TOOLTIP_STYLE = {
   padding: 'var(--space-2) var(--space-3)',
 };
 
-export default function BacktestResults() {
+function BacktestResultsContent() {
   const [filters, setFilters] = useState({
     strategy_name: '',
     sort_by: 'run_timestamp',
@@ -213,6 +214,14 @@ export default function BacktestResults() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BacktestResults() {
+  return (
+    <ErrorBoundary>
+      <BacktestResultsContent />
+    </ErrorBoundary>
   );
 }
 
