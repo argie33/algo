@@ -111,6 +111,108 @@ function LastRunSummary({ lastRun }) {
 }
 
 // ============================================================================
+// 12-FACTOR EXPOSURE COMPOSITE (COMPACT CARD)
+// ============================================================================
+function CompactExposureFactors({ markets }) {
+  const factors = markets?.current?.factors || {};
+  const raw = markets?.current?.raw_score;
+  const exp = markets?.current?.exposure_pct;
+
+  const FACTORS = [
+    ['follow_through_day', 'FTD',         10],
+    ['trend_30wk',         '30W MA',       15],
+    ['breadth_50dma',      'Breadth 50',   14],
+    ['breadth_200dma',     'Health 200',   10],
+    ['mcclellan',          'McClellan',     9],
+    ['distribution_days',  'Dist Days',     8],
+    ['vix_regime',         'VIX Regime',    8],
+    ['new_highs_lows',     'NH–NL',         7],
+    ['credit_spread',      'HY Credit',     7],
+    ['ad_line',            'A/D Line',      5],
+    ['aaii_sentiment',     'AAII',          4],
+    ['naaim',              'NAAIM',         3],
+  ];
+
+  return (
+    <>
+      <div className="card-head">
+        <div>
+          <div className="card-title">12-Factor Score</div>
+          {raw != null && (
+            <div className="t-2xs muted" style={{ marginTop: 2 }}>
+              raw {raw?.toFixed(1)} → <span className="strong">{exp}%</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="card-body" style={{ paddingTop: 'var(--space-2)' }}>
+        {!markets?.current ? (
+          <div className="t-xs muted">No market data</div>
+        ) : (
+          FACTORS.map(([key, label, max]) => {
+            const f = factors[key] || {};
+            const pct = f.max ? Math.max(0, Math.min(100, (f.pts / f.max) * 100)) : 0;
+            const barColor = pct >= 70 ? 'var(--success)' : pct >= 40 ? 'var(--brand)' : pct >= 20 ? 'var(--amber)' : 'var(--danger)';
+            return (
+              <div key={key} style={{ marginBottom: 'var(--space-2)' }}>
+                <div className="flex justify-between" style={{ marginBottom: 2 }}>
+                  <span className="t-2xs muted">{label}</span>
+                  <span className="mono tnum t-2xs">{(f.pts || 0).toFixed(1)}/{f.max || max}</span>
+                </div>
+                <div style={{ height: 3, background: 'var(--border-soft)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 2 }} />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
+// CIRCUIT BREAKER KPI CARD
+// ============================================================================
+function CircuitBreakerKpi({ circuitBreakers }) {
+  const breakers = Array.isArray(circuitBreakers) ? circuitBreakers : (circuitBreakers?.breakers || []);
+  const halted = !Array.isArray(circuitBreakers) && !!circuitBreakers?.any_triggered;
+  const triggered = breakers.filter(b => b.triggered);
+
+  return (
+    <div className="card-body">
+      <div className="eyebrow">Circuit Breakers</div>
+      {breakers.length === 0 ? (
+        <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>No data</div>
+      ) : (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <div className="mono tnum" style={{
+            fontSize: 'var(--t-2xl)', fontWeight: 'var(--w-bold)', lineHeight: 1,
+            color: triggered.length === 0 ? 'var(--success)' : 'var(--danger)',
+          }}>
+            {triggered.length === 0 ? 'CLEAR' : `${triggered.length} TRIPPED`}
+          </div>
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <span className={`badge ${halted ? 'badge-danger' : 'badge-success'}`}>
+              {halted ? 'ENTRIES HALTED' : 'ENTRIES OK'}
+            </span>
+          </div>
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            {triggered.length > 0 ? triggered.map(b => (
+              <div key={b.id} className="t-xs" style={{ color: 'var(--danger)', marginBottom: 'var(--space-1)' }}>
+                ✗ {b.label}
+              </div>
+            )) : (
+              <div className="t-2xs muted">{breakers.length} checks · drawdown, daily loss, VIX, stage</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 function AlgoTradingDashboardPage() {
@@ -242,25 +344,9 @@ function AlgoTradingDashboardPage() {
       {/* TOP STRIP — 4 ALGO-SPECIFIC KPI CARDS */}
       <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
 
-        {/* Card 1: Market Exposure + Tier */}
-        <div className="card" style={{ background: tierColor(market?.active_tier?.name), color: 'white', border: 'none' }}>
-          <div style={{ padding: 'var(--space-4)' }}>
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="eyebrow" style={{ color: 'rgba(255,255,255,0.85)' }}>Market Exposure</div>
-                <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-bold)', lineHeight: 1, marginTop: 8 }}>
-                  {market?.current?.exposure_pct ?? '--'}<span style={{ fontSize: 'var(--t-lg)', marginLeft: 4 }}>%</span>
-                </div>
-                <div style={{ fontWeight: 'var(--w-semibold)', marginTop: 8, opacity: 0.95 }}>
-                  {market?.active_tier?.name?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
-                </div>
-                <div className="t-xs" style={{ opacity: 0.85, marginTop: 4 }}>
-                  {market?.active_tier?.description}
-                </div>
-              </div>
-              <Shield size={28} style={{ opacity: 0.7 }} />
-            </div>
-          </div>
+        {/* Card 1: 12-Factor Composite */}
+        <div className="card">
+          <CompactExposureFactors markets={market} />
         </div>
 
         {/* Card 2: Open Positions */}
@@ -291,38 +377,29 @@ function AlgoTradingDashboardPage() {
           </div>
         </div>
 
-        {/* Card 3: Signal Pipeline Today */}
+        {/* Card 3: Circuit Breakers */}
         <div className="card">
-          <div className="card-body">
-            <div className="eyebrow">Signal Pipeline</div>
-            <div style={{ marginTop: 'var(--space-3)' }}>
-              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Raw BUY signals</span>
-                <span className="mono tnum t-xs">{data.evaluated?.candidates?.screened ?? '--'}</span>
-              </div>
-              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Passed all gates</span>
-                <span className="mono tnum t-xs up">{(data.scores || []).filter(s => s.pass_gates).length}</span>
-              </div>
-              <div className="flex justify-between" style={{ marginBottom: 'var(--space-2)' }}>
-                <span className="t-xs muted">Blocked / filtered</span>
-                <span className="mono tnum t-xs muted">{(data.scores || []).filter(s => !s.pass_gates).length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="t-xs muted">Data ready</span>
-                <span className={`mono tnum t-xs ${data.dataStatus?.ready_to_trade ? 'up' : 'down'}`}>
-                  {data.dataStatus?.ready_to_trade ? 'YES' : 'NO'}
-                </span>
-              </div>
-            </div>
-          </div>
+          <CircuitBreakerKpi circuitBreakers={data.circuitBreakers} />
         </div>
 
-        {/* Card 4: Last Orchestrator Run */}
-        <div className="card">
-          <div className="card-body">
-            <div className="eyebrow">Last Orchestrator Run</div>
-            <LastRunSummary lastRun={data.lastRun} />
+        {/* Card 4: Market Tier + Exposure */}
+        <div className="card" style={{ background: tierColor(market?.active_tier?.name), color: 'white', border: 'none' }}>
+          <div style={{ padding: 'var(--space-4)' }}>
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="eyebrow" style={{ color: 'rgba(255,255,255,0.85)' }}>Market Exposure</div>
+                <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-bold)', lineHeight: 1, marginTop: 8 }}>
+                  {market?.current?.exposure_pct ?? '--'}<span style={{ fontSize: 'var(--t-lg)', marginLeft: 4 }}>%</span>
+                </div>
+                <div style={{ fontWeight: 'var(--w-semibold)', marginTop: 8, opacity: 0.95 }}>
+                  {market?.active_tier?.name?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
+                </div>
+                <div className="t-xs" style={{ opacity: 0.85, marginTop: 4 }}>
+                  {market?.active_tier?.description}
+                </div>
+              </div>
+              <Shield size={28} style={{ opacity: 0.7 }} />
+            </div>
           </div>
         </div>
       </div>
