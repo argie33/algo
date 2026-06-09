@@ -101,13 +101,12 @@ async function performAlpacaSync() {
                 batch.map((position) =>
                   query(
                     `INSERT INTO portfolio_holdings
-                    (user_id, symbol, quantity, current_price, average_cost, market_value, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    (user_id, symbol, quantity, current_price, average_cost, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT (user_id, symbol) DO UPDATE SET
                       quantity = $3,
                       current_price = $4,
                       average_cost = $5,
-                      market_value = $6,
                       updated_at = CURRENT_TIMESTAMP`,
                     [
                       DEFAULT_USER_ID,
@@ -115,7 +114,6 @@ async function performAlpacaSync() {
                       position.quantity,
                       position.currentPrice,
                       position.averageEntryPrice,
-                      position.marketValue,
                     ]
                   ).catch((err) =>
                     console.warn(`⚠️  Failed to insert/update ${position.symbol}:`, err.message)
