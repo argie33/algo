@@ -11,12 +11,11 @@ const { query } = require("./database");
 // Import Alpaca service
 const AlpacaService = require("./alpacaService");
 
-// Default user ID for background syncs (must be valid Cognito sub UUID format)
-// Use environment variable, fall back to default UUIDs
-const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID ||
-  (process.env.NODE_ENV === 'development'
-    ? '00000000-0000-0000-0000-000000000001'
-    : '00000000-0000-0000-0000-000000000002');
+// Default user ID for background syncs
+// Use environment variable, fall back to default integer IDs
+const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID ?
+  parseInt(process.env.DEFAULT_USER_ID, 10) :
+  (process.env.NODE_ENV === 'development' ? 1 : 2);
 
 // Scheduler instance
 let syncScheduler = null;
