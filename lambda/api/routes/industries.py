@@ -34,9 +34,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
         # /api/industries  →  full ranked list
         return _industry_list(cur, params)
 
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        logger.error(f'Industries query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'get industries'})
+        return error_response(503, 'schema_error', 'Database schema mismatch - please check RDS migrations')
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        logger.error(f'Industries query failed - database error: {type(e).__name__}: {e}', extra={'operation': 'get industries'})
+        return error_response(503, 'connection_error', 'Database connection failed - please retry')
     except Exception as e:
-        logger.warning(f'Industries unavailable: {e}')
-        return list_response([])
+        logger.error(f'Industries query failed: {type(e).__name__}: {e}', extra={'operation': 'get industries'})
+        return error_response(500, 'internal_error', f'Failed to fetch industries: {type(e).__name__}')
 
 def _industry_list(cur, params):
     """Return all industries ranked by composite score with price-based performance."""

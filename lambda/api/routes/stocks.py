@@ -192,11 +192,15 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                     freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
                     return list_response([dict(r) for r in rows], data_freshness=freshness)
                 return list_response([])
-            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
-                    psycopg2.errors.OperationalError, psycopg2.DatabaseError,
-                    Exception) as e:
-                logger.error(f'deep-value query failed: {type(e).__name__}: {str(e)[:200]}')
-                return list_response([])
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+                logger.error(f'Deep-value query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'deep-value'})
+                return error_response(503, 'schema_error', 'Database schema mismatch - please check RDS migrations')
+            except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                logger.error(f'Deep-value query failed - database error: {type(e).__name__}: {e}', extra={'operation': 'deep-value'})
+                return error_response(503, 'connection_error', 'Database connection failed - please retry')
+            except Exception as e:
+                logger.error(f'Deep-value query failed: {type(e).__name__}: {str(e)[:200]}', extra={'operation': 'deep-value'})
+                return error_response(500, 'internal_error', f'Failed to fetch deep-value stocks: {type(e).__name__}')
 
         limit = safe_limit(params.get('limit', [None])[0] if params else None, max_val=50000, default=500)
         offset = safe_offset(params.get('offset', [None])[0] if params else None)

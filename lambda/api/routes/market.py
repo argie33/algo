@@ -1057,8 +1057,9 @@ def _get_sector_overview(cur) -> Dict:
                 [{'sector_name': r['sector'], 'stock_count': r['stock_count']} for r in rows]
             )
         return list_response([dict(r) for r in rows])
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return list_response([])
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        logger.error(f'Sector overview query failed - schema error: {type(e).__name__}: {e}', extra={'operation': 'get sector overview'})
+        return error_response(503, 'schema_error', 'Database schema mismatch - please check RDS migrations')
     except Exception as e:
         code, error_type, message = handle_db_error(e, 'get sector overview')
         return error_response(code, error_type, message)
