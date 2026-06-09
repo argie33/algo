@@ -150,12 +150,10 @@ class PositionSyncChecker:
         # Build report
         is_consistent = len(issues) == 0
         summary = f"""
-╔════════════════════════════════════════════════════════════════╗
-║ POSITION SYNC CONSISTENCY CHECK                                ║
-║ {datetime.now(timezone.utc).isoformat():<58}║
-╚════════════════════════════════════════════════════════════════╝
+== POSITION SYNC CONSISTENCY CHECK ==
+{datetime.now(timezone.utc).isoformat()}
 
-STATUS: {'✓ CONSISTENT' if is_consistent else '✗ ISSUES FOUND'}
+STATUS: {'OK - CONSISTENT' if is_consistent else 'ISSUES FOUND'}
 
 POSITIONS TABLE:
   - Open/Partial/Pending Close: {pos_open}
