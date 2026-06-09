@@ -155,7 +155,7 @@ def get_conn():
 def q(c, sql, p=None):
     with c.cursor() as cur:
         cur.execute(sql, p or ())
-        return [dict(r) for r in cur.fetchall()]
+        return [r if isinstance(r, dict) else dict(r) for r in cur.fetchall()]
 
 def q1(c, sql, p=None):
     rows = q(c, sql, p)
