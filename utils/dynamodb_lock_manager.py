@@ -29,7 +29,14 @@ class DynamoDBLockManager:
             table_name: DynamoDB table name (default: from ORCHESTRATOR_LOCK_TABLE env)
             lock_duration_seconds: Lock expiration time (default 10 minutes)
         """
-        self.table_name = table_name or os.getenv('ORCHESTRATOR_LOCK_TABLE', 'algo-orchestrator-locks')
+        # Default table name construction: project-orchestrator-locks-environment
+        # ORCHESTRATOR_LOCK_TABLE env var overrides if set (used in Lambda)
+        # Fallback includes environment suffix for local dev: algo-orchestrator-locks-dev
+        default_name = os.getenv(
+            'ORCHESTRATOR_LOCK_TABLE',
+            f"{os.getenv('PROJECT_NAME', 'algo')}-orchestrator-locks-{os.getenv('ENVIRONMENT', 'dev')}"
+        )
+        self.table_name = table_name or default_name
         self.lock_duration_seconds = lock_duration_seconds
         self.lock_id = str(uuid.uuid4())
         self.acquired = False
