@@ -1149,7 +1149,7 @@ def fetch_market(c):
             logger.warning(f"Market exposure data is {exp_age} days old")
             stale_alerts.append(f"Exposure {exp_age}d old")
         # Issue 41 FIX: Append loader staleness alert to ensure it's displayed
-        if exp_loader_stale:
+        if exp_age is not None and exp_age > 2:
             stale_alerts.append("Exposure loader stale (>2d)")
         # Issue 23 FIX: Validate SPY age considering intraday freshness during market hours
         # During market hours (9:30 AM - 4 PM ET), close price from yesterday is stale
