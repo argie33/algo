@@ -897,6 +897,9 @@ def fetch_algo_config(c):
         min_score = _parse_config_float(d, "min_swing_score", 70.0)
         swing_good = _parse_config_float(d, "swing_score_good_threshold", 60.0)
         swing_excellent = _parse_config_float(d, "swing_score_excellent_threshold", 80.0)
+        # Issue 23 FIX: Validate numeric config values before returning
+        base_risk = _parse_config_float(d, "base_risk_pct", 0.5)
+        t1_r = _parse_config_float(d, "t1_target_r_multiple", 1.0)
         _log_data_quality("fetch_algo_config", 1)
         return {
             "enabled":      d.get("enable_algo", "true").lower() == "true",
@@ -907,8 +910,8 @@ def fetch_algo_config(c):
             "min_score":    min_score,
             "swing_good":   swing_good,
             "swing_excellent": swing_excellent,
-            "base_risk":    d.get("base_risk_pct"),
-            "t1_r":         d.get("t1_target_r_multiple"),
+            "base_risk":    base_risk,
+            "t1_r":         t1_r,
             "pyramid":      d.get("pyramid_enabled", "false").lower() == "true",
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
@@ -1579,7 +1582,17 @@ def fetch_recent_trades(c):
         result = q(c, """
             SELECT symbol, trade_date, exit_date, status,
                    profit_loss_dollars, profit_loss_pct, exit_r_multiple
-            FROM algo_trades ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
+            FROM algo_trades
+            WHERE trade_date IS NOT NULL
+            ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
+
+        # Issue 14 FIX: Validate that trades have valid dates
+        if result:
+            invalid_trades = [t for t in result if t.get("trade_date") is None]
+            if invalid_trades:
+                logger.warning(f"VALIDATION: Filtered {len(invalid_trades)} trades with NULL trade_date")
+                result = [t for t in result if t.get("trade_date") is not None]
+
         _log_data_quality("fetch_recent_trades", len(result) if result else 0)
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
@@ -1646,23 +1659,41 @@ def fetch_signals(c):
             grades_date = grades_daily.get('score_date')
             logger.debug(f"Grade distribution from pre-computed table: A={grades.get('a')} B={grades.get('b')} C={grades.get('c')} D={grades.get('d')}")
         else:
-            # Fallback: compute on the fly if table not populated yet
+            # Issue 20 FIX: Fallback calculation with validation
             logger.warning("Grade distribution not in pre-computed table, falling back to calculation")
-            grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s", (signal_date,)) if signal_date else None
-            grades_date = grades_date_r.get("max") if grades_date_r else None
-            if not grades_date and signal_date:
+
+            # Validate signal_date is not NULL and not in future
+            if signal_date:
+                try:
+                    sig_dt = _parse_datetime(signal_date, as_date=True, timezone_aware=False)
+                    if sig_dt and sig_dt <= datetime.now(ET).date():
+                        # signal_date is valid and in past, use it
+                        grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s", (sig_dt,))
+                        grades_date = grades_date_r.get("max") if grades_date_r else None
+                    else:
+                        logger.warning(f"VALIDATION: signal_date {signal_date} is in future or invalid; using latest available date")
+                        grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
+                        grades_date = grades_date_r.get("max") if grades_date_r else None
+                except (ValueError, TypeError):
+                    logger.warning(f"VALIDATION: signal_date {signal_date} unparseable; using latest available date")
+                    grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
+                    grades_date = grades_date_r.get("max") if grades_date_r else None
+            else:
+                # signal_date is NULL, use latest available
+                logger.warning("VALIDATION: signal_date is NULL; using latest available date from swing_trader_scores")
                 grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
                 grades_date = grades_date_r.get("max") if grades_date_r else None
 
-            grades_r = q(c, """
-                SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
-                       COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
-                       COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
-                       COUNT(*) FILTER (WHERE score < 40) AS d,
-                       COUNT(*) AS total
-                FROM swing_trader_scores
-                WHERE date=%s""", (grades_date,)) if grades_date else []
-            grades = grades_r[0] if grades_r else {}
+            if grades_date:
+                grades_r = q(c, """
+                    SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
+                           COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
+                           COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
+                           COUNT(*) FILTER (WHERE score < 40) AS d,
+                           COUNT(*) AS total
+                    FROM swing_trader_scores
+                    WHERE date=%s""", (grades_date,))
+                grades = grades_r[0] if grades_r else {}
 
         # Issue 25: Near-misses: use actual min_swing_score instead of hardcoded 55-69 range
         # Near-miss is 15 points below threshold to 5 points below (e.g., if threshold is 70: 55-69)
@@ -1705,12 +1736,25 @@ def fetch_signals(c):
 
 def fetch_sector_ranking(c):
     try:
+        # Issue 15 FIX: Validate that sector_ranking table has data
+        max_date = q1(c, "SELECT MAX(date) as max_date FROM sector_ranking")
+        if not max_date or max_date.get("max_date") is None:
+            logger.warning("VALIDATION: sector_ranking table empty (max_date is NULL) — sector loader may not have run")
+            _log_data_quality("fetch_sector_ranking", 0, "table has no data")
+            return []
+
         result = q(c, """
             SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
             FROM sector_ranking
-            WHERE date=(SELECT MAX(date) FROM sector_ranking)
-            ORDER BY current_rank ASC""")
-        _log_data_quality("fetch_sector_ranking", len(result) if result else 0)
+            WHERE date=%s
+            ORDER BY current_rank ASC""", (max_date.get("max_date"),))
+
+        if not result:
+            logger.warning(f"VALIDATION: sector_ranking has max_date {max_date.get('max_date')} but no rows for that date")
+            _log_data_quality("fetch_sector_ranking", 0, "no rows for max_date")
+            return []
+
+        _log_data_quality("fetch_sector_ranking", len(result))
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
@@ -1898,9 +1942,11 @@ def fetch_algo_metrics(c):
 
 def fetch_notifications(c):
     try:
+        # Issue 16 FIX: Filter to recent notifications (last 7 days) to avoid stale alerts
         result = q(c, """
             SELECT kind, severity, title, seen, created_at, details
             FROM algo_notifications
+            WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
             ORDER BY created_at DESC LIMIT 8""")
         _log_data_quality("fetch_notifications", len(result) if result else 0)
         return result
@@ -1928,20 +1974,6 @@ def fetch_sentiment(c):
 
 def fetch_economic_calendar(c):
     try:
-        # Issue 25: Whitelist of expected US economic indicators (exclude earnings, earnings announcements)
-        economic_indicator_keywords = [
-            'CPI', 'PCE', 'PPI', 'inflation', 'unemployment', 'jobless', 'nonfarm payroll',
-            'initial claims', 'continuing claims', 'duration', 'employment', 'nonfarm',
-            'retail sales', 'producer price', 'consumer price', 'PPI', 'ISM', 'PMI',
-            'manufacturing', 'services', 'construction', 'factory', 'housing starts',
-            'home sales', 'building permits', 'existing home', 'new home', 'durable',
-            'orders', 'consumer confidence', 'API', 'EIA', 'natural gas', 'crude oil',
-            'fed funds', 'federal reserve', 'FOMC', 'interest rate', 'fed decision',
-            'NAHB', 'philly fed', 'richmond fed', 'empire', 'GDP', 'gross domestic',
-            'GDP advance', 'GDP preliminary', 'GDP final', 'trade', 'deficit', 'surplus',
-            'personal income', 'personal spending', 'savings', 'wholesale', 'redbook'
-        ]
-
         rows = q(c, """SELECT event_name, event_date, event_time, importance,
                               forecast_value, actual_value, previous_value
                        FROM economic_calendar
@@ -1951,21 +1983,24 @@ def fetch_economic_calendar(c):
                        LIMIT 8""")
 
         if rows:
-            # Filter out non-economic events (earnings, earnings announcements, etc)
+            # Issue 17 FIX: Simpler filtering: exclude known non-economic events, include everything else
+            # This avoids brittle hardcoded keyword matching and catches new indicators automatically
             filtered = []
             for row in rows:
                 event_name = str(row.get("event_name") or "").upper()
-                if 'EARNINGS' in event_name or 'GUIDANCE' in event_name:
+
+                # Blacklist approach: exclude specific non-economic patterns
+                non_economic_patterns = [
+                    'EARNINGS', 'GUIDANCE', 'IPO', 'CONFERENCE', 'SUMMIT',
+                    'SPEECH', 'TESTIMONY', 'EARNINGS CALL', 'PRESIDEN', 'ELECTION'
+                ]
+                is_non_economic = any(pattern in event_name for pattern in non_economic_patterns)
+
+                if is_non_economic:
                     logger.debug(f"VALIDATION: Skipping non-economic event: {event_name}")
                     continue
 
-                # Check if event matches any economic indicator keyword
-                is_economic = any(keyword.upper() in event_name for keyword in economic_indicator_keywords)
-                if is_economic:
-                    filtered.append(row)
-                else:
-                    logger.warning(f"VALIDATION: Economic calendar event '{event_name}' does not match known indicators — may be non-economic")
-                    filtered.append(row)  # Still include but flag it
+                filtered.append(row)
 
             _log_data_quality("fetch_economic_calendar", len(filtered) if filtered else 0)
             return filtered
@@ -1980,14 +2015,20 @@ def fetch_economic_calendar(c):
 def fetch_risk_metrics(c) -> dict:
     """Fetch pre-calculated risk metrics (updated hourly by load_algo_risk_daily.py).
 
-    Returns freshness-checked metrics or empty dict if data is stale/missing.
+    Returns freshness-checked metrics. If stale (>2h), returns data with warning flag.
     """
     try:
         row = q1(c, """SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
                               portfolio_beta, top_5_concentration, updated_at
                        FROM algo_risk_daily ORDER BY report_date DESC LIMIT 1""")
 
-        # Validate table data freshness (should be <2 hours old during market hours)
+        if not row:
+            logger.warning("VALIDATION: No risk metrics data available; risk loader may not have run yet")
+            _log_data_quality("fetch_risk_metrics", 0, "table has no data")
+            return {"_has_data": False}
+
+        # Issue 18 FIX: Check freshness but still return stale data with warning
+        age_minutes = None
         is_fresh = False
         if row and row.get('updated_at'):
             try:
@@ -2000,15 +2041,9 @@ def fetch_risk_metrics(c) -> dict:
                 age_minutes = (datetime.now(timezone.utc) - update_time).total_seconds() / 60
                 is_fresh = age_minutes < 120  # <2 hours = fresh
                 if age_minutes > 120:
-                    logger.warning(f"fetch_risk_metrics: table data {age_minutes:.0f}m old (stale)")
+                    logger.warning(f"fetch_risk_metrics: table data {age_minutes:.0f}m old (stale); will return with warning flag")
             except (ValueError, TypeError):
                 is_fresh = row is not None
-
-        if not row or not is_fresh:
-            if not row:
-                logger.warning("VALIDATION: No risk metrics data available; risk loader may not have run yet")
-            _log_data_quality("fetch_risk_metrics", 0, "table missing or stale")
-            return {"_has_data": False}
 
         result = {
             "_has_data": True,
@@ -2019,6 +2054,8 @@ def fetch_risk_metrics(c) -> dict:
             "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
             "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
             "_source":   "table",
+            "_is_stale": not is_fresh,
+            "_age_minutes": age_minutes,
         }
         _log_data_quality("fetch_risk_metrics", 1)
         return result
@@ -2030,8 +2067,7 @@ def fetch_risk_metrics(c) -> dict:
 def fetch_perf_analytics(c):
     """Fetch pre-calculated performance analytics (updated hourly by load_algo_performance_daily.py).
 
-    Falls back to on-the-fly calculation if table data is stale (>2 hours old).
-    This reduces dashboard load time while keeping metrics reasonably current.
+    Validates loader is running by checking update frequency. Returns stale data with warning if needed.
     """
     try:
         # Try table first (updated by load_algo_performance_daily.py hourly)
@@ -2040,8 +2076,15 @@ def fetch_perf_analytics(c):
                               expectancy, max_drawdown_pct, updated_at
                        FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
 
-        # Validate table data freshness (should be <2 hours old during market hours)
+        if not row:
+            logger.warning("VALIDATION: No performance data available; performance loader may not have run yet")
+            _log_data_quality("fetch_perf_analytics", 0, "table has no data")
+            return {"_unavailable": True, "_reason": "Performance metrics table is empty"}
+
+        # Issue 19 FIX: Validate loader is actually running by checking update frequency
+        age_minutes = None
         is_fresh = False
+        loader_running = False
         if row and row.get('updated_at'):
             try:
                 if isinstance(row['updated_at'], datetime):
@@ -2052,12 +2095,17 @@ def fetch_perf_analytics(c):
                     update_time = update_time.replace(tzinfo=timezone.utc)
                 age_minutes = (datetime.now(timezone.utc) - update_time).total_seconds() / 60
                 is_fresh = age_minutes < 120  # <2 hours = fresh
-                if age_minutes > 120:
-                    logger.warning(f"fetch_perf_analytics: table data {age_minutes:.0f}m old (stale)")
+                loader_running = age_minutes < 1440  # Data updated within last 24 hours indicates loader runs
+
+                if not loader_running:
+                    logger.warning(f"fetch_perf_analytics: No updates in {age_minutes:.0f}m (>24h); loader may not be running")
+                elif age_minutes > 120:
+                    logger.warning(f"fetch_perf_analytics: table data {age_minutes:.0f}m old (stale but loader is running)")
             except (ValueError, TypeError):
                 is_fresh = row is not None
+                loader_running = is_fresh
 
-        if row and is_fresh:
+        if row:
             def _f(k): return round(float(row[k]), 3) if row.get(k) is not None else None
             result = {
                 "sharpe252": _f("rolling_sharpe_252d"),
@@ -2069,16 +2117,14 @@ def fetch_perf_analytics(c):
                 "expectancy": _f("expectancy"),
                 "maxdd":     _f("max_drawdown_pct"),
                 "_source": "table",
+                "_is_stale": not is_fresh,
+                "_loader_running": loader_running,
+                "_age_minutes": age_minutes,
             }
             _log_data_quality("fetch_perf_analytics", 1)
             return result
 
-        # Fallback: return empty (don't recalculate on-the-fly; mark as unavailable)
-        if not row:
-            logger.debug("fetch_perf_analytics: No performance data available (table empty)")
-        else:
-            logger.warning("fetch_perf_analytics: Table data stale; not using fallback calculation")
-        _log_data_quality("fetch_perf_analytics", 0, "table missing or stale")
+        _log_data_quality("fetch_perf_analytics", 0, "table query returned no data")
         return {"_unavailable": True, "_reason": "Performance metrics not yet calculated by loader"}
 
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
