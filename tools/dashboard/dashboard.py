@@ -1170,7 +1170,7 @@ def fetch_risk_metrics(c) -> dict:
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
         _log_data_quality("fetch_risk_metrics", 0, str(e))
-        return {"_error": str(e), "_has_data": False}
+        return {"_has_data": False}
 
 def fetch_perf_analytics(c):
     try:
