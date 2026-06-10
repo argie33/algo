@@ -927,10 +927,14 @@ def fetch_perf(c):
         snaps = q(c, """SELECT daily_return_pct, total_portfolio_value
                         FROM algo_portfolio_snapshots ORDER BY snapshot_date ASC""")
         sharpe = None
+        sharpe_confidence = None  # 'high' (>20 snaps), 'medium', 'low' (<10), None (insufficient)
         maxdd  = 0.0
         # Only convert non-None values (filter already checks for non-None)
         equity_vals = [float(s.get("total_portfolio_value"))
                        for s in snaps if s.get("total_portfolio_value") is not None]
+        if len(equity_vals) < 3:
+            logger.warning(f"VALIDATION: Equity snapshots has only {len(equity_vals)} values (need 3+) — insufficient for drawdown calculation")
+
         if len(snaps) >= 10:
             rets = [float(s.get("daily_return_pct")) / 100 for s in snaps if s.get("daily_return_pct") is not None]
             # Sharpe requires >5 returns to be meaningful; assumes normal distribution (may understate tail risk in fat-tailed markets)
@@ -938,12 +942,16 @@ def fetch_perf(c):
                 mn = statistics.mean(rets)
                 sd = statistics.stdev(rets)
                 if sd > 0: sharpe = round(mn / sd * (252 ** 0.5), 2)
+                # Confidence level: high if >20 snapshots, low if <10
+                sharpe_confidence = "high" if len(snaps) >= 20 else ("low" if len(snaps) < 10 else "medium")
             # Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
             pk = 0.0
             for s in snaps:
                 v = float(s.get("total_portfolio_value")) if s.get("total_portfolio_value") is not None else 0.0
                 if v > pk: pk = v
                 if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
+        else:
+            logger.warning(f"VALIDATION: Portfolio snapshots has only {len(snaps)} records (need 10+) — insufficient for Sharpe ratio")
         # Build win/loss amounts with defensive filtering
         win_amt   = [float(t.get("profit_loss_dollars")) for t in wins if t and t.get("profit_loss_dollars") is not None]
         loss_amt  = [abs(float(t.get("profit_loss_dollars"))) for t in losses if t and t.get("profit_loss_dollars") is not None]
@@ -963,7 +971,7 @@ def fetch_perf(c):
         _log_data_quality("fetch_perf", len(trades))
         return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
                 "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
-                "sharpe": sharpe, "maxdd": round(maxdd, 1),
+                "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1),
                 "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
                 "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
                 "equity_vals": equity_vals, "recent_rets": recent_rets}
