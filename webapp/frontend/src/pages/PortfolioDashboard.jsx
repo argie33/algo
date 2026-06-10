@@ -236,7 +236,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Top KPI strip */}
-      {statusLoading || posLoading || perfLoading || marketsLoading ? (
+      {isPrimaryLoading ? (
         <div className="grid grid-4">
           <SkeletonKpi />
           <SkeletonKpi />
@@ -315,7 +315,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Circuit breakers */}
-      <CircuitBreakerPanel data={breakers} loading={breakersLoading} />
+      <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading || breakersLoading} />
 
       {/* Equity curve + Drawdown chart */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
@@ -408,7 +408,9 @@ function PortfolioDashboardPage() {
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
-          {(safeTradesList.length === 0) ? (
+          {isPrimaryLoading ? (
+            <SkeletonTable />
+          ) : (safeTradesList.length === 0) ? (
             <Empty title="No closed trades yet" />
           ) : (
             <div style={{ maxHeight: '360px', overflow: 'auto' }}>

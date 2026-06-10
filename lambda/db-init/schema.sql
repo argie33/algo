@@ -1876,6 +1876,19 @@ CREATE TABLE IF NOT EXISTS algo_risk_daily (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Grade Distribution Daily - Pre-computed breakdown of stock grades (HIGH-SEVERITY ISSUE FIX)
+CREATE TABLE IF NOT EXISTS grade_distribution_daily (
+    report_date DATE PRIMARY KEY,
+    score_date DATE NOT NULL,  -- Date of swing_trader_scores used for calculation
+    num_grade_a INTEGER,  -- Count of stocks with score >= 80
+    num_grade_b INTEGER,  -- Count of stocks with 60 <= score < 80
+    num_grade_c INTEGER,  -- Count of stocks with 40 <= score < 60
+    num_grade_d INTEGER,  -- Count of stocks with score < 40
+    total_graded INTEGER,  -- Total stocks with grades
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Sector rotation signals
 CREATE TABLE IF NOT EXISTS sector_rotation_signal (
     id SERIAL PRIMARY KEY,
