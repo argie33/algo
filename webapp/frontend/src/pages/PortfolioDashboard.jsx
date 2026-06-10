@@ -25,6 +25,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, AddGlobalStyles } from '../components/Skeleton';
 
 const fmtMoney = (v) =>
   v == null || isNaN(Number(v)) ? '—'
@@ -93,7 +94,8 @@ const formatErrorDetail = (err, context) => {
 function PortfolioDashboardPage() {
   const navigate = useNavigate();
 
-  const { data: status, loading: _statusLoading, error: statusError, refetch: refetchStatus } = useApiQuery(
+  // Determine if any query is loading to show skeleton UI
+  const { data: status, loading: statusLoading, error: statusError, refetch: refetchStatus } = useApiQuery(
     ['algo-status'],
     () => api.get('/api/algo/status'),
     { refetchInterval: 60000 }
@@ -103,7 +105,7 @@ function PortfolioDashboardPage() {
     () => api.get('/api/algo/positions'),
     { refetchInterval: 60000 }
   );
-  const { data: perf, loading: _perfLoading, error: perfError, refetch: refetchPerf } = useApiQuery(
+  const { data: perf, loading: perfLoading, error: perfError, refetch: refetchPerf } = useApiQuery(
     ['algo-performance'],
     () => api.get('/api/algo/performance'),
     { refetchInterval: 60000 }
@@ -113,7 +115,7 @@ function PortfolioDashboardPage() {
     () => api.get('/api/algo/trades?limit=200'),
     { refetchInterval: 60000 }
   );
-  const { data: markets, loading: _marketsLoading, error: marketsError, refetch: refetchMarkets } = useApiQuery(
+  const { data: markets, loading: marketsLoading, error: marketsError, refetch: refetchMarkets } = useApiQuery(
     ['algo-markets'],
     () => api.get('/api/algo/markets'),
     { refetchInterval: 60000 }
@@ -128,6 +130,9 @@ function PortfolioDashboardPage() {
     () => api.get('/api/algo/circuit-breakers'),
     { refetchInterval: 60000 }
   );
+
+  // Track overall loading state
+  const isInitialLoading = statusLoading || posLoading || perfLoading || tradesLoading || marketsLoading || equityLoading || breakersLoading;
 
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
@@ -182,6 +187,7 @@ function PortfolioDashboardPage() {
 
   return (
     <div className="main-content">
+      <AddGlobalStyles />
       <div className="page-head">
         <div>
           <div className="page-head-title">Portfolio</div>
@@ -190,7 +196,15 @@ function PortfolioDashboardPage() {
           </div>
         </div>
         <div className="page-head-actions">
-          <button className="btn btn-outline btn-sm" onClick={() => refetchStatus()}>
+          <button className="btn btn-outline btn-sm" onClick={() => {
+            refetchStatus();
+            refetchPositions();
+            refetchPerf();
+            refetchTrades();
+            refetchMarkets();
+            refetchEquity();
+            refetchBreakers();
+          }}>
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
@@ -228,65 +242,83 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Top KPI strip */}
-      <div className="grid grid-4">
-        <Kpi
-          label="Portfolio Value"
-          value={fmtMoneyShort(totalValue)}
-          sub={`${safePositionsList.length} open positions`}
-          icon={DollarSign}
-        />
-        <Kpi
-          label="Unrealized P&L"
-          value={<Pnl value={totalValue > 0 ? (unrealizedPnl / totalValue * 100) : null} suffix="%" />}
-          sub={`$${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(0)} unrealized`}
-          icon={Activity}
-          tone={unrealizedPnl >= 0 ? 'up' : 'down'}
-        />
-        <Kpi
-          label="Total Return"
-          value={<Pnl value={perf?.total_return_pct} suffix="%" />}
-          sub={`${perf?.total_trades ?? 0} closed trades`}
-          icon={TrendingUp}
-          tone={perf?.total_return_pct >= 0 ? 'up' : 'down'}
-        />
-        <Kpi
-          label="Market Regime"
-          value={<span className="mono">{(market.trend || '—').toString().toUpperCase()}</span>}
-          sub={`Stage ${market.stage ?? '—'} · DD ${market.distribution_days ?? 0}`}
-          icon={Shield}
-        />
-      </div>
+      {statusLoading || posLoading || perfLoading || marketsLoading ? (
+        <div className="grid grid-4">
+          <SkeletonKpi />
+          <SkeletonKpi />
+          <SkeletonKpi />
+          <SkeletonKpi />
+        </div>
+      ) : (
+        <div className="grid grid-4">
+          <Kpi
+            label="Portfolio Value"
+            value={fmtMoneyShort(totalValue)}
+            sub={`${safePositionsList.length} open positions`}
+            icon={DollarSign}
+          />
+          <Kpi
+            label="Unrealized P&L"
+            value={<Pnl value={totalValue > 0 ? (unrealizedPnl / totalValue * 100) : null} suffix="%" />}
+            sub={`$${unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(0)} unrealized`}
+            icon={Activity}
+            tone={unrealizedPnl >= 0 ? 'up' : 'down'}
+          />
+          <Kpi
+            label="Total Return"
+            value={<Pnl value={perf?.total_return_pct} suffix="%" />}
+            sub={`${perf?.total_trades ?? 0} closed trades`}
+            icon={TrendingUp}
+            tone={perf?.total_return_pct >= 0 ? 'up' : 'down'}
+          />
+          <Kpi
+            label="Market Regime"
+            value={<span className="mono">{(market.trend || '—').toString().toUpperCase()}</span>}
+            sub={`Stage ${market.stage ?? '—'} · DD ${market.distribution_days ?? 0}`}
+            icon={Shield}
+          />
+        </div>
+      )}
 
       {/* Ratios row */}
-      <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
-        <Kpi
-          label="Sharpe (annualized)"
-          value={<span className="mono tnum">{num(perf?.sharpe_annualized)}</span>}
-          sub="risk-adjusted"
-          icon={BarChart3}
-          tone={perf?.sharpe_annualized > 1 ? 'up' : perf?.sharpe_annualized < 0 ? 'down' : ''}
-        />
-        <Kpi
-          label="Sortino"
-          value={<span className="mono tnum">{num(perf?.sortino_annualized)}</span>}
-          sub="downside-only"
-          icon={Shield}
-        />
-        <Kpi
-          label="Calmar"
-          value={<span className="mono tnum">{num(perf?.calmar_ratio)}</span>}
-          sub={`Max DD ${pct(perf?.max_drawdown_pct, 1)}`}
-          icon={AlertTriangle}
-          tone={perf?.calmar_ratio > 1 ? 'up' : perf?.max_drawdown_pct > 20 ? 'down' : ''}
-        />
-        <Kpi
-          label="Profit Factor"
-          value={<span className="mono tnum">{perf?.profit_factor == null ? '—' : num(perf.profit_factor)}</span>}
-          sub={`${perf?.win_rate_pct ?? 0}% win rate`}
-          icon={Zap}
-          tone={perf?.profit_factor > 1.5 ? 'up' : perf?.profit_factor < 1 ? 'down' : ''}
-        />
-      </div>
+      {perfLoading ? (
+        <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
+          <SkeletonKpi />
+          <SkeletonKpi />
+          <SkeletonKpi />
+          <SkeletonKpi />
+        </div>
+      ) : (
+        <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
+          <Kpi
+            label="Sharpe (annualized)"
+            value={<span className="mono tnum">{num(perf?.sharpe_annualized)}</span>}
+            sub="risk-adjusted"
+            icon={BarChart3}
+            tone={perf?.sharpe_annualized > 1 ? 'up' : perf?.sharpe_annualized < 0 ? 'down' : ''}
+          />
+          <Kpi
+            label="Sortino"
+            value={<span className="mono tnum">{num(perf?.sortino_annualized)}</span>}
+            sub="downside-only"
+            icon={Shield}
+          />
+          <Kpi
+            label="Calmar"
+            value={<span className="mono tnum">{num(perf?.calmar_ratio)}</span>}
+            sub={`Max DD ${pct(perf?.max_drawdown_pct, 1)}`}
+            icon={AlertTriangle}
+            tone={perf?.calmar_ratio > 1 ? 'up' : perf?.max_drawdown_pct > 20 ? 'down' : ''}
+          />
+          <Kpi
+            label="Profit Factor"
+            value={<span className="mono tnum">{perf?.profit_factor == null ? '—' : num(perf.profit_factor)}</span>}
+            sub={`${perf?.win_rate_pct ?? 0}% win rate`}
+            icon={Zap}
+            tone={perf?.profit_factor > 1.5 ? 'up' : perf?.profit_factor < 1 ? 'down' : ''}
+          />
+        </div>
+      )}
 
       {/* Circuit breakers */}
       <CircuitBreakerPanel data={breakers} loading={breakersLoading} />
@@ -469,21 +501,11 @@ export default function PortfolioDashboard() {
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
 function CircuitBreakerPanel({ data, loading }) {
   const breakers = Array.isArray(data) ? data : data?.breakers || [];
+
   if (loading) {
-    return (
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
-        <div className="card-head">
-          <div>
-            <div className="card-title">Circuit Breakers</div>
-            <div className="card-sub">Pre-trade kill-switch state</div>
-          </div>
-        </div>
-        <div className="card-body">
-          <Empty title="Loading circuit breaker state…" />
-        </div>
-      </div>
-    );
+    return <SkeletonCircuitBreaker />;
   }
+
   if (breakers.length === 0) {
     return (
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -499,6 +521,7 @@ function CircuitBreakerPanel({ data, loading }) {
       </div>
     );
   }
+
   const tripped = breakers.filter(b => b.triggered).length;
   return (
     <div className="card" style={{ marginTop: 'var(--space-4)' }}>
@@ -578,7 +601,9 @@ function EquityCurve({ series, loading }) {
       </div>
       <div className="card-body">
         {loading ? (
-          <Empty title="Loading equity curve…" />
+          <div style={{ height: 220 }}>
+            <SkeletonChart />
+          </div>
         ) : data.length < 2 ? (
           <Empty title="Equity curve building" desc={`${data.length} snapshot${data.length === 1 ? '' : 's'} — need 2+ for a curve.`} />
         ) : (
