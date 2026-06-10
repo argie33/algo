@@ -4784,8 +4784,10 @@ def panel_signals_expanded(sig, sig_eval=None):
     if top_a:
         parts = []
         for s in top_a:
-            sc_c = G if float(s.get("score") or 0) >= 90 else ("bright_green" if float(s.get("score") or 0) >= 85 else "green")
-            parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{float(s.get('score') or 0):.0f}[/]")
+            sc = get_numeric(s, "score")
+            sc_c = G if sc is not None and sc >= 90 else ("bright_green" if sc is not None and sc >= 85 else "green")
+            sc_s = f"{sc:.0f}" if sc is not None else "--"
+            parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     if sig_eval and not sig_eval.get("_error"):
