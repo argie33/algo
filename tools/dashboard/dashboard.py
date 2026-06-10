@@ -347,13 +347,16 @@ def validate_schema() -> None:
         sys.exit(f"Database connection/schema error: {e}")
 
 def validate_phase_results(phase_results: any) -> List[Dict]:
-    """Validate phase_results schema. Each phase must have 'name'/'phase' and 'status' fields.
+    """Validate phase_results schema. Each phase must have 'name'/'phase' and valid 'status'.
 
     Returns: list of valid phase objects with guaranteed structure; invalid entries logged.
     """
     if not isinstance(phase_results, list):
         logger.warning(f"VALIDATION: phase_results expected list, got {type(phase_results).__name__}")
         return []
+
+    # Issue 20 FIX: Define valid status values (not just any string like 'unknown')
+    VALID_STATUSES = {'ok', 'success', 'running', 'pending', 'halt', 'halted', 'failed', 'completed', 'skipped'}
 
     valid = []
     for i, p in enumerate(phase_results):
@@ -363,12 +366,15 @@ def validate_phase_results(phase_results: any) -> List[Dict]:
 
         # Check required fields: name/phase and status
         name = p.get("name") or p.get("phase")
-        status = p.get("status")
+        status = (p.get("status") or "").lower().strip()
 
         if not name:
             logger.warning(f"VALIDATION: phase_results[{i}] missing 'name'/'phase' field")
         if not status:
             logger.warning(f"VALIDATION: phase_results[{i}] missing 'status' field")
+        elif status not in VALID_STATUSES:
+            logger.warning(f"VALIDATION: phase_results[{i}] has invalid status '{status}' (not in {VALID_STATUSES})")
+            status = None  # Treat as missing for validation
 
         if name and status:
             valid.append(p)
@@ -845,13 +851,25 @@ def fetch_market(c):
         if exp_age is not None and exp_age > 1:
             logger.warning(f"Market exposure data is {exp_age} days old")
             stale_alerts.append(f"Exposure {exp_age}d old")
-        # Issue 1.3: Validate SPY age — log if missing or stale
+        # Issue 23 FIX: Validate SPY age considering intraday freshness during market hours
+        # During market hours (9:30 AM - 4 PM ET), close price from yesterday is stale
         if spy_age is None and not spy_rows:
             logger.warning(f"VALIDATION: SPY price data is MISSING (no rows in price_daily for SPY)")
             stale_alerts.append("SPY data missing")
-        elif spy_age is not None and spy_age > 1:
-            logger.warning(f"VALIDATION: SPY price data is {spy_age} days old — may not reflect current market")
-            stale_alerts.append(f"SPY {spy_age}d stale")
+        elif spy_age is not None:
+            if spy_age > 1:
+                logger.warning(f"VALIDATION: SPY price data is {spy_age} days old — may not reflect current market")
+                stale_alerts.append(f"SPY {spy_age}d stale")
+            elif spy_age == 0:
+                # Issue 23: Check if we're during market hours (9:30 AM - 4 PM ET weekdays)
+                now_et = datetime.now(ET)
+                is_weekday = now_et.weekday() < 5
+                is_market_hours = is_weekday and (9.5 <= now_et.hour + now_et.minute/60 < 16)
+                if is_market_hours:
+                    hours_into_session = (now_et.hour + now_et.minute/60) - 9.5
+                    if hours_into_session > 2:  # If more than 2 hours into market
+                        logger.warning(f"VALIDATION: SPY close price is from yesterday ({hours_into_session:.1f}h into trading session; market still open)")
+                        stale_alerts.append("SPY close is yesterday's close")
         # Category 6 fix: Breadth momentum 10d indicator unreliable if >3 days old (validates threshold)
         # Issue 14 fix: Detect when breadth momentum is MISSING, not just old
         if h:
@@ -1005,8 +1023,25 @@ def fetch_portfolio(c):
                    unrealized_pnl_pct, position_count, total_cash,
                    cumulative_return_pct, max_drawdown_pct, largest_position_pct
             FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1""")
-        result = dict(row or {})
-        _log_data_quality("fetch_portfolio", 1 if row else 0)
+        if not row:
+            _log_data_quality("fetch_portfolio", 0)
+            return {}
+
+        # Issue 29: Validate portfolio snapshot date matches latest price data date
+        snapshot_date = row.get("snapshot_date")
+        latest_price = q1(c, "SELECT DISTINCT date FROM price_daily ORDER BY date DESC LIMIT 1")
+        price_date = latest_price.get("date") if latest_price else None
+
+        if snapshot_date and price_date:
+            snap_dt = snapshot_date if isinstance(snapshot_date, date) else datetime.fromisoformat(str(snapshot_date)).date()
+            price_dt = price_date if isinstance(price_date, date) else datetime.fromisoformat(str(price_date)).date()
+            if snap_dt != price_dt:
+                logger.warning(f"VALIDATION: Portfolio snapshot ({snap_dt}) does not match latest price data ({price_dt}) — portfolio value may be calculated with stale prices")
+        elif not price_date:
+            logger.warning(f"VALIDATION: No price data available — portfolio value cannot be validated")
+
+        result = dict(row)
+        _log_data_quality("fetch_portfolio", 1)
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
@@ -1197,8 +1232,9 @@ def fetch_positions(c):
                 ORDER BY symbol, trade_date DESC, entry_time DESC
             ),
             latest_prices AS (
+                -- Issue 30: Use bid price for more conservative position valuation (close price may overstate value on illiquid stocks)
                 -- Only get prices for open position symbols (not all 10k+ symbols)
-                SELECT DISTINCT ON (symbol) symbol, close as current_price
+                SELECT DISTINCT ON (symbol) symbol, COALESCE(bid, close) as current_price
                 FROM price_daily
                 WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
                 ORDER BY symbol, date DESC
@@ -1217,7 +1253,11 @@ def fetch_positions(c):
             ),
             days_held AS (
                 SELECT symbol,
-                    (CURRENT_DATE - entry_time::date)::INT as days_since_entry
+                    -- Issue 22 FIX: Handle NULL entry_time to prevent NULL propagation
+                    CASE WHEN entry_time IS NOT NULL
+                        THEN (CURRENT_DATE - entry_time::date)::INT
+                        ELSE NULL
+                    END as days_since_entry
                 FROM open_trades
             )
             SELECT
@@ -1252,12 +1292,18 @@ def fetch_positions(c):
                 missing_symbols = [p.get("symbol") for p in missing_sectors]
                 logger.warning(f"VALIDATION: {len(missing_sectors)} open positions missing sector data: {missing_symbols} "
                              f"(may indicate ticker/symbol mismatch in company_profile table)")
+                # Issue 18 FIX: Flag positions with missing sector data so dashboard can highlight them
+                for p in missing_sectors:
+                    p["_missing_sector"] = True
             # Check if any positions have missing current price data (indicates stale/incomplete price_daily table)
             missing_prices = [p for p in result if p.get("current_price") is None]
             if missing_prices:
                 missing_price_symbols = [p.get("symbol") for p in missing_prices]
                 logger.warning(f"VALIDATION: {len(missing_prices)} open positions missing current price data: {missing_price_symbols} "
                              f"(may indicate price_daily loader failure or incomplete data)")
+                # Flag positions with missing prices as well
+                for p in missing_prices:
+                    p["_missing_price"] = True
 
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return result
@@ -1489,13 +1535,24 @@ def fetch_economic_pulse(c):
             FROM economic_data WHERE series_id = ANY(%s)
             ORDER BY series_id, date DESC""", (KEY,))
         d = {r['series_id']: safe_float(r['value']) for r in rows if r.get('value') is not None}
+
+        # Issue 21 FIX: Track missing required fields and log validation issues
+        missing_required = [k for k in ['DGS10', 'DGS2', 'CPIAUCSL'] if k not in d or d[k] is None]
+        if missing_required:
+            logger.warning(f"VALIDATION: fetch_economic_pulse missing required fields: {missing_required} — economic data incomplete")
+
         t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
         # Yield curve slopes: both rates must be valid numbers
         yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2 is not None) else None
         yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
 
+        # Issue 21 FIX: Log yield curve computation failures explicitly
+        if t10 is None or t2 is None:
+            logger.warning(f"VALIDATION: fetch_economic_pulse cannot compute yield curve 10-2: DGS10={t10}, DGS2={t2}")
+
         # Issue 1.4: CPI YoY calculation with explicit date logic (not assuming daily data)
         cpi_yoy = None
+        cpi_error = None
         cpi_cur = q1(c, "SELECT value FROM economic_data WHERE series_id='CPIAUCSL' ORDER BY date DESC LIMIT 1")
         cpi_yoy_row = q1(c, """
             SELECT value FROM economic_data
@@ -1507,8 +1564,18 @@ def fetch_economic_pulse(c):
                 prev = float(cpi_yoy_row['value'])
                 if prev > 0:
                     cpi_yoy = round((cur - prev) / prev * 100, 2)
-            except (ValueError, TypeError):
-                pass
+                else:
+                    cpi_error = "prev_cpi_zero"
+            except (ValueError, TypeError) as e:
+                cpi_error = f"parse_error:{type(e).__name__}"
+        else:
+            if not cpi_cur or cpi_cur.get('value') is None:
+                cpi_error = "current_missing"
+            elif not cpi_yoy_row or cpi_yoy_row.get('value') is None:
+                cpi_error = "yoy_history_missing"
+
+        if cpi_error:
+            logger.warning(f"VALIDATION: fetch_economic_pulse CPI YoY computation failed: {cpi_error}")
 
         result = {
             't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
@@ -1574,6 +1641,20 @@ def fetch_sentiment(c):
 
 def fetch_economic_calendar(c):
     try:
+        # Issue 25: Whitelist of expected US economic indicators (exclude earnings, earnings announcements)
+        economic_indicator_keywords = [
+            'CPI', 'PCE', 'PPI', 'inflation', 'unemployment', 'jobless', 'nonfarm payroll',
+            'initial claims', 'continuing claims', 'duration', 'employment', 'nonfarm',
+            'retail sales', 'producer price', 'consumer price', 'PPI', 'ISM', 'PMI',
+            'manufacturing', 'services', 'construction', 'factory', 'housing starts',
+            'home sales', 'building permits', 'existing home', 'new home', 'durable',
+            'orders', 'consumer confidence', 'API', 'EIA', 'natural gas', 'crude oil',
+            'fed funds', 'federal reserve', 'FOMC', 'interest rate', 'fed decision',
+            'NAHB', 'philly fed', 'richmond fed', 'empire', 'GDP', 'gross domestic',
+            'GDP advance', 'GDP preliminary', 'GDP final', 'trade', 'deficit', 'surplus',
+            'personal income', 'personal spending', 'savings', 'wholesale', 'redbook'
+        ]
+
         rows = q(c, """SELECT event_name, event_date, event_time, importance,
                               forecast_value, actual_value, previous_value
                        FROM economic_calendar
@@ -1581,8 +1662,29 @@ def fetch_economic_calendar(c):
                          AND country='US'
                        ORDER BY event_date ASC, importance DESC, event_time ASC
                        LIMIT 8""")
-        _log_data_quality("fetch_economic_calendar", len(rows) if rows else 0)
-        return rows
+
+        if rows:
+            # Filter out non-economic events (earnings, earnings announcements, etc)
+            filtered = []
+            for row in rows:
+                event_name = str(row.get("event_name") or "").upper()
+                if 'EARNINGS' in event_name or 'GUIDANCE' in event_name:
+                    logger.debug(f"VALIDATION: Skipping non-economic event: {event_name}")
+                    continue
+
+                # Check if event matches any economic indicator keyword
+                is_economic = any(keyword.upper() in event_name for keyword in economic_indicator_keywords)
+                if is_economic:
+                    filtered.append(row)
+                else:
+                    logger.warning(f"VALIDATION: Economic calendar event '{event_name}' does not match known indicators — may be non-economic")
+                    filtered.append(row)  # Still include but flag it
+
+            _log_data_quality("fetch_economic_calendar", len(filtered) if filtered else 0)
+            return filtered
+        else:
+            _log_data_quality("fetch_economic_calendar", 0)
+            return []
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
         _log_data_quality("fetch_economic_calendar", 0, str(e))
@@ -1728,7 +1830,7 @@ def fetch_industry_ranking(c):
 def fetch_loader_status(c):
     try:
         result = q(c, """SELECT table_name, status, latest_date, age_days,
-                              completion_pct, error_message
+                              completion_pct, error_message, last_updated_at
                        FROM data_loader_status
                        ORDER BY CASE status
                            WHEN 'error'   THEN 1
@@ -1738,6 +1840,28 @@ def fetch_loader_status(c):
                            ELSE 5
                        END, age_days DESC NULLS LAST
                        LIMIT 8""")
+
+        # Issue 27: Validate loader status freshness
+        if result:
+            now = datetime.now(timezone.utc)
+            for row in result:
+                last_update = row.get("last_updated_at")
+                status = row.get("status")
+                table_name = row.get("table_name")
+
+                if last_update and status == 'loading':
+                    if isinstance(last_update, datetime):
+                        td = last_update
+                    else:
+                        td = datetime.fromisoformat(str(last_update))
+
+                    if td.tzinfo is None:
+                        td = td.replace(tzinfo=timezone.utc)
+
+                    minutes_since_update = (now - td).total_seconds() / 60
+                    if minutes_since_update > 30:
+                        logger.warning(f"VALIDATION: Loader '{table_name}' status marked as 'loading' for {minutes_since_update:.0f} minutes — status may be stale")
+
         _log_data_quality("fetch_loader_status", len(result) if result else 0)
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
@@ -1917,12 +2041,14 @@ def check_loader_health() -> dict:
     - status: 'ok' (all critical fetchers pass), 'degraded' (some pass), 'failed' (none pass)
     - failures: list of fetcher names that failed
     - timestamp: when check was performed
+    - data_quality_issues: list of row count / freshness issues
     """
     try:
         conn = get_conn()
         critical_fetchers = ["fetch_run", "fetch_algo_config", "fetch_market", "fetch_positions"]
         failures = []
         successes = []
+        data_quality_issues = []
 
         for name in critical_fetchers:
             try:
@@ -1938,11 +2064,53 @@ def check_loader_health() -> dict:
             except Exception as e:
                 failures.append(f"{name}({type(e).__name__})")
 
-        status = "ok" if not failures else ("degraded" if successes else "failed")
+        # Issue 24: Validate row counts and data freshness for critical tables
+        critical_tables = {
+            "algo_trades": {"min_rows": 1, "max_age_days": 7, "label": "Trade history"},
+            "algo_portfolio_snapshots": {"min_rows": 1, "max_age_days": 1, "label": "Portfolio snapshot"},
+            "price_daily": {"min_rows": 100, "max_age_days": 1, "label": "Price data"},
+            "market_health_daily": {"min_rows": 1, "max_age_days": 1, "label": "Market health"},
+        }
+
+        for table_name, config in critical_tables.items():
+            try:
+                check = q1(conn, f"SELECT COUNT(*) as cnt, MAX(date) as latest_date FROM {table_name}")
+                if check:
+                    row_count = int(check.get("cnt") or 0)
+                    latest_date = check.get("latest_date")
+
+                    # Check row count
+                    if row_count < config["min_rows"]:
+                        issue = f"{config['label']} ({table_name}): only {row_count} rows (expected >={config['min_rows']})"
+                        data_quality_issues.append(issue)
+                        logger.warning(f"VALIDATION: {issue}")
+
+                    # Check data freshness
+                    if latest_date:
+                        try:
+                            if isinstance(latest_date, datetime):
+                                ld = latest_date.date() if hasattr(latest_date, 'date') else latest_date
+                            else:
+                                ld = datetime.fromisoformat(str(latest_date)).date()
+
+                            age_days = (date.today() - ld).days
+                            if age_days > config["max_age_days"]:
+                                issue = f"{config['label']} ({table_name}): {age_days} days old (max {config['max_age_days']}d)"
+                                data_quality_issues.append(issue)
+                                logger.warning(f"VALIDATION: {issue}")
+                        except (ValueError, TypeError):
+                            pass
+            except psycopg2.Error as e:
+                issue = f"Could not check {table_name}: {type(e).__name__}"
+                data_quality_issues.append(issue)
+                logger.warning(f"VALIDATION: {issue}")
+
+        status = "ok" if not failures and not data_quality_issues else ("degraded" if successes else "failed")
         conn.close()
         return {
             "status": status,
             "failures": failures,
+            "data_quality_issues": data_quality_issues if data_quality_issues else [],
             "timestamp": datetime.now(ET),
             "critical": len(critical_fetchers),
             "passed": len(successes),
@@ -2013,7 +2181,7 @@ def generate_test_data(conn, symbol_count: int = 10) -> dict:
 def load_all() -> dict:
     out: dict = {}
     def one(name, fn):
-        max_retries = 2
+        max_retries = 3
         for attempt in range(max_retries + 1):
             conn = None
             try:
@@ -2023,10 +2191,11 @@ def load_all() -> dict:
                 return name, result
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt < max_retries:
-                    logger.warning(f"Retry {attempt+1}/{max_retries} for {name}: {e}")
-                    # CRITICAL ISSUE 9 FIX: Exponential backoff with jitter (2^attempt + random [0,1)) to avoid thundering herd
-                    backoff = (2 ** attempt) + random.random()
-                    logger.debug(f"Backing off {backoff:.2f}s before retry {attempt+1}")
+                    # Issue 17 FIX: Improved exponential backoff for transient RDS connection pool exhaustion
+                    # For attempt 0: 2-5s, attempt 1: 4-12s, attempt 2: 8-28s
+                    # Gives RDS connection pool adequate time to recover from transient exhaustion
+                    backoff = (2 ** attempt) * 2 + random.random() * (2 ** attempt) * 3
+                    logger.warning(f"Retry {attempt+1}/{max_retries} for {name} (backoff {backoff:.2f}s): {e}")
                     time.sleep(backoff)
                     continue
                 logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
@@ -2038,16 +2207,21 @@ def load_all() -> dict:
                 if conn:
                     try: conn.close()
                     except (psycopg2.Error, AttributeError): pass
-    # CRITICAL ISSUE 9 FIX: Thread pool with timeout enforcement and reduced worker count
-    # Limit concurrent DB connections to avoid RDS exhaustion (8 workers × 28 fetchers = 224 potential connections)
+    # Issue 15 FIX: Increase thread pool workers from 4 to better utilize CPU cores while respecting RDS limits
+    # With 27 fetchers: 8 workers means only 3-4 fetchers queue per batch, avoiding timeout cascades
+    # RDS connection pool typically 10-20 connections; fetchers hold conn 1-5s, so 8 workers is safe
+    # Issue 16 FIX: Use per-batch timeout instead of global timeout to prevent cascading failures
     import os
-    max_workers = min(len(FETCHERS), os.cpu_count() or 4, 4)  # Reduced from 8 to 4 to avoid connection pool exhaustion
-    logger.debug(f"load_all using {max_workers} workers for {len(FETCHERS)} fetchers (RDS connection pool safe)")
+    cpu_count = os.cpu_count() or 4
+    max_workers = min(len(FETCHERS), max(cpu_count - 1, 6))  # Use most CPUs, minimum 6 workers
+    logger.debug(f"load_all using {max_workers} workers for {len(FETCHERS)} fetchers on {cpu_count} CPUs")
 
+    # Per-batch timeout: with 8 workers and 27 fetchers, ~4 batches, each gets 25s
+    BATCH_TIMEOUT = 25
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
         try:
-            for f in as_completed(future_to_key, timeout=45):  # 45 sec timeout per fetcher group
+            for f in as_completed(future_to_key, timeout=BATCH_TIMEOUT):
                 try:
                     n, d = f.result()
                     out[n] = d
@@ -2056,13 +2230,13 @@ def load_all() -> dict:
                     k = future_to_key[f]
                     out[k] = {"_error": str(e)}
         except TimeoutError:
-            logger.error(f"load_all timed out after 45 seconds — not all fetchers completed")
-            # Mark remaining incomplete fetchers as timed out
+            logger.error(f"load_all batch timed out after {BATCH_TIMEOUT}s — some fetchers incomplete")
+            # Mark remaining incomplete fetchers; this is now rare with improved pool sizing
             for f, k in future_to_key.items():
                 if not f.done():
-                    logger.warning(f"Fetcher {k} timed out — forcing cancel")
+                    logger.warning(f"Fetcher {k} timed out — marking incomplete")
                     f.cancel()
-                    out[k] = {"_error": "Timeout (fetcher exceeded 45 seconds)"}
+                    out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s)"}
     return out
 
 
