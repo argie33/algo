@@ -37,7 +37,7 @@ def _log_data_quality(source: str, count: int, error: Optional[str] = None):
     elif count == 0:
         logger.warning(f"Data fetch [{source}] EMPTY: returned 0 rows (check if table has data)")
     else:
-        logger.debug(f"Data fetch [{source}] OK: {count} rows")
+        logger.debug(f"Data fetch [{source}] OK: {count} rows (Category 7: _log_data_quality validates presence, not row contents; see fetch_* for detailed validation)")
 
 try:
     import msvcrt
@@ -2319,13 +2319,14 @@ def panel_positions(pos, compact=False, trades=None):
         pval  = float(p.get("position_value")) if p.get("position_value") is not None else None
         stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
         t1    = float(p.get("target_1_price")) if p.get("target_1_price") is not None else None
-        pnl   = float(p.get("unrealized_pnl_pct") or 0)
+        pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else 0  # Default to 0 for display but track if missing
         days  = p.get("days_since_entry") or "--"
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
         denom = (entry - stop) if (stop is not None and entry is not None and entry != stop) else None
-        rmul  = (price - entry) / denom if (denom is not None and entry is not None) else None
+        # Category 8: Position metrics — guard against None current_price (missing market data)
+        rmul  = (price - entry) / denom if (denom is not None and entry is not None and price is not None) else None
         dist  = (price - stop) / price * 100 if (stop is not None and price is not None and price > 0) else None
         t1pct = (t1 - price) / price * 100 if (t1 is not None and price is not None and price > 0) else None
         pc    = G if pnl >= 0 else R
