@@ -1567,7 +1567,7 @@ def fetch_positions(c):
     """Fetch open positions from algo_trades (single source of truth).
 
     Data derivation:
-    - algo_trades WHERE status IN ('open','filled','partially_filled','active')
+    - algo_trades WHERE status IN ('open','filled','partially_filled','active','accepted')
     - Latest price from price_daily for ONLY the open positions (not all symbols)
     - Trade metadata (stop, targets) from the trade record
     - Technical/fundamental data from supporting tables
@@ -1628,7 +1628,7 @@ def fetch_positions(c):
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
                     trade_date, entry_time
                 FROM algo_trades
-                WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+                WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'accepted')
                     AND exit_date IS NULL
                 ORDER BY symbol, trade_date DESC, entry_time DESC
             ),
@@ -2579,7 +2579,7 @@ def fetch_circuit(c):
         rr    = q1(c, """
             WITH open_trades AS (
                 SELECT DISTINCT ON (symbol) symbol, entry_quantity, stop_loss_price
-                FROM algo_trades WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+                FROM algo_trades WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'accepted')
                   AND exit_date IS NULL
                 ORDER BY symbol, trade_date DESC
             ),
