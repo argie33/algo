@@ -100,7 +100,7 @@ export default function TradingSignals() {
 
   const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
 
-  const { data, loading: isLoading, refetch, isFetching } = useApiQuery(
+  const { data, loading: dataLoading, refetch, isFetching } = useApiQuery(
     ['signals', tab, signal, timeframe, limit],
     () => {
       const params = new URLSearchParams();
@@ -135,11 +135,13 @@ export default function TradingSignals() {
   // - "today's scores" if algo has run (after 5:30pm ET)
   // - "yesterday's scores" if algo hasn't run yet (before 5:30pm ET)
   // This is normal; signals are evaluated against most recent available scores
-  const { data: gatesData } = useApiQuery(
+  const { data: gatesData, loading: gatesLoading } = useApiQuery(
     ['signals-gates'],
     () => api.get('/api/algo/swing-scores?limit=2000&min_score=0'),
     { refetchInterval: 300000, enabled: tab === 'stocks' }  // refresh every 5 min
   );
+
+  const isLoading = dataLoading || (tab === 'stocks' ? gatesLoading : false);
 
   const gateMap = useMemo(() => {
     const m = new Map();

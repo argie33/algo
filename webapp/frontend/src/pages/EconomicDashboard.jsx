@@ -179,22 +179,22 @@ function EconomicDashboardPage() {
       });
     }
 
-    // Chicago Fed National Activity Index — 85-indicator composite (< -0.70 = recession)
+    // Chicago Fed National Activity Index — 85-indicator composite
     const cfnaiInd2 = indicators.find(i => (i.name || '').includes('Chicago Fed'));
     if (cfnaiInd2?.rawValue != null) {
       const cv = +cfnaiInd2.rawValue;
       tiles.push({
         label: 'CFNAI Composite', value: cv >= 0 ? `+${cv.toFixed(2)}` : cv.toFixed(2),
-        threshold: '< -0.70 = recession', desc: 'Chicago Fed National Activity Index — 85-indicator composite of US economic activity',
-        status: cv < -0.7 ? 'red' : cv < -0.3 ? 'amber' : 'green',
-        weight: cv < -0.7 ? 100 : cv < -0.3 ? 50 : Math.max(0, -cv * 50),
+        threshold: `< ${thresholds.cfnai_critical} = recession`, desc: 'Chicago Fed National Activity Index — 85-indicator composite of US economic activity',
+        status: cv < thresholds.cfnai_critical ? 'red' : cv < thresholds.cfnai_warning ? 'amber' : 'green',
+        weight: cv < thresholds.cfnai_critical ? 100 : cv < thresholds.cfnai_warning ? 50 : Math.max(0, -cv * 50),
       });
     }
 
     if (!tiles.length) return null;
     const composite = Math.round(tiles.reduce((s, t) => s + t.weight, 0) / tiles.length);
     return { tiles, composite };
-  }, [indicators, yieldData]);
+  }, [indicators, yieldData, thresholds]);
 
   // ── Financial conditions ──────────────────────────────────────────────────
   const fci = useMemo(() => {
