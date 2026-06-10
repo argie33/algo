@@ -59,6 +59,13 @@ except ImportError:
     sys.exit("pip install psycopg2-binary")
 
 try:
+    import boto3
+    from botocore.exceptions import ClientError
+except ImportError:
+    boto3 = None
+    ClientError = None
+
+try:
     from rich import box
     from rich.align import Align
     from rich.columns import Columns
@@ -185,14 +192,41 @@ def mascot_pose(data: dict, frame: int) -> int:
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
+def _get_db_credentials() -> dict:
+    """Fetch DB credentials from AWS Secrets Manager with env var fallback."""
+    if boto3 and not os.environ.get("LOCAL_DEV"):
+        try:
+            client = boto3.client("secretsmanager", region_name="us-east-1")
+            secret_name = os.environ.get("DB_SECRET_NAME", "algo-db-credentials")
+            response = client.get_secret_value(SecretId=secret_name)
+            secret_dict = json.loads(response.get("SecretString", "{}"))
+            return {
+                "host": secret_dict.get("host"),
+                "user": secret_dict.get("username"),
+                "password": secret_dict.get("password"),
+                "dbname": secret_dict.get("dbname"),
+                "port": secret_dict.get("port", 5432),
+            }
+        except (ClientError, AttributeError, KeyError, json.JSONDecodeError) as e:
+            logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}. Falling back to env vars.")
+
+    return {
+        "host": os.environ.get("DB_HOST"),
+        "user": os.environ.get("DB_USER"),
+        "password": os.environ.get("DB_PASSWORD"),
+        "dbname": os.environ.get("DB_NAME"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
+    }
+
 def get_conn() -> psycopg2.extensions.connection:
-    miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
+    creds = _get_db_credentials()
+    miss = [k for k, v in creds.items() if not v]
     if miss:
-        sys.exit(f"Missing env vars: {', '.join(miss)}")
+        sys.exit(f"Missing DB credentials: {', '.join(miss)}")
     return psycopg2.connect(
-        host=os.environ["DB_HOST"], port=int(os.environ.get("DB_PORT", 5432)),
-        user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"],
-        dbname=os.environ["DB_NAME"], connect_timeout=10,
+        host=creds["host"], port=creds["port"],
+        user=creds["user"], password=creds["password"],
+        dbname=creds["dbname"], connect_timeout=10,
         cursor_factory=psycopg2.extras.RealDictCursor,
         options="-c statement_timeout=30000",
     )
@@ -433,8 +467,8 @@ def fetch_run(c):
             pr = row.get("phase_results") or []
             if isinstance(pr, str):
                 try: pr = json.loads(pr)
-                except (json.JSONDecodeError, ValueError):
-                    logger.warning("Could not parse phase_results JSON")
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f"Failed to parse phase_results JSON: {e}")
                     pr = []
             overall = (row.get("overall_status") or "").lower()
             result = {
@@ -458,7 +492,6 @@ def fetch_run(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_run (exec_log): {type(e).__name__}: {e}")
         _log_data_quality("fetch_run", 0, str(e))
-        return {}
 
     # Fallback: reconstruct from algo_audit_log
     try:
@@ -521,12 +554,12 @@ def fetch_market(c):
                                put_call_ratio, yield_curve_slope, breadth_momentum_10d,
                                fed_rate_environment, date
                         FROM market_health_daily ORDER BY date DESC LIMIT 1""")
-        pct   = float(exp["exposure_pct"]) if exp and exp.get("exposure_pct") is not None else None
+        pct   = float(exp.get("exposure_pct")) if exp and exp.get("exposure_pct") is not None else None
         halts = exp.get("halt_reasons") or [] if exp else []
         if isinstance(halts, str):
             try: halts = json.loads(halts)
-            except (json.JSONDecodeError, ValueError):
-                logger.debug("halt_reasons JSON parse failed, using as string")
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse halt_reasons JSON: {e}")
                 halts = [halts] if halts else []
 
         # Check data freshness (should be from today or recent trading day)
@@ -556,17 +589,22 @@ def fetch_market(c):
         spy_rows = q(c, "SELECT close, date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
         spy_age = None
         if len(spy_rows) >= 2:
-            cur_spy  = float(spy_rows[0]["close"])
-            prev_spy = float(spy_rows[1]["close"])
-            if spy_v is None: spy_v = cur_spy
-            if prev_spy > 0: spy_chg = round((cur_spy - prev_spy) / prev_spy * 100, 2)
-            try:
-                spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
-                spy_age = (datetime.now(timezone.utc) - spy_date).days
-            except (ValueError, AttributeError, TypeError):
-                pass
+            close0 = spy_rows[0].get("close")
+            close1 = spy_rows[1].get("close")
+            if close0 is not None and close1 is not None:
+                cur_spy  = float(close0)
+                prev_spy = float(close1)
+                if spy_v is None: spy_v = cur_spy
+                if prev_spy > 0: spy_chg = round((cur_spy - prev_spy) / prev_spy * 100, 2)
+                try:
+                    spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
+                    spy_age = (datetime.now(timezone.utc) - spy_date).days
+                except (ValueError, AttributeError, TypeError):
+                    pass
         elif len(spy_rows) == 1 and spy_v is None:
-            spy_v = float(spy_rows[0]["close"])
+            close0 = spy_rows[0].get("close")
+            if close0 is not None:
+                spy_v = float(close0)
             try:
                 spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
                 spy_age = (datetime.now(timezone.utc) - spy_date).days
@@ -616,8 +654,8 @@ def fetch_exposure_factors(c):
         factors = row.get("factors") or {}
         if isinstance(factors, str):
             try: factors = json.loads(factors)
-            except (json.JSONDecodeError, ValueError):
-                logger.warning("Failed to parse exposure factors JSON")
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse exposure factors JSON: {e}")
                 factors = {}
         result = {
             "raw_score":    float(row.get("raw_score") or 0),
@@ -971,10 +1009,13 @@ def fetch_economic_pulse(c):
             SELECT value FROM economic_data WHERE series_id='CPIAUCSL'
             ORDER BY date DESC LIMIT 14""")
         if len(cpi_rows) >= 13:
-            cur_cpi  = float(cpi_rows[0]['value'])  if cpi_rows[0].get('value')  else None
-            prev_cpi = float(cpi_rows[12]['value']) if cpi_rows[12].get('value') else None
-            if cur_cpi and prev_cpi and prev_cpi > 0:
-                cpi_yoy = round((cur_cpi - prev_cpi) / prev_cpi * 100, 2)
+            cur_val  = cpi_rows[0].get('value')
+            prev_val = cpi_rows[12].get('value')
+            if cur_val is not None and prev_val is not None:
+                cur_cpi  = float(cur_val)
+                prev_cpi = float(prev_val)
+                if prev_cpi > 0:
+                    cpi_yoy = round((cur_cpi - prev_cpi) / prev_cpi * 100, 2)
 
         result = {
             't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
@@ -1158,8 +1199,8 @@ def fetch_sector_rotation(c):
         d = row.get("details") or {}
         if isinstance(d, str):
             try: d = json.loads(d)
-            except (json.JSONDecodeError, ValueError):
-                logger.warning("sector_rotation details JSON parse failed")
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse sector_rotation details JSON: {e}")
                 d = {}
         result = {
             "date":     row.get("date"),
@@ -1240,8 +1281,8 @@ def fetch_audit_log(c):
             det = r.get("details") or {}
             if isinstance(det, str):
                 try: det = json.loads(det)
-                except (json.JSONDecodeError, ValueError):
-                    logger.warning("audit_log details JSON parse failed")
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f"Failed to parse audit_log details JSON: {e}")
                     det = {}
             result.append({
                 "action_type": r.get("action_type", ""),
@@ -1258,10 +1299,10 @@ def fetch_audit_log(c):
 
 def fetch_circuit(c):
     try:
-        cfg = {r["key"]: float(r["value"]) for r in q(c,
-            "SELECT key, value FROM algo_config WHERE key=ANY(%s)",
+        rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)",
             (["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses",
-              "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"],))}
+              "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"],))
+        cfg = {r["key"]: float(r["value"]) for r in rows if r.get("value") is not None}
         snaps = q(c, "SELECT total_portfolio_value, daily_return_pct FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
         lat   = snaps[0] if snaps else {}
         # Safely calculate peak value
@@ -1360,21 +1401,15 @@ FETCHERS = {
 def load_all() -> dict:
     out: dict = {}
     def one(name, fn):
-        conn = None
         max_retries = 2
         for attempt in range(max_retries + 1):
+            conn = None
             try:
                 conn = get_conn()
                 conn.autocommit = True
                 result = fn(conn)
-                if conn:
-                    try: conn.close()
-                    except (psycopg2.Error, AttributeError): pass
                 return name, result
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if conn:
-                    try: conn.close()
-                    except (psycopg2.Error, AttributeError): pass
                 if attempt < max_retries:
                     logger.warning(f"Retry {attempt+1}/{max_retries} for {name}: {e}")
                     time.sleep(0.5 * (attempt + 1))
@@ -1382,11 +1417,12 @@ def load_all() -> dict:
                 logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
                 return name, {"_error": str(e)}
             except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+                logger.error(f"fetch_{name}: {type(e).__name__}: {e}")
+                return name, {"_error": str(e)}
+            finally:
                 if conn:
                     try: conn.close()
                     except (psycopg2.Error, AttributeError): pass
-                logger.error(f"fetch_{name}: {type(e).__name__}: {e}")
-                return name, {"_error": str(e)}
     max_workers = min(4, max(1, len(FETCHERS) // 3))
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
@@ -1423,8 +1459,8 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         pdata = p.get("data") or {}
         if isinstance(pdata, str):
             try:    pdata = json.loads(pdata)
-            except (json.JSONDecodeError, ValueError):
-                logger.warning("pdata JSON parse failed in _best_halt_reason")
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse phase data JSON: {e}")
                 pdata = {}
         detail = next(
             (str(pdata[k]) for k in _FIELDS
