@@ -1178,116 +1178,127 @@ def fetch_portfolio(c):
         return {}
 
 def fetch_perf(c):
+    """Fetch performance metrics from algo_performance_daily table (pre-computed).
+
+    CRITICAL ISSUES 1-5 FIX: Read from database instead of recalculating.
+    This ensures:
+    - Single source of truth (metrics computed once in loader, read by dashboard)
+    - Consistency across all views
+    - Reproducibility for historical analysis
+    - No multiple sources of truth for the same metric
+    """
     try:
+        # Fetch pre-computed metrics from algo_performance_daily (CRITICAL ISSUE FIX)
+        perf = q1(c, """
+            SELECT report_date, win_rate_all, profit_factor, expectancy,
+                   rolling_sharpe_252d, max_drawdown_pct,
+                   total_trades, num_wins, num_losses,
+                   avg_win, avg_loss, updated_at
+            FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1
+        """)
+
+        # Fetch trade data for streak calculation (sequence-dependent, not aggregable)
         trades = q(c, """SELECT profit_loss_dollars, exit_r_multiple, profit_loss_pct
                          FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
                          ORDER BY exit_date ASC""")
+
         if not trades:
             _log_data_quality("fetch_perf", 0)
-            # Return context-aware message instead of empty dict
             now = datetime.now(ET)
             t = now.hour * 60 + now.minute
-            if t < 9 * 60 + 30:  # Before market open
+            if t < 9 * 60 + 30:
                 return {"_reason": "pre-market"}
-            elif t >= 16 * 60:  # After market close
+            elif t >= 16 * 60:
                 return {"_reason": "after-hours"}
             else:
                 return {"_reason": "no-trades-yet"}
-        wins      = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
-        losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
+
+        # Calculate streak (sequence-dependent, must be calculated fresh)
+        wins = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
+        losses = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
-        pnl       = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
-        # CRITICAL ISSUE 5 FIX: Win rate now includes breakeven trades in denominator
-        wr        = len(wins) / len(trades) * 100 if len(trades) > 0 else 0
-        # Issue 10: Win rate confidence — breakeven trades affect calculation reliability
-        wr_confidence = "high"
-        be_pct = 0
-        if len(breakeven) > 0:
-            be_pct = len(breakeven) / len(trades) * 100 if len(trades) > 0 else 0
-            if be_pct > 5:
-                wr_confidence = "medium"
-                logger.warning(f"VALIDATION: Win rate calculation excludes {len(breakeven)} breakeven trades ({be_pct:.1f}% of total) — may understate actual performance")
-            if be_pct > 15:
-                wr_confidence = "low"
+        pnl = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
+
         streak = 0
         for t in reversed(trades):
             trade_pnl = t.get("profit_loss_dollars")
             if trade_pnl is None:
-                break  # Stop at first trade with missing data
+                break
             w = float(trade_pnl) > 0
             if streak >= 0 and w:       streak += 1
             elif streak <= 0 and not w: streak -= 1
             else: break
-        snaps = q(c, """SELECT daily_return_pct, total_portfolio_value
+
+        # Fetch snapshots for equity curve and recent returns
+        snaps = q(c, """SELECT snapshot_date, daily_return_pct, total_portfolio_value
                         FROM algo_portfolio_snapshots ORDER BY snapshot_date ASC""")
-        sharpe = None
-        sharpe_confidence = None  # 'high' (>20 snaps), 'medium', 'low' (<10), None (insufficient)
-        maxdd  = 0.0
-        # Only convert non-None values (filter already checks for non-None)
         equity_vals = [float(s.get("total_portfolio_value"))
                        for s in snaps if s.get("total_portfolio_value") is not None]
-        if len(equity_vals) < 3:
-            logger.warning(f"VALIDATION: Equity snapshots has only {len(equity_vals)} values (need 3+) — insufficient for drawdown calculation")
 
-        if len(equity_vals) >= 2:
-            # CRITICAL ISSUE 9 FIX: Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
-            # Only use non-None values (equity_vals already filtered for non-None total_portfolio_value)
-            pk = 0.0
-            for v in equity_vals:
-                if v > pk: pk = v
-                if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
-
-        if len(snaps) >= 10:
-            rets = [float(s.get("daily_return_pct")) / 100 for s in snaps if s.get("daily_return_pct") is not None]
-            # CRITICAL ISSUE 8 FIX: Sharpe requires >5 returns to be meaningful; assumes normal distribution (may understate tail risk in fat-tailed markets)
-            if len(rets) > 5:
-                mn = statistics.mean(rets)
-                sd = statistics.stdev(rets)
-                if sd > 0: sharpe = round(mn / sd * (252 ** 0.5), 2)
-                # Confidence level: high if >20 snapshots, low if <10
-                sharpe_confidence = "high" if len(snaps) >= 20 else ("low" if len(snaps) < 10 else "medium")
-            else:
-                logger.warning(f"VALIDATION: Portfolio snapshots has {len(snaps)} records but only {len(rets)} valid returns (need >5) — cannot compute Sharpe ratio")
-        else:
-            if len(snaps) > 0 and len(snaps) < 10:
-                logger.warning(f"VALIDATION: Portfolio snapshots has only {len(snaps)} records (need 10+) — insufficient for Sharpe ratio")
-        # Build win/loss amounts with defensive filtering
-        win_amt   = [float(t.get("profit_loss_dollars")) for t in wins if t and t.get("profit_loss_dollars") is not None]
-        loss_amt  = [abs(float(t.get("profit_loss_dollars"))) for t in losses if t and t.get("profit_loss_dollars") is not None]
-        avg_win   = statistics.mean(win_amt)  if win_amt and len(win_amt) > 0 else 0.0
-        avg_loss  = statistics.mean(loss_amt) if loss_amt and len(loss_amt) > 0 else 0.0
-        gw = sum(win_amt)
-        gl = sum(loss_amt)
-        # VALIDATION: Profit factor = total wins / total losses. Check precision and zero-division.
-        # Use epsilon check for float precision (avoid false zeros from rounding)
-        if gl > 1e-6:
-            pf = round(gw / gl, 2)
-            if gw <= 0 and len(wins) > 0:
-                logger.warning(f"VALIDATION: Profit factor calculation issue: gw={gw} (sum of {len(win_amt)} wins) but should be positive")
-        else:
-            pf = None
-            if len(losses) > 0:
-                logger.warning(f"VALIDATION: Profit factor undefined: total losses={gl:.2f} (expected >0 if {len(losses)} losses exist)")
-        exp = round(wr / 100 * avg_win - (1 - wr / 100) * avg_loss, 2) if trades else 0.0
-        avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
-        avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
-        # CRITICAL ISSUE 7 FIX: Recent returns — include partial data even if <5 snapshots (don't hide incomplete data)
-        # Note: Takes last 7 calendar days, not trading days. May have gaps over weekends/holidays.
-        # For accurate "last week" metrics, should ideally use trading days only, but snapshot dates vary by sync schedule.
+        # Recent returns (last 7 calendar days)
         recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct")))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
         recent_rets_confidence = "high" if len(recent_rets) >= 5 else ("low" if len(recent_rets) < 3 else "medium")
-        if len(recent_rets) > 0 and len(recent_rets) < 5:
-            logger.warning(f"VALIDATION: Recent returns has only {len(recent_rets)} snapshots over last 7 calendar days (need 5+ for statistical significance). May have gaps over weekends/holidays; check snapshot frequency.")
-        # Show data even if sparse; dashboard will display with reduced confidence
-        _log_data_quality("fetch_perf", len(trades))
-        return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
-                "wr": round(wr, 1), "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
-                "pnl": round(pnl, 2), "streak": streak,
-                "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1),
-                "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
-                "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
-                "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence}
+
+        # Read pre-computed metrics from database (CRITICAL ISSUE FIX)
+        wr = None
+        wr_confidence = "high"
+        be_pct = 0
+        sharpe = None
+        sharpe_confidence = None
+        maxdd = 0.0
+        pf = None
+        exp = None
+        avg_win = 0.0
+        avg_loss = 0.0
+        avg_r = None
+
+        if perf:
+            # Use pre-computed values from database
+            wr = float(perf.get("win_rate_all")) if perf.get("win_rate_all") is not None else None
+            pf = float(perf.get("profit_factor")) if perf.get("profit_factor") is not None else None
+            exp = float(perf.get("expectancy")) if perf.get("expectancy") is not None else None
+            sharpe = float(perf.get("rolling_sharpe_252d")) if perf.get("rolling_sharpe_252d") is not None else None
+            maxdd = float(perf.get("max_drawdown_pct")) if perf.get("max_drawdown_pct") is not None else 0.0
+            avg_win = float(perf.get("avg_win")) if perf.get("avg_win") is not None else 0.0
+            avg_loss = float(perf.get("avg_loss")) if perf.get("avg_loss") is not None else 0.0
+
+            # Infer confidence from number of trades
+            total_trades = int(perf.get("total_trades")) if perf.get("total_trades") is not None else 0
+            if sharpe is not None:
+                sharpe_confidence = "high" if len(snaps) >= 20 else ("low" if len(snaps) < 10 else "medium")
+
+            # Calculate breakeven pct from trade counts
+            if total_trades > 0 and perf.get("num_wins") is not None:
+                num_wins = int(perf.get("num_wins")) or 0
+                num_losses = int(perf.get("num_losses")) or 0
+                num_breakeven = total_trades - num_wins - num_losses
+                be_pct = (num_breakeven / total_trades * 100) if num_breakeven > 0 else 0
+                if be_pct > 5:
+                    wr_confidence = "medium"
+                if be_pct > 15:
+                    wr_confidence = "low"
+
+            _log_data_quality("fetch_perf", len(trades), f"from algo_performance_daily")
+        else:
+            logger.warning("VALIDATION: No pre-computed metrics in algo_performance_daily — data may not be loaded yet")
+            _log_data_quality("fetch_perf", 0, "No metrics in algo_performance_daily")
+
+        # Fallback: calculate avg_r from trades if not in database
+        avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
+        avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
+
+        # Return metrics from database + calculated streak + recent returns
+        return {
+            "n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
+            "wr": round(wr, 1) if wr is not None else 0, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+            "pnl": round(pnl, 2), "streak": streak,
+            "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd else 0,
+            "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
+            "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
+            "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence,
+            "_source": "algo_performance_daily" if perf else "calculated"
+        }
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
         _log_data_quality("fetch_perf", 0, str(e))

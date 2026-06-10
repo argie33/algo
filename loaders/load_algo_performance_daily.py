@@ -102,15 +102,45 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         total_trades = int(trade_stats.get('total_trades') or 0)
         wins = int(trade_stats.get('wins') or 0)
         losses = int(trade_stats.get('losses') or 0)
-        win_rate = round(wins / total_trades * 100, 2) if total_trades > 0 else None
+        win_rate_all = round(wins / total_trades * 100, 2) if total_trades > 0 else None
+
+        # Fetch dollar amounts for profit factor and average win/loss (CRITICAL ISSUE 2 FIX)
+        avg_win_dollars = None
+        avg_loss_dollars = None
+        profit_factor = None
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute("""
+                    SELECT
+                        AVG(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as avg_win_dollars,
+                        AVG(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_dollars,
+                        SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as total_wins,
+                        SUM(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as total_losses
+                    FROM algo_trades
+                    WHERE status = 'closed' AND exit_date IS NOT NULL
+                """)
+                row = cur.fetchone() or {}
+                avg_win_dollars = float(row.get('avg_win_dollars')) if row.get('avg_win_dollars') is not None else None
+                avg_loss_dollars = float(row.get('avg_loss_dollars')) if row.get('avg_loss_dollars') is not None else None
+
+                # CRITICAL ISSUE 2 FIX: Profit factor = total wins / total losses (avoid None for edge cases)
+                total_wins = float(row.get('total_wins')) if row.get('total_wins') is not None else 0.0
+                total_losses = float(row.get('total_losses')) if row.get('total_losses') is not None else 0.0
+                if total_losses > 1e-6:  # Avoid division by zero
+                    profit_factor = round(total_wins / total_losses, 3)
+                elif total_losses == 0 and total_wins > 0:
+                    profit_factor = float('inf')  # Perfect record (only wins, no losses)
+                # else: profit_factor stays None (no trades or undefined)
+        except Exception as e:
+            logger.warning(f"Failed to fetch dollar amounts for profit factor: {e}")
 
         # Expectancy: E[profit] = win_rate * avg_win - (1 - win_rate) * avg_loss
         avg_win_r = trade_stats.get('avg_win_r')
         avg_loss_r = trade_stats.get('avg_loss_r')
         expectancy = None
-        if win_rate is not None and avg_win_r is not None and avg_loss_r is not None:
+        if win_rate_all is not None and avg_win_r is not None and avg_loss_r is not None:
             try:
-                wr_dec = win_rate / 100
+                wr_dec = win_rate_all / 100
                 expectancy = round(wr_dec * float(avg_win_r) - (1 - wr_dec) * abs(float(avg_loss_r)), 3)
             except (TypeError, ValueError):
                 pass
@@ -199,7 +229,12 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             'expectancy': expectancy,
             'max_drawdown_pct': max_drawdown_pct,
             'total_trades': total_trades,
-            'win_rate_all': win_rate,
+            'win_rate_all': win_rate_all,
+            'num_wins': wins,
+            'num_losses': losses,
+            'profit_factor': profit_factor,
+            'avg_win': avg_win_dollars,
+            'avg_loss': avg_loss_dollars,
             'updated_at': datetime.now(ET),
         }
 

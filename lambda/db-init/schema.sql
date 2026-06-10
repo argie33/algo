@@ -1852,6 +1852,14 @@ CREATE TABLE IF NOT EXISTS algo_performance_daily (
 -- Add new ratio columns to existing databases (idempotent)
 ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS rolling_sortino_252d NUMERIC(8, 4);
 ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS calmar_ratio NUMERIC(8, 4);
+-- Add critical metrics for dashboard (issue #1-5 fix)
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS win_rate_all NUMERIC(6, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS total_trades INTEGER;
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS num_wins INTEGER;
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS num_losses INTEGER;
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS profit_factor NUMERIC(8, 3);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_win NUMERIC(10, 2);
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss NUMERIC(10, 2);
 
 -- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
 CREATE TABLE IF NOT EXISTS algo_risk_daily (
