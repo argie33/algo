@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
@@ -100,6 +100,42 @@ TIER_SHORT = {
     "correction":        "CORRECT",
 }
 
+GRADE_A_PLUS = 90
+GRADE_A = 80
+GRADE_B = 70
+GRADE_C = 60
+
+HBAR_CRITICAL = 1.0
+HBAR_WARNING = 0.75
+
+MINIBAR_HIGH = 0.75
+MINIBAR_MED = 0.35
+
+TIER_THRESHOLD_CONFIRMED = 80
+TIER_THRESHOLD_HEALTHY = 60
+TIER_THRESHOLD_PRESSURE = 40
+TIER_THRESHOLD_CAUTION = 20
+
+YIELD_CURVE_GOOD = 0.5
+IG_OAS_GOOD = 1.0
+IG_OAS_WARNING = 2.0
+HY_OAS_GOOD = 3.5
+HY_OAS_WARNING = 6.0
+CPI_GOOD = 2.5
+CPI_WARNING = 4.0
+UNRATE_GOOD = 4.5
+UNRATE_WARNING = 6.0
+NFCI_NEGATIVE = -0.3
+NFCI_POSITIVE = 0.3
+DXY_WARNING = 100
+DXY_CRITICAL = 110
+BE_CRITICAL = 3.0
+BE_WARNING = 2.5
+MORTGAGE_WARNING = 6.0
+MORTGAGE_CRITICAL = 7.0
+UMCSENT_GOOD = 80
+UMCSENT_WARNING = 60
+
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
 PHASE_NAMES = {
@@ -158,7 +194,7 @@ def get_conn():
         user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"],
         dbname=os.environ["DB_NAME"], connect_timeout=10,
         cursor_factory=psycopg2.extras.RealDictCursor,
-        options="-c statement_timeout=8000",
+        options="-c statement_timeout=30000",
     )
 
 def q(c, sql, p=None):
@@ -334,6 +370,21 @@ def sparkline(values: list, width: int = 24) -> str:
     c = G if sampled[-1] >= sampled[0] else R
     return f"[{c}]{chars}[/]"
 
+def _parse_event_date(ed: any) -> Optional[date]:
+    """Parse event date from various formats. Handles str, datetime, date, or None gracefully."""
+    if ed is None:
+        return None
+    try:
+        if isinstance(ed, str):
+            return datetime.strptime(ed[:10], "%Y-%m-%d").date()
+        elif isinstance(ed, datetime):
+            return ed.date()
+        elif isinstance(ed, date):
+            return ed
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.debug(f"Failed to parse event_date: {ed} (type: {type(ed).__name__}): {e}")
+    return None
+
 
 # ── fetchers ──────────────────────────────────────────────────────────────────
 
@@ -387,8 +438,9 @@ def fetch_run(c):
         return {"run_id": rid, "run_at": latest["run_at"],
                 "success": overall in ("success", "completed"), "halted": halted,
                 "phases": phases, "_source": "audit_log"}
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError) as e:
+        logger.error(f"fetch_run (audit): {type(e).__name__}: {e}")
+        return {}
 
 def fetch_algo_config(c):
     try:
@@ -658,10 +710,10 @@ def fetch_positions(c):
             ORDER BY position_value DESC""")
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return result
-    except Exception as e:
-        logger.warning(f"fetch_positions failed: {e}")
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         _log_data_quality("fetch_positions", 0, str(e))
-        return []
+        return {"_error": str(e)}
 
 def fetch_recent_trades(c):
     try:
@@ -669,7 +721,9 @@ def fetch_recent_trades(c):
             SELECT symbol, trade_date, exit_date, status,
                    profit_loss_dollars, profit_loss_pct, exit_r_multiple
             FROM algo_trades ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
-    except Exception as e:
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_recent_trades", 0, str(e))
         return {"_error": str(e)}
 
 def fetch_signals(c):
@@ -893,22 +947,26 @@ def fetch_economic_calendar(c):
     except Exception as e:
         return {"_error": str(e)}
 
-def fetch_risk_metrics(c):
+def fetch_risk_metrics(c) -> dict:
     try:
         row = q1(c, """SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
                               portfolio_beta, top_5_concentration
                        FROM algo_risk_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row: return {}
+        if not row:
+            logger.warning("No risk metrics data available; risk loader may not have run yet")
+            return {"_has_data": False}
         return {
+            "_has_data": True,
             "date":      row.get("report_date"),
-            "var95":     float(row.get("var_pct_95")         or 0),
-            "cvar95":    float(row.get("cvar_pct_95")        or 0),
-            "svar":      float(row.get("stressed_var_pct")   or 0),
-            "beta":      float(row.get("portfolio_beta")     or 0),
-            "conc5":     float(row.get("top_5_concentration") or 0),
+            "var95":     float(row.get("var_pct_95")) if row.get("var_pct_95") is not None else None,
+            "cvar95":    float(row.get("cvar_pct_95")) if row.get("cvar_pct_95") is not None else None,
+            "svar":      float(row.get("stressed_var_pct")) if row.get("stressed_var_pct") is not None else None,
+            "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
+            "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
         }
     except Exception as e:
-        return {"_error": str(e)}
+        logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
+        return {"_error": str(e), "_has_data": False}
 
 def fetch_perf_analytics(c):
     try:
@@ -1157,17 +1215,31 @@ def load_all() -> dict:
     out: dict = {}
     def one(name, fn):
         conn = None
-        try:
-            conn = get_conn()
-            conn.autocommit = True
-            return name, fn(conn)
-        except Exception as e:
-            return name, {"_error": str(e)}
-        finally:
-            if conn:
-                try: conn.close()
-                except Exception: pass
-    with ThreadPoolExecutor(max_workers=6) as pool:
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                conn = get_conn()
+                conn.autocommit = True
+                result = fn(conn)
+                return name, result
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if conn:
+                    try: conn.close()
+                    except Exception: pass
+                if attempt < max_retries:
+                    logger.warning(f"Retry {attempt+1}/{max_retries} for {name}: {e}")
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
+                return name, {"_error": str(e)}
+            except Exception as e:
+                if conn:
+                    try: conn.close()
+                    except Exception: pass
+                logger.error(f"fetch_{name} error: {e}")
+                return name, {"_error": str(e)}
+    max_workers = min(4, max(1, len(FETCHERS) // 3))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
         for f in as_completed({pool.submit(one, k, v): k for k, v in FETCHERS.items()}):
             n, d = f.result()
             out[n] = d
@@ -2075,7 +2147,7 @@ def panel_economic_pulse(eco, econ_cal=None):
 
     # Yield curve
     if yc10_2 is not None:
-        ycc = G if yc10_2 >= 0.5 else (Y if yc10_2 >= 0 else R)
+        ycc = G if yc10_2 >= YIELD_CURVE_GOOD else (Y if yc10_2 >= 0 else R)
         inv = "  [bold red]INV[/]" if yc10_2 < 0 else ""
         c3m = f"  [dim]10Y-3M:[/][{ycc}]{yc10_3m:+.2f}%[/]" if yc10_3m is not None else ""
         rows.append(Text.from_markup(
@@ -2086,31 +2158,31 @@ def panel_economic_pulse(eco, econ_cal=None):
     if hy is not None or ig is not None:
         parts = []
         if hy is not None:
-            hy_c = G if hy <= 3.5 else (Y if hy <= 6.0 else R)
+            hy_c = G if hy <= HY_OAS_GOOD else (Y if hy <= HY_OAS_WARNING else R)
             parts.append(f"[dim]HY OAS:[/][{hy_c}]{hy:.2f}%[/]")
         if ig is not None:
-            ig_c = G if ig <= 1.0 else (Y if ig <= 2.0 else R)
+            ig_c = G if ig <= IG_OAS_GOOD else (Y if ig <= IG_OAS_WARNING else R)
             parts.append(f"[dim]IG OAS:[/][{ig_c}]{ig:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(parts)))
 
     # Macro: CPI YoY, unemployment, NFCI, oil
     macro = []
     if cpi_yoy is not None:
-        cpi_c = G if cpi_yoy <= 2.5 else (Y if cpi_yoy <= 4.0 else R)
+        cpi_c = G if cpi_yoy <= CPI_GOOD else (Y if cpi_yoy <= CPI_WARNING else R)
         macro.append(f"[dim]CPI YoY:[/][{cpi_c}]{cpi_yoy:.1f}%[/]")
     if unrate is not None:
-        ur_c = G if unrate <= 4.5 else (Y if unrate <= 6.0 else R)
+        ur_c = G if unrate <= UNRATE_GOOD else (Y if unrate <= UNRATE_WARNING else R)
         macro.append(f"[dim]Unemp:[/][{ur_c}]{unrate:.1f}%[/]")
     if macro: rows.append(Text.from_markup("  ".join(macro)))
 
     other = []
     if oil  is not None: other.append(f"[dim]WTI Crude Oil:[/][white]${oil:.2f}[/]")
     if nfci is not None:
-        nc  = G if nfci <= -0.3 else (Y if nfci <= 0.3 else R)
-        lbl = "accommodative" if nfci < 0 else ("tight" if nfci > 0.3 else "neutral")
+        nc  = G if nfci <= NFCI_NEGATIVE else (Y if nfci <= NFCI_POSITIVE else R)
+        lbl = "accommodative" if nfci < 0 else ("tight" if nfci > NFCI_POSITIVE else "neutral")
         other.append(f"[dim]Chicago Fed (NFCI):[/][{nc}]{nfci:+.3f}[/][dim] {lbl}[/]")
     if dxy is not None:
-        dxy_c = R if dxy >= 110 else (Y if dxy >= 100 else G)
+        dxy_c = R if dxy >= DXY_CRITICAL else (Y if dxy >= DXY_WARNING else G)
         other.append(f"[dim]USD Index (DXY):[/][{dxy_c}]{dxy:.1f}[/]")
     if other: rows.append(Text.from_markup("  ".join(other)))
 
@@ -2149,15 +2221,7 @@ def panel_economic_pulse(eco, econ_cal=None):
             f_v  = ev.get("forecast_value")
             a_v  = ev.get("actual_value")
             p_v  = ev.get("previous_value")
-            ed_date = None
-            if ed:
-                try:
-                    if isinstance(ed, str):
-                        ed_date = datetime.strptime(ed[:10], "%Y-%m-%d").date()
-                    else:
-                        ed_date = ed if hasattr(ed, 'date') is False else ed.date()
-                except (ValueError, AttributeError):
-                    ed_date = None
+            ed_date = _parse_event_date(ed)
             if ed_date == today:
                 when = "TODAY"
             elif ed_date is not None:
@@ -3616,3 +3680,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
