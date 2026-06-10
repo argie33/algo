@@ -413,7 +413,7 @@ def fetch_run(c):
                     logger.warning("Could not parse phase_results JSON")
                     pr = []
             overall = (row.get("overall_status") or "").lower()
-            return {
+            result = {
                 "run_id":    row.get("run_id"),
                 "run_at":    row.get("completed_at") or row.get("started_at"),
                 "success":   overall in ("success", "completed"),
@@ -427,8 +427,13 @@ def fetch_run(c):
                 "phase_results":    pr,
                 "_source": "exec_log",
             }
+            _log_data_quality("fetch_run", 1)
+            return result
+        _log_data_quality("fetch_run", 0)
+        return {}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_run (exec_log): {type(e).__name__}: {e}")
+        _log_data_quality("fetch_run", 0, str(e))
 
     # Fallback: reconstruct from algo_audit_log
     try:
@@ -436,18 +441,23 @@ def fetch_run(c):
             SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
             FROM algo_audit_log WHERE details->>'run_id' IS NOT NULL
             GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
-        if not latest or not latest.get("run_id"): return {}
+        if not latest or not latest.get("run_id"):
+            _log_data_quality("fetch_run", 0)
+            return {}
         rid = latest["run_id"]
         phases = q(c, """SELECT action_type, status FROM algo_audit_log
                          WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
         halted  = any(p["status"] == "halt"  for p in phases)
         errored = any(p["status"] == "error" for p in phases)
         overall = "halted" if halted else ("error" if errored else "success" if phases else "unknown")
-        return {"run_id": rid, "run_at": latest["run_at"],
+        result = {"run_id": rid, "run_at": latest["run_at"],
                 "success": overall in ("success", "completed"), "halted": halted,
                 "phases": phases, "_source": "audit_log"}
+        _log_data_quality("fetch_run", 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError) as e:
         logger.error(f"fetch_run (audit): {type(e).__name__}: {e}")
+        _log_data_quality("fetch_run", 0, str(e))
         return {}
 
 def fetch_algo_config(c):
@@ -564,8 +574,6 @@ def fetch_market(c):
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
-        return {}
-        logger.error(f"fetch_market error: {e}")
         return {"_error": str(e)}
 
 def fetch_exposure_factors(c):
@@ -653,8 +661,6 @@ def fetch_perf(c):
                 "equity_vals": equity_vals, "recent_rets": recent_rets}
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
-        return {}
-        logger.error(f"fetch_perf error: {e}")
         _log_data_quality("fetch_perf", 0, str(e))
         return {"_error": str(e)}
 
@@ -820,8 +826,6 @@ def fetch_signals(c):
                 "top_a": top_a, "trend": trend}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
-        return {}
-        logger.error(f"fetch_signals error: {e}")
         _log_data_quality("fetch_signals", 0, str(e))
         return {"_error": str(e)}
 
@@ -998,8 +1002,6 @@ def fetch_risk_metrics(c) -> dict:
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
-        return {}
-        logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
         return {"_error": str(e), "_has_data": False}
 
 def fetch_perf_analytics(c):
@@ -1058,8 +1060,6 @@ def fetch_signal_eval(c):
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signal_eval: {type(e).__name__}: {e}")
-        return {}
-        logger.error(f"fetch_signal_eval error: {e}")
         return {"_error": str(e)}
 
 def fetch_sector_rotation(c):
@@ -1219,8 +1219,6 @@ def fetch_circuit(c):
         return {"bs": bs, "any": any(b["fired"] for b in bs), "n": n_fired}
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
-        return {}
-        logger.error(f"fetch_circuit error: {e}")
         return {"_error": str(e)}
 
 
@@ -1265,6 +1263,9 @@ def load_all() -> dict:
                 conn = get_conn()
                 conn.autocommit = True
                 result = fn(conn)
+                if conn:
+                    try: conn.close()
+                    except (psycopg2.Error, AttributeError): pass
                 return name, result
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if conn:
@@ -1277,12 +1278,10 @@ def load_all() -> dict:
                 logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
                 return name, {"_error": str(e)}
             except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
-                logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
-                return {}
                 if conn:
                     try: conn.close()
                     except (psycopg2.Error, AttributeError): pass
-                logger.error(f"fetch_{name} error: {e}")
+                logger.error(f"fetch_{name}: {type(e).__name__}: {e}")
                 return name, {"_error": str(e)}
     max_workers = min(4, max(1, len(FETCHERS) // 3))
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
