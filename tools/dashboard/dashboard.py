@@ -1378,11 +1378,11 @@ def fetch_economic_pulse(c):
             SELECT DISTINCT ON (series_id) series_id, date, value
             FROM economic_data WHERE series_id = ANY(%s)
             ORDER BY series_id, date DESC""", (KEY,))
-        d = {r['series_id']: float(r['value']) for r in rows if r.get('value') is not None}
+        d = {r['series_id']: safe_float(r['value']) for r in rows if r.get('value') is not None}
         t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
-        # Validate yield curve slopes are numeric and within reasonable range
-        yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2  is not None and isinstance(t10, (int, float)) and isinstance(t2, (int, float))) else None
-        yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None and isinstance(t10, (int, float)) and isinstance(t3m, (int, float))) else None
+        # Yield curve slopes: both rates must be valid numbers
+        yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2 is not None) else None
+        yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
 
         # Issue 1.4: CPI YoY calculation with explicit date logic (not assuming daily data)
         cpi_yoy = None
@@ -2534,7 +2534,17 @@ def panel_positions(pos, compact=False, trades=None):
         t1pct = (t1 - price) / price * 100 if (t1 is not None and price is not None and price > 0) else None
         pc    = G if (pnl is not None and pnl >= 0) else R
         rc    = G if (rmul is not None and rmul >= 0) else R
-        dc    = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
+        # Distance to stop coloring: explicit panic check for positions below stop loss (dist < 0)
+        if dist is None:
+            dc = "white"
+        elif dist < 0:
+            dc = R  # PANIC: position is below stop loss already
+        elif dist < 3:
+            dc = R  # Close to stop loss
+        elif dist < 5:
+            dc = Y  # Approaching stop loss
+        else:
+            dc = "white"
         row = [
             p.get("symbol") or "--",
             fmt_money_short(pval) if pval is not None else "--",
@@ -2757,6 +2767,9 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         def_s    = float(sec_rot.get("def_score") or 0)
         cyc_s    = float(sec_rot.get("cyc_score") or 0)
         strength = float(sec_rot.get("strength") or 0)
+        # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
+        if strength > 1:
+            strength = strength / 100.0
         sig_c    = R if def_s >= 60 else (Y if def_s >= 40 else G)
         scores_s = f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]" if def_s or cyc_s else ""
         str_s    = f" [dim]strength:{strength:.0%}[/]" if strength else ""

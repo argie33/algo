@@ -150,7 +150,12 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
         return error_response(code, error_type, message)
 
 def _fetch_drawdown_info(cur) -> Dict[str, Any]:
-    """Get current portfolio drawdown and thresholds."""
+    """Get current portfolio drawdown and thresholds.
+
+    CAVEAT: Intraday drawdowns are invisible. Only EOD snapshots are tracked, so if the algo
+    experiences a -15% intraday crash that recovers by close, max_drawdown_pct will show the
+    recovery only. This is a known limitation of the current architecture.
+    """
     rows = execute_with_timeout(cur, """
         SELECT MAX(total_portfolio_value) AS peak,
                (SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -182,6 +187,7 @@ def _fetch_drawdown_info(cur) -> Dict[str, Any]:
             'at_minus_20': 0.0,
         },
         'status': _get_drawdown_status(drawdown_pct),
+        'caveat': 'Intraday gaps invisible - only EOD snapshots tracked',
     }
 
 def _fetch_exposure_tier_info(cur) -> Dict[str, Any]:

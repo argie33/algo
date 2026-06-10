@@ -560,6 +560,7 @@ def _get_algo_performance(cur) -> Dict:
             r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple') is not None]
             winning = sum(1 for p in pnls_dollars if p > 0)
             losing = sum(1 for p in pnls_dollars if p < 0)
+            breakeven = sum(1 for p in pnls_dollars if p == 0)
             total = len(trades)
             wins_sum = sum(p for p in pnls_dollars if p > 0)
             losses_sum = abs(sum(p for p in pnls_dollars if p < 0))
@@ -602,7 +603,9 @@ def _get_algo_performance(cur) -> Dict:
                 logger.warning(f'Portfolio snapshots unavailable: {e}')
             if max_dd == 0.0 and pnls_pcts:
                 max_dd = _cumprod_max_dd([p / 100.0 for p in pnls_pcts])
-            win_rate_pct = round((winning / total * 100) if total > 0 else 0.0, 2)
+            # Win rate excludes breakeven trades from denominator (only wins/losses count)
+            win_loss_total = winning + losing
+            win_rate_pct = round((winning / win_loss_total * 100) if win_loss_total > 0 else 0.0, 2)
             wins_p = [p for p in pnls_pcts if p > 0]
             losses_p = [p for p in pnls_pcts if p < 0]
             # sum_of_trade_pnls_pct: sum of per-trade P&L percentages (not compounded portfolio return)
@@ -653,12 +656,11 @@ def _get_algo_performance(cur) -> Dict:
 
             # Calculate confidence levels for key metrics
             sharpe_confidence = 'high' if snapshot_count >= 20 else 'medium' if snapshot_count >= 5 else 'low'
-            win_rate_confidence = 'high' if total >= 30 else 'medium' if total >= 10 else 'low'
+            win_rate_confidence = 'high' if (winning + losing) >= 30 else 'medium' if (winning + losing) >= 10 else 'low'
             return_confidence = 'high' if snapshot_count >= 20 else 'medium' if snapshot_count >= 5 else 'low'
 
-            # Flag breakeven trades excluded from win rate
-            breakeven_count = sum(1 for p in pnls_pcts if p == 0)
-            has_breakeven_warning = breakeven_count > 0
+            # Flag breakeven trades excluded from win rate denominator
+            has_breakeven_warning = breakeven > 0
 
             result = {
                 'total_trades': total,
@@ -667,7 +669,8 @@ def _get_algo_performance(cur) -> Dict:
                 'win_rate': win_rate_pct,
                 'win_rate_pct': win_rate_pct,
                 'win_rate_confidence': win_rate_confidence,
-                'win_rate_warning': f'{breakeven_count} breakeven trades excluded from calculation' if has_breakeven_warning else None,
+                'win_rate_warning': f'{breakeven} breakeven trades excluded from calculation' if has_breakeven_warning else None,
+                'breakeven_trades': breakeven,
                 'profit_factor': round(profit_factor, 2),
                 'total_pnl_dollars': round(sum(pnls_dollars), 2),
                 'total_pnl_pct': sum_of_trade_pnls_pct,
