@@ -95,12 +95,33 @@ class DailyReconciliation:
                     if analytics['expectancy']['alert']:
                         logger.info(f"   [FAIL] {analytics['expectancy']['alert']}")
 
+                # FIXED: Read from algo_trades (source of truth) instead of algo_positions (stale).
+                # algo_positions drifts over time; algo_trades is authoritative for open positions.
                 cur.execute("""
-                    SELECT position_id, symbol, quantity, avg_entry_price, current_price, position_value
-                    FROM algo_positions
-                    WHERE status = %s
+                    WITH open_trades AS (
+                        SELECT DISTINCT ON (at.symbol)
+                            at.symbol, at.entry_quantity as quantity, at.entry_price as avg_entry_price,
+                            COALESCE(lp.current_price, at.entry_price) as current_price,
+                            (at.entry_quantity * COALESCE(lp.current_price, at.entry_price)) as position_value
+                        FROM algo_trades at
+                        LEFT JOIN (
+                            SELECT DISTINCT ON (symbol) symbol, close as current_price
+                            FROM price_daily
+                            WHERE symbol IN (
+                                SELECT DISTINCT symbol FROM algo_trades
+                                WHERE status IN ('open', 'filled', 'active', 'partially_filled')
+                                  AND exit_date IS NULL
+                            )
+                            ORDER BY symbol, date DESC
+                        ) lp ON at.symbol = lp.symbol
+                        WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
+                          AND at.exit_date IS NULL
+                        ORDER BY at.symbol, at.trade_date DESC
+                    )
+                    SELECT symbol, quantity, avg_entry_price, current_price, position_value
+                    FROM open_trades
                     ORDER BY symbol
-                """, (PositionStatus.OPEN.value,))
+                """)
 
                 positions = cur.fetchall()
                 logger.info(f"\n2. Database Positions: {len(positions)} open")
@@ -109,7 +130,7 @@ class DailyReconciliation:
                 unrealized_pnl = 0.0
                 unrealized_pnl_pct = 0.0
 
-                for pos_id, symbol, qty, entry, current, pos_value in positions:
+                for symbol, qty, entry, current, pos_value in positions:
                     # Coerce all DB-returned Decimals to float to avoid mixed-type arithmetic
                     qty_f = float(qty or 0)
                     entry_f = float(entry or 0)
