@@ -307,7 +307,7 @@ class SwingTraderScore:
 
         # Gate 4: Base type quality check
         base_type = self._signals.classify_base_type(symbol, eval_date)
-        if base_type.get('type') == 'wide_and_loose' or base_type.get('quality') == 'D':
+        if base_type.get('type') == 'wide_and_loose':
             return {
                 'pass': False,
                 'reason': f'Bad base: {base_type.get("type")} (quality {base_type.get("quality")})',
@@ -321,8 +321,8 @@ class SwingTraderScore:
                 max_industry_rank = self._load_config_val('swing_min_industry_rank', 100)
                 cur.execute(
                     """SELECT current_rank FROM industry_ranking
-                       WHERE industry = %s AND date <= %s
-                       ORDER BY date DESC LIMIT 1""",
+                       WHERE industry = %s AND date_recorded <= %s
+                       ORDER BY date_recorded DESC LIMIT 1""",
                     (industry, eval_date),
                 )
                 r = cur.fetchone()
@@ -850,8 +850,8 @@ class SwingTraderScore:
         if industry:
             cur.execute(
                 """SELECT current_rank, rank_4w_ago FROM industry_ranking
-                   WHERE industry = %s AND date <= %s
-                   ORDER BY date DESC LIMIT 1""",
+                   WHERE industry = %s AND date_recorded <= %s
+                   ORDER BY date_recorded DESC LIMIT 1""",
                 (industry, eval_date),
             )
             r = cur.fetchone()

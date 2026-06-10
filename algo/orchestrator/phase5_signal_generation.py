@@ -48,7 +48,7 @@ _LIQUIDITY_CHECK_LIMIT = 150
 _SWING_SCORE_LIMIT = 75
 # Minimum scores to qualify
 _MIN_QUALITY = 50       # Pre-swing-score quality gate
-_MIN_SWING_SCORE = 55   # Grade C minimum (A+=85, A=75, B=65, C=55, D=45)
+_MIN_SWING_SCORE = 35   # Grade D+ minimum (A+=85, A=75, B=65, C=55, D=45, D+=35)
 
 
 def _check_market_regime(run_date: _date) -> Dict:
