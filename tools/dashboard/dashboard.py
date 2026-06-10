@@ -270,6 +270,12 @@ def validate_schema() -> None:
             if result and result.get("col_count") != len(cols):
                 logger.error(f"Schema validation failed: {table} missing columns {cols}")
                 sys.exit(f"Database schema error: {table} missing required columns")
+
+            # Also verify critical tables have data
+            row_count = q1(conn, f"SELECT COUNT(*) as cnt FROM {table}")
+            if row_count and row_count.get("cnt") == 0:
+                logger.warning(f"Schema validation: {table} exists but is EMPTY (no rows)")
+
         conn.close()
         logger.info("Database schema validation passed")
     except (psycopg2.Error, KeyError) as e:
@@ -685,10 +691,12 @@ def fetch_exposure_factors(c):
             _log_data_quality("fetch_exposure_factors", 0)
             return {}
         factors = row.get("factors") or {}
+        factors_error = None
         if isinstance(factors, str):
             try: factors = json.loads(factors)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse exposure factors JSON: {e}")
+                factors_error = str(e)
                 factors = {}
         result = {
             "raw_score":    float(row.get("raw_score") or 0),
@@ -696,6 +704,8 @@ def fetch_exposure_factors(c):
             "regime":       row.get("regime"),
             "factors":      factors,
         }
+        if factors_error:
+            result["_factors_parse_error"] = factors_error
         _log_data_quality("fetch_exposure_factors", 1)
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
@@ -834,7 +844,7 @@ def fetch_positions(c):
             ),
             days_held AS (
                 SELECT symbol,
-                    (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - entry_time)) / 86400)::INT as days_since_entry
+                    (CURRENT_DATE - entry_time::date)::INT as days_since_entry
                 FROM open_trades
             )
             SELECT
@@ -1318,7 +1328,8 @@ def fetch_exec_history(c):
                                   phases_completed, phases_halted, phases_errored, halt_reason
                            FROM orchestrator_execution_log
                            ORDER BY started_at DESC LIMIT 10""")
-        except psycopg2.Error:
+        except psycopg2.Error as e:
+            logger.warning(f"fetch_exec_history: phases array columns not available, using fallback: {e}")
             result = q(c, """SELECT run_id, started_at, completed_at, overall_status,
                                   halt_reason
                            FROM orchestrator_execution_log
