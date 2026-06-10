@@ -75,13 +75,25 @@ class SignalTrendMixin:
         pct_from_low = ((c - low52) / low52 * 100) if low52 else None
         pct_from_high = ((c - high52) / high52 * 100) if high52 else None
 
+        sma200_slope = row['sma_200_slope']
+        if sma200 and c > sma200:
+            if pd.notna(sma200_slope) and sma200_slope > 0:
+                weinstein_stage = 2
+            else:
+                weinstein_stage = 3
+        else:
+            if pd.notna(sma200_slope) and sma200_slope < 0:
+                weinstein_stage = 4
+            else:
+                weinstein_stage = 1
+
         return {
             'score': score,
             'pass': score >= 5,
             'criteria': {
                 'percent_from_52w_high': float(pct_from_high) if pct_from_high is not None else None,
                 'percent_from_52w_low': float(pct_from_low) if pct_from_low is not None else None,
-                'weinstein_stage': None,
+                'weinstein_stage': weinstein_stage,
                 'trend_direction': 'uptrend' if score >= 6 else ('downtrend' if score <= 2 else 'sideways'),
             }
         }
