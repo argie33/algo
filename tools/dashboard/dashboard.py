@@ -438,7 +438,7 @@ def fetch_market(c):
             try:
                 exp_date = exp["date"] if isinstance(exp["date"], datetime) else datetime.fromisoformat(str(exp["date"]))
                 exp_age = (datetime.now(timezone.utc) - exp_date).days
-            except: pass
+            except (ValueError, TypeError): pass
 
         vix_row = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v   = vix_row.get("vix_level") if vix_row else None
@@ -1164,7 +1164,7 @@ def load_all() -> dict:
         finally:
             if conn:
                 try: conn.close()
-                except: pass
+                except Exception: pass
     with ThreadPoolExecutor(max_workers=6) as pool:
         for f in as_completed({pool.submit(one, k, v): k for k, v in FETCHERS.items()}):
             n, d = f.result()
@@ -1194,7 +1194,9 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         pdata = p.get("data") or {}
         if isinstance(pdata, str):
             try:    pdata = json.loads(pdata)
-            except: pdata = {}
+            except (json.JSONDecodeError, ValueError):
+                logger.debug("pdata JSON parse failed in _best_halt_reason")
+                pdata = {}
         detail = next(
             (str(pdata[k]) for k in _FIELDS
              if pdata.get(k) and len(str(pdata.get(k))) > 3),
@@ -1215,7 +1217,7 @@ def _fmt_phases_halted(phases_halted) -> str:
         return ""
     if isinstance(phases_halted, str):
         try:    phases_halted = json.loads(phases_halted)
-        except: phases_halted = [phases_halted]
+        except (json.JSONDecodeError, ValueError, TypeError): phases_halted = [phases_halted]
     if not isinstance(phases_halted, (list, tuple)):
         return ""
     names = []
@@ -1254,11 +1256,16 @@ def panel_orch(run, cfg, risk=None):
     var_line = ""
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]" if risk.get("svar") and float(risk.get("svar") or 0) > 0 else ""
-        var_line = (f"\n[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]"
-                    f"  [dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]"
-                    f"  [dim]Portfolio Beta:[/][{beta_c}]{risk['beta']:.2f}[/]"
-                    f"  [dim]Top-5 Conc:[/][white]{risk['conc5']:.0f}%[/]"
+        svar_v = float(risk.get("svar") or 0)
+        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v > 0 else ""
+        var95_v = float(risk.get("var95") or 0)
+        cvar95_v = float(risk.get("cvar95") or 0)
+        beta_v = float(risk.get("beta") or 0)
+        conc5_v = float(risk.get("conc5") or 0)
+        var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]"
+                    f"  [dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]"
+                    f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_v:.2f}[/]"
+                    f"  [dim]Top-5 Conc:[/][white]{conc5_v:.0f}%[/]"
                     + svar_s)
 
     if not run or run.get("_error"):
@@ -1568,11 +1575,15 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     # VaR metrics (compact one-liner)
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
+        var95_v = float(risk.get("var95") or 0)
+        cvar95_v = float(risk.get("cvar95") or 0)
+        beta_v = float(risk.get("beta") or 0)
+        conc5_v = float(risk.get("conc5") or 0)
         rows.append(Text.from_markup(
-            f"[dim]VaR:[/][white]{risk['var95']:.2f}%[/]  "
-            f"[dim]CVaR:[/][white]{risk['cvar95']:.2f}%[/]  "
-            f"[dim]β:[/][{beta_c}]{risk['beta']:.2f}[/]  "
-            f"[dim]Conc5:[/][white]{risk['conc5']:.0f}%[/]"
+            f"[dim]VaR:[/][white]{var95_v:.2f}%[/]  "
+            f"[dim]CVaR:[/][white]{cvar95_v:.2f}%[/]  "
+            f"[dim]β:[/][{beta_c}]{beta_v:.2f}[/]  "
+            f"[dim]Conc5:[/][white]{conc5_v:.0f}%[/]"
         ))
 
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
@@ -2405,7 +2416,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
             pdata = p.get("data") or {}
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
-                except: pdata = {}
+                except (json.JSONDecodeError, ValueError, TypeError): pdata = {}
             if err and ps not in ("success", "completed", "ok"):
                 rows.append(Text.from_markup(f"  [{sc}]↳ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
@@ -2460,7 +2471,9 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         det = a.get("details") or {}
         if isinstance(det, str):
             try: det = json.loads(det)
-            except: det = {}
+            except (json.JSONDecodeError, ValueError):
+                logger.debug("action details JSON parse failed in panel_status")
+                det = {}
         sym = det.get("symbol", "")
         ic  = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
@@ -2637,7 +2650,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
             pdata = p.get("data") or {}
             if isinstance(pdata, str):
                 try: pdata = json.loads(pdata)
-                except: pdata = {}
+                except (json.JSONDecodeError, ValueError, TypeError): pdata = {}
             sg = pdata.get("signals_generated")
             ee = pdata.get("entries_executed") or pdata.get("trades_executed")
             xe = pdata.get("exits_executed")
@@ -2759,16 +2772,21 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         rows.append(Rule(style="dim"))
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
+        beta_v = float(risk.get("beta") or 0)
+        conc5_v = float(risk.get("conc5") or 0)
+        beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
+        conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
+        var95_v = float(risk.get("var95") or 0)
+        cvar95_v = float(risk.get("cvar95") or 0)
+        svar_v = float(risk.get("svar") or 0)
         risk_parts = [
-            f"[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{risk['beta']:.2f}[/]",
-            f"[dim]Top-5 Conc:[/][{conc_c}]{risk['conc5']:.0f}%[/]",
+            f"[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]",
+            f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{beta_v:.2f}[/]",
+            f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_v:.0f}%[/]",
         ]
-        if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]")
+        if svar_v > 0:
+            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
@@ -3081,16 +3099,21 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
     # Risk snapshot
     if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         rows.append(Rule(style="dim"))
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
+        beta_v = float(risk.get("beta") or 0)
+        conc5_v = float(risk.get("conc5") or 0)
+        beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
+        conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
+        var95_v = float(risk.get("var95") or 0)
+        cvar95_v = float(risk.get("cvar95") or 0)
+        svar_v = float(risk.get("svar") or 0)
         risk_parts = [
-            f"[dim]VaR 95%:[/][white]{risk['var95']:.2f}%[/]",
-            f"[dim]CVaR 95%:[/][white]{risk['cvar95']:.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{risk['beta']:.2f}[/]",
-            f"[dim]Top-5 Conc:[/][{conc_c}]{risk['conc5']:.0f}%[/]",
+            f"[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]",
+            f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]",
+            f"[dim]Beta:[/][{beta_c}]{beta_v:.2f}[/]",
+            f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_v:.0f}%[/]",
         ]
-        if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{risk['svar']:.2f}%[/]")
+        if svar_v > 0:
+            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # All notifications — untruncated titles
