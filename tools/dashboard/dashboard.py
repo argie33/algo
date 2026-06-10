@@ -932,7 +932,15 @@ def fetch_perf(c):
                          ORDER BY exit_date ASC""")
         if not trades:
             _log_data_quality("fetch_perf", 0)
-            return {}
+            # Return context-aware message instead of empty dict
+            now = datetime.now(ET)
+            t = now.hour * 60 + now.minute
+            if t < 9 * 60 + 30:  # Before market open
+                return {"_reason": "pre-market"}
+            elif t >= 16 * 60:  # After market close
+                return {"_reason": "after-hours"}
+            else:
+                return {"_reason": "no-trades-yet"}
         wins      = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
         losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
@@ -2372,7 +2380,16 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 def panel_performance_spark(perf, rec, perf_anl=None):
     """Performance metrics + equity sparkline + rolling analytics."""
     if not perf or perf.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
+        reason = perf.get("_reason") if perf else None
+        if reason == "pre-market":
+            msg = "pre-market: awaiting trading activity"
+        elif reason == "after-hours":
+            msg = "after-hours: awaiting next trading day"
+        elif reason == "no-trades-yet":
+            msg = "no closed trades yet (waiting for first exit)"
+        else:
+            msg = "no data"
+        return Panel(Text(msg, style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
     streak  = perf.get("streak") or 0
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c   = G if streak >= 0 else R
@@ -2928,9 +2945,10 @@ def panel_economic_pulse(eco, econ_cal=None):
             ed      = ev.get("event_date")
             full_nm = (ev.get("event_name") or "")
             name    = full_nm[:24]
-            # Generate key that handles None event_dates without collision
-            date_str = str(_parse_event_date(ed)) if ed is not None else f"no_date_{len(seen_keys)}"
-            key     = (date_str + full_nm[:24]).lower()
+            # Generate key that uses date + time + name to prevent collisions with None dates
+            date_str = str(_parse_event_date(ed)) if ed is not None else "unknown_date"
+            event_time = str(ev.get("event_time") or "").strip()
+            key     = (date_str + event_time + full_nm).lower()
             if key in seen_keys:
                 dedup_count += 1
                 continue
