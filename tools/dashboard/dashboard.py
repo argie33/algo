@@ -3744,17 +3744,17 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     # Row 1: Rotation signal
     if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
-        sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
+        sig_name = get_string(sec_rot, "signal").replace("_", " ").title()
         wks      = sec_rot.get("weeks", 1)
-        def_s    = float(sec_rot.get("def_score") or 0)
-        cyc_s    = float(sec_rot.get("cyc_score") or 0)
-        strength = float(sec_rot.get("strength") or 0)
+        def_s    = get_numeric(sec_rot, "def_score")
+        cyc_s    = get_numeric(sec_rot, "cyc_score")
+        strength = get_numeric(sec_rot, "strength")
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
-        if strength > 1:
+        if strength is not None and strength > 1:
             strength = strength / 100.0
-        sig_c    = R if def_s >= 60 else (Y if def_s >= 40 else G)
-        scores_s = f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]" if def_s or cyc_s else ""
-        str_s    = f" [dim]strength:{strength:.0%}[/]" if strength else ""
+        sig_c    = R if def_s is not None and def_s >= 60 else (Y if def_s is not None and def_s >= 40 else G)
+        scores_s = f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]" if (def_s is not None or cyc_s is not None) else ""
+        str_s    = f" [dim]strength:{strength:.0%}[/]" if strength is not None else ""
         rows.append(Text.from_markup(
             f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:20]}[/] [dim]{wks}wk[/]{scores_s}{str_s}"
         ))
