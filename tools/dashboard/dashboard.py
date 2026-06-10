@@ -1461,6 +1461,18 @@ def fetch_perf(c):
             avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
             avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
 
+        # ISSUE 43 FIX: Include updated_at timestamp so dashboard shows calculation staleness
+        updated_at_str = None
+        if perf and perf.get("updated_at"):
+            try:
+                ua = perf.get("updated_at")
+                if isinstance(ua, str):
+                    updated_at_str = ua
+                elif isinstance(ua, datetime):
+                    updated_at_str = ua.isoformat()
+            except (ValueError, TypeError, AttributeError):
+                pass
+
         # Return metrics from database + calculated streak + recent returns
         return {
             "n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
@@ -1470,7 +1482,8 @@ def fetch_perf(c):
             "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
             "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
             "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence,
-            "_source": "algo_performance_daily" if perf else "calculated"
+            "_source": "algo_performance_daily" if perf else "calculated",
+            "_updated_at": updated_at_str  # Timestamp of last calculation for staleness indication
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
@@ -3320,6 +3333,19 @@ def panel_performance_spark(perf, rec, perf_anl=None):
             rows.append(Text.from_markup(
                 f"  [{c}]{sym}[/] [{c}]{sign(pct_v)}{pct_v:.1f}%  {fmt_money(pv2)}{rv_s}[/]"
             ))
+
+    # ISSUE 43 FIX: Show when metrics were last calculated (staleness indicator)
+    updated_at = perf.get("_updated_at")
+    if updated_at:
+        try:
+            if isinstance(updated_at, str):
+                calc_dt = datetime.fromisoformat(updated_at)
+            else:
+                calc_dt = updated_at
+            age_str = fmt_age(calc_dt)
+            rows.append(Text.from_markup(f"[dim]Calculated: {age_str}[/]"))
+        except (ValueError, TypeError, AttributeError):
+            pass
 
     return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
 
