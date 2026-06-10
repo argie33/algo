@@ -13,6 +13,7 @@ import argparse
 import json
 import logging
 import os
+import random
 import statistics
 import sys
 import threading
@@ -233,16 +234,33 @@ def _get_db_credentials() -> dict:
 
 def get_conn() -> psycopg2.extensions.connection:
     creds = _get_db_credentials()
-    miss = [k for k, v in creds.items() if not v]
-    if miss:
-        sys.exit(f"Missing DB credentials: {', '.join(miss)}")
-    return psycopg2.connect(
-        host=creds["host"], port=creds["port"],
-        user=creds["user"], password=creds["password"],
-        dbname=creds["dbname"], connect_timeout=10,
-        cursor_factory=psycopg2.extras.RealDictCursor,
-        options="-c statement_timeout=30000",
-    )
+    missing = {k: "not set" for k, v in creds.items() if not v}
+    if missing:
+        source = "AWS Secrets Manager" if not os.environ.get("DB_HOST") else "environment variables"
+        msg = f"Cannot connect: missing credentials {list(missing.keys())} from {source}"
+        logger.error(f"CRITICAL: Credentials validation FAILED: {msg}")
+        sys.exit(msg)
+
+    try:
+        logger.debug(f"Connecting to {creds['host']}:{creds['port']}/{creds['dbname']} (user: {creds['user']})")
+        return psycopg2.connect(
+            host=creds["host"], port=creds["port"],
+            user=creds["user"], password=creds["password"],
+            dbname=creds["dbname"], connect_timeout=5,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+            options="-c statement_timeout=30000",
+        )
+    except psycopg2.OperationalError as e:
+        err = str(e).lower()
+        if "authentication failed" in err:
+            logger.error(f"CRITICAL: Authentication FAILED: check DB_USER and DB_PASSWORD")
+        elif "could not translate" in err:
+            logger.error(f"CRITICAL: Host resolution FAILED: {creds['host']} unreachable")
+        elif "connection refused" in err:
+            logger.error(f"CRITICAL: Connection refused: RDS not running or port blocked")
+        else:
+            logger.error(f"CRITICAL: Connection error: {e}")
+        raise
 
 def q(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -> List[Dict]:
     with c.cursor() as cur:
@@ -293,6 +311,8 @@ def validate_schema() -> None:
                     if row_count and row_count.get("cnt") == 0:
                         level_msg = "ERROR" if severity == "critical" else "WARNING"
                         logger.warning(f"Schema validation [{level_msg}]: {table} ({severity}) exists but is EMPTY (no rows)")
+                        if severity == "critical":
+                            sys.exit(f"Database schema error: critical table {table} is empty (contains no data)")
             except psycopg2.Error as e:
                 if "does not exist" in str(e):
                     msg = f"Schema validation {severity.upper()}: {table} missing"
@@ -769,6 +789,22 @@ def fetch_market(c):
                 stale_alerts.append(f"Distribution days {mkt_health_age}d old")
             else:
                 logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d")
+
+        # CRITICAL ISSUE 3: Halt if critical market data is too stale
+        critical_staleness_issues = []
+        if spy_age is None and not spy_rows:
+            critical_staleness_issues.append("SPY price data is MISSING")
+        elif spy_age is not None and spy_age > 1:
+            critical_staleness_issues.append(f"SPY price data is {spy_age}d old (>1d threshold)")
+        if exp_age is not None and exp_age > 1:
+            critical_staleness_issues.append(f"Market exposure data is {exp_age}d old (>1d threshold)")
+
+        if critical_staleness_issues:
+            err_msg = f"Critical market data too stale: {'; '.join(critical_staleness_issues)}"
+            logger.error(f"CRITICAL HALT: {err_msg}")
+            _log_data_quality("fetch_market", 0, err_msg)
+            return {"_error": err_msg, "stale_alerts": stale_alerts}
+
         _log_data_quality("fetch_market", 1)
         return {
             "pct":   pct,
@@ -871,9 +907,14 @@ def fetch_perf(c):
         losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
         pnl       = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
-        # Win rate excludes breakeven trades; only counts wins vs (wins + losses)
+        # CRITICAL ISSUE 8: Win rate excludes breakeven trades; only counts wins vs (wins + losses)
         counted_trades = len(wins) + len(losses)
         wr        = len(wins) / counted_trades * 100 if counted_trades > 0 else 0
+        # Log if breakeven trades represent significant portion (>5%)
+        if len(breakeven) > 0:
+            be_pct = len(breakeven) / len(trades) * 100 if len(trades) > 0 else 0
+            if be_pct > 5:
+                logger.warning(f"VALIDATION: Win rate calculation excludes {len(breakeven)} breakeven trades ({be_pct:.1f}% of total) — may understate actual performance")
         streak = 0
         for t in reversed(trades):
             pnl = t.get("profit_loss_dollars")
@@ -913,12 +954,12 @@ def fetch_perf(c):
         exp = round(wr / 100 * avg_win - (1 - wr / 100) * avg_loss, 2) if trades else 0.0
         avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
         avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
-        # Recent returns: last 7 snapshots (validates snapshot_date and daily_return_pct are populated)
+        # CRITICAL ISSUE 5: Recent returns — include partial data even if <5 snapshots (don't hide incomplete data)
         recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct")))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
-        # Only include in dashboard if we have at least 5 recent data points
-        if len(recent_rets) < 5:
-            recent_rets = []
+        if len(recent_rets) > 0 and len(recent_rets) < 5:
+            logger.warning(f"VALIDATION: Recent returns has only {len(recent_rets)} snapshots (need 5+ for statistical significance)")
+        # Show data even if sparse; dashboard will display with reduced confidence
         _log_data_quality("fetch_perf", len(trades))
         return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
                 "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
@@ -986,8 +1027,9 @@ def fetch_positions(c):
 
         result = q(c, """
             WITH open_trades AS (
-                -- Category 11 fix: DISTINCT ON ordering explicit — semantics depend on ORDER BY (must be first expression)
-                -- Returns latest trade per symbol (by trade_date DESC), latest entry_time for tiebreaker
+                -- CRITICAL ISSUE 4 FIX: DISTINCT ON (symbol) requires symbol in ORDER BY (first expression)
+                -- Returns the first row per symbol, which is the latest trade due to ordering
+                -- Order BY symbol ensures grouping, trade_date DESC gets latest trade, entry_time DESC breaks ties
                 SELECT DISTINCT ON (symbol)
                     symbol, trade_id, entry_quantity, entry_price,
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
@@ -1677,7 +1719,7 @@ def fetch_circuit(c):
         if defaults_used:
             logger.warning(f"VALIDATION: Circuit breaker using DEFAULT thresholds (config incomplete): "
                          f"{', '.join(f'{k}={v}' for k, v in defaults_used.items())}")
-        # Issue 19 & 22: Only fire breakers where cur is not None and >= threshold
+        # CRITICAL ISSUE 6: Only fire breakers where cur is not None and >= threshold (handles VIX None case)
         for b in bs: b["fired"] = b["cur"] is not None and b["cur"] >= b["thr"]
         n_fired = sum(1 for b in bs if b["fired"])
         if n_fired > 0:
@@ -1798,7 +1840,10 @@ def load_all() -> dict:
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt < max_retries:
                     logger.warning(f"Retry {attempt+1}/{max_retries} for {name}: {e}")
-                    time.sleep(0.5 * (attempt + 1))
+                    # CRITICAL ISSUE 9 FIX: Exponential backoff with jitter (2^attempt + random [0,1)) to avoid thundering herd
+                    backoff = (2 ** attempt) + random.random()
+                    logger.debug(f"Backing off {backoff:.2f}s before retry {attempt+1}")
+                    time.sleep(backoff)
                     continue
                 logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
                 return name, {"_error": str(e)}
@@ -1809,11 +1854,11 @@ def load_all() -> dict:
                 if conn:
                     try: conn.close()
                     except (psycopg2.Error, AttributeError): pass
-    # Issue 4.1 & 11.2: Thread pool with timeout enforcement and dynamic worker count
-    # Limit concurrent DB connections to avoid RDS exhaustion
+    # CRITICAL ISSUE 9 FIX: Thread pool with timeout enforcement and reduced worker count
+    # Limit concurrent DB connections to avoid RDS exhaustion (8 workers × 28 fetchers = 224 potential connections)
     import os
-    max_workers = min(len(FETCHERS), os.cpu_count() or 4, 8)  # Cap at 8 to avoid RDS exhaustion
-    logger.debug(f"load_all using {max_workers} workers for {len(FETCHERS)} fetchers")
+    max_workers = min(len(FETCHERS), os.cpu_count() or 4, 4)  # Reduced from 8 to 4 to avoid connection pool exhaustion
+    logger.debug(f"load_all using {max_workers} workers for {len(FETCHERS)} fetchers (RDS connection pool safe)")
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
@@ -2400,7 +2445,7 @@ def panel_positions(pos, compact=False, trades=None):
         pval  = float(p.get("position_value")) if p.get("position_value") is not None else None
         stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
         t1    = float(p.get("target_1_price")) if p.get("target_1_price") is not None else None
-        pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else 0  # Default to 0 for display but track if missing
+        pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else None  # CRITICAL ISSUE 7: Keep None to display "--" instead of hiding missing data
         days  = p.get("days_since_entry") or "--"
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
@@ -2410,14 +2455,14 @@ def panel_positions(pos, compact=False, trades=None):
         rmul  = (price - entry) / denom if (denom is not None and entry is not None and price is not None) else None
         dist  = (price - stop) / price * 100 if (stop is not None and price is not None and price > 0) else None
         t1pct = (t1 - price) / price * 100 if (t1 is not None and price is not None and price > 0) else None
-        pc    = G if pnl >= 0 else R
+        pc    = G if (pnl is not None and pnl >= 0) else R
         rc    = G if (rmul is not None and rmul >= 0) else R
         dc    = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
         row = [
             p.get("symbol") or "--",
             fmt_money_short(pval) if pval is not None else "--",
             f"${entry:.2f}" if entry is not None else "--", f"${price:.2f}" if price is not None else "--",
-            Text(f"{sign(pnl)}{pnl:.2f}%", style=pc),
+            Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
             Text(f"{sign(rmul or 0)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
             f"${stop:.2f}" if stop is not None else "--",
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),
