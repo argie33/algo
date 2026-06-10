@@ -443,6 +443,14 @@ locals {
       description = "FRED economic indicators - Weekly Monday 4:30pm ET (macro data doesn't change daily)"
     }
 
+    # Economic metrics daily — pre-compute CPI YoY, SPY change, yield curve slope for dashboard
+    # Reads: CPIAUCSL (updated Mondays), DGS10/DGS2 (updated daily), SPY price (updated daily)
+    # Runs after stock_prices_daily (4:00am) completes: 4:05am ET Mon-Fri
+    "economic_metrics_daily" = {
+      schedule    = "cron(5 9 ? * MON-FRI *)"
+      description = "Economic metrics aggregation (CPI, SPY change, yield curve) - Daily 4:05am ET"
+    }
+
     # Financial statements — run Sunday night only (data changes quarterly, not daily)
     # STAGGERED: 60-minute intervals to prevent concurrent SEC EDGAR rate limit cascades
     # Each loader parallelism=1, 2 req/sec per task, max 1 concurrent = 2 req/sec total (safe)
@@ -694,6 +702,10 @@ locals {
     # NOTE: Docker image has FRED rate limit fix + LOADER_LOCKS_TABLE env var (2026-06-04T12:27)
     # UPDATED: Increased memory from 512MB to 1024MB to fix container crash (Exit code: None)
     "fred_economic_data" = { cpu = 256, memory = 1024, timeout = 300, parallelism = 1 }
+
+    # Economic metrics daily — pre-compute CPI YoY, SPY price change, yield curve slope for dashboard
+    # Lightweight aggregation: reads a few price_daily and economic_data rows, computes daily metrics
+    "economic_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Trend template — compute-heavy scoring
     "trend_template_data" = { cpu = 2048, memory = 4096, timeout = 5400, parallelism = 4 }

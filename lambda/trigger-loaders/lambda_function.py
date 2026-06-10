@@ -46,7 +46,7 @@ def lambda_handler(event, context):
             }
 
         # Determine launch type (critical loaders use on-demand)
-        critical_loaders = {'stock_prices_daily', 'signals_daily', 'algo_metrics_daily', 'stock_scores'}
+        critical_loaders = {'stock_prices_daily', 'signals_daily', 'algo_metrics_daily', 'stock_scores', 'economic_metrics_daily'}
         use_fargate = loader_name in critical_loaders
         launch_type = 'FARGATE' if use_fargate else None
 
