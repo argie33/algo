@@ -634,10 +634,11 @@ def fetch_market(c):
             close0 = spy_rows[0].get("close")
             close1 = spy_rows[1].get("close")
             if close0 is not None and close1 is not None:
-                cur_spy  = float(close0)
-                prev_spy = float(close1)
-                if spy_v is None: spy_v = cur_spy
-                if prev_spy > 0: spy_chg = round((cur_spy - prev_spy) / prev_spy * 100, 2)
+                cur_spy  = safe_float(close0)
+                prev_spy = safe_float(close1)
+                if cur_spy is not None and prev_spy is not None:
+                    if spy_v is None: spy_v = cur_spy
+                    if prev_spy > 0: spy_chg = round((cur_spy - prev_spy) / prev_spy * 100, 2)
                 try:
                     spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
                     if spy_date.tzinfo is None:
@@ -650,7 +651,7 @@ def fetch_market(c):
         elif len(spy_rows) == 1 and spy_v is None:
             close0 = spy_rows[0].get("close")
             if close0 is not None:
-                spy_v = float(close0)
+                spy_v = safe_float(close0)
             try:
                 spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
                 if spy_date.tzinfo is None:
@@ -1590,7 +1591,9 @@ def load_all() -> dict:
                 if conn:
                     try: conn.close()
                     except (psycopg2.Error, AttributeError): pass
-    max_workers = min(4, max(1, len(FETCHERS) // 3))
+    # Limit concurrent DB connections to avoid RDS exhaustion (each worker opens one connection)
+    # Empirically safe: 3 concurrent connections to avoid pool exhaustion under load
+    max_workers = 3
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
         for f in as_completed(future_to_key):
