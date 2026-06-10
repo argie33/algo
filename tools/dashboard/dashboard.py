@@ -580,32 +580,41 @@ def fetch_exposure_factors(c):
     try:
         row = q1(c, """SELECT raw_score, exposure_pct, regime, factors
                        FROM market_exposure_daily ORDER BY date DESC LIMIT 1""")
-        if not row: return {}
+        if not row:
+            _log_data_quality("fetch_exposure_factors", 0)
+            return {}
         factors = row.get("factors") or {}
         if isinstance(factors, str):
             try: factors = json.loads(factors)
             except (json.JSONDecodeError, ValueError):
                 logger.warning("Failed to parse exposure factors JSON")
                 factors = {}
-        return {
+        result = {
             "raw_score":    float(row.get("raw_score") or 0),
             "exposure_pct": float(row.get("exposure_pct") or 0),
             "regime":       row.get("regime"),
             "factors":      factors,
         }
+        _log_data_quality("fetch_exposure_factors", 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_exposure_factors: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_exposure_factors", 0, str(e))
         return {}
 
 def fetch_portfolio(c):
     try:
-        return dict(q1(c, """
+        row = q1(c, """
             SELECT snapshot_date, total_portfolio_value, daily_return_pct,
                    unrealized_pnl_pct, position_count, total_cash,
                    cumulative_return_pct, max_drawdown_pct, largest_position_pct
-            FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1""") or {})
+            FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1""")
+        result = dict(row or {})
+        _log_data_quality("fetch_portfolio", 1 if row else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_portfolio", 0, str(e))
         return {}
 
 def fetch_perf(c):
@@ -745,10 +754,12 @@ def fetch_positions(c):
 
 def fetch_recent_trades(c):
     try:
-        return q(c, """
+        result = q(c, """
             SELECT symbol, trade_date, exit_date, status,
                    profit_loss_dollars, profit_loss_pct, exit_r_multiple
             FROM algo_trades ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
+        _log_data_quality("fetch_recent_trades", len(result) if result else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
         _log_data_quality("fetch_recent_trades", 0, str(e))
@@ -831,13 +842,16 @@ def fetch_signals(c):
 
 def fetch_sector_ranking(c):
     try:
-        return q(c, """
+        result = q(c, """
             SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago
             FROM sector_ranking
             WHERE date=(SELECT MAX(date) FROM sector_ranking)
             ORDER BY current_rank ASC""")
+        _log_data_quality("fetch_sector_ranking", len(result) if result else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_sector_ranking", 0, str(e))
         return {}
 
 def fetch_activity(c):
@@ -847,7 +861,9 @@ def fetch_activity(c):
             FROM algo_audit_log
             WHERE details->>'run_id' IS NOT NULL
             GROUP BY details->>'run_id' ORDER BY MAX(created_at) DESC LIMIT 1""")
-        if not latest or not latest.get("run_id"): return {}
+        if not latest or not latest.get("run_id"):
+            _log_data_quality("fetch_activity", 0)
+            return {}
         rid    = latest["run_id"]
         run_at = latest.get("run_at")
         phases = q(c, """
@@ -859,14 +875,17 @@ def fetch_activity(c):
             WHERE action_type IN ('entry_executed','exit_executed','entry_rejected',
                                   'position_exited','order_placed','order_rejected')
             ORDER BY created_at DESC LIMIT 6""")
-        return {"run_id": rid, "run_at": run_at, "phases": phases, "recent_actions": recent_actions}
+        result = {"run_id": rid, "run_at": run_at, "phases": phases, "recent_actions": recent_actions}
+        _log_data_quality("fetch_activity", len(phases) if phases else 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_activity: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_activity", 0, str(e))
         return {}
 
 def fetch_health(c):
     try:
-        return q(c, """
+        result = q(c, """
             SELECT tbl, role, latest, age,
                    CASE WHEN age IS NULL OR age > stale_thresh THEN 'stale' ELSE 'ok' END AS st
             FROM (
@@ -889,8 +908,11 @@ def fetch_health(c):
               SELECT 'sector_ranking','SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM sector_ranking UNION ALL
               SELECT 'economic_data', 'SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM economic_data
             ) s ORDER BY CASE role WHEN 'CRIT' THEN 1 WHEN 'IMP' THEN 2 ELSE 3 END, tbl""")
+        _log_data_quality("fetch_health", len(result) if result else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_health", 0, str(e))
         return {}
 
 def fetch_economic_pulse(c):
@@ -920,7 +942,7 @@ def fetch_economic_pulse(c):
             if cur_cpi and prev_cpi and prev_cpi > 0:
                 cpi_yoy = round((cur_cpi - prev_cpi) / prev_cpi * 100, 2)
 
-        return {
+        result = {
             't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
             'yc_10_2':  yc_10_2, 'yc_10_3m': yc_10_3m,
             'hy':  d.get('BAMLH0A0HYM2'), 'ig': d.get('BAMLC0A0CM'),
@@ -934,39 +956,52 @@ def fetch_economic_pulse(c):
             'mortgage':  d.get('MORTGAGE30US'),
             'umcsent':   d.get('UMCSENT'),
         }
+        _log_data_quality("fetch_economic_pulse", len(d))
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_pulse: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_economic_pulse", 0, str(e))
         return {}
 
 def fetch_algo_metrics(c):
     try:
         rows = q(c, """SELECT date, total_actions, entries, exits
                        FROM algo_metrics_daily ORDER BY date DESC LIMIT 5""")
+        _log_data_quality("fetch_algo_metrics", len(rows) if rows else 0)
         return rows
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_algo_metrics", 0, str(e))
         return {}
 
 def fetch_notifications(c):
     try:
-        return q(c, """
+        result = q(c, """
             SELECT kind, severity, title, seen, created_at, details
             FROM algo_notifications
             ORDER BY created_at DESC LIMIT 8""")
+        _log_data_quality("fetch_notifications", len(result) if result else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_notifications: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_notifications", 0, str(e))
         return {}
 
 def fetch_sentiment(c):
     try:
         row = q1(c, "SELECT fear_greed_index, label, date FROM market_sentiment ORDER BY date DESC LIMIT 1")
-        if not row: return {}
+        if not row:
+            _log_data_quality("fetch_sentiment", 0)
+            return {}
         fg = float(row.get("fear_greed_index") or 0)
         label = row.get("label") or ""
         c_fg  = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
-        return {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
+        result = {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
+        _log_data_quality("fetch_sentiment", 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sentiment: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_sentiment", 0, str(e))
         return {}
 
 def fetch_economic_calendar(c):
@@ -978,9 +1013,11 @@ def fetch_economic_calendar(c):
                          AND country='US'
                        ORDER BY event_date ASC, importance DESC, event_time ASC
                        LIMIT 8""")
+        _log_data_quality("fetch_economic_calendar", len(rows) if rows else 0)
         return rows
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_economic_calendar", 0, str(e))
         return {}
 
 def fetch_risk_metrics(c) -> dict:
@@ -990,8 +1027,9 @@ def fetch_risk_metrics(c) -> dict:
                        FROM algo_risk_daily ORDER BY report_date DESC LIMIT 1""")
         if not row:
             logger.warning("No risk metrics data available; risk loader may not have run yet")
+            _log_data_quality("fetch_risk_metrics", 0)
             return {"_has_data": False}
-        return {
+        result = {
             "_has_data": True,
             "date":      row.get("report_date"),
             "var95":     float(row.get("var_pct_95")) if row.get("var_pct_95") is not None else None,
@@ -1000,8 +1038,11 @@ def fetch_risk_metrics(c) -> dict:
             "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
             "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
         }
+        _log_data_quality("fetch_risk_metrics", 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_risk_metrics", 0, str(e))
         return {"_error": str(e), "_has_data": False}
 
 def fetch_perf_analytics(c):
@@ -1010,9 +1051,11 @@ def fetch_perf_analytics(c):
                               calmar_ratio, win_rate_50t, avg_win_r_50t, avg_loss_r_50t,
                               expectancy, max_drawdown_pct
                        FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row: return {}
+        if not row:
+            _log_data_quality("fetch_perf_analytics", 0)
+            return {}
         def _f(k): return round(float(row[k]), 3) if row.get(k) is not None else None
-        return {
+        result = {
             "sharpe252": _f("rolling_sharpe_252d"),
             "sortino":   _f("rolling_sortino_252d"),
             "calmar":    _f("calmar_ratio"),
@@ -1022,8 +1065,11 @@ def fetch_perf_analytics(c):
             "expectancy": _f("expectancy"),
             "maxdd":     _f("max_drawdown_pct"),
         }
+        _log_data_quality("fetch_perf_analytics", 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf_analytics: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_perf_analytics", 0, str(e))
         return {}
 
 def fetch_signal_eval(c):
@@ -1041,6 +1087,7 @@ def fetch_signal_eval(c):
             WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)""")
         if not stats or stats.get("total") is None:
             logger.warning("No signal evaluation data available")
+            _log_data_quality("fetch_signal_eval", 0)
             return {}
         rejected = q(c, """SELECT evaluation_reason, COUNT(*) n
                            FROM algo_signals_evaluated
@@ -1050,16 +1097,20 @@ def fetch_signal_eval(c):
                            ORDER BY n DESC LIMIT 3""")
         def _i(k): return int(stats.get(k)) if stats and stats.get(k) is not None else 0
         avg_score_val = float(stats.get("avg_score")) if stats and stats.get("avg_score") is not None else 0
-        return {
-            "total":    _i("total"),
+        total_val = _i("total")
+        result = {
+            "total":    total_val,
             "t1": _i("t1"), "t2": _i("t2"), "t3": _i("t3"),
             "t4": _i("t4"), "t5": _i("t5"),
             "avg_score": round(avg_score_val, 1),
             "date":     stats.get("signal_date") if stats else None,
             "rejected": rejected,
         }
+        _log_data_quality("fetch_signal_eval", total_val)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signal_eval: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_signal_eval", 0, str(e))
         return {"_error": str(e)}
 
 def fetch_sector_rotation(c):
@@ -1067,14 +1118,16 @@ def fetch_sector_rotation(c):
         row = q1(c, """SELECT date, signal, strength, details
                        FROM sector_rotation_signal
                        ORDER BY date DESC LIMIT 1""")
-        if not row: return {}
+        if not row:
+            _log_data_quality("fetch_sector_rotation", 0)
+            return {}
         d = row.get("details") or {}
         if isinstance(d, str):
             try: d = json.loads(d)
             except (json.JSONDecodeError, ValueError):
                 logger.debug("sector_rotation details JSON parse failed")
                 d = {}
-        return {
+        result = {
             "date":     row.get("date"),
             "signal":   row.get("signal") or "",
             "strength": float(row.get("strength") or 0),
@@ -1082,23 +1135,29 @@ def fetch_sector_rotation(c):
             "def_score": d.get("defensive_lead_score", 0),
             "cyc_score": d.get("cyclical_weak_score", 0),
         }
+        _log_data_quality("fetch_sector_rotation", 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_rotation: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_sector_rotation", 0, str(e))
         return {}
 
 def fetch_industry_ranking(c):
     try:
-        return q(c, """SELECT industry, current_rank, momentum_score, rank_1w_ago
+        result = q(c, """SELECT industry, current_rank, momentum_score, rank_1w_ago
                        FROM industry_ranking
                        WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
                        ORDER BY current_rank LIMIT 10""")
+        _log_data_quality("fetch_industry_ranking", len(result) if result else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_industry_ranking: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_industry_ranking", 0, str(e))
         return {}
 
 def fetch_loader_status(c):
     try:
-        return q(c, """SELECT table_name, status, latest_date, age_days,
+        result = q(c, """SELECT table_name, status, latest_date, age_days,
                               completion_pct, error_message
                        FROM data_loader_status
                        ORDER BY CASE status
@@ -1109,25 +1168,31 @@ def fetch_loader_status(c):
                            ELSE 5
                        END, age_days DESC NULLS LAST
                        LIMIT 8""")
+        _log_data_quality("fetch_loader_status", len(result) if result else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_loader_status: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_loader_status", 0, str(e))
         return {}
 
 def fetch_exec_history(c):
     try:
         # Try with phase array columns first; fall back if they don't exist yet
         try:
-            return q(c, """SELECT run_id, started_at, completed_at, overall_status,
+            result = q(c, """SELECT run_id, started_at, completed_at, overall_status,
                                   phases_completed, phases_halted, phases_errored, halt_reason
                            FROM orchestrator_execution_log
                            ORDER BY started_at DESC LIMIT 10""")
         except psycopg2.Error:
-            return q(c, """SELECT run_id, started_at, completed_at, overall_status,
+            result = q(c, """SELECT run_id, started_at, completed_at, overall_status,
                                   halt_reason
                            FROM orchestrator_execution_log
                            ORDER BY started_at DESC LIMIT 10""")
+        _log_data_quality("fetch_exec_history", len(result) if result else 0)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_exec_history: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_exec_history", 0, str(e))
         return {}
 
 def fetch_audit_log(c):
@@ -1150,9 +1215,11 @@ def fetch_audit_log(c):
                 "status":      r.get("status", ""),
                 "created_at":  r.get("created_at"),
             })
+        _log_data_quality("fetch_audit_log", len(result))
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_audit_log: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_audit_log", 0, str(e))
         return {}
 
 def fetch_circuit(c):
@@ -1216,9 +1283,12 @@ def fetch_circuit(c):
         n_fired = sum(1 for b in bs if b["fired"])
         if n_fired > 0:
             logger.warning(f"Circuit breaker triggered: {n_fired} breaker(s) fired")
-        return {"bs": bs, "any": any(b["fired"] for b in bs), "n": n_fired}
+        result = {"bs": bs, "any": any(b["fired"] for b in bs), "n": n_fired}
+        _log_data_quality("fetch_circuit", 1)
+        return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_circuit", 0, str(e))
         return {"_error": str(e)}
 
 
