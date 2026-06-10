@@ -1890,20 +1890,6 @@ CREATE TABLE IF NOT EXISTS economic_metrics_daily (
 );
 
 -- Grade Distribution Daily - Pre-computed breakdown of stock grades (HIGH-SEVERITY ISSUE FIX)
--- Economic Metrics Daily - Pre-computed aggregate economic indicators (MEDIUM-SEVERITY ISSUE FIX)
-CREATE TABLE IF NOT EXISTS economic_metrics_daily (
-    report_date DATE PRIMARY KEY,
-    cpi_yoy_pct NUMERIC(8, 2),  -- Year-over-year CPI change (%)
-    cpi_yoy_error TEXT,  -- Error message if CPI calculation failed
-    spy_price_change_pct NUMERIC(8, 2),  -- SPY daily price change (%)
-    spy_price_change_error TEXT,  -- Error message if SPY change calculation failed
-    yield_curve_slope_10y2y NUMERIC(8, 3),  -- 10Y - 2Y yield spread
-    yield_curve_slope_error TEXT,  -- Error message if yield curve calculation failed
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_economic_metrics_daily_date ON economic_metrics_daily(report_date DESC);
-
 CREATE TABLE IF NOT EXISTS grade_distribution_daily (
     report_date DATE PRIMARY KEY,
     score_date DATE NOT NULL,  -- Date of swing_trader_scores used for calculation
