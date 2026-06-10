@@ -540,6 +540,7 @@ def fetch_algo_config(c):
         paper  = d.get("alpaca_paper_trading", "false").lower() == "true"
         mode   = d.get("execution_mode", "unknown").upper()
         mode_s = f"{mode}/PAPER" if paper else mode
+        _log_data_quality("fetch_algo_config", 1)
         return {
             "enabled":      d.get("enable_algo", "true").lower() == "true",
             "mode":         mode_s,
