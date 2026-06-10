@@ -3438,6 +3438,15 @@ def panel_performance_spark(perf, rec, perf_anl=None):
         except (ValueError, TypeError, AttributeError):
             pass
 
+    # ISSUE 5 FIX: Alert if open positions have unrealized losses (risk not in win rate)
+    if pos:
+        losing_positions = [p for p in pos if p.get("unrealized_pnl_pct") is not None and float(p.get("unrealized_pnl_pct", 0)) < 0]
+        if losing_positions:
+            loss_pct = sum(float(p.get("unrealized_pnl_pct", 0)) for p in losing_positions)
+            rows.append(Text.from_markup(
+                f"[orange1][!] {len(losing_positions)} open position(s) at risk:[/] {loss_pct:.1f}% unrealized loss"
+            ))
+
     return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
 
 
@@ -5126,7 +5135,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     # Row 2: Portfolio | Performance | Economic pulse
     outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg, risk=risk, perf=perf),    name="portfolio"),
-        Layout(panel_performance_spark(perf, rec, perf_anl),        name="perf"),
+        Layout(panel_performance_spark(perf, rec, perf_anl, pos=pos),        name="perf"),
         Layout(panel_economic_pulse(eco, econ_cal),                  name="eco"),
     )
 
