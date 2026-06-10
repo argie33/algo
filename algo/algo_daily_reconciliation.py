@@ -6,6 +6,7 @@ import os
 from utils.database_context import DatabaseContext
 
 import logging
+import requests
 from datetime import datetime, timezone, timedelta, date as _date_type
 from utils.trade_status import TradeStatus, PositionStatus
 from algo.algo_config import get_config, get_api_timeout
@@ -611,8 +612,26 @@ class DailyReconciliation:
                 logger.warning(f"  Failed to import {sym}: {e}")
                 cur.execute("ROLLBACK TO SAVEPOINT import_sp")
 
-        # Find orphans (in our DB but not Alpaca)
-        orphans = our_symbols - set(alpaca_symbols.keys())
+        # Find pending orders that haven't been filled yet (don't show in /v2/positions)
+        # These should NOT be marked as orphaned, as they may still fill
+        pending_symbols = set()
+        if alpaca_positions:  # Only check if we successfully fetched positions
+            try:
+                resp = requests.get(
+                    f'{self._alpaca_base_url}/v2/orders?status=pending&status=accepted&status=held',
+                    headers={'APCA-API-KEY-ID': self._alpaca_key,
+                             'APCA-API-SECRET-KEY': self._alpaca_secret},
+                    timeout=get_api_timeout(),
+                )
+                if resp.status_code == 200:
+                    pending_orders = resp.json() if isinstance(resp.json(), list) else []
+                    pending_symbols = {order.get('symbol') for order in pending_orders if order.get('symbol')}
+                    logger.debug(f"Found {len(pending_symbols)} symbols with pending orders: {pending_symbols}")
+            except Exception as e:
+                logger.warning(f"Could not fetch pending orders: {e}")
+
+        # Find orphans (in our DB but not in Alpaca positions AND not pending)
+        orphans = (our_symbols - set(alpaca_symbols.keys())) - pending_symbols
         if orphans:
             for sym in orphans:
                 # Mark as orphaned in algo_positions (legacy)
