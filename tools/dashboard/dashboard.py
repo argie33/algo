@@ -253,7 +253,6 @@ def validate_schema() -> None:
             ("algo_positions", ["avg_entry_price", "current_price", "stop_loss_price"]),
             ("algo_portfolio_snapshots", ["total_portfolio_value", "daily_return_pct"]),
             ("algo_trades", ["profit_loss_dollars", "exit_date", "status"]),
-            ("algo_signals_buy_sell", ["buy_n", "date"]),
             ("price_daily", ["close"]),
         ]
         for table, cols in critical_checks:
@@ -642,6 +641,7 @@ def fetch_market(c):
             logger.warning(f"SPY price data is {spy_age} days old")
             stale_alerts.append(f"SPY {spy_age}d old")
 
+        _log_data_quality("fetch_market", 1)
         return {
             "pct":   pct,
             "tier":  tier_from_pct(pct),
