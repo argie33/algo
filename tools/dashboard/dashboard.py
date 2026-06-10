@@ -610,6 +610,10 @@ def fetch_algo_config(c):
                 "pyramid_enabled"]
         rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (keys,))
         d = {r["key"]: r["value"] for r in rows}
+        # Issue 3.1: Validate that expected config keys exist (don't silently use defaults)
+        missing_keys = [k for k in keys if k not in d]
+        if missing_keys:
+            logger.warning(f"VALIDATION: algo_config missing keys: {missing_keys} (will use hardcoded defaults - may be incorrect)")
         paper  = d.get("alpaca_paper_trading", "false").lower() == "true"
         mode   = d.get("execution_mode", "unknown").upper()
         mode_s = f"{mode}/PAPER" if paper else mode
