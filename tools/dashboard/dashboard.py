@@ -199,8 +199,21 @@ def mascot_pose(data: dict, frame: int) -> int:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_db_credentials() -> dict:
-    """Fetch DB credentials from AWS Secrets Manager with env var fallback."""
-    if boto3 and not os.environ.get("LOCAL_DEV"):
+    """Fetch DB credentials: try env vars first, then AWS Secrets Manager."""
+    env_creds = {
+        "host": os.environ.get("DB_HOST"),
+        "user": os.environ.get("DB_USER"),
+        "password": os.environ.get("DB_PASSWORD"),
+        "dbname": os.environ.get("DB_NAME"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
+    }
+
+    # If env vars are complete, use them
+    if all([env_creds["host"], env_creds["user"], env_creds["password"], env_creds["dbname"]]):
+        return env_creds
+
+    # Otherwise try AWS Secrets Manager
+    if boto3:
         try:
             client = boto3.client("secretsmanager", region_name="us-east-1")
             secret_name = os.environ.get("DB_SECRET_NAME", "algo-db-credentials")
@@ -213,16 +226,10 @@ def _get_db_credentials() -> dict:
                 "dbname": secret_dict.get("dbname"),
                 "port": secret_dict.get("port", 5432),
             }
-        except (ClientError, AttributeError, KeyError, json.JSONDecodeError) as e:
-            logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}. Falling back to env vars.")
+        except Exception as e:
+            logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}. Using env vars.")
 
-    return {
-        "host": os.environ.get("DB_HOST"),
-        "user": os.environ.get("DB_USER"),
-        "password": os.environ.get("DB_PASSWORD"),
-        "dbname": os.environ.get("DB_NAME"),
-        "port": int(os.environ.get("DB_PORT", 5432)),
-    }
+    return env_creds
 
 def get_conn() -> psycopg2.extensions.connection:
     creds = _get_db_credentials()
@@ -977,7 +984,7 @@ def fetch_sector_ranking(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
         _log_data_quality("fetch_sector_ranking", 0, str(e))
-        return {}
+        return []
 
 def fetch_activity(c):
     try:
@@ -1038,7 +1045,7 @@ def fetch_health(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
         _log_data_quality("fetch_health", 0, str(e))
-        return {}
+        return []
 
 def fetch_economic_pulse(c):
     try:
