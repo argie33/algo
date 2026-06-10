@@ -1416,9 +1416,9 @@ def fetch_positions(c):
                 ORDER BY symbol, trade_date DESC, entry_time DESC
             ),
             latest_prices AS (
-                -- Issue 30: Use bid price for more conservative position valuation (close price may overstate value on illiquid stocks)
+                -- Get most recent close price for open positions (bid/ask not available in schema)
                 -- Only get prices for open position symbols (not all 10k+ symbols)
-                SELECT DISTINCT ON (symbol) symbol, COALESCE(bid, close) as current_price
+                SELECT DISTINCT ON (symbol) symbol, close as current_price
                 FROM price_daily
                 WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
                 ORDER BY symbol, date DESC
