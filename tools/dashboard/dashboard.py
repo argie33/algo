@@ -862,7 +862,10 @@ def fetch_perf(c):
         wr        = len(wins) / counted_trades * 100 if counted_trades > 0 else 0
         streak = 0
         for t in reversed(trades):
-            w = float(t.get("profit_loss_dollars") or 0) > 0
+            pnl = t.get("profit_loss_dollars")
+            if pnl is None:
+                break  # Stop at first trade with missing data
+            w = float(pnl) > 0
             if streak >= 0 and w:       streak += 1
             elif streak <= 0 and not w: streak -= 1
             else: break
@@ -870,10 +873,11 @@ def fetch_perf(c):
                         FROM algo_portfolio_snapshots ORDER BY snapshot_date ASC""")
         sharpe = None
         maxdd  = 0.0
-        equity_vals = [float(s.get("total_portfolio_value") or 0)
+        # Only convert non-None values (filter already checks for non-None)
+        equity_vals = [float(s.get("total_portfolio_value"))
                        for s in snaps if s.get("total_portfolio_value") is not None]
         if len(snaps) >= 10:
-            rets = [float(s.get("daily_return_pct") or 0) / 100 for s in snaps if s.get("daily_return_pct") is not None]
+            rets = [float(s.get("daily_return_pct")) / 100 for s in snaps if s.get("daily_return_pct") is not None]
             # Sharpe requires >5 returns to be meaningful; assumes normal distribution (may understate tail risk in fat-tailed markets)
             if len(rets) > 5:
                 mn = statistics.mean(rets)
@@ -882,7 +886,7 @@ def fetch_perf(c):
             # Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
             pk = 0.0
             for s in snaps:
-                v = float(s.get("total_portfolio_value") or 0)
+                v = float(s.get("total_portfolio_value")) if s.get("total_portfolio_value") is not None else 0.0
                 if v > pk: pk = v
                 if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
         # Build win/loss amounts with defensive filtering
@@ -896,7 +900,7 @@ def fetch_perf(c):
         avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
         avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
         # Recent returns: last 7 snapshots (validates snapshot_date and daily_return_pct are populated)
-        recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct") or 0))
+        recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct")))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
         # Only include in dashboard if we have at least 5 recent data points
         if len(recent_rets) < 5:
