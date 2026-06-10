@@ -189,7 +189,10 @@ function PortfolioDashboardPage() {
             Algo positions · Performance · Risk profile · Market context
           </div>
         </div>
-        <div className="page-head-actions">
+        <div className="page-head-actions" style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <button className="btn btn-outline btn-sm" onClick={() => navigate('/app/algo-dashboard')}>
+            Terminal Dashboard
+          </button>
           <button className="btn btn-outline btn-sm" onClick={() => {
             refetchStatus();
             refetchPositions();

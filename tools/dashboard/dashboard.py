@@ -947,11 +947,30 @@ def fetch_market(c):
         def _f(key): return float(h[key]) if h and h.get(key) is not None else None
         def _i(key): return int(h[key])   if h and h.get(key) is not None else None
         spy_v = _f("spy_close")
+        # MEDIUM ISSUE FIX: Read pre-computed economic metrics instead of calculating
         spy_chg = None
+        cpi_yoy = None
+        ycs = None
+        try:
+            econ_metrics = q1(c, """
+                SELECT spy_price_change_pct, cpi_yoy_pct, yield_curve_slope_10y2y
+                FROM economic_metrics_daily
+                ORDER BY report_date DESC LIMIT 1
+            """)
+            if econ_metrics:
+                spy_chg = float(econ_metrics.get('spy_price_change_pct')) if econ_metrics.get('spy_price_change_pct') is not None else None
+                cpi_yoy = float(econ_metrics.get('cpi_yoy_pct')) if econ_metrics.get('cpi_yoy_pct') is not None else None
+                ycs = float(econ_metrics.get('yield_curve_slope_10y2y')) if econ_metrics.get('yield_curve_slope_10y2y') is not None else None
+                logger.debug(f"Economic metrics from DB: SPY_chg={spy_chg}% CPI_YoY={cpi_yoy}% YCS={ycs}")
+        except Exception as e:
+            logger.debug(f"Could not fetch pre-computed economic metrics: {e}")
+
         spy_rows = q(c, "SELECT close, date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
         spy_age = None
         stale_alerts = []
-        if len(spy_rows) >= 2:
+
+        # Fallback: calculate SPY change if not in database
+        if spy_chg is None and len(spy_rows) >= 2:
             close0 = spy_rows[0].get("close")
             close1 = spy_rows[1].get("close")
             if close0 is not None and close1 is not None:
@@ -2198,7 +2217,29 @@ def fetch_circuit(c):
                          f"(will use hardcoded defaults)")
 
         snaps = q(c, "SELECT total_portfolio_value, daily_return_pct, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
-        lat   = snaps[0] if snaps else {}
+
+        # CRITICAL ISSUE 4 FIX: Validate snapshot data exists and is fresh (not stale > 1 day)
+        if not snaps:
+            logger.error("CRITICAL: algo_portfolio_snapshots table is EMPTY — cannot calculate circuit breaker metrics safely")
+            _log_data_quality("fetch_circuit", 0, "No portfolio snapshots available")
+            return {"bs": [], "any": False, "n": 0, "_error": "Portfolio snapshot data missing — circuit breaker unavailable"}
+
+        lat = snaps[0]
+        snap_date = lat.get("snapshot_date")
+        if snap_date:
+            try:
+                if isinstance(snap_date, datetime):
+                    snap_dt = snap_date
+                else:
+                    snap_dt = datetime.fromisoformat(str(snap_date))
+                snap_age_days = (datetime.now(timezone.utc) - snap_dt.replace(tzinfo=timezone.utc)).days if snap_dt.tzinfo else (datetime.now() - snap_dt).days
+                if snap_age_days > 1:
+                    logger.error(f"CRITICAL: Latest portfolio snapshot is {snap_age_days} days old (threshold 1 day) — circuit breaker data is stale")
+                    _log_data_quality("fetch_circuit", 0, f"Snapshot data stale: {snap_age_days} days old")
+                    return {"bs": [], "any": False, "n": 0, "_error": f"Portfolio data stale ({snap_age_days}d old) — circuit breaker unavailable"}
+            except (ValueError, TypeError, AttributeError) as e:
+                logger.warning(f"Could not validate snapshot freshness: {e}")
+
         # Safely calculate peak value
         snap_vals = [float(s.get("total_portfolio_value")) for s in snaps if s.get("total_portfolio_value") is not None]
         pk    = max(snap_vals, default=0) if snap_vals else 0
