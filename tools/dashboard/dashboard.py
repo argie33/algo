@@ -874,19 +874,21 @@ def fetch_positions(c):
         return result
     except psycopg2.Error as e:
         err_msg = str(e)
+        error_detail = None
         if "does not exist" in err_msg:
             if "trend_template_data" in err_msg:
-                logger.error("fetch_positions: Missing or renamed table trend_template_data (check column: weinstein_stage)")
+                error_detail = "Missing or renamed table trend_template_data (check column: weinstein_stage)"
             elif "company_profile" in err_msg:
-                logger.error("fetch_positions: Missing or renamed table company_profile (check columns: sector, ticker)")
+                error_detail = "Missing or renamed table company_profile (check columns: sector, ticker)"
             elif "swing_trader_scores" in err_msg:
-                logger.error("fetch_positions: Missing or renamed table swing_trader_scores (check column: score)")
+                error_detail = "Missing or renamed table swing_trader_scores (check column: score)"
             else:
-                logger.error(f"fetch_positions: Missing table in query. {err_msg}")
+                error_detail = f"Missing table in query. {err_msg}"
         elif "column" in err_msg and "does not exist" in err_msg:
-            logger.error(f"fetch_positions: Column name mismatch (check: weinstein_stage, sector, score). {err_msg}")
+            error_detail = f"Column name mismatch (check: weinstein_stage, sector, score). {err_msg}"
         else:
-            logger.error(f"fetch_positions: {type(e).__name__}: {err_msg}")
+            error_detail = f"{type(e).__name__}: {err_msg}"
+        logger.error(f"fetch_positions: {error_detail}")
         _log_data_quality("fetch_positions", 0, err_msg)
         return []
     except (KeyError, TypeError, ValueError) as e:
