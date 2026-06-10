@@ -124,6 +124,9 @@ function PortfolioDashboardPage() {
     () => api.get('/api/algo/circuit-breakers'),
   );
 
+  // Check if primary data is still loading (avoid flickering by holding skeletons until main data arrives)
+  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading;
+
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
   const tradesList = Array.isArray(trades) ? trades : (trades?.items || []);
@@ -271,7 +274,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Ratios row */}
-      {perfLoading ? (
+      {isPrimaryLoading ? (
         <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
           <SkeletonKpi />
           <SkeletonKpi />
@@ -316,46 +319,46 @@ function PortfolioDashboardPage() {
       {/* Equity curve + Drawdown chart */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <ErrorBoundary>
-          <EquityCurve series={safeEquityCurve} loading={equityLoading} />
+          <EquityCurve series={safeEquityCurve} loading={isPrimaryLoading || equityLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <DrawdownChart series={safeEquityCurve} loading={equityLoading} />
+          <DrawdownChart series={safeEquityCurve} loading={isPrimaryLoading || equityLoading} />
         </ErrorBoundary>
       </div>
 
       {/* Daily-return histogram + Trade outcome distribution */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <ErrorBoundary>
-          <DailyReturnHistogram series={safeEquityCurve} loading={equityLoading} />
+          <DailyReturnHistogram series={safeEquityCurve} loading={isPrimaryLoading || equityLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <TradeDistribution trades={safeTradesList} loading={tradesLoading} />
+          <TradeDistribution trades={safeTradesList} loading={isPrimaryLoading || tradesLoading} />
         </ErrorBoundary>
       </div>
 
       {/* R-multiple ladder */}
       <ErrorBoundary>
-        <RLadderPanel positions={safePositionsList} loading={posLoading}
+        <RLadderPanel positions={safePositionsList} loading={isPrimaryLoading || posLoading}
                       onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
       </ErrorBoundary>
 
       {/* Risk-pie + Sector concentration + Stage donut */}
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
         <ErrorBoundary>
-          <RiskAllocationPie positions={safePositionsList} totalValue={totalValue} loading={posLoading}
+          <RiskAllocationPie positions={safePositionsList} totalValue={totalValue} loading={isPrimaryLoading || posLoading}
                               onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <SectorConcentration positions={safePositionsList} totalValue={totalValue} loading={posLoading} />
+          <SectorConcentration positions={safePositionsList} totalValue={totalValue} loading={isPrimaryLoading || posLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <StagePhaseDonut positions={safePositionsList} loading={posLoading} />
+          <StagePhaseDonut positions={safePositionsList} loading={isPrimaryLoading || posLoading} />
         </ErrorBoundary>
       </div>
 
       {/* Position-health table */}
       <ErrorBoundary>
-        <PositionHealthTable positions={safePositionsList} loading={posLoading}
+        <PositionHealthTable positions={safePositionsList} loading={isPrimaryLoading || posLoading}
                               onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
       </ErrorBoundary>
 

@@ -1193,7 +1193,7 @@ def fetch_perf(c):
             SELECT report_date, win_rate_all, profit_factor, expectancy,
                    rolling_sharpe_252d, max_drawdown_pct,
                    total_trades, num_wins, num_losses,
-                   avg_win, avg_loss, updated_at
+                   avg_win, avg_loss, avg_r, updated_at
             FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1
         """)
 
@@ -1284,9 +1284,13 @@ def fetch_perf(c):
             logger.warning("VALIDATION: No pre-computed metrics in algo_performance_daily — data may not be loaded yet")
             _log_data_quality("fetch_perf", 0, "No metrics in algo_performance_daily")
 
-        # Fallback: calculate avg_r from trades if not in database
-        avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
-        avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
+        # Use pre-computed avg_r from database, fallback to calculating from trades
+        if perf and perf.get("avg_r") is not None:
+            avg_r = float(perf.get("avg_r"))
+        else:
+            # Fallback: calculate avg_r from trades if not in database
+            avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
+            avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
 
         # Return metrics from database + calculated streak + recent returns
         return {

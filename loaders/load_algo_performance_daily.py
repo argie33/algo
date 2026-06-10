@@ -218,6 +218,14 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             except (ValueError, ZeroDivisionError):
                 pass
 
+        # Extract avg_r_all from trade_stats (already computed in fetch_global)
+        avg_r_all = None
+        if trade_stats.get('avg_r_all') is not None:
+            try:
+                avg_r_all = round(float(trade_stats.get('avg_r_all')), 3)
+            except (ValueError, TypeError):
+                pass
+
         return {
             'report_date': report_date,
             'rolling_sharpe_252d': rolling_sharpe_252d,
@@ -235,6 +243,7 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
             'profit_factor': profit_factor,
             'avg_win': avg_win_dollars,
             'avg_loss': avg_loss_dollars,
+            'avg_r': avg_r_all,
             'updated_at': datetime.now(ET),
         }
 

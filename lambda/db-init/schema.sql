@@ -1860,6 +1860,8 @@ ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS num_losses INTEGER;
 ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS profit_factor NUMERIC(8, 3);
 ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_win NUMERIC(10, 2);
 ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_loss NUMERIC(10, 2);
+-- HIGH-SEVERITY ISSUE FIX: Average R-Multiple only in dashboard — now pre-computed
+ALTER TABLE algo_performance_daily ADD COLUMN IF NOT EXISTS avg_r NUMERIC(6, 3);
 
 -- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
 CREATE TABLE IF NOT EXISTS algo_risk_daily (
