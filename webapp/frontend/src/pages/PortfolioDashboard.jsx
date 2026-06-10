@@ -126,7 +126,7 @@ function PortfolioDashboardPage() {
 
   // Check if primary data is still loading (avoid flickering by holding skeletons until main data arrives)
   // Includes all query states to prevent skeleton loaders from showing/hiding at different times
-  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading;
+  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading || breakersLoading;
 
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
@@ -318,15 +318,15 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Circuit breakers */}
-      <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading || breakersLoading} />
+      <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading} />
 
       {/* Equity curve + Drawdown chart */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <ErrorBoundary>
-          <EquityCurve series={safeEquityCurve} loading={isPrimaryLoading || equityLoading} />
+          <EquityCurve series={safeEquityCurve} loading={isPrimaryLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <DrawdownChart series={safeEquityCurve} loading={isPrimaryLoading || equityLoading} />
+          <DrawdownChart series={safeEquityCurve} loading={isPrimaryLoading} />
         </ErrorBoundary>
       </div>
 

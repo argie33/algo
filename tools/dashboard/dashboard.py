@@ -1760,38 +1760,75 @@ def fetch_economic_pulse(c):
         if missing_required:
             logger.warning(f"VALIDATION: fetch_economic_pulse missing required fields: {missing_required} — economic data incomplete")
 
-        t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
-        # Yield curve slopes: both rates must be valid numbers
-        yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2 is not None) else None
-        yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
+        # MEDIUM ISSUE FIX: Read pre-computed yield curve slope
+        yc_10_2 = None
+        yc_10_3m = None
+        try:
+            ycs_metrics = q1(c, """
+                SELECT yield_curve_slope_10y2y, yield_curve_slope_error
+                FROM economic_metrics_daily
+                ORDER BY report_date DESC LIMIT 1
+            """)
+            if ycs_metrics and ycs_metrics.get('yield_curve_slope_10y2y') is not None:
+                yc_10_2 = float(ycs_metrics.get('yield_curve_slope_10y2y'))
+                logger.debug(f"Yield curve slope from pre-computed table: {yc_10_2}")
+        except Exception as e:
+            logger.debug(f"Could not fetch pre-computed yield curve slope: {e}")
 
-        # Issue 21 FIX: Log yield curve computation failures explicitly
-        if t10 is None or t2 is None:
-            logger.warning(f"VALIDATION: fetch_economic_pulse cannot compute yield curve 10-2: DGS10={t10}, DGS2={t2}")
+        # Fallback: calculate from raw data if not in database
+        if yc_10_2 is None:
+            t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
+            # Yield curve slopes: both rates must be valid numbers
+            yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2 is not None) else None
+            yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
+            # Issue 21 FIX: Log yield curve computation failures explicitly
+            if t10 is None or t2 is None:
+                logger.warning(f"VALIDATION: fetch_economic_pulse cannot compute yield curve 10-2: DGS10={t10}, DGS2={t2}")
+        else:
+            # If we have pre-computed 10-2, also try to get 3m from raw data
+            t10 = d.get('DGS10'); t3m = d.get('DGS3MO')
+            yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
 
-        # Issue 1.4: CPI YoY calculation with explicit date logic (not assuming daily data)
+        # MEDIUM ISSUE FIX: Read pre-computed CPI YoY from economic_metrics_daily table
         cpi_yoy = None
         cpi_error = None
-        cpi_cur = q1(c, "SELECT value FROM economic_data WHERE series_id='CPIAUCSL' ORDER BY date DESC LIMIT 1")
-        cpi_yoy_row = q1(c, """
-            SELECT value FROM economic_data
-            WHERE series_id='CPIAUCSL' AND date <= CURRENT_DATE - 365
-            ORDER BY date DESC LIMIT 1""")
-        if cpi_cur and cpi_yoy_row and cpi_cur.get('value') is not None and cpi_yoy_row.get('value') is not None:
-            try:
-                cur = float(cpi_cur['value'])
-                prev = float(cpi_yoy_row['value'])
-                if prev > 0:
-                    cpi_yoy = round((cur - prev) / prev * 100, 2)
-                else:
-                    cpi_error = "prev_cpi_zero"
-            except (ValueError, TypeError) as e:
-                cpi_error = f"parse_error:{type(e).__name__}"
-        else:
-            if not cpi_cur or cpi_cur.get('value') is None:
-                cpi_error = "current_missing"
-            elif not cpi_yoy_row or cpi_yoy_row.get('value') is None:
-                cpi_error = "yoy_history_missing"
+        try:
+            econ_metrics = q1(c, """
+                SELECT cpi_yoy_pct, cpi_yoy_error
+                FROM economic_metrics_daily
+                ORDER BY report_date DESC LIMIT 1
+            """)
+            if econ_metrics:
+                cpi_yoy = float(econ_metrics.get('cpi_yoy_pct')) if econ_metrics.get('cpi_yoy_pct') is not None else None
+                cpi_error = econ_metrics.get('cpi_yoy_error')
+                if cpi_yoy is not None:
+                    logger.debug(f"CPI YoY from pre-computed table: {cpi_yoy}%")
+        except Exception as e:
+            logger.debug(f"Could not fetch pre-computed CPI YoY: {e}")
+
+        # Fallback: calculate CPI YoY if not in database
+        if cpi_yoy is None:
+            logger.debug("CPI YoY not in pre-computed table, falling back to calculation")
+            cpi_cur = q1(c, "SELECT value FROM economic_data WHERE series_id='CPIAUCSL' ORDER BY date DESC LIMIT 1")
+            cpi_yoy_row = q1(c, """
+                SELECT value FROM economic_data
+                WHERE series_id='CPIAUCSL' AND date <= CURRENT_DATE - 365
+                ORDER BY date DESC LIMIT 1""")
+            if cpi_cur and cpi_yoy_row and cpi_cur.get('value') is not None and cpi_yoy_row.get('value') is not None:
+                try:
+                    cur = float(cpi_cur['value'])
+                    prev = float(cpi_yoy_row['value'])
+                    if prev > 0:
+                        cpi_yoy = round((cur - prev) / prev * 100, 2)
+                    else:
+                        cpi_error = "prev_cpi_zero"
+                except (ValueError, TypeError) as e:
+                    cpi_error = f"parse_error:{type(e).__name__}"
+            else:
+                if not cpi_cur or cpi_cur.get('value') is None:
+                    cpi_error = "current_missing"
+                elif not cpi_yoy_row or cpi_yoy_row.get('value') is None:
+                    cpi_error = "yoy_history_missing"
 
         if cpi_error:
             logger.warning(f"VALIDATION: fetch_economic_pulse CPI YoY computation failed: {cpi_error}")
