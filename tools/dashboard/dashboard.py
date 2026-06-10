@@ -1085,7 +1085,7 @@ def fetch_market(c):
         _log_data_quality("fetch_market", 1)
         return {
             "pct":   pct,
-            "tier":  tier_from_pct(pct),
+            "tier":  tier_from_pct(pct, tier_thresholds),
             "halts": halts,
             "vix":     float(vix_v) if vix_v is not None else None,
             "dist":    _i("distribution_days_4w"),
