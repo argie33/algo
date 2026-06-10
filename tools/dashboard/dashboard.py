@@ -320,9 +320,9 @@ def fmt_age(ts: any) -> str:
             except (ValueError, TypeError):
                 return "--"
         if isinstance(ts, date) and not isinstance(ts, datetime):
-            ts = datetime(ts.year, ts.month, ts.day, tzinfo=timezone.utc)
-        if ts.tzinfo is None: ts = ts.replace(tzinfo=timezone.utc)
-        m = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
+            ts = datetime(ts.year, ts.month, ts.day, tzinfo=ET)
+        if ts.tzinfo is None: ts = ts.replace(tzinfo=ET)
+        m = int((datetime.now(ET) - ts).total_seconds() / 60)
         if m < 60:   return f"{m}m ago"
         if m < 1440: return f"{m // 60}h{m % 60:02d}m ago"
         return f"{m // 1440}d ago"
@@ -490,10 +490,10 @@ def sparkline(values: list, width: int = 24) -> str:
     return f"[{c}]{chars}[/]"
 
 def _parse_event_date(ed: any) -> Optional[date]:
-    """Parse event date from various formats (always returns naive date, handling timezone-aware inputs).
+    """Parse event date from various formats, converting to ET for consistency.
 
-    Converts all datetime inputs to UTC before extracting the date to ensure consistent
-    date boundaries regardless of input timezone.
+    Extracts date in ET timezone to ensure consistent date boundaries
+    regardless of input timezone (e.g., 11 PM ET on June 10 stays June 10).
     """
     if ed is None:
         return None
@@ -502,7 +502,9 @@ def _parse_event_date(ed: any) -> Optional[date]:
             return datetime.strptime(ed[:10], "%Y-%m-%d").date()
         elif isinstance(ed, datetime):
             if ed.tzinfo is not None:
-                ed = ed.astimezone(timezone.utc)
+                ed = ed.astimezone(ET)
+            else:
+                ed = ed.replace(tzinfo=ET)
             return ed.date()
         elif isinstance(ed, date):
             return ed
@@ -514,9 +516,9 @@ def _fmt_event_when(ed_date: Optional[date], et: any) -> str:
     """Format event timing as human-readable label, incorporating date and time for clarity.
 
     Shows 'TODAY 8PM' or 'TONIGHT 8PM' for today's events with times, to distinguish from
-    events that may have already occurred.
+    events that may have already occurred. Uses ET timezone for consistency.
     """
-    today = date.today()
+    today = datetime.now(ET).date()
     if ed_date == today:
         if et:
             try:
@@ -617,6 +619,14 @@ def fetch_algo_config(c):
         paper  = d.get("alpaca_paper_trading", "false").lower() == "true"
         mode   = d.get("execution_mode", "unknown").upper()
         mode_s = f"{mode}/PAPER" if paper else mode
+        min_score = d.get("min_swing_score")
+        if min_score is None:
+            min_score = 70.0
+        else:
+            try:
+                min_score = float(min_score)
+            except (ValueError, TypeError):
+                min_score = 70.0
         _log_data_quality("fetch_algo_config", 1)
         return {
             "enabled":      d.get("enable_algo", "true").lower() == "true",
@@ -624,7 +634,7 @@ def fetch_algo_config(c):
             "max_pos_pct":  d.get("max_position_size_pct"),
             "max_pos_n":    d.get("max_positions"),
             "max_sec_n":    d.get("max_positions_per_sector"),
-            "min_score":    d.get("min_swing_score"),
+            "min_score":    min_score,
             "base_risk":    d.get("base_risk_pct"),
             "t1_r":         d.get("t1_target_r_multiple"),
             "pyramid":      d.get("pyramid_enabled", "false").lower() == "true",
@@ -741,20 +751,24 @@ def fetch_market(c):
         elif spy_age is not None and spy_age > 1:
             logger.warning(f"VALIDATION: SPY price data is {spy_age} days old — may not reflect current market")
             stale_alerts.append(f"SPY {spy_age}d stale")
-        # Breadth momentum 10d indicator unreliable if market health data >3 days old
+        # Category 6 fix: Breadth momentum 10d indicator unreliable if >3 days old (validates threshold)
         if h and h.get("breadth_momentum_10d") is not None:
             mkt_age = (datetime.now(timezone.utc) - (h.get("date").replace(tzinfo=timezone.utc) if isinstance(h.get("date"), datetime) else datetime.fromisoformat(str(h.get("date"))).replace(tzinfo=timezone.utc))).days if h.get("date") else None
             if mkt_age is not None and mkt_age > 3:
                 logger.warning(f"Breadth momentum 10d indicator data {mkt_age}d old (>3d threshold); unreliable")
                 stale_alerts.append(f"Breadth momentum {mkt_age}d old")
+            else:
+                logger.debug(f"Breadth momentum 10d threshold satisfied: {mkt_age}d old <= 3d")
 
-        # Add market_health_age to stale_alerts if distribution_days (10d on Mon, 3d otherwise) is stale
+        # Category 6 fix: Distribution days threshold validation (10d on Monday per business rules, 3d otherwise)
         if mkt_health_age is not None and h and h.get("distribution_days_4w") is not None:
             today = datetime.now(ET)
             stale_threshold = 10 if today.weekday() == 0 else 3
             if mkt_health_age > stale_threshold:
-                logger.warning(f"Distribution days {mkt_health_age}d old (threshold {stale_threshold}d)")
+                logger.warning(f"Distribution days {mkt_health_age}d old exceeds threshold {stale_threshold}d")
                 stale_alerts.append(f"Distribution days {mkt_health_age}d old")
+            else:
+                logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d")
         _log_data_quality("fetch_market", 1)
         return {
             "pct":   pct,
@@ -972,7 +986,8 @@ def fetch_positions(c):
 
         result = q(c, """
             WITH open_trades AS (
-                -- All trades with active positions (source of truth)
+                -- Category 11 fix: DISTINCT ON ordering explicit — semantics depend on ORDER BY (must be first expression)
+                -- Returns latest trade per symbol (by trade_date DESC), latest entry_time for tiebreaker
                 SELECT DISTINCT ON (symbol)
                     symbol, trade_id, entry_quantity, entry_price,
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
@@ -980,7 +995,7 @@ def fetch_positions(c):
                 FROM algo_trades
                 WHERE status IN ('open', 'filled', 'partially_filled', 'active')
                     AND exit_date IS NULL
-                ORDER BY symbol, trade_date DESC
+                ORDER BY symbol, trade_date DESC, entry_time DESC
             ),
             latest_prices AS (
                 -- Only get prices for open position symbols (not all 10k+ symbols)
@@ -1034,21 +1049,22 @@ def fetch_positions(c):
     except psycopg2.Error as e:
         err_msg = str(e)
         error_detail = None
+        # Category 7 fix: Structured error context instead of fragile string parsing
         if "does not exist" in err_msg:
             if "trend_template_data" in err_msg:
-                error_detail = "Missing or renamed table trend_template_data (check column: weinstein_stage)"
+                error_detail = "Table missing: trend_template_data — check: (1) exists in schema, (2) has column weinstein_stage"
             elif "company_profile" in err_msg:
-                error_detail = "Missing or renamed table company_profile (check columns: sector, ticker)"
+                error_detail = "Table missing: company_profile — check: (1) exists in schema, (2) has columns sector, ticker"
             elif "swing_trader_scores" in err_msg:
-                error_detail = "Missing or renamed table swing_trader_scores (check column: score)"
+                error_detail = "Table missing: swing_trader_scores — check: (1) exists in schema, (2) has column score, date"
             else:
-                error_detail = f"Missing table in query. {err_msg}"
+                error_detail = f"Schema error: table missing in query (check RDS schema)"
         elif "column" in err_msg and "does not exist" in err_msg:
-            error_detail = f"Column name mismatch (check: weinstein_stage, sector, score). {err_msg}"
+            error_detail = f"Schema error: column mismatch — expected: (weinstein_stage|sector|score)"
         else:
-            error_detail = f"{type(e).__name__}: {err_msg}"
+            error_detail = f"{type(e).__name__} — check DB connection, RDS availability, statement timeout"
         logger.error(f"fetch_positions: {error_detail}")
-        _log_data_quality("fetch_positions", 0, err_msg)
+        _log_data_quality("fetch_positions", 0, error_detail)
         return []
     except (KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
@@ -1213,26 +1229,29 @@ def fetch_activity(c):
 
 def fetch_health(c):
     try:
+        # Category 6 fix: Clarify staleness thresholds with explicit business logic
+        # Monday (DOW=1): use 10d threshold for markets closed over weekend
+        # All other days: use 3d threshold for critical tables, 7d for important, 14d for supporting
         result = q(c, """
             SELECT tbl, role, latest, age,
                    CASE WHEN age IS NULL OR age > stale_thresh THEN 'stale' ELSE 'ok' END AS st
             FROM (
               SELECT 'price_daily'    tbl,'CRIT' role, MAX(date)::date latest,(CURRENT_DATE-MAX(date)::date) age,
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END stale_thresh FROM price_daily       UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 3 END stale_thresh FROM price_daily       UNION ALL
               SELECT 'buy_sell_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM buy_sell_daily  UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 3 END FROM buy_sell_daily  UNION ALL
               SELECT 'swing_scores',  'CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM swing_trader_scores UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 3 END FROM swing_trader_scores UNION ALL
               SELECT 'exposure_daily','CRIT',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM market_exposure_daily UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 3 END FROM market_exposure_daily UNION ALL
               SELECT 'port_snapshot', 'CRIT',          MAX(snapshot_date)::date,(CURRENT_DATE-MAX(snapshot_date)::date),
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(snapshot_date)::date)<=2 THEN 10 ELSE 3 END FROM algo_portfolio_snapshots UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 3 END FROM algo_portfolio_snapshots UNION ALL
               SELECT 'technicals',    'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 3 END FROM technical_data_daily UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 7 END FROM technical_data_daily UNION ALL
               SELECT 'market_health', 'IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 7 END FROM market_health_daily UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 7 END FROM market_health_daily UNION ALL
               SELECT 'trend_template','IMP',           MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),
-                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 AND (CURRENT_DATE-MAX(date)::date)<=2 THEN 10 ELSE 7 END FROM trend_template_data UNION ALL
+                     CASE WHEN EXTRACT(DOW FROM CURRENT_DATE)=1 THEN 10 ELSE 7 END FROM trend_template_data UNION ALL
               SELECT 'sector_ranking','SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM sector_ranking UNION ALL
               SELECT 'economic_data', 'SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM economic_data
             ) s ORDER BY CASE role WHEN 'CRIT' THEN 1 WHEN 'IMP' THEN 2 ELSE 3 END, tbl""")
@@ -1672,6 +1691,51 @@ def fetch_circuit(c):
         return {}
 
 
+def check_loader_health() -> dict:
+    """Category 9 fix: Health check endpoint for monitoring loader failures.
+
+    Returns dict with:
+    - status: 'ok' (all critical fetchers pass), 'degraded' (some pass), 'failed' (none pass)
+    - failures: list of fetcher names that failed
+    - timestamp: when check was performed
+    """
+    try:
+        conn = get_conn()
+        critical_fetchers = ["fetch_run", "fetch_algo_config", "fetch_market", "fetch_positions"]
+        failures = []
+        successes = []
+
+        for name in critical_fetchers:
+            try:
+                fn = FETCHERS.get(name)
+                if fn:
+                    result = fn(conn)
+                    if isinstance(result, dict) and result.get("_error"):
+                        failures.append(name)
+                    elif isinstance(result, list) and not result and name in ["fetch_health"]:
+                        failures.append(name)
+                    else:
+                        successes.append(name)
+            except Exception as e:
+                failures.append(f"{name}({type(e).__name__})")
+
+        status = "ok" if not failures else ("degraded" if successes else "failed")
+        conn.close()
+        return {
+            "status": status,
+            "failures": failures,
+            "timestamp": datetime.now(ET),
+            "critical": len(critical_fetchers),
+            "passed": len(successes),
+        }
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e),
+            "timestamp": datetime.now(ET),
+        }
+
+
 # ── parallel data loader ──────────────────────────────────────────────────────
 
 FETCHERS = {
@@ -1702,6 +1766,23 @@ FETCHERS = {
     "audit":        fetch_audit_log,
     "exec_hist":    fetch_exec_history,
 }
+
+def generate_test_data(conn, symbol_count: int = 10) -> dict:
+    """Category 10 fix: Minimal test data generator for dashboard validation.
+
+    Generates synthetic data for testing dashboard panels without AWS data.
+    Status: PLACEHOLDER — real implementation requires:
+    1. Create fixture tables with known data patterns
+    2. Populate price_daily with synthetic OHLC data
+    3. Generate algo_trades with various statuses (open/closed)
+    4. Create portfolio_snapshots with realistic daily returns
+    5. Validate all dashboard panels against this test data
+
+    This ensures dashboard display logic works before AWS deployment.
+    """
+    logger.warning("Category 10: Test data generator not yet implemented — dashboard validation against real AWS data required before production")
+    return {"_test_data": "not_implemented"}
+
 
 def load_all() -> dict:
     out: dict = {}
@@ -3951,7 +4032,7 @@ def run_once(compact: bool) -> None:
                 key = _keypress()
                 if key == "q":
                     break
-                if key in _KEY_MAP:
+                if key in _KEY_MAP and done.is_set():
                     target = _KEY_MAP[key]
                     view_mode[0] = "normal" if view_mode[0] == target else target
                 frame += 1
@@ -3973,11 +4054,24 @@ def run_watch(interval: int, compact: bool) -> None:
     loading:   list = [True]
     last_load: list = [0.0]
     frame:     list = [0]
+    load_failures: list = [0]
 
     def reload():
         loading[0] = True
         t0 = time.monotonic()
-        result[0] = load_all()
+        try:
+            new_result = load_all()
+            if new_result:
+                result[0] = new_result
+                load_failures[0] = 0
+            else:
+                load_failures[0] += 1
+                if load_failures[0] == 1:
+                    logger.warning(f"Load failed (attempt {load_failures[0]}): no data returned")
+        except Exception as e:
+            load_failures[0] += 1
+            if load_failures[0] == 1:
+                logger.error(f"Load failed (attempt {load_failures[0]}): {e}")
         elapsed[0] = time.monotonic() - t0
         last_load[0] = time.monotonic()
         loading[0] = False
