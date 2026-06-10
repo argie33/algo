@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
@@ -174,10 +174,9 @@ def q1(c, sql, p=None):
 # ── formatters ────────────────────────────────────────────────────────────────
 
 def fmt_age(ts):
-    from datetime import date as _date
     if ts is None: return "--"
     if isinstance(ts, str): ts = datetime.fromisoformat(ts)
-    if isinstance(ts, _date) and not isinstance(ts, datetime):
+    if isinstance(ts, date) and not isinstance(ts, datetime):
         ts = datetime(ts.year, ts.month, ts.day, tzinfo=timezone.utc)
     if ts.tzinfo is None: ts = ts.replace(tzinfo=timezone.utc)
     m = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
@@ -229,7 +228,6 @@ def is_open() -> bool:
 
 def mkt_hours_str() -> tuple:
     """Returns (status_markup, countdown_str) reflecting pre-mkt/open/after-hrs/closed."""
-    from datetime import timedelta
     n  = datetime.now(ET)
     wd = n.weekday()
     t  = n.hour * 60 + n.minute
@@ -272,7 +270,6 @@ def mkt_hours_str() -> tuple:
     return "[dim]● CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
 def next_run_str() -> str:
-    from datetime import timedelta
     now = datetime.now(ET)
     wd  = now.weekday()
     t   = now.hour * 60 + now.minute
@@ -966,8 +963,7 @@ def fetch_sector_rotation(c):
         if not row: return {}
         d = row.get("details") or {}
         if isinstance(d, str):
-            import json as _j
-            try: d = _j.loads(d)
+            try: d = json.loads(d)
             except: d = {}
         return {
             "date":     row.get("date"),
@@ -1031,7 +1027,7 @@ def fetch_audit_log(c):
         for r in rows:
             det = r.get("details") or {}
             if isinstance(det, str):
-                try: import json as _j; det = _j.loads(det)
+                try: det = json.loads(det)
                 except: det = {}
             result.append({
                 "action_type": r.get("action_type", ""),
@@ -1155,7 +1151,7 @@ def load_all() -> dict:
             if conn:
                 try: conn.close()
                 except: pass
-    with ThreadPoolExecutor(max_workers=len(FETCHERS)) as pool:
+    with ThreadPoolExecutor(max_workers=6) as pool:
         for f in as_completed({pool.submit(one, k, v): k for k, v in FETCHERS.items()}):
             n, d = f.result()
             out[n] = d
@@ -2112,7 +2108,6 @@ def panel_economic_pulse(eco, econ_cal=None):
     if valid_cal:
         rows.append(Rule(style="dim"))
         IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
-        from datetime import date
         today = date.today()
         seen_keys = set()
         for ev in valid_cal[:6]:

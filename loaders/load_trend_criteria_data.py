@@ -47,6 +47,21 @@ class TrendCriteriaLoader(OptimalLoader):
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
 
+        # CRITICAL: Check if price data exists for end date. If not, use the most recent available.
+        # This prevents the loader from trying to compute trends for dates with no price data.
+        try:
+            with DatabaseContext('read') as cur:
+                cur.execute(
+                    "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                    (end,),
+                )
+                max_price_date = cur.fetchone()[0]
+                if max_price_date and max_price_date < end:
+                    logger.info(f"[TrendCriteria] Price data only available to {max_price_date}, using that instead of {end}")
+                    end = max_price_date
+        except Exception as e:
+            logger.warning(f"Could not check max price date: {e}")
+
         # When since is None (e.g. first call after an ECS task restart), read the actual
         # DB max date to skip recomputing years of already-loaded history. Without this,
         # every ECS run would re-fetch 2 years x all symbols - matching the fix applied to
