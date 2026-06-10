@@ -19,10 +19,19 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
+def _log_data_quality(source: str, count: int, error: Optional[str] = None):
+    """Log data fetch results for debugging."""
+    if error:
+        logger.error(f"Data fetch [{source}] failed: {error}")
+    elif count == 0:
+        logger.warning(f"Data fetch [{source}] returned empty result")
+    else:
+        logger.debug(f"Data fetch [{source}] successful: {count} rows")
 
 try:
     import msvcrt
@@ -409,34 +418,59 @@ def fetch_algo_config(c):
 
 def fetch_market(c):
     try:
-        exp  = q1(c, "SELECT exposure_pct, halt_reasons FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
+        exp  = q1(c, "SELECT exposure_pct, halt_reasons, date FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
         h    = q1(c, """SELECT market_stage, vix_level, distribution_days_4w,
                                spy_close, market_trend, up_volume_percent,
                                advance_decline_ratio, new_highs_count, new_lows_count,
                                put_call_ratio, yield_curve_slope, breadth_momentum_10d,
-                               fed_rate_environment
+                               fed_rate_environment, date
                         FROM market_health_daily ORDER BY date DESC LIMIT 1""")
-        pct   = float(exp["exposure_pct"] or 0) if exp else None
+        pct   = float(exp["exposure_pct"]) if exp and exp.get("exposure_pct") is not None else None
         halts = exp.get("halt_reasons") or [] if exp else []
         if isinstance(halts, str):
             try: halts = json.loads(halts)
             except: halts = [halts] if halts else []
+
+        # Check data freshness (should be from today or recent trading day)
+        exp_age = None
+        if exp and exp.get("date"):
+            try:
+                exp_date = exp["date"] if isinstance(exp["date"], datetime) else datetime.fromisoformat(str(exp["date"]))
+                exp_age = (datetime.now(timezone.utc) - exp_date).days
+            except: pass
+
         vix_row = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v   = vix_row.get("vix_level") if vix_row else None
         def _f(key): return float(h[key]) if h and h.get(key) is not None else None
         def _i(key): return int(h[key])   if h and h.get(key) is not None else None
         spy_v = _f("spy_close")
         spy_chg = None
-        spy_rows = q(c, "SELECT close FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
+        spy_rows = q(c, "SELECT close, date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
+        spy_age = None
         if len(spy_rows) >= 2:
             cur_spy  = float(spy_rows[0]["close"])
             prev_spy = float(spy_rows[1]["close"])
             if spy_v is None: spy_v = cur_spy
             if prev_spy > 0: spy_chg = round((cur_spy - prev_spy) / prev_spy * 100, 2)
+            try:
+                spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
+                spy_age = (datetime.now(timezone.utc) - spy_date).days
+            except: pass
         elif len(spy_rows) == 1 and spy_v is None:
             spy_v = float(spy_rows[0]["close"])
+            try:
+                spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
+                spy_age = (datetime.now(timezone.utc) - spy_date).days
+            except: pass
         fed_val = h.get("fed_rate_environment") if h else None
         if not fed_val or fed_val in ("unknown", "Unknown"): fed_val = None
+
+        # Log staleness if data is old
+        if exp_age is not None and exp_age > 1:
+            logger.warning(f"Market exposure data is {exp_age} days old")
+        if spy_age is not None and spy_age > 1:
+            logger.warning(f"SPY price data is {spy_age} days old")
+
         return {
             "pct":   pct,
             "tier":  tier_from_pct(pct),
@@ -446,6 +480,7 @@ def fetch_market(c):
             "stage":   _i("market_stage"),
             "spy":     spy_v,
             "spy_chg": spy_chg,
+            "spy_age": spy_age,
             "trend":   h.get("market_trend") if h else None,
             "upvol": _f("up_volume_percent"),
             "adr":   _f("advance_decline_ratio"),
@@ -457,6 +492,7 @@ def fetch_market(c):
             "fed":   fed_val,
         }
     except Exception as e:
+        logger.error(f"fetch_market error: {e}")
         return {"_error": str(e)}
 
 def fetch_exposure_factors(c):
@@ -493,9 +529,9 @@ def fetch_perf(c):
                          FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
                          ORDER BY exit_date ASC""")
         if not trades: return {}
-        wins   = [t for t in trades if float(t.get("profit_loss_dollars") or 0) > 0]
-        losses = [t for t in trades if float(t.get("profit_loss_dollars") or 0) <= 0]
-        pnl    = sum(float(t.get("profit_loss_dollars") or 0) for t in trades)
+        wins   = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
+        losses = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) <= 0]
+        pnl    = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
         wr     = len(wins) / len(trades) * 100 if trades else 0
         streak = 0
         for t in reversed(trades):
@@ -520,8 +556,8 @@ def fetch_perf(c):
                 v = float(s.get("total_portfolio_value") or 0)
                 if v > pk: pk = v
                 if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
-        win_amt   = [float(t.get("profit_loss_dollars") or 0) for t in wins]
-        loss_amt  = [abs(float(t.get("profit_loss_dollars") or 0)) for t in losses]
+        win_amt   = [float(t.get("profit_loss_dollars")) for t in wins if t.get("profit_loss_dollars") is not None]
+        loss_amt  = [abs(float(t.get("profit_loss_dollars"))) for t in losses if t.get("profit_loss_dollars") is not None]
         avg_win   = statistics.mean(win_amt)  if win_amt  else 0.0
         avg_loss  = statistics.mean(loss_amt) if loss_amt else 0.0
         gw = sum(win_amt); gl = sum(loss_amt)
@@ -531,6 +567,7 @@ def fetch_perf(c):
         avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
         recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct") or 0))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
+        _log_data_quality("fetch_perf", len(trades))
         return {"n": len(trades), "w": len(wins), "l": len(losses),
                 "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
                 "sharpe": sharpe, "maxdd": round(maxdd, 1),
@@ -538,6 +575,8 @@ def fetch_perf(c):
                 "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
                 "equity_vals": equity_vals, "recent_rets": recent_rets}
     except Exception as e:
+        logger.error(f"fetch_perf error: {e}")
+        _log_data_quality("fetch_perf", 0, str(e))
         return {"_error": str(e)}
 
 def fetch_positions(c):
@@ -553,7 +592,7 @@ def fetch_positions(c):
     drifts from algo_trades. Positions are now computed, not stored separately.
     """
     try:
-        return q(c, """
+        result = q(c, """
             WITH open_trades AS (
                 -- All trades with active positions (source of truth)
                 SELECT DISTINCT ON (symbol)
@@ -582,7 +621,7 @@ def fetch_positions(c):
             ),
             days_held AS (
                 SELECT symbol,
-                    EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - entry_time) / 86400)::INT as days_since_entry
+                    (EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - entry_time)) / 86400)::INT as days_since_entry
                 FROM open_trades
             )
             SELECT
@@ -608,8 +647,11 @@ def fetch_positions(c):
             LEFT JOIN swings s ON ot.symbol = s.symbol
             LEFT JOIN days_held dh ON ot.symbol = dh.symbol
             ORDER BY position_value DESC""")
+        _log_data_quality("fetch_positions", len(result) if result else 0)
+        return result
     except Exception as e:
         logger.warning(f"fetch_positions failed: {e}")
+        _log_data_quality("fetch_positions", 0, str(e))
         return []
 
 def fetch_recent_trades(c):
@@ -618,8 +660,8 @@ def fetch_recent_trades(c):
             SELECT symbol, trade_date, exit_date, status,
                    profit_loss_dollars, profit_loss_pct, exit_r_multiple
             FROM algo_trades ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
-    except:
-        return []
+    except Exception as e:
+        return {"_error": str(e)}
 
 def fetch_signals(c):
     try:
@@ -686,11 +728,14 @@ def fetch_signals(c):
             WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
             GROUP BY date ORDER BY date DESC LIMIT 7""")
 
+        _log_data_quality("fetch_signals", int(sig["n"] or 0) if sig else 0)
         return {"n": int(sig["n"] or 0) if sig else 0, "total": total_n,
                 "date": sig["d"] if sig else None,
                 "buy_sigs": buy_sigs, "grades": grades, "near": near,
                 "top_a": top_a, "trend": trend}
     except Exception as e:
+        logger.error(f"fetch_signals error: {e}")
+        _log_data_quality("fetch_signals", 0, str(e))
         return {"_error": str(e)}
 
 def fetch_sector_ranking(c):
@@ -751,8 +796,8 @@ def fetch_health(c):
               SELECT 'sector_ranking','SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM sector_ranking UNION ALL
               SELECT 'economic_data', 'SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM economic_data
             ) s ORDER BY CASE role WHEN 'CRIT' THEN 1 WHEN 'IMP' THEN 2 ELSE 3 END, tbl""")
-    except:
-        return []
+    except Exception as e:
+        return {"_error": str(e)}
 
 def fetch_economic_pulse(c):
     try:
@@ -890,22 +935,27 @@ def fetch_signal_eval(c):
             MAX(signal_date) as signal_date
             FROM algo_signals_evaluated
             WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)""")
+        if not stats or stats.get("total") is None:
+            logger.warning("No signal evaluation data available")
+            return {}
         rejected = q(c, """SELECT evaluation_reason, COUNT(*) n
                            FROM algo_signals_evaluated
                            WHERE signal_date = (SELECT MAX(signal_date) FROM algo_signals_evaluated)
                              AND filter_tier_5_pass = false
                            GROUP BY evaluation_reason
                            ORDER BY n DESC LIMIT 3""")
-        def _i(k): return int(stats.get(k) or 0) if stats else 0
+        def _i(k): return int(stats.get(k)) if stats and stats.get(k) is not None else 0
+        avg_score_val = float(stats.get("avg_score")) if stats and stats.get("avg_score") is not None else 0
         return {
             "total":    _i("total"),
             "t1": _i("t1"), "t2": _i("t2"), "t3": _i("t3"),
             "t4": _i("t4"), "t5": _i("t5"),
-            "avg_score": round(float(stats.get("avg_score") or 0), 1) if stats else 0,
+            "avg_score": round(avg_score_val, 1),
             "date":     stats.get("signal_date") if stats else None,
             "rejected": rejected,
         }
     except Exception as e:
+        logger.error(f"fetch_signal_eval error: {e}")
         return {"_error": str(e)}
 
 def fetch_sector_rotation(c):
@@ -1001,15 +1051,21 @@ def fetch_circuit(c):
               "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"],))}
         snaps = q(c, "SELECT total_portfolio_value, daily_return_pct FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
         lat   = snaps[0] if snaps else {}
-        pk    = max((float(s.get("total_portfolio_value") or 0) for s in snaps), default=0)
-        cur_v = float(lat.get("total_portfolio_value") or 0)
+        # Safely calculate peak value
+        snap_vals = [float(s.get("total_portfolio_value")) for s in snaps if s.get("total_portfolio_value") is not None]
+        pk    = max(snap_vals, default=0) if snap_vals else 0
+        cur_v = float(lat.get("total_portfolio_value")) if lat and lat.get("total_portfolio_value") is not None else 0
         dd    = (pk - cur_v) / pk * 100 if pk > 0 else 0
-        dl    = max(0.0, -float(lat.get("daily_return_pct") or 0))
-        wl    = max(0.0, -sum(float(s.get("daily_return_pct") or 0) for s in snaps[:7]))
+        daily_ret = lat.get("daily_return_pct") if lat and lat.get("daily_return_pct") is not None else 0
+        dl    = max(0.0, -float(daily_ret))
+        # Weekly loss: sum of last 7 days, only include non-None values
+        week_rets = [float(s.get("daily_return_pct")) for s in snaps[:7] if s.get("daily_return_pct") is not None]
+        wl    = max(0.0, -sum(week_rets)) if week_rets else 0
         trades = q(c, "SELECT profit_loss_dollars FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL ORDER BY exit_date DESC LIMIT 20")
         consec = 0
         for t in trades:
-            if float(t.get("profit_loss_dollars") or 0) < 0: consec += 1
+            pnl = t.get("profit_loss_dollars")
+            if pnl is not None and float(pnl) < 0: consec += 1
             else: break
         h     = q1(c, "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
         vix_r = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
@@ -1030,20 +1086,27 @@ def fetch_circuit(c):
             SELECT SUM(GREATEST(lp.current_price - ot.stop_loss_price, 0) * ot.entry_quantity) AS risk,
                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS pv
             FROM open_trades ot LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol""")
-        rp = float(rr["risk"] or 0) / float(rr["pv"] or 1) * 100 if rr and rr.get("risk") and rr.get("pv") else 0
+        # Properly handle None risk and pv values
+        risk_val = float(rr.get("risk")) if rr and rr.get("risk") is not None else 0.0
+        pv_val = float(rr.get("pv")) if rr and rr.get("pv") is not None else 0.0
+        rp = risk_val / max(pv_val, 1) * 100 if pv_val > 0 else 0
         def th(k, d): return cfg.get(k, d)
         bs = [
-            {"lbl": "Drawdown",     "cur": round(dd, 1),    "thr": th("halt_drawdown_pct", 20),     "u": "%"},
-            {"lbl": "Daily Loss",   "cur": round(dl, 1),    "thr": th("max_daily_loss_pct", 2),     "u": "%"},
-            {"lbl": "Weekly Loss",  "cur": round(wl, 1),    "thr": th("max_weekly_loss_pct", 5),    "u": "%"},
-            {"lbl": "Consec Loss",  "cur": consec,           "thr": th("max_consecutive_losses", 3), "u": ""},
-            {"lbl": "Total Risk",   "cur": round(rp, 1),    "thr": th("max_total_risk_pct", 4),     "u": "%"},
-            {"lbl": "VIX",          "cur": round(vix, 1),   "thr": th("vix_max_threshold", 35),     "u": ""},
-            {"lbl": "Mkt Stage",    "cur": stage,            "thr": 4,                                "u": ""},
+            {"lbl": "Drawdown",     "cur": round(dd, 1),      "thr": th("halt_drawdown_pct", 20),     "u": "%"},
+            {"lbl": "Daily Loss",   "cur": round(dl, 1),      "thr": th("max_daily_loss_pct", 2),     "u": "%"},
+            {"lbl": "Weekly Loss",  "cur": round(wl, 1),      "thr": th("max_weekly_loss_pct", 5),    "u": "%"},
+            {"lbl": "Consec Loss",  "cur": float(consec),     "thr": th("max_consecutive_losses", 3), "u": ""},
+            {"lbl": "Total Risk",   "cur": round(rp, 1),      "thr": th("max_total_risk_pct", 4),     "u": "%"},
+            {"lbl": "VIX",          "cur": round(vix, 1),     "thr": th("vix_max_threshold", 35),     "u": ""},
+            {"lbl": "Mkt Stage",    "cur": float(stage),      "thr": 4,                                "u": ""},
         ]
-        for b in bs: b["fired"] = float(b["cur"]) >= float(b["thr"])
-        return {"bs": bs, "any": any(b["fired"] for b in bs), "n": sum(1 for b in bs if b["fired"])}
+        for b in bs: b["fired"] = b["cur"] >= b["thr"]
+        n_fired = sum(1 for b in bs if b["fired"])
+        if n_fired > 0:
+            logger.warning(f"Circuit breaker triggered: {n_fired} breaker(s) fired")
+        return {"bs": bs, "any": any(b["fired"] for b in bs), "n": n_fired}
     except Exception as e:
+        logger.error(f"fetch_circuit error: {e}")
         return {"_error": str(e)}
 
 
@@ -1339,9 +1402,15 @@ def panel_circuit(cb, risk=None):
     for a, b in zip(bs[::2], bs[1::2] + [None]):
         def fmt_b(br):
             if br is None: return ""
-            fc  = R if br["fired"] else (Y if float(br["thr"]) > 0 and float(br["cur"]) / float(br["thr"]) >= 0.75 else G)
-            ind = "[bold red] ![/]" if br["fired"] else ""
-            return f"[{fc}]{br['lbl']}:[/]{br['cur']}{br['u']}[dim]/{br['thr']:.0f}{br['u']}[/]{hbar(br['cur'], br['thr'], w=4)}{ind}"
+            thr = br.get("thr", 0)
+            cur = br.get("cur", 0)
+            lbl = br.get("lbl", "?")
+            u = br.get("u", "")
+            fired = br.get("fired", False)
+            ratio = cur / thr if thr > 0 else 0
+            fc = R if fired else (Y if ratio >= 0.75 else G)
+            ind = "[bold red] ![/]" if fired else ""
+            return f"[{fc}]{lbl}:[/]{cur}{u}[dim]/{thr:.0f}{u}[/]{hbar(cur, thr, w=4)}{ind}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
@@ -1433,18 +1502,18 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 def panel_portfolio(port, cfg, risk=None, perf=None):
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
-    pv    = float(port.get("total_portfolio_value") or 0)
-    dr    = float(port.get("daily_return_pct") or 0)
-    urp   = float(port.get("unrealized_pnl_pct") or 0)
-    cash  = float(port.get("total_cash") or 0)
-    npos  = int(port.get("position_count") or 0)
+    pv    = float(port.get("total_portfolio_value")) if port.get("total_portfolio_value") is not None else 0
+    dr    = float(port.get("daily_return_pct")) if port.get("daily_return_pct") is not None else 0
+    urp   = float(port.get("unrealized_pnl_pct")) if port.get("unrealized_pnl_pct") is not None else 0
+    cash  = float(port.get("total_cash")) if port.get("total_cash") is not None else 0
+    npos  = int(port.get("position_count")) if port.get("position_count") is not None else 0
     cum   = port.get("cumulative_return_pct")
     mxdd  = port.get("max_drawdown_pct")
     lgpos = port.get("largest_position_pct")
     snap  = port.get("snapshot_date")
-    max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
-    pct_c = float(cfg.get("max_pos_pct") or 0) if cfg else 0
-    bp    = pv * pct_c / 100 if (pv and pct_c) else cash
+    max_n = int(cfg.get("max_pos_n")) if cfg and cfg.get("max_pos_n") is not None else 0
+    pct_c = float(cfg.get("max_pos_pct")) if cfg and cfg.get("max_pos_pct") is not None else 0
+    bp    = pv * pct_c / 100 if (pv > 0 and pct_c > 0) else cash
     if max_n:
         _sb   = mini_bar(npos, max_n, w=5)
         pos_s = f"[dim]Pos:[/] {_sb}[dim]{npos}/{max_n}[/]"
@@ -1629,20 +1698,20 @@ def panel_positions(pos, compact=False, trades=None):
     for p in pos:
         entry = float(p.get("avg_entry_price") or 0)
         price = float(p.get("current_price")   or 0)
-        pval  = float(p.get("position_value") or 0) if p.get("position_value") is not None else None
-        stop  = float(p.get("stop_loss_price") or 0) if p.get("stop_loss_price") else None
-        t1    = float(p.get("target_1_price")  or 0) if p.get("target_1_price")  else None
+        pval  = float(p.get("position_value")) if p.get("position_value") is not None else None
+        stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
+        t1    = float(p.get("target_1_price")) if p.get("target_1_price") is not None else None
         pnl   = float(p.get("unrealized_pnl_pct") or 0)
         days  = p.get("days_since_entry") or "--"
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
-        rmul  = (price - entry) / (entry - stop)   if (stop and entry > stop) else None
-        dist  = (price - stop)  / price * 100        if (stop and price)        else None
-        t1pct = (t1 - price)    / price * 100         if (t1 and price)         else None
-        pc    = G if pnl >= 0        else R
-        rc    = G if (rmul or 0) >= 0 else R
-        dc    = R if (dist or 99) < 3 else (Y if (dist or 99) < 5 else "white")
+        rmul  = (price - entry) / (entry - stop) if (stop is not None and entry > stop) else None
+        dist  = (price - stop) / price * 100 if (stop is not None and price) else None
+        t1pct = (t1 - price) / price * 100 if (t1 is not None and price) else None
+        pc    = G if pnl >= 0 else R
+        rc    = G if (rmul is not None and rmul >= 0) else R
+        dc    = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
         row = [
             p.get("symbol") or "--",
             fmt_money_short(pval) if pval is not None else "--",
@@ -1872,17 +1941,20 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     # Holdings by sector: 2-col pairs, up to 6 sectors
     if pos:
-        pv = float(port.get("total_portfolio_value") or 0)
+        pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
         sd: dict = {}
         for p in pos:
             sec = p.get("sector") or "Unknown"
-            val = float(p.get("position_value") or 0)
-            pnl = float(p.get("unrealized_pnl_pct") or 0)
+            val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
+            pnl_raw = p.get("unrealized_pnl_pct")
+            # Only track non-None P&L values for accurate averages
+            pnl = float(pnl_raw) if pnl_raw is not None else None
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
             sd[sec]["val"] += val
             sd[sec]["n"]   += 1
-            sd[sec]["pnls"].append(pnl)
+            if pnl is not None:
+                sd[sec]["pnls"].append(pnl)
         sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
         total_secs  = len(sorted_secs)
         show_secs   = sorted_secs[:6]
@@ -3060,15 +3132,19 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     # Full portfolio by sector
     if pos:
-        pv = float(port.get("total_portfolio_value") or 0)
+        pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
         sd: dict = {}
         for p in pos:
             sec = p.get("sector") or "Unknown"
-            val = float(p.get("position_value") or 0)
-            pnl = float(p.get("unrealized_pnl_pct") or 0)
+            val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
+            pnl_raw = p.get("unrealized_pnl_pct")
+            pnl = float(pnl_raw) if pnl_raw is not None else None
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
-            sd[sec]["val"] += val; sd[sec]["n"] += 1; sd[sec]["pnls"].append(pnl)
+            sd[sec]["val"] += val
+            sd[sec]["n"] += 1
+            if pnl is not None:
+                sd[sec]["pnls"].append(pnl)
         sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
         rows.append(Text.from_markup("[dim]Portfolio by sector:[/]"))
         for sec, dv in sorted_secs:
