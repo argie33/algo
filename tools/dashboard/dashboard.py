@@ -119,6 +119,9 @@ GRADE_A = 80
 GRADE_B = 70
 GRADE_C = 60
 
+SWING_SCORE_GOOD = 80  # Green threshold
+SWING_SCORE_OK = 60    # Yellow threshold (Issue #9: Inconsistent 60/80 split now centralized)
+
 HBAR_CRITICAL = 1.0
 HBAR_WARNING = 0.75
 
@@ -149,6 +152,9 @@ MORTGAGE_WARNING = 6.0
 MORTGAGE_CRITICAL = 7.0
 UMCSENT_GOOD = 80
 UMCSENT_WARNING = 60
+
+SWING_SCORE_EXCELLENT = 80  # HIGH ISSUE #9: Centralized swing score thresholds
+SWING_SCORE_GOOD = 60       # Used for position panel coloring
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
@@ -1090,10 +1096,19 @@ def fetch_positions(c):
             FROM open_trades ot
             LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
             LEFT JOIN trend t ON ot.symbol = t.symbol
-            LEFT JOIN company_profile cp ON cp.ticker = ot.symbol
+            LEFT JOIN company_profile cp ON cp.ticker = ot.symbol  -- HIGH ISSUE: ticker vs symbol mismatch (e.g., "BRK.B" symbol vs "BRK" ticker) will cause join to fail silently
             LEFT JOIN swings s ON ot.symbol = s.symbol
             LEFT JOIN days_held dh ON ot.symbol = dh.symbol
             ORDER BY position_value DESC""")
+
+        # HIGH ISSUE #10: Validate sector data was retrieved (detect join failures)
+        if result:
+            missing_sectors = [p for p in result if p.get("sector") is None]
+            if missing_sectors:
+                missing_symbols = [p.get("symbol") for p in missing_sectors]
+                logger.warning(f"VALIDATION: {len(missing_sectors)} open positions missing sector data: {missing_symbols} "
+                             f"(may indicate ticker/symbol mismatch in company_profile table)")
+
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return result
     except psycopg2.Error as e:
@@ -2477,7 +2492,7 @@ def panel_positions(pos, compact=False, trades=None):
         ]
         if not compact:
             swg_s = float(swg) if swg is not None else None
-            swg_c = G if (swg_s or 0) >= 80 else (Y if (swg_s or 0) >= 60 else "white")
+            swg_c = G if (swg_s or 0) >= SWING_SCORE_EXCELLENT else (Y if (swg_s or 0) >= SWING_SCORE_GOOD else "white")
             row += [
                 f"+{t1pct:.1f}%" if t1pct is not None else "--",
                 str(days),
@@ -2596,7 +2611,7 @@ def panel_signals_compact(sig, sig_eval=None):
             entry  = bs.get("buylevel") or bs.get("close")
             stop   = bs.get("stoplevel")
             sq_c   = G if (sq  or 0) >= 70 else (Y if (sq  or 0) >= 50 else "white")
-            swg_c  = G if (swg or 0) >= 80 else (Y if (swg or 0) >= 60 else "white")
+            swg_c  = G if (swg or 0) >= SWING_SCORE_EXCELLENT else (Y if (swg or 0) >= SWING_SCORE_GOOD else "white")
             rr_c   = G if (rr  or 0) >= 2.5 else (Y if (rr  or 0) >= 1.5 else "white")
             vs_c   = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
             stg_c  = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
