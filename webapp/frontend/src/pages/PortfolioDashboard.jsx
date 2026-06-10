@@ -25,7 +25,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
 import ErrorBoundary from '../components/ErrorBoundary';
-import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, AddGlobalStyles } from '../components/Skeleton';
+import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, SkeletonChartContent, AddGlobalStyles } from '../components/Skeleton';
 
 const fmtMoney = (v) =>
   v == null || isNaN(Number(v)) ? '—'
@@ -98,41 +98,31 @@ function PortfolioDashboardPage() {
   const { data: status, loading: statusLoading, error: statusError, refetch: refetchStatus } = useApiQuery(
     ['algo-status'],
     () => api.get('/api/algo/status'),
-    { refetchInterval: 60000 }
   );
   const { data: positions, loading: posLoading, error: posError, refetch: refetchPositions } = useApiQuery(
     ['algo-positions'],
     () => api.get('/api/algo/positions'),
-    { refetchInterval: 60000 }
   );
   const { data: perf, loading: perfLoading, error: perfError, refetch: refetchPerf } = useApiQuery(
     ['algo-performance'],
     () => api.get('/api/algo/performance'),
-    { refetchInterval: 60000 }
   );
   const { data: trades, loading: tradesLoading, error: tradesError, refetch: refetchTrades } = useApiQuery(
     ['algo-trades-recent'],
     () => api.get('/api/algo/trades?limit=200'),
-    { refetchInterval: 60000 }
   );
   const { data: markets, loading: marketsLoading, error: marketsError, refetch: refetchMarkets } = useApiQuery(
     ['algo-markets'],
     () => api.get('/api/algo/markets'),
-    { refetchInterval: 60000 }
   );
   const { data: equityItems, loading: equityLoading, error: equityError, refetch: refetchEquity } = useApiQuery(
     ['algo-equity-curve'],
     () => api.get('/api/algo/equity-curve?limit=180'),
-    { refetchInterval: 60000 }
   );
-  const { data: breakers, loading: breakersLoading, error: breakersError, refetch: refetchBreakers } = useApiQuery(
+  const { data: breakers, loading: breakersLoading, error: _breakersError, refetch: refetchBreakers } = useApiQuery(
     ['algo-circuit-breakers'],
     () => api.get('/api/algo/circuit-breakers'),
-    { refetchInterval: 60000 }
   );
-
-  // Track overall loading state
-  const isInitialLoading = statusLoading || posLoading || perfLoading || tradesLoading || marketsLoading || equityLoading || breakersLoading;
 
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
@@ -601,9 +591,7 @@ function EquityCurve({ series, loading }) {
       </div>
       <div className="card-body">
         {loading ? (
-          <div style={{ height: 220 }}>
-            <SkeletonChart />
-          </div>
+          <SkeletonChartContent />
         ) : data.length < 2 ? (
           <Empty title="Equity curve building" desc={`${data.length} snapshot${data.length === 1 ? '' : 's'} — need 2+ for a curve.`} />
         ) : (
@@ -656,7 +644,7 @@ function DrawdownChart({ series, loading }) {
       </div>
       <div className="card-body">
         {loading ? (
-          <Empty title="Loading drawdown…" />
+          <SkeletonChartContent />
         ) : data.length < 2 ? (
           <Empty title="Drawdown building" desc="Need 2+ snapshots to compute drawdown." />
         ) : (
@@ -730,7 +718,9 @@ function DailyReturnHistogram({ series, loading }) {
       </div>
       <div className="card-body">
         {loading ? (
-          <Empty title="Loading return data…" />
+          <div style={{ height: 220 }}>
+            <SkeletonChart />
+          </div>
         ) : buckets.length === 0 ? (
           <Empty title="No daily-return data yet" />
         ) : (
@@ -791,7 +781,9 @@ function TradeDistribution({ trades, loading }) {
       </div>
       <div className="card-body">
         {loading ? (
-          <Empty title="Loading trade data…" />
+          <div style={{ height: 220 }}>
+            <SkeletonChart />
+          </div>
         ) : buckets.length === 0 ? (
           <Empty title="No closed trades yet" />
         ) : (
@@ -911,7 +903,7 @@ function RLadderPanel({ positions, loading, onSelect }) {
       </div>
       <div className="card-body">
         {loading ? (
-          <Empty title="Loading…" />
+          <SkeletonTable />
         ) : ladders.length === 0 ? (
           <Empty title="No open positions with stop/target levels"
                  desc="Stops & targets are populated by the orchestrator at entry time." />
@@ -1186,7 +1178,7 @@ function PositionHealthTable({ positions, loading, onSelect }) {
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {loading ? (
-          <Empty title="Loading…" />
+          <SkeletonTable />
         ) : !positions || positions.length === 0 ? (
           <Empty title="No open positions" />
         ) : (
