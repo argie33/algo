@@ -342,14 +342,14 @@ function PortfolioDashboardPage() {
       {/* Risk-pie + Sector concentration + Stage donut */}
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
         <ErrorBoundary>
-          <RiskAllocationPie positions={safePositionsList} totalValue={totalValue}
+          <RiskAllocationPie positions={safePositionsList} totalValue={totalValue} loading={posLoading}
                               onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <SectorConcentration positions={safePositionsList} totalValue={totalValue} />
+          <SectorConcentration positions={safePositionsList} totalValue={totalValue} loading={posLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <StagePhaseDonut positions={safePositionsList} />
+          <StagePhaseDonut positions={safePositionsList} loading={posLoading} />
         </ErrorBoundary>
       </div>
 
@@ -987,7 +987,7 @@ function RChip({ r }) {
 }
 
 // ─── Risk allocation pie ───────────────────────────────────────────────────
-function RiskAllocationPie({ positions, totalValue, onSelect }) {
+function RiskAllocationPie({ positions, totalValue, loading, onSelect }) {
   const data = useMemo(() => {
     if (!positions) return [];
     return positions
@@ -1013,7 +1013,9 @@ function RiskAllocationPie({ positions, totalValue, onSelect }) {
         </div>
       </div>
       <div className="card-body">
-        {data.length === 0 ? (
+        {loading ? (
+          <SkeletonChartContent />
+        ) : data.length === 0 ? (
           <Empty title="No risk data" desc="Positions need stop levels." />
         ) : (
           <div style={{ height: 240 }}>
@@ -1041,7 +1043,7 @@ function RiskAllocationPie({ positions, totalValue, onSelect }) {
 }
 
 // ─── Sector concentration bar chart ────────────────────────────────────────
-function SectorConcentration({ positions, totalValue }) {
+function SectorConcentration({ positions, totalValue, loading }) {
   const data = useMemo(() => {
     if (!positions || totalValue <= 0) return [];
     const byS = {};
@@ -1067,7 +1069,9 @@ function SectorConcentration({ positions, totalValue }) {
         </div>
       </div>
       <div className="card-body">
-        {data.length === 0 ? (
+        {loading ? (
+          <SkeletonChartContent />
+        ) : data.length === 0 ? (
           <Empty title="No sector data" />
         ) : (
           <div style={{ height: 240 }}>
@@ -1096,7 +1100,7 @@ function SectorConcentration({ positions, totalValue }) {
 }
 
 // ─── Stage phase donut ─────────────────────────────────────────────────────
-function StagePhaseDonut({ positions }) {
+function StagePhaseDonut({ positions, loading }) {
   const data = useMemo(() => {
     if (!positions) return [];
     const labelFor = (p) => {
@@ -1143,7 +1147,9 @@ function StagePhaseDonut({ positions }) {
         </div>
       </div>
       <div className="card-body">
-        {data.length === 0 ? (
+        {loading ? (
+          <SkeletonChartContent />
+        ) : data.length === 0 ? (
           <Empty title="No stage data" desc="Positions need trend_template_data coverage." />
         ) : (
           <div style={{ height: 240 }}>
@@ -1332,16 +1338,19 @@ RLadderPanel.propTypes = {
 RiskAllocationPie.propTypes = {
   positions: PropTypes.array,
   totalValue: PropTypes.number,
+  loading: PropTypes.bool,
   onSelect: PropTypes.func,
 };
 
 SectorConcentration.propTypes = {
   positions: PropTypes.array,
   totalValue: PropTypes.number,
+  loading: PropTypes.bool,
 };
 
 StagePhaseDonut.propTypes = {
   positions: PropTypes.array,
+  loading: PropTypes.bool,
 };
 
 PositionHealthTable.propTypes = {
