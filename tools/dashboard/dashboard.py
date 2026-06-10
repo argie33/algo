@@ -375,8 +375,9 @@ def fetch_run(c):
                          WHERE details->>'run_id'=%s ORDER BY created_at ASC""", (rid,))
         halted  = any(p["status"] == "halt"  for p in phases)
         errored = any(p["status"] == "error" for p in phases)
+        overall = "halted" if halted else ("error" if errored else "success" if phases else "unknown")
         return {"run_id": rid, "run_at": latest["run_at"],
-                "success": bool(phases) and not errored, "halted": halted,
+                "success": overall in ("success", "completed"), "halted": halted,
                 "phases": phases, "_source": "audit_log"}
     except Exception as e:
         return {"_error": str(e)}
@@ -561,7 +562,7 @@ def fetch_positions(c):
                     trade_date, entry_time
                 FROM algo_trades
                 WHERE status IN ('open', 'filled', 'partially_filled', 'active')
-                    AND (exit_date IS NULL OR exit_date > CURRENT_DATE - 1)
+                    AND exit_date IS NULL
                 ORDER BY symbol, trade_date DESC
             ),
             latest_prices AS (
@@ -581,7 +582,7 @@ def fetch_positions(c):
             ),
             days_held AS (
                 SELECT symbol,
-                    EXTRACT(DAY FROM CURRENT_TIMESTAMP - entry_time)::INT as days_since_entry
+                    EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - entry_time) / 86400)::INT as days_since_entry
                 FROM open_trades
             )
             SELECT
@@ -1004,7 +1005,7 @@ def fetch_circuit(c):
         cur_v = float(lat.get("total_portfolio_value") or 0)
         dd    = (pk - cur_v) / pk * 100 if pk > 0 else 0
         dl    = max(0.0, -float(lat.get("daily_return_pct") or 0))
-        wl    = max(0.0, -sum(float(s.get("daily_return_pct") or 0) for s in snaps[:5]))
+        wl    = max(0.0, -sum(float(s.get("daily_return_pct") or 0) for s in snaps[:7]))
         trades = q(c, "SELECT profit_loss_dollars FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL ORDER BY exit_date DESC LIMIT 20")
         consec = 0
         for t in trades:
@@ -1019,7 +1020,7 @@ def fetch_circuit(c):
             WITH open_trades AS (
                 SELECT DISTINCT ON (symbol) symbol, entry_quantity, stop_loss_price
                 FROM algo_trades WHERE status IN ('open', 'filled', 'partially_filled', 'active')
-                  AND (exit_date IS NULL OR exit_date > CURRENT_DATE - 1)
+                  AND exit_date IS NULL
                 ORDER BY symbol, trade_date DESC
             ),
             latest_prices AS (
