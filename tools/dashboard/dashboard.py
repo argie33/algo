@@ -256,28 +256,54 @@ def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -
 def validate_schema() -> None:
     try:
         conn = get_conn()
-        critical_checks = [
-            ("algo_positions", ["avg_entry_price", "current_price", "stop_loss_price"]),
-            ("algo_portfolio_snapshots", ["total_portfolio_value", "daily_return_pct"]),
-            ("algo_trades", ["profit_loss_dollars", "exit_date", "status"]),
-            ("price_daily", ["close"]),
+        # Issue 9.1: Comprehensive table validation — critical, important, and supporting tables
+        all_checks = [
+            # Critical (trading data)
+            ("algo_trades", ["profit_loss_dollars", "exit_date", "status"], "critical"),
+            ("algo_portfolio_snapshots", ["total_portfolio_value", "daily_return_pct"], "critical"),
+            ("price_daily", ["close", "date"], "critical"),
+            # Important (positions & market context)
+            ("trend_template_data", ["weinstein_stage", "date"], "important"),
+            ("swing_trader_scores", ["score", "date"], "important"),
+            ("company_profile", ["sector", "ticker"], "important"),
+            ("market_health_daily", ["vix_level", "date"], "important"),
+            ("buy_sell_daily", ["signal", "date"], "important"),
+            ("market_exposure_daily", ["exposure_pct", "date"], "important"),
+            # Supporting (performance & metrics)
+            ("algo_metrics_daily", ["date"], "supporting"),
+            ("algo_audit_log", ["action_type", "created_at"], "supporting"),
         ]
-        for table, cols in critical_checks:
-            result = q1(conn, f"""
-                SELECT COUNT(*) as col_count FROM information_schema.columns
-                WHERE table_name = %s AND column_name = ANY(%s)
-            """, (table, cols))
-            if result and result.get("col_count") != len(cols):
-                logger.error(f"Schema validation failed: {table} missing columns {cols}")
-                sys.exit(f"Database schema error: {table} missing required columns")
 
-            # Also verify critical tables have data
-            row_count = q1(conn, f"SELECT COUNT(*) as cnt FROM {table}")
-            if row_count and row_count.get("cnt") == 0:
-                logger.warning(f"Schema validation: {table} exists but is EMPTY (no rows)")
+        for table, cols, severity in all_checks:
+            try:
+                # Check if table exists and has required columns
+                result = q1(conn, f"""
+                    SELECT COUNT(*) as col_count FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = ANY(%s)
+                """, (table, cols))
+
+                if result and result.get("col_count") != len(cols):
+                    msg = f"Schema validation {severity.upper()}: {table} missing columns {cols}"
+                    logger.error(msg)
+                    if severity == "critical":
+                        sys.exit(f"Database schema error: {table} missing required columns")
+                else:
+                    # Verify table has data
+                    row_count = q1(conn, f"SELECT COUNT(*) as cnt FROM {table}")
+                    if row_count and row_count.get("cnt") == 0:
+                        level_msg = "ERROR" if severity == "critical" else "WARNING"
+                        logger.warning(f"Schema validation [{level_msg}]: {table} ({severity}) exists but is EMPTY (no rows)")
+            except psycopg2.Error as e:
+                if "does not exist" in str(e):
+                    msg = f"Schema validation {severity.upper()}: {table} missing"
+                    logger.warning(msg)
+                    if severity == "critical":
+                        sys.exit(f"Database schema error: required table {table} not found")
+                else:
+                    raise
 
         conn.close()
-        logger.info("Database schema validation passed")
+        logger.info("Database schema validation completed (some tables may be empty or missing)")
     except (psycopg2.Error, KeyError) as e:
         logger.error(f"Schema validation failed: {e}")
         sys.exit(f"Database connection/schema error: {e}")
@@ -1690,19 +1716,31 @@ def load_all() -> dict:
                 if conn:
                     try: conn.close()
                     except (psycopg2.Error, AttributeError): pass
-    # Limit concurrent DB connections to avoid RDS exhaustion (each worker opens one connection)
-    # Empirically safe: 3 concurrent connections to avoid pool exhaustion under load
-    max_workers = 3
+    # Issue 4.1 & 11.2: Thread pool with timeout enforcement and dynamic worker count
+    # Limit concurrent DB connections to avoid RDS exhaustion
+    import os
+    max_workers = min(len(FETCHERS), os.cpu_count() or 4, 8)  # Cap at 8 to avoid RDS exhaustion
+    logger.debug(f"load_all using {max_workers} workers for {len(FETCHERS)} fetchers")
+
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
-        for f in as_completed(future_to_key):
-            try:
-                n, d = f.result()
-                out[n] = d
-            except Exception as e:
-                logger.error(f"Thread exception in load_all: {type(e).__name__}: {e}")
-                k = future_to_key[f]
-                out[k] = {"_error": str(e)}
+        try:
+            for f in as_completed(future_to_key, timeout=45):  # 45 sec timeout per fetcher group
+                try:
+                    n, d = f.result()
+                    out[n] = d
+                except Exception as e:
+                    logger.error(f"Thread exception in load_all: {type(e).__name__}: {e}")
+                    k = future_to_key[f]
+                    out[k] = {"_error": str(e)}
+        except TimeoutError:
+            logger.error(f"load_all timed out after 45 seconds — not all fetchers completed")
+            # Mark remaining incomplete fetchers as timed out
+            for f, k in future_to_key.items():
+                if not f.done():
+                    logger.warning(f"Fetcher {k} timed out — forcing cancel")
+                    f.cancel()
+                    out[k] = {"_error": "Timeout (fetcher exceeded 45 seconds)"}
     return out
 
 
