@@ -318,6 +318,8 @@ class PositionMonitor:
             'quantity': quantity,
             'entry_price': entry_price,
             'current_price': cur_price,
+            'price_source': price_metadata.get('source', 'daily'),  # Issue #33: Fallback indicator
+            'price_is_fallback': price_metadata.get('is_fallback', False),  # Issue #33: Mark fallback
             'r_multiple': round(r_multiple, 2),
             'unrealized_pnl': round(unrealized_pnl, 2),
             'unrealized_pct': round(unrealized_pct, 2),
