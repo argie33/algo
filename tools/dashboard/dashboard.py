@@ -1410,11 +1410,11 @@ def fetch_perf(c):
         be_pct = 0
         sharpe = None
         sharpe_confidence = None
-        maxdd = 0.0
+        maxdd = None
         pf = None
         exp = None
-        avg_win = 0.0
-        avg_loss = 0.0
+        avg_win = None
+        avg_loss = None
         avg_r = None
 
         if perf:
