@@ -436,6 +436,15 @@ def mini_bar(pts: Optional[float], max_pts: Optional[float], w: int = 5) -> str:
 def sign(v) -> str:
     return "+" if float(v) >= 0 else ""
 
+def safe_float(v: any, default: float = None) -> Optional[float]:
+    """Safely convert value to float, returning default if conversion fails."""
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return default
+
 def sparkline(values: list, width: int = 24) -> str:
     vals = [v for v in (values or []) if v is not None and float(v) > 0]
     if len(vals) < 2:
@@ -474,6 +483,28 @@ def _parse_event_date(ed: any) -> Optional[date]:
     except (ValueError, AttributeError, TypeError) as e:
         logger.warning(f"Failed to parse event_date: {ed} (type: {type(ed).__name__}): {e}")
     return None
+
+def _fmt_event_when(ed_date: Optional[date], et: any) -> str:
+    """Format event timing as human-readable label, incorporating date and time for clarity.
+
+    Shows 'TODAY 8PM' or 'TONIGHT 8PM' for today's events with times, to distinguish from
+    events that may have already occurred.
+    """
+    today = date.today()
+    if ed_date == today:
+        if et:
+            try:
+                et_str = str(et)[:5]
+                hour = int(et_str.split(":")[0])
+                label = "TONIGHT" if hour >= 16 else "TODAY"
+                return f"{label} {et_str}"
+            except (ValueError, IndexError, AttributeError):
+                pass
+        return "TODAY"
+    elif ed_date is not None:
+        delta = (ed_date - today).days
+        return f"+{delta}d" if delta > 0 else "YST"
+    return "--"
 
 
 # ── fetchers ──────────────────────────────────────────────────────────────────
