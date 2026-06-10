@@ -1193,10 +1193,12 @@ def fetch_signals(c):
             ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
             LIMIT 30""")
 
-        # Issue 23: Validate signal quality scores are present
-        for sig_row in buy_sigs:
-            if sig_row.get("signal_quality_score") is None and sig_row.get("entry_quality_score") is None:
-                logger.warning(f"VALIDATION: Signal {sig_row.get('symbol')} missing both signal_quality_score and entry_quality_score")
+        # Issue 23: Filter out signals with missing quality scores (MEDIUM Issue #13)
+        before_count = len(buy_sigs)
+        buy_sigs = [s for s in buy_sigs if s.get("signal_quality_score") is not None or s.get("entry_quality_score") is not None]
+        if before_count != len(buy_sigs):
+            filtered_count = before_count - len(buy_sigs)
+            logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
 
         # Issue 24: Grade distribution must match signal date, not TODAY's swing_trader_scores
         # Only include grades for stocks that match the signal date
