@@ -206,6 +206,30 @@ def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -
     rows = q(c, sql, p)
     return rows[0] if rows else None
 
+def validate_schema() -> None:
+    try:
+        conn = get_conn()
+        critical_checks = [
+            ("algo_positions", ["avg_entry_price", "current_price", "stop_loss_price"]),
+            ("algo_portfolio_snapshots", ["total_portfolio_value", "daily_return_pct"]),
+            ("algo_trades", ["profit_loss_dollars", "exit_date", "status"]),
+            ("algo_signals_buy_sell", ["buy_n", "date"]),
+            ("price_daily", ["close"]),
+        ]
+        for table, cols in critical_checks:
+            result = q1(conn, f"""
+                SELECT COUNT(*) as col_count FROM information_schema.columns
+                WHERE table_name = %s AND column_name = ANY(%s)
+            """, (table, cols))
+            if result and result.get("col_count") != len(cols):
+                logger.error(f"Schema validation failed: {table} missing columns {cols}")
+                sys.exit(f"Database schema error: {table} missing required columns")
+        conn.close()
+        logger.info("Database schema validation passed")
+    except (psycopg2.Error, KeyError) as e:
+        logger.error(f"Schema validation failed: {e}")
+        sys.exit(f"Database connection/schema error: {e}")
+
 
 # ── formatters ────────────────────────────────────────────────────────────────
 
@@ -434,6 +458,7 @@ def fetch_run(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_run (exec_log): {type(e).__name__}: {e}")
         _log_data_quality("fetch_run", 0, str(e))
+        return {}
 
     # Fallback: reconstruct from algo_audit_log
     try:
@@ -2113,7 +2138,7 @@ def panel_recent_trades(trades):
     for tr in trades[:10]:
         sym    = tr.get("symbol") or "--"
         date   = tr.get("exit_date") or tr.get("trade_date")
-        date_s = date.strftime("%b%d") if hasattr(date, "strftime") else str(date or "--")[:5]
+        date_s = date.strftime("%b %d") if hasattr(date, "strftime") else str(date or "--")
         pnl_d  = float(tr.get("profit_loss_dollars") or 0)
         pnl_p  = float(tr.get("profit_loss_pct") or 0)
         rmul   = tr.get("exit_r_multiple")
@@ -2691,7 +2716,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 rc  = r.get("role", "")
                 cc  = "bold white" if rc == "CRIT" else "white"
                 lat = r.get("latest")
-                lat_s = f" ({lat.strftime('%m/%d') if hasattr(lat, 'strftime') else str(lat)[:5]})" if lat else ""
+                lat_s = f" ({lat.strftime('%b %d') if hasattr(lat, 'strftime') else str(lat)[:5]})" if lat else ""
                 rows.append(Text.from_markup(f"[{R}]✗[/] [{cc}]{nm:<10}[/] [dim]{age}d stale{lat_s}[/]"))
 
     # Notifications (up to 4)
@@ -2895,7 +2920,7 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         day_parts = []
         for m in valid_metrics[:5]:
             d   = m.get("date")
-            d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
+            d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
             en  = int(m.get("entries") or 0)
             ex  = int(m.get("exits")   or 0)
             e_c = G if en > 0 else DIM
@@ -3796,6 +3821,7 @@ def main():
     pa.add_argument("--legend", "-l", action="store_true",
                     help="Print a guide explaining every term and panel, then exit")
     args = pa.parse_args()
+    validate_schema()
 
     if args.legend:
         print_legend()
