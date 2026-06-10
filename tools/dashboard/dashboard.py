@@ -211,14 +211,22 @@ def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -
 
 def fmt_age(ts: any) -> str:
     if ts is None: return "--"
-    if isinstance(ts, str): ts = datetime.fromisoformat(ts)
-    if isinstance(ts, date) and not isinstance(ts, datetime):
-        ts = datetime(ts.year, ts.month, ts.day, tzinfo=timezone.utc)
-    if ts.tzinfo is None: ts = ts.replace(tzinfo=timezone.utc)
-    m = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
-    if m < 60:   return f"{m}m ago"
-    if m < 1440: return f"{m // 60}h{m % 60:02d}m ago"
-    return f"{m // 1440}d ago"
+    try:
+        if isinstance(ts, str):
+            try:
+                ts = datetime.fromisoformat(ts)
+            except (ValueError, TypeError):
+                return "--"
+        if isinstance(ts, date) and not isinstance(ts, datetime):
+            ts = datetime(ts.year, ts.month, ts.day, tzinfo=timezone.utc)
+        if ts.tzinfo is None: ts = ts.replace(tzinfo=timezone.utc)
+        m = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
+        if m < 60:   return f"{m}m ago"
+        if m < 1440: return f"{m // 60}h{m % 60:02d}m ago"
+        return f"{m // 1440}d ago"
+    except (ValueError, TypeError, AttributeError) as e:
+        logger.debug(f"fmt_age error parsing {ts!r}: {e}")
+        return "--"
 
 def fmt_money(v: any) -> str:
     if v is None: return "--"
@@ -489,9 +497,16 @@ def fetch_market(c):
         exp_age = None
         if exp and exp.get("date"):
             try:
-                exp_date = exp["date"] if isinstance(exp["date"], datetime) else datetime.fromisoformat(str(exp["date"]))
-                exp_age = (datetime.now(timezone.utc) - exp_date).days
-            except (ValueError, TypeError): pass
+                if isinstance(exp["date"], datetime):
+                    exp_date = exp["date"]
+                else:
+                    try:
+                        exp_date = datetime.fromisoformat(str(exp["date"]))
+                    except (ValueError, TypeError):
+                        exp_date = None
+                if exp_date:
+                    exp_age = (datetime.now(timezone.utc) - exp_date).days
+            except (ValueError, TypeError, KeyError): pass
 
         vix_row = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v   = vix_row.get("vix_level") if vix_row else None
