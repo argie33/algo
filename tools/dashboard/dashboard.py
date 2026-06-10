@@ -704,9 +704,13 @@ def fetch_market(c):
         if exp_age is not None and exp_age > 1:
             logger.warning(f"Market exposure data is {exp_age} days old")
             stale_alerts.append(f"Exposure {exp_age}d old")
-        if spy_age is not None and spy_age > 1:
-            logger.warning(f"SPY price data is {spy_age} days old")
-            stale_alerts.append(f"SPY {spy_age}d old")
+        # Issue 1.3: Validate SPY age — log if missing or stale
+        if spy_age is None and not spy_rows:
+            logger.warning(f"VALIDATION: SPY price data is MISSING (no rows in price_daily for SPY)")
+            stale_alerts.append("SPY data missing")
+        elif spy_age is not None and spy_age > 1:
+            logger.warning(f"VALIDATION: SPY price data is {spy_age} days old — may not reflect current market")
+            stale_alerts.append(f"SPY {spy_age}d stale")
         # Breadth momentum 10d indicator unreliable if market health data >3 days old
         if h and h.get("breadth_momentum_10d") is not None:
             mkt_age = (datetime.now(timezone.utc) - (h.get("date").replace(tzinfo=timezone.utc) if isinstance(h.get("date"), datetime) else datetime.fromisoformat(str(h.get("date"))).replace(tzinfo=timezone.utc))).days if h.get("date") else None
@@ -898,6 +902,36 @@ def fetch_positions(c):
             logger.warning("VALIDATION: algo_trades table is EMPTY - no historical trades found")
             _log_data_quality("fetch_positions", 0, "algo_trades table is empty")
             return []
+
+        # Issue 1.2: Validate supporting table freshness before fetch (trend, swing scores, sectors)
+        supporting_tables = [
+            ("trend_template_data", "Weinstein stage", 3),
+            ("swing_trader_scores", "Swing score", 1),
+            ("company_profile", "Sector data", 30),
+        ]
+        for table, description, max_age_days in supporting_tables:
+            try:
+                table_check = q1(c, f"SELECT COUNT(*) as cnt, MAX(date) as latest_date FROM {table}")
+                if table_check:
+                    row_count = int(table_check.get("cnt") or 0)
+                    table_date = table_check.get("latest_date")
+                    if row_count == 0:
+                        logger.warning(f"VALIDATION: Supporting table '{table}' ({description}) is EMPTY — positions will have incomplete {description.lower()}")
+                    elif table_date:
+                        try:
+                            if isinstance(table_date, datetime):
+                                td = table_date
+                            else:
+                                td = datetime.fromisoformat(str(table_date))
+                            if td.tzinfo is None:
+                                td = td.replace(tzinfo=timezone.utc)
+                            age_days = (datetime.now(timezone.utc) - td).days
+                            if age_days > max_age_days:
+                                logger.warning(f"VALIDATION: Supporting table '{table}' ({description}) is {age_days} days old (threshold {max_age_days}d) — positions may have stale {description.lower()}")
+                        except (ValueError, TypeError):
+                            pass
+            except psycopg2.Error as e:
+                logger.warning(f"VALIDATION: Could not check {table} freshness: {e}")
 
         result = q(c, """
             WITH open_trades AS (
@@ -1189,19 +1223,21 @@ def fetch_economic_pulse(c):
         yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2  is not None and isinstance(t10, (int, float)) and isinstance(t2, (int, float))) else None
         yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None and isinstance(t10, (int, float)) and isinstance(t3m, (int, float))) else None
 
-        # CPI YoY: need 12-month-old value
+        # Issue 1.4: CPI YoY calculation with explicit date logic (not assuming daily data)
         cpi_yoy = None
-        cpi_rows = q(c, """
-            SELECT value FROM economic_data WHERE series_id='CPIAUCSL'
-            ORDER BY date DESC LIMIT 14""")
-        if len(cpi_rows) >= 13:
-            cur_val  = cpi_rows[0].get('value')
-            prev_val = cpi_rows[12].get('value')
-            if cur_val is not None and prev_val is not None:
-                cur_cpi  = float(cur_val)
-                prev_cpi = float(prev_val)
-                if prev_cpi > 0:
-                    cpi_yoy = round((cur_cpi - prev_cpi) / prev_cpi * 100, 2)
+        cpi_cur = q1(c, "SELECT value FROM economic_data WHERE series_id='CPIAUCSL' ORDER BY date DESC LIMIT 1")
+        cpi_yoy_row = q1(c, """
+            SELECT value FROM economic_data
+            WHERE series_id='CPIAUCSL' AND date <= CURRENT_DATE - 365
+            ORDER BY date DESC LIMIT 1""")
+        if cpi_cur and cpi_yoy_row and cpi_cur.get('value') is not None and cpi_yoy_row.get('value') is not None:
+            try:
+                cur = float(cpi_cur['value'])
+                prev = float(cpi_yoy_row['value'])
+                if prev > 0:
+                    cpi_yoy = round((cur - prev) / prev * 100, 2)
+            except (ValueError, TypeError):
+                pass
 
         result = {
             't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
@@ -1493,11 +1529,20 @@ def fetch_circuit(c):
         rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (config_keys,))
         cfg = {r["key"]: float(r["value"]) for r in rows if r.get("value") is not None}
 
-        # Validation: Log if any circuit breaker keys are missing from config
-        missing_keys = [k for k in config_keys if k not in cfg]
-        if missing_keys:
-            logger.warning(f"VALIDATION: Circuit breaker config MISSING KEYS: {missing_keys} "
-                         f"(will use hardcoded defaults - may be incorrect)")
+        # Issue 3.2: Validate critical keys exist; safeguard against incomplete config causing wrong halt decisions
+        critical_keys = ["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses"]
+        missing_critical = [k for k in critical_keys if k not in cfg]
+        if missing_critical:
+            logger.error(f"ALERT: Circuit breaker CRITICAL config keys missing: {missing_critical}. "
+                        f"Cannot proceed safely — circuit breaker DISABLED until config is corrected.")
+            _log_data_quality("fetch_circuit", 0, f"Critical config missing: {', '.join(missing_critical)}")
+            return {"bs": [], "any": False, "n": 0, "_error": f"Critical config keys missing: {missing_critical}"}
+
+        # Log non-critical missing keys (will use safe defaults)
+        missing_optional = [k for k in config_keys if k not in critical_keys and k not in cfg]
+        if missing_optional:
+            logger.warning(f"VALIDATION: Circuit breaker optional keys missing: {missing_optional} "
+                         f"(will use hardcoded defaults)")
 
         snaps = q(c, "SELECT total_portfolio_value, daily_return_pct, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
         lat   = snaps[0] if snaps else {}
