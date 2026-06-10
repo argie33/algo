@@ -163,7 +163,10 @@ class PipelineHealth:
                 latest_date = latest_date.date()
 
             health.latest_date = latest_date
-            health.age_days = (_date.today() - latest_date).days
+            # Use ET date for age calculation (trading is ET-based)
+            from zoneinfo import ZoneInfo
+            today_et = datetime.now(ZoneInfo("America/New_York")).date()
+            health.age_days = (today_et - latest_date).days
 
             # Determine status based on SLA
             if health.age_days > (sla_days * 2):

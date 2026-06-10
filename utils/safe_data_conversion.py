@@ -227,3 +227,43 @@ def log_data_fetch(
         logger.warning(f"[{source}] Returned 0 rows{time_str}")
     else:
         logger.info(f"[{source}] Fetched {count} rows{time_str}")
+
+
+def log_loader_completion(
+    table_name: str,
+    rows_inserted: int,
+    rows_skipped: int = 0,
+    rows_failed: int = 0,
+    duration_sec: float = 0.0,
+) -> None:
+    """Log loader completion with summary statistics.
+
+    Args:
+        table_name: Target table being loaded
+        rows_inserted: Number of rows successfully inserted
+        rows_skipped: Number of rows skipped due to duplicates/staleness
+        rows_failed: Number of rows that failed validation
+        duration_sec: Loader execution time in seconds
+    """
+    total = rows_inserted + rows_skipped + rows_failed
+    if total == 0:
+        logger.warning(f"[{table_name}] No data processed")
+        return
+
+    duration_str = f" ({duration_sec:.1f}s)" if duration_sec > 0 else ""
+
+    if rows_failed > 0:
+        logger.error(
+            f"[{table_name}] Loaded {rows_inserted}/{total} rows "
+            f"({rows_skipped} skipped, {rows_failed} FAILED){duration_str}"
+        )
+    elif rows_inserted == 0:
+        logger.warning(
+            f"[{table_name}] No new rows inserted "
+            f"({rows_skipped} skipped, {rows_failed} failed){duration_str}"
+        )
+    else:
+        logger.info(
+            f"[{table_name}] Loaded {rows_inserted}/{total} rows "
+            f"({rows_skipped} skipped){duration_str}"
+        )
