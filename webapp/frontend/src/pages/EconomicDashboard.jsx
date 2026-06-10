@@ -9,6 +9,7 @@ import {
   ReferenceLine, Legend,
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useThresholds } from '../hooks/useThresholds';
 import { api } from '../services/api';
 import { formatNumber, formatPercentageChange } from '../utils/formatters';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -62,6 +63,7 @@ function deriveRegime(indicators, yieldData, recessionProb) {
 
 function EconomicDashboardPage() {
   const [tab, setTab] = useState('overview');
+  const { thresholds, isDefault: usingDefaultThresholds } = useThresholds();
 
   // Trigger resize after mount to force charts to remeasure
   useEffect(() => {
@@ -99,9 +101,9 @@ function EconomicDashboardPage() {
         const sahm = hist.slice(-3).reduce((s, v) => s + v, 0) / 3 - Math.min(...hist);
         tiles.push({
           label: 'Sahm Rule', value: `${sahm >= 0 ? '+' : ''}${sahm.toFixed(2)} pp`,
-          threshold: '≥ 0.50 triggers', desc: '3-mo unemployment MA vs trailing 12-mo low',
-          status: sahm >= 0.5 ? 'red' : sahm >= 0.3 ? 'amber' : 'green',
-          weight: sahm >= 0.5 ? 100 : sahm >= 0.3 ? 60 : Math.max(0, sahm * 100),
+          threshold: `≥ ${thresholds.sahm_critical} triggers`, desc: '3-mo unemployment MA vs trailing 12-mo low',
+          status: sahm >= thresholds.sahm_critical ? 'red' : sahm >= thresholds.sahm_warning ? 'amber' : 'green',
+          weight: sahm >= thresholds.sahm_critical ? 100 : sahm >= thresholds.sahm_warning ? 60 : Math.max(0, sahm * 100),
         });
       }
     }
@@ -114,9 +116,9 @@ function EconomicDashboardPage() {
       tiles.push({
         label: t10y3m != null ? '10Y−3M Curve' : '10Y−2Y Curve',
         value: `${spr_bps >= 0 ? '+' : ''}${spr_bps} bps`,
-        threshold: '< 0 inverts', desc: 'Inversion preceded last 8 US recessions',
-        status: spread < -0.5 ? 'red' : spread < 0 ? 'amber' : 'green',
-        weight: spread < -0.5 ? 100 : spread < 0 ? 70 : Math.max(0, 50 - spread * 25),
+        threshold: `< ${thresholds.spread_warning} inverts`, desc: 'Inversion preceded last 8 US recessions',
+        status: spread < thresholds.spread_critical ? 'red' : spread < thresholds.spread_warning ? 'amber' : 'green',
+        weight: spread < thresholds.spread_critical ? 100 : spread < thresholds.spread_warning ? 70 : Math.max(0, 50 - spread * 25),
       });
     }
     const hyHist = yieldData?.credit?.history?.['BAMLH0A0HYM2'] || [];
@@ -124,9 +126,9 @@ function EconomicDashboardPage() {
     if (hyVal != null) {
       tiles.push({
         label: 'HY Credit Spread', value: `${(+hyVal).toFixed(2)}%`,
-        threshold: '> 5% elevated', desc: 'ICE BofA US High Yield OAS — default risk barometer',
-        status: +hyVal > 8 ? 'red' : +hyVal > 5 ? 'amber' : 'green',
-        weight: +hyVal > 8 ? 100 : +hyVal > 5 ? 60 : Math.max(0, +hyVal * 10),
+        threshold: `> ${thresholds.hy_spread_warning}% elevated`, desc: 'ICE BofA US High Yield OAS — default risk barometer',
+        status: +hyVal > thresholds.hy_spread_critical ? 'red' : +hyVal > thresholds.hy_spread_warning ? 'amber' : 'green',
+        weight: +hyVal > thresholds.hy_spread_critical ? 100 : +hyVal > thresholds.hy_spread_warning ? 60 : Math.max(0, +hyVal * 10),
       });
     }
     const claims = ind('Jobless Claims') || ind('Initial Claims');
@@ -137,9 +139,9 @@ function EconomicDashboardPage() {
         const chg = ((cur - past) / past) * 100;
         tiles.push({
           label: 'Jobless Claims 6m Δ', value: `${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%`,
-          threshold: '> +20% warning', desc: '6-month change in initial unemployment claims',
-          status: chg > 30 ? 'red' : chg > 20 ? 'amber' : 'green',
-          weight: chg > 30 ? 100 : chg > 20 ? 60 : Math.max(0, chg * 2),
+          threshold: `> +${thresholds.claims_warning}% warning`, desc: '6-month change in initial unemployment claims',
+          status: chg > thresholds.claims_critical ? 'red' : chg > thresholds.claims_warning ? 'amber' : 'green',
+          weight: chg > thresholds.claims_critical ? 100 : chg > thresholds.claims_warning ? 60 : Math.max(0, chg * 2),
         });
       }
     }
@@ -148,9 +150,9 @@ function EconomicDashboardPage() {
     if (vixVal != null) {
       tiles.push({
         label: 'VIX Volatility', value: (+vixVal).toFixed(1),
-        threshold: '> 25 elevated', desc: 'CBOE Volatility Index — equity fear gauge',
-        status: +vixVal > 35 ? 'red' : +vixVal > 25 ? 'amber' : 'green',
-        weight: +vixVal > 35 ? 100 : +vixVal > 25 ? 60 : Math.max(0, +vixVal * 2),
+        threshold: `> ${thresholds.vix_warning} elevated`, desc: 'CBOE Volatility Index — equity fear gauge',
+        status: +vixVal > thresholds.vix_critical ? 'red' : +vixVal > thresholds.vix_warning ? 'amber' : 'green',
+        weight: +vixVal > thresholds.vix_critical ? 100 : +vixVal > thresholds.vix_warning ? 60 : Math.max(0, +vixVal * 2),
       });
     }
     const igHist = yieldData?.credit?.history?.['BAMLH0A0IG'] || [];
@@ -158,9 +160,9 @@ function EconomicDashboardPage() {
     if (igVal != null) {
       tiles.push({
         label: 'IG Credit Spread', value: `${(+igVal).toFixed(2)}%`,
-        threshold: '> 1.5% caution', desc: 'Investment grade OAS — financial stress indicator',
-        status: +igVal > 2.5 ? 'red' : +igVal > 1.5 ? 'amber' : 'green',
-        weight: +igVal > 2.5 ? 100 : +igVal > 1.5 ? 50 : Math.max(0, +igVal * 20),
+        threshold: `> ${thresholds.ig_spread_warning}% caution`, desc: 'Investment grade OAS — financial stress indicator',
+        status: +igVal > thresholds.ig_spread_critical ? 'red' : +igVal > thresholds.ig_spread_warning ? 'amber' : 'green',
+        weight: +igVal > thresholds.ig_spread_critical ? 100 : +igVal > thresholds.ig_spread_warning ? 50 : Math.max(0, +igVal * 20),
       });
     }
 
@@ -171,9 +173,9 @@ function EconomicDashboardPage() {
       const sv = +stlfsiVal;
       tiles.push({
         label: 'Financial Stress (STL)', value: sv >= 0 ? `+${sv.toFixed(2)}σ` : `${sv.toFixed(2)}σ`,
-        threshold: '> 1.0 = stressed', desc: 'St. Louis Fed Financial Stress Index — 18 financial market variables',
-        status: sv > 1.5 ? 'red' : sv > 0.5 ? 'amber' : 'green',
-        weight: sv > 1.5 ? 100 : sv > 0.5 ? 50 : Math.max(0, sv * 20),
+        threshold: `> ${thresholds.stress_warning} = stressed`, desc: 'St. Louis Fed Financial Stress Index — 18 financial market variables',
+        status: sv > thresholds.stress_critical ? 'red' : sv > thresholds.stress_warning ? 'amber' : 'green',
+        weight: sv > thresholds.stress_critical ? 100 : sv > thresholds.stress_warning ? 50 : Math.max(0, sv * 20),
       });
     }
 
