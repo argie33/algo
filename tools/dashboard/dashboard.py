@@ -808,6 +808,7 @@ def fetch_market(c):
         spy_chg = None
         spy_rows = q(c, "SELECT close, date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
         spy_age = None
+        stale_alerts = []
         if len(spy_rows) >= 2:
             close0 = spy_rows[0].get("close")
             close1 = spy_rows[1].get("close")
@@ -826,10 +827,16 @@ def fetch_market(c):
                     spy_age = (datetime.now(timezone.utc) - spy_date).days
                 except (ValueError, AttributeError, TypeError):
                     pass
+            elif close0 is None or close1 is None:
+                logger.warning(f"VALIDATION: SPY price_daily has rows but close price is NULL")
+                stale_alerts.append("SPY close price is NULL")
         elif len(spy_rows) == 1 and spy_v is None:
             close0 = spy_rows[0].get("close")
             if close0 is not None:
                 spy_v = safe_float(close0)
+            else:
+                logger.warning(f"VALIDATION: SPY price_daily has 1 row but close price is NULL")
+                stale_alerts.append("SPY close price is NULL")
             try:
                 spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
                 if spy_date.tzinfo is None:
@@ -844,7 +851,6 @@ def fetch_market(c):
         if not fed_val or (isinstance(fed_val, str) and fed_val.lower() == "unknown"): fed_val = None
 
         # Log staleness if data is old and track for dashboard display
-        stale_alerts = []
         if exp_age is not None and exp_age > 1:
             logger.warning(f"Market exposure data is {exp_age} days old")
             stale_alerts.append(f"Exposure {exp_age}d old")
@@ -997,9 +1003,8 @@ def fetch_perf(c):
         losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
         pnl       = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
-        # CRITICAL ISSUE 8: Win rate excludes breakeven trades; only counts wins vs (wins + losses)
-        counted_trades = len(wins) + len(losses)
-        wr        = len(wins) / counted_trades * 100 if counted_trades > 0 else 0
+        # CRITICAL ISSUE 5 FIX: Win rate now includes breakeven trades in denominator
+        wr        = len(wins) / len(trades) * 100 if len(trades) > 0 else 0
         # Issue 10: Win rate confidence — breakeven trades affect calculation reliability
         wr_confidence = "high"
         be_pct = 0
