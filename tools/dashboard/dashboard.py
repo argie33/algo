@@ -226,6 +226,79 @@ def mascot_pose(data: dict, frame: int) -> int:
     return seq[(frame // 2) % len(seq)]
 
 
+# ── Data validation helpers (CRITICAL ISSUE 1, 2, 3 FIX) ───────────────────────
+
+def is_error_dict(data) -> bool:
+    """Check if data is an error dict. Error dicts have _error key with non-empty value."""
+    return isinstance(data, dict) and bool(data.get("_error"))
+
+
+def get_numeric(data: dict, key: str, default=None) -> Optional[float]:
+    """Safely extract and validate numeric value from dict. Returns None if missing/invalid/error.
+
+    CRITICAL ISSUE 3 FIX: Validates data type before conversion to prevent silent crashes.
+    CRITICAL ISSUE 1 FIX: Returns None (not default) if data is missing or error, so UI can show [missing].
+    """
+    if not isinstance(data, dict) or data.get("_error"):
+        return default
+    val = data.get(key)
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        logger.warning(f"Data validation: {key}={val!r} is not numeric (type: {type(val).__name__})")
+        return default
+
+
+def get_int(data: dict, key: str, default=None) -> Optional[int]:
+    """Safely extract and validate integer value from dict. Returns None if missing/invalid/error."""
+    if not isinstance(data, dict) or data.get("_error"):
+        return default
+    val = data.get(key)
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        logger.warning(f"Data validation: {key}={val!r} is not integer (type: {type(val).__name__})")
+        return default
+
+
+def get_string(data: dict, key: str, default="") -> str:
+    """Safely extract and validate string value from dict. Returns empty string or default if missing/error."""
+    if not isinstance(data, dict) or data.get("_error"):
+        return default
+    val = data.get(key)
+    if val is None:
+        return default
+    try:
+        return str(val).strip()
+    except (AttributeError, TypeError):
+        logger.warning(f"Data validation: {key}={val!r} cannot convert to string")
+        return default
+
+
+def get_list(data: dict, key: str, default=None) -> list:
+    """Safely extract list from dict. Returns empty list or default if missing/error."""
+    if not isinstance(data, dict) or data.get("_error"):
+        return default if default is not None else []
+    val = data.get(key)
+    if val is None:
+        return default if default is not None else []
+    if isinstance(val, list):
+        return val
+    logger.warning(f"Data validation: {key}={val!r} is not a list (type: {type(val).__name__})")
+    return default if default is not None else []
+
+
+def error_msg(data) -> str:
+    """Extract error message from error dict. Returns empty string if no error."""
+    if isinstance(data, dict) and data.get("_error"):
+        return str(data.get("_error", "Unknown error"))
+    return ""
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_db_credentials() -> dict:
@@ -1435,8 +1508,8 @@ def fetch_perf(c):
 
             # Calculate breakeven pct from trade counts
             if total_trades > 0 and perf.get("num_wins") is not None:
-                num_wins = int(perf.get("num_wins")) or 0
-                num_losses = int(perf.get("num_losses")) or 0
+                num_wins = get_int(perf, "num_wins") or 0
+                num_losses = get_int(perf, "num_losses") or 0
                 num_breakeven = total_trades - num_wins - num_losses
                 be_pct = (num_breakeven / total_trades * 100) if num_breakeven > 0 else 0
                 if be_pct > 5:
@@ -2058,8 +2131,11 @@ def fetch_sentiment(c):
         if not row:
             _log_data_quality("fetch_sentiment", 0)
             return {}
-        fg = float(row.get("fear_greed_index") or 0)
-        label = row.get("label") or ""
+        fg = get_numeric(row, "fear_greed_index")
+        if fg is None:
+            logger.warning("VALIDATION: fetch_sentiment missing fear_greed_index (critical metric)")
+            return {"_error": "fear_greed_index missing", "date": row.get("date")}
+        label = get_string(row, "label")
         c_fg  = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
         result = {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
         _log_data_quality("fetch_sentiment", 1)
@@ -2868,19 +2944,20 @@ def panel_orch(run, cfg, risk=None):
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        svar_v = float(risk.get("svar") or 0)
-        svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v > 0 else ""
-        var95_v = float(risk.get("var95") or 0)
-        cvar95_v = float(risk.get("cvar95") or 0)
-        beta_v = float(risk.get("beta") or 0)
-        conc5_v = float(risk.get("conc5") or 0)
-        var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]"
-                    f"  [dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]"
-                    f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_v:.2f}[/]"
-                    f"  [dim]Top-5 Conc:[/][white]{conc5_v:.0f}%[/]"
-                    + svar_s)
+    if risk and not risk.get("_error"):
+        var95_v = get_numeric(risk, "var95")
+        if var95_v is not None and var95_v > 0:
+            beta_v = get_numeric(risk, "beta")
+            beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
+            svar_v = get_numeric(risk, "svar") or 0
+            svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v > 0 else ""
+            cvar95_v = get_numeric(risk, "cvar95") or 0
+            conc5_v = get_numeric(risk, "conc5") or 0
+            var_line = (f"\n[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]"
+                        f"  [dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]"
+                        f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_v:.2f}[/]"
+                        f"  [dim]Top-5 Conc:[/][white]{conc5_v:.0f}%[/]"
+                        + svar_s)
 
     if not run or run.get("_error"):
         body = Text.from_markup(
@@ -2956,32 +3033,33 @@ def panel_market_full(mkt, sentiment=None):
     exp   = mkt.get("pct")
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
     bar   = exp_bar(exp or 0, w=10)
-    vix   = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
-    vc    = R if (mkt.get("vix") or 0) >= 30 else (Y if (mkt.get("vix") or 0) >= 20 else G)
+    vix_val = get_numeric(mkt, "vix")
+    vix   = f"{vix_val:.1f}" if vix_val is not None else "--"
+    vc    = R if vix_val is not None and vix_val >= 30 else (Y if vix_val is not None and vix_val >= 20 else DIM)
     dist  = str(mkt.get("dist") or "--")
     stage = str(mkt.get("stage") or "--")
     spy   = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
     trend = (mkt.get("trend") or "").upper()
-    halts = mkt.get("halts") or []
+    halts = get_list(mkt, "halts")
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
     hc    = Y if halts else DIM
 
-    upvol = mkt.get("upvol")
-    adr   = mkt.get("adr")
-    nh    = mkt.get("nh")
-    nl    = mkt.get("nl")
-    pcr   = mkt.get("pcr")
-    bmom  = mkt.get("bmom")
+    upvol = get_numeric(mkt, "upvol")
+    adr   = get_numeric(mkt, "adr")
+    nh    = get_numeric(mkt, "nh")
+    nl    = get_numeric(mkt, "nl")
+    pcr   = get_numeric(mkt, "pcr")
+    bmom  = get_numeric(mkt, "bmom")
     fed   = mkt.get("fed")
 
-    uvc   = G if (upvol or 0) >= 60 else (Y if (upvol or 0) >= 50 else R)
-    pcr_c = G if (pcr or 99) <= 0.8 else (Y if (pcr or 99) <= 1.0 else R)
-    nhnl  = (nh or 0) - (nl or 0)
-    nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R)
+    uvc   = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else DIM)
+    pcr_c = G if pcr is not None and pcr <= 0.8 else (Y if pcr is not None and pcr <= 1.0 else DIM)
+    nhnl  = (nh or 0) - (nl or 0) if nh is not None and nl is not None else None
+    nhnl_c = G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else DIM)
 
     spy_raw = mkt.get("spy")
-    spy_chg = mkt.get("spy_chg")
-    spy_chg_s = f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
+    spy_chg = get_numeric(mkt, "spy_chg")
+    spy_chg_s = f" [{G if spy_chg is not None and spy_chg >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
     spy_s   = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
@@ -2989,7 +3067,7 @@ def panel_market_full(mkt, sentiment=None):
     ]
     if upvol is not None:
         adr_s  = f"  [dim]Adv/Dec:[/][white]{adr:.1f}[/]" if adr is not None else ""
-        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nh is not None else ""
+        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{nhnl}[/]" if nhnl is not None else ""
         lines.append(f"[dim]Up Volume:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'}[/] [dim]Lows:[/][{R}]{nl or '--'}[/]{nhnl_s}")
     ycs = mkt.get("ycs")
     bmom_pcr = []
@@ -3071,23 +3149,24 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         exp     = mkt.get("pct")
         exp_s   = f"{float(exp):.0f}%" if exp is not None else "--"
         bar     = exp_bar(exp or 0, w=8)
-        vix     = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
-        vc      = R if (mkt.get("vix") or 0) >= 30 else (Y if (mkt.get("vix") or 0) >= 20 else G)
+        vix_val = get_numeric(mkt, "vix")
+        vix     = f"{vix_val:.1f}" if vix_val is not None else "--"
+        vc      = R if vix_val is not None and vix_val >= 30 else (Y if vix_val is not None and vix_val >= 20 else DIM)
         dist    = str(mkt.get("dist") or "--")
         stage   = str(mkt.get("stage") or "--")
-        spy_raw = mkt.get("spy"); spy_chg = mkt.get("spy_chg")
-        spy_chg_s = (f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
+        spy_raw = mkt.get("spy"); spy_chg = get_numeric(mkt, "spy_chg")
+        spy_chg_s = (f" [{G if spy_chg is not None and spy_chg >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
                      if spy_chg is not None else "")
         spy_s   = f"  SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}" if spy_raw else ""
         rows.append(Text.from_markup(
             f"[{tc}][bold]{lbl}[/]  [dim]exp[/][{tc}]{exp_s}[/]{bar}  "
             f"VIX:[{vc}]{vix}[/]  [dim]Dist:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{spy_s}"
         ))
-        upvol = mkt.get("upvol"); nh = mkt.get("nh"); nl = mkt.get("nl"); adr = mkt.get("adr")
+        upvol = get_numeric(mkt, "upvol"); nh = get_numeric(mkt, "nh"); nl = get_numeric(mkt, "nl"); adr = get_numeric(mkt, "adr")
         if upvol is not None:
-            uvc    = G if upvol >= 60 else (Y if upvol >= 50 else R)
-            nhnl   = (nh or 0) - (nl or 0)
-            nhnl_c = G if nhnl >= 50 else (Y if nhnl >= 0 else R)
+            uvc    = G if upvol >= 60 else (Y if upvol >= 50 else DIM)
+            nhnl   = (nh - nl) if nh is not None and nl is not None else None
+            nhnl_c = G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else DIM)
             adr_s  = f"  [dim]A/D:[/][white]{adr:.1f}[/]" if adr is not None else ""
             rows.append(Text.from_markup(
                 f"[dim]UpVol:[/][{uvc}]{upvol:.0f}%[/]{adr_s}  "
@@ -3202,18 +3281,19 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         rows.append(Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{float(lgpos):.1f}%[/]"))
 
     # VaR metrics (compact one-liner)
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        var95_v = float(risk.get("var95") or 0)
-        cvar95_v = float(risk.get("cvar95") or 0)
-        beta_v = float(risk.get("beta") or 0)
-        conc5_v = float(risk.get("conc5") or 0)
-        rows.append(Text.from_markup(
-            f"[dim]VaR:[/][white]{var95_v:.2f}%[/]  "
-            f"[dim]CVaR:[/][white]{cvar95_v:.2f}%[/]  "
-            f"[dim]β:[/][{beta_c}]{beta_v:.2f}[/]  "
-            f"[dim]Conc5:[/][white]{conc5_v:.0f}%[/]"
-        ))
+    if risk and not risk.get("_error"):
+        var95_v = get_numeric(risk, "var95")
+        if var95_v is not None and var95_v > 0:
+            beta_v = get_numeric(risk, "beta")
+            beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
+            cvar95_v = get_numeric(risk, "cvar95") or 0
+            conc5_v = get_numeric(risk, "conc5") or 0
+            rows.append(Text.from_markup(
+                f"[dim]VaR:[/][white]{var95_v:.2f}%[/]  "
+                f"[dim]CVaR:[/][white]{cvar95_v:.2f}%[/]  "
+                f"[dim]β:[/][{beta_c}]{beta_v:.2f}[/]  "
+                f"[dim]Conc5:[/][white]{conc5_v:.0f}%[/]"
+            ))
 
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
 
@@ -3237,22 +3317,23 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     streak  = perf.get("streak") or 0
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c   = G if streak >= 0 else R
-    pnl_c   = G if (perf.get("pnl") or 0) >= 0 else R
-    pf      = perf.get("profit_factor")
+    pnl = get_numeric(perf, "pnl")
+    pnl_c   = G if pnl is not None and pnl >= 0 else (R if pnl is not None else DIM)
+    pf      = get_numeric(perf, "profit_factor")
     pf_s    = f"{pf:.2f}" if pf is not None else "--"
-    pf_c    = G if (pf or 0) >= 1.5 else (Y if (pf or 0) >= 1.0 else R)
-    exp     = perf.get("expectancy")
+    pf_c    = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
+    exp     = get_numeric(perf, "expectancy")
     exp_s   = f"{fmt_money(exp)}" if exp is not None else "--"
-    exp_c   = G if (exp or 0) >= 0 else R
-    avg_r   = perf.get("avg_r")
+    exp_c   = G if exp is not None and exp >= 0 else (R if exp is not None else DIM)
+    avg_r   = get_numeric(perf, "avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
-    wr_v = perf.get('wr')
+    wr_v = get_numeric(perf, "wr")
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
-    wr_c = G if (wr_v or 0) >= 50 else R
-    dd_v = perf.get('maxdd')
+    wr_c = G if wr_v is not None and wr_v >= 50 else (R if wr_v is not None else DIM)
+    dd_v = get_numeric(perf, "maxdd")
     dd_s = f"{('-' if dd_v > 0 else '')}{dd_v:.1f}%" if dd_v is not None else "--"
-    dd_c = R if (dd_v or 0) >= 10 else (Y if (dd_v or 0) >= 5 else G)
+    dd_c = R if dd_v is not None and dd_v >= 10 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
     sharpe_val = perf.get('sharpe')
     sharpe_s = f"{sharpe_val:.2f}" if sharpe_val is not None else "--"
     sharpe_conf = perf.get('sharpe_confidence')
@@ -3332,14 +3413,16 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     if recent:
         rows.append(Text.from_markup("[dim]Recent exits:[/]"))
         for t in recent:
-            pv2   = float(t.get("profit_loss_dollars") or 0)
-            pct_v = float(t.get("profit_loss_pct") or 0)
-            rv    = float(t.get("exit_r_multiple") or 0) if t.get("exit_r_multiple") else None
-            sym   = t.get("symbol") or "--"
-            c     = G if pv2 >= 0 else R
+            pv2   = get_numeric(t, "profit_loss_dollars")
+            pct_v = get_numeric(t, "profit_loss_pct")
+            rv    = get_numeric(t, "exit_r_multiple")
+            sym   = get_string(t, "symbol", "--")
+            c     = G if pv2 is not None and pv2 >= 0 else (R if pv2 is not None else DIM)
             rv_s  = f" {sign(rv)}{rv:.1f}R" if rv is not None else ""
+            pv2_display = fmt_money(pv2) if pv2 is not None else "--"
+            pct_display = f"{sign(pct_v)}{pct_v:.1f}%" if pct_v is not None else "--"
             rows.append(Text.from_markup(
-                f"  [{c}]{sym}[/] [{c}]{sign(pct_v)}{pct_v:.1f}%  {fmt_money(pv2)}{rv_s}[/]"
+                f"  [{c}]{sym}[/] [{c}]{pct_display}  {pv2_display}{rv_s}[/]"
             ))
 
     # ISSUE 43 FIX: Show when metrics were last calculated (staleness indicator)

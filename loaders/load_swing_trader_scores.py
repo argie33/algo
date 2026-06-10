@@ -150,6 +150,16 @@ class SwingTraderScoresLoader(OptimalLoader):
             logging.debug(f"Swing score computation error for {symbol}: {e}")
             return None
 
+    def _load_config_val(self, key: str, default):
+        """Load a config value from AlgoConfig, with fallback to default."""
+        try:
+            from algo.algo_config import get_config
+            val = get_config().get(key)
+            return val if val is not None else default
+        except Exception as e:
+            logging.debug(f"_load_config_val({key}) failed: {e}")
+            return default
+
     def _compute_swing_score(self, row) -> Optional[Dict]:
         """Compute swing trader score with 7-component breakdown.
 
@@ -223,15 +233,22 @@ class SwingTraderScoresLoader(OptimalLoader):
             )
 
             # --- Grade based on weighted composite (0-100) ---
-            if weighted_score >= 85:
+            # Thresholds are configurable via algo_config table
+            threshold_aplus = self._load_config_val('swing_grade_threshold_aplus', 85)
+            threshold_a = self._load_config_val('swing_grade_threshold_a', 75)
+            threshold_b = self._load_config_val('swing_grade_threshold_b', 65)
+            threshold_c = self._load_config_val('swing_grade_threshold_c', 55)
+            threshold_d = self._load_config_val('swing_grade_threshold_d', 45)
+
+            if weighted_score >= threshold_aplus:
                 grade = 'A+'
-            elif weighted_score >= 75:
+            elif weighted_score >= threshold_a:
                 grade = 'A'
-            elif weighted_score >= 65:
+            elif weighted_score >= threshold_b:
                 grade = 'B'
-            elif weighted_score >= 55:
+            elif weighted_score >= threshold_c:
                 grade = 'C'
-            elif weighted_score >= 45:
+            elif weighted_score >= threshold_d:
                 grade = 'D'
             else:
                 grade = 'F'

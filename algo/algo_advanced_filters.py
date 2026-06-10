@@ -37,6 +37,16 @@ class AdvancedFilters:
         self._sector_full_ranking = None
         self._signals = None  # SignalComputer, lazy-init
 
+    def _load_config_val(self, key: str, default):
+        """Load a config value from AlgoConfig, with fallback to default."""
+        try:
+            from algo.algo_config import get_config
+            val = get_config().get(key)
+            return val if val is not None else default
+        except Exception as e:
+            logger.debug(f"_load_config_val({key}) failed: {e}")
+            return default
+
     # ---------- Pre-load: market context ----------
 
     def load_market_context(self, eval_date):
@@ -392,8 +402,27 @@ class AdvancedFilters:
         composite = float(row[0])
         # 40 = 0pts, 90+ = full pts
         pts = max(0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0))
-        grade = ('A+' if composite >= 90 else 'A' if composite >= 80 else 'B' if composite >= 70
-                 else 'C' if composite >= 60 else 'D' if composite >= 50 else 'F')
+
+        # Assign letter grade using configurable thresholds from algo_config
+        threshold_aplus = self._load_config_val('advanced_filters_grade_threshold_aplus', 90)
+        threshold_a = self._load_config_val('advanced_filters_grade_threshold_a', 80)
+        threshold_b = self._load_config_val('advanced_filters_grade_threshold_b', 70)
+        threshold_c = self._load_config_val('advanced_filters_grade_threshold_c', 60)
+        threshold_d = self._load_config_val('advanced_filters_grade_threshold_d', 50)
+
+        if composite >= threshold_aplus:
+            grade = 'A+'
+        elif composite >= threshold_a:
+            grade = 'A'
+        elif composite >= threshold_b:
+            grade = 'B'
+        elif composite >= threshold_c:
+            grade = 'C'
+        elif composite >= threshold_d:
+            grade = 'D'
+        else:
+            grade = 'F'
+
         return pts, {
             'composite': round(composite, 1),
             'grade': grade,

@@ -166,6 +166,16 @@ class AlgoConfig:
         'swing_min_trend_score': ('5', 'int', 'Swing score: Minimum Minervini trend score 0-8'),
         'swing_min_industry_rank': ('100', 'int', 'Swing score: Industry rank threshold (<=)'),
         'swing_days_to_earnings_block': ('5', 'int', 'Swing score: Block entries N days to earnings'),
+        'swing_grade_threshold_aplus': ('85', 'int', 'Swing score: A+ grade threshold (score >= this value)'),
+        'swing_grade_threshold_a': ('75', 'int', 'Swing score: A grade threshold (score >= this value)'),
+        'swing_grade_threshold_b': ('65', 'int', 'Swing score: B grade threshold (score >= this value)'),
+        'swing_grade_threshold_c': ('55', 'int', 'Swing score: C grade threshold (score >= this value)'),
+        'swing_grade_threshold_d': ('45', 'int', 'Swing score: D grade threshold (score >= this value)'),
+        'advanced_filters_grade_threshold_aplus': ('90', 'int', 'Advanced filters: A+ grade threshold (score >= this value)'),
+        'advanced_filters_grade_threshold_a': ('80', 'int', 'Advanced filters: A grade threshold (score >= this value)'),
+        'advanced_filters_grade_threshold_b': ('70', 'int', 'Advanced filters: B grade threshold (score >= this value)'),
+        'advanced_filters_grade_threshold_c': ('60', 'int', 'Advanced filters: C grade threshold (score >= this value)'),
+        'advanced_filters_grade_threshold_d': ('50', 'int', 'Advanced filters: D grade threshold (score >= this value)'),
 
         # Execution Mode
         'execution_mode': ('auto', 'string', 'paper|dry|review|auto'),

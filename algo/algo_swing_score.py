@@ -179,16 +179,22 @@ class SwingTraderScore:
 
                 total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 
-                # Letter grade
-                if total >= 85:
+                # Letter grade (configurable thresholds from algo_config)
+                threshold_aplus = self._load_config_val('swing_grade_threshold_aplus', 85)
+                threshold_a = self._load_config_val('swing_grade_threshold_a', 75)
+                threshold_b = self._load_config_val('swing_grade_threshold_b', 65)
+                threshold_c = self._load_config_val('swing_grade_threshold_c', 55)
+                threshold_d = self._load_config_val('swing_grade_threshold_d', 45)
+
+                if total >= threshold_aplus:
                     grade = 'A+'
-                elif total >= 75:
+                elif total >= threshold_a:
                     grade = 'A'
-                elif total >= 65:
+                elif total >= threshold_b:
                     grade = 'B'
-                elif total >= 55:
+                elif total >= threshold_c:
                     grade = 'C'
-                elif total >= 45:
+                elif total >= threshold_d:
                     grade = 'D'
                 else:
                     grade = 'F'
