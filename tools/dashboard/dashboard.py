@@ -427,8 +427,8 @@ def fetch_run(c):
                 "phase_results":    pr,
                 "_source": "exec_log",
             }
-    except Exception:
-        pass
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_run (exec_log): {type(e).__name__}: {e}")
 
     # Fallback: reconstruct from algo_audit_log
     try:
@@ -1121,7 +1121,7 @@ def fetch_exec_history(c):
                                   phases_completed, phases_halted, phases_errored, halt_reason
                            FROM orchestrator_execution_log
                            ORDER BY started_at DESC LIMIT 10""")
-        except Exception:
+        except psycopg2.Error:
             return q(c, """SELECT run_id, started_at, completed_at, overall_status,
                                   halt_reason
                            FROM orchestrator_execution_log
@@ -1269,7 +1269,7 @@ def load_all() -> dict:
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if conn:
                     try: conn.close()
-                    except Exception: pass
+                    except (psycopg2.Error, AttributeError): pass
                 if attempt < max_retries:
                     logger.warning(f"Retry {attempt+1}/{max_retries} for {name}: {e}")
                     time.sleep(0.5 * (attempt + 1))
@@ -1281,7 +1281,7 @@ def load_all() -> dict:
                 return {}
                 if conn:
                     try: conn.close()
-                    except Exception: pass
+                    except (psycopg2.Error, AttributeError): pass
                 logger.error(f"fetch_{name} error: {e}")
                 return name, {"_error": str(e)}
     max_workers = min(4, max(1, len(FETCHERS) // 3))
