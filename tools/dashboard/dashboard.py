@@ -214,7 +214,11 @@ def mascot_pose(data: dict, frame: int) -> int:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_db_credentials() -> dict:
-    """Fetch DB credentials: try env vars first, then AWS Secrets Manager."""
+    """Fetch and validate DB credentials: try env vars first, then AWS Secrets Manager.
+
+    CRITICAL ISSUE 1 FIX: Validate immediately and fail fast with specific missing field info.
+    Don't return incomplete credentials—let caller know exactly what's missing and where from.
+    """
     env_creds = {
         "host": os.environ.get("DB_HOST"),
         "user": os.environ.get("DB_USER"),
@@ -227,6 +231,10 @@ def _get_db_credentials() -> dict:
     if all([env_creds["host"], env_creds["user"], env_creds["password"], env_creds["dbname"]]):
         logger.debug("DB credentials loaded from environment variables")
         return env_creds
+
+    # Env vars incomplete — check what's missing
+    env_missing = [k for k in ["host", "user", "password", "dbname"] if not env_creds.get(k)]
+    env_status = f"incomplete ({', '.join(env_missing)} missing)" if env_missing else "complete"
 
     # Otherwise try AWS Secrets Manager
     if boto3:
@@ -242,13 +250,28 @@ def _get_db_credentials() -> dict:
                 "dbname": secret_dict.get("dbname"),
                 "port": secret_dict.get("port", 5432),
             }
+
+            # Validate Secrets Manager creds before returning
+            sm_missing = [k for k in ["host", "user", "password", "dbname"] if not creds.get(k)]
+            if sm_missing:
+                msg = f"AWS Secrets Manager ({secret_name}) incomplete: missing fields {sm_missing}. " \
+                      f"Environment variables also {env_status}. Cannot proceed."
+                logger.error(f"CRITICAL: {msg}")
+                sys.exit(msg)
+
             logger.debug(f"DB credentials loaded from AWS Secrets Manager ({secret_name})")
             return creds
         except Exception as e:
-            logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}. Falling back to env vars.")
+            msg = f"Failed to fetch credentials from Secrets Manager ({e}). " \
+                  f"Environment variables are {env_status}. Cannot proceed."
+            logger.error(f"CRITICAL: {msg}")
+            sys.exit(msg)
 
-    logger.debug("DB credentials using fallback (env vars incomplete, boto3 unavailable, or Secrets Manager failed)")
-    return env_creds
+    # Neither env vars nor Secrets Manager available
+    msg = f"Database credentials unavailable. Environment variables are {env_status}. " \
+          f"boto3 not available or AWS Secrets Manager not configured. Cannot proceed."
+    logger.error(f"CRITICAL: {msg}")
+    sys.exit(msg)
 
 def get_conn() -> psycopg2.extensions.connection:
     creds = _get_db_credentials()
@@ -290,47 +313,121 @@ def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -
     return rows[0] if rows else None
 
 def validate_schema() -> None:
+    """CRITICAL ISSUE 2 FIX: Validate table schema (columns, types, and data presence).
+
+    Checks:
+    1. Tables exist
+    2. Required columns exist with correct types (numeric, date, text)
+    3. Critical tables contain data (not empty)
+
+    Exits immediately on critical failures to prevent silent data issues.
+    """
     try:
         conn = get_conn()
         # Issue 9.1: Comprehensive table validation — critical, important, and supporting tables
+        # Format: (table, [(column, expected_type_family), ...], severity)
+        # Type families: numeric (int/bigint/decimal/float), temporal (date/timestamp), text/varchar
         all_checks = [
             # Critical (trading data)
-            ("algo_trades", ["profit_loss_dollars", "exit_date", "status"], "critical"),
-            ("algo_portfolio_snapshots", ["total_portfolio_value", "daily_return_pct"], "critical"),
-            ("price_daily", ["close", "date"], "critical"),
+            ("algo_trades", [
+                ("profit_loss_dollars", "numeric"),
+                ("exit_date", "temporal"),
+                ("status", "text")
+            ], "critical"),
+            ("algo_portfolio_snapshots", [
+                ("total_portfolio_value", "numeric"),
+                ("daily_return_pct", "numeric")
+            ], "critical"),
+            ("price_daily", [
+                ("close", "numeric"),
+                ("date", "temporal")
+            ], "critical"),
             # Important (positions & market context)
-            ("trend_template_data", ["weinstein_stage", "date"], "important"),
-            ("swing_trader_scores", ["score", "date"], "important"),
-            ("company_profile", ["sector", "ticker"], "important"),
-            ("market_health_daily", ["vix_level", "date"], "important"),
-            ("buy_sell_daily", ["signal", "date"], "important"),
-            ("market_exposure_daily", ["exposure_pct", "date"], "important"),
+            ("trend_template_data", [
+                ("weinstein_stage", "numeric"),
+                ("date", "temporal")
+            ], "important"),
+            ("swing_trader_scores", [
+                ("score", "numeric"),
+                ("date", "temporal")
+            ], "important"),
+            ("company_profile", [
+                ("sector", "text"),
+                ("ticker", "text")
+            ], "important"),
+            ("market_health_daily", [
+                ("vix_level", "numeric"),
+                ("date", "temporal")
+            ], "important"),
+            ("buy_sell_daily", [
+                ("signal", "text"),
+                ("date", "temporal")
+            ], "important"),
+            ("market_exposure_daily", [
+                ("exposure_pct", "numeric"),
+                ("date", "temporal")
+            ], "important"),
             # Supporting (performance & metrics)
-            ("algo_metrics_daily", ["date"], "supporting"),
-            ("algo_audit_log", ["action_type", "created_at"], "supporting"),
+            ("algo_metrics_daily", [("date", "temporal")], "supporting"),
+            ("algo_audit_log", [
+                ("action_type", "text"),
+                ("created_at", "temporal")
+            ], "supporting"),
         ]
 
-        for table, cols, severity in all_checks:
-            try:
-                # Check if table exists and has required columns
-                result = q1(conn, f"""
-                    SELECT COUNT(*) as col_count FROM information_schema.columns
-                    WHERE table_name = %s AND column_name = ANY(%s)
-                """, (table, cols))
+        def type_family_matches(data_type: str, expected_family: str) -> bool:
+            """Check if PostgreSQL data_type belongs to expected family."""
+            data_type = data_type.lower()
+            if expected_family == "numeric":
+                return any(t in data_type for t in ["int", "numeric", "decimal", "float", "real", "double", "bigint", "smallint"])
+            elif expected_family == "temporal":
+                return any(t in data_type for t in ["date", "timestamp", "time"])
+            elif expected_family == "text":
+                return any(t in data_type for t in ["char", "text", "varchar"])
+            return False
 
-                if result and result.get("col_count") != len(cols):
-                    msg = f"Schema validation {severity.upper()}: {table} missing columns {cols}"
+        for table, cols_with_types, severity in all_checks:
+            try:
+                # Fetch column information (name, type)
+                col_info = q(conn, f"""
+                    SELECT column_name, data_type FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = ANY(%s)
+                    ORDER BY ordinal_position
+                """, (table, [c[0] for c in cols_with_types]))
+
+                col_dict = {row["column_name"]: row["data_type"] for row in col_info}
+
+                # Check all required columns exist
+                missing_cols = [c[0] for c, t in cols_with_types if c not in col_dict]
+                if missing_cols:
+                    msg = f"Schema validation {severity.upper()}: {table} missing columns {missing_cols}"
                     logger.error(msg)
                     if severity == "critical":
-                        sys.exit(f"Database schema error: {table} missing required columns")
-                else:
-                    # Verify table has data
+                        sys.exit(f"Database schema error: {table} missing required columns {missing_cols}")
+                    continue
+
+                # Check column types
+                type_mismatches = []
+                for col_name, expected_type in cols_with_types:
+                    if col_name in col_dict:
+                        actual_type = col_dict[col_name]
+                        if not type_family_matches(actual_type, expected_type):
+                            type_mismatches.append(f"{col_name} is {actual_type} (expected {expected_type})")
+
+                if type_mismatches:
+                    msg = f"Schema validation {severity.upper()}: {table} type mismatch: {'; '.join(type_mismatches)}"
+                    logger.error(msg)
+                    if severity == "critical":
+                        sys.exit(f"Database schema error: {table} has incorrect column types")
+
+                # Verify table has data (critical tables only)
+                if severity == "critical":
                     row_count = q1(conn, f"SELECT COUNT(*) as cnt FROM {table}")
                     if row_count and row_count.get("cnt") == 0:
-                        level_msg = "ERROR" if severity == "critical" else "WARNING"
-                        logger.warning(f"Schema validation [{level_msg}]: {table} ({severity}) exists but is EMPTY (no rows)")
-                        if severity == "critical":
-                            sys.exit(f"Database schema error: critical table {table} is empty (contains no data)")
+                        msg = f"Schema validation CRITICAL: {table} exists but is EMPTY (contains no data)"
+                        logger.error(msg)
+                        sys.exit(f"Database schema error: critical table {table} is empty (contains no data)")
+
             except psycopg2.Error as e:
                 if "does not exist" in str(e):
                     msg = f"Schema validation {severity.upper()}: {table} missing"
@@ -341,7 +438,7 @@ def validate_schema() -> None:
                     raise
 
         conn.close()
-        logger.info("Database schema validation completed (some tables may be empty or missing)")
+        logger.info("Database schema validation passed (columns exist with correct types, critical tables have data)")
     except (psycopg2.Error, KeyError) as e:
         logger.error(f"Schema validation failed: {e}")
         sys.exit(f"Database connection/schema error: {e}")
