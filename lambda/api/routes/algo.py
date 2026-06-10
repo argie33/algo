@@ -487,8 +487,12 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
             positions = cur.fetchall()
 
             items = []
+            join_mismatches = []
             for p in positions:
                 d = dict(p)
+                # Validate critical JOINs: detect mismatches early
+                if d.get('sector') is None:
+                    join_mismatches.append({'symbol': d.get('symbol'), 'missing_field': 'sector (company_profile)'})
                 # Add computed fields for API compatibility
                 unrealized_pnl = (d.get('position_value', 0) or 0) * (d.get('unrealized_pnl_pct', 0) or 0) / 100
                 d['unrealized_pnl'] = round(unrealized_pnl, 2)
@@ -500,11 +504,15 @@ def _get_algo_positions(cur, user_id: str = None) -> Dict:
                         (float(d['avg_entry_price']) - float(d['stop_loss_price'])), 2)
                 items.append(d)
 
+            if join_mismatches:
+                logger.error(f'CRITICAL: Position JOIN validation failed - {len(join_mismatches)} symbols have missing data: {join_mismatches}')
+
             freshness = check_data_freshness(cur, 'algo_trades', 'created_at', warning_days=1)
             return json_response(200, {
                 'items': items,
                 'pagination': {'total': len(items), 'limit': 10000, 'offset': 0},
-                'data_freshness': freshness
+                'data_freshness': freshness,
+                'join_validation': {'status': 'ok' if not join_mismatches else 'degraded', 'mismatches': join_mismatches} if join_mismatches else None
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             code, error_type, message = handle_db_error(e, 'fetch algo positions')
@@ -642,16 +650,29 @@ def _get_algo_performance(cur) -> Dict:
                     tail_ratio = round(max_win / max_loss, 2)
 
             freshness = check_data_freshness(cur, 'algo_trades', 'exit_date', warning_days=1)
+
+            # Calculate confidence levels for key metrics
+            sharpe_confidence = 'high' if snapshot_count >= 20 else 'medium' if snapshot_count >= 5 else 'low'
+            win_rate_confidence = 'high' if total >= 30 else 'medium' if total >= 10 else 'low'
+            return_confidence = 'high' if snapshot_count >= 20 else 'medium' if snapshot_count >= 5 else 'low'
+
+            # Flag breakeven trades excluded from win rate
+            breakeven_count = sum(1 for p in pnls_pcts if p == 0)
+            has_breakeven_warning = breakeven_count > 0
+
             result = {
                 'total_trades': total,
                 'winning_trades': winning,
                 'losing_trades': losing,
                 'win_rate': win_rate_pct,
                 'win_rate_pct': win_rate_pct,
+                'win_rate_confidence': win_rate_confidence,
+                'win_rate_warning': f'{breakeven_count} breakeven trades excluded from calculation' if has_breakeven_warning else None,
                 'profit_factor': round(profit_factor, 2),
                 'total_pnl_dollars': round(sum(pnls_dollars), 2),
                 'total_pnl_pct': sum_of_trade_pnls_pct,
                 'total_return_pct': total_return_pct,
+                'return_confidence': return_confidence,
                 'avg_trade_pct': round(_mean(pnls_pcts), 2),
                 'avg_win_pct': round(_mean(wins_p), 2),
                 'avg_loss_pct': round(_mean(losses_p), 2),
@@ -659,6 +680,8 @@ def _get_algo_performance(cur) -> Dict:
                 'worst_trade_pct': round(min(pnls_pcts), 2) if pnls_pcts else 0.0,
                 'sharpe_annualized': round(sharpe, 2),
                 'sharpe_ratio': round(sharpe, 2),
+                'sharpe_confidence': sharpe_confidence,
+                'sharpe_warning': f'Low confidence: only {snapshot_count} snapshots (need ≥5)' if snapshot_count < 5 else None,
                 'sortino_annualized': round(sortino, 2),
                 'sortino_ratio': round(sortino, 2),
                 'max_drawdown_pct': round(abs(max_dd) * 100, 2),
@@ -679,6 +702,13 @@ def _get_algo_performance(cur) -> Dict:
                 'gross_win_dollars': round(wins_sum, 2),
                 'gross_loss_dollars': round(losses_sum, 2),
                 'data_freshness': freshness,
+                'confidence_metadata': {
+                    'sharpe_confidence': sharpe_confidence,
+                    'win_rate_confidence': win_rate_confidence,
+                    'return_confidence': return_confidence,
+                    'snapshot_count': snapshot_count,
+                    'total_trades': total,
+                }
             }
             return json_response(200, result)
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
@@ -698,6 +728,28 @@ def _get_circuit_breakers(cur) -> Dict:
         try:
             today = date.today()
             breakers = []
+
+            # CRITICAL: Validate required circuit breaker configuration tables exist
+            required_tables = ['algo_portfolio_snapshots', 'algo_trades', 'market_health_daily', 'algo_positions']
+            missing_tables = []
+            for table in required_tables:
+                try:
+                    cur.execute(f"SELECT 1 FROM {table} LIMIT 1")
+                except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedSchema):
+                    missing_tables.append(table)
+                except Exception:
+                    pass
+
+            if missing_tables:
+                logger.error(f'ALERT: Circuit breaker CRITICAL config tables missing: {missing_tables}')
+                return json_response(200, {
+                    'breakers': [],
+                    'any_triggered': False,
+                    'triggered_count': 0,
+                    'data_freshness': {'data_age_days': None, 'is_stale': True, 'warning': 'Data unavailable'},
+                    'error': f'Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.',
+                    'error_type': 'missing_critical_tables'
+                })
 
             # CB1: Portfolio drawdown
             try:
@@ -1689,6 +1741,12 @@ def _get_markets(cur) -> Dict:
         """Get current market regime data and historical exposure."""
         try:
             cur.execute("SET LOCAL statement_timeout = '8000ms'")
+
+            # EARLY VALIDATION: Check data freshness before processing
+            freshness = check_data_freshness(cur, 'market_exposure_daily', 'date', warning_days=1)
+            if freshness.get('is_stale'):
+                logger.error(f'CRITICAL: market_exposure_daily is stale (age: {freshness.get("data_age_days")} days)')
+
             cur.execute("""
                 SELECT date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons
                 FROM market_exposure_daily
@@ -1747,6 +1805,7 @@ def _get_markets(cur) -> Dict:
                 'history': history,
                 'sectors': sectors,
                 'market_health': market_health,
+                'data_freshness': freshness,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
