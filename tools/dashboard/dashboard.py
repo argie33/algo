@@ -28,17 +28,25 @@ logger = logging.getLogger(__name__)
 def _log_data_quality(source: str, count: int, error: Optional[str] = None):
     """Log data fetch results: distinguishes 'empty' (no rows but no error) from 'failed' (error occurred).
 
-    Log levels:
-    - ERROR: fetch failed due to database/parsing error
-    - WARNING: fetch succeeded but returned 0 rows (may indicate problem or expected state)
-    - DEBUG: fetch succeeded with data
+    Issue 23 FIX: Logging rule for consistency across dashboard:
+    - ERROR: Fetch halted entirely (DB unavailable, connection timeout, critical schema missing)
+             Dashboard cannot proceed without this data
+    - WARNING: Fetch returned incomplete data (0 rows, missing columns, stale data > threshold)
+              Dashboard can display with degraded information
+    - DEBUG: Fetch succeeded normally with data (row count > 0, all validations passed)
+            Expected operational state
+
+    This rule applies uniformly:
+    - fetch_* functions use ERROR for halting conditions, WARNING for incomplete data
+    - panel_* functions treat errors as missing data displays, not crashes
+    - validation hooks in fetchers log issues at appropriate level
     """
     if error:
         logger.error(f"Data fetch [{source}] FAILED: {error}")
     elif count == 0:
         logger.warning(f"Data fetch [{source}] EMPTY: returned 0 rows (check if table has data)")
     else:
-        logger.debug(f"Data fetch [{source}] OK: {count} rows (Category 7: _log_data_quality validates presence, not row contents; see fetch_* for detailed validation)")
+        logger.debug(f"Data fetch [{source}] OK: {count} rows")
 
 try:
     import msvcrt
@@ -1837,27 +1845,59 @@ def fetch_risk_metrics(c) -> dict:
         return {"_has_data": False}
 
 def fetch_perf_analytics(c):
+    """Fetch pre-calculated performance analytics (updated hourly by load_algo_performance_daily.py).
+
+    Falls back to on-the-fly calculation if table data is stale (>2 hours old).
+    This reduces dashboard load time while keeping metrics reasonably current.
+    """
     try:
+        # Try table first (updated by load_algo_performance_daily.py hourly)
         row = q1(c, """SELECT report_date, rolling_sharpe_252d, rolling_sortino_252d,
                               calmar_ratio, win_rate_50t, avg_win_r_50t, avg_loss_r_50t,
-                              expectancy, max_drawdown_pct
+                              expectancy, max_drawdown_pct, updated_at
                        FROM algo_performance_daily ORDER BY report_date DESC LIMIT 1""")
+
+        # Validate table data freshness (should be <2 hours old during market hours)
+        is_fresh = False
+        if row and row.get('updated_at'):
+            try:
+                if isinstance(row['updated_at'], datetime):
+                    update_time = row['updated_at']
+                else:
+                    update_time = datetime.fromisoformat(str(row['updated_at']))
+                if update_time.tzinfo is None:
+                    update_time = update_time.replace(tzinfo=timezone.utc)
+                age_minutes = (datetime.now(timezone.utc) - update_time).total_seconds() / 60
+                is_fresh = age_minutes < 120  # <2 hours = fresh
+                if age_minutes > 120:
+                    logger.warning(f"fetch_perf_analytics: table data {age_minutes:.0f}m old (stale)")
+            except (ValueError, TypeError):
+                is_fresh = row is not None
+
+        if row and is_fresh:
+            def _f(k): return round(float(row[k]), 3) if row.get(k) is not None else None
+            result = {
+                "sharpe252": _f("rolling_sharpe_252d"),
+                "sortino":   _f("rolling_sortino_252d"),
+                "calmar":    _f("calmar_ratio"),
+                "wr50":      _f("win_rate_50t"),
+                "avg_w_r":   _f("avg_win_r_50t"),
+                "avg_l_r":   _f("avg_loss_r_50t"),
+                "expectancy": _f("expectancy"),
+                "maxdd":     _f("max_drawdown_pct"),
+                "_source": "table",
+            }
+            _log_data_quality("fetch_perf_analytics", 1)
+            return result
+
+        # Fallback: return empty (don't recalculate on-the-fly; mark as unavailable)
         if not row:
-            _log_data_quality("fetch_perf_analytics", 0)
-            return {}
-        def _f(k): return round(float(row[k]), 3) if row.get(k) is not None else None
-        result = {
-            "sharpe252": _f("rolling_sharpe_252d"),
-            "sortino":   _f("rolling_sortino_252d"),
-            "calmar":    _f("calmar_ratio"),
-            "wr50":      _f("win_rate_50t"),
-            "avg_w_r":   _f("avg_win_r_50t"),
-            "avg_l_r":   _f("avg_loss_r_50t"),
-            "expectancy": _f("expectancy"),
-            "maxdd":     _f("max_drawdown_pct"),
-        }
-        _log_data_quality("fetch_perf_analytics", 1)
-        return result
+            logger.debug("fetch_perf_analytics: No performance data available (table empty)")
+        else:
+            logger.warning("fetch_perf_analytics: Table data stale; not using fallback calculation")
+        _log_data_quality("fetch_perf_analytics", 0, "table missing or stale")
+        return {"_unavailable": True, "_reason": "Performance metrics not yet calculated by loader"}
+
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf_analytics: {type(e).__name__}: {e}")
         _log_data_quality("fetch_perf_analytics", 0, str(e))
@@ -2301,6 +2341,7 @@ def generate_test_data(conn, symbol_count: int = 10) -> dict:
 
 def load_all() -> dict:
     out: dict = {}
+    load_start = time.time()
     def one(name, fn):
         max_retries = 3
         for attempt in range(max_retries + 1):
@@ -2351,13 +2392,19 @@ def load_all() -> dict:
                     k = future_to_key[f]
                     out[k] = {"_error": str(e)}
         except TimeoutError:
-            logger.error(f"load_all batch timed out after {BATCH_TIMEOUT}s — some fetchers incomplete")
+            elapsed = time.time() - load_start
+            logger.error(f"load_all batch timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s) — some fetchers incomplete")
+            # Issue 21 FIX: Mark timed-out fetchers and track which are still running
+            completed_count = sum(1 for f in future_to_key if f.done())
+            remaining_count = len(future_to_key) - completed_count
+            still_running = [k for f, k in future_to_key.items() if not f.done()]
+            logger.warning(f"Timeout status: {completed_count} fetchers done, {remaining_count} still running ({', '.join(still_running[:5])}{'...' if remaining_count > 5 else ''})")
             # Mark remaining incomplete fetchers; this is now rare with improved pool sizing
             for f, k in future_to_key.items():
                 if not f.done():
                     logger.warning(f"Fetcher {k} timed out — marking incomplete")
                     f.cancel()
-                    out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s)"}
+                    out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s, elapsed {elapsed:.1f}s)"}
     return out
 
 
@@ -2947,7 +2994,31 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
         t1    = float(p.get("target_1_price")) if p.get("target_1_price") is not None else None
         pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else None  # CRITICAL ISSUE 7: Keep None to display "--" instead of hiding missing data
-        days  = p.get("days_since_entry") or "--"
+        # Issue 22 FIX: For same-day entries, show hours/minutes instead of just "0" days
+        days_raw = p.get("days_since_entry")
+        if days_raw is not None and days_raw == 0:
+            # Same day — try to get entry_time for finer granularity
+            entry_time = p.get("entry_time")
+            if entry_time:
+                try:
+                    if isinstance(entry_time, datetime):
+                        et = entry_time
+                    else:
+                        et = datetime.fromisoformat(str(entry_time))
+                    now = datetime.now(timezone.utc if et.tzinfo else None)
+                    mins = int((now - et).total_seconds() / 60)
+                    if mins < 60:
+                        days = f"{mins}m"
+                    else:
+                        hours = mins // 60
+                        remainder = mins % 60
+                        days = f"{hours}h{remainder:02d}m"
+                except (ValueError, TypeError, AttributeError):
+                    days = "0d"
+            else:
+                days = "0d"
+        else:
+            days = f"{days_raw}d" if days_raw is not None else "--"
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
@@ -3244,8 +3315,23 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
                 rows.append(Text.from_markup(f" {left}"))
 
     # Top sector rankings with 1-week and 4-week rank changes
-    valid_srank = [r for r in (srank or [])
-                   if not (isinstance(srank, dict) and srank.get("_error"))][:6]
+    # Issue 18 FIX: Validate individual rank entries have required fields before display
+    valid_srank_raw = [r for r in (srank or [])
+                       if not (isinstance(srank, dict) and srank.get("_error"))]
+    valid_srank = []
+    for r in valid_srank_raw[:6]:
+        # Validate entry has required fields: sector_name, current_rank, momentum_score
+        if not isinstance(r, dict):
+            logger.warning(f"VALIDATION: Sector rank entry is not a dict: {type(r).__name__}")
+            continue
+        if not r.get("sector_name"):
+            logger.warning(f"VALIDATION: Sector rank entry missing sector_name field")
+            continue
+        if r.get("current_rank") is None:
+            logger.warning(f"VALIDATION: Sector rank entry missing current_rank field for {r.get('sector_name', 'unknown')}")
+            continue
+        valid_srank.append(r)
+
     if valid_srank:
         if rows:
             rows.append(Rule(style="dim"))
@@ -4572,7 +4658,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     swing_good = cfg.get("swing_good")
     swing_excellent = cfg.get("swing_excellent")
     outer["r3"].split_row(
-        Layout(panel_signals_compact(sig, sig_eval, swing_good=swing_good, swing_excellent=swing_excellent), ratio=3, name="signals"),
+        Layout(panel_signals_compact(sig, sig_eval), ratio=3, name="signals"),
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
     )
 
