@@ -521,9 +521,11 @@ def fetch_run(c):
         if row:
             pr = row.get("phase_results") or []
             if isinstance(pr, str):
-                try: pr = json.loads(pr)
+                try:
+                    pr = json.loads(pr)
                 except (json.JSONDecodeError, ValueError) as e:
-                    logger.warning(f"Failed to parse phase_results JSON: {e}")
+                    logger.error(f"phase_results JSON corrupt (orchestrator version mismatch?): {e}")
+                    logger.error(f"Raw content (first 200 chars): {str(pr)[:200]}")
                     pr = []
             overall = (row.get("overall_status") or "").lower()
             result = {
@@ -614,10 +616,11 @@ def fetch_market(c):
         pct   = float(exp.get("exposure_pct")) if exp and exp.get("exposure_pct") is not None else None
         halts = exp.get("halt_reasons") or [] if exp else []
         if isinstance(halts, str):
-            try: halts = json.loads(halts)
+            try:
+                halts = json.loads(halts)
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse halt_reasons JSON: {e}")
-                halts = [halts] if halts else []
+                logger.warning(f"halt_reasons JSON invalid: {e}. Using empty list.")
+                halts = []
 
         # Check data freshness (should be from today or recent trading day)
         exp_age = None
@@ -757,11 +760,24 @@ def fetch_exposure_factors(c):
         factors = row.get("factors") or {}
         factors_error = None
         if isinstance(factors, str):
-            try: factors = json.loads(factors)
+            try:
+                factors = json.loads(factors)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse exposure factors JSON: {e}")
                 factors_error = str(e)
                 factors = {}
+        # Schema validation: ensure factors dict has expected structure
+        if factors and isinstance(factors, dict):
+            expected_keys = {"trend_30wk", "credit_spread", "vix", "momentum", "breadth"}
+            found_keys = set(factors.keys())
+            missing_keys = expected_keys - found_keys
+            if missing_keys:
+                logger.warning(f"exposure_factors schema issue: missing expected keys {missing_keys}")
+            # Check that accessed keys exist when extracting values later
+            for key in found_keys:
+                val = factors.get(key)
+                if val is not None and not isinstance(val, (dict, str, int, float)):
+                    logger.warning(f"exposure_factors[{key}] has unexpected type {type(val).__name__}")
         result = {
             "raw_score":    float(row.get("raw_score") or 0),
             "exposure_pct": float(row.get("exposure_pct") or 0),
@@ -1368,10 +1384,11 @@ def fetch_sector_rotation(c):
             return {}
         d = row.get("details") or {}
         if isinstance(d, str):
-            try: d = json.loads(d)
+            try:
+                d = json.loads(d)
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse sector_rotation details JSON: {e}")
-                d = {}
+                logger.error(f"sector_rotation details corrupt; sector rotation signal unavailable: {e}")
+                return {"_error": "Sector rotation data corrupted"}
         result = {
             "date":     row.get("date"),
             "signal":   row.get("signal") or "",
@@ -1659,15 +1676,23 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         label = PHASE_NAMES.get(base, raw.replace("phase_", "P"))
         pdata = p.get("data") or {}
         if isinstance(pdata, str):
-            try:    pdata = json.loads(pdata)
+            try:
+                pdata = json.loads(pdata)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse phase data JSON: {e}")
                 pdata = {}
-        detail = next(
-            (str(pdata[k]) for k in _FIELDS
-             if pdata.get(k) and len(str(pdata.get(k))) > 3),
-            ""
-        )
+        detail = ""
+        found_field = None
+        for field in _FIELDS:
+            val = pdata.get(field)
+            if val and len(str(val)) > 3:
+                detail = str(val)
+                found_field = field
+                break
+        if found_field:
+            logger.debug(f"Halt reason from field: {found_field}")
+        elif pdata.get("halt_reason"):
+            logger.debug(f"Halt reason fields present but all <3 chars: {list(pdata.keys())}")
         if detail:
             found.append((label, detail))
     if not found and top_level:
