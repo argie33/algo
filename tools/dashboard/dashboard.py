@@ -516,6 +516,9 @@ def fetch_market(c):
                     except (ValueError, TypeError):
                         exp_date = None
                 if exp_date:
+                    # Ensure timezone-aware comparison (handle naive datetimes)
+                    if exp_date.tzinfo is None:
+                        exp_date = exp_date.replace(tzinfo=timezone.utc)
                     exp_age = (datetime.now(timezone.utc) - exp_date).days
             except (ValueError, TypeError, KeyError): pass
 
@@ -989,7 +992,7 @@ def fetch_notifications(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_notifications: {type(e).__name__}: {e}")
         _log_data_quality("fetch_notifications", 0, str(e))
-        return {}
+        return []
 
 def fetch_sentiment(c):
     try:
@@ -1022,7 +1025,7 @@ def fetch_economic_calendar(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
         _log_data_quality("fetch_economic_calendar", 0, str(e))
-        return {}
+        return []
 
 def fetch_risk_metrics(c) -> dict:
     try:
@@ -1157,7 +1160,7 @@ def fetch_industry_ranking(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_industry_ranking: {type(e).__name__}: {e}")
         _log_data_quality("fetch_industry_ranking", 0, str(e))
-        return {}
+        return []
 
 def fetch_loader_status(c):
     try:
@@ -1177,7 +1180,7 @@ def fetch_loader_status(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_loader_status: {type(e).__name__}: {e}")
         _log_data_quality("fetch_loader_status", 0, str(e))
-        return {}
+        return []
 
 def fetch_exec_history(c):
     try:
@@ -1197,7 +1200,7 @@ def fetch_exec_history(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_exec_history: {type(e).__name__}: {e}")
         _log_data_quality("fetch_exec_history", 0, str(e))
-        return {}
+        return []
 
 def fetch_audit_log(c):
     try:
@@ -1224,7 +1227,7 @@ def fetch_audit_log(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_audit_log: {type(e).__name__}: {e}")
         _log_data_quality("fetch_audit_log", 0, str(e))
-        return {}
+        return []
 
 def fetch_circuit(c):
     try:
