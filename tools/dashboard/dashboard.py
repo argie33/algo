@@ -350,7 +350,9 @@ def fetch_run(c):
             pr = row.get("phase_results") or []
             if isinstance(pr, str):
                 try: pr = json.loads(pr)
-                except: pr = []
+                except (json.JSONDecodeError, ValueError):
+                    logger.warning("Could not parse phase_results JSON")
+                    pr = []
             overall = (row.get("overall_status") or "").lower()
             return {
                 "run_id":    row.get("run_id"),
@@ -426,7 +428,9 @@ def fetch_market(c):
         halts = exp.get("halt_reasons") or [] if exp else []
         if isinstance(halts, str):
             try: halts = json.loads(halts)
-            except: halts = [halts] if halts else []
+            except (json.JSONDecodeError, ValueError):
+                logger.debug("halt_reasons JSON parse failed, using as string")
+                halts = [halts] if halts else []
 
         # Check data freshness (should be from today or recent trading day)
         exp_age = None
@@ -500,7 +504,9 @@ def fetch_exposure_factors(c):
         factors = row.get("factors") or {}
         if isinstance(factors, str):
             try: factors = json.loads(factors)
-            except: factors = {}
+            except (json.JSONDecodeError, ValueError):
+                logger.warning("Failed to parse exposure factors JSON")
+                factors = {}
         return {
             "raw_score":    float(row.get("raw_score") or 0),
             "exposure_pct": float(row.get("exposure_pct") or 0),
@@ -581,7 +587,7 @@ def fetch_positions(c):
 
     Data derivation:
     - algo_trades WHERE status IN ('open','filled','partially_filled','active')
-    - Latest price from price_daily
+    - Latest price from price_daily for ONLY the open positions (not all symbols)
     - Trade metadata (stop, targets) from the trade record
     - Technical/fundamental data from supporting tables
 
@@ -602,18 +608,22 @@ def fetch_positions(c):
                 ORDER BY symbol, trade_date DESC
             ),
             latest_prices AS (
+                -- Only get prices for open position symbols (not all 10k+ symbols)
                 SELECT DISTINCT ON (symbol) symbol, close as current_price
                 FROM price_daily
+                WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
                 ORDER BY symbol, date DESC
             ),
             trend AS (
                 SELECT DISTINCT ON (symbol) symbol, weinstein_stage
                 FROM trend_template_data
+                WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
                 ORDER BY symbol, date DESC
             ),
             swings AS (
                 SELECT DISTINCT ON (symbol) symbol, score AS swing_score
                 FROM swing_trader_scores
+                WHERE symbol IN (SELECT DISTINCT symbol FROM open_trades)
                 ORDER BY symbol, date DESC
             ),
             days_held AS (
@@ -964,7 +974,9 @@ def fetch_sector_rotation(c):
         d = row.get("details") or {}
         if isinstance(d, str):
             try: d = json.loads(d)
-            except: d = {}
+            except (json.JSONDecodeError, ValueError):
+                logger.debug("sector_rotation details JSON parse failed")
+                d = {}
         return {
             "date":     row.get("date"),
             "signal":   row.get("signal") or "",
@@ -1028,7 +1040,9 @@ def fetch_audit_log(c):
             det = r.get("details") or {}
             if isinstance(det, str):
                 try: det = json.loads(det)
-                except: det = {}
+                except (json.JSONDecodeError, ValueError):
+                    logger.debug("audit_log details JSON parse failed")
+                    det = {}
             result.append({
                 "action_type": r.get("action_type", ""),
                 "symbol":      r.get("symbol") or det.get("symbol", ""),
