@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
@@ -1815,12 +1815,16 @@ def fetch_signals(c):
         grades_date = None
 
         # First try pre-computed grades
-        grades_daily = q1(c, """
-            SELECT num_grade_a as a, num_grade_b as b, num_grade_c as c, num_grade_d as d,
-                   total_graded as total, score_date
-            FROM grade_distribution_daily
-            ORDER BY report_date DESC LIMIT 1
-        """)
+        grades_daily = None
+        try:
+            grades_daily = q1(c, """
+                SELECT num_grade_a as a, num_grade_b as b, num_grade_c as c, num_grade_d as d,
+                       total_graded as total, score_date
+                FROM grade_distribution_daily
+                ORDER BY report_date DESC LIMIT 1
+            """)
+        except psycopg2.Error as e:
+            logger.debug(f"Grade distribution table not available: {e}")
 
         if grades_daily:
             grades = grades_daily
@@ -2393,7 +2397,7 @@ def fetch_industry_ranking(c):
 def fetch_loader_status(c):
     try:
         result = q(c, """SELECT table_name, status, latest_date, age_days,
-                              completion_pct, error_message, last_updated_at
+                              completion_pct, error_message, last_updated
                        FROM data_loader_status
                        ORDER BY CASE status
                            WHEN 'error'   THEN 1
@@ -2408,7 +2412,7 @@ def fetch_loader_status(c):
         if result:
             now = datetime.now(timezone.utc)
             for row in result:
-                last_update = row.get("last_updated_at")
+                last_update = row.get("last_updated")
                 status = row.get("status")
                 table_name = row.get("table_name")
 
@@ -2419,7 +2423,7 @@ def fetch_loader_status(c):
                         try:
                             td = datetime.fromisoformat(str(last_update))
                         except (ValueError, TypeError):
-                            logger.warning(f"VALIDATION: Loader '{table_name}' has unparseable last_updated_at: {last_update}")
+                            logger.warning(f"VALIDATION: Loader '{table_name}' has unparseable last_updated: {last_update}")
                             continue
 
                     if td.tzinfo is None:
@@ -2432,7 +2436,7 @@ def fetch_loader_status(c):
                     elif status in ('error', 'failed') and minutes_since_update > 1440:
                         logger.warning(f"VALIDATION: Loader '{table_name}' in '{status}' state for {minutes_since_update:.0f} minutes — requires investigation")
                 elif status in ('loading', 'error', 'failed'):
-                    logger.warning(f"VALIDATION: Loader '{table_name}' in '{status}' state but last_updated_at is NULL — cannot determine staleness")
+                    logger.warning(f"VALIDATION: Loader '{table_name}' in '{status}' state but last_updated is NULL — cannot determine staleness")
 
         _log_data_quality("fetch_loader_status", len(result) if result else 0)
         return result
@@ -3218,6 +3222,9 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             if t1r:       parts6.append(f"[dim]T1:[/][white]{t1r}R[/]")
             parts6.append(f"[dim]next:[/][white]{next_run_str()}[/]")
             rows.append(Text.from_markup("  ".join(parts6)))
+        stale_alerts = mkt.get("stale_alerts", [])
+        if stale_alerts:
+            rows.append(Text.from_markup(f"[orange1][!] Data stale:[/] {', '.join(stale_alerts)}"))
     else:
         rows.append(Text("no market data", style="dim"))
     return Panel(Group(*rows), title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
@@ -3714,8 +3721,8 @@ def panel_recent_trades(trades):
         sym    = tr.get("symbol") or "--"
         date   = tr.get("exit_date") or tr.get("trade_date")
         date_s = date.strftime("%b %d") if hasattr(date, "strftime") else str(date or "--")
-        pnl_d  = float(tr.get("profit_loss_dollars") or 0)
-        pnl_p  = float(tr.get("profit_loss_pct") or 0)
+        pnl_d  = get_numeric(tr, "profit_loss_dollars") or 0
+        pnl_p  = get_numeric(tr, "profit_loss_pct") or 0
         rmul   = tr.get("exit_r_multiple")
         status = (tr.get("status") or "")
         is_closed = status == "closed"
@@ -4606,15 +4613,15 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         rows.append(Text.from_markup(f"[dim]Loaders:[/] [{G}]✓ {ok_count} healthy[/]"))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+    if risk and not risk.get("_error") and risk.get("var95") and get_numeric(risk, "var95") or 0 > 0:
         rows.append(Rule(style="dim"))
-        beta_v = float(risk.get("beta") or 0)
-        conc5_v = float(risk.get("conc5") or 0)
+        beta_v = get_numeric(risk, "beta") or 0
+        conc5_v = get_numeric(risk, "conc5") or 0
         beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
         conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
-        var95_v = float(risk.get("var95") or 0)
-        cvar95_v = float(risk.get("cvar95") or 0)
-        svar_v = float(risk.get("svar") or 0)
+        var95_v = get_numeric(risk, "var95") or 0
+        cvar95_v = get_numeric(risk, "cvar95") or 0
+        svar_v = get_numeric(risk, "svar") or 0
         risk_parts = [
             f"[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]",
             f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]",
@@ -4933,15 +4940,15 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
             ))
 
     # Risk snapshot
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+    if risk and not risk.get("_error") and risk.get("var95") and get_numeric(risk, "var95") or 0 > 0:
         rows.append(Rule(style="dim"))
-        beta_v = float(risk.get("beta") or 0)
-        conc5_v = float(risk.get("conc5") or 0)
+        beta_v = get_numeric(risk, "beta") or 0
+        conc5_v = get_numeric(risk, "conc5") or 0
         beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
         conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
-        var95_v = float(risk.get("var95") or 0)
-        cvar95_v = float(risk.get("cvar95") or 0)
-        svar_v = float(risk.get("svar") or 0)
+        var95_v = get_numeric(risk, "var95") or 0
+        cvar95_v = get_numeric(risk, "cvar95") or 0
+        svar_v = get_numeric(risk, "svar") or 0
         risk_parts = [
             f"[dim]VaR 95%:[/][white]{var95_v:.2f}%[/]",
             f"[dim]CVaR 95%:[/][white]{cvar95_v:.2f}%[/]",
@@ -4988,9 +4995,9 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
         sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
         wks      = sec_rot.get("weeks", 1)
-        def_s    = float(sec_rot.get("def_score") or 0)
-        cyc_s    = float(sec_rot.get("cyc_score") or 0)
-        strength = float(sec_rot.get("strength") or 0)
+        def_s = get_numeric(sec_rot, "def_score")
+        cyc_s = get_numeric(sec_rot, "cyc_score")
+        strength = get_numeric(sec_rot, "strength")
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength > 1:
             strength = strength / 100.0
