@@ -234,21 +234,27 @@ def _get_db_credentials() -> dict:
     CRITICAL ISSUE 1 FIX: Validate immediately and fail fast with specific missing field info.
     Don't return incomplete credentials—let caller know exactly what's missing and where from.
     """
+    port_str = os.environ.get("DB_PORT")
+    try:
+        port = int(port_str) if port_str else None
+    except (ValueError, TypeError):
+        port = None
+
     env_creds = {
         "host": os.environ.get("DB_HOST"),
         "user": os.environ.get("DB_USER"),
         "password": os.environ.get("DB_PASSWORD"),
         "dbname": os.environ.get("DB_NAME"),
-        "port": int(os.environ.get("DB_PORT", 5432)),
+        "port": port,
     }
 
     # If env vars are complete, use them
-    if all([env_creds["host"], env_creds["user"], env_creds["password"], env_creds["dbname"]]):
+    if all([env_creds["host"], env_creds["user"], env_creds["password"], env_creds["dbname"], env_creds["port"]]):
         logger.debug("DB credentials loaded from environment variables")
         return env_creds
 
     # Env vars incomplete — check what's missing
-    env_missing = [k for k in ["host", "user", "password", "dbname"] if not env_creds.get(k)]
+    env_missing = [k for k in ["host", "user", "password", "dbname", "port"] if not env_creds.get(k)]
     env_status = f"incomplete ({', '.join(env_missing)} missing)" if env_missing else "complete"
 
     # Otherwise try AWS Secrets Manager (with explicit timeout handling)
@@ -1685,7 +1691,7 @@ def fetch_signals(c):
                    cp.sector,
                    s.score AS swing_score
             FROM buy_sell_daily b
-            LEFT JOIN company_profile cp ON cp.symbol = b.symbol OR cp.ticker = b.symbol
+            LEFT JOIN company_profile cp ON cp.symbol = b.symbol
             LEFT JOIN (
                 SELECT DISTINCT ON (symbol) symbol, score
                 FROM swing_trader_scores ORDER BY symbol, date DESC
@@ -1763,7 +1769,7 @@ def fetch_signals(c):
         near = q(c, """
             SELECT s.symbol, s.score, cp.sector
             FROM swing_trader_scores s
-            LEFT JOIN company_profile cp ON cp.symbol = s.symbol OR cp.ticker = s.symbol
+            LEFT JOIN company_profile cp ON cp.symbol = s.symbol
             WHERE s.date=%s
               AND s.score BETWEEN %s AND %s
             ORDER BY s.score DESC LIMIT 15""", (grades_date, near_lower, near_upper)) if grades_date else []

@@ -66,6 +66,12 @@ const PIE_PALETTE = [
   '#FFC107', '#795548', '#607D8B', '#FF6B6B',
 ];
 
+const CachedDataBadge = () => (
+  <span className="badge badge-amber" style={{ fontSize: 'var(--t-xs)', marginLeft: 'var(--space-1)' }}>
+    🔄 Cached
+  </span>
+);
+
 const formatErrorDetail = (err, context) => {
   if (!err) return null;
   if (typeof err === 'string') return err;
@@ -168,16 +174,34 @@ function PortfolioDashboardPage() {
     ? parseFloat(portfolio.total_value)
     : (totalPositionValue || 0);
 
+  // Check for cached/stale data (graceful degradation)
+  const hasCachedPerf = perf?.fromCache;
+  const hasCachedTrades = trades?.fromCache;
+  const hasCachedEquity = equityItems?.fromCache;
+
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
-  const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
+  // Only show errors that don't have cached fallback data
+  const criticalErrors = [
+    statusError, posError,
+    (perfError && !hasCachedPerf ? perfError : null),
+    (tradesError && !hasCachedTrades ? tradesError : null),
+    marketsError,
+    (equityError && !hasCachedEquity ? equityError : null)
+  ];
   const hasAnyError = criticalErrors.some(err => err);
   const errorList = [];
   if (statusError) errorList.push({ section: 'Status', error: statusError });
   if (posError) errorList.push({ section: 'Positions', error: posError });
-  if (perfError) errorList.push({ section: 'Performance', error: perfError });
-  if (tradesError) errorList.push({ section: 'Trades', error: tradesError });
+  if (perfError && !hasCachedPerf) errorList.push({ section: 'Performance', error: perfError });
+  if (tradesError && !hasCachedTrades) errorList.push({ section: 'Recent Trades', error: tradesError });
   if (marketsError) errorList.push({ section: 'Markets', error: marketsError });
-  if (equityError) errorList.push({ section: 'Equity Curve', error: equityError });
+  if (equityError && !hasCachedEquity) errorList.push({ section: 'Equity Curve', error: equityError });
+
+  // Show stale data banner (but not as error — just informational)
+  const staleSections = [];
+  if (hasCachedPerf && perfError) staleSections.push('Performance metrics');
+  if (hasCachedTrades && tradesError) staleSections.push('Recent trades');
+  if (hasCachedEquity && equityError) staleSections.push('Equity curve');
 
   return (
     <div className="main-content">
@@ -207,6 +231,30 @@ function PortfolioDashboardPage() {
         </div>
       </div>
 
+      {/* Stale data banner (from cache fallback) */}
+      {staleSections.length > 0 && (
+        <div className="card" style={{ background: 'rgba(255, 193, 7, 0.1)', borderLeft: '3px solid var(--amber)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ padding: 'var(--space-3)' }}>
+            <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>
+              🔄 Using recent cached data
+            </div>
+            <div className="muted t-sm" style={{ marginBottom: 'var(--space-3)' }}>
+              {staleSections.join(', ')} couldn't reach the server. Showing last known state while we reconnect.
+            </div>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                if (hasCachedPerf && perfError) refetchPerf?.();
+                if (hasCachedTrades && tradesError) refetchTrades?.();
+                if (hasCachedEquity && equityError) refetchEquity?.();
+              }}
+            >
+              <RefreshCw size={14} /> Refresh Now
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Error banner for individual API failures (graceful degradation) */}
       {hasAnyError && (
         <div className="card" style={{ background: 'var(--surface-warning)', borderLeft: '3px solid var(--warning)', marginBottom: 'var(--space-4)' }}>
@@ -226,10 +274,10 @@ function PortfolioDashboardPage() {
               onClick={() => {
                 statusError && refetchStatus?.();
                 posError && refetchPositions?.();
-                perfError && refetchPerf?.();
-                tradesError && refetchTrades?.();
+                if (perfError && !hasCachedPerf) refetchPerf?.();
+                if (tradesError && !hasCachedTrades) refetchTrades?.();
                 marketsError && refetchMarkets?.();
-                equityError && refetchEquity?.();
+                if (equityError && !hasCachedEquity) refetchEquity?.();
               }}
             >
               <RefreshCw size={14} /> Retry Failed Requests
@@ -278,6 +326,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Ratios row */}
+      {hasCachedPerf && <div style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}><CachedDataBadge /> Performance Metrics (from cache)</div>}
       {isPrimaryLoading ? (
         <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
           <SkeletonKpi />
@@ -286,7 +335,7 @@ function PortfolioDashboardPage() {
           <SkeletonKpi />
         </div>
       ) : (
-        <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="grid grid-4" style={{ marginTop: hasCachedPerf ? 'var(--space-2)' : 'var(--space-4)' }}>
           <Kpi
             label="Sharpe (annualized)"
             value={<span className="mono tnum">{num(perf?.sharpe_annualized)}</span>}
@@ -406,7 +455,10 @@ function PortfolioDashboardPage() {
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-head">
           <div>
-            <div className="card-title">Recent Trades</div>
+            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              Recent Trades
+              {hasCachedTrades && <CachedDataBadge />}
+            </div>
             <div className="card-sub">Last closed positions</div>
           </div>
         </div>
