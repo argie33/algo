@@ -636,9 +636,24 @@ class PriceLoader(OptimalLoader):
         # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
-        # yfinance end date is EXCLUSIVE: to fetch May 29 data we must pass end=May 30.
-        # Use today+1 so today's data (if it's a trading day) is always included.
-        end = now_et.date() + timedelta(days=1)
+
+        # ISSUE FIX: EOD pipeline must fetch yesterday's COMPLETE data, not today's INCOMPLETE data
+        # At 4:05 PM ET (market close is 4:00 PM), today's market data is only partial/intraday.
+        # yfinance may not have the full day's close data yet (can lag 5-15 minutes).
+        # Solution: For EOD pipeline, fetch the PREVIOUS trading day (guaranteed complete).
+        # For morning/intraday: fetch today's data (freshly available).
+
+        if self._is_eod_pipeline:
+            # EOD runs at 4:05 PM - market just closed at 4:00 PM
+            # Fetch yesterday's COMPLETE data (previous trading day)
+            # yfinance end date is EXCLUSIVE, so end=today fetches up to (not including) today
+            end = now_et.date()
+            logger.info(f"[EOD_CONTEXT] Fetching data ending at {end} (yesterday's complete data for EOD)")
+        else:
+            # Morning prep or intraday - fetch up to today
+            # yfinance end date is EXCLUSIVE: to fetch May 29 data we must pass end=May 30.
+            end = now_et.date() + timedelta(days=1)
+            logger.debug(f"[INTRADAY_CONTEXT] Fetching data ending at {end} (including today)")
 
         if since is None:
             start = end - timedelta(days=101)
