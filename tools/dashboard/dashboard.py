@@ -1282,20 +1282,29 @@ def fetch_portfolio(c):
             _log_data_quality("fetch_portfolio", 0)
             return {}
 
-        # Issue 29: Validate portfolio snapshot date matches latest price data date
+        # Issue 29 FIX: Return date mismatch warning to client so dashboard can display it
         snapshot_date = row.get("snapshot_date")
         latest_price = q1(c, "SELECT DISTINCT date FROM price_daily ORDER BY date DESC LIMIT 1")
         price_date = latest_price.get("date") if latest_price else None
+
+        result = dict(row)
+        result["_date_mismatch"] = False
+        result["_date_mismatch_msg"] = None
 
         if snapshot_date and price_date:
             snap_dt = snapshot_date if isinstance(snapshot_date, date) else datetime.fromisoformat(str(snapshot_date)).date()
             price_dt = price_date if isinstance(price_date, date) else datetime.fromisoformat(str(price_date)).date()
             if snap_dt != price_dt:
-                logger.warning(f"VALIDATION: Portfolio snapshot ({snap_dt}) does not match latest price data ({price_dt}) — portfolio value may be calculated with stale prices")
+                msg = f"Portfolio snapshot ({snap_dt}) does not match latest price data ({price_dt}) — portfolio value may be stale"
+                logger.warning(f"VALIDATION: {msg}")
+                result["_date_mismatch"] = True
+                result["_date_mismatch_msg"] = msg
         elif not price_date:
-            logger.warning(f"VALIDATION: No price data available — portfolio value cannot be validated")
+            msg = "No price data available — portfolio value cannot be validated"
+            logger.warning(f"VALIDATION: {msg}")
+            result["_date_mismatch"] = True
+            result["_date_mismatch_msg"] = msg
 
-        result = dict(row)
         _log_data_quality("fetch_portfolio", 1)
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
@@ -2259,7 +2268,7 @@ def fetch_loader_status(c):
                        END, age_days DESC NULLS LAST
                        LIMIT 8""")
 
-        # Issue 27: Validate loader status freshness
+        # Issue 28 FIX: Validate loader status freshness for all statuses, not just 'loading'
         if result:
             now = datetime.now(timezone.utc)
             for row in result:
@@ -2267,18 +2276,27 @@ def fetch_loader_status(c):
                 status = row.get("status")
                 table_name = row.get("table_name")
 
-                if last_update and status == 'loading':
+                if last_update:
                     if isinstance(last_update, datetime):
                         td = last_update
                     else:
-                        td = datetime.fromisoformat(str(last_update))
+                        try:
+                            td = datetime.fromisoformat(str(last_update))
+                        except (ValueError, TypeError):
+                            logger.warning(f"VALIDATION: Loader '{table_name}' has unparseable last_updated_at: {last_update}")
+                            continue
 
                     if td.tzinfo is None:
                         td = td.replace(tzinfo=timezone.utc)
 
                     minutes_since_update = (now - td).total_seconds() / 60
-                    if minutes_since_update > 30:
+
+                    if status == 'loading' and minutes_since_update > 30:
                         logger.warning(f"VALIDATION: Loader '{table_name}' status marked as 'loading' for {minutes_since_update:.0f} minutes — status may be stale")
+                    elif status in ('error', 'failed') and minutes_since_update > 1440:
+                        logger.warning(f"VALIDATION: Loader '{table_name}' in '{status}' state for {minutes_since_update:.0f} minutes — requires investigation")
+                elif status in ('loading', 'error', 'failed'):
+                    logger.warning(f"VALIDATION: Loader '{table_name}' in '{status}' state but last_updated_at is NULL — cannot determine staleness")
 
         _log_data_quality("fetch_loader_status", len(result) if result else 0)
         return result
@@ -2635,9 +2653,14 @@ def load_all() -> dict:
                     # Issue 17 FIX: Improved exponential backoff for transient RDS connection pool exhaustion
                     # For attempt 0: 2-5s, attempt 1: 4-12s, attempt 2: 8-28s
                     # Gives RDS connection pool adequate time to recover from transient exhaustion
+                    # ISSUE 32 FIX: Add per-fetcher jitter to prevent thundering herd when all 27 fetchers
+                    # retry simultaneously after pool exhaustion. Each fetcher gets unique timing offset.
                     backoff = (2 ** attempt) * 2 + random.random() * (2 ** attempt) * 3
-                    logger.warning(f"Retry {attempt+1}/{max_retries} for {name} (backoff {backoff:.2f}s): {e}")
-                    time.sleep(backoff)
+                    # Additional per-fetcher jitter (0-5s) to stagger retry timing across all fetchers
+                    fetcher_jitter = random.random() * 5
+                    total_wait = backoff + fetcher_jitter
+                    logger.warning(f"Retry {attempt+1}/{max_retries} for {name} (exponential backoff {backoff:.2f}s + fetcher jitter {fetcher_jitter:.2f}s = {total_wait:.2f}s): {e}")
+                    time.sleep(total_wait)
                     continue
                 logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
                 return name, {"_error": str(e)}
@@ -2657,8 +2680,11 @@ def load_all() -> dict:
     max_workers = min(len(FETCHERS), max(cpu_count - 1, 6))  # Use most CPUs, minimum 6 workers
     logger.debug(f"load_all using {max_workers} workers for {len(FETCHERS)} fetchers on {cpu_count} CPUs")
 
-    # Per-batch timeout: with 8 workers and 27 fetchers, ~4 batches, each gets 25s
-    BATCH_TIMEOUT = 25
+    # Per-batch timeout: with 8 workers and 27 fetchers, ~4 batches of ~25s each = 100s total
+    # ISSUE 31 FIX: Increased timeout to 100s to handle network latency and RDS connection pool contention
+    # Each fetcher takes 1-5s; with 8 workers and 27 fetchers, worst-case is ~27/8 * 5s = ~17s, but
+    # including pool acquisition delays, network jitter, and query compilation, allow 100s total
+    BATCH_TIMEOUT = 100
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
         try:
