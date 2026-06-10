@@ -1,0 +1,52 @@
+name: Monitor Loader Health
+
+on:
+  schedule:
+    # Check every 2 hours during business hours
+    - cron: '0 9-17 * * 1-5'  # Mon-Fri, 9 AM - 5 PM ET
+  workflow_dispatch:
+
+jobs:
+  check_loaders:
+    runs-on: ubuntu-latest
+    name: Check loader execution status
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install psycopg2-binary
+
+      - name: Check loader status
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+        run: |
+          python scripts/check-loader-status.py
+        continue-on-error: true
+
+      - name: Report loader failures
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Loader Health Check Failed',
+              body: '## Loader Status Issue\n\nOne or more data loaders have failed or are stuck.\n\nSee Actions logs for details: ' +
+                    context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId,
+              labels: ['loader', 'monitoring', 'alert']
+            })

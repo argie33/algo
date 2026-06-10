@@ -333,36 +333,36 @@ function PortfolioDashboardPage() {
       {/* Daily-return histogram + Trade outcome distribution */}
       <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <ErrorBoundary>
-          <DailyReturnHistogram series={safeEquityCurve} loading={isPrimaryLoading || equityLoading} />
+          <DailyReturnHistogram series={safeEquityCurve} loading={isPrimaryLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <TradeDistribution trades={safeTradesList} loading={isPrimaryLoading || tradesLoading} />
+          <TradeDistribution trades={safeTradesList} loading={isPrimaryLoading} />
         </ErrorBoundary>
       </div>
 
       {/* R-multiple ladder */}
       <ErrorBoundary>
-        <RLadderPanel positions={safePositionsList} loading={isPrimaryLoading || posLoading}
+        <RLadderPanel positions={safePositionsList} loading={isPrimaryLoading}
                       onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
       </ErrorBoundary>
 
       {/* Risk-pie + Sector concentration + Stage donut */}
       <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
         <ErrorBoundary>
-          <RiskAllocationPie positions={safePositionsList} totalValue={totalValue} loading={isPrimaryLoading || posLoading}
+          <RiskAllocationPie positions={safePositionsList} totalValue={totalValue} loading={isPrimaryLoading}
                               onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <SectorConcentration positions={safePositionsList} totalValue={totalValue} loading={isPrimaryLoading || posLoading} />
+          <SectorConcentration positions={safePositionsList} totalValue={totalValue} loading={isPrimaryLoading} />
         </ErrorBoundary>
         <ErrorBoundary>
-          <StagePhaseDonut positions={safePositionsList} loading={isPrimaryLoading || posLoading} />
+          <StagePhaseDonut positions={safePositionsList} loading={isPrimaryLoading} />
         </ErrorBoundary>
       </div>
 
       {/* Position-health table */}
       <ErrorBoundary>
-        <PositionHealthTable positions={safePositionsList} loading={isPrimaryLoading || posLoading}
+        <PositionHealthTable positions={safePositionsList} loading={isPrimaryLoading}
                               onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)} />
       </ErrorBoundary>
 
