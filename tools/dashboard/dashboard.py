@@ -456,13 +456,15 @@ def fetch_market(c):
             try:
                 spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
                 spy_age = (datetime.now(timezone.utc) - spy_date).days
-            except: pass
+            except (ValueError, AttributeError, TypeError):
+                pass
         elif len(spy_rows) == 1 and spy_v is None:
             spy_v = float(spy_rows[0]["close"])
             try:
                 spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
                 spy_age = (datetime.now(timezone.utc) - spy_date).days
-            except: pass
+            except (ValueError, AttributeError, TypeError):
+                pass
         fed_val = h.get("fed_rate_environment") if h else None
         if not fed_val or fed_val in ("unknown", "Unknown"): fed_val = None
 
