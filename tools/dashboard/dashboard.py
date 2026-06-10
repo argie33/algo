@@ -1673,11 +1673,19 @@ def fetch_recent_trades(c):
             ORDER BY COALESCE(exit_date, trade_date) DESC LIMIT 10""")
 
         # Issue 14 FIX: Validate that trades have valid dates
+        # ISSUE 39 FIX: Validate trade status values against enum
+        VALID_STATUSES = {'open', 'closed', 'partially_filled', 'filled', 'pending', 'cancelled', 'rejected'}
         if result:
-            invalid_trades = [t for t in result if t.get("trade_date") is None]
-            if invalid_trades:
-                logger.warning(f"VALIDATION: Filtered {len(invalid_trades)} trades with NULL trade_date")
+            invalid_dates = [t for t in result if t.get("trade_date") is None]
+            if invalid_dates:
+                logger.warning(f"VALIDATION: Filtered {len(invalid_dates)} trades with NULL trade_date")
                 result = [t for t in result if t.get("trade_date") is not None]
+
+            invalid_status = [t for t in result if t.get("status") not in VALID_STATUSES]
+            if invalid_status:
+                invalid_symbols = [t.get("symbol") for t in invalid_status]
+                logger.warning(f"VALIDATION: Filtered {len(invalid_status)} trades with invalid status: {invalid_symbols}")
+                result = [t for t in result if t.get("status") in VALID_STATUSES]
 
         _log_data_quality("fetch_recent_trades", len(result) if result else 0)
         return result
