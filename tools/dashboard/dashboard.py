@@ -464,8 +464,9 @@ def fetch_algo_config(c):
             "t1_r":         d.get("t1_target_r_multiple"),
             "pyramid":      d.get("pyramid_enabled", "false").lower() == "true",
         }
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_market(c):
     try:
@@ -546,7 +547,9 @@ def fetch_market(c):
             "bmom":  _f("breadth_momentum_10d"),
             "fed":   fed_val,
         }
-    except Exception as e:
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_market: {type(e).__name__}: {e}")
+        return {}
         logger.error(f"fetch_market error: {e}")
         return {"_error": str(e)}
 
@@ -567,8 +570,9 @@ def fetch_exposure_factors(c):
             "regime":       row.get("regime"),
             "factors":      factors,
         }
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_exposure_factors: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_portfolio(c):
     try:
@@ -577,8 +581,9 @@ def fetch_portfolio(c):
                    unrealized_pnl_pct, position_count, total_cash,
                    cumulative_return_pct, max_drawdown_pct, largest_position_pct
             FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1""") or {})
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_portfolio: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_perf(c):
     try:
@@ -631,7 +636,9 @@ def fetch_perf(c):
                 "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
                 "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
                 "equity_vals": equity_vals, "recent_rets": recent_rets}
-    except Exception as e:
+    except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
+        logger.error(f"fetch_perf: {type(e).__name__}: {e}")
+        return {}
         logger.error(f"fetch_perf error: {e}")
         _log_data_quality("fetch_perf", 0, str(e))
         return {"_error": str(e)}
@@ -796,7 +803,9 @@ def fetch_signals(c):
                 "date": sig["d"] if sig else None,
                 "buy_sigs": buy_sigs, "grades": grades, "near": near,
                 "top_a": top_a, "trend": trend}
-    except Exception as e:
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_signals: {type(e).__name__}: {e}")
+        return {}
         logger.error(f"fetch_signals error: {e}")
         _log_data_quality("fetch_signals", 0, str(e))
         return {"_error": str(e)}
@@ -808,8 +817,9 @@ def fetch_sector_ranking(c):
             FROM sector_ranking
             WHERE date=(SELECT MAX(date) FROM sector_ranking)
             ORDER BY current_rank ASC""")
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_sector_ranking: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_activity(c):
     try:
@@ -831,8 +841,9 @@ def fetch_activity(c):
                                   'position_exited','order_placed','order_rejected')
             ORDER BY created_at DESC LIMIT 6""")
         return {"run_id": rid, "run_at": run_at, "phases": phases, "recent_actions": recent_actions}
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_activity: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_health(c):
     try:
@@ -859,8 +870,9 @@ def fetch_health(c):
               SELECT 'sector_ranking','SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM sector_ranking UNION ALL
               SELECT 'economic_data', 'SUPP',          MAX(date)::date,       (CURRENT_DATE-MAX(date)::date),    14        FROM economic_data
             ) s ORDER BY CASE role WHEN 'CRIT' THEN 1 WHEN 'IMP' THEN 2 ELSE 3 END, tbl""")
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_health: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_economic_pulse(c):
     try:
@@ -903,16 +915,18 @@ def fetch_economic_pulse(c):
             'mortgage':  d.get('MORTGAGE30US'),
             'umcsent':   d.get('UMCSENT'),
         }
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_economic_pulse: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_algo_metrics(c):
     try:
         rows = q(c, """SELECT date, total_actions, entries, exits
                        FROM algo_metrics_daily ORDER BY date DESC LIMIT 5""")
         return rows
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_notifications(c):
     try:
@@ -920,8 +934,9 @@ def fetch_notifications(c):
             SELECT kind, severity, title, seen, created_at, details
             FROM algo_notifications
             ORDER BY created_at DESC LIMIT 8""")
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_notifications: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_sentiment(c):
     try:
@@ -931,8 +946,9 @@ def fetch_sentiment(c):
         label = row.get("label") or ""
         c_fg  = (R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY)))
         return {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_sentiment: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_economic_calendar(c):
     try:
@@ -944,8 +960,9 @@ def fetch_economic_calendar(c):
                        ORDER BY event_date ASC, importance DESC, event_time ASC
                        LIMIT 8""")
         return rows
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_economic_calendar: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_risk_metrics(c) -> dict:
     try:
@@ -964,7 +981,9 @@ def fetch_risk_metrics(c) -> dict:
             "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
             "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
         }
-    except Exception as e:
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
+        return {}
         logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
         return {"_error": str(e), "_has_data": False}
 
@@ -986,8 +1005,9 @@ def fetch_perf_analytics(c):
             "expectancy": _f("expectancy"),
             "maxdd":     _f("max_drawdown_pct"),
         }
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
+        logger.error(f"fetch_perf_analytics: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_signal_eval(c):
     try:
@@ -1021,7 +1041,9 @@ def fetch_signal_eval(c):
             "date":     stats.get("signal_date") if stats else None,
             "rejected": rejected,
         }
-    except Exception as e:
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_signal_eval: {type(e).__name__}: {e}")
+        return {}
         logger.error(f"fetch_signal_eval error: {e}")
         return {"_error": str(e)}
 
@@ -1045,8 +1067,9 @@ def fetch_sector_rotation(c):
             "def_score": d.get("defensive_lead_score", 0),
             "cyc_score": d.get("cyclical_weak_score", 0),
         }
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_sector_rotation: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_industry_ranking(c):
     try:
@@ -1054,8 +1077,9 @@ def fetch_industry_ranking(c):
                        FROM industry_ranking
                        WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
                        ORDER BY current_rank LIMIT 10""")
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_industry_ranking: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_loader_status(c):
     try:
@@ -1070,8 +1094,9 @@ def fetch_loader_status(c):
                            ELSE 5
                        END, age_days DESC NULLS LAST
                        LIMIT 8""")
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_loader_status: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_exec_history(c):
     try:
@@ -1086,8 +1111,9 @@ def fetch_exec_history(c):
                                   halt_reason
                            FROM orchestrator_execution_log
                            ORDER BY started_at DESC LIMIT 10""")
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_exec_history: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_audit_log(c):
     try:
@@ -1110,8 +1136,9 @@ def fetch_audit_log(c):
                 "created_at":  r.get("created_at"),
             })
         return result
-    except Exception as e:
-        return {"_error": str(e)}
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_audit_log: {type(e).__name__}: {e}")
+        return {}
 
 def fetch_circuit(c):
     try:
@@ -1175,7 +1202,9 @@ def fetch_circuit(c):
         if n_fired > 0:
             logger.warning(f"Circuit breaker triggered: {n_fired} breaker(s) fired")
         return {"bs": bs, "any": any(b["fired"] for b in bs), "n": n_fired}
-    except Exception as e:
+    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+        logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
+        return {}
         logger.error(f"fetch_circuit error: {e}")
         return {"_error": str(e)}
 
@@ -1232,7 +1261,9 @@ def load_all() -> dict:
                     continue
                 logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
                 return name, {"_error": str(e)}
-            except Exception as e:
+            except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+                logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
+                return {}
                 if conn:
                     try: conn.close()
                     except Exception: pass
