@@ -25,13 +25,19 @@ from zoneinfo import ZoneInfo
 logger = logging.getLogger(__name__)
 
 def _log_data_quality(source: str, count: int, error: Optional[str] = None):
-    """Log data fetch results for debugging."""
+    """Log data fetch results: distinguishes 'empty' (no rows but no error) from 'failed' (error occurred).
+
+    Log levels:
+    - ERROR: fetch failed due to database/parsing error
+    - WARNING: fetch succeeded but returned 0 rows (may indicate problem or expected state)
+    - DEBUG: fetch succeeded with data
+    """
     if error:
-        logger.error(f"Data fetch [{source}] failed: {error}")
+        logger.error(f"Data fetch [{source}] FAILED: {error}")
     elif count == 0:
-        logger.warning(f"Data fetch [{source}] returned empty result")
+        logger.warning(f"Data fetch [{source}] EMPTY: returned 0 rows (check if table has data)")
     else:
-        logger.debug(f"Data fetch [{source}] successful: {count} rows")
+        logger.debug(f"Data fetch [{source}] OK: {count} rows")
 
 try:
     import msvcrt
@@ -437,13 +443,19 @@ def sparkline(values: list, width: int = 24) -> str:
     return f"[{c}]{chars}[/]"
 
 def _parse_event_date(ed: any) -> Optional[date]:
-    """Parse event date from various formats. Handles str, datetime, date, or None gracefully."""
+    """Parse event date from various formats (always returns naive date, handling timezone-aware inputs).
+
+    Converts all datetime inputs to UTC before extracting the date to ensure consistent
+    date boundaries regardless of input timezone.
+    """
     if ed is None:
         return None
     try:
         if isinstance(ed, str):
             return datetime.strptime(ed[:10], "%Y-%m-%d").date()
         elif isinstance(ed, datetime):
+            if ed.tzinfo is not None:
+                ed = ed.astimezone(timezone.utc)
             return ed.date()
         elif isinstance(ed, date):
             return ed
@@ -598,6 +610,10 @@ def fetch_market(c):
                 if prev_spy > 0: spy_chg = round((cur_spy - prev_spy) / prev_spy * 100, 2)
                 try:
                     spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
+                    if spy_date.tzinfo is None:
+                        spy_date = spy_date.replace(tzinfo=timezone.utc)
+                    else:
+                        spy_date = spy_date.astimezone(timezone.utc)
                     spy_age = (datetime.now(timezone.utc) - spy_date).days
                 except (ValueError, AttributeError, TypeError):
                     pass
@@ -607,6 +623,10 @@ def fetch_market(c):
                 spy_v = float(close0)
             try:
                 spy_date = spy_rows[0]["date"] if isinstance(spy_rows[0]["date"], datetime) else datetime.fromisoformat(str(spy_rows[0]["date"]))
+                if spy_date.tzinfo is None:
+                    spy_date = spy_date.replace(tzinfo=timezone.utc)
+                else:
+                    spy_date = spy_date.astimezone(timezone.utc)
                 spy_age = (datetime.now(timezone.utc) - spy_date).days
             except (ValueError, AttributeError, TypeError):
                 pass
@@ -734,7 +754,7 @@ def fetch_perf(c):
         recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct") or 0))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
         _log_data_quality("fetch_perf", len(trades))
-        return {"n": len(trades), "w": len(wins), "l": len(losses),
+        return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
                 "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
                 "sharpe": sharpe, "maxdd": round(maxdd, 1),
                 "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
@@ -756,8 +776,18 @@ def fetch_positions(c):
 
     This eliminates sync issues that occur when algo_positions table
     drifts from algo_trades. Positions are now computed, not stored separately.
+
+    Validation: Logs if algo_trades table is empty (no historical trades at all).
     """
     try:
+        # Validation: check if algo_trades table has any data at all
+        trade_check = q1(c, "SELECT COUNT(*) as n FROM algo_trades")
+        total_trades = int(trade_check.get("n")) if trade_check and trade_check.get("n") is not None else 0
+        if total_trades == 0:
+            logger.warning("VALIDATION: algo_trades table is EMPTY - no historical trades found")
+            _log_data_quality("fetch_positions", 0, "algo_trades table is empty")
+            return []
+
         result = q(c, """
             WITH open_trades AS (
                 -- All trades with active positions (source of truth)
@@ -819,7 +849,24 @@ def fetch_positions(c):
             ORDER BY position_value DESC""")
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return result
-    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
+    except psycopg2.Error as e:
+        err_msg = str(e)
+        if "does not exist" in err_msg:
+            if "trend_template_data" in err_msg:
+                logger.error("fetch_positions: Missing or renamed table trend_template_data (check column: weinstein_stage)")
+            elif "company_profile" in err_msg:
+                logger.error("fetch_positions: Missing or renamed table company_profile (check columns: sector, ticker)")
+            elif "swing_trader_scores" in err_msg:
+                logger.error("fetch_positions: Missing or renamed table swing_trader_scores (check column: score)")
+            else:
+                logger.error(f"fetch_positions: Missing table in query. {err_msg}")
+        elif "column" in err_msg and "does not exist" in err_msg:
+            logger.error(f"fetch_positions: Column name mismatch (check: weinstein_stage, sector, score). {err_msg}")
+        else:
+            logger.error(f"fetch_positions: {type(e).__name__}: {err_msg}")
+        _log_data_quality("fetch_positions", 0, err_msg)
+        return []
+    except (KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         _log_data_quality("fetch_positions", 0, str(e))
         return []
@@ -1299,10 +1346,18 @@ def fetch_audit_log(c):
 
 def fetch_circuit(c):
     try:
-        rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)",
-            (["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses",
-              "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"],))
+        # Load circuit breaker thresholds from config
+        config_keys = ["halt_drawdown_pct", "max_daily_loss_pct", "max_consecutive_losses",
+                       "max_total_risk_pct", "vix_max_threshold", "max_weekly_loss_pct"]
+        rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (config_keys,))
         cfg = {r["key"]: float(r["value"]) for r in rows if r.get("value") is not None}
+
+        # Validation: Log if any circuit breaker keys are missing from config
+        missing_keys = [k for k in config_keys if k not in cfg]
+        if missing_keys:
+            logger.warning(f"VALIDATION: Circuit breaker config MISSING KEYS: {missing_keys} "
+                         f"(will use hardcoded defaults - may be incorrect)")
+
         snaps = q(c, "SELECT total_portfolio_value, daily_return_pct FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
         lat   = snaps[0] if snaps else {}
         # Safely calculate peak value
@@ -1344,7 +1399,14 @@ def fetch_circuit(c):
         risk_val = float(rr.get("risk")) if rr and rr.get("risk") is not None else 0.0
         pv_val = float(rr.get("pv")) if rr and rr.get("pv") is not None else 0.0
         rp = risk_val / max(pv_val, 1) * 100 if pv_val > 0 else 0
-        def th(k, d): return cfg.get(k, d)
+
+        # Threshold helper: tracks which values came from config vs defaults
+        defaults_used = {}
+        def th(k, d):
+            if k not in cfg:
+                defaults_used[k] = d
+            return cfg.get(k, d)
+
         bs = [
             {"lbl": "Drawdown",     "cur": round(dd, 1),      "thr": th("halt_drawdown_pct", 20),     "u": "%"},
             {"lbl": "Daily Loss",   "cur": round(dl, 1),      "thr": th("max_daily_loss_pct", 2),     "u": "%"},
@@ -1354,6 +1416,11 @@ def fetch_circuit(c):
             {"lbl": "VIX",          "cur": round(vix, 1),     "thr": th("vix_max_threshold", 35),     "u": ""},
             {"lbl": "Mkt Stage",    "cur": float(stage),      "thr": 4,                                "u": ""},
         ]
+
+        # Log which thresholds used defaults (indicates stale/incomplete config)
+        if defaults_used:
+            logger.warning(f"VALIDATION: Circuit breaker using DEFAULT thresholds (config incomplete): "
+                         f"{', '.join(f'{k}={v}' for k, v in defaults_used.items())}")
         for b in bs: b["fired"] = b["cur"] >= b["thr"]
         n_fired = sum(1 for b in bs if b["fired"])
         if n_fired > 0:
@@ -1665,6 +1732,11 @@ def panel_market_full(mkt, sentiment=None):
         fg_bar = int(fg_v / 100 * 8)
         fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
         lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f} — {fg_lbl}[/] {fg_bar_s}")
+
+    # Data freshness alerts
+    stale_alerts = mkt.get("stale_alerts", [])
+    if stale_alerts:
+        lines.append(f"[orange1][!] Data stale:[/] {', '.join(stale_alerts)}")
 
     txt = Text.from_markup("\n".join(lines))
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
