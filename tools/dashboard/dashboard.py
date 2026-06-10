@@ -1423,9 +1423,9 @@ def fetch_perf(c):
             pf = float(perf.get("profit_factor")) if perf.get("profit_factor") is not None else None
             exp = float(perf.get("expectancy")) if perf.get("expectancy") is not None else None
             sharpe = float(perf.get("rolling_sharpe_252d")) if perf.get("rolling_sharpe_252d") is not None else None
-            maxdd = float(perf.get("max_drawdown_pct")) if perf.get("max_drawdown_pct") is not None else 0.0
-            avg_win = float(perf.get("avg_win")) if perf.get("avg_win") is not None else 0.0
-            avg_loss = float(perf.get("avg_loss")) if perf.get("avg_loss") is not None else 0.0
+            maxdd = float(perf.get("max_drawdown_pct")) if perf.get("max_drawdown_pct") is not None else None
+            avg_win = float(perf.get("avg_win")) if perf.get("avg_win") is not None else None
+            avg_loss = float(perf.get("avg_loss")) if perf.get("avg_loss") is not None else None
 
             # Infer confidence from number of trades
             total_trades = int(perf.get("total_trades")) if perf.get("total_trades") is not None else 0
@@ -1466,8 +1466,8 @@ def fetch_perf(c):
             "n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
             "wr": round(wr, 1) if wr is not None else None, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
             "pnl": round(pnl, 2), "streak": streak,
-            "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd else None,
-            "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
+            "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd is not None else None,
+            "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
             "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
             "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence,
             "_source": "algo_performance_daily" if perf else "calculated"
@@ -3217,8 +3217,9 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     pf      = perf.get("profit_factor")
     pf_s    = f"{pf:.2f}" if pf is not None else "--"
     pf_c    = G if (pf or 0) >= 1.5 else (Y if (pf or 0) >= 1.0 else R)
-    exp     = perf.get("expectancy") or 0
-    exp_c   = G if exp >= 0 else R
+    exp     = perf.get("expectancy")
+    exp_s   = f"{fmt_money(exp)}" if exp is not None else "--"
+    exp_c   = G if (exp or 0) >= 0 else R
     avg_r   = perf.get("avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
@@ -3244,7 +3245,7 @@ def panel_performance_spark(perf, rec, perf_anl=None):
             f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
             f"[dim]PF:[/][{pf_c}]{pf_s}[/]  "
             f"[dim]Sharpe:[/][white]{sharpe_label}[/]  "
-            f"[dim]Exp:[/][{exp_c}]{fmt_money(exp)}[/]  "
+            f"[dim]Exp:[/][{exp_c}]{exp_s}[/]  "
             f"[dim]AvgR:[/][white]{avg_r_s}[/]"
         ),
         Text.from_markup(
