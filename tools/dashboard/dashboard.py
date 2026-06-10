@@ -652,7 +652,9 @@ def fetch_perf(c):
         trades = q(c, """SELECT profit_loss_dollars, exit_r_multiple, profit_loss_pct
                          FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
                          ORDER BY exit_date ASC""")
-        if not trades: return {}
+        if not trades:
+            _log_data_quality("fetch_perf", 0)
+            return {}
         wins      = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
         losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]

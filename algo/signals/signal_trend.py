@@ -4,42 +4,114 @@
 Trend signal methods — Minervini trend template, Weinstein stage, Mansfield RS.
 
 These methods read from pre-computed trend_template_data (populated by loaders)
-and compute Mansfield RS on-demand using price returns.
+and compute Mansfield RS on-demand using price returns. Falls back to on-the-fly
+computation if trend_template_data is stale.
 """
 
 from typing import Dict, Any, Optional
 import logging
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 class SignalTrendMixin:
     """Trend signal methods reading from pre-computed data and real-time calculations."""
 
+    def _compute_minervini_from_prices(self, cur, symbol: str, eval_date) -> Dict[str, Any]:
+        """Compute Minervini 8-point trend score on-the-fly from price_daily."""
+        cur.execute(
+            """SELECT date, close, volume FROM price_daily
+               WHERE symbol = %s AND date >= %s::date - INTERVAL '300 days'
+               AND date <= %s
+               ORDER BY date ASC""",
+            (symbol, eval_date, eval_date)
+        )
+        rows = cur.fetchall()
+        if not rows or len(rows) < 50:
+            return {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'Insufficient price history'}
+
+        df = pd.DataFrame(rows, columns=['date', 'close', 'volume'])
+        df['close'] = pd.to_numeric(df['close'], errors='coerce')
+        df = df.dropna(subset=['close']).sort_values('date').reset_index(drop=True)
+
+        if len(df) < 50:
+            return {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'Insufficient price history'}
+
+        close = df['close']
+        df['sma_50'] = close.rolling(50, min_periods=50).mean()
+        df['sma_150'] = close.rolling(150, min_periods=150).mean()
+        df['sma_200'] = close.rolling(200, min_periods=200).mean()
+        df['sma_200_slope'] = df['sma_200'].diff(5) / df['sma_200'].shift(5)
+        df['high_52w'] = close.rolling(252, min_periods=252).max()
+        df['low_52w'] = close.rolling(252, min_periods=252).min()
+
+        row = df.iloc[-1]
+        c = row['close']
+        sma50 = row['sma_50'] if pd.notna(row['sma_50']) else None
+        sma150 = row['sma_150'] if pd.notna(row['sma_150']) else None
+        sma200 = row['sma_200'] if pd.notna(row['sma_200']) else None
+        high52 = row['high_52w'] if pd.notna(row['high_52w']) else None
+        low52 = row['low_52w'] if pd.notna(row['low_52w']) else None
+
+        score = 0
+        if sma50 and c > sma50:
+            score += 1
+        if sma150 and c > sma150:
+            score += 1
+        if sma200 and c > sma200:
+            score += 1
+        if sma50 and sma150 and sma50 > sma150:
+            score += 1
+        if sma150 and sma200 and sma150 > sma200:
+            score += 1
+        sma200_slope = row['sma_200_slope']
+        if sma200_slope and pd.notna(sma200_slope) and sma200_slope > 0:
+            score += 1
+        if high52 and c >= high52 * 0.75:
+            score += 1
+        if low52 and c >= low52 * 1.30:
+            score += 1
+
+        pct_from_low = ((c - low52) / low52 * 100) if low52 else None
+        pct_from_high = ((c - high52) / high52 * 100) if high52 else None
+
+        return {
+            'score': score,
+            'pass': score >= 5,
+            'criteria': {
+                'percent_from_52w_high': float(pct_from_high) if pct_from_high is not None else None,
+                'percent_from_52w_low': float(pct_from_low) if pct_from_low is not None else None,
+                'weinstein_stage': None,
+                'trend_direction': 'uptrend' if score >= 6 else ('downtrend' if score <= 2 else 'sideways'),
+            }
+        }
+
     def minervini_trend_template(self, symbol: str, eval_date) -> Dict[str, Any]:
         def _fetch_trend(cur):
             cur.execute(
                 """SELECT minervini_trend_score, percent_from_52w_high, percent_from_52w_low,
-                          weinstein_stage, trend_direction
+                          weinstein_stage, trend_direction, date
                    FROM trend_template_data
                    WHERE symbol = %s AND date <= %s
                    ORDER BY date DESC LIMIT 1""",
                 (symbol, eval_date)
             )
             row = cur.fetchone()
-            if not row:
-                return {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'No trend data'}
-
-            score = int(row[0] or 0)
-            return {
-                'score': score,
-                'pass': score >= 5,
-                'criteria': {
-                    'percent_from_52w_high': float(row[1]) if row[1] else None,
-                    'percent_from_52w_low': float(row[2]) if row[2] else None,
-                    'weinstein_stage': int(row[3]) if row[3] else None,
-                    'trend_direction': str(row[4]) if row[4] else None,
+            if row and row[5] and (eval_date - row[5]).days <= 1:
+                score = int(row[0] or 0)
+                return {
+                    'score': score,
+                    'pass': score >= 5,
+                    'criteria': {
+                        'percent_from_52w_high': float(row[1]) if row[1] else None,
+                        'percent_from_52w_low': float(row[2]) if row[2] else None,
+                        'weinstein_stage': int(row[3]) if row[3] else None,
+                        'trend_direction': str(row[4]) if row[4] else None,
+                    }
                 }
-            }
+
+            logger.debug(f"[MINERVINI] trend_template_data stale for {symbol}; computing on-the-fly")
+            return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
         try:
             return self._with_cursor(_fetch_trend) or {'score': 0, 'pass': False, 'criteria': {}, 'reason': 'Database error'}
