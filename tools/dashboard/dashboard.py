@@ -1553,12 +1553,17 @@ def fetch_circuit(c):
         dd    = (pk - cur_v) / pk * 100 if pk > 0 else 0
         daily_ret = lat.get("daily_return_pct") if lat and lat.get("daily_return_pct") is not None else 0
         dl    = max(0.0, -float(daily_ret))
-        # Weekly loss: sum of last 7 days, only include non-None values
-        # Validate we actually have 7+ days of data before summing (Issue 20: weekend gaps)
-        week_rets = [float(s.get("daily_return_pct")) for s in snaps[:7] if s.get("daily_return_pct") is not None]
-        if len(week_rets) < 5:
-            logger.warning(f"VALIDATION: Weekly loss calculation has only {len(week_rets)} days of data (need 5+)")
-        wl    = max(0.0, -sum(week_rets)) if week_rets else 0
+        # Issue 1.5: Weekly loss — skip weekend gaps by looking back up to 2 weeks for 5+ trading days
+        trading_rets = []
+        for s in snaps[:14]:  # Look back up to 2 weeks to find 5 trading days
+            ret = float(s.get("daily_return_pct")) if s.get("daily_return_pct") is not None else None
+            if ret is not None:
+                trading_rets.append(ret)
+            if len(trading_rets) >= 5:
+                break
+        if len(trading_rets) < 5:
+            logger.warning(f"VALIDATION: Weekly loss calculation found only {len(trading_rets)} trading days (need 5+) — insufficient data for reliable calculation")
+        wl    = max(0.0, -sum(trading_rets)) if len(trading_rets) >= 5 else 0
         # Consecutive loss count: check all closed trades, not just last 20 (Issue 21)
         trades = q(c, "SELECT profit_loss_dollars FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL ORDER BY exit_date DESC")
         consec = 0
@@ -1569,8 +1574,9 @@ def fetch_circuit(c):
         h     = q1(c, "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
         vix_r = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v = vix_r.get("vix_level") if vix_r else None
-        # Issue 22: Don't convert None to 0.0; keep None so dashboard displays "--" instead of "VIX 0.0"
+        # Issue 1.6: Don't convert None to 0.0; keep None so dashboard displays "--" instead of "VIX 0.0"
         vix   = float(vix_v) if vix_v is not None else None
+        vix_available = vix is not None  # Track whether VIX data is actually available
         stage = int(h.get("market_stage") or 1) if h else 1
         rr    = q1(c, """
             WITH open_trades AS (
@@ -1598,7 +1604,7 @@ def fetch_circuit(c):
                 defaults_used[k] = d
             return cfg.get(k, d)
 
-        # Issue 22: Handle VIX None case (don't compare None >= threshold)
+        # Issue 1.6: Handle VIX None case (don't compare None >= threshold)
         vix_cur = round(vix, 1) if vix is not None else None
         bs = [
             {"lbl": "Drawdown",     "cur": round(dd, 1),      "thr": th("halt_drawdown_pct", 20),     "u": "%"},
@@ -1606,7 +1612,7 @@ def fetch_circuit(c):
             {"lbl": "Weekly Loss",  "cur": round(wl, 1),      "thr": th("max_weekly_loss_pct", 5),    "u": "%"},
             {"lbl": "Consec Loss",  "cur": float(consec),     "thr": th("max_consecutive_losses", 3), "u": ""},
             {"lbl": "Total Risk",   "cur": round(rp, 1),      "thr": th("max_total_risk_pct", 4),     "u": "%"},
-            {"lbl": "VIX",          "cur": vix_cur,           "thr": th("vix_max_threshold", 35),     "u": ""},
+            {"lbl": "VIX",          "cur": vix_cur,           "thr": th("vix_max_threshold", 35),     "u": "", "available": vix_available},
             {"lbl": "Mkt Stage",    "cur": float(stage),      "thr": 4,                                "u": ""},
         ]
 
