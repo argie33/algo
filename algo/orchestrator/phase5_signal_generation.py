@@ -56,7 +56,14 @@ def _check_market_regime(run_date: _date) -> Dict:
 
     Returns dict with: is_entry_allowed, exposure_pct, regime, halt_reasons.
     Defaults to permissive if no data (don't block trading on missing data).
+    PATH_B_OVERRIDE: If BYPASS_MARKET_REGIME is set, force is_entry_allowed=True.
     """
+    import os
+    bypass_regime = os.getenv('BYPASS_MARKET_REGIME', '').lower() in ('true', '1', 'yes')
+    if bypass_regime:
+        logger.critical("[PATH_B] BYPASS_MARKET_REGIME=true — forcing is_entry_allowed=True")
+        return {'is_entry_allowed': True, 'exposure_pct': 100, 'regime': 'proof_of_concept', 'halt_reasons': []}
+
     try:
         with DatabaseContext('read') as cur:
             cur.execute("""
@@ -140,11 +147,14 @@ def run(
         return PhaseResult(5, 'signal_generation', 'halted', {'qualified_trades': []}, True, reasons[:100])
 
     # Exposure policy gate
-    if exposure_constraints and exposure_constraints.get('halt_new_entries'):
+    bypass_exposure = os.getenv('BYPASS_EXPOSURE_POLICY', '').lower() in ('true', '1', 'yes')
+    if exposure_constraints and exposure_constraints.get('halt_new_entries') and not bypass_exposure:
         reason = exposure_constraints.get('halt_reason', 'Exposure policy halted new entries')
         logger.warning(f"[PHASE 5] {reason}")
         log_phase_result_fn(5, 'signal_generation', 'halt', reason)
         return PhaseResult(5, 'signal_generation', 'halted', {'qualified_trades': []}, True, reason)
+    elif bypass_exposure and exposure_constraints and exposure_constraints.get('halt_new_entries'):
+        logger.critical("[PATH_B] BYPASS_EXPOSURE_POLICY=true — overriding exposure policy halt")
 
     # Verify price data coverage
     with DatabaseContext('read') as cur:

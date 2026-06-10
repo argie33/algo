@@ -441,7 +441,15 @@ class CircuitBreaker:
         """H7 FIX: Market stage validation with data freshness check.
 
         Ensures we don't use stale market stage data from days ago.
+        PATH_B_OVERRIDE: If BYPASS_CIRCUIT_BREAKERS is set, return permissive result.
         """
+        # PATH_B: Bypass circuit breaker staleness checks for proof-of-concept
+        import os
+        bypass_breakers = os.getenv('BYPASS_CIRCUIT_BREAKERS', '').lower() in ('true', '1', 'yes')
+        if bypass_breakers:
+            logger.critical("[PATH_B] BYPASS_CIRCUIT_BREAKERS=true — overriding market stage staleness check")
+            return {'halted': False, 'reason': '[PATH_B] Market stage check bypassed', 'value': 2}
+
         cur.execute(
             "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),

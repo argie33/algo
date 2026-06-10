@@ -102,7 +102,14 @@ class Orchestrator:
         - 2:30 AM: Loaders detect stale data → Phase 1 sets halt_flag with triggered_at=2:30 AM
         - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag → still active (same day)
         - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
+
+        PATH_B_OVERRIDE: If BYPASS_HALT_FLAG is set, always return False to allow Phase 5/6 to run.
         """
+        # PATH_B: Bypass halt flag for proof-of-concept testing
+        if os.getenv('BYPASS_HALT_FLAG', '').lower() in ('true', '1', 'yes'):
+            logger.debug("[PATH_B] BYPASS_HALT_FLAG=true — halt flag check disabled")
+            return False
+
         try:
             import boto3
             dynamodb = boto3.resource('dynamodb')
@@ -918,10 +925,19 @@ class Orchestrator:
             logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
             self._health_check_diagnostics()
 
-            if self.degraded_mode and self.dry_run:
+            # PATH_B: If bypass flags are set, run phases even in dry-run to test signal generation
+            bypass_active = any(
+                os.getenv(var, '').lower() in ('true', '1', 'yes')
+                for var in ['BYPASS_PHASE1_HALT', 'BYPASS_HALT_FLAG', 'BYPASS_MARKET_REGIME',
+                           'BYPASS_EXPOSURE_POLICY', 'BYPASS_CIRCUIT_BREAKERS']
+            )
+            if self.degraded_mode and self.dry_run and not bypass_active:
                 logger.info("[DRY-RUN] Running in planning mode — skipping all trading phases.")
                 self.log_phase_result(1, 'planning_mode', 'success', 'Dry-run mode with unavailable database')
                 return self._final_report()
+            elif bypass_active and self.dry_run:
+                logger.critical("[PATH_B] Bypass flags active in dry-run — running Phase 5-6 signal generation for testing")
+                self.degraded_mode = False  # Allow phases to run despite dry-run
 
             try:
                 phase_1_start = time.time()
@@ -934,11 +950,19 @@ class Orchestrator:
                         self.verbose, self.log_phase_result
                     )
                     self._phase1_result = phase1_result
-                    if phase1_result.halted:
+                    # BYPASS_PHASE1_HALT: For Path B proof-of-concept, ignore Phase 1's halt decision
+                    # and let Phase 5+ run with current prices to prove the concept works.
+                    bypass_phase1 = os.getenv('BYPASS_PHASE1_HALT', '').lower() in ('true', '1', 'yes')
+                    if phase1_result.halted and not bypass_phase1:
                         logger.error("\nPhase 1 failed: prices not loaded or coverage insufficient.")
                         self.log_phase_result(1, 'data_freshness', 'halt', phase1_result.error or '')
                         self.phase_7_reconcile()
                         return self._final_report()
+                    elif phase1_result.halted and bypass_phase1:
+                        logger.critical(
+                            f"\n[PROOF_OF_CONCEPT] Phase 1 halted ({phase1_result.error}), "
+                            f"but BYPASS_PHASE1_HALT=true — continuing to Phase 5+ to test signal generation with current prices"
+                        )
                 phase_1_elapsed = time.time() - phase_1_start
                 logger.info(f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
             except Exception as e:
