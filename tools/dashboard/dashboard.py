@@ -4086,7 +4086,7 @@ def run_watch(interval: int, compact: bool) -> None:
                 key = _keypress()
                 if key == "q":
                     break
-                if key in _KEY_MAP:
+                if key in _KEY_MAP and result[0] is not None:
                     target = _KEY_MAP[key]
                     view_mode[0] = "normal" if view_mode[0] == target else target
                 frame[0] += 1
