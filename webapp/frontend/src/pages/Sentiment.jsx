@@ -87,7 +87,7 @@ function SentimentContent() {
     return () => clearTimeout(timer);
   }, []);
 
-  const { data, loading: isLoading, error, refetch } = useApiQuery(
+  const { data, loading: dataLoading, error, refetch } = useApiQuery(
     ['sentiment-stocks'],
     () => api.get('/api/sentiment/data?limit=5000&page=1'),
     { staleTime: 300000, refetchInterval: 300000 }
@@ -110,6 +110,8 @@ function SentimentContent() {
     () => api.get('/api/sentiment/divergence'),
     { refetchInterval: 300000 }
   );
+
+  const isLoading = dataLoading || summaryQ.loading || scoresQ.loading || divergenceQ.loading;
 
   let rawData = [];
   if (Array.isArray(data)) {

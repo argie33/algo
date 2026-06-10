@@ -154,7 +154,9 @@ function MarketsHealthPage() {
   const refetchAll = () => { refetchMarkets(); setTs(new Date()); };
   const m = marketsData;
 
-  if (marketsLoading && !m) {
+  const isPrimaryLoading = marketsLoading || sentimentLoading || moversLoading || technicalsLoading || seasonalityLoading;
+
+  if (isPrimaryLoading && !m) {
     return (
       <div className="main-content">
         <div className="empty"><Inbox /><div className="empty-title">Loading market data…</div></div>

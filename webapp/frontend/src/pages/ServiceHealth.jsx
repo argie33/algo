@@ -49,21 +49,23 @@ function ServiceHealthContent() {
     setPatrolRunning(false);
   };
 
-  const { data: dataStatus, loading: isLoading, error: dsError, refetch } = useApiQuery(
+  const { data: dataStatus, loading: dsLoading, error: dsError, refetch } = useApiQuery(
     ['algo-data-status'],
     () => api.get('/api/algo/data-status'),
     { refetchInterval: 30000 }
   );
-  const { data: patrolLog, error: plError } = useApiQuery(
+  const { data: patrolLog, loading: plLoading, error: plError } = useApiQuery(
     ['algo-patrol-log'],
     () => api.get('/api/algo/patrol-log?limit=50'),
     { refetchInterval: 60000 }
   );
-  const { data: status } = useApiQuery(
+  const { data: status, loading: statusLoading } = useApiQuery(
     ['algo-status'],
     () => api.get('/api/algo/status'),
     { refetchInterval: 30000 }
   );
+
+  const isLoading = dsLoading || plLoading || statusLoading;
 
   if (dsError || plError) {
     return <div className="alert alert-danger" style={{ margin: '20px' }}>{dsError || plError}</div>;
