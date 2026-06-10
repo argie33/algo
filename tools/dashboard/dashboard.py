@@ -1425,7 +1425,7 @@ def fetch_circuit(c):
             logger.warning(f"VALIDATION: Circuit breaker config MISSING KEYS: {missing_keys} "
                          f"(will use hardcoded defaults - may be incorrect)")
 
-        snaps = q(c, "SELECT total_portfolio_value, daily_return_pct FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
+        snaps = q(c, "SELECT total_portfolio_value, daily_return_pct, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 30")
         lat   = snaps[0] if snaps else {}
         # Safely calculate peak value
         snap_vals = [float(s.get("total_portfolio_value")) for s in snaps if s.get("total_portfolio_value") is not None]
@@ -1435,9 +1435,13 @@ def fetch_circuit(c):
         daily_ret = lat.get("daily_return_pct") if lat and lat.get("daily_return_pct") is not None else 0
         dl    = max(0.0, -float(daily_ret))
         # Weekly loss: sum of last 7 days, only include non-None values
+        # Validate we actually have 7+ days of data before summing (Issue 20: weekend gaps)
         week_rets = [float(s.get("daily_return_pct")) for s in snaps[:7] if s.get("daily_return_pct") is not None]
+        if len(week_rets) < 5:
+            logger.warning(f"VALIDATION: Weekly loss calculation has only {len(week_rets)} days of data (need 5+)")
         wl    = max(0.0, -sum(week_rets)) if week_rets else 0
-        trades = q(c, "SELECT profit_loss_dollars FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL ORDER BY exit_date DESC LIMIT 20")
+        # Consecutive loss count: check all closed trades, not just last 20 (Issue 21)
+        trades = q(c, "SELECT profit_loss_dollars FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL ORDER BY exit_date DESC")
         consec = 0
         for t in trades:
             pnl = t.get("profit_loss_dollars")
@@ -1446,7 +1450,8 @@ def fetch_circuit(c):
         h     = q1(c, "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
         vix_r = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v = vix_r.get("vix_level") if vix_r else None
-        vix   = float(vix_v) if vix_v is not None else 0.0
+        # Issue 22: Don't convert None to 0.0; keep None so dashboard displays "--" instead of "VIX 0.0"
+        vix   = float(vix_v) if vix_v is not None else None
         stage = int(h.get("market_stage") or 1) if h else 1
         rr    = q1(c, """
             WITH open_trades AS (
@@ -1474,13 +1479,15 @@ def fetch_circuit(c):
                 defaults_used[k] = d
             return cfg.get(k, d)
 
+        # Issue 22: Handle VIX None case (don't compare None >= threshold)
+        vix_cur = round(vix, 1) if vix is not None else None
         bs = [
             {"lbl": "Drawdown",     "cur": round(dd, 1),      "thr": th("halt_drawdown_pct", 20),     "u": "%"},
             {"lbl": "Daily Loss",   "cur": round(dl, 1),      "thr": th("max_daily_loss_pct", 2),     "u": "%"},
             {"lbl": "Weekly Loss",  "cur": round(wl, 1),      "thr": th("max_weekly_loss_pct", 5),    "u": "%"},
             {"lbl": "Consec Loss",  "cur": float(consec),     "thr": th("max_consecutive_losses", 3), "u": ""},
             {"lbl": "Total Risk",   "cur": round(rp, 1),      "thr": th("max_total_risk_pct", 4),     "u": "%"},
-            {"lbl": "VIX",          "cur": round(vix, 1),     "thr": th("vix_max_threshold", 35),     "u": ""},
+            {"lbl": "VIX",          "cur": vix_cur,           "thr": th("vix_max_threshold", 35),     "u": ""},
             {"lbl": "Mkt Stage",    "cur": float(stage),      "thr": 4,                                "u": ""},
         ]
 
@@ -1488,7 +1495,8 @@ def fetch_circuit(c):
         if defaults_used:
             logger.warning(f"VALIDATION: Circuit breaker using DEFAULT thresholds (config incomplete): "
                          f"{', '.join(f'{k}={v}' for k, v in defaults_used.items())}")
-        for b in bs: b["fired"] = b["cur"] >= b["thr"]
+        # Issue 19 & 22: Only fire breakers where cur is not None and >= threshold
+        for b in bs: b["fired"] = b["cur"] is not None and b["cur"] >= b["thr"]
         n_fired = sum(1 for b in bs if b["fired"])
         if n_fired > 0:
             logger.warning(f"Circuit breaker triggered: {n_fired} breaker(s) fired")
