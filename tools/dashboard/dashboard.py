@@ -212,9 +212,13 @@ LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
 
 def mascot_pose(data: dict, frame: int) -> int:
-    if (data.get("cb") or {}).get("any"):
-        seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
-    else:
+    # Issue 43 FIX: Handle missing or malformed cb gracefully
+    try:
+        cb = data.get("cb") if isinstance(data, dict) else {}
+        if not isinstance(cb, dict):
+            cb = {}
+        seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7] if cb.get("any") else LOAD_SEQ
+    except (AttributeError, TypeError):
         seq = LOAD_SEQ
     if not seq:
         logger.error("mascot_pose: sequence is empty; using fallback frame 0")
@@ -1326,6 +1330,16 @@ def fetch_perf(c):
     - No multiple sources of truth for the same metric
     """
     try:
+        # Issue 38 FIX: Validate Alpaca reconciliation data is present before using algo_trades
+        reconciliation_check = q1(c, """
+            SELECT COUNT(*) as closed_count, MAX(exit_date) as latest_exit
+            FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
+        """)
+        closed_count = int(reconciliation_check.get("closed_count") or 0) if reconciliation_check else 0
+        if closed_count == 0:
+            logger.warning("VALIDATION: No closed trades with reconciliation data in algo_trades (Alpaca reconciliation may not have run)")
+            return {"_reason": "no-reconciliation-data"}
+
         # Fetch pre-computed metrics from algo_performance_daily (CRITICAL ISSUE FIX)
         perf = q1(c, """
             SELECT report_date, win_rate_all, profit_factor, expectancy,
@@ -1470,7 +1484,7 @@ def fetch_positions(c):
             _log_data_quality("fetch_positions", 0, "algo_trades table is empty")
             return []
 
-        # Issue 1.2: Validate supporting table freshness before fetch (trend, swing scores, sectors)
+        # Issue 39 FIX: Validate supporting table freshness before fetch (trend, swing scores, sectors)
         supporting_tables = [
             ("trend_template_data", "Weinstein stage", 3),
             ("swing_trader_scores", "Swing score", 1),
@@ -1478,7 +1492,9 @@ def fetch_positions(c):
         ]
         for table, description, max_age_days in supporting_tables:
             try:
-                table_check = q1(c, f"SELECT COUNT(*) as cnt, MAX(date) as latest_date FROM {table}")
+                # Issue 39: company_profile uses updated_at, others use date column
+                date_col = "updated_at" if table == "company_profile" else "date"
+                table_check = q1(c, f"SELECT COUNT(*) as cnt, MAX({date_col}) as latest_date FROM {table}")
                 if table_check:
                     row_count = int(table_check.get("cnt") or 0)
                     table_date = table_check.get("latest_date")
