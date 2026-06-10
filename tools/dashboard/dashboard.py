@@ -1708,10 +1708,11 @@ def fetch_signals(c):
             LIMIT 30""")
 
         # Issue 23: Filter out signals with missing quality scores (MEDIUM Issue #13)
+        # ISSUE 41 FIX: Return count of filtered signals so dashboard can display data quality info
         before_count = len(buy_sigs)
         buy_sigs = [s for s in buy_sigs if s.get("signal_quality_score") is not None or s.get("entry_quality_score") is not None]
-        if before_count != len(buy_sigs):
-            filtered_count = before_count - len(buy_sigs)
+        filtered_count = before_count - len(buy_sigs) if before_count != len(buy_sigs) else 0
+        if filtered_count > 0:
             logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
 
         # HIGH-SEVERITY ISSUE FIX: Grade distribution now pre-computed in grade_distribution_daily
@@ -1797,8 +1798,10 @@ def fetch_signals(c):
             WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
             GROUP BY date ORDER BY date DESC LIMIT 7""")
 
-        _log_data_quality("fetch_signals", int(sig["n"] or 0) if sig else 0)
-        return {"n": int(sig["n"] or 0) if sig else 0, "total": total_n,
+        # ISSUE 32 FIX: Return None for missing signal counts instead of 0 (don't hide missing data)
+        sig_count = int(sig["n"]) if sig and sig.get("n") is not None else None
+        _log_data_quality("fetch_signals", sig_count if sig_count is not None else 0)
+        return {"n": sig_count, "total": total_n, "filtered_count": filtered_count,
                 "date": sig["d"] if sig else None,
                 "buy_sigs": buy_sigs, "grades": grades, "near": near,
                 "top_a": top_a, "trend": trend}
@@ -3468,9 +3471,12 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         spark_s = f"  [{CY}]{spark}[/]"
     n_near = len(near)
     near_hint = f"  [{CY}]{n_near} near[/]" if n_near else ""
+    # ISSUE 41 FIX: Display count of filtered signals due to missing quality scores
+    filtered = sig.get("filtered_count", 0)
+    filtered_hint = f"  [{R}]{filtered} filtered[/]" if filtered > 0 else ""
     rows = [Text.from_markup(
         f"[{buy_c}][bold]{raw} BUY[/][/]{spark_s}  [dim]from {total} screened  {ds}[/]"
-        f"  [{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]{near_hint}"
+        f"  [{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]{near_hint}{filtered_hint}"
     )]
 
     # ── Row 2: A-grade radar (always; near-misses only when nothing better) ──
