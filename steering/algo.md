@@ -698,6 +698,29 @@ Schema: `lambda/db-init/schema.sql` (single source of truth). All code must use 
 
 Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health check endpoints return 200 even if DB unavailable.
 
+## Dashboard Metrics Architecture
+
+**Fixed Issues:** 5 critical + 8 high-severity + 4 medium issues consolidated metrics into pre-computed loaders.
+
+**Key Changes:**
+- **Metrics Pre-Computation:** Performance metrics (win_rate, profit_factor, expectancy, sharpe, max_drawdown, avg_win, avg_loss, avg_r) now pre-computed by `load_algo_performance_daily.py`, not calculated in dashboard
+- **Grade Distribution:** Pre-computed daily by `load_grade_distribution_daily.py` → `grade_distribution_daily` table (O(1) lookup instead of O(N) scan)
+- **Economic Metrics:** CPI YoY, SPY price change, yield curve slope pre-computed by `load_economic_metrics_daily.py`
+- **Market Tier Thresholds:** Now configurable via `algo_config` table (market_tier_threshold_*) instead of hardcoded
+- **Loader Monitoring:** `scripts/check-loader-status.py` monitors loader execution; GitHub Actions workflow detects stuck/failed loaders
+
+**Benefits:**
+- Single source of truth for each metric (eliminates drift between views)
+- Dashboard performance improves (no table scans for metrics)
+- Historical replay capability for point-in-time analysis
+- Loader failures immediately visible via monitoring script
+- All confidence levels calculated from actual data counts (not hardcoded)
+
+**Loaders Affected:**
+- `loaders/load_algo_performance_daily.py` - Enhanced with 8 new metric columns
+- `loaders/load_grade_distribution_daily.py` - New
+- `loaders/load_economic_metrics_daily.py` - New
+
 ## Key Files
 
 - `algo/algo_orchestrator.py`: main 7-phase loop
@@ -705,6 +728,11 @@ Uses `$default` stage (intentional). CloudFront preserves `/api/` path. Health c
 - `lambda/api/lambda_function.py`: REST API
 - `terraform/main.tf`: infrastructure as code
 - `lambda/db-init/schema.sql`: database schema (3031 lines)
+- `loaders/load_algo_performance_daily.py`: Pre-compute performance metrics
+- `loaders/load_grade_distribution_daily.py`: Pre-compute stock grade distribution
+- `loaders/load_economic_metrics_daily.py`: Pre-compute economic indicators
+- `tools/dashboard/dashboard.py`: Terminal dashboard (reads from loaders)
+- `scripts/check-loader-status.py`: Loader health monitoring
 
 ## Authentication & Email
 
