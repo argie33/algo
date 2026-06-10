@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function SkeletonBar({ width = '100%', height = 24, className = '' }) {
+export function SkeletonBar({ width = '100%', height = 24, className = '', style = {} }) {
   return (
     <div
       className={`${className}`}
@@ -11,6 +11,7 @@ export function SkeletonBar({ width = '100%', height = 24, className = '' }) {
         backgroundSize: '200% 100%',
         animation: 'shimmer 1.5s infinite',
         borderRadius: 'var(--r-sm)',
+        ...style,
       }}
     />
   );

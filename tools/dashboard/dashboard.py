@@ -874,21 +874,9 @@ def fetch_market(c):
             else:
                 logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d")
 
-        # CRITICAL ISSUE 3: Halt if critical market data is too stale
-        critical_staleness_issues = []
-        if spy_age is None and not spy_rows:
-            critical_staleness_issues.append("SPY price data is MISSING")
-        elif spy_age is not None and spy_age > 1:
-            critical_staleness_issues.append(f"SPY price data is {spy_age}d old (>1d threshold)")
-        if exp_age is not None and exp_age > 1:
-            critical_staleness_issues.append(f"Market exposure data is {exp_age}d old (>1d threshold)")
-
-        if critical_staleness_issues:
-            err_msg = f"Critical market data too stale: {'; '.join(critical_staleness_issues)}"
-            logger.error(f"CRITICAL HALT: {err_msg}")
-            _log_data_quality("fetch_market", 0, err_msg)
-            return {"_error": err_msg, "stale_alerts": stale_alerts}
-
+        # CRITICAL ISSUE 1 FIX: Return stale data with alerts instead of failing entirely
+        # Market context (even 1-2 days old) is more useful than no context at all
+        # Dashboard will display stale_alerts to user as warnings
         _log_data_quality("fetch_market", 1)
         return {
             "pct":   pct,
@@ -1024,10 +1012,10 @@ def fetch_perf(c):
                 wr_confidence = "low"
         streak = 0
         for t in reversed(trades):
-            pnl = t.get("profit_loss_dollars")
-            if pnl is None:
+            trade_pnl = t.get("profit_loss_dollars")
+            if trade_pnl is None:
                 break  # Stop at first trade with missing data
-            w = float(pnl) > 0
+            w = float(trade_pnl) > 0
             if streak >= 0 and w:       streak += 1
             elif streak <= 0 and not w: streak -= 1
             else: break
@@ -1042,6 +1030,14 @@ def fetch_perf(c):
         if len(equity_vals) < 3:
             logger.warning(f"VALIDATION: Equity snapshots has only {len(equity_vals)} values (need 3+) — insufficient for drawdown calculation")
 
+        if len(snaps) >= 2:
+            # Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
+            pk = 0.0
+            for s in snaps:
+                v = float(s.get("total_portfolio_value")) if s.get("total_portfolio_value") is not None else 0.0
+                if v > pk: pk = v
+                if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
+
         if len(snaps) >= 10:
             rets = [float(s.get("daily_return_pct")) / 100 for s in snaps if s.get("daily_return_pct") is not None]
             # Sharpe requires >5 returns to be meaningful; assumes normal distribution (may understate tail risk in fat-tailed markets)
@@ -1051,14 +1047,9 @@ def fetch_perf(c):
                 if sd > 0: sharpe = round(mn / sd * (252 ** 0.5), 2)
                 # Confidence level: high if >20 snapshots, low if <10
                 sharpe_confidence = "high" if len(snaps) >= 20 else ("low" if len(snaps) < 10 else "medium")
-            # Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
-            pk = 0.0
-            for s in snaps:
-                v = float(s.get("total_portfolio_value")) if s.get("total_portfolio_value") is not None else 0.0
-                if v > pk: pk = v
-                if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
         else:
-            logger.warning(f"VALIDATION: Portfolio snapshots has only {len(snaps)} records (need 10+) — insufficient for Sharpe ratio")
+            if len(snaps) > 0 and len(snaps) < 10:
+                logger.warning(f"VALIDATION: Portfolio snapshots has only {len(snaps)} records (need 10+) — insufficient for Sharpe ratio")
         # Build win/loss amounts with defensive filtering
         win_amt   = [float(t.get("profit_loss_dollars")) for t in wins if t and t.get("profit_loss_dollars") is not None]
         loss_amt  = [abs(float(t.get("profit_loss_dollars"))) for t in losses if t and t.get("profit_loss_dollars") is not None]
