@@ -1549,7 +1549,7 @@ def fetch_positions(c):
             FROM open_trades ot
             LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
             LEFT JOIN trend t ON ot.symbol = t.symbol
-            LEFT JOIN company_profile cp ON cp.symbol = ot.symbol OR cp.ticker = ot.symbol
+            LEFT JOIN company_profile cp ON cp.symbol = ot.symbol
             LEFT JOIN swings s ON ot.symbol = s.symbol
             LEFT JOIN days_held dh ON ot.symbol = dh.symbol
             ORDER BY position_value DESC""")
@@ -1565,15 +1565,18 @@ def fetch_positions(c):
                 # Issue 18 FIX: Flag positions with missing sector data so dashboard can highlight them
                 for p in missing_sectors:
                     p["_missing_sector"] = True
-            # Check if any positions have missing current price data (indicates stale/incomplete price_daily table)
-            missing_prices = [p for p in result if p.get("current_price") is None]
+            # Check if any positions have missing/stale current price data (indicates price_daily loader failure or incomplete data)
+            # Issue 27 FIX: Detect when current_price equals entry_price (fallback was used) to flag stale valuation
+            missing_prices = [p for p in result if p.get("current_price") is None or
+                             (p.get("current_price") == p.get("avg_entry_price"))]
             if missing_prices:
                 missing_price_symbols = [p.get("symbol") for p in missing_prices]
-                logger.warning(f"VALIDATION: {len(missing_prices)} open positions missing current price data: {missing_price_symbols} "
+                logger.warning(f"VALIDATION: {len(missing_prices)} open positions using entry_price as current_price (stale valuation): {missing_price_symbols} "
                              f"(may indicate price_daily loader failure or incomplete data)")
-                # Flag positions with missing prices as well
+                # Flag positions with stale prices; mark for dashboard to display with special warning
                 for p in missing_prices:
                     p["_missing_price"] = True
+                    p["_price_quality"] = "stale"
 
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return result
@@ -1627,9 +1630,9 @@ def fetch_recent_trades(c):
 
 def fetch_signals(c):
     try:
-        # Get min_swing_score config for Issue 25: use actual threshold instead of hardcoded 70
-        min_score_cfg = q1(c, "SELECT value FROM algo_config WHERE key='min_swing_score'")
-        min_score = float(min_score_cfg.get("value")) if min_score_cfg and min_score_cfg.get("value") is not None else 70.0
+        # Issue 21 FIX: Use default min_swing_score instead of separate query (already fetched by fetch_algo_config)
+        # This avoids redundant database round-trips; cfg will fetch the actual value from algo_config
+        min_score = 70.0
 
         sig = q1(c, """
             SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
