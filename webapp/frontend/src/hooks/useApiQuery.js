@@ -20,7 +20,7 @@ export const useApiQuery = (
   queryKey,
   queryFn,
   {
-    staleTime = 30000,
+    staleTime = Infinity,
     gcTime = 10 * 60 * 1000,
     retry = 3,
     enabled = true,
@@ -78,6 +78,9 @@ export const useApiQuery = (
     },
     staleTime,
     gcTime,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
     retry: retry === false ? false : (failureCount, err) => {
       const status = err?.response?.status ?? err?.status;
       const errorMsg = err?.message || '';
@@ -202,6 +205,9 @@ export const useApiPaginatedQuery = (
     },
     staleTime,
     gcTime,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
     retry: retry === false ? false : (failureCount, err) => {
       const status = err?.response?.status ?? err?.status;
       const errorMsg = err?.message || '';
