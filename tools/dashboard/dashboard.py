@@ -270,16 +270,22 @@ def _get_db_credentials() -> dict:
             secret_name = os.environ.get("DB_SECRET_NAME", "algo-db-credentials")
             response = client.get_secret_value(SecretId=secret_name)
             secret_dict = json.loads(response.get("SecretString", "{}"))
+            sm_port = secret_dict.get("port")
+            try:
+                sm_port = int(sm_port) if sm_port else None
+            except (ValueError, TypeError):
+                sm_port = None
+
             creds = {
                 "host": secret_dict.get("host"),
                 "user": secret_dict.get("username"),
                 "password": secret_dict.get("password"),
                 "dbname": secret_dict.get("dbname"),
-                "port": secret_dict.get("port", 5432),
+                "port": sm_port,
             }
 
             # Validate Secrets Manager creds before returning
-            sm_missing = [k for k in ["host", "user", "password", "dbname"] if not creds.get(k)]
+            sm_missing = [k for k in ["host", "user", "password", "dbname", "port"] if not creds.get(k)]
             if sm_missing:
                 msg = f"AWS Secrets Manager ({secret_name}) incomplete: missing fields {sm_missing}. " \
                       f"Environment variables also {env_status}. Cannot proceed."
@@ -1458,9 +1464,9 @@ def fetch_perf(c):
         # Return metrics from database + calculated streak + recent returns
         return {
             "n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
-            "wr": round(wr, 1) if wr is not None else 0, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+            "wr": round(wr, 1) if wr is not None else None, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
             "pnl": round(pnl, 2), "streak": streak,
-            "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd else 0,
+            "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd else None,
             "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
             "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
             "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence,
@@ -1469,7 +1475,7 @@ def fetch_perf(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
         _log_data_quality("fetch_perf", 0, str(e))
-        return {}
+        return {"_error": str(e)}
 
 def fetch_positions(c):
     """Fetch open positions from algo_trades (single source of truth).
@@ -3190,9 +3196,12 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
 def panel_performance_spark(perf, rec, perf_anl=None):
     """Performance metrics + equity sparkline + rolling analytics."""
-    if not perf or perf.get("_error"):
+    if not perf or perf.get("_error") or perf.get("_reason"):
+        error_msg = perf.get("_error") if perf and perf.get("_error") else None
         reason = perf.get("_reason") if perf else None
-        if reason == "pre-market":
+        if error_msg:
+            msg = f"error: {error_msg}"
+        elif reason == "pre-market":
             msg = "pre-market: awaiting trading activity"
         elif reason == "after-hours":
             msg = "after-hours: awaiting next trading day"
@@ -3213,19 +3222,23 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     avg_r   = perf.get("avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
-    wr_v = perf.get('wr') or 0
-    dd_v = perf.get('maxdd') or 0
-    dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
-    sharpe_val = perf.get('sharpe') or '--'
+    wr_v = perf.get('wr')
+    wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
+    wr_c = G if (wr_v or 0) >= 50 else R
+    dd_v = perf.get('maxdd')
+    dd_s = f"{('-' if dd_v > 0 else '')}{dd_v:.1f}%" if dd_v is not None else "--"
+    dd_c = R if (dd_v or 0) >= 10 else (Y if (dd_v or 0) >= 5 else G)
+    sharpe_val = perf.get('sharpe')
+    sharpe_s = f"{sharpe_val:.2f}" if sharpe_val is not None else "--"
     sharpe_conf = perf.get('sharpe_confidence')
-    sharpe_label = f"{sharpe_val}" if sharpe_conf is None else f"{sharpe_val} ({sharpe_conf})"
+    sharpe_label = f"{sharpe_s}" if sharpe_conf is None else f"{sharpe_s} ({sharpe_conf})"
     rows = [
         Text.from_markup(
             f"[bold white]{perf.get('n', 0)} Trades[/]  "
             f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]  "
-            f"[dim]WR:[/][{G if wr_v >= 50 else R}]{wr_v}%[/]  "
+            f"[dim]WR:[/][{wr_c}]{wr_s}[/]  "
             f"[{str_c}]{str_s}[/]  "
-            f"[dim]MaxDD:[/][{dd_c}]{('-' if dd_v > 0 else '')}{dd_v:.1f}%[/]"
+            f"[dim]MaxDD:[/][{dd_c}]{dd_s}[/]"
         ),
         Text.from_markup(
             f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
@@ -3328,12 +3341,15 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
         t.add_column("Swg",    justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim",     no_wrap=True, max_width=12)
     for p in pos:
+        # CRITICAL ISSUE 7 FIX: Check if price data is stale/missing and flag for special display
+        is_stale_price = p.get("_missing_price", False)
+        price_quality_warning = f" ⚠ {p.get('_price_quality', '')}" if is_stale_price else ""
         entry = float(p.get("avg_entry_price")) if p.get("avg_entry_price") is not None else None
         price = float(p.get("current_price"))   if p.get("current_price") is not None else None
         pval  = float(p.get("position_value")) if p.get("position_value") is not None else None
         stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
         t1    = float(p.get("target_1_price")) if p.get("target_1_price") is not None else None
-        pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else None  # CRITICAL ISSUE 7: Keep None to display "--" instead of hiding missing data
+        pnl   = float(p.get("unrealized_pnl_pct")) if p.get("unrealized_pnl_pct") is not None else None
         # Issue 22 FIX: For same-day entries, show hours/minutes instead of just "0" days
         days_raw = p.get("days_since_entry")
         if days_raw is not None and days_raw == 0:
@@ -3380,8 +3396,9 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
             dc = Y  # Approaching stop loss
         else:
             dc = "white"
+        symbol_display = (p.get("symbol") or "--") + price_quality_warning
         row = [
-            p.get("symbol") or "--",
+            symbol_display,
             fmt_money_short(pval) if pval is not None else "--",
             f"${entry:.2f}" if entry is not None else "--", f"${price:.2f}" if price is not None else "--",
             Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
