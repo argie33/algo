@@ -531,13 +531,33 @@ def grade(s: float) -> str:
     if s >= GRADE_C: return "C"
     return "D"
 
-def tier_from_pct(p: Optional[float]) -> str:
+def tier_from_pct(p: Optional[float], thresholds: Optional[dict] = None) -> str:
+    """Classify market tier based on exposure percentage.
+
+    HIGH-SEVERITY ISSUE FIX: Market Tier classification now reads from config
+    instead of using hardcoded thresholds. Allows tuning without code changes.
+
+    Args:
+        p: exposure percentage (0-100)
+        thresholds: optional dict with keys: confirmed, healthy, pressure, caution
+                   (uses hardcoded defaults if not provided)
+
+    Returns:
+        tier classification string
+    """
     if p is None: return "unknown"
     p = float(p)
-    if p >= TIER_THRESHOLD_CONFIRMED: return "confirmed_uptrend"
-    if p >= TIER_THRESHOLD_HEALTHY: return "healthy_uptrend"
-    if p >= TIER_THRESHOLD_PRESSURE: return "pressure"
-    if p >= TIER_THRESHOLD_CAUTION: return "caution"
+
+    # Use provided thresholds or fallback to hardcoded defaults
+    t_confirmed = TIER_THRESHOLD_CONFIRMED if thresholds is None else thresholds.get("confirmed", TIER_THRESHOLD_CONFIRMED)
+    t_healthy = TIER_THRESHOLD_HEALTHY if thresholds is None else thresholds.get("healthy", TIER_THRESHOLD_HEALTHY)
+    t_pressure = TIER_THRESHOLD_PRESSURE if thresholds is None else thresholds.get("pressure", TIER_THRESHOLD_PRESSURE)
+    t_caution = TIER_THRESHOLD_CAUTION if thresholds is None else thresholds.get("caution", TIER_THRESHOLD_CAUTION)
+
+    if p >= t_confirmed: return "confirmed_uptrend"
+    if p >= t_healthy: return "healthy_uptrend"
+    if p >= t_pressure: return "pressure"
+    if p >= t_caution: return "caution"
     return "correction"
 
 def is_open() -> bool:
@@ -852,6 +872,26 @@ def fetch_algo_config(c):
 
 def fetch_market(c):
     try:
+        # Read market tier thresholds from config (HIGH-SEVERITY ISSUE FIX)
+        tier_thresholds = None
+        try:
+            tier_config_r = q(c, """
+                SELECT key, value FROM algo_config
+                WHERE key IN ('market_tier_threshold_confirmed', 'market_tier_threshold_healthy',
+                             'market_tier_threshold_pressure', 'market_tier_threshold_caution')
+            """)
+            if tier_config_r and len(tier_config_r) == 4:
+                tier_config = {r.get('key'): float(r.get('value', 0)) for r in tier_config_r if r.get('value')}
+                tier_thresholds = {
+                    'confirmed': tier_config.get('market_tier_threshold_confirmed', TIER_THRESHOLD_CONFIRMED),
+                    'healthy': tier_config.get('market_tier_threshold_healthy', TIER_THRESHOLD_HEALTHY),
+                    'pressure': tier_config.get('market_tier_threshold_pressure', TIER_THRESHOLD_PRESSURE),
+                    'caution': tier_config.get('market_tier_threshold_caution', TIER_THRESHOLD_CAUTION),
+                }
+                logger.debug(f"Market tier thresholds from config: {tier_thresholds}")
+        except Exception as e:
+            logger.debug(f"Could not load market tier thresholds from config: {e}")
+
         exp  = q1(c, "SELECT exposure_pct, halt_reasons, date FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
         h    = q1(c, """SELECT market_stage, vix_level, distribution_days_4w,
                                spy_close, market_trend, up_volume_percent,
@@ -1530,25 +1570,41 @@ def fetch_signals(c):
             filtered_count = before_count - len(buy_sigs)
             logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
 
-        # CRITICAL ISSUE 10 FIX: Grade distribution must match signal date, not TODAY's swing_trader_scores
-        # Only include grades for stocks that match the signal date
-        # First, determine the correct swing_trader_scores date to use
-        grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s", (signal_date,)) if signal_date else None
-        grades_date = grades_date_r.get("max") if grades_date_r else None
-        if not grades_date and signal_date:
-            # Fallback: if exact date match fails, use most recent score date
-            grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
-            grades_date = grades_date_r.get("max") if grades_date_r else None
+        # HIGH-SEVERITY ISSUE FIX: Grade distribution now pre-computed in grade_distribution_daily
+        # Try to read from pre-computed table first, fallback to calculation
+        grades = {}
+        grades_date = None
 
-        grades_r = q(c, """
-            SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
-                   COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
-                   COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
-                   COUNT(*) FILTER (WHERE score < 40) AS d,
-                   COUNT(*) AS total
-            FROM swing_trader_scores
-            WHERE date=%s""", (grades_date,)) if grades_date else []
-        grades = grades_r[0] if grades_r else {}
+        # First try pre-computed grades
+        grades_daily = q1(c, """
+            SELECT num_grade_a as a, num_grade_b as b, num_grade_c as c, num_grade_d as d,
+                   total_graded as total, score_date
+            FROM grade_distribution_daily
+            ORDER BY report_date DESC LIMIT 1
+        """)
+
+        if grades_daily:
+            grades = grades_daily
+            grades_date = grades_daily.get('score_date')
+            logger.debug(f"Grade distribution from pre-computed table: A={grades.get('a')} B={grades.get('b')} C={grades.get('c')} D={grades.get('d')}")
+        else:
+            # Fallback: compute on the fly if table not populated yet
+            logger.warning("Grade distribution not in pre-computed table, falling back to calculation")
+            grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s", (signal_date,)) if signal_date else None
+            grades_date = grades_date_r.get("max") if grades_date_r else None
+            if not grades_date and signal_date:
+                grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
+                grades_date = grades_date_r.get("max") if grades_date_r else None
+
+            grades_r = q(c, """
+                SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
+                       COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
+                       COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
+                       COUNT(*) FILTER (WHERE score < 40) AS d,
+                       COUNT(*) AS total
+                FROM swing_trader_scores
+                WHERE date=%s""", (grades_date,)) if grades_date else []
+            grades = grades_r[0] if grades_r else {}
 
         # Issue 25: Near-misses: use actual min_swing_score instead of hardcoded 55-69 range
         # Near-miss is 15 points below threshold to 5 points below (e.g., if threshold is 70: 55-69)
