@@ -336,21 +336,15 @@ def validate_schema() -> None:
 
 def fmt_age(ts: any) -> str:
     if ts is None: return "--"
+    dt = _parse_datetime(ts, as_date=False, timezone_aware=True)
+    if dt is None: return "--"
     try:
-        if isinstance(ts, str):
-            try:
-                ts = datetime.fromisoformat(ts)
-            except (ValueError, TypeError):
-                return "--"
-        if isinstance(ts, date) and not isinstance(ts, datetime):
-            ts = datetime(ts.year, ts.month, ts.day, tzinfo=ET)
-        if ts.tzinfo is None: ts = ts.replace(tzinfo=ET)
-        m = int((datetime.now(ET) - ts).total_seconds() / 60)
+        m = int((datetime.now(ET) - dt).total_seconds() / 60)
         if m < 60:   return f"{m}m ago"
         if m < 1440: return f"{m // 60}h{m % 60:02d}m ago"
         return f"{m // 1440}d ago"
     except (ValueError, TypeError, AttributeError) as e:
-        logger.debug(f"fmt_age error parsing {ts!r}: {e}")
+        logger.debug(f"fmt_age error calculating age {ts!r}: {e}")
         return "--"
 
 def fmt_money(v: any) -> str:
@@ -512,28 +506,47 @@ def sparkline(values: list, width: int = 24) -> str:
     c = G if sampled[-1] >= sampled[0] else R
     return f"[{c}]{chars}[/]"
 
-def _parse_event_date(ed: any) -> Optional[date]:
-    """Parse event date from various formats, converting to ET for consistency.
+def _parse_datetime(dt_val: any, as_date: bool = False, timezone_aware: bool = True) -> Optional:
+    """Unified datetime parser (MEDIUM Issue #12: Consolidate date parsing patterns).
 
-    Extracts date in ET timezone to ensure consistent date boundaries
-    regardless of input timezone (e.g., 11 PM ET on June 10 stays June 10).
+    Handles string (ISO, YYYY-MM-DD, datetime), datetime, and date objects.
+    Returns datetime (with ET timezone if timezone_aware) or date if as_date=True.
+    Returns None if parsing fails.
     """
-    if ed is None:
+    if dt_val is None:
         return None
     try:
-        if isinstance(ed, str):
-            return datetime.strptime(ed[:10], "%Y-%m-%d").date()
-        elif isinstance(ed, datetime):
-            if ed.tzinfo is not None:
-                ed = ed.astimezone(ET)
+        if isinstance(dt_val, datetime):
+            dt = dt_val
+        elif isinstance(dt_val, date):
+            dt = datetime(dt_val.year, dt_val.month, dt_val.day)
+        elif isinstance(dt_val, str):
+            # Try ISO format first (most common), then YYYY-MM-DD
+            try:
+                dt = datetime.fromisoformat(dt_val)
+            except (ValueError, TypeError):
+                if len(dt_val) >= 10:
+                    dt = datetime.strptime(dt_val[:10], "%Y-%m-%d")
+                else:
+                    return None
+        else:
+            return None
+
+        # Handle timezone
+        if timezone_aware:
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=ET)
             else:
-                ed = ed.replace(tzinfo=ET)
-            return ed.date()
-        elif isinstance(ed, date):
-            return ed
+                dt = dt.astimezone(ET)
+
+        return dt.date() if as_date else dt
     except (ValueError, AttributeError, TypeError) as e:
-        logger.warning(f"Failed to parse event_date: {ed} (type: {type(ed).__name__}): {e}")
-    return None
+        logger.debug(f"_parse_datetime failed for {dt_val!r}: {e}")
+        return None
+
+def _parse_event_date(ed: any) -> Optional[date]:
+    """Parse event date from various formats (now uses unified _parse_datetime)."""
+    return _parse_datetime(ed, as_date=True, timezone_aware=True)
 
 def _fmt_event_when(ed_date: Optional[date], et: any) -> str:
     """Format event timing as human-readable label, incorporating date and time for clarity.
