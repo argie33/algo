@@ -1157,8 +1157,17 @@ class TradeExecutor:
                 }
             else:
                 # Log full response for non-200/201 status codes
-                logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} error. Response: {response.text[:500]}")
-                return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}
+                error_text = response.text[:500]
+                logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} error")
+                logger.error(f"[SEND_ORDER] {symbol}: Request payload: {json.dumps(order_data, indent=2)}")
+                logger.error(f"[SEND_ORDER] {symbol}: Response: {error_text}")
+                try:
+                    error_data = response.json()
+                    if 'message' in error_data:
+                        logger.error(f"[SEND_ORDER] {symbol}: Error message: {error_data['message']}")
+                except:
+                    pass
+                return {'success': False, 'message': f'Alpaca {response.status_code}: {error_text[:200]}'}
         except Exception as e:
             logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")
             return {'success': False, 'message': f'Request failed: {e}'}
