@@ -2480,10 +2480,15 @@ def fetch_circuit(c):
         rp = risk_val / max(pv_val, 1) * 100 if pv_val > 0 else 0
 
         # Threshold helper: tracks which values came from config vs defaults
+        # ISSUE 33 FIX: Track when critical thresholds default silently so operator knows config is stale
         defaults_used = {}
+        critical_keys = {'halt_drawdown_pct', 'max_daily_loss_pct', 'max_weekly_loss_pct',
+                        'max_consecutive_losses', 'max_total_risk_pct', 'vix_max_threshold'}
         def th(k, d):
             if k not in cfg:
                 defaults_used[k] = d
+                if k in critical_keys:
+                    logger.critical(f"CIRCUIT_BREAKER CONFIG: Using default {k}={d} — config key missing. Check config.json")
             return cfg.get(k, d)
 
         # Issue 1.6: Handle VIX None case (don't compare None >= threshold)

@@ -105,6 +105,7 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         win_rate_all = round(wins / total_trades * 100, 2) if total_trades > 0 else None
 
         # Fetch dollar amounts for profit factor and average win/loss (CRITICAL ISSUE 2 FIX)
+        # ISSUE 36 FIX: Count breakeven trades explicitly to detect overstatement of profit factor
         avg_win_dollars = None
         avg_loss_dollars = None
         profit_factor = None
@@ -115,7 +116,8 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                         AVG(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as avg_win_dollars,
                         AVG(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as avg_loss_dollars,
                         SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as total_wins,
-                        SUM(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as total_losses
+                        SUM(ABS(profit_loss_dollars)) FILTER (WHERE profit_loss_dollars < 0) as total_losses,
+                        COUNT(*) FILTER (WHERE profit_loss_dollars = 0) as breakeven_count
                     FROM algo_trades
                     WHERE status = 'closed' AND exit_date IS NOT NULL
                 """)
@@ -124,10 +126,15 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                 avg_loss_dollars = float(row.get('avg_loss_dollars')) if row.get('avg_loss_dollars') is not None else None
 
                 # CRITICAL ISSUE 2 FIX: Profit factor = total wins / total losses (avoid None for edge cases)
+                # ISSUE 36 FIX: Note that breakeven trades are excluded from both numerator and denominator
+                # If breakeven_count > 5% of total, profit_factor can overstate actual profitability
                 total_wins = float(row.get('total_wins')) if row.get('total_wins') is not None else 0.0
                 total_losses = float(row.get('total_losses')) if row.get('total_losses') is not None else 0.0
+                breakeven_count = int(row.get('breakeven_count') or 0)
                 if total_losses > 1e-6:  # Avoid division by zero
                     profit_factor = round(total_wins / total_losses, 3)
+                    if total_trades > 0 and breakeven_count > total_trades * 0.05:
+                        logger.warning(f"Profit factor ({profit_factor:.3f}) may be overstated: {breakeven_count} breakeven trades ({breakeven_count/total_trades*100:.1f}%)")
                 elif total_losses == 0 and total_wins > 0:
                     profit_factor = float('inf')  # Perfect record (only wins, no losses)
                 # else: profit_factor stays None (no trades or undefined)
