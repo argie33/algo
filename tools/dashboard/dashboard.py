@@ -633,11 +633,14 @@ def fetch_market(c):
         fed_val = h.get("fed_rate_environment") if h else None
         if not fed_val or fed_val in ("unknown", "Unknown"): fed_val = None
 
-        # Log staleness if data is old
+        # Log staleness if data is old and track for dashboard display
+        stale_alerts = []
         if exp_age is not None and exp_age > 1:
             logger.warning(f"Market exposure data is {exp_age} days old")
+            stale_alerts.append(f"Exposure {exp_age}d old")
         if spy_age is not None and spy_age > 1:
             logger.warning(f"SPY price data is {spy_age} days old")
+            stale_alerts.append(f"SPY {spy_age}d old")
 
         return {
             "pct":   pct,
@@ -649,6 +652,8 @@ def fetch_market(c):
             "spy":     spy_v,
             "spy_chg": spy_chg,
             "spy_age": spy_age,
+            "exp_age": exp_age,
+            "stale_alerts": stale_alerts,
             "trend":   h.get("market_trend") if h else None,
             "upvol": _f("up_volume_percent"),
             "adr":   _f("advance_decline_ratio"),
@@ -717,7 +722,7 @@ def fetch_perf(c):
         losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
         pnl       = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
-        counted_trades = len(wins) + len(losses)
+        counted_trades = len(wins) + len(losses) + len(breakeven)
         wr        = len(wins) / counted_trades * 100 if counted_trades > 0 else 0
         streak = 0
         for t in reversed(trades):
@@ -2054,8 +2059,8 @@ def panel_positions(pos, compact=False, trades=None):
         t.add_column("Swg",    justify="right", no_wrap=True, min_width=4)
         t.add_column("Sector", style="dim",     no_wrap=True, max_width=12)
     for p in pos:
-        entry = float(p.get("avg_entry_price") or 0)
-        price = float(p.get("current_price")   or 0)
+        entry = float(p.get("avg_entry_price")) if p.get("avg_entry_price") is not None else None
+        price = float(p.get("current_price"))   if p.get("current_price") is not None else None
         pval  = float(p.get("position_value")) if p.get("position_value") is not None else None
         stop  = float(p.get("stop_loss_price")) if p.get("stop_loss_price") is not None else None
         t1    = float(p.get("target_1_price")) if p.get("target_1_price") is not None else None
@@ -2064,20 +2069,20 @@ def panel_positions(pos, compact=False, trades=None):
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
-        denom = (entry - stop) if (stop is not None and entry != stop) else None
-        rmul  = (price - entry) / denom if denom is not None else None
-        dist  = (price - stop) / price * 100 if (stop is not None and price) else None
-        t1pct = (t1 - price) / price * 100 if (t1 is not None and price) else None
+        denom = (entry - stop) if (stop is not None and entry is not None and entry != stop) else None
+        rmul  = (price - entry) / denom if (denom is not None and entry is not None) else None
+        dist  = (price - stop) / price * 100 if (stop is not None and price is not None and price > 0) else None
+        t1pct = (t1 - price) / price * 100 if (t1 is not None and price is not None and price > 0) else None
         pc    = G if pnl >= 0 else R
         rc    = G if (rmul is not None and rmul >= 0) else R
         dc    = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
         row = [
             p.get("symbol") or "--",
             fmt_money_short(pval) if pval is not None else "--",
-            f"${entry:.2f}", f"${price:.2f}",
+            f"${entry:.2f}" if entry is not None else "--", f"${price:.2f}" if price is not None else "--",
             Text(f"{sign(pnl)}{pnl:.2f}%", style=pc),
             Text(f"{sign(rmul or 0)}{rmul:.2f}R" if rmul is not None else "--", style=rc),
-            f"${stop:.2f}" if stop else "--",
+            f"${stop:.2f}" if stop is not None else "--",
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),
         ]
         if not compact:
