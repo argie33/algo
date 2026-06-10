@@ -951,6 +951,10 @@ def fetch_recent_trades(c):
 
 def fetch_signals(c):
     try:
+        # Get min_swing_score config for Issue 25: use actual threshold instead of hardcoded 70
+        min_score_cfg = q1(c, "SELECT value FROM algo_config WHERE key='min_swing_score'")
+        min_score = float(min_score_cfg.get("value")) if min_score_cfg and min_score_cfg.get("value") is not None else 70.0
+
         sig = q1(c, """
             SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
             WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily')
@@ -958,6 +962,7 @@ def fetch_signals(c):
         total_r = q1(c, """SELECT COUNT(*) AS n FROM buy_sell_daily
                            WHERE timeframe IN ('1d', 'daily', 'Daily') AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE timeframe IN ('1d', 'daily', 'Daily'))""")
         total_n = int(total_r["n"] or 0) if total_r else 0
+        signal_date = sig.get("d") if sig else None
 
         # Actual BUY signals with rich setup detail
         buy_sigs = q(c, """
@@ -978,6 +983,13 @@ def fetch_signals(c):
             ORDER BY COALESCE(b.signal_quality_score, b.entry_quality_score, 0) DESC
             LIMIT 30""")
 
+        # Issue 23: Validate signal quality scores are present
+        for sig_row in buy_sigs:
+            if sig_row.get("signal_quality_score") is None and sig_row.get("entry_quality_score") is None:
+                logger.warning(f"VALIDATION: Signal {sig_row.get('symbol')} missing both signal_quality_score and entry_quality_score")
+
+        # Issue 24: Grade distribution must match signal date, not TODAY's swing_trader_scores
+        # Only include grades for stocks that match the signal date
         grades_r = q(c, """
             SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
                    COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
@@ -985,17 +997,30 @@ def fetch_signals(c):
                    COUNT(*) FILTER (WHERE score < 40) AS d,
                    COUNT(*) AS total
             FROM swing_trader_scores
-            WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
+            WHERE date=(SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s)""", (signal_date,))
+        if not grades_r and signal_date:
+            # Fallback: if exact date match fails, use most recent score date
+            grades_r = q(c, """
+                SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
+                       COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
+                       COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
+                       COUNT(*) FILTER (WHERE score < 40) AS d,
+                       COUNT(*) AS total
+                FROM swing_trader_scores
+                WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
         grades = grades_r[0] if grades_r else {}
 
-        # Near-misses: scored stocks close to BUY threshold
+        # Issue 25: Near-misses: use actual min_swing_score instead of hardcoded 55-69 range
+        # Near-miss is 15 points below threshold to 5 points below (e.g., if threshold is 70: 55-69)
+        near_lower = max(0, min_score - 15)
+        near_upper = min_score - 1 if min_score > 0 else 69
         near = q(c, """
             SELECT s.symbol, s.score, cp.sector
             FROM swing_trader_scores s
             LEFT JOIN company_profile cp ON cp.ticker = s.symbol
             WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
-              AND s.score BETWEEN 55 AND 69
-            ORDER BY s.score DESC LIMIT 15""")
+              AND s.score BETWEEN %s AND %s
+            ORDER BY s.score DESC LIMIT 15""", (near_lower, near_upper))
 
         # Top A-grade stocks by name (radar display — score ≥ 80)
         top_a = q(c, """
