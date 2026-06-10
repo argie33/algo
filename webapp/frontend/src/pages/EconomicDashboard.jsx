@@ -76,7 +76,7 @@ function EconomicDashboardPage() {
   const calQ   = useApiQuery(['economic-calendar'],  () => api.get('/api/economic/calendar'),           { refetchInterval: 120000 });
   const naaimQ = useApiQuery(['market-naaim'],       () => api.get('/api/market/naaim'),                { refetchInterval: 120000 });
 
-  const isLoading = leadQ.loading || yldQ.loading;
+  const isLoading = leadQ.loading || yldQ.loading || calQ.loading || naaimQ.loading;
   const refetch   = () => { leadQ.refetch(); yldQ.refetch(); calQ.refetch(); naaimQ.refetch(); };
 
   const leading    = leadQ.data   || {};
@@ -869,7 +869,7 @@ function EconomicDashboardPage() {
               <CalendarDays size={16} className="muted" />
             </div>
             <div className="card-body" style={{ padding: 0 }}>
-              {calQ.loading ? <Empty title="Loading…" /> :
+              {isLoading ? <Empty title="Loading…" /> :
                calendar.length === 0 ? <Empty title="No upcoming events" desc="Run the economic calendar loader." /> : (
                 <div style={{ overflow: 'auto' }}>
                   <table className="data-table">
