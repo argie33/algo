@@ -2016,6 +2016,7 @@ def _get_exposure_policy(cur) -> Dict:
 
             # Parse factors from JSON if available
             factors = {}
+            factor_quality = 'ok'
             if row.get('factors'):
                 try:
                     if isinstance(row['factors'], str):
@@ -2025,6 +2026,19 @@ def _get_exposure_policy(cur) -> Dict:
                 except (json.JSONDecodeError, KeyError, TypeError) as e:
                     logger.warning(f"Failed to parse factors: {e}")
                     factors = {}
+                    factor_quality = 'parse_error'
+
+            # Validate expected factor keys are present
+            expected_factor_keys = {'stage_number', 'ad_ratio', 'vix', 'breadth_momentum', 'mcclellan'}
+            if factors and not isinstance(factors, dict):
+                logger.error(f"Factors not a dict: {type(factors)}")
+                factor_quality = 'invalid_structure'
+            elif factors:
+                found_keys = set(factors.keys())
+                missing_keys = expected_factor_keys - found_keys
+                if missing_keys:
+                    logger.warning(f"Market exposure factors missing keys: {missing_keys} (found: {found_keys})")
+                    factor_quality = 'degraded' if missing_keys else 'ok'
 
             # Get latest market health for additional context
             market_health = {}
@@ -2060,13 +2074,14 @@ def _get_exposure_policy(cur) -> Dict:
                     'market_trend': market_health.get('market_trend'),
                     'mcclellan_oscillator': factors.get('mcclellan'),
                 },
+                'factor_quality': factor_quality,
                 'halt_reasons': row.get('halt_reasons'),
                 'as_of': row['date'].isoformat() if row['date'] else None,
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                 psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
             logger.error(f'Failed to fetch exposure policy: {type(e).__name__}: {e}', extra={'operation': 'get exposure policy'})
-            return json_response(200, {'current_exposure_pct': 0, 'regime': 'unknown', 'halt_reasons': [], 'factors': {}, 'as_of': None})
+            return json_response(200, {'current_exposure_pct': 0, 'regime': 'unknown', 'halt_reasons': [], 'factor_quality': 'unavailable', 'factors': {}, 'as_of': None})
 def _get_sector_stage2(cur) -> Dict:
         """Get percentage of stocks in Stage 2 by sector."""
         try:
