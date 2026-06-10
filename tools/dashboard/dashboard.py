@@ -1548,7 +1548,7 @@ def fetch_positions(c):
                     THEN (((COALESCE(lp.current_price, ot.entry_price) - ot.entry_price) / ot.entry_price) * 100)
                     ELSE 0
                 END as unrealized_pnl_pct,
-                (ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::DECIMAL(14,2) as position_value,
+                ROUND((ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::NUMERIC, 2) as position_value,
                 dh.days_since_entry,
                 ot.stop_loss_price,
                 ot.target_1_price,
