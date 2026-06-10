@@ -1093,24 +1093,49 @@ def fetch_market(c):
                     logger.debug(f"Breadth momentum 10d threshold satisfied: {mkt_age}d old <= 3d")
 
         # Category 6 fix: Distribution days threshold validation (10d on Monday per business rules, 3d otherwise)
-        # Issue 13 fix: Account for US market holidays when Monday is a holiday
+        # Issue 13 FIX: Dynamic holiday calculation works for any year
         if mkt_health_age is not None and h and h.get("distribution_days_4w") is not None:
             today = datetime.now(ET)
             is_monday = today.weekday() == 0
-            # US market holidays that affect staleness logic (when Monday is closed, data stale window extends to Friday)
-            us_market_holidays_2026 = [
-                (1, 1),   # New Year's Day
-                (1, 19),  # MLK Jr. Day
-                (2, 16),  # Presidents' Day
-                (3, 27),  # Good Friday
-                (5, 25),  # Memorial Day
-                (6, 19),  # Juneteenth
-                (7, 3),   # Independence Day observed (July 4 is Sat)
-                (9, 7),   # Labor Day
-                (11, 27), # Thanksgiving
-                (12, 25), # Christmas
-            ]
-            today_is_holiday = (today.month, today.day) in us_market_holidays_2026
+
+            def _get_us_market_holidays(year: int) -> set:
+                """Compute US market holidays for given year (works for any year)."""
+                holidays = set()
+                holidays.add(date(year, 1, 1))  # New Year's Day
+                # MLK Jr. Day: 3rd Monday of January
+                jan_1 = date(year, 1, 1)
+                days_to_monday = (7 - jan_1.weekday()) % 7
+                mlk_date = jan_1 + timedelta(days=days_to_monday if days_to_monday > 0 else 7) + timedelta(weeks=2)
+                holidays.add(mlk_date)
+                # Presidents' Day: 3rd Monday of February
+                feb_1 = date(year, 2, 1)
+                days_to_monday = (7 - feb_1.weekday()) % 7
+                pres_date = feb_1 + timedelta(days=days_to_monday if days_to_monday > 0 else 7) + timedelta(weeks=2)
+                holidays.add(pres_date)
+                # Memorial Day: Last Monday of May
+                may_31 = date(year, 5, 31)
+                days_back = (may_31.weekday() - 0) % 7
+                mem_date = may_31 - timedelta(days=days_back)
+                holidays.add(mem_date)
+                holidays.add(date(year, 6, 19))  # Juneteenth
+                # Independence Day (July 3 if July 4 is Saturday, else July 4)
+                july_4 = date(year, 7, 4)
+                holidays.add(date(year, 7, 3) if july_4.weekday() == 5 else july_4)
+                # Labor Day: 1st Monday of September
+                sep_1 = date(year, 9, 1)
+                days_to_monday = (7 - sep_1.weekday()) % 7
+                labor_date = sep_1 + timedelta(days=days_to_monday if days_to_monday > 0 else 7)
+                holidays.add(labor_date)
+                # Thanksgiving: 4th Thursday of November
+                nov_1 = date(year, 11, 1)
+                days_to_thursday = (3 - nov_1.weekday()) % 7
+                thanks_date = nov_1 + timedelta(days=days_to_thursday if days_to_thursday > 0 else 7) + timedelta(weeks=3)
+                holidays.add(thanks_date)
+                holidays.add(date(year, 12, 25))  # Christmas
+                return holidays
+
+            us_market_holidays = _get_us_market_holidays(today.year)
+            today_is_holiday = today.date() in us_market_holidays
             stale_threshold = 10 if (is_monday and not today_is_holiday) else 3
             if mkt_health_age > stale_threshold:
                 logger.warning(f"Distribution days {mkt_health_age}d old exceeds threshold {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})")
