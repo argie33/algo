@@ -1022,7 +1022,7 @@ class PriceLoader(OptimalLoader):
 
         # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
-        prior_close = None
+        prior_close_by_symbol = {}  # FIXED: Track prior_close per-symbol to avoid cross-symbol contamination
         non_trading_filtered = 0
         parse_errors = 0
 
@@ -1030,57 +1030,60 @@ class PriceLoader(OptimalLoader):
             # CRITICAL: Filter out weekend/holiday data before any other validation
             # yfinance occasionally returns non-trading-day rows; we must reject them
             row_date_str = row.get('date')
+            symbol = row.get('symbol')
             try:
                 row_date = datetime.fromisoformat(row_date_str).date()
                 if not MarketCalendar.is_trading_day(row_date):
                     if self.tracker:
                         self.tracker.record_error(
-                            symbol=row.get('symbol'),
+                            symbol=symbol,
                             error_type='NON_TRADING_DAY',
                             error_message=f'Data for non-trading day (weekend/holiday)',
                             resolution='rejected',
                         )
                     non_trading_filtered += 1
-                    logger.debug(f"[{row.get('symbol')}] {row_date}: Non-trading day, rejecting")
+                    logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")
                     continue
             except (ValueError, TypeError) as e:
                 parse_errors += 1
-                logger.warning(f"[{row.get('symbol')}] Could not parse date {row_date_str}: {e}")
+                logger.warning(f"[{symbol}] Could not parse date {row_date_str}: {e}")
                 continue
 
+            # FIXED: Use per-symbol prior_close to avoid cross-symbol contamination
+            symbol_prior_close = prior_close_by_symbol.get(symbol)
             is_valid, errors = validate_price_tick(
-                symbol=row.get('symbol'),
+                symbol=symbol,
                 open_price=row.get('open'),
                 high=row.get('high'),
                 low=row.get('low'),
                 close=row.get('close'),
                 volume=row.get('volume'),
-                prior_close=prior_close,
+                prior_close=symbol_prior_close,
                 is_etf=(self.asset_class == 'etf'),
             )
 
             if not is_valid:
                 if self.tracker:
                     self.tracker.record_error(
-                        symbol=row.get('symbol'),
+                        symbol=symbol,
                         error_type='DATA_INVALID',
                         error_message=', '.join(errors),
                         resolution='skipped',
                     )
-                logger.warning(f"[{row.get('symbol')}] {row.get('date')}: {errors[0]}")
+                logger.warning(f"[{symbol}] {row.get('date')}: {errors[0]}")
                 continue
 
             # Track provenance for each valid tick
             if self.tracker:
                 self.tracker.record_tick(
-                    symbol=row.get('symbol'),
+                    symbol=symbol,
                     tick_date=row.get('date'),
                     data=row,
                     source_api='yfinance',  # Could detect from router later
                 )
 
             final_validated.append(row)
-            prior_close = row.get('close')
+            prior_close_by_symbol[symbol] = row.get('close')  # FIXED: Update per-symbol prior_close
 
         # Log data quality summary for this batch
         if non_trading_filtered > 0 or parse_errors > 0:

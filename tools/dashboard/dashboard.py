@@ -688,6 +688,18 @@ def fetch_run(c):
         _log_data_quality("fetch_run", 0, str(e))
         return {}
 
+def _parse_config_float(config_dict: dict, key: str, default: float) -> float:
+    """Parse a config value as float with validation. Issue 11 fix: consolidate threshold parsing."""
+    val = config_dict.get(key)
+    if val is None:
+        logger.warning(f"VALIDATION: Config key '{key}' missing — using default {default}")
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        logger.warning(f"VALIDATION: Config key '{key}' value {val!r} not parseable as float — using default {default}")
+        return default
+
 def fetch_algo_config(c):
     try:
         keys = ["enable_algo", "execution_mode", "max_position_size_pct",
@@ -704,31 +716,10 @@ def fetch_algo_config(c):
         paper  = d.get("alpaca_paper_trading", "false").lower() == "true"
         mode   = d.get("execution_mode", "unknown").upper()
         mode_s = f"{mode}/PAPER" if paper else mode
-        min_score = d.get("min_swing_score")
-        if min_score is None:
-            min_score = 70.0
-        else:
-            try:
-                min_score = float(min_score)
-            except (ValueError, TypeError):
-                min_score = 70.0
-        # Issue 14: Fetch swing score display thresholds from config (with sensible defaults)
-        swing_good = d.get("swing_score_good_threshold")
-        if swing_good is None:
-            swing_good = 60.0
-        else:
-            try:
-                swing_good = float(swing_good)
-            except (ValueError, TypeError):
-                swing_good = 60.0
-        swing_excellent = d.get("swing_score_excellent_threshold")
-        if swing_excellent is None:
-            swing_excellent = 80.0
-        else:
-            try:
-                swing_excellent = float(swing_excellent)
-            except (ValueError, TypeError):
-                swing_excellent = 80.0
+        # Issue 11 fix: Use consolidated float parser for all swing score thresholds
+        min_score = _parse_config_float(d, "min_swing_score", 70.0)
+        swing_good = _parse_config_float(d, "swing_score_good_threshold", 60.0)
+        swing_excellent = _parse_config_float(d, "swing_score_excellent_threshold", 80.0)
         _log_data_quality("fetch_algo_config", 1)
         return {
             "enabled":      d.get("enable_algo", "true").lower() == "true",
@@ -862,23 +853,44 @@ def fetch_market(c):
             logger.warning(f"VALIDATION: SPY price data is {spy_age} days old — may not reflect current market")
             stale_alerts.append(f"SPY {spy_age}d stale")
         # Category 6 fix: Breadth momentum 10d indicator unreliable if >3 days old (validates threshold)
-        if h and h.get("breadth_momentum_10d") is not None:
-            mkt_age = (datetime.now(timezone.utc) - (h.get("date").replace(tzinfo=timezone.utc) if isinstance(h.get("date"), datetime) else datetime.fromisoformat(str(h.get("date"))).replace(tzinfo=timezone.utc))).days if h.get("date") else None
-            if mkt_age is not None and mkt_age > 3:
-                logger.warning(f"Breadth momentum 10d indicator data {mkt_age}d old (>3d threshold); unreliable")
-                stale_alerts.append(f"Breadth momentum {mkt_age}d old")
+        # Issue 14 fix: Detect when breadth momentum is MISSING, not just old
+        if h:
+            if h.get("breadth_momentum_10d") is None:
+                logger.warning(f"VALIDATION: Breadth momentum 10d is MISSING (null in market_health_daily)")
+                stale_alerts.append("Breadth momentum missing")
             else:
-                logger.debug(f"Breadth momentum 10d threshold satisfied: {mkt_age}d old <= 3d")
+                mkt_age = (datetime.now(timezone.utc) - (h.get("date").replace(tzinfo=timezone.utc) if isinstance(h.get("date"), datetime) else datetime.fromisoformat(str(h.get("date"))).replace(tzinfo=timezone.utc))).days if h.get("date") else None
+                if mkt_age is not None and mkt_age > 3:
+                    logger.warning(f"Breadth momentum 10d indicator data {mkt_age}d old (>3d threshold); unreliable")
+                    stale_alerts.append(f"Breadth momentum {mkt_age}d old")
+                else:
+                    logger.debug(f"Breadth momentum 10d threshold satisfied: {mkt_age}d old <= 3d")
 
         # Category 6 fix: Distribution days threshold validation (10d on Monday per business rules, 3d otherwise)
+        # Issue 13 fix: Account for US market holidays when Monday is a holiday
         if mkt_health_age is not None and h and h.get("distribution_days_4w") is not None:
             today = datetime.now(ET)
-            stale_threshold = 10 if today.weekday() == 0 else 3
+            is_monday = today.weekday() == 0
+            # US market holidays that affect staleness logic (when Monday is closed, data stale window extends to Friday)
+            us_market_holidays_2026 = [
+                (1, 1),   # New Year's Day
+                (1, 19),  # MLK Jr. Day
+                (2, 16),  # Presidents' Day
+                (3, 27),  # Good Friday
+                (5, 25),  # Memorial Day
+                (6, 19),  # Juneteenth
+                (7, 3),   # Independence Day observed (July 4 is Sat)
+                (9, 7),   # Labor Day
+                (11, 27), # Thanksgiving
+                (12, 25), # Christmas
+            ]
+            today_is_holiday = (today.month, today.day) in us_market_holidays_2026
+            stale_threshold = 10 if (is_monday and not today_is_holiday) else 3
             if mkt_health_age > stale_threshold:
-                logger.warning(f"Distribution days {mkt_health_age}d old exceeds threshold {stale_threshold}d")
+                logger.warning(f"Distribution days {mkt_health_age}d old exceeds threshold {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})")
                 stale_alerts.append(f"Distribution days {mkt_health_age}d old")
             else:
-                logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d")
+                logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})")
 
         # CRITICAL ISSUE 1 FIX: Return stale data with alerts instead of failing entirely
         # Market context (even 1-2 days old) is more useful than no context at all
@@ -928,9 +940,10 @@ def fetch_exposure_factors(c):
                 logger.error(f"Failed to parse exposure factors JSON: {e}")
                 factors_error = str(e)
                 factors = {}
-        # Issue 9: Schema validation — track data quality and confidence
+        # Issue 12 fix: Enhanced schema validation — ensure factors are numeric and properly structured
         data_quality = "good"
         missing_keys_list = []
+        invalid_values_list = []
         if factors and isinstance(factors, dict):
             expected_keys = {"trend_30wk", "credit_spread", "vix", "momentum", "breadth"}
             found_keys = set(factors.keys())
@@ -939,12 +952,28 @@ def fetch_exposure_factors(c):
                 data_quality = "degraded"
                 missing_keys_list = sorted(list(missing_keys))
                 logger.warning(f"exposure_factors schema issue: missing expected keys {missing_keys}")
-            # Check that accessed keys exist when extracting values later
+            # Issue 12 fix: Validate that all factor values are numeric (float/int), not dicts or malformed strings
             for key in found_keys:
                 val = factors.get(key)
-                if val is not None and not isinstance(val, (dict, str, int, float)):
-                    logger.warning(f"exposure_factors[{key}] has unexpected type {type(val).__name__}")
+                if val is None:
+                    logger.warning(f"exposure_factors[{key}] is NULL — expected numeric value")
                     data_quality = "degraded"
+                    invalid_values_list.append(key)
+                elif isinstance(val, (int, float)):
+                    # Valid numeric value
+                    pass
+                elif isinstance(val, str):
+                    try:
+                        float(val)
+                    except (ValueError, TypeError):
+                        logger.warning(f"exposure_factors[{key}] value {val!r} is string but not numeric")
+                        data_quality = "degraded"
+                        invalid_values_list.append(key)
+                else:
+                    # Dict, list, or other non-numeric type
+                    logger.warning(f"exposure_factors[{key}] has unexpected type {type(val).__name__} (expected float/int)")
+                    data_quality = "degraded"
+                    invalid_values_list.append(key)
         elif not factors:
             data_quality = "missing"
             logger.warning(f"exposure_factors JSON is empty or null")
@@ -957,6 +986,7 @@ def fetch_exposure_factors(c):
             "factors":      factors,
             "_data_quality": data_quality,
             "_missing_keys": missing_keys_list,
+            "_invalid_values": invalid_values_list,
         }
         if factors_error:
             result["_factors_parse_error"] = factors_error
