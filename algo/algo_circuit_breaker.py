@@ -24,6 +24,7 @@ When a circuit breaker fires:
 """
 
 import json
+import math
 from utils.database_context import DatabaseContext
 from datetime import datetime, timedelta, date as _date
 from typing import Dict, Any
@@ -31,6 +32,21 @@ from utils.trade_status import TradeStatus, PositionStatus
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_float(value, default=0.0, context=""):
+    """Convert to float safely, rejecting NaN/Infinity."""
+    if value is None:
+        return default
+    try:
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            logger.warning(f"Invalid float {value!r} (NaN/Inf) {context}")
+            return default
+        return f
+    except (ValueError, TypeError):
+        logger.warning(f"Failed to convert {value!r} to float {context}")
+        return default
 
 
 class CircuitBreaker:
@@ -133,12 +149,12 @@ class CircuitBreaker:
         # Bootstrap path: if table is empty (first ever run), allow through
         if not row or not row[0] or not row[1]:
             return {'halted': False, 'reason': 'First run — no portfolio history yet'}
-        peak = float(row[0])
-        cur_val = float(row[1])
+        peak = _safe_float(row[0], 0.0, context="drawdown peak")
+        cur_val = _safe_float(row[1], 0.0, context="drawdown current")
         if peak <= 0 or cur_val <= 0:
             return {'halted': True, 'reason': 'Invalid portfolio values — fail-closed'}
-        dd = ((peak - cur_val) / peak * 100.0)
-        threshold = float(self.config.get('halt_drawdown_pct', 20.0))
+        dd = ((peak - cur_val) / peak * 100.0) if peak > 0 else 0.0
+        threshold = _safe_float(self.config.get('halt_drawdown_pct', 20.0), 20.0, context="halt_drawdown_pct")
         return {
             'halted': dd >= threshold,
             'reason': f'Drawdown {dd:.2f}% >= {threshold:.0f}%' if dd >= threshold else f'Drawdown {dd:.2f}%',
@@ -236,8 +252,8 @@ class CircuitBreaker:
         row = cur.fetchone()
         if not row or row[0] is None:
             return {'halted': False, 'reason': 'No today snapshot yet'}
-        daily = float(row[0])
-        threshold = -float(self.config.get('max_daily_loss_pct', 2.0))
+        daily = _safe_float(row[0], 0.0, context="daily_loss")
+        threshold = -_safe_float(self.config.get('max_daily_loss_pct', 2.0), 2.0, context="max_daily_loss_pct")
         return {
             'halted': daily <= threshold,
             'reason': f'Daily loss {daily:.2f}% <= {threshold:.1f}%' if daily <= threshold else f'Daily {daily:+.2f}%',
@@ -262,7 +278,7 @@ class CircuitBreaker:
         # Count consecutive losses from most recent
         streak = 0
         for r in rows:
-            pnl = float(r[0]) if r[0] is not None else 0
+            pnl = _safe_float(r[0], 0.0, context="trade_pnl")
             if pnl < 0:
                 streak += 1
             else:
@@ -335,7 +351,7 @@ class CircuitBreaker:
             (PositionStatus.OPEN.value,)
         )
         result = cur.fetchone()
-        total_open_risk = float(result[0]) if result else 0
+        total_open_risk = _safe_float(result[0], 0.0, context="total_open_risk") if result else 0.0
 
         cur.execute(
             "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
@@ -343,12 +359,12 @@ class CircuitBreaker:
         row = cur.fetchone()
         if not row or not row[0]:
             return {'halted': False, 'reason': 'No portfolio value'}
-        portfolio = float(row[0])
+        portfolio = _safe_float(row[0], 0.0, context="portfolio_value")
         if portfolio <= 0:
             return {'halted': False, 'reason': 'Portfolio value <= 0'}
 
-        risk_pct = total_open_risk / portfolio * 100.0
-        threshold = float(self.config.get('max_total_risk_pct', 4.0))
+        risk_pct = (total_open_risk / portfolio * 100.0) if portfolio > 0 else 0.0
+        threshold = _safe_float(self.config.get('max_total_risk_pct', 4.0), 4.0, context="max_total_risk_pct")
         return {
             'halted': risk_pct >= threshold,
             'reason': f'Total open risk {risk_pct:.2f}% >= {threshold:.0f}%' if risk_pct >= threshold else f'Risk {risk_pct:.2f}%',
@@ -362,13 +378,13 @@ class CircuitBreaker:
             (current_date,),
         )
         row = cur.fetchone()
-        vix = float(row[0]) if row and row[0] is not None else None
+        vix = _safe_float(row[0], None, context="vix_level") if row and row[0] is not None else None
 
         if vix is None:
             vix = self._compute_vix_fallback(current_date, cur)
             logger.info(f'VIX missing, using fallback estimate: {vix:.1f}')
 
-        threshold = float(self.config.get('vix_max_threshold', 35.0))
+        threshold = _safe_float(self.config.get('vix_max_threshold', 35.0), 35.0, context="vix_max_threshold")
         return {
             'halted': vix > threshold,
             'reason': f'VIX {vix:.1f} > {threshold:.0f}' if vix > threshold else f'VIX {vix:.1f}',

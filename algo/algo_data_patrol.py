@@ -626,7 +626,7 @@ class DataPatrol:
                 try:
                     data = resp.json()
                 except (ValueError, Exception) as e:
-                    logger.debug(f"Invalid JSON from Yahoo API: {e}")
+                    logger.warning(f"Invalid JSON from Yahoo API: {e}")
                     continue
                 results = data.get('chart', {}).get('result', [])
                 if not results:
@@ -712,7 +712,7 @@ class DataPatrol:
                 try:
                     bar = resp.json().get('bar', {})
                 except (ValueError, Exception) as e:
-                    logger.debug(f"Invalid JSON from Alpaca API: {e}")
+                    logger.warning(f"Invalid JSON from Alpaca API: {e}")
                     continue
                 alpaca_close = float(bar.get('c', 0))
 

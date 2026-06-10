@@ -7,35 +7,45 @@ param(
 )
 
 # Prepare payload with force_execution to bypass weekend check
+$utcNow = [System.DateTime]::UtcNow.ToString("o")
 $payload = @{
     test = $true
     dry_run = -not $Live
     force_execution = $true  # Override weekend/market-closed checks
     source = "force-test"
-    timestamp = (Get-Date -AsUTC).ToString("o")
+    timestamp = $utcNow
 } | ConvertTo-Json
 
 Write-Host "Invoking algo-algo-dev Lambda..."
 Write-Host "Payload: $payload"
 
+# Set AWS profile for credentials
+$env:AWS_PROFILE = "algo-developer"
+
 if ($Live) {
-    $confirm = Read-Host "⚠️  WARNING: This will open REAL positions. Continue? (y/N)"
+    $confirm = Read-Host "WARNING: This will open REAL positions. Continue? (y/N)"
     if ($confirm -ne "y") {
         Write-Host "Aborted"
         exit 1
     }
 }
 
-# Invoke Lambda
-$response = aws lambda invoke `
-    --function-name algo-algo-dev `
-    --region $Region `
-    --payload $payload `
-    --cli-binary-format raw-in-base64-out `
-    response.json 2>&1
+# Invoke Lambda - write payload to temp file to avoid escaping issues
+$tempPayloadFile = "$env:TEMP\lambda_payload_$(Get-Random).json"
+$payload | Set-Content -Path $tempPayloadFile -Encoding UTF8
+
+Write-Host "Calling AWS Lambda with payload from: $tempPayloadFile"
+
+$invokeCmd = "aws lambda invoke --function-name algo-algo-dev --region $Region --payload file://$tempPayloadFile response.json"
+Write-Host "Command: $invokeCmd"
+Invoke-Expression $invokeCmd 2>&1
+
+$response = $LASTEXITCODE
+
+Remove-Item $tempPayloadFile -ErrorAction SilentlyContinue
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "`n✓ Lambda invoked successfully"
+    Write-Host "`n[SUCCESS] Lambda invoked successfully"
 
     # Parse response
     $content = Get-Content response.json | ConvertFrom-Json
@@ -44,18 +54,22 @@ if ($LASTEXITCODE -eq 0) {
 
     # Extract execution status
     $body = $content.body | ConvertFrom-Json
-    Write-Host "`n================================================================================`nEXECUTION RESULT`n================================================================================"
+    Write-Host "`n================================================================================"
+    Write-Host "EXECUTION RESULT"
+    Write-Host "================================================================================"
 
     if ($body.status -eq "success") {
-        Write-Host "✓ ORCHESTRATOR EXECUTED SUCCESSFULLY"
+        Write-Host "[OK] ORCHESTRATOR EXECUTED SUCCESSFULLY"
 
         # Show phases
-        $body.phases | GetEnumerator | foreach {
-            $phase = $_.Value
-            if ($phase.status -eq "success") {
-                Write-Host "  ✓ Phase $($_.Key): $($phase.summary)"
-            } else {
-                Write-Host "  → Phase $($_.Key): $($phase.status) - $($phase.summary)"
+        if ($body.phases) {
+            foreach ($phaseKey in $body.phases.PSObject.Properties.Name) {
+                $phase = $body.phases.$phaseKey
+                if ($phase.status -eq "success") {
+                    Write-Host "  [OK] Phase $phaseKey`: $($phase.summary)"
+                } else {
+                    Write-Host "  [*] Phase $phaseKey`: $($phase.status) - $($phase.summary)"
+                }
             }
         }
 
@@ -64,15 +78,15 @@ if ($LASTEXITCODE -eq 0) {
         Write-Host "`nOpen Positions: $openPositions"
 
         if ($openPositions -gt 0) {
-            Write-Host "✓✓✓ LIVE ALPACA TRADING VERIFIED ✓✓✓"
+            Write-Host "[SUCCESS] LIVE ALPACA TRADING VERIFIED"
             Write-Host "Positions opened in paper account!"
         }
     } else {
-        Write-Host "✗ Orchestrator failed: $($body.message)"
+        Write-Host "[ERROR] Orchestrator failed: $($body.message)"
     }
 
     rm response.json
 } else {
-    Write-Host "✗ Lambda invocation failed"
+    Write-Host "[ERROR] Lambda invocation failed"
     $response
 }

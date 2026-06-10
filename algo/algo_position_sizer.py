@@ -116,7 +116,7 @@ class PositionSizer:
                     try:
                         data = response.json()
                     except (ValueError, Exception) as e:
-                        logger.debug(f"Invalid JSON from Alpaca portfolio API: {e}")
+                        logger.warning(f"Invalid JSON from Alpaca portfolio API: {e}")
                         return None
                     pv = data.get('portfolio_value') or data.get('equity')
                     if pv:

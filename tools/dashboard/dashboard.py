@@ -390,7 +390,7 @@ def _parse_event_date(ed: any) -> Optional[date]:
         elif isinstance(ed, date):
             return ed
     except (ValueError, AttributeError, TypeError) as e:
-        logger.debug(f"Failed to parse event_date: {ed} (type: {type(ed).__name__}): {e}")
+        logger.warning(f"Failed to parse event_date: {ed} (type: {type(ed).__name__}): {e}")
     return None
 
 
@@ -484,6 +484,7 @@ def fetch_algo_config(c):
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
+        _log_data_quality("fetch_algo_config", 0, str(e))
         return {}
 
 def fetch_market(c):
@@ -574,7 +575,8 @@ def fetch_market(c):
         }
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_market: {type(e).__name__}: {e}")
-        return {"_error": str(e)}
+        _log_data_quality("fetch_market", 0, str(e))
+        return {}
 
 def fetch_exposure_factors(c):
     try:
@@ -623,10 +625,12 @@ def fetch_perf(c):
                          FROM algo_trades WHERE status='closed' AND exit_date IS NOT NULL
                          ORDER BY exit_date ASC""")
         if not trades: return {}
-        wins   = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
-        losses = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) <= 0]
-        pnl    = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
-        wr     = len(wins) / len(trades) * 100 if trades else 0
+        wins      = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
+        losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
+        breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
+        pnl       = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
+        counted_trades = len(wins) + len(losses)
+        wr        = len(wins) / counted_trades * 100 if counted_trades > 0 else 0
         streak = 0
         for t in reversed(trades):
             w = float(t.get("profit_loss_dollars") or 0) > 0
@@ -671,7 +675,7 @@ def fetch_perf(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
         _log_data_quality("fetch_perf", 0, str(e))
-        return {"_error": str(e)}
+        return {}
 
 def fetch_positions(c):
     """Fetch open positions from algo_trades (single source of truth).
@@ -750,7 +754,7 @@ def fetch_positions(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_positions: {type(e).__name__}: {e}")
         _log_data_quality("fetch_positions", 0, str(e))
-        return {"_error": str(e)}
+        return []
 
 def fetch_recent_trades(c):
     try:
@@ -763,7 +767,7 @@ def fetch_recent_trades(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
         _log_data_quality("fetch_recent_trades", 0, str(e))
-        return {"_error": str(e)}
+        return []
 
 def fetch_signals(c):
     try:
@@ -838,7 +842,7 @@ def fetch_signals(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signals: {type(e).__name__}: {e}")
         _log_data_quality("fetch_signals", 0, str(e))
-        return {"_error": str(e)}
+        return {}
 
 def fetch_sector_ranking(c):
     try:
@@ -972,7 +976,7 @@ def fetch_algo_metrics(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_metrics: {type(e).__name__}: {e}")
         _log_data_quality("fetch_algo_metrics", 0, str(e))
-        return {}
+        return []
 
 def fetch_notifications(c):
     try:
@@ -1111,7 +1115,7 @@ def fetch_signal_eval(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_signal_eval: {type(e).__name__}: {e}")
         _log_data_quality("fetch_signal_eval", 0, str(e))
-        return {"_error": str(e)}
+        return {}
 
 def fetch_sector_rotation(c):
     try:
@@ -1125,7 +1129,7 @@ def fetch_sector_rotation(c):
         if isinstance(d, str):
             try: d = json.loads(d)
             except (json.JSONDecodeError, ValueError):
-                logger.debug("sector_rotation details JSON parse failed")
+                logger.warning("sector_rotation details JSON parse failed")
                 d = {}
         result = {
             "date":     row.get("date"),
@@ -1207,7 +1211,7 @@ def fetch_audit_log(c):
             if isinstance(det, str):
                 try: det = json.loads(det)
                 except (json.JSONDecodeError, ValueError):
-                    logger.debug("audit_log details JSON parse failed")
+                    logger.warning("audit_log details JSON parse failed")
                     det = {}
             result.append({
                 "action_type": r.get("action_type", ""),
@@ -1289,7 +1293,7 @@ def fetch_circuit(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
         _log_data_quality("fetch_circuit", 0, str(e))
-        return {"_error": str(e)}
+        return {}
 
 
 # ── parallel data loader ──────────────────────────────────────────────────────
@@ -1355,9 +1359,15 @@ def load_all() -> dict:
                 return name, {"_error": str(e)}
     max_workers = min(4, max(1, len(FETCHERS) // 3))
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        for f in as_completed({pool.submit(one, k, v): k for k, v in FETCHERS.items()}):
-            n, d = f.result()
-            out[n] = d
+        future_to_key = {pool.submit(one, k, v): k for k, v in FETCHERS.items()}
+        for f in as_completed(future_to_key):
+            try:
+                n, d = f.result()
+                out[n] = d
+            except Exception as e:
+                logger.error(f"Thread exception in load_all: {type(e).__name__}: {e}")
+                k = future_to_key[f]
+                out[k] = {"_error": str(e)}
     return out
 
 
@@ -1384,7 +1394,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
         if isinstance(pdata, str):
             try:    pdata = json.loads(pdata)
             except (json.JSONDecodeError, ValueError):
-                logger.debug("pdata JSON parse failed in _best_halt_reason")
+                logger.warning("pdata JSON parse failed in _best_halt_reason")
                 pdata = {}
         detail = next(
             (str(pdata[k]) for k in _FIELDS
@@ -1916,7 +1926,8 @@ def panel_positions(pos, compact=False, trades=None):
         stg   = p.get("weinstein_stage")
         swg   = p.get("swing_score")
         sec   = (p.get("sector") or "--")[:12]
-        rmul  = (price - entry) / (entry - stop) if (stop is not None and entry > stop) else None
+        denom = (entry - stop) if (stop is not None and entry != stop) else None
+        rmul  = (price - entry) / denom if denom is not None else None
         dist  = (price - stop) / price * 100 if (stop is not None and price) else None
         t1pct = (t1 - price) / price * 100 if (t1 is not None and price) else None
         pc    = G if pnl >= 0 else R
@@ -2154,7 +2165,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
         sd: dict = {}
         for p in pos:
-            sec = p.get("sector") or "Unknown"
+            sec = p.get("sector") or "[No Sector]"
             val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
             pnl_raw = p.get("unrealized_pnl_pct")
             # Only track non-None P&L values for accurate averages
@@ -2653,7 +2664,7 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         if isinstance(det, str):
             try: det = json.loads(det)
             except (json.JSONDecodeError, ValueError):
-                logger.debug("action details JSON parse failed in panel_status")
+                logger.warning("action details JSON parse failed in panel_status")
                 det = {}
         sym = det.get("symbol", "")
         ic  = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
@@ -3348,7 +3359,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
         sd: dict = {}
         for p in pos:
-            sec = p.get("sector") or "Unknown"
+            sec = p.get("sector") or "[No Sector]"
             val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
             pnl_raw = p.get("unrealized_pnl_pct")
             pnl = float(pnl_raw) if pnl_raw is not None else None
@@ -3628,7 +3639,7 @@ PANELS:
   MARKET — market regime inputs to the algo
     CONF UP etc     Market tier: Confirmed Uptrend → Correction (5 levels)
     exposure %      How much of the portfolio the algo is deploying (0–100%)
-    VIX             Volatility Index (>20 = caution, >30 = algo reduces)
+    VIX             Volatility Index (>20 = caution, >30 = reduces exposure, >35 = halts trading)
     Dist Days       Distribution days in 4 weeks (heavy selling by institutions)
     Stage           Market stage 1–4 (Weinstein: 1=base, 2=up, 3=top, 4=down)
     SPY             S&P 500 ETF price + daily % change

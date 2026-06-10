@@ -1008,7 +1008,7 @@ class TradeExecutor:
                     try:
                         data = resp.json()
                     except (ValueError, Exception) as e:
-                        logger.debug(f"Invalid JSON response from portfolio API: {e}")
+                        logger.warning(f"Invalid JSON response from portfolio API: {e}")
                     else:
                         pv = data.get('portfolio_value') or data.get('equity')
                         if pv is not None:
@@ -1259,7 +1259,7 @@ class TradeExecutor:
                     try:
                         data = resp.json()
                     except Exception as e:
-                        logger.debug(f"Failed to parse order response: {e}")
+                        logger.warning(f"Failed to parse order response: {e}")
                         return None
                     filled_qty = data.get('filled_qty')
                     if filled_qty is not None:
@@ -1303,7 +1303,7 @@ class TradeExecutor:
                     try:
                         data = resp.json()
                     except Exception as e:
-                        logger.debug(f"Failed to parse status response: {e}")
+                        logger.warning(f"Failed to parse status response: {e}")
                         if attempt < max_retries - 1:
                             time.sleep(2 ** attempt)
                         continue

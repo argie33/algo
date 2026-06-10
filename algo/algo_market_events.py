@@ -57,7 +57,7 @@ class MarketEventHandler:
             try:
                 data = resp.json()
             except (ValueError, Exception) as e:
-                logger.debug(f"Invalid JSON response from {url}: {e}")
+                logger.warning(f"Invalid JSON response from {url}: {e}")
                 return None
             status = data.get('status', '').upper()
             tradable = data.get('tradable', False)
@@ -101,7 +101,7 @@ class MarketEventHandler:
             try:
                 data = resp.json()
             except (ValueError, Exception) as e:
-                logger.debug(f"Invalid JSON response from {url}: {e}")
+                logger.warning(f"Invalid JSON response from {url}: {e}")
                 return None
             current_price = data.get('quote', {}).get('ap')  # ask price
             if not current_price:
@@ -115,7 +115,7 @@ class MarketEventHandler:
             try:
                 bars_data = resp_bars.json()
             except (ValueError, Exception) as e:
-                logger.debug(f"Invalid JSON response from {url_bars}: {e}")
+                logger.warning(f"Invalid JSON response from {url_bars}: {e}")
                 return None
             open_price = bars_data.get('bar', {}).get('o')
             if not open_price:

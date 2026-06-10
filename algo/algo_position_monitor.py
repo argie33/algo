@@ -669,7 +669,7 @@ class PositionMonitor:
                     try:
                         alpaca_pos = resp.json()
                     except (ValueError, Exception) as e:
-                        logger.debug(f"Invalid JSON response for {symbol}: {e}, skipping")
+                        logger.warning(f"Invalid JSON response for {symbol}: {e}, skipping")
                         continue
 
                     alpaca_qty = int(alpaca_pos.get('qty', 0))
