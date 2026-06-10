@@ -590,6 +590,7 @@ def fetch_market(c):
 
         # Check data freshness (should be from today or recent trading day)
         exp_age = None
+        mkt_health_age = None
         if exp and exp.get("date"):
             try:
                 if isinstance(exp["date"], datetime):
@@ -604,6 +605,21 @@ def fetch_market(c):
                     if exp_date.tzinfo is None:
                         exp_date = exp_date.replace(tzinfo=timezone.utc)
                     exp_age = (datetime.now(timezone.utc) - exp_date).days
+            except (ValueError, TypeError, KeyError): pass
+        # Track market_health_daily age for distribution_days, yield curve, etc.
+        if h and h.get("date"):
+            try:
+                if isinstance(h["date"], datetime):
+                    mkt_date = h["date"]
+                else:
+                    try:
+                        mkt_date = datetime.fromisoformat(str(h["date"]))
+                    except (ValueError, TypeError):
+                        mkt_date = None
+                if mkt_date:
+                    if mkt_date.tzinfo is None:
+                        mkt_date = mkt_date.replace(tzinfo=timezone.utc)
+                    mkt_health_age = (datetime.now(timezone.utc) - mkt_date).days
             except (ValueError, TypeError, KeyError): pass
 
         vix_row = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
@@ -645,7 +661,8 @@ def fetch_market(c):
             except (ValueError, AttributeError, TypeError):
                 pass
         fed_val = h.get("fed_rate_environment") if h else None
-        if not fed_val or fed_val in ("unknown", "Unknown"): fed_val = None
+        # Case-insensitive check for "unknown" value
+        if not fed_val or (isinstance(fed_val, str) and fed_val.lower() == "unknown"): fed_val = None
 
         # Log staleness if data is old and track for dashboard display
         stale_alerts = []
@@ -655,7 +672,20 @@ def fetch_market(c):
         if spy_age is not None and spy_age > 1:
             logger.warning(f"SPY price data is {spy_age} days old")
             stale_alerts.append(f"SPY {spy_age}d old")
+        # Breadth momentum 10d indicator unreliable if market health data >3 days old
+        if h and h.get("breadth_momentum_10d") is not None:
+            mkt_age = (datetime.now(timezone.utc) - (h.get("date").replace(tzinfo=timezone.utc) if isinstance(h.get("date"), datetime) else datetime.fromisoformat(str(h.get("date"))).replace(tzinfo=timezone.utc))).days if h.get("date") else None
+            if mkt_age is not None and mkt_age > 3:
+                logger.warning(f"Breadth momentum 10d indicator data {mkt_age}d old (>3d threshold); unreliable")
+                stale_alerts.append(f"Breadth momentum {mkt_age}d old")
 
+        # Add market_health_age to stale_alerts if distribution_days (10d on Mon, 3d otherwise) is stale
+        if mkt_health_age is not None and h and h.get("distribution_days_4w") is not None:
+            today = datetime.now(ET)
+            stale_threshold = 10 if today.weekday() == 0 else 3
+            if mkt_health_age > stale_threshold:
+                logger.warning(f"Distribution days {mkt_health_age}d old (threshold {stale_threshold}d)")
+                stale_alerts.append(f"Distribution days {mkt_health_age}d old")
         _log_data_quality("fetch_market", 1)
         return {
             "pct":   pct,
@@ -663,6 +693,7 @@ def fetch_market(c):
             "halts": halts,
             "vix":     float(vix_v) if vix_v is not None else None,
             "dist":    _i("distribution_days_4w"),
+            "dist_age": mkt_health_age,
             "stage":   _i("market_stage"),
             "spy":     spy_v,
             "spy_chg": spy_chg,
@@ -741,7 +772,8 @@ def fetch_perf(c):
         losses    = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
         breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
         pnl       = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
-        counted_trades = len(wins) + len(losses) + len(breakeven)
+        # Win rate excludes breakeven trades; only counts wins vs (wins + losses)
+        counted_trades = len(wins) + len(losses)
         wr        = len(wins) / counted_trades * 100 if counted_trades > 0 else 0
         streak = 0
         for t in reversed(trades):
@@ -757,26 +789,33 @@ def fetch_perf(c):
                        for s in snaps if s.get("total_portfolio_value") is not None]
         if len(snaps) >= 10:
             rets = [float(s.get("daily_return_pct") or 0) / 100 for s in snaps if s.get("daily_return_pct") is not None]
-            if len(rets) > 1:
+            # Sharpe requires >5 returns to be meaningful; assumes normal distribution (may understate tail risk in fat-tailed markets)
+            if len(rets) > 5:
                 mn = statistics.mean(rets)
                 sd = statistics.stdev(rets)
                 if sd > 0: sharpe = round(mn / sd * (252 ** 0.5), 2)
+            # Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
             pk = 0.0
             for s in snaps:
                 v = float(s.get("total_portfolio_value") or 0)
                 if v > pk: pk = v
                 if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
-        win_amt   = [float(t.get("profit_loss_dollars")) for t in wins if t.get("profit_loss_dollars") is not None]
-        loss_amt  = [abs(float(t.get("profit_loss_dollars"))) for t in losses if t.get("profit_loss_dollars") is not None]
-        avg_win   = statistics.mean(win_amt)  if win_amt  else 0.0
-        avg_loss  = statistics.mean(loss_amt) if loss_amt else 0.0
+        # Build win/loss amounts with defensive filtering
+        win_amt   = [float(t.get("profit_loss_dollars")) for t in wins if t and t.get("profit_loss_dollars") is not None]
+        loss_amt  = [abs(float(t.get("profit_loss_dollars"))) for t in losses if t and t.get("profit_loss_dollars") is not None]
+        avg_win   = statistics.mean(win_amt)  if win_amt and len(win_amt) > 0 else 0.0
+        avg_loss  = statistics.mean(loss_amt) if loss_amt and len(loss_amt) > 0 else 0.0
         gw = sum(win_amt); gl = sum(loss_amt)
         pf = round(gw / gl, 2) if gl > 0 else None
         exp = round(wr / 100 * avg_win - (1 - wr / 100) * avg_loss, 2) if trades else 0.0
         avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
         avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
+        # Recent returns: last 7 snapshots (validates snapshot_date and daily_return_pct are populated)
         recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct") or 0))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
+        # Only include in dashboard if we have at least 5 recent data points
+        if len(recent_rets) < 5:
+            recent_rets = []
         _log_data_quality("fetch_perf", len(trades))
         return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
                 "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
@@ -1073,8 +1112,9 @@ def fetch_economic_pulse(c):
             ORDER BY series_id, date DESC""", (KEY,))
         d = {r['series_id']: float(r['value']) for r in rows if r.get('value') is not None}
         t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
-        yc_10_2  = round(t10 - t2,  2) if t10 is not None and t2  is not None else None
-        yc_10_3m = round(t10 - t3m, 2) if t10 is not None and t3m is not None else None
+        # Validate yield curve slopes are numeric and within reasonable range
+        yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2  is not None and isinstance(t10, (int, float)) and isinstance(t2, (int, float))) else None
+        yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None and isinstance(t10, (int, float)) and isinstance(t3m, (int, float))) else None
 
         # CPI YoY: need 12-month-old value
         cpi_yoy = None
