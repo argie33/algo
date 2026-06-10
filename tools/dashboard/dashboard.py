@@ -812,9 +812,12 @@ def fetch_exposure_factors(c):
                 val = factors.get(key)
                 if val is not None and not isinstance(val, (dict, str, int, float)):
                     logger.warning(f"exposure_factors[{key}] has unexpected type {type(val).__name__}")
+        # Issue: Preserve None for missing values instead of converting to 0.0
+        raw_score = float(row.get("raw_score")) if row.get("raw_score") is not None else None
+        exposure_pct = float(row.get("exposure_pct")) if row.get("exposure_pct") is not None else None
         result = {
-            "raw_score":    float(row.get("raw_score") or 0),
-            "exposure_pct": float(row.get("exposure_pct") or 0),
+            "raw_score":    raw_score,
+            "exposure_pct": exposure_pct,
             "regime":       row.get("regime"),
             "factors":      factors,
         }
@@ -1455,10 +1458,11 @@ def fetch_sector_rotation(c):
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"sector_rotation details corrupt; sector rotation signal unavailable: {e}")
                 return {"_error": "Sector rotation data corrupted"}
+        strength = float(row.get("strength")) if row.get("strength") is not None else None
         result = {
             "date":     row.get("date"),
             "signal":   row.get("signal") or "",
-            "strength": float(row.get("strength") or 0),
+            "strength": strength,
             "weeks":    d.get("weeks_persistent", 1),
             "def_score": d.get("defensive_lead_score", 0),
             "cyc_score": d.get("cyclical_weak_score", 0),
