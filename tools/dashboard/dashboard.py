@@ -516,6 +516,7 @@ def fetch_run(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_run (exec_log): {type(e).__name__}: {e}")
         _log_data_quality("fetch_run", 0, str(e))
+        return {}
 
     # Fallback: reconstruct from algo_audit_log
     try:
