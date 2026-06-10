@@ -2892,13 +2892,19 @@ def panel_economic_pulse(eco, econ_cal=None):
         rows.append(Rule(style="dim"))
         IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
         today = date.today()
+        # Issue #15: Economic calendar deduplication — handle None event_dates properly
         seen_keys = set()
+        dedup_count = 0
         for ev in valid_cal[:6]:
             ed      = ev.get("event_date")
             full_nm = (ev.get("event_name") or "")
             name    = full_nm[:24]
-            key     = (str(ed) + full_nm[:24]).lower()
-            if key in seen_keys: continue
+            # Generate key that handles None event_dates without collision
+            date_str = str(_parse_event_date(ed)) if ed is not None else f"no_date_{len(seen_keys)}"
+            key     = (date_str + full_nm[:24]).lower()
+            if key in seen_keys:
+                dedup_count += 1
+                continue
             seen_keys.add(key)
             imp  = (ev.get("importance") or "LOW").upper()
             ic   = IMP_C.get(imp, "dim")
@@ -2926,6 +2932,9 @@ def panel_economic_pulse(eco, econ_cal=None):
             rows.append(Text.from_markup(
                 f"[{ic}]{when:<5}[/]{et_s} [white]{name}[/]{vals}"
             ))
+
+        if dedup_count > 0:
+            logger.debug(f"Economic calendar deduplication: removed {dedup_count} duplicate events")
 
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
