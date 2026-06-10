@@ -75,10 +75,13 @@ except ImportError:
 
 try:
     import boto3
-    from botocore.exceptions import ClientError
+    import botocore.config
+    from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutError
 except ImportError:
     boto3 = None
     ClientError = None
+    ConnectTimeoutError = None
+    ReadTimeoutError = None
 
 try:
     from rich import box
@@ -144,8 +147,6 @@ IG_OAS_GOOD = 1.0
 IG_OAS_WARNING = 2.0
 HY_OAS_GOOD = 3.5
 HY_OAS_WARNING = 6.0
-CPI_GOOD = 2.5
-CPI_WARNING = 4.0
 UNRATE_GOOD = 4.5
 UNRATE_WARNING = 6.0
 NFCI_NEGATIVE = -0.3
@@ -159,8 +160,8 @@ MORTGAGE_CRITICAL = 7.0
 UMCSENT_GOOD = 80
 UMCSENT_WARNING = 60
 
-SWING_SCORE_EXCELLENT = 80  # HIGH ISSUE #9: Centralized swing score thresholds
-SWING_SCORE_GOOD = 60       # Used for position panel coloring
+SWING_SCORE_EXCELLENT = 80  # Deprecated: use get_swing_score_thresholds() instead
+SWING_SCORE_GOOD = 60       # Deprecated: use get_swing_score_thresholds() instead
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
@@ -244,10 +245,16 @@ def _get_db_credentials() -> dict:
     env_missing = [k for k in ["host", "user", "password", "dbname"] if not env_creds.get(k)]
     env_status = f"incomplete ({', '.join(env_missing)} missing)" if env_missing else "complete"
 
-    # Otherwise try AWS Secrets Manager
+    # Otherwise try AWS Secrets Manager (with explicit timeout handling)
     if boto3:
         try:
-            client = boto3.client("secretsmanager", region_name="us-east-1")
+            # Issue 5 FIX: Add explicit timeout to prevent hangs during testing
+            config = botocore.config.Config(
+                connect_timeout=5,
+                read_timeout=5,
+                retries={'max_attempts': 1}
+            )
+            client = boto3.client("secretsmanager", region_name="us-east-1", config=config)
             secret_name = os.environ.get("DB_SECRET_NAME", "algo-db-credentials")
             response = client.get_secret_value(SecretId=secret_name)
             secret_dict = json.loads(response.get("SecretString", "{}"))
@@ -269,8 +276,30 @@ def _get_db_credentials() -> dict:
 
             logger.debug(f"DB credentials loaded from AWS Secrets Manager ({secret_name})")
             return creds
+        except (ConnectTimeoutError, ReadTimeoutError) as e:
+            # Issue 5 FIX: Distinguish timeout from credential/access errors
+            msg = f"AWS Secrets Manager timeout ({type(e).__name__}). " \
+                  f"For testing, set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME environment variables. " \
+                  f"Environment variables are {env_status}. Cannot proceed."
+            logger.error(f"CRITICAL: {msg}")
+            sys.exit(msg)
+        except ClientError as e:
+            # Issue 5 FIX: Distinguish access/permission errors
+            err_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if err_code == 'ResourceNotFoundException':
+                msg = f"AWS Secrets Manager: secret '{secret_name}' not found. " \
+                      f"Verify secret exists in us-east-1 and name matches DB_SECRET_NAME env var. " \
+                      f"Or set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME for local testing."
+            elif err_code == 'AccessDeniedException':
+                msg = f"AWS Secrets Manager: access denied to '{secret_name}'. " \
+                      f"Check IAM permissions for role running dashboard."
+            else:
+                msg = f"AWS Secrets Manager error ({err_code}): {e}. " \
+                      f"Or set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME for local testing."
+            logger.error(f"CRITICAL: {msg}")
+            sys.exit(msg)
         except Exception as e:
-            msg = f"Failed to fetch credentials from Secrets Manager ({e}). " \
+            msg = f"Failed to fetch credentials from Secrets Manager ({type(e).__name__}: {e}). " \
                   f"Environment variables are {env_status}. Cannot proceed."
             logger.error(f"CRITICAL: {msg}")
             sys.exit(msg)
@@ -428,13 +457,18 @@ def validate_schema() -> None:
                     if severity == "critical":
                         sys.exit(f"Database schema error: {table} has incorrect column types")
 
-                # Verify table has data (critical tables only)
-                if severity == "critical":
+                # Verify table has data (critical and important tables must have data)
+                if severity in ("critical", "important"):
                     row_count = q1(conn, f"SELECT COUNT(*) as cnt FROM {table}")
                     if row_count and row_count.get("cnt") == 0:
-                        msg = f"Schema validation CRITICAL: {table} exists but is EMPTY (contains no data)"
-                        logger.error(msg)
-                        sys.exit(f"Database schema error: critical table {table} is empty (contains no data)")
+                        if severity == "critical":
+                            msg = f"Schema validation CRITICAL: {table} exists but is EMPTY (contains no data) — dashboard cannot proceed"
+                            logger.error(msg)
+                            sys.exit(f"Database schema error: critical table {table} is empty (contains no data)")
+                        else:  # important
+                            msg = f"Schema validation IMPORTANT: {table} exists but is EMPTY (contains no data) — dashboard will display with missing {table} data"
+                            logger.error(msg)
+                            sys.exit(f"Database schema error: important table {table} is empty (contains no data)")
 
             except psycopg2.Error as e:
                 if "does not exist" in str(e):
@@ -831,6 +865,16 @@ def _parse_config_float(config_dict: dict, key: str, default: float) -> float:
         logger.warning(f"VALIDATION: Config key '{key}' value {val!r} not parseable as float — using default {default}")
         return default
 
+def get_swing_score_thresholds(cfg: dict) -> dict:
+    """Issue 7 FIX: Single source of truth for swing score thresholds.
+
+    Returns dict with 'excellent' and 'good' keys, pulling from config or defaults.
+    All panel functions should use this instead of hardcoded SWING_SCORE_* globals.
+    """
+    excellent = _parse_config_float(cfg, "swing_score_excellent_threshold", 80.0)
+    good = _parse_config_float(cfg, "swing_score_good_threshold", 60.0)
+    return {"excellent": excellent, "good": good}
+
 def fetch_algo_config(c):
     try:
         keys = ["enable_algo", "execution_mode", "max_position_size_pct",
@@ -947,30 +991,13 @@ def fetch_market(c):
         def _f(key): return float(h[key]) if h and h.get(key) is not None else None
         def _i(key): return int(h[key])   if h and h.get(key) is not None else None
         spy_v = _f("spy_close")
-        # MEDIUM ISSUE FIX: Read pre-computed economic metrics instead of calculating
-        spy_chg = None
-        cpi_yoy = None
-        ycs = None
-        try:
-            econ_metrics = q1(c, """
-                SELECT spy_price_change_pct, cpi_yoy_pct, yield_curve_slope_10y2y
-                FROM economic_metrics_daily
-                ORDER BY report_date DESC LIMIT 1
-            """)
-            if econ_metrics:
-                spy_chg = float(econ_metrics.get('spy_price_change_pct')) if econ_metrics.get('spy_price_change_pct') is not None else None
-                cpi_yoy = float(econ_metrics.get('cpi_yoy_pct')) if econ_metrics.get('cpi_yoy_pct') is not None else None
-                ycs = float(econ_metrics.get('yield_curve_slope_10y2y')) if econ_metrics.get('yield_curve_slope_10y2y') is not None else None
-                logger.debug(f"Economic metrics from DB: SPY_chg={spy_chg}% CPI_YoY={cpi_yoy}% YCS={ycs}")
-        except Exception as e:
-            logger.debug(f"Could not fetch pre-computed economic metrics: {e}")
-
         spy_rows = q(c, "SELECT close, date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
         spy_age = None
         stale_alerts = []
 
         # Fallback: calculate SPY change if not in database
-        if spy_chg is None and len(spy_rows) >= 2:
+        spy_chg = None
+        if len(spy_rows) >= 2:
             close0 = spy_rows[0].get("close")
             close1 = spy_rows[1].get("close")
             if close0 is not None and close1 is not None:
@@ -1111,7 +1138,6 @@ def fetch_market(c):
             "dist_age": mkt_health_age,
             "stage":   _i("market_stage"),
             "spy":     spy_v,
-            "spy_chg": spy_chg,
             "spy_age": spy_age,
             "exp_age": exp_age,
             "stale_alerts": stale_alerts,
@@ -1121,7 +1147,6 @@ def fetch_market(c):
             "nh":    _i("new_highs_count"),
             "nl":    _i("new_lows_count"),
             "pcr":   _f("put_call_ratio"),
-            "ycs":   _f("yield_curve_slope"),
             "bmom":  _f("breadth_momentum_10d"),
             "fed":   fed_val,
         }
@@ -1741,118 +1766,6 @@ def fetch_health(c):
         logger.error(f"fetch_health: {type(e).__name__}: {e}")
         _log_data_quality("fetch_health", 0, str(e))
         return []
-
-def fetch_economic_pulse(c):
-    try:
-        KEY = ['DGS10', 'DGS2', 'DGS3MO', 'DGS6MO',
-               'BAMLH0A0HYM2', 'BAMLC0A0CM',
-               'DCOILWTICO', 'ANFCI',
-               'FEDFUNDS', 'CPIAUCSL', 'UNRATE',
-               'T10YIE', 'T5YIE', 'DTWEXBGS', 'MORTGAGE30US', 'UMCSENT']
-        rows = q(c, """
-            SELECT DISTINCT ON (series_id) series_id, date, value
-            FROM economic_data WHERE series_id = ANY(%s)
-            ORDER BY series_id, date DESC""", (KEY,))
-        d = {r['series_id']: safe_float(r['value']) for r in rows if r.get('value') is not None}
-
-        # Issue 21 FIX: Track missing required fields and log validation issues
-        missing_required = [k for k in ['DGS10', 'DGS2', 'CPIAUCSL'] if k not in d or d[k] is None]
-        if missing_required:
-            logger.warning(f"VALIDATION: fetch_economic_pulse missing required fields: {missing_required} — economic data incomplete")
-
-        # MEDIUM ISSUE FIX: Read pre-computed yield curve slope
-        yc_10_2 = None
-        yc_10_3m = None
-        try:
-            ycs_metrics = q1(c, """
-                SELECT yield_curve_slope_10y2y, yield_curve_slope_error
-                FROM economic_metrics_daily
-                ORDER BY report_date DESC LIMIT 1
-            """)
-            if ycs_metrics and ycs_metrics.get('yield_curve_slope_10y2y') is not None:
-                yc_10_2 = float(ycs_metrics.get('yield_curve_slope_10y2y'))
-                logger.debug(f"Yield curve slope from pre-computed table: {yc_10_2}")
-        except Exception as e:
-            logger.debug(f"Could not fetch pre-computed yield curve slope: {e}")
-
-        # Fallback: calculate from raw data if not in database
-        if yc_10_2 is None:
-            t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
-            # Yield curve slopes: both rates must be valid numbers
-            yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2 is not None) else None
-            yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
-            # Issue 21 FIX: Log yield curve computation failures explicitly
-            if t10 is None or t2 is None:
-                logger.warning(f"VALIDATION: fetch_economic_pulse cannot compute yield curve 10-2: DGS10={t10}, DGS2={t2}")
-        else:
-            # If we have pre-computed 10-2, also try to get 3m from raw data
-            t10 = d.get('DGS10'); t3m = d.get('DGS3MO')
-            yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
-
-        # MEDIUM ISSUE FIX: Read pre-computed CPI YoY from economic_metrics_daily table
-        cpi_yoy = None
-        cpi_error = None
-        try:
-            econ_metrics = q1(c, """
-                SELECT cpi_yoy_pct, cpi_yoy_error
-                FROM economic_metrics_daily
-                ORDER BY report_date DESC LIMIT 1
-            """)
-            if econ_metrics:
-                cpi_yoy = float(econ_metrics.get('cpi_yoy_pct')) if econ_metrics.get('cpi_yoy_pct') is not None else None
-                cpi_error = econ_metrics.get('cpi_yoy_error')
-                if cpi_yoy is not None:
-                    logger.debug(f"CPI YoY from pre-computed table: {cpi_yoy}%")
-        except Exception as e:
-            logger.debug(f"Could not fetch pre-computed CPI YoY: {e}")
-
-        # Fallback: calculate CPI YoY if not in database
-        if cpi_yoy is None:
-            logger.debug("CPI YoY not in pre-computed table, falling back to calculation")
-            cpi_cur = q1(c, "SELECT value FROM economic_data WHERE series_id='CPIAUCSL' ORDER BY date DESC LIMIT 1")
-            cpi_yoy_row = q1(c, """
-                SELECT value FROM economic_data
-                WHERE series_id='CPIAUCSL' AND date <= CURRENT_DATE - 365
-                ORDER BY date DESC LIMIT 1""")
-            if cpi_cur and cpi_yoy_row and cpi_cur.get('value') is not None and cpi_yoy_row.get('value') is not None:
-                try:
-                    cur = float(cpi_cur['value'])
-                    prev = float(cpi_yoy_row['value'])
-                    if prev > 0:
-                        cpi_yoy = round((cur - prev) / prev * 100, 2)
-                    else:
-                        cpi_error = "prev_cpi_zero"
-                except (ValueError, TypeError) as e:
-                    cpi_error = f"parse_error:{type(e).__name__}"
-            else:
-                if not cpi_cur or cpi_cur.get('value') is None:
-                    cpi_error = "current_missing"
-                elif not cpi_yoy_row or cpi_yoy_row.get('value') is None:
-                    cpi_error = "yoy_history_missing"
-
-        if cpi_error:
-            logger.warning(f"VALIDATION: fetch_economic_pulse CPI YoY computation failed: {cpi_error}")
-
-        result = {
-            't10': t10, 't2': t2, 't3m': t3m, 't6m': d.get('DGS6MO'),
-            'yc_10_2':  yc_10_2, 'yc_10_3m': yc_10_3m,
-            'hy':  d.get('BAMLH0A0HYM2'), 'ig': d.get('BAMLC0A0CM'),
-            'oil': d.get('DCOILWTICO'),    'nfci': d.get('ANFCI'),
-            'fed_funds': d.get('FEDFUNDS'),
-            'cpi_yoy':   cpi_yoy,
-            'unrate':    d.get('UNRATE'),
-            'be10':      d.get('T10YIE'),
-            'be5':       d.get('T5YIE'),
-            'dxy':       d.get('DTWEXBGS'),
-            'mortgage':  d.get('MORTGAGE30US'),
-            'umcsent':   d.get('UMCSENT'),
-        }
-        _log_data_quality("fetch_economic_pulse", len(d))
-        return result
-    except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
-        logger.error(f"fetch_economic_pulse: {type(e).__name__}: {e}")
-        _log_data_quality("fetch_economic_pulse", 0, str(e))
-        return {}
 
 def fetch_algo_metrics(c):
     try:
@@ -2474,7 +2387,6 @@ FETCHERS = {
     "srank":        fetch_sector_ranking,
     "activity":     fetch_activity,
     "exp_factors":  fetch_exposure_factors,
-    "eco":          fetch_economic_pulse,
     "notifs":       fetch_notifications,
     "sentiment":    fetch_sentiment,
     "econ_cal":     fetch_economic_calendar,
@@ -3544,149 +3456,6 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     if not rows:
         return Panel(Text("no data", style="dim"), title="[bold]SECTORS & INDUSTRIES[/]", border_style="cyan", padding=(0, 1))
     return Panel(Group(*rows), title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]", border_style="cyan", padding=(0, 1))
-
-
-def panel_economic_pulse(eco, econ_cal=None):
-    """Economic factors the algo uses to calculate market exposure score."""
-    if not eco or eco.get("_error"):
-        return Panel(Text("no data", style="dim"), title="[bold]ECONOMIC INPUTS[/]",
-                     border_style="bright_magenta", padding=(0, 1))
-    rows: list = []
-
-    t10 = eco.get("t10"); t2 = eco.get("t2"); t3m = eco.get("t3m"); t6m = eco.get("t6m")
-    yc10_2 = eco.get("yc_10_2"); yc10_3m = eco.get("yc_10_3m")
-    hy  = eco.get("hy"); ig = eco.get("ig")
-    oil = eco.get("oil"); nfci = eco.get("nfci")
-    fed_funds = eco.get("fed_funds")
-    cpi_yoy   = eco.get("cpi_yoy")
-    unrate    = eco.get("unrate")
-    be10      = eco.get("be10")
-    be5       = eco.get("be5")
-    dxy       = eco.get("dxy")
-    mortgage  = eco.get("mortgage")
-    umcsent   = eco.get("umcsent")
-
-    # Treasury yields (short to long) + Fed Funds Rate
-    y_parts = []
-    if t3m is not None: y_parts.append(f"[dim]3M Treasury:[/][white]{t3m:.2f}%[/]")
-    if t6m is not None: y_parts.append(f"[dim]6M:[/][white]{t6m:.2f}%[/]")
-    if t2  is not None: y_parts.append(f"[dim]2Y:[/][white]{t2:.2f}%[/]")
-    if t10 is not None: y_parts.append(f"[dim]10Y:[/][white]{t10:.2f}%[/]")
-    if fed_funds is not None: y_parts.append(f"[dim]Fed Rate:[/][white]{fed_funds:.2f}%[/]")
-    if y_parts: rows.append(Text.from_markup("  ".join(y_parts)))
-
-    # Yield curve
-    if yc10_2 is not None:
-        ycc = G if yc10_2 >= YIELD_CURVE_GOOD else (Y if yc10_2 >= 0 else R)
-        inv = "  [bold red]INV[/]" if yc10_2 < 0 else ""
-        c3m = f"  [dim]10Y-3M:[/][{ycc}]{yc10_3m:+.2f}%[/]" if yc10_3m is not None else ""
-        rows.append(Text.from_markup(
-            f"[dim]10Y-2Y:[/][{ycc}]{yc10_2:+.2f}%[/]{inv}{c3m}"
-        ))
-
-    # Credit spreads
-    if hy is not None or ig is not None:
-        parts = []
-        if hy is not None:
-            hy_c = G if hy <= HY_OAS_GOOD else (Y if hy <= HY_OAS_WARNING else R)
-            parts.append(f"[dim]HY OAS:[/][{hy_c}]{hy:.2f}%[/]")
-        if ig is not None:
-            ig_c = G if ig <= IG_OAS_GOOD else (Y if ig <= IG_OAS_WARNING else R)
-            parts.append(f"[dim]IG OAS:[/][{ig_c}]{ig:.2f}%[/]")
-        rows.append(Text.from_markup("  ".join(parts)))
-
-    # Macro: CPI YoY, unemployment, NFCI, oil
-    macro = []
-    if cpi_yoy is not None:
-        cpi_c = G if cpi_yoy <= CPI_GOOD else (Y if cpi_yoy <= CPI_WARNING else R)
-        macro.append(f"[dim]CPI YoY:[/][{cpi_c}]{cpi_yoy:.1f}%[/]")
-    if unrate is not None:
-        ur_c = G if unrate <= UNRATE_GOOD else (Y if unrate <= UNRATE_WARNING else R)
-        macro.append(f"[dim]Unemp:[/][{ur_c}]{unrate:.1f}%[/]")
-    if macro: rows.append(Text.from_markup("  ".join(macro)))
-
-    other = []
-    if oil  is not None: other.append(f"[dim]WTI Crude Oil:[/][white]${oil:.2f}[/]")
-    if nfci is not None:
-        nc  = G if nfci <= NFCI_NEGATIVE else (Y if nfci <= NFCI_POSITIVE else R)
-        lbl = "accommodative" if nfci < 0 else ("tight" if nfci > NFCI_POSITIVE else "neutral")
-        other.append(f"[dim]Chicago Fed (NFCI):[/][{nc}]{nfci:+.3f}[/][dim] {lbl}[/]")
-    if dxy is not None:
-        dxy_c = R if dxy >= DXY_CRITICAL else (Y if dxy >= DXY_WARNING else G)
-        other.append(f"[dim]USD Index (DXY):[/][{dxy_c}]{dxy:.1f}[/]")
-    if other: rows.append(Text.from_markup("  ".join(other)))
-
-    # Inflation breakevens + consumer sentiment + mortgage rates
-    extra = []
-    if be10 is not None:
-        be_c = R if be10 >= BE_CRITICAL else (Y if be10 >= BE_WARNING else G)
-        extra.append(f"[dim]10Y Inflation Breakeven:[/][{be_c}]{be10:.2f}%[/]")
-    if be5 is not None:
-        be5_c = R if be5 >= BE_CRITICAL else (Y if be5 >= BE_WARNING else G)
-        extra.append(f"[dim]5Y Breakeven:[/][{be5_c}]{be5:.2f}%[/]")
-    if mortgage is not None:
-        mg_c = R if mortgage >= MORTGAGE_CRITICAL else (Y if mortgage >= MORTGAGE_WARNING else G)
-        extra.append(f"[dim]30Y Mortgage:[/][{mg_c}]{mortgage:.2f}%[/]")
-    if umcsent is not None:
-        uc = G if umcsent >= UMCSENT_GOOD else (Y if umcsent >= UMCSENT_WARNING else R)
-        extra.append(f"[dim]UMich Consumer Sentiment:[/][{uc}]{umcsent:.0f}[/]")
-    if extra: rows.append(Text.from_markup("  ".join(extra)))
-
-    # Economic calendar (upcoming events)
-    valid_cal = econ_cal if (econ_cal and not (isinstance(econ_cal, dict) and econ_cal.get("_error"))) else []
-    if valid_cal:
-        rows.append(Rule(style="dim"))
-        IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
-        today = date.today()
-        # Issue #15: Economic calendar deduplication — handle None event_dates properly
-        seen_keys = set()
-        dedup_count = 0
-        for ev in valid_cal[:6]:
-            ed      = ev.get("event_date")
-            full_nm = (ev.get("event_name") or "")
-            name    = full_nm[:24]
-            # Generate key that uses date + time + name to prevent collisions with None dates
-            date_str = str(_parse_event_date(ed)) if ed is not None else "unknown_date"
-            event_time = str(ev.get("event_time") or "").strip()
-            key     = (date_str + event_time + full_nm).lower()
-            if key in seen_keys:
-                dedup_count += 1
-                continue
-            seen_keys.add(key)
-            imp  = (ev.get("importance") or "LOW").upper()
-            ic   = IMP_C.get(imp, "dim")
-            f_v  = ev.get("forecast_value")
-            a_v  = ev.get("actual_value")
-            p_v  = ev.get("previous_value")
-            ed_date = _parse_event_date(ed)
-            if ed_date == today:
-                when = "TODAY"
-            elif ed_date is not None:
-                delta = (ed_date - today).days
-                when  = f"+{delta}d" if delta > 0 else "YST"
-            else:
-                when = "--"
-            vals = ""
-            if a_v is not None:
-                ac = G if float(a_v) <= float(f_v if f_v is not None else a_v) else R
-                vals = f" [{ac}]A={a_v:.1f}[/]"
-            elif f_v is not None:
-                vals = f" [dim]F={f_v:.1f}[/]"
-            if p_v is not None:
-                vals += f"[dim] P={p_v:.1f}[/]"
-            et    = ev.get("event_time")
-            et_s  = f" [dim]{str(et)[:5]}[/]" if et else ""
-            rows.append(Text.from_markup(
-                f"[{ic}]{when:<5}[/]{et_s} [white]{name}[/]{vals}"
-            ))
-
-        if dedup_count > 0:
-            logger.debug(f"Economic calendar deduplication: removed {dedup_count} duplicate events")
-
-    if not rows:
-        rows.append(Text("[dim]no economic data[/]"))
-    return Panel(Group(*rows), title="[bold bright_magenta]ECONOMIC INPUTS → Exposure Score[/]",
-                 border_style="bright_magenta", padding=(0, 1))
 
 
 def panel_exposure_compact(exp_f):
@@ -4768,7 +4537,6 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     srank    = data.get("srank")       or []
     act      = data.get("activity")    or {}
     exp_f    = data.get("exp_factors") or {}
-    eco      = data.get("eco")         or {}
     notifs   = data.get("notifs")      or []
     sentiment = data.get("sentiment")  or {}
     econ_cal  = data.get("econ_cal")   or []
@@ -4821,11 +4589,10 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         Layout(panel_algo_health(run, act, hlth, notifs, algo_metrics, loader, audit, exec_hist, risk=risk), ratio=2, name="health"),
     )
 
-    # Row 2: Portfolio | Performance | Economic pulse
+    # Row 2: Portfolio | Performance
     outer["r2"].split_row(
         Layout(panel_portfolio(port, cfg, risk=risk, perf=perf),    name="portfolio"),
         Layout(panel_performance_spark(perf, rec, perf_anl),        name="perf"),
-        Layout(panel_economic_pulse(eco, econ_cal),                  name="eco"),
     )
 
     # Row 3: Signals (wider) | Sectors
