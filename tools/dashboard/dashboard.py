@@ -692,6 +692,7 @@ def fetch_algo_config(c):
     try:
         keys = ["enable_algo", "execution_mode", "max_position_size_pct",
                 "max_positions", "max_positions_per_sector", "min_swing_score",
+                "swing_score_good_threshold", "swing_score_excellent_threshold",
                 "alpaca_paper_trading", "base_risk_pct", "t1_target_r_multiple",
                 "pyramid_enabled"]
         rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (keys,))
@@ -711,6 +712,23 @@ def fetch_algo_config(c):
                 min_score = float(min_score)
             except (ValueError, TypeError):
                 min_score = 70.0
+        # Issue 14: Fetch swing score display thresholds from config (with sensible defaults)
+        swing_good = d.get("swing_score_good_threshold")
+        if swing_good is None:
+            swing_good = 60.0
+        else:
+            try:
+                swing_good = float(swing_good)
+            except (ValueError, TypeError):
+                swing_good = 60.0
+        swing_excellent = d.get("swing_score_excellent_threshold")
+        if swing_excellent is None:
+            swing_excellent = 80.0
+        else:
+            try:
+                swing_excellent = float(swing_excellent)
+            except (ValueError, TypeError):
+                swing_excellent = 80.0
         _log_data_quality("fetch_algo_config", 1)
         return {
             "enabled":      d.get("enable_algo", "true").lower() == "true",
@@ -719,6 +737,8 @@ def fetch_algo_config(c):
             "max_pos_n":    d.get("max_positions"),
             "max_sec_n":    d.get("max_positions_per_sector"),
             "min_score":    min_score,
+            "swing_good":   swing_good,
+            "swing_excellent": swing_excellent,
             "base_risk":    d.get("base_risk_pct"),
             "t1_r":         d.get("t1_target_r_multiple"),
             "pyramid":      d.get("pyramid_enabled", "false").lower() == "true",
@@ -1196,12 +1216,19 @@ def fetch_positions(c):
             ORDER BY position_value DESC""")
 
         # HIGH ISSUE #10: Validate sector data was retrieved (detect join failures)
+        # Issue 15: Validate price data exists for all symbols
         if result:
             missing_sectors = [p for p in result if p.get("sector") is None]
             if missing_sectors:
                 missing_symbols = [p.get("symbol") for p in missing_sectors]
                 logger.warning(f"VALIDATION: {len(missing_sectors)} open positions missing sector data: {missing_symbols} "
                              f"(may indicate ticker/symbol mismatch in company_profile table)")
+            # Check if any positions have missing current price data (indicates stale/incomplete price_daily table)
+            missing_prices = [p for p in result if p.get("current_price") is None]
+            if missing_prices:
+                missing_price_symbols = [p.get("symbol") for p in missing_prices]
+                logger.warning(f"VALIDATION: {len(missing_prices)} open positions missing current price data: {missing_price_symbols} "
+                             f"(may indicate price_daily loader failure or incomplete data)")
 
         _log_data_quality("fetch_positions", len(result) if result else 0)
         return result
@@ -2565,7 +2592,7 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     return Panel(Group(*rows), title="[bold green]PERFORMANCE[/]", border_style="green", padding=(0, 1))
 
 
-def panel_positions(pos, compact=False, trades=None):
+def panel_positions(pos, compact=False, trades=None, cfg=None):
     if not pos:
         return Panel(Text("  No open positions — algo is flat", style="dim"),
                      title="[bold]POSITIONS[/]", border_style="cyan", padding=(0, 1))
@@ -2625,7 +2652,10 @@ def panel_positions(pos, compact=False, trades=None):
         ]
         if not compact:
             swg_s = float(swg) if swg is not None else None
-            swg_c = G if (swg_s or 0) >= SWING_SCORE_EXCELLENT else (Y if (swg_s or 0) >= SWING_SCORE_GOOD else "white")
+            # Issue 14: Use config thresholds instead of hardcoded constants
+            swing_excellent = cfg.get("swing_excellent", 80.0) if cfg else 80.0
+            swing_good = cfg.get("swing_good", 60.0) if cfg else 60.0
+            swg_c = G if (swg_s or 0) >= swing_excellent else (Y if (swg_s or 0) >= swing_good else "white")
             row += [
                 f"+{t1pct:.1f}%" if t1pct is not None else "--",
                 str(days),
@@ -4215,7 +4245,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
 
     # Row 4: Positions | Recent Trades
     outer["pos"].split_row(
-        Layout(panel_positions(pos, compact, trades=rec),  ratio=3, name="positions"),
+        Layout(panel_positions(pos, compact, trades=rec, cfg=cfg),  ratio=3, name="positions"),
         Layout(panel_recent_trades(rec),                   ratio=2, name="recent_trades"),
     )
 
@@ -4224,7 +4254,7 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     if view_mode == "positions":
         hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
         return _expanded_layout(*_exp_top, Panel(
-            Group(hint, Rule(style="dim"), panel_positions(pos, compact=False, trades=rec)),
+            Group(hint, Rule(style="dim"), panel_positions(pos, compact=False, trades=rec, cfg=cfg)),
             title=f"[bold cyan]ALL POSITIONS ({len(pos or [])})[/]",
             border_style="cyan", padding=(0, 1),
         ))
