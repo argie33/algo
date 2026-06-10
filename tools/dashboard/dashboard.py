@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Algo Ops Terminal Dashboard  --  single-pane morning brief.
 
@@ -3275,10 +3275,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     cum_v  = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else (
         float((perf or {}).get("maxdd") or 0) if perf and not perf.get("_error") else None)
-    cc     = G if (cum_v or 0) >= 0 else R
+    cc     = G if cum_v is not None and cum_v >= 0 else (R if cum_v is not None else DIM)
     cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v or 0)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
     dd_v   = abs(mxdd_v) if mxdd_v is not None else None
-    dd_c   = R if (dd_v or 0) >= 15 else (Y if (dd_v or 0) >= 5 else G)
+    dd_c   = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
     mxdd_s = f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]MaxDD:[/] [dim]--[/]"
     rows.append(Text.from_markup(f"{cum_s}  {mxdd_s}"))
 
@@ -3321,7 +3321,7 @@ def panel_performance_spark(perf, rec, perf_anl=None):
         else:
             msg = "no data"
         return Panel(Text(msg, style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
-    streak  = perf.get("streak") or 0
+    streak = perf.get("streak") if perf and not perf.get("_error") else None; streak = streak or 0 if streak is not None else 0
     str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
     str_c   = G if streak >= 0 else R
     pnl = get_numeric(perf, "pnl")
@@ -3548,7 +3548,7 @@ def panel_positions(pos, compact=False, trades=None, cfg=None):
             # Issue 14: Use config thresholds instead of hardcoded constants
             swing_excellent = cfg.get("swing_excellent", 80.0) if cfg else 80.0
             swing_good = cfg.get("swing_good", 60.0) if cfg else 60.0
-            swg_c = G if (swg_s or 0) >= swing_excellent else (Y if (swg_s or 0) >= swing_good else "white")
+            swg_c = G if swg_s is not None and swg_s >= swing_excellent else (Y if swg_s is not None and swg_s >= swing_good else "white")
             row += [
                 f"+{t1pct:.1f}%" if t1pct is not None else "--",
                 str(days),
@@ -3669,13 +3669,13 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             vsurge = bs.get("volume_surge_pct")
             entry  = bs.get("buylevel") or bs.get("close")
             stop   = bs.get("stoplevel")
-            sq_c   = G if (sq  or 0) >= 70 else (Y if (sq  or 0) >= 50 else "white")
+            sq_c   = G if sq is not None and sq >= 70 else (Y if sq is not None and sq >= 50 else "white")
             # Issue 7 FIX: Use config values for swing score thresholds, not hardcoded constants
             swing_excellent = cfg.get("swing_excellent", 80) if cfg else 80
             swing_good = cfg.get("swing_good", 60) if cfg else 60
-            swg_c  = G if (swg or 0) >= swing_excellent else (Y if (swg or 0) >= swing_good else "white")
-            rr_c   = G if (rr  or 0) >= 2.5 else (Y if (rr  or 0) >= 1.5 else "white")
-            vs_c   = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
+            swg_c  = G if swg is not None and swg >= swing_excellent else (Y if swg is not None and swg >= swing_good else "white")
+            rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
+            vs_c   = G if vsurge is not None and vsurge >= 50 else (Y if vsurge is not None and vsurge >= 20 else "white")
             stg_c  = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
             t.add_row(
                 sym,
@@ -4818,9 +4818,9 @@ def panel_signals_expanded(sig, sig_eval=None):
             stop   = bs.get("stoplevel")
             bqual  = (bs.get("breakout_quality") or "")[:9]
             btype  = (bs.get("base_type") or "")[:9]
-            sq_c   = G if (sq or 0) >= 70 else (Y if (sq or 0) >= 50 else "white")
-            rr_c   = G if (rr or 0) >= 2.5 else (Y if (rr or 0) >= 1.5 else "white")
-            vs_c   = G if (vsurge or 0) >= 50 else (Y if (vsurge or 0) >= 20 else "white")
+            sq_c   = G if sq is not None and sq >= 70 else (Y if sq is not None and sq >= 50 else "white")
+            rr_c   = G if rr is not None and rr >= 2.5 else (Y if rr is not None and rr >= 1.5 else "white")
+            vs_c   = G if vsurge is not None and vsurge >= 50 else (Y if vsurge is not None and vsurge >= 20 else "white")
             rows.append(Text.from_markup(
                 f"[{sq_c}]{sym:<6}[/][dim]{('S'+str(stg) if stg else '  ')} {sig_t:<14}[/]"
                 f"[{sq_c}]{(f'{sq:.0f}' if sq is not None else '--'):>4}[/]"
@@ -5476,4 +5476,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
