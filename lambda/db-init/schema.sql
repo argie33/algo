@@ -3227,6 +3227,8 @@ INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('block_days_before_earnings', '5', 'int', 'Block entries N days before earnings', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('max_extension_above_50ma_pct', '15.0', 'float', 'Max extension above 50-DMA pct', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('strong_sector_top_n', '5', 'int', 'Top N sectors count as strong', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_score_excellent_threshold', '80', 'float', 'Swing score threshold for excellent (green)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
+INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_score_good_threshold', '60', 'float', 'Swing score threshold for good (yellow)', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_weight_setup', '25', 'int', 'Swing score setup quality weight pct', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_weight_trend', '20', 'int', 'Swing score trend quality weight pct', 'schema-seed') ON CONFLICT (key) DO NOTHING;
 INSERT INTO algo_config (key, value, value_type, description, updated_by) VALUES ('swing_weight_momentum', '20', 'int', 'Swing score momentum RS weight pct', 'schema-seed') ON CONFLICT (key) DO NOTHING;
