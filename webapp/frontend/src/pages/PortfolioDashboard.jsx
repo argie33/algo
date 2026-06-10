@@ -169,52 +169,16 @@ function PortfolioDashboardPage() {
     ? parseFloat(portfolio.total_value)
     : (totalPositionValue || 0);
 
-  // Check for critical errors — circuit-breakers is supplemental, don't block whole page
+  // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   const criticalErrors = [statusError, posError, perfError, tradesError, marketsError, equityError];
-  const hasErrors = criticalErrors.some(err => err);
-
-  if (hasErrors) {
-    return (
-      <div className="main-content">
-        <div className="page-head">
-          <div>
-            <div className="page-head-title">Portfolio</div>
-            <div className="page-head-sub">
-              Algo positions · Performance · Risk profile · Market context
-            </div>
-          </div>
-        </div>
-        <div className="card" style={{ background: 'var(--surface-danger)', borderLeft: '3px solid var(--error)' }}>
-          <div style={{ padding: 'var(--space-4)' }}>
-            <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>Failed to load portfolio data</div>
-            <div className="muted t-sm" style={{ marginBottom: 'var(--space-4)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {statusError && <div style={{ marginBottom: 'var(--space-2)' }}>Status: {formatErrorDetail(statusError, 'algo-status')}</div>}
-              {posError && <div style={{ marginBottom: 'var(--space-2)' }}>Positions: {formatErrorDetail(posError, 'algo-positions')}</div>}
-              {perfError && <div style={{ marginBottom: 'var(--space-2)' }}>Performance: {formatErrorDetail(perfError, 'algo-performance')}</div>}
-              {tradesError && <div style={{ marginBottom: 'var(--space-2)' }}>Trades: {formatErrorDetail(tradesError, 'algo-trades')}</div>}
-              {marketsError && <div style={{ marginBottom: 'var(--space-2)' }}>Markets: {formatErrorDetail(marketsError, 'algo-markets')}</div>}
-              {equityError && <div style={{ marginBottom: 'var(--space-2)' }}>Equity: {formatErrorDetail(equityError, 'algo-equity-curve')}</div>}
-              {breakersError && <div>Breakers: {formatErrorDetail(breakersError, 'algo-circuit-breakers')}</div>}
-            </div>
-            <button
-              className="btn btn-sm"
-              onClick={() => {
-                statusError && refetchStatus?.();
-                posError && refetchPositions?.();
-                perfError && refetchPerf?.();
-                tradesError && refetchTrades?.();
-                marketsError && refetchMarkets?.();
-                equityError && refetchEquity?.();
-                breakersError && refetchBreakers?.();
-              }}
-            >
-              <RefreshCw size={14} /> Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const hasAnyError = criticalErrors.some(err => err);
+  const errorList = [];
+  if (statusError) errorList.push({ section: 'Status', error: statusError });
+  if (posError) errorList.push({ section: 'Positions', error: posError });
+  if (perfError) errorList.push({ section: 'Performance', error: perfError });
+  if (tradesError) errorList.push({ section: 'Trades', error: tradesError });
+  if (marketsError) errorList.push({ section: 'Markets', error: marketsError });
+  if (equityError) errorList.push({ section: 'Equity Curve', error: equityError });
 
   return (
     <div className="main-content">
@@ -231,6 +195,37 @@ function PortfolioDashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Error banner for individual API failures (graceful degradation) */}
+      {hasAnyError && (
+        <div className="card" style={{ background: 'var(--surface-warning)', borderLeft: '3px solid var(--warning)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ padding: 'var(--space-3)' }}>
+            <div style={{ fontWeight: 'var(--w-semibold)', marginBottom: 'var(--space-2)' }}>
+              ⚠️ Some data is unavailable
+            </div>
+            <div className="muted t-sm" style={{ marginBottom: 'var(--space-3)' }}>
+              {errorList.map((item, idx) => (
+                <div key={idx} style={{ marginBottom: 'var(--space-1)' }}>
+                  {item.section}: {formatErrorDetail(item.error)}
+                </div>
+              ))}
+            </div>
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                statusError && refetchStatus?.();
+                posError && refetchPositions?.();
+                perfError && refetchPerf?.();
+                tradesError && refetchTrades?.();
+                marketsError && refetchMarkets?.();
+                equityError && refetchEquity?.();
+              }}
+            >
+              <RefreshCw size={14} /> Retry Failed Requests
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top KPI strip */}
       <div className="grid grid-4">
