@@ -1059,6 +1059,9 @@ def fetch_market(c):
         if exp_age is not None and exp_age > 1:
             logger.warning(f"Market exposure data is {exp_age} days old")
             stale_alerts.append(f"Exposure {exp_age}d old")
+        # Issue 41 FIX: Append loader staleness alert to ensure it's displayed
+        if exp_loader_stale:
+            stale_alerts.append("Exposure loader stale (>2d)")
         # Issue 23 FIX: Validate SPY age considering intraday freshness during market hours
         # During market hours (9:30 AM - 4 PM ET), close price from yesterday is stale
         if spy_age is None and not spy_rows:
@@ -1401,7 +1404,8 @@ def fetch_perf(c):
             # Infer confidence from number of trades
             total_trades = int(perf.get("total_trades")) if perf.get("total_trades") is not None else 0
             if sharpe is not None:
-                sharpe_confidence = "high" if len(snaps) >= 20 else ("low" if len(snaps) < 10 else "medium")
+                # ISSUE 35 FIX: Sharpe confidence based on 252+ trading days (1 year), not snapshot count
+                sharpe_confidence = "high" if len(snaps) >= 252 else ("low" if len(snaps) < 63 else "medium")
 
             # Calculate breakeven pct from trade counts
             if total_trades > 0 and perf.get("num_wins") is not None:
