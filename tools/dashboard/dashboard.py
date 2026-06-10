@@ -214,6 +214,7 @@ def _get_db_credentials() -> dict:
 
     # If env vars are complete, use them
     if all([env_creds["host"], env_creds["user"], env_creds["password"], env_creds["dbname"]]):
+        logger.debug("DB credentials loaded from environment variables")
         return env_creds
 
     # Otherwise try AWS Secrets Manager
@@ -223,16 +224,19 @@ def _get_db_credentials() -> dict:
             secret_name = os.environ.get("DB_SECRET_NAME", "algo-db-credentials")
             response = client.get_secret_value(SecretId=secret_name)
             secret_dict = json.loads(response.get("SecretString", "{}"))
-            return {
+            creds = {
                 "host": secret_dict.get("host"),
                 "user": secret_dict.get("username"),
                 "password": secret_dict.get("password"),
                 "dbname": secret_dict.get("dbname"),
                 "port": secret_dict.get("port", 5432),
             }
+            logger.debug(f"DB credentials loaded from AWS Secrets Manager ({secret_name})")
+            return creds
         except Exception as e:
-            logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}. Using env vars.")
+            logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}. Falling back to env vars.")
 
+    logger.debug("DB credentials using fallback (env vars incomplete, boto3 unavailable, or Secrets Manager failed)")
     return env_creds
 
 def get_conn() -> psycopg2.extensions.connection:
@@ -855,30 +859,37 @@ def fetch_exposure_factors(c):
         row = q1(c, """SELECT raw_score, exposure_pct, regime, factors
                        FROM market_exposure_daily ORDER BY date DESC LIMIT 1""")
         if not row:
-            _log_data_quality("fetch_exposure_factors", 0)
-            return {}
+            _log_data_quality("fetch_exposure_factors", 0, severity="error")
+            return {"_error": "No exposure factors data found"}
         factors = row.get("factors") or {}
         factors_error = None
         if isinstance(factors, str):
             try:
                 factors = json.loads(factors)
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse exposure factors JSON: {e}")
+                logger.error(f"Failed to parse exposure factors JSON: {e}")
                 factors_error = str(e)
                 factors = {}
-        # Schema validation: ensure factors dict has expected structure
+        # Issue 9: Schema validation — track data quality and confidence
+        data_quality = "good"
+        missing_keys_list = []
         if factors and isinstance(factors, dict):
             expected_keys = {"trend_30wk", "credit_spread", "vix", "momentum", "breadth"}
             found_keys = set(factors.keys())
             missing_keys = expected_keys - found_keys
             if missing_keys:
+                data_quality = "degraded"
+                missing_keys_list = sorted(list(missing_keys))
                 logger.warning(f"exposure_factors schema issue: missing expected keys {missing_keys}")
             # Check that accessed keys exist when extracting values later
             for key in found_keys:
                 val = factors.get(key)
                 if val is not None and not isinstance(val, (dict, str, int, float)):
                     logger.warning(f"exposure_factors[{key}] has unexpected type {type(val).__name__}")
-        # Issue: Preserve None for missing values instead of converting to 0.0
+                    data_quality = "degraded"
+        elif not factors:
+            data_quality = "missing"
+            logger.warning(f"exposure_factors JSON is empty or null")
         raw_score = float(row.get("raw_score")) if row.get("raw_score") is not None else None
         exposure_pct = float(row.get("exposure_pct")) if row.get("exposure_pct") is not None else None
         result = {
@@ -886,15 +897,18 @@ def fetch_exposure_factors(c):
             "exposure_pct": exposure_pct,
             "regime":       row.get("regime"),
             "factors":      factors,
+            "_data_quality": data_quality,
+            "_missing_keys": missing_keys_list,
         }
         if factors_error:
             result["_factors_parse_error"] = factors_error
+            result["_data_quality"] = "error"
         _log_data_quality("fetch_exposure_factors", 1)
         return result
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_exposure_factors: {type(e).__name__}: {e}")
-        _log_data_quality("fetch_exposure_factors", 0, str(e))
-        return {}
+        _log_data_quality("fetch_exposure_factors", 0, str(e), severity="error")
+        return {"_error": str(e)}
 
 def fetch_portfolio(c):
     try:
@@ -926,11 +940,16 @@ def fetch_perf(c):
         # CRITICAL ISSUE 8: Win rate excludes breakeven trades; only counts wins vs (wins + losses)
         counted_trades = len(wins) + len(losses)
         wr        = len(wins) / counted_trades * 100 if counted_trades > 0 else 0
-        # Log if breakeven trades represent significant portion (>5%)
+        # Issue 10: Win rate confidence — breakeven trades affect calculation reliability
+        wr_confidence = "high"
+        be_pct = 0
         if len(breakeven) > 0:
             be_pct = len(breakeven) / len(trades) * 100 if len(trades) > 0 else 0
             if be_pct > 5:
+                wr_confidence = "medium"
                 logger.warning(f"VALIDATION: Win rate calculation excludes {len(breakeven)} breakeven trades ({be_pct:.1f}% of total) — may understate actual performance")
+            if be_pct > 15:
+                wr_confidence = "low"
         streak = 0
         for t in reversed(trades):
             pnl = t.get("profit_loss_dollars")
@@ -986,7 +1005,8 @@ def fetch_perf(c):
         # Show data even if sparse; dashboard will display with reduced confidence
         _log_data_quality("fetch_perf", len(trades))
         return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
-                "wr": round(wr, 1), "pnl": round(pnl, 2), "streak": streak,
+                "wr": round(wr, 1), "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+                "pnl": round(pnl, 2), "streak": streak,
                 "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1),
                 "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
                 "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
@@ -2182,10 +2202,12 @@ def panel_circuit(cb, risk=None):
             lbl = br.get("lbl", "?")
             u = br.get("u", "")
             fired = br.get("fired", False)
+            available = br.get("available", True)
             ratio = cur / thr if thr > 0 else 0
             fc = R if fired else (Y if ratio >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
-            return f"[{fc}]{lbl}:[/]{cur}{u}[dim]/{thr:.0f}{u}[/]{hbar(cur, thr, w=4)}{ind}"
+            unavail = " [dim](unavailable)[/]" if not available else ""
+            return f"[{fc}]{lbl}:[/]{cur}{u}[dim]/{thr:.0f}{u}[/]{hbar(cur, thr, w=4)}{ind}{unavail}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
@@ -2366,6 +2388,9 @@ def panel_performance_spark(perf, rec, perf_anl=None):
     wr_v = perf.get('wr') or 0
     dd_v = perf.get('maxdd') or 0
     dd_c = R if dd_v >= 10 else (Y if dd_v >= 5 else G)
+    sharpe_val = perf.get('sharpe') or '--'
+    sharpe_conf = perf.get('sharpe_confidence')
+    sharpe_label = f"{sharpe_val}" if sharpe_conf is None else f"{sharpe_val} ({sharpe_conf})"
     rows = [
         Text.from_markup(
             f"[bold white]{perf.get('n', 0)} Trades[/]  "
@@ -2377,7 +2402,7 @@ def panel_performance_spark(perf, rec, perf_anl=None):
         Text.from_markup(
             f"[dim]P&L:[/][{pnl_c}]{fmt_money(perf.get('pnl'))}[/]  "
             f"[dim]PF:[/][{pf_c}]{pf_s}[/]  "
-            f"[dim]Sharpe:[/][white]{perf.get('sharpe') or '--'}[/]  "
+            f"[dim]Sharpe:[/][white]{sharpe_label}[/]  "
             f"[dim]Exp:[/][{exp_c}]{fmt_money(exp)}[/]  "
             f"[dim]AvgR:[/][white]{avg_r_s}[/]"
         ),
@@ -2676,8 +2701,10 @@ def panel_recent_trades(trades):
         rmul   = tr.get("exit_r_multiple")
         status = (tr.get("status") or "")
         is_closed = status == "closed"
-        pc  = G if pnl_d > 0 else (R if is_closed else Y)
-        si  = f"[{G}]✓[/]" if pnl_d > 0 else (f"[{R}]✗[/]" if is_closed else f"[{Y}]▷[/]")
+        # Issue 10: Show breakeven separately from losses
+        is_breakeven = is_closed and pnl_d == 0
+        pc  = G if pnl_d > 0 else (Y if is_breakeven else (R if is_closed else Y))
+        si  = f"[{G}]✓[/]" if pnl_d > 0 else (f"[{Y}]≈[/]" if is_breakeven else (f"[{R}]✗[/]" if is_closed else f"[{Y}]▷[/]"))
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
             date_s,
@@ -2957,46 +2984,56 @@ def panel_exposure_compact(exp_f):
     tc      = TIER_COLOR.get(tier, "dim")
 
     def factor_detail(key):
-        """Return a short value string for a factor key."""
-        f = factors.get(key) or {}
-        if not f: return ""
+        """Return a short value string for a factor key (Issue 9: distinguish missing data).
+
+        Returns: formatted value, '(n/a)' if factor not found, '(--)' if value missing
+        """
+        f = factors.get(key)
+        if f is None:
+            return "(n/a)"
+        if not f or not isinstance(f, dict):
+            return "(n/a)"
         if key == "trend_30wk":
             v = f.get("price_vs_ma_pct")
-            return f" {'+' if (v or 0) >= 0 else ''}{v:.1f}%" if v is not None else ""
+            return f" {'+' if (v or 0) >= 0 else ''}{v:.1f}%" if v is not None else "(--)"
         if key == "breadth_50dma":
             v = f.get("value")
-            return f" {v:.0f}%" if v is not None else ""
+            return f" {v:.0f}%" if v is not None else "(--)"
         if key == "breadth_200dma":
             v = f.get("value")
-            return f" {v:.0f}%" if v is not None else ""
+            return f" {v:.0f}%" if v is not None else "(--)"
         if key == "mcclellan":
             v = f.get("value")
-            return f" {v:+.0f}" if v is not None else ""
+            return f" {v:+.0f}" if v is not None else "(--)"
         if key == "vix_regime":
             v = f.get("value")
-            return f" {v:.1f}" if v is not None else ""
+            return f" {v:.1f}" if v is not None else "(--)"
         if key == "new_highs_lows":
-            nh = f.get("new_highs", 0); nl = f.get("new_lows", 0)
-            net = (nh or 0) - (nl or 0)
-            return f" {'+' if net >= 0 else ''}{net}"
+            nh = f.get("new_highs"); nl = f.get("new_lows")
+            if nh is not None and nl is not None:
+                net = nh - nl
+                return f" {'+' if net >= 0 else ''}{net}"
+            return "(--)"
         if key == "credit_spread":
             v = f.get("value")
-            return f" {v:.2f}" if v is not None else ""
+            return f" {v:.2f}" if v is not None else "(--)"
         if key == "ad_line":
             rel = (f.get("relation") or "").replace("_", " ")[:8]
-            return f" {rel}" if rel else ""
+            return f" {rel}" if rel else "(--)"
         if key == "aaii_sentiment":
             bull = f.get("bullish_pct"); bear = f.get("bearish_pct")
-            return f" B:{bull:.0f}/Be:{bear:.0f}" if bull is not None and bear is not None else ""
+            return f" B:{bull:.0f}/Be:{bear:.0f}" if bull is not None and bear is not None else "(--)"
         if key == "naaim":
             v = f.get("value")
-            return f" {v:.0f}" if v is not None else ""
+            return f" {v:.0f}" if v is not None else "(--)"
         if key == "ibd_state":
             st = (f.get("state") or "").replace("_under_pressure", "↓").replace("_", " ")[:9]
             dd = f.get("distribution_days_25d")
-            dd_s = f" D{dd}" if dd is not None else ""
-            return f" {st}{dd_s}"
-        return ""
+            if st or dd is not None:
+                dd_s = f" D{dd}" if dd is not None else ""
+                return f" {st}{dd_s}" if st else f" D{dd}"
+            return "(--)"
+        return "(--)"
 
     FACTOR_MAP = [
         ("trend_30wk",    "30wk Trend",   15),
@@ -3041,10 +3078,19 @@ def panel_exposure_compact(exp_f):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
 
     raw_bar = mini_bar(raw, 100, w=8)
+    # Issue 9: Add data quality indicator to title
+    data_quality = exp_f.get("_data_quality", "good")
+    quality_indicator = ""
+    if data_quality == "degraded":
+        quality_indicator = " [yellow]⚠ partial data[/]"
+    elif data_quality == "missing":
+        quality_indicator = " [red]⚠ no data[/]"
+    elif data_quality == "error":
+        quality_indicator = " [red]✗ error[/]"
     header  = Text.from_markup(
         f"[dim]Score:[/][white]{raw:.0f}[/][dim]/100[/] {raw_bar} [dim]→ allocation[/] [{tc}][bold]{epct:.0f}%[/][/]  [dim]{regime[:24]}[/]"
     )
-    return Panel(Group(header, tbl), title="[bold blue]EXPOSURE SCORE BREAKDOWN (12 factors / 100pts)[/]",
+    return Panel(Group(header, tbl), title=f"[bold blue]EXPOSURE SCORE BREAKDOWN (12 factors / 100pts){quality_indicator}[/]",
                  border_style="blue", padding=(0, 1))
 
 
