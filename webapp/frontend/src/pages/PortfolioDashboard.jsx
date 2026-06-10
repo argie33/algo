@@ -125,7 +125,8 @@ function PortfolioDashboardPage() {
   );
 
   // Check if primary data is still loading (avoid flickering by holding skeletons until main data arrives)
-  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading;
+  // Includes all query states to prevent skeleton loaders from showing/hiding at different times
+  const isPrimaryLoading = statusLoading || posLoading || perfLoading || marketsLoading || equityLoading || tradesLoading;
 
   // Normalize paginated responses to arrays - with null safety
   const positionsList = Array.isArray(positions) ? positions : (positions?.items || []);
