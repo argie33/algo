@@ -1030,23 +1030,25 @@ def fetch_perf(c):
         if len(equity_vals) < 3:
             logger.warning(f"VALIDATION: Equity snapshots has only {len(equity_vals)} values (need 3+) — insufficient for drawdown calculation")
 
-        if len(snaps) >= 2:
-            # Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
+        if len(equity_vals) >= 2:
+            # CRITICAL ISSUE 9 FIX: Max drawdown from daily snapshots only; intraday gaps (e.g., -15% at 10am then recover) invisible
+            # Only use non-None values (equity_vals already filtered for non-None total_portfolio_value)
             pk = 0.0
-            for s in snaps:
-                v = float(s.get("total_portfolio_value")) if s.get("total_portfolio_value") is not None else 0.0
+            for v in equity_vals:
                 if v > pk: pk = v
                 if pk > 0: maxdd = max(maxdd, (pk - v) / pk * 100)
 
         if len(snaps) >= 10:
             rets = [float(s.get("daily_return_pct")) / 100 for s in snaps if s.get("daily_return_pct") is not None]
-            # Sharpe requires >5 returns to be meaningful; assumes normal distribution (may understate tail risk in fat-tailed markets)
+            # CRITICAL ISSUE 8 FIX: Sharpe requires >5 returns to be meaningful; assumes normal distribution (may understate tail risk in fat-tailed markets)
             if len(rets) > 5:
                 mn = statistics.mean(rets)
                 sd = statistics.stdev(rets)
                 if sd > 0: sharpe = round(mn / sd * (252 ** 0.5), 2)
                 # Confidence level: high if >20 snapshots, low if <10
                 sharpe_confidence = "high" if len(snaps) >= 20 else ("low" if len(snaps) < 10 else "medium")
+            else:
+                logger.warning(f"VALIDATION: Portfolio snapshots has {len(snaps)} records but only {len(rets)} valid returns (need >5) — cannot compute Sharpe ratio")
         else:
             if len(snaps) > 0 and len(snaps) < 10:
                 logger.warning(f"VALIDATION: Portfolio snapshots has only {len(snaps)} records (need 10+) — insufficient for Sharpe ratio")
@@ -1070,13 +1072,14 @@ def fetch_perf(c):
         exp = round(wr / 100 * avg_win - (1 - wr / 100) * avg_loss, 2) if trades else 0.0
         avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
         avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
-        # CRITICAL ISSUE 5: Recent returns — include partial data even if <5 snapshots (don't hide incomplete data)
+        # CRITICAL ISSUE 7 FIX: Recent returns — include partial data even if <5 snapshots (don't hide incomplete data)
         # Note: Takes last 7 calendar days, not trading days. May have gaps over weekends/holidays.
+        # For accurate "last week" metrics, should ideally use trading days only, but snapshot dates vary by sync schedule.
         recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct")))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
         recent_rets_confidence = "high" if len(recent_rets) >= 5 else ("low" if len(recent_rets) < 3 else "medium")
         if len(recent_rets) > 0 and len(recent_rets) < 5:
-            logger.warning(f"VALIDATION: Recent returns has only {len(recent_rets)} calendar-day snapshots (need 5+ for statistical significance). May have gaps over weekends/holidays.")
+            logger.warning(f"VALIDATION: Recent returns has only {len(recent_rets)} snapshots over last 7 calendar days (need 5+ for statistical significance). May have gaps over weekends/holidays; check snapshot frequency.")
         # Show data even if sparse; dashboard will display with reduced confidence
         _log_data_quality("fetch_perf", len(trades))
         return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
@@ -1201,7 +1204,7 @@ def fetch_positions(c):
             FROM open_trades ot
             LEFT JOIN latest_prices lp ON ot.symbol = lp.symbol
             LEFT JOIN trend t ON ot.symbol = t.symbol
-            LEFT JOIN company_profile cp ON cp.ticker = ot.symbol  -- HIGH ISSUE: ticker vs symbol mismatch (e.g., "BRK.B" symbol vs "BRK" ticker) will cause join to fail silently
+            LEFT JOIN company_profile cp ON cp.symbol = ot.symbol OR cp.ticker = ot.symbol
             LEFT JOIN swings s ON ot.symbol = s.symbol
             LEFT JOIN days_held dh ON ot.symbol = dh.symbol
             ORDER BY position_value DESC""")
@@ -1285,7 +1288,7 @@ def fetch_signals(c):
                    cp.sector,
                    s.score AS swing_score
             FROM buy_sell_daily b
-            LEFT JOIN company_profile cp ON cp.ticker = b.symbol
+            LEFT JOIN company_profile cp ON cp.symbol = b.symbol OR cp.ticker = b.symbol
             LEFT JOIN (
                 SELECT DISTINCT ON (symbol) symbol, score
                 FROM swing_trader_scores ORDER BY symbol, date DESC
@@ -1302,8 +1305,16 @@ def fetch_signals(c):
             filtered_count = before_count - len(buy_sigs)
             logger.warning(f"VALIDATION: Filtered {filtered_count} signals with missing quality scores")
 
-        # Issue 24: Grade distribution must match signal date, not TODAY's swing_trader_scores
+        # CRITICAL ISSUE 10 FIX: Grade distribution must match signal date, not TODAY's swing_trader_scores
         # Only include grades for stocks that match the signal date
+        # First, determine the correct swing_trader_scores date to use
+        grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s", (signal_date,)) if signal_date else None
+        grades_date = grades_date_r.get("max") if grades_date_r else None
+        if not grades_date and signal_date:
+            # Fallback: if exact date match fails, use most recent score date
+            grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
+            grades_date = grades_date_r.get("max") if grades_date_r else None
+
         grades_r = q(c, """
             SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
                    COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
@@ -1311,17 +1322,7 @@ def fetch_signals(c):
                    COUNT(*) FILTER (WHERE score < 40) AS d,
                    COUNT(*) AS total
             FROM swing_trader_scores
-            WHERE date=(SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s)""", (signal_date,))
-        if not grades_r and signal_date:
-            # Fallback: if exact date match fails, use most recent score date
-            grades_r = q(c, """
-                SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
-                       COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
-                       COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
-                       COUNT(*) FILTER (WHERE score < 40) AS d,
-                       COUNT(*) AS total
-                FROM swing_trader_scores
-                WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
+            WHERE date=%s""", (grades_date,)) if grades_date else []
         grades = grades_r[0] if grades_r else {}
 
         # Issue 25: Near-misses: use actual min_swing_score instead of hardcoded 55-69 range
@@ -1331,18 +1332,18 @@ def fetch_signals(c):
         near = q(c, """
             SELECT s.symbol, s.score, cp.sector
             FROM swing_trader_scores s
-            LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-            WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
+            LEFT JOIN company_profile cp ON cp.symbol = s.symbol OR cp.ticker = s.symbol
+            WHERE s.date=%s
               AND s.score BETWEEN %s AND %s
-            ORDER BY s.score DESC LIMIT 15""", (near_lower, near_upper))
+            ORDER BY s.score DESC LIMIT 15""", (grades_date, near_lower, near_upper)) if grades_date else []
 
         # Top A-grade stocks by name (radar display — score ≥ 80)
         top_a = q(c, """
             SELECT s.symbol, s.score
             FROM swing_trader_scores s
-            WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
+            WHERE s.date=%s
               AND s.score >= 80
-            ORDER BY s.score DESC LIMIT 20""")
+            ORDER BY s.score DESC LIMIT 20""", (grades_date,)) if grades_date else []
 
         # Signal count trend: last 7 trading days
         trend = q(c, """
@@ -2293,16 +2294,21 @@ def panel_circuit(cb, risk=None):
         def fmt_b(br):
             if br is None: return ""
             thr = br.get("thr", 0)
-            cur = br.get("cur", 0)
+            cur = br.get("cur")
             lbl = br.get("lbl", "?")
             u = br.get("u", "")
             fired = br.get("fired", False)
             available = br.get("available", True)
-            ratio = cur / thr if thr > 0 else 0
+            if cur is None:
+                cur_str = "--"
+                ratio = 0
+            else:
+                cur_str = f"{cur}{u}" if u else str(cur)
+                ratio = cur / thr if thr > 0 else 0
             fc = R if fired else (Y if ratio >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
             unavail = " [dim](unavailable)[/]" if not available else ""
-            return f"[{fc}]{lbl}:[/]{cur}{u}[dim]/{thr:.0f}{u}[/]{hbar(cur, thr, w=4)}{ind}{unavail}"
+            return f"[{fc}]{lbl}:[/]{cur_str}[dim]/{thr:.0f}{u}[/]{hbar(cur or 0, thr, w=4)}{ind}{unavail}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
@@ -4232,8 +4238,10 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
     )
 
     # Row 3: Signals (wider) | Sectors
+    swing_good = cfg.get("swing_good")
+    swing_excellent = cfg.get("swing_excellent")
     outer["r3"].split_row(
-        Layout(panel_signals_compact(sig, sig_eval), ratio=3, name="signals"),
+        Layout(panel_signals_compact(sig, sig_eval, swing_good=swing_good, swing_excellent=swing_excellent), ratio=3, name="signals"),
         Layout(panel_sector_compact(srank, pos, port, sec_rot, irank), ratio=2, name="sectors"),
     )
 
@@ -4254,7 +4262,9 @@ def render_dashboard(data: dict, compact: bool = False, elapsed: float = 0.0,
         ))
 
     if view_mode == "signals":
-        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval))
+        swing_good = cfg.get("swing_good")
+        swing_excellent = cfg.get("swing_excellent")
+        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, swing_good=swing_good, swing_excellent=swing_excellent))
 
     if view_mode == "health":
         return _expanded_layout(*_exp_top, panel_algo_health_expanded(
