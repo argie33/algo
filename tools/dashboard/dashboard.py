@@ -910,6 +910,30 @@ def fetch_market(c):
             else:
                 logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})")
 
+        # CRITICAL ISSUE 3 FIX: Enforce hard thresholds for market data freshness
+        # Halt if critical data exceeds acceptable age (prevents stale market context from misleading operator)
+        MAX_SPY_AGE_DAYS = 1      # SPY close must be from current or previous trading day
+        MAX_EXPOSURE_AGE_DAYS = 2  # Exposure data must be recent enough to reflect current market regime
+        MAX_DIST_DAYS_AGE = 5      # Distribution days threshold (computed once per week, can be older)
+
+        if spy_age is not None and spy_age > MAX_SPY_AGE_DAYS:
+            msg = f"HALT: SPY price data is {spy_age} days old (max {MAX_SPY_AGE_DAYS}d allowed) — dashboard cannot run with stale market prices"
+            logger.error(f"CRITICAL: {msg}")
+            _log_data_quality("fetch_market", 0, msg)
+            return {"_error": msg, "stale_alerts": stale_alerts}
+
+        if exp_age is not None and exp_age > MAX_EXPOSURE_AGE_DAYS:
+            msg = f"HALT: Market exposure data is {exp_age} days old (max {MAX_EXPOSURE_AGE_DAYS}d allowed) — cannot determine safe position sizing"
+            logger.error(f"CRITICAL: {msg}")
+            _log_data_quality("fetch_market", 0, msg)
+            return {"_error": msg, "stale_alerts": stale_alerts}
+
+        # Distribution days can be older (computed weekly), but warn if exceptionally stale
+        if mkt_health_age is not None and mkt_health_age > MAX_DIST_DAYS_AGE:
+            msg = f"Distribution days data is {mkt_health_age} days old (threshold {MAX_DIST_DAYS_AGE}d) — market context may be unreliable"
+            logger.warning(f"CRITICAL: {msg}")
+            stale_alerts.append(msg)
+
         # CRITICAL ISSUE 1 FIX: Return stale data with alerts instead of failing entirely
         # Market context (even 1-2 days old) is more useful than no context at all
         # Dashboard will display stale_alerts to user as warnings
@@ -2611,7 +2635,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
     pv    = float(port.get("total_portfolio_value")) if port.get("total_portfolio_value") is not None else 0
     dr    = float(port.get("daily_return_pct")) if port.get("daily_return_pct") is not None else 0
-    urp   = float(port.get("unrealized_pnl_pct")) if port.get("unrealized_pnl_pct") is not None else 0
+    urp   = float(port.get("unrealized_pnl_pct")) if port.get("unrealized_pnl_pct") is not None else None  # CRITICAL ISSUE 9 FIX: Keep None to display "--" instead of hiding missing data
     cash  = float(port.get("total_cash")) if port.get("total_cash") is not None else 0
     npos  = int(port.get("position_count")) if port.get("position_count") is not None else 0
     cum   = port.get("cumulative_return_pct")
@@ -2641,9 +2665,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     ))
 
     # Line 3: daily return + unrealized P&L
+    urp_str = f"[{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]" if urp is not None else "[dim]--[/]"
     rows.append(Text.from_markup(
         f"[dim]Day:[/] [{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]  "
-        f"[dim]Unrlzd:[/] [{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]"
+        f"[dim]Unrlzd:[/] {urp_str}"
     ))
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)
