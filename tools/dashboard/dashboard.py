@@ -239,21 +239,21 @@ def fmt_money_short(v: any) -> str:
     if av >= 1e3: return f"{s}${av/1e3:.0f}K"
     return f"{s}${av:.0f}"
 
-def grade(s):
+def grade(s: float) -> str:
     s = float(s)
-    if s >= 90: return "A+"
-    if s >= 80: return "A"
-    if s >= 70: return "B"
-    if s >= 60: return "C"
+    if s >= GRADE_A_PLUS: return "A+"
+    if s >= GRADE_A: return "A"
+    if s >= GRADE_B: return "B"
+    if s >= GRADE_C: return "C"
     return "D"
 
-def tier_from_pct(p) -> str:
+def tier_from_pct(p: Optional[float]) -> str:
     if p is None: return "unknown"
     p = float(p)
-    if p >= 80: return "confirmed_uptrend"
-    if p >= 60: return "healthy_uptrend"
-    if p >= 40: return "pressure"
-    if p >= 20: return "caution"
+    if p >= TIER_THRESHOLD_CONFIRMED: return "confirmed_uptrend"
+    if p >= TIER_THRESHOLD_HEALTHY: return "healthy_uptrend"
+    if p >= TIER_THRESHOLD_PRESSURE: return "pressure"
+    if p >= TIER_THRESHOLD_CAUTION: return "caution"
     return "correction"
 
 def is_open() -> bool:
@@ -332,10 +332,10 @@ def next_run_str() -> str:
     tgt = next_wkd(now).replace(hour=2, minute=0, second=0, microsecond=0)
     return f"prep {fmt(tgt)}"
 
-def hbar(cur, thr, w=6):
+def hbar(cur: float, thr: float, w: int = 6) -> str:
     r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
     f = int(r * w)
-    c = R if r >= 1 else (Y if r >= 0.75 else G)
+    c = R if r >= HBAR_CRITICAL else (Y if r >= HBAR_WARNING else G)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 def exp_bar(pct, w=12):
@@ -343,10 +343,10 @@ def exp_bar(pct, w=12):
     tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
     return f"[{tc}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
-def mini_bar(pts, max_pts, w=5):
+def mini_bar(pts: Optional[float], max_pts: Optional[float], w: int = 5) -> str:
     r = min(float(pts or 0) / float(max_pts or 1), 1.0)
     f = int(r * w)
-    c = G if r >= 0.75 else (Y if r >= 0.35 else R)
+    c = G if r >= MINIBAR_HIGH else (Y if r >= MINIBAR_MED else R)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 def sign(v) -> str:
