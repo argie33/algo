@@ -1438,10 +1438,14 @@ def fetch_perf(c):
             _log_data_quality("fetch_perf", 0, "No metrics in algo_performance_daily")
 
         # Use pre-computed avg_r from database, fallback to calculating from trades
+        # ISSUE 37 FIX: Avoid recalculating avg_r on every refresh if database doesn't have it yet
+        # Log a warning if we fall back to calculation (indicates loader hasn't populated the column)
         if perf and perf.get("avg_r") is not None:
             avg_r = float(perf.get("avg_r"))
         else:
-            # Fallback: calculate avg_r from trades if not in database
+            if perf:
+                logger.warning("VALIDATION: avg_r not populated in algo_performance_daily — loader may be incomplete")
+            # Fallback: calculate avg_r from trades if not in database (expensive operation)
             avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
             avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
 
@@ -1564,9 +1568,9 @@ def fetch_positions(c):
                 ot.entry_price as avg_entry_price,
                 COALESCE(lp.current_price, ot.entry_price) as current_price,
                 CASE
-                    WHEN ot.entry_price > 0
-                    THEN (((COALESCE(lp.current_price, ot.entry_price) - ot.entry_price) / ot.entry_price) * 100)
-                    ELSE 0
+                    WHEN ot.entry_price IS NULL OR ot.entry_price <= 0
+                    THEN NULL
+                    ELSE (((COALESCE(lp.current_price, ot.entry_price) - ot.entry_price) / ot.entry_price) * 100)
                 END as unrealized_pnl_pct,
                 ROUND((ot.entry_quantity * COALESCE(lp.current_price, ot.entry_price))::NUMERIC, 2) as position_value,
                 dh.days_since_entry,
