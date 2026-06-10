@@ -4092,6 +4092,9 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         def_s    = float(sec_rot.get("def_score") or 0)
         cyc_s    = float(sec_rot.get("cyc_score") or 0)
         strength = float(sec_rot.get("strength") or 0)
+        # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
+        if strength > 1:
+            strength = strength / 100.0
         sig_c    = R if def_s >= 60 else (Y if def_s >= 40 else G)
         rows.append(Text.from_markup(
             f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
