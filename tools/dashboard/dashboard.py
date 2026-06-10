@@ -1820,14 +1820,38 @@ def fetch_economic_calendar(c):
         return []
 
 def fetch_risk_metrics(c) -> dict:
+    """Fetch pre-calculated risk metrics (updated hourly by load_algo_risk_daily.py).
+
+    Returns freshness-checked metrics or empty dict if data is stale/missing.
+    """
     try:
         row = q1(c, """SELECT report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
-                              portfolio_beta, top_5_concentration
+                              portfolio_beta, top_5_concentration, updated_at
                        FROM algo_risk_daily ORDER BY report_date DESC LIMIT 1""")
-        if not row:
-            logger.warning("No risk metrics data available; risk loader may not have run yet")
-            _log_data_quality("fetch_risk_metrics", 0)
+
+        # Validate table data freshness (should be <2 hours old during market hours)
+        is_fresh = False
+        if row and row.get('updated_at'):
+            try:
+                if isinstance(row['updated_at'], datetime):
+                    update_time = row['updated_at']
+                else:
+                    update_time = datetime.fromisoformat(str(row['updated_at']))
+                if update_time.tzinfo is None:
+                    update_time = update_time.replace(tzinfo=timezone.utc)
+                age_minutes = (datetime.now(timezone.utc) - update_time).total_seconds() / 60
+                is_fresh = age_minutes < 120  # <2 hours = fresh
+                if age_minutes > 120:
+                    logger.warning(f"fetch_risk_metrics: table data {age_minutes:.0f}m old (stale)")
+            except (ValueError, TypeError):
+                is_fresh = row is not None
+
+        if not row or not is_fresh:
+            if not row:
+                logger.warning("VALIDATION: No risk metrics data available; risk loader may not have run yet")
+            _log_data_quality("fetch_risk_metrics", 0, "table missing or stale")
             return {"_has_data": False}
+
         result = {
             "_has_data": True,
             "date":      row.get("report_date"),
@@ -1836,6 +1860,7 @@ def fetch_risk_metrics(c) -> dict:
             "svar":      float(row.get("stressed_var_pct")) if row.get("stressed_var_pct") is not None else None,
             "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
             "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
+            "_source":   "table",
         }
         _log_data_quality("fetch_risk_metrics", 1)
         return result
