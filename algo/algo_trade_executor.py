@@ -373,6 +373,7 @@ class TradeExecutor:
 
             execution_mode = self.config.get('execution_mode', 'paper')
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
+            rejection_reason = None  # Initialize for all code paths
 
             if execution_mode in ('paper', 'dry'):
                 logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
@@ -416,6 +417,10 @@ class TradeExecutor:
                         'message': 'Alpaca response missing order_id'
                     }
                 order_status = order_result.get('status', 'pending')
+                # Capture rejection reason if order was rejected
+                rejection_reason = None
+                if order_status == 'rejected':
+                    rejection_reason = order_result.get('rejection_reason') or 'Order rejected by Alpaca (no reason provided)'
                 # CRITICAL: Do NOT use entry_price as fallback for pending Alpaca orders.
                 # This corrupts fill price data and breaks slippage/position accounting.
                 # Pending orders will be reconciled when they actually fill.
@@ -504,7 +509,7 @@ class TradeExecutor:
                     market_exposure_at_entry, exposure_tier_at_entry,
                     stop_method, stop_reasoning,
                     swing_components, advanced_components, bracket_order,
-                    reentry_count, prior_trade_id,
+                    reentry_count, prior_trade_id, rejection_reason,
                     created_at
                 ) VALUES (
                     %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s,
@@ -517,7 +522,7 @@ class TradeExecutor:
                     %s, %s,
                     %s, %s,
                     %s, %s, %s,
-                    %s, %s,
+                    %s, %s, %s,
                     CURRENT_TIMESTAMP
                 )
                 """,
@@ -540,7 +545,7 @@ class TradeExecutor:
                     json.dumps(swing_components) if swing_components else None,
                     json.dumps(advanced_components) if advanced_components else None,
                     execution_mode == 'auto',  # bracket_order = True only in auto mode
-                    reentry_count, prior_trade_id,
+                    reentry_count, prior_trade_id, rejection_reason,
                 ),
             )
 
@@ -1078,7 +1083,7 @@ class TradeExecutor:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {'success': False, 'message': 'Alpaca credentials not configured'}
 
-        logger.info(_redact_for_logs(f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f}"))
+        logger.info(f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f} to {self.alpaca_base_url}")
         try:
             # Build order payload
             order_data = {
@@ -1120,13 +1125,13 @@ class TradeExecutor:
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
                 timeout=get_api_timeout(),
             )
-            logger.info(f"[SEND_ORDER] {symbol}: Alpaca responded with status {response.status_code}")
+            logger.info(f"[SEND_ORDER] {symbol}: Alpaca responded with HTTP {response.status_code}")
 
             if response.status_code in (200, 201):
                 try:
                     data = response.json()
                 except Exception as e:
-                    logger.error(f"[SEND_ORDER] {symbol}: Failed to parse response JSON: {e}")
+                    logger.error(f"[SEND_ORDER] {symbol}: Failed to parse response JSON: {e}. Response: {response.text}")
                     return {'success': False, 'message': f'Invalid response format: {e}'}
 
                 logger.debug(f"[SEND_ORDER] {symbol}: Response = {data}")
@@ -1134,7 +1139,7 @@ class TradeExecutor:
                 validation = validator.validate_order_response(data)
                 if not validation['valid']:
                     error_msg = f"Invalid response: {', '.join(validation['errors'])}"
-                    logger.error(f"[SEND_ORDER] {symbol}: {error_msg}")
+                    logger.error(f"[SEND_ORDER] {symbol}: {error_msg}. Response data: {data}")
                     return {'success': False, 'message': error_msg}
 
                 order_status = validation['status']
@@ -1148,11 +1153,14 @@ class TradeExecutor:
                     'status': order_status,
                     'executed_price': executed_price,
                     'legs': validation['legs'],
+                    'rejection_reason': validation.get('rejection_reason'),
                 }
-            logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} - {response.text[:200]}")
-            return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}
+            else:
+                # Log full response for non-200/201 status codes
+                logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} error. Response: {response.text[:500]}")
+                return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}
         except Exception as e:
-            logger.exception(f"[SEND_ORDER] {symbol}: Exception during request")
+            logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")
             return {'success': False, 'message': f'Request failed: {e}'}
 
     def _cancel_bracket_orders(self, alpaca_order_id: str) -> bool:

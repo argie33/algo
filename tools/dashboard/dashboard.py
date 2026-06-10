@@ -185,7 +185,7 @@ def mascot_pose(data: dict, frame: int) -> int:
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
-def get_conn():
+def get_conn() -> psycopg2.extensions.connection:
     miss = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
     if miss:
         sys.exit(f"Missing env vars: {', '.join(miss)}")
@@ -197,19 +197,19 @@ def get_conn():
         options="-c statement_timeout=30000",
     )
 
-def q(c, sql, p=None):
+def q(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -> List[Dict]:
     with c.cursor() as cur:
         cur.execute(sql, p or ())
         return [r if isinstance(r, dict) else dict(r) for r in cur.fetchall()]
 
-def q1(c, sql, p=None):
+def q1(c: psycopg2.extensions.connection, sql: str, p: Optional[tuple] = None) -> Optional[Dict]:
     rows = q(c, sql, p)
     return rows[0] if rows else None
 
 
 # ── formatters ────────────────────────────────────────────────────────────────
 
-def fmt_age(ts):
+def fmt_age(ts: any) -> str:
     if ts is None: return "--"
     if isinstance(ts, str): ts = datetime.fromisoformat(ts)
     if isinstance(ts, date) and not isinstance(ts, datetime):
@@ -220,7 +220,7 @@ def fmt_age(ts):
     if m < 1440: return f"{m // 60}h{m % 60:02d}m ago"
     return f"{m // 1440}d ago"
 
-def fmt_money(v):
+def fmt_money(v: any) -> str:
     if v is None: return "--"
     v = float(v)
     s = "-" if v < 0 else ""
@@ -229,7 +229,7 @@ def fmt_money(v):
     if av >= 1e3: return f"{s}${av:,.0f}"
     return f"{s}${av:.2f}"
 
-def fmt_money_short(v):
+def fmt_money_short(v: any) -> str:
     """Compact dollar format: $45K, $1.2M, $850 — for narrow table columns."""
     if v is None: return "--"
     v = float(v)
@@ -2189,16 +2189,16 @@ def panel_economic_pulse(eco, econ_cal=None):
     # Inflation breakevens + consumer sentiment + mortgage rates
     extra = []
     if be10 is not None:
-        be_c = R if be10 >= 3.0 else (Y if be10 >= 2.5 else G)
+        be_c = R if be10 >= BE_CRITICAL else (Y if be10 >= BE_WARNING else G)
         extra.append(f"[dim]10Y Inflation Breakeven:[/][{be_c}]{be10:.2f}%[/]")
     if be5 is not None:
-        be5_c = R if be5 >= 3.0 else (Y if be5 >= 2.5 else G)
+        be5_c = R if be5 >= BE_CRITICAL else (Y if be5 >= BE_WARNING else G)
         extra.append(f"[dim]5Y Breakeven:[/][{be5_c}]{be5:.2f}%[/]")
     if mortgage is not None:
-        mg_c = R if mortgage >= 7.0 else (Y if mortgage >= 6.0 else G)
+        mg_c = R if mortgage >= MORTGAGE_CRITICAL else (Y if mortgage >= MORTGAGE_WARNING else G)
         extra.append(f"[dim]30Y Mortgage:[/][{mg_c}]{mortgage:.2f}%[/]")
     if umcsent is not None:
-        uc = G if umcsent >= 80 else (Y if umcsent >= 60 else R)
+        uc = G if umcsent >= UMCSENT_GOOD else (Y if umcsent >= UMCSENT_WARNING else R)
         extra.append(f"[dim]UMich Consumer Sentiment:[/][{uc}]{umcsent:.0f}[/]")
     if extra: rows.append(Text.from_markup("  ".join(extra)))
 

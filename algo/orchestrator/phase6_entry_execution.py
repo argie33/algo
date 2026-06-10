@@ -265,15 +265,15 @@ def run(
                     )
                     if result.get('success'):
                         executed_count += 1
-                        logger.info(f"[PHASE 6] {symbol}: ENTERED trade_id={result.get('trade_id')}")
+                        logger.info(f"[PHASE 6] {symbol}: ENTERED trade_id={result.get('trade_id')} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}")
                         if max_entries and executed_count >= max_entries:
                             logger.info(f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping")
                             break
                     else:
-                        logger.warning(f"[PHASE 6] {symbol}: execute returned not-success: {result.get('message')}")
+                        logger.error(f"[PHASE 6] {symbol}: FAILED to execute trade: {result.get('message')} (status={result.get('status')})")
                         failed_count += 1
                 except Exception as exec_err:
-                    logger.error(f"[PHASE 6] {symbol}: execution error: {exec_err}")
+                    logger.error(f"[PHASE 6] {symbol}: execution error: {exec_err}", exc_info=True)
                     failed_count += 1
             else:
                 logger.info(f"[PHASE 6] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")

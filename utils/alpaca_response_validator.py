@@ -84,6 +84,7 @@ class AlpacaResponseValidator:
             'filled_avg_price': filled_avg_price,
             'order_class': order_class,
             'legs': legs,
+            'rejection_reason': data.get('cancel_reason') or data.get('failed_reason') or data.get('reason'),
         }
 
     @staticmethod
