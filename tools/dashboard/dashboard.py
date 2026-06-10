@@ -346,6 +346,37 @@ def validate_schema() -> None:
         logger.error(f"Schema validation failed: {e}")
         sys.exit(f"Database connection/schema error: {e}")
 
+def validate_phase_results(phase_results: any) -> List[Dict]:
+    """Validate phase_results schema. Each phase must have 'name'/'phase' and 'status' fields.
+
+    Returns: list of valid phase objects with guaranteed structure; invalid entries logged.
+    """
+    if not isinstance(phase_results, list):
+        logger.warning(f"VALIDATION: phase_results expected list, got {type(phase_results).__name__}")
+        return []
+
+    valid = []
+    for i, p in enumerate(phase_results):
+        if not isinstance(p, dict):
+            logger.warning(f"VALIDATION: phase_results[{i}] expected dict, got {type(p).__name__}")
+            continue
+
+        # Check required fields: name/phase and status
+        name = p.get("name") or p.get("phase")
+        status = p.get("status")
+
+        if not name:
+            logger.warning(f"VALIDATION: phase_results[{i}] missing 'name'/'phase' field")
+        if not status:
+            logger.warning(f"VALIDATION: phase_results[{i}] missing 'status' field")
+
+        if name and status:
+            valid.append(p)
+
+    if len(valid) < len(phase_results):
+        logger.warning(f"VALIDATION: phase_results schema check: {len(valid)} valid, {len(phase_results) - len(valid)} invalid entries")
+
+    return valid
 
 # ── formatters ────────────────────────────────────────────────────────────────
 
@@ -1013,16 +1044,28 @@ def fetch_perf(c):
         loss_amt  = [abs(float(t.get("profit_loss_dollars"))) for t in losses if t and t.get("profit_loss_dollars") is not None]
         avg_win   = statistics.mean(win_amt)  if win_amt and len(win_amt) > 0 else 0.0
         avg_loss  = statistics.mean(loss_amt) if loss_amt and len(loss_amt) > 0 else 0.0
-        gw = sum(win_amt); gl = sum(loss_amt)
-        pf = round(gw / gl, 2) if gl > 0 else None
+        gw = sum(win_amt)
+        gl = sum(loss_amt)
+        # VALIDATION: Profit factor = total wins / total losses. Check precision and zero-division.
+        # Use epsilon check for float precision (avoid false zeros from rounding)
+        if gl > 1e-6:
+            pf = round(gw / gl, 2)
+            if gw <= 0 and len(wins) > 0:
+                logger.warning(f"VALIDATION: Profit factor calculation issue: gw={gw} (sum of {len(win_amt)} wins) but should be positive")
+        else:
+            pf = None
+            if len(losses) > 0:
+                logger.warning(f"VALIDATION: Profit factor undefined: total losses={gl:.2f} (expected >0 if {len(losses)} losses exist)")
         exp = round(wr / 100 * avg_win - (1 - wr / 100) * avg_loss, 2) if trades else 0.0
         avg_r_vals = [float(t["exit_r_multiple"]) for t in trades if t.get("exit_r_multiple") is not None]
         avg_r = round(statistics.mean(avg_r_vals), 2) if avg_r_vals else None
         # CRITICAL ISSUE 5: Recent returns — include partial data even if <5 snapshots (don't hide incomplete data)
+        # Note: Takes last 7 calendar days, not trading days. May have gaps over weekends/holidays.
         recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct")))
                        for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
+        recent_rets_confidence = "high" if len(recent_rets) >= 5 else ("low" if len(recent_rets) < 3 else "medium")
         if len(recent_rets) > 0 and len(recent_rets) < 5:
-            logger.warning(f"VALIDATION: Recent returns has only {len(recent_rets)} snapshots (need 5+ for statistical significance)")
+            logger.warning(f"VALIDATION: Recent returns has only {len(recent_rets)} calendar-day snapshots (need 5+ for statistical significance). May have gaps over weekends/holidays.")
         # Show data even if sparse; dashboard will display with reduced confidence
         _log_data_quality("fetch_perf", len(trades))
         return {"n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
@@ -1031,7 +1074,7 @@ def fetch_perf(c):
                 "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1),
                 "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
                 "profit_factor": pf, "expectancy": exp, "avg_r": avg_r,
-                "equity_vals": equity_vals, "recent_rets": recent_rets}
+                "equity_vals": equity_vals, "recent_rets": recent_rets, "recent_rets_confidence": recent_rets_confidence}
     except (psycopg2.Error, KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         logger.error(f"fetch_perf: {type(e).__name__}: {e}")
         _log_data_quality("fetch_perf", 0, str(e))
@@ -2090,7 +2133,9 @@ def panel_orch(run, cfg, risk=None):
         pbadges = []
         # exec_log source: structured per-phase objects with names + statuses
         if run.get("_source") == "exec_log":
-            for p in (run.get("phase_results") or []):
+            # VALIDATION: Ensure phase_results has required schema
+            phase_results = validate_phase_results(run.get("phase_results"))
+            for p in phase_results:
                 raw = (p.get("name") or p.get("phase", "")).lower()
                 parts = raw.split("_")
                 base  = "_".join(parts[:2]) if len(parts) >= 2 else raw
@@ -2103,7 +2148,7 @@ def panel_orch(run, cfg, risk=None):
             halt_r = run.get("halt_reason") or ""
             summary = run.get("summary") or ""
             if halt_r or run.get("halted"):
-                _details = _best_halt_reason(halt_r, run.get("phase_results"))
+                _details = _best_halt_reason(halt_r, phase_results)
                 _lines   = [f"{lb+': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
                 extra    = ("\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines)) if _lines else ""
             else:
