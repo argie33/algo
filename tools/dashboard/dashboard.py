@@ -119,9 +119,6 @@ GRADE_A = 80
 GRADE_B = 70
 GRADE_C = 60
 
-SWING_SCORE_GOOD = 80  # Green threshold
-SWING_SCORE_OK = 60    # Yellow threshold (Issue #9: Inconsistent 60/80 split now centralized)
-
 HBAR_CRITICAL = 1.0
 HBAR_WARNING = 0.75
 
