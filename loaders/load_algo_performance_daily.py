@@ -180,7 +180,7 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         calmar_ratio = None
         if max_drawdown_pct and max_drawdown_pct > 0 and len(returns) > 0:
             try:
-                cumulative_return = (1.0 for r in returns)
+                cumulative_return = 1.0
                 for r in returns:
                     cumulative_return *= (1 + r)
                 total_return = (cumulative_return - 1) * 100  # Convert to percentage
