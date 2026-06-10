@@ -192,7 +192,9 @@ def run(
             # Compute price inputs anchored to run_date
             atr = _compute_true_atr(symbol, run_date)
             sma_50 = _compute_sma_50(symbol, run_date)
-            close = signal.get('entry_price') or _get_latest_close(symbol, run_date)
+            # CRITICAL: Always use latest market close, not signal's stale entry_price
+            # Signal entry_price may be from old price_date if Phase 5 fell back to prior date
+            close = _get_latest_close(symbol, run_date)
 
             if not all([atr, sma_50, close]):
                 logger.warning(f"[PHASE 6] {symbol}: missing ATR/SMA_50/close, skipping")
