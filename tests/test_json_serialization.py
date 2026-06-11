@@ -6,9 +6,8 @@ from uuid import UUID
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lambda', 'api', 'routes'))
-
-from utils import safe_json_serialize
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lambda', 'api'))
+from routes.utils import safe_json_serialize
 
 
 class TestSafeJsonSerialize:
@@ -151,8 +150,8 @@ class TestSafeJsonSerialize:
         assert result == data
 
     def test_import_available(self):
-        """Verify safe_json_serialize is exported from utils."""
-        from utils import safe_json_serialize as sjs
+        """Verify safe_json_serialize is exported from routes.utils."""
+        from routes.utils import safe_json_serialize as sjs
         assert callable(sjs)
 
 
