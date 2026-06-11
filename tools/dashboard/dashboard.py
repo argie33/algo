@@ -329,6 +329,13 @@ MORTGAGE_CRITICAL = 8.0  # 30Y Mortgage rate critical (%)
 NFCI_NEGATIVE = -0.5  # Chicago Fed NFCI accommodative threshold
 NFCI_POSITIVE = 0.5  # Chicago Fed NFCI tight threshold
 YIELD_CURVE_GOOD = 0.5  # Yield curve 10-2 slope good threshold (%)
+HY_OAS_GOOD = 400.0  # High Yield OAS good threshold (bps)
+HY_OAS_WARNING = 600.0  # High Yield OAS warning threshold (bps)
+IG_OAS_GOOD = 100.0  # Investment Grade OAS good threshold (bps)
+IG_OAS_WARNING = 150.0  # Investment Grade OAS warning threshold (bps)
+OIL_WARNING = 100.0  # Oil price warning threshold ($/barrel)
+AAII_BULLISH_GOOD = 50.0  # AAII bullish pct good threshold
+AAII_BEARISH_WARNING = 40.0  # AAII bearish pct warning threshold
 UMCSENT_WARNING = 60  # University of Michigan Consumer Sentiment warning
 UMCSENT_GOOD = 70  # University of Michigan Consumer Sentiment good threshold
 
