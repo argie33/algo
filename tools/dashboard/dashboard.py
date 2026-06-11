@@ -1947,7 +1947,7 @@ def fetch_recent_trades(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_recent_trades: {type(e).__name__}: {e}")
         _log_data_quality("fetch_recent_trades", 0, str(e))
-        return []
+        return {"_error": f"Failed to load recent trades: {type(e).__name__}"}
 
 def fetch_signals(c):
     try:
