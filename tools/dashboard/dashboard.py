@@ -3023,6 +3023,37 @@ def load_all() -> dict:
                     logger.warning(f"Fetcher {k} timed out — marking incomplete")
                     f.cancel()
                     out[k] = {"_error": f"Timeout (exceeded {BATCH_TIMEOUT}s, elapsed {elapsed:.1f}s)"}
+
+    # H14 FIX: Check cumulative failure threshold — determine if dashboard should fail or show degraded
+    # Define critical fetchers: dashboard cannot operate without these
+    CRITICAL_FETCHERS = {"market", "positions", "perf"}
+
+    # Count failures
+    failures = [k for k, v in out.items() if isinstance(v, dict) and v.get("_error")]
+    critical_failures = [k for k in failures if k in CRITICAL_FETCHERS]
+    success_count = len([k for k in out if k not in failures])
+
+    # Log failure summary
+    if failures:
+        logger.warning(f"Load summary: {success_count} succeeded, {len(failures)} failed (critical: {len(critical_failures)})")
+
+    # If any critical fetcher failed: fail hard
+    if critical_failures:
+        critical_list = ", ".join(critical_failures)
+        msg = f"Critical data source failed: {critical_list} — dashboard cannot proceed"
+        logger.error(f"CRITICAL: {msg}")
+        return {"_error": msg, "_critical_failures": critical_failures, "_partial_data": out}
+
+    # If more than half of fetchers failed: degraded state (but show what we have)
+    if len(failures) > len(FETCHERS) // 2:
+        msg = f"Data degraded: {len(failures)}/{len(out)} fetchers failed"
+        logger.warning(f"DEGRADED: {msg}")
+        return {**out, "_degraded": True, "_failure_count": len(failures), "_failed_fetchers": failures}
+
+    # Partial failures are acceptable: show available data
+    if failures:
+        logger.warning(f"Showing partial data: {len(failures)} fetchers failed, proceeding with available data")
+
     return out
 
 
@@ -3546,9 +3577,14 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     sharpe_s = f"{sharpe_val:.2f}" if sharpe_val is not None else "--"
     sharpe_conf = perf.get('sharpe_confidence')
     sharpe_label = f"{sharpe_s}" if sharpe_conf is None else f"{sharpe_s} ({sharpe_conf})"
+    # Issue 5 FIX: Show closed trades + open trades in calculation
+    n_closed = perf.get('n', 0)
+    n_open = perf.get('_open_trades_count', 0)
+    n_total = n_closed + n_open
+    open_note = f" ([{n_open} open])" if n_open > 0 else ""
     rows = [
         Text.from_markup(
-            f"[bold white]{perf.get('n', 0)} Trades[/]  "
+            f"[bold white]{n_closed} Trades{open_note}[/]  "
             f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]"
             f"{'[dim]/[/][yellow]' + str(perf.get('b', 0)) + 'B[/]' if perf.get('b', 0) > 0 else ''}  "
             f"[dim]WR:[/][{wr_c}]{wr_s}{be_s}[/]  "
@@ -3649,8 +3685,12 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 
     # ISSUE 5 FIX: Alert if open positions have unrealized losses (risk not in win rate)
     # ISSUE 13 FIX: Only sum P&L values that exist, don't default missing P&L to 0
-    if pos:
-        losing_positions = [p for p in pos if p.get("unrealized_pnl_pct") is not None and float(p.get("unrealized_pnl_pct")) < 0]
+    # Extract positions from new dict format if needed
+    positions_list = pos
+    if isinstance(pos, dict) and "positions" in pos:
+        positions_list = pos.get("positions", [])
+    if positions_list:
+        losing_positions = [p for p in positions_list if p.get("unrealized_pnl_pct") is not None and float(p.get("unrealized_pnl_pct")) < 0]
         if losing_positions:
             loss_pct = sum(float(p.get("unrealized_pnl_pct")) for p in losing_positions if p.get("unrealized_pnl_pct") is not None)
             if loss_pct != 0:  # Only show if there's actual loss
@@ -4047,10 +4087,14 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
         ))
 
     # Holdings by sector: 2-col pairs, up to 6 sectors
-    if pos:
+    # Extract positions from new dict format if needed
+    positions_list = pos
+    if isinstance(pos, dict) and "positions" in pos:
+        positions_list = pos.get("positions", [])
+    if positions_list:
         pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
         sd: dict = {}
-        for p in pos:
+        for p in positions_list:
             sec = p.get("sector") or "[No Sector]"
             val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
             pnl_raw = p.get("unrealized_pnl_pct")
@@ -4090,18 +4134,24 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
     valid_srank_raw = [r for r in (srank or [])
                        if not (isinstance(srank, dict) and srank.get("_error"))]
     valid_srank = []
+    filtered_count = 0
     for r in valid_srank_raw[:6]:
         # Validate entry has required fields: sector_name, current_rank, momentum_score
         if not isinstance(r, dict):
             logger.warning(f"VALIDATION: Sector rank entry is not a dict: {type(r).__name__}")
+            filtered_count += 1
             continue
         if not r.get("sector_name"):
             logger.warning(f"VALIDATION: Sector rank entry missing sector_name field")
+            filtered_count += 1
             continue
         if r.get("current_rank") is None:
             logger.warning(f"VALIDATION: Sector rank entry missing current_rank field for {r.get('sector_name', 'unknown')}")
+            filtered_count += 1
             continue
         valid_srank.append(r)
+    if filtered_count > 0:
+        logger.warning(f"VALIDATION: Sector ranking filtered {filtered_count} incomplete entries")
 
     if valid_srank:
         if rows:
@@ -5433,10 +5483,14 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
         rows.append(Rule(style="dim"))
 
     # Full portfolio by sector
-    if pos:
+    # Extract positions from new dict format if needed
+    positions_list = pos
+    if isinstance(pos, dict) and "positions" in pos:
+        positions_list = pos.get("positions", [])
+    if positions_list:
         pv = float(port.get("total_portfolio_value")) if port and port.get("total_portfolio_value") is not None else 0
         sd: dict = {}
-        for p in pos:
+        for p in positions_list:
             sec = p.get("sector") or "[No Sector]"
             val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
             pnl_raw = p.get("unrealized_pnl_pct")

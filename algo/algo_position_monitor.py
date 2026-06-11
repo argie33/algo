@@ -795,11 +795,13 @@ class PositionMonitor:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                equity = float(data.get('equity') or data.get('portfolio_value') or 1)
-                long_market_value = float(data.get('long_market_value') or 0)
-                margin_usage_pct = (long_market_value / equity * 100.0) if equity > 0 else 0.0
+                equity_val = data.get('equity') or data.get('portfolio_value')
+                equity = float(equity_val) if equity_val is not None else 1
+                long_market_value_val = data.get('long_market_value')
+                long_market_value = float(long_market_value_val) if long_market_value_val is not None else None
+                margin_usage_pct = (long_market_value / equity * 100.0) if long_market_value is not None and equity > 0 else None
                 return {
-                    'margin_usage_pct': round(margin_usage_pct, 1),
+                    'margin_usage_pct': round(margin_usage_pct, 1) if margin_usage_pct is not None else None,
                     'long_market_value': long_market_value,
                     'equity': equity,
                 }
