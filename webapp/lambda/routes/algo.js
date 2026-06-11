@@ -1916,51 +1916,13 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
     const pool = getPool();
 
     // Fetch all circuit breaker metrics from database in parallel
-    const [metricsResult, closedTradesResult, marketResult] = await Promise.all([
-      // Core metrics: drawdown, daily/weekly loss, open risk
+    const [metricsResult, marketResult] = await Promise.all([
+      // Core metrics: drawdown, daily/weekly loss, open risk, consecutive losses (all pre-computed in view)
       pool.query(`
-        WITH latest_snap AS (
-          SELECT total_portfolio_value, daily_return_pct
-          FROM algo_portfolio_snapshots
-          ORDER BY snapshot_date DESC LIMIT 1
-        ),
-        peak_value AS (
-          SELECT MAX(total_portfolio_value) AS peak
-          FROM algo_portfolio_snapshots
-          WHERE snapshot_date >= (NOW() - INTERVAL '30 days')
-        ),
-        weekly_losses AS (
-          SELECT COALESCE(SUM(daily_return_pct), 0) AS sum_daily
-          FROM algo_portfolio_snapshots
-          WHERE snapshot_date >= (NOW() - INTERVAL '5 days')
-        ),
-        open_positions_risk AS (
-          SELECT
-            SUM(GREATEST(p.current_price - COALESCE(lt.stop_loss_price, p.current_price), 0) * p.quantity) AS open_risk,
-            (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) AS port_val
-          FROM algo_positions p
-          LEFT JOIN (
-            SELECT DISTINCT ON (symbol) symbol, stop_loss_price
-            FROM algo_trades WHERE status = 'open'
-            ORDER BY symbol, trade_date DESC
-          ) lt ON lt.symbol = p.symbol
-          WHERE p.status = 'open'
-        )
         SELECT
-          ROUND(((pv.peak - ls.total_portfolio_value) / NULLIF(pv.peak, 0)) * 100, 2) AS current_drawdown_pct,
-          ROUND(ABS(LEAST(0, ls.daily_return_pct)) * 100, 2) AS daily_loss_pct,
-          ROUND(ABS(LEAST(0, wl.sum_daily)) * 100, 2) AS weekly_loss_pct,
-          ROUND((COALESCE(opr.open_risk, 0) / NULLIF(opr.port_val, 0)) * 100, 2) AS total_risk_pct
-        FROM latest_snap ls
-        CROSS JOIN peak_value pv
-        CROSS JOIN weekly_losses wl
-        CROSS JOIN open_positions_risk opr
-      `),
-      // Consecutive losses (needs JavaScript loop)
-      pool.query(`
-        SELECT profit_loss_dollars FROM algo_trades
-        WHERE status = 'closed' AND exit_date IS NOT NULL
-        ORDER BY exit_date DESC LIMIT 50
+          current_drawdown_pct, daily_loss_pct, weekly_loss_pct,
+          total_risk_pct, consecutive_losses
+        FROM circuit_breaker_metrics
       `),
       // Market data
       pool.query(`
@@ -1971,25 +1933,15 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
 
     // Validate results
     validateQueryResult(metricsResult, { minRows: 1, maxRows: 1 });
-    validateQueryResult(closedTradesResult, { requireRows: false });
     validateQueryResult(marketResult, { requireRows: false });
 
     const metricsRow = validateAndCoerceRow(metricsResult.rows[0], {
       current_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
       daily_loss_pct: { type: 'float', required: false, defaultValue: 0 },
       weekly_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-      total_risk_pct: { type: 'float', required: false, defaultValue: 0 }
+      total_risk_pct: { type: 'float', required: false, defaultValue: 0 },
+      consecutive_losses: { type: 'int', required: false, defaultValue: 0 }
     });
-
-    // Calculate consecutive losses (requires JavaScript loop for proper logic)
-    const closedTradesRows = validateAndCoerceRows(closedTradesResult, {
-      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 }
-    });
-    let consec_losses = 0;
-    for (const r of closedTradesRows) {
-      if ((r.profit_loss_dollars || 0) < 0) consec_losses += 1;
-      else break;
-    }
 
     // Get market data
     const marketData = marketResult.rows.length > 0
@@ -2004,7 +1956,7 @@ router.get('/circuit-breakers', requireAuth, requireAdmin, async (req, res) => {
       current_drawdown_pct: metricsRow.current_drawdown_pct,
       daily_loss_pct: metricsRow.daily_loss_pct,
       weekly_loss_pct: metricsRow.weekly_loss_pct,
-      consec_losses,
+      consec_losses: metricsRow.consecutive_losses,
       total_risk_pct: metricsRow.total_risk_pct,
       vix_level: marketData.vix_level,
       market_stage: marketData.market_stage,
