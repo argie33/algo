@@ -1391,8 +1391,10 @@ def fetch_market(c):
 
         vix_row = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v   = vix_row.get("vix_level") if vix_row else None
-        def _f(key): return safe_float(h[key]) if h else None
-        def _i(key): return int(h[key])   if h and h.get(key) is not None else None
+        def _f(key): return safe_float(h.get(key)) if h else None
+        def _i(key):
+            val = h.get(key) if h else None
+            return int(val) if val is not None else None
         spy_v = _f("spy_close")
         spy_rows = q(c, "SELECT close, date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
         spy_age = None
