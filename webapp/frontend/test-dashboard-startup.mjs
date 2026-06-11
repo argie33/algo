@@ -3,9 +3,8 @@
 import { chromium } from 'playwright';
 
 async function testDashboard() {
-  const browser = await chromium.launch();
-  const context = await browser.createContext();
-  const page = await context.newPage();
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
 
   console.log('🚀 Testing dashboard startup...\n');
 
