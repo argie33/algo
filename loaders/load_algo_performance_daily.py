@@ -6,20 +6,21 @@ Calculates all-time rolling metrics for the current trading day based on:
   - algo_trades (all closed + open trades for accurate win rate)
   - algo_portfolio_snapshots (for equity curve, returns, drawdown)
 
-Metrics are updated-at timestamps so dashboard knows freshness.
+CRITICAL: Uses central MetricsCalculator for all calculations to ensure consistency
+across loaders, API, and dashboard. Never recalculate metrics locally.
 """
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import logging
-import statistics
 from datetime import date, datetime, timezone
 from typing import Optional, List
 from zoneinfo import ZoneInfo
 
 from utils.optimal_loader import OptimalLoader
 from utils.database_context import DatabaseContext
+from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -102,23 +103,30 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
 
     def _calculate_metrics(self, report_date: date, trade_stats: dict,
                           recent_trades: list, snapshots: list) -> dict:
-        """Calculate all performance metrics."""
+        """Calculate all performance metrics using central MetricsCalculator.
 
-        # Win rate from all trades
+        Uses MetricsCalculator for all calculations to ensure consistency
+        across loaders, API, and dashboard. No local recalculations.
+        """
+
+        # Extract trade counts
         total_trades_val = trade_stats.get('total_trades')
         wins_val = trade_stats.get('wins')
         losses_val = trade_stats.get('losses')
         total_trades = int(total_trades_val) if total_trades_val is not None else None
         wins = int(wins_val) if wins_val is not None else None
         losses = int(losses_val) if losses_val is not None else None
-        win_rate_all = round(wins / total_trades * 100, 2) if total_trades is not None and total_trades > 0 else None
 
-        # Fetch dollar amounts for profit factor and average win/loss (CRITICAL ISSUE 2 FIX)
-        # H15/H16 FIX: Include open trades' unrealized P&L in profit factor calculation
-        # ISSUE 36 FIX: Count breakeven trades explicitly to detect overstatement of profit factor
+        # Win rate (using central calculator)
+        win_rate_all = MetricsCalculator.calculate_win_rate(
+            total_trades, wins, losses
+        )
+
+        # Fetch dollar amounts for profit factor and average win/loss
         avg_win_dollars = None
         avg_loss_dollars = None
         profit_factor = None
+        breakeven_count = None
         try:
             with DatabaseContext('read') as cur:
                 cur.execute("""
@@ -136,33 +144,26 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                 avg_win_dollars = float(row.get('avg_win_dollars')) if row.get('avg_win_dollars') is not None else None
                 avg_loss_dollars = float(row.get('avg_loss_dollars')) if row.get('avg_loss_dollars') is not None else None
 
-                # CRITICAL ISSUE 2 FIX: Profit factor = total wins / total losses (avoid None for edge cases)
-                # ISSUE 36 FIX: Note that breakeven trades are excluded from both numerator and denominator
-                # If breakeven_count > 5% of total, profit_factor can overstate actual profitability
                 total_wins = float(row.get('total_wins')) if row.get('total_wins') is not None else 0.0
                 total_losses = float(row.get('total_losses')) if row.get('total_losses') is not None else 0.0
                 breakeven_val = row.get('breakeven_count')
                 breakeven_count = int(breakeven_val) if breakeven_val is not None else None
-                if total_losses > 1e-6:  # Avoid division by zero
-                    profit_factor = round(total_wins / total_losses, 3)
-                    if total_trades > 0 and breakeven_count > total_trades * 0.05:
-                        logger.warning(f"Profit factor ({profit_factor:.3f}) may be overstated: {breakeven_count} breakeven trades ({breakeven_count/total_trades*100:.1f}%)")
-                elif total_losses == 0 and total_wins > 0:
-                    profit_factor = float('inf')  # Perfect record (only wins, no losses)
-                # else: profit_factor stays None (no trades or undefined)
+
+                # Use central calculator for profit factor
+                profit_factor = MetricsCalculator.calculate_profit_factor(
+                    total_wins, total_losses
+                )
+                if profit_factor and total_trades and breakeven_count and breakeven_count > total_trades * 0.05:
+                    logger.warning(f"Profit factor ({profit_factor:.3f}) may be overstated: {breakeven_count} breakeven trades ({breakeven_count/total_trades*100:.1f}%)")
         except Exception as e:
             logger.warning(f"Failed to fetch dollar amounts for profit factor: {e}")
 
-        # Expectancy: E[profit] = win_rate * avg_win - (1 - win_rate) * avg_loss
+        # Expectancy using central calculator
         avg_win_r = trade_stats.get('avg_win_r')
         avg_loss_r = trade_stats.get('avg_loss_r')
-        expectancy = None
-        if win_rate_all is not None and avg_win_r is not None and avg_loss_r is not None:
-            try:
-                wr_dec = win_rate_all / 100
-                expectancy = round(wr_dec * float(avg_win_r) - (1 - wr_dec) * abs(float(avg_loss_r)), 3)
-            except (TypeError, ValueError):
-                pass
+        expectancy = MetricsCalculator.calculate_expectancy(
+            win_rate_all, avg_win_r, avg_loss_r
+        )
 
         # 50-trade metrics
         win_rate_50t = None
@@ -170,8 +171,9 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         avg_loss_r_50t = None
         if len(recent_trades) > 0:
             wins_50 = sum(1 for t in recent_trades if t.get('profit_loss_dollars') and float(t['profit_loss_dollars']) > 0)
-            wr_50 = wins_50 / len(recent_trades) * 100
-            win_rate_50t = round(wr_50, 2)
+            win_rate_50t = MetricsCalculator.calculate_win_rate(
+                len(recent_trades), wins_50, len(recent_trades) - wins_50
+            )
 
             wins_50_r = [float(t['exit_r_multiple']) for t in recent_trades
                         if t.get('exit_r_multiple') and float(t['profit_loss_dollars']) > 0]
@@ -179,9 +181,9 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
                           if t.get('exit_r_multiple') and float(t['profit_loss_dollars']) < 0]
 
             if wins_50_r:
-                avg_win_r_50t = round(statistics.mean(wins_50_r), 3)
+                avg_win_r_50t = MetricsCalculator.calculate_avg_r_multiple(wins_50_r)
             if losses_50_r:
-                avg_loss_r_50t = round(statistics.mean(losses_50_r), 3)
+                avg_loss_r_50t = MetricsCalculator.calculate_avg_r_multiple(losses_50_r)
 
         # Equity curve metrics
         equity_vals = [float(s['total_portfolio_value']) for s in snapshots
@@ -189,61 +191,22 @@ class AlgoPerformanceDailyLoader(OptimalLoader):
         returns = [float(s['daily_return_pct']) / 100 for s in snapshots
                   if s.get('daily_return_pct') is not None]
 
-        # Max drawdown
-        max_drawdown_pct = None
-        if len(equity_vals) >= 2:
-            peak = 0
-            dd = 0
-            for v in equity_vals:
-                if v > peak:
-                    peak = v
-                if peak > 0:
-                    dd = max(dd, (peak - v) / peak * 100)
-            max_drawdown_pct = round(dd, 2)
+        # Max drawdown (using central calculator)
+        max_drawdown_pct = MetricsCalculator.calculate_max_drawdown(equity_vals)
 
-        # Sharpe (252-day annualized)
-        rolling_sharpe_252d = None
-        if len(returns) > 5:
-            try:
-                mean_ret = statistics.mean(returns)
-                std_ret = statistics.stdev(returns) if len(returns) > 1 else 0
-                if std_ret > 0:
-                    rolling_sharpe_252d = round(mean_ret / std_ret * (252 ** 0.5), 3)
-            except (ValueError, ZeroDivisionError):
-                pass
+        # Sharpe (using central calculator)
+        rolling_sharpe_252d = MetricsCalculator.calculate_sharpe_ratio(returns, min_observations=5)
 
-        # Sortino (only downside volatility)
-        rolling_sortino_252d = None
-        if len(returns) > 5:
-            try:
-                mean_ret = statistics.mean(returns)
-                downside_rets = [r for r in returns if r < 0]
-                if downside_rets:
-                    downside_std = statistics.stdev(downside_rets) if len(downside_rets) > 1 else 0
-                    if downside_std > 0:
-                        rolling_sortino_252d = round(mean_ret / downside_std * (252 ** 0.5), 3)
-            except (ValueError, ZeroDivisionError):
-                pass
+        # Sortino (using central calculator)
+        rolling_sortino_252d = MetricsCalculator.calculate_sortino_ratio(returns, min_observations=5)
 
-        # Calmar (return / max drawdown)
-        calmar_ratio = None
-        if max_drawdown_pct and max_drawdown_pct > 0 and len(returns) > 0:
-            try:
-                cumulative_return = 1.0
-                for r in returns:
-                    cumulative_return *= (1 + r)
-                total_return = (cumulative_return - 1) * 100  # Convert to percentage
-                calmar_ratio = round(total_return / max_drawdown_pct, 3) if max_drawdown_pct > 0 else None
-            except (ValueError, ZeroDivisionError):
-                pass
+        # Calmar (using central calculator)
+        calmar_ratio = MetricsCalculator.calculate_calmar_ratio(equity_vals, min_observations=2)
 
         # Extract avg_r_all from trade_stats (already computed in fetch_global)
         avg_r_all = None
         if trade_stats.get('avg_r_all') is not None:
-            try:
-                avg_r_all = round(float(trade_stats.get('avg_r_all')), 3)
-            except (ValueError, TypeError):
-                pass
+            avg_r_all = MetricsCalculator.calculate_avg_r_multiple([float(trade_stats.get('avg_r_all'))])
 
         return {
             'report_date': report_date,
