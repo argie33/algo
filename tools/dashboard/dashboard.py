@@ -793,7 +793,10 @@ def validate_schema() -> None:
                             logger.error(msg)
                             sys.exit(f"Database schema error: critical table {table} is empty (contains no data)")
                         else:  # important
-                            msg = f"Schema validation IMPORTANT: {table} exists but is EMPTY (contains no data) — dashboard will display with missing {table} data"
+                            msg = (
+                                f"Schema validation IMPORTANT: {table} exists but is EMPTY "
+                                f"(contains no data) — dashboard will display with missing {table} data"
+                            )
                             logger.error(msg)
                             sys.exit(f"Database schema error: important table {table} is empty (contains no data)")
 
@@ -1503,7 +1506,8 @@ def fetch_market(c):
                 if is_market_hours:
                     hours_into_session = (now_et.hour + now_et.minute/60) - 9.5
                     if hours_into_session > 2:  # If more than 2 hours into market
-                        logger.warning(f"VALIDATION: SPY close price is from yesterday ({hours_into_session:.1f}h into trading session; market still open)")
+                        msg = f"VALIDATION: SPY close price is from yesterday ({hours_into_session:.1f}h into trading session; market still open)"
+                        logger.warning(msg)
                         stale_alerts.append("SPY close is yesterday's close")
         # Category 6 fix: Breadth momentum 10d indicator unreliable if >3 days old (validates threshold)
         # Issue 14 fix: Detect when breadth momentum is MISSING, not just old
@@ -1515,7 +1519,10 @@ def fetch_market(c):
                 h_date = h.get("date")
                 if h_date:
                     try:
-                        dt = h_date.replace(tzinfo=timezone.utc) if isinstance(h_date, datetime) else datetime.fromisoformat(str(h_date)).replace(tzinfo=timezone.utc)
+                        if isinstance(h_date, datetime):
+                            dt = h_date.replace(tzinfo=timezone.utc)
+                        else:
+                            dt = datetime.fromisoformat(str(h_date)).replace(tzinfo=timezone.utc)
                         mkt_age = (datetime.now(timezone.utc) - dt).days
                     except (ValueError, TypeError):
                         mkt_age = None
@@ -1573,10 +1580,12 @@ def fetch_market(c):
             today_is_holiday = today.date() in us_market_holidays
             stale_threshold = 10 if (is_monday and not today_is_holiday) else 3
             if mkt_health_age > stale_threshold:
-                logger.warning(f"Distribution days {mkt_health_age}d old exceeds threshold {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})")
+                msg = f"Distribution days {mkt_health_age}d old exceeds threshold {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})"
+                logger.warning(msg)
                 stale_alerts.append(f"Distribution days {mkt_health_age}d old")
             else:
-                logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})")
+                msg = f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})"
+                logger.debug(msg)
 
         # CRITICAL ISSUE 3 FIX: Enforce hard thresholds for market data freshness
         # Use centralized config (data_freshness_config.py) instead of hardcoded values
@@ -1968,7 +1977,11 @@ def fetch_signals(c):
         if grades_daily:
             grades = grades_daily
             grades_date = grades_daily.get('score_date')
-            logger.debug(f"Grade distribution from pre-computed table: A={grades.get('a')} B={grades.get('b')} C={grades.get('c')} D={grades.get('d')}")
+            a_grade = grades.get('a')
+            b_grade = grades.get('b')
+            c_grade = grades.get('c')
+            d_grade = grades.get('d')
+            logger.debug(f"Grade distribution from pre-computed table: A={a_grade} B={b_grade} C={c_grade} D={d_grade}")
         else:
             # Issue 20 FIX: Fallback calculation with validation
             logger.warning("Grade distribution not in pre-computed table, falling back to calculation")
@@ -2086,10 +2099,13 @@ def fetch_sector_ranking(c):
             else:
                 filtered_out_count += 1
                 incomplete_fields = [f for f in required_fields if row.get(f) is None]
-                logger.warning(f"VALIDATION: Filtered incomplete sector entry {row.get('sector_name', 'UNKNOWN')}: missing {incomplete_fields}")
+                sector_name = row.get('sector_name', 'UNKNOWN')
+                msg = f"VALIDATION: Filtered incomplete sector entry {sector_name}: missing {incomplete_fields}"
+                logger.warning(msg)
 
         if filtered_out_count > 0:
-            logger.warning(f"VALIDATION: fetch_sector_ranking filtered out {filtered_out_count}/{len(raw_result)} incomplete sector entries")
+            msg = f"VALIDATION: fetch_sector_ranking filtered out {filtered_out_count}/{len(raw_result)} incomplete sector entries"
+            logger.warning(msg)
 
         _log_data_quality("fetch_sector_ranking", len(result))
         return {
@@ -2393,7 +2409,14 @@ def fetch_sentiment(c, cfg=None):
             logger.warning("VALIDATION: fetch_sentiment missing fear_greed_index (critical metric)")
             return {"_error": "fear_greed_index missing", "date": row.get("date"), "stale_alerts": stale_alerts}
         label = get_string(row, "label")
-        c_fg = (R if fg is not None and fg <= mkt_cfg['fear_greed_alert'] else (Y if fg is not None and fg <= mkt_cfg['fear_greed_caution'] else (G if fg is not None and fg >= mkt_cfg['fear_greed_bullish'] else CY)))
+        if fg is not None and fg <= mkt_cfg['fear_greed_alert']:
+            c_fg = R
+        elif fg is not None and fg <= mkt_cfg['fear_greed_caution']:
+            c_fg = Y
+        elif fg is not None and fg >= mkt_cfg['fear_greed_bullish']:
+            c_fg = G
+        else:
+            c_fg = CY
         result = {"fg": round(fg, 1), "label": label, "date": row.get("date"), "color": c_fg}
         _log_data_quality("fetch_sentiment", 1)
         return {**result, "stale_alerts": stale_alerts}
@@ -2711,11 +2734,14 @@ def fetch_loader_status(c):
                     minutes_since_update = (now - td).total_seconds() / 60
 
                     if status == 'loading' and minutes_since_update > 30:
-                        logger.warning(f"VALIDATION: Loader '{table_name}' status marked as 'loading' for {minutes_since_update:.0f} minutes — status may be stale")
+                        msg = f"VALIDATION: Loader '{table_name}' status marked as 'loading' for {minutes_since_update:.0f} minutes — status may be stale"
+                        logger.warning(msg)
                     elif status in ('error', 'failed') and minutes_since_update > 1440:
-                        logger.warning(f"VALIDATION: Loader '{table_name}' in '{status}' state for {minutes_since_update:.0f} minutes — requires investigation")
+                        msg = f"VALIDATION: Loader '{table_name}' in '{status}' state for {minutes_since_update:.0f} minutes — requires investigation"
+                        logger.warning(msg)
                 elif status in ('loading', 'error', 'failed'):
-                    logger.warning(f"VALIDATION: Loader '{table_name}' in '{status}' state but last_updated is NULL — cannot determine staleness")
+                    msg = f"VALIDATION: Loader '{table_name}' in '{status}' state but last_updated is NULL — cannot determine staleness"
+                    logger.warning(msg)
 
         _log_data_quality("fetch_loader_status", len(result) if result else 0)
         return result
@@ -2779,24 +2805,29 @@ def fetch_circuit(c):
 
     Uses /api/algo/circuit-breakers endpoint which returns real-time
     circuit breaker state and trigger status.
+
+    M15 FIX: Return stale_alerts for consistency with other fetchers.
     """
+    stale_alerts = []
     try:
         api_resp = api_call("/api/algo/circuit-breakers")
         if "_error" in api_resp:
             logger.error(f"fetch_circuit: API error: {api_resp['_error']}")
             _log_data_quality("fetch_circuit", 0, api_resp['_error'])
-            return {"_error": api_resp['_error'], "breakers": [], "any_triggered": False, "triggered_count": 0}
+            stale_alerts.append(f"Circuit breaker API unavailable: {api_resp['_error']}")
+            return {"_error": api_resp['_error'], "breakers": [], "any_triggered": False, "triggered_count": 0, "stale_alerts": stale_alerts}
 
         breakers_data = api_resp.get("data", api_resp)
         breakers = breakers_data.get("breakers", [])
         any_triggered = breakers_data.get("any_triggered", False)
         triggered_count = breakers_data.get("triggered_count", 0)
         _log_data_quality("fetch_circuit", len(breakers))
-        return {"breakers": breakers, "any_triggered": any_triggered, "triggered_count": triggered_count}
+        return {"breakers": breakers, "any_triggered": any_triggered, "triggered_count": triggered_count, "stale_alerts": stale_alerts}
     except (KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_circuit: {type(e).__name__}: {e}")
         _log_data_quality("fetch_circuit", 0, str(e))
-        return {"_error": str(e), "breakers": [], "any_triggered": False, "triggered_count": 0}
+        stale_alerts.append(f"Circuit breaker fetch failed: {type(e).__name__}")
+        return {"_error": str(e), "breakers": [], "any_triggered": False, "triggered_count": 0, "stale_alerts": stale_alerts}
 
 
 def check_loader_health() -> dict:
@@ -2944,7 +2975,11 @@ def load_all() -> dict:
                     # Additional per-fetcher jitter (0-5s) to stagger retry timing across all fetchers
                     fetcher_jitter = random.random() * 5
                     total_wait = backoff + fetcher_jitter
-                    logger.warning(f"Retry {attempt+1}/{max_retries} for {name} (exponential backoff {backoff:.2f}s + fetcher jitter {fetcher_jitter:.2f}s = {total_wait:.2f}s): {e}")
+                    msg = (
+                        f"Retry {attempt+1}/{max_retries} for {name} "
+                        f"(exponential backoff {backoff:.2f}s + fetcher jitter {fetcher_jitter:.2f}s = {total_wait:.2f}s): {e}"
+                    )
+                    logger.warning(msg)
                     time.sleep(total_wait)
                     continue
                 logger.error(f"fetch_{name} failed after {max_retries+1} attempts: {e}")
@@ -2983,7 +3018,8 @@ def load_all() -> dict:
                     out[k] = {"_error": str(e)}
         except TimeoutError:
             elapsed = time.time() - load_start
-            logger.error(f"load_all batch timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s) — some fetchers incomplete")
+            msg = f"load_all batch timed out after {BATCH_TIMEOUT}s (total elapsed {elapsed:.1f}s) — some fetchers incomplete"
+            logger.error(msg)
             # Issue 21 FIX: Mark timed-out fetchers and track which are still running
             completed_count = sum(1 for f in future_to_key if f.done())
             remaining_count = len(future_to_key) - completed_count
@@ -3136,7 +3172,12 @@ def panel_orch(run, cfg, risk=None):
         is_stale = risk.get("_is_stale", False)
         if has_data and var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
-            beta_c = R if beta_v is not None and beta_v >= mkt_cfg['beta_warning'] else (Y if beta_v is not None and beta_v >= mkt_cfg['beta_caution'] else G)
+            if beta_v is not None and beta_v >= mkt_cfg['beta_warning']:
+                beta_c = R
+            elif beta_v is not None and beta_v >= mkt_cfg['beta_caution']:
+                beta_c = Y
+            else:
+                beta_c = G
             svar_v = get_numeric(risk, "svar")
             svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_v:.2f}%[/]" if svar_v is not None and svar_v > 0 else ""
             cvar95_v = get_numeric(risk, "cvar95")
@@ -3233,7 +3274,12 @@ def panel_market_full(mkt, sentiment=None, cfg=None):
     vix   = f"{vix_val:.1f}" if vix_val is not None else "--"
     # M2 FIX: Load market thresholds from config instead of hardcoded 30, 20
     mkt_cfg = load_market_thresholds(cfg)
-    vc    = R if vix_val is not None and vix_val >= mkt_cfg['vix_alert'] else (Y if vix_val is not None and vix_val >= mkt_cfg['vix_caution'] else DIM)
+    if vix_val is not None and vix_val >= mkt_cfg['vix_alert']:
+        vc = R
+    elif vix_val is not None and vix_val >= mkt_cfg['vix_caution']:
+        vc = Y
+    else:
+        vc = DIM
     dist  = str(mkt.get("dist") or "--")
     stage = str(mkt.get("stage") or "--")
     spy   = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
@@ -3251,11 +3297,26 @@ def panel_market_full(mkt, sentiment=None, cfg=None):
     fed   = mkt.get("fed")
 
     # M2 FIX: Load thresholds from config instead of hardcoded values
-    uvc   = G if upvol is not None and upvol >= mkt_cfg['upvol_good'] else (Y if upvol is not None and upvol >= mkt_cfg['upvol_caution'] else DIM)
-    pcr_c = G if pcr is not None and pcr <= mkt_cfg['put_call_bullish'] else (Y if pcr is not None and pcr <= mkt_cfg['put_call_fearful'] else DIM)
+    if upvol is not None and upvol >= mkt_cfg['upvol_good']:
+        uvc = G
+    elif upvol is not None and upvol >= mkt_cfg['upvol_caution']:
+        uvc = Y
+    else:
+        uvc = DIM
+    if pcr is not None and pcr <= mkt_cfg['put_call_bullish']:
+        pcr_c = G
+    elif pcr is not None and pcr <= mkt_cfg['put_call_fearful']:
+        pcr_c = Y
+    else:
+        pcr_c = DIM
     # TIER 1A FIX: Calculate NH-NL only when both values exist, don't use "or 0" fallback
     nhnl  = nh - nl if nh is not None and nl is not None else None
-    nhnl_c = G if nhnl is not None and nhnl >= mkt_cfg['breadth_good'] else (Y if nhnl is not None and nhnl >= mkt_cfg['breadth_caution'] else DIM)
+    if nhnl is not None and nhnl >= mkt_cfg['breadth_good']:
+        nhnl_c = G
+    elif nhnl is not None and nhnl >= mkt_cfg['breadth_caution']:
+        nhnl_c = Y
+    else:
+        nhnl_c = DIM
 
     spy_raw = mkt.get("spy")
     spy_chg = get_numeric(mkt, "spy_chg")
