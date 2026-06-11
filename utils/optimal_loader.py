@@ -11,6 +11,7 @@ from typing import Iterable, List, Optional, Sequence
 import psycopg2
 import psycopg2.sql
 
+from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -159,13 +160,20 @@ class OptimalLoader(ABC):
             logger.warning(f"[{self.table_name}] Failed to update status to {status}: {e}")
 
     def _validate_runtime_config(self) -> None:
-        """Validate runtime configuration to detect infrastructure drift.
+        """Validate runtime configuration to detect infrastructure drift and security issues.
 
         Checks:
-        1. LOADER_PARALLELISM env var is set and has a reasonable value
-        2. Logs parallelism for operational visibility
-        Warnings if values seem wrong (but doesn't block execution)
+        1. table_name is in approved whitelist (Security M-001: SQL injection prevention)
+        2. LOADER_PARALLELISM env var is set and has a reasonable value
+        3. Logs parallelism for operational visibility
+        Raises ValueError if table_name is invalid. Warnings if other values seem wrong.
         """
+        try:
+            assert_safe_table(self.table_name)
+        except ValueError as e:
+            logger.error(f"[SECURITY] {e}")
+            raise
+
         try:
             loader_parallelism = os.getenv("LOADER_PARALLELISM", "")
             if loader_parallelism:
@@ -431,11 +439,18 @@ class OptimalLoader(ABC):
                 logger.info(
                     f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})"
                 )
-                cur.execute(f"""
-                ALTER TABLE {self.table_name}
-                ADD CONSTRAINT {constraint_name}
-                UNIQUE ({pk_cols})
-                """)
+                col_identifiers = psycopg2.sql.SQL(",").join(
+                    [psycopg2.sql.Identifier(col) for col in self.primary_key]
+                )
+                cur.execute(
+                    psycopg2.sql.SQL(
+                        "ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({})"
+                    ).format(
+                        psycopg2.sql.Identifier(self.table_name),
+                        psycopg2.sql.Identifier(constraint_name),
+                        col_identifiers,
+                    )
+                )
             except psycopg2.IntegrityError as e:
                 # Constraint creation failed due to duplicates
                 logger.warning(f"Cannot create constraint (duplicates exist): {e}")
@@ -895,10 +910,17 @@ class OptimalLoader(ABC):
                 with DatabaseContext("read") as cur:
                     if self.watermark_field:
                         cur.execute(
-                            f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+                            psycopg2.sql.SQL("SELECT COUNT(*), MAX({}) FROM {}").format(
+                                psycopg2.sql.Identifier(self.watermark_field),
+                                psycopg2.sql.Identifier(self.table_name),
+                            )
                         )
                     else:
-                        cur.execute(f"SELECT COUNT(*), NULL FROM {self.table_name}")
+                        cur.execute(
+                            psycopg2.sql.SQL("SELECT COUNT(*), NULL FROM {}").format(
+                                psycopg2.sql.Identifier(self.table_name),
+                            )
+                        )
                     result = cur.fetchone()
                     total_rows = result[0] if result else 0
                     latest_date = result[1] if result else None
@@ -1050,7 +1072,10 @@ class OptimalLoader(ABC):
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute(
-                        f"SELECT MAX({self.watermark_field}) FROM {self.table_name}"
+                        psycopg2.sql.SQL("SELECT MAX({}) FROM {}").format(
+                            psycopg2.sql.Identifier(self.watermark_field),
+                            psycopg2.sql.Identifier(self.table_name),
+                        )
                     )
                     row = cur.fetchone()
                     since = (
@@ -1083,7 +1108,10 @@ class OptimalLoader(ABC):
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute(
-                        f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+                        psycopg2.sql.SQL("SELECT COUNT(*), MAX({}) FROM {}").format(
+                            psycopg2.sql.Identifier(self.watermark_field),
+                            psycopg2.sql.Identifier(self.table_name),
+                        )
                     )
                     result = cur.fetchone()
                     total_rows = result[0] if result else 0

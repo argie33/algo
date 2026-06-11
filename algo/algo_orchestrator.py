@@ -15,6 +15,7 @@ import time
 import json
 import psycopg2
 import psycopg2.extensions
+import psycopg2.sql
 from datetime import datetime, date as _date, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -353,7 +354,12 @@ class Orchestrator:
                 logger.info("  Table Freshness Status:")
                 for table, desc in tables_to_check:
                     try:
-                        cur.execute(f"SELECT MAX(date) FROM {table} LIMIT 1")
+                        table_safe = assert_safe_table(table)
+                        cur.execute(
+                            psycopg2.sql.SQL("SELECT MAX(date) FROM {} LIMIT 1").format(
+                                psycopg2.sql.Identifier(table_safe)
+                            )
+                        )
                         row = cur.fetchone()
                         latest_date = row[0] if row and row[0] else None
                         if latest_date:

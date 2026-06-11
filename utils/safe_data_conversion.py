@@ -82,6 +82,34 @@ def safe_float_strict(value: Any, context: str = "") -> Optional[float]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# INT CONVERSION
+# ──────────────────────────────────────────────────────────────────────────────
+
+def safe_int(value: Any, default: int = 0, context: str = "") -> int:
+    """Convert value to int safely, handling None, invalid strings.
+
+    Args:
+        value: Value to convert (can be str, int, float, None)
+        default: Default value if conversion fails
+        context: Context string for logging
+
+    Returns:
+        Int value or default if conversion fails
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        return default
+
+    try:
+        return int(value)
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
+        return default
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # DATE/DATETIME PARSING
 # ──────────────────────────────────────────────────────────────────────────────
 

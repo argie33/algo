@@ -8,9 +8,11 @@ Provides helper functions to:
 """
 
 import logging
+import psycopg2.sql
 from typing import Optional, Dict, Any
 from functools import wraps
 from .utils import error_response
+from algo.algo_sql_safety import assert_safe_table, assert_safe_column
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +147,13 @@ def validate_user_resource_access(cur, user_id: str, resource_type: str, resourc
     table, id_column = resource_tables[resource_type]
 
     try:
+        table_safe = assert_safe_table(table)
+        col_safe = assert_safe_column(id_column)
         cur.execute(
-            f"SELECT 1 FROM {table} WHERE {id_column} = %s AND cognito_sub = %s LIMIT 1",
+            psycopg2.sql.SQL("SELECT 1 FROM {} WHERE {} = %s AND cognito_sub = %s LIMIT 1").format(
+                psycopg2.sql.Identifier(table_safe),
+                psycopg2.sql.Identifier(col_safe),
+            ),
             (resource_id, user_id)
         )
         result = cur.fetchone()
