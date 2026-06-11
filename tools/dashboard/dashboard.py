@@ -3544,6 +3544,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None, cfg=None):
     exp     = get_numeric(perf, "expectancy")
     exp_s   = f"{fmt_money(exp)}" if exp is not None else "--"
     exp_c   = G if exp is not None and exp >= 0 else (R if exp is not None else DIM)
+    avg_r = None
     avg_r   = get_numeric(perf, "avg_r")
     avg_r_s = f"{avg_r:.2f}R" if avg_r is not None else "--"
 
