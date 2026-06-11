@@ -134,9 +134,9 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         # Filter to incremental range using datetime comparison (not string)
         if since is not None:
-            from datetime import date as _date
-            since_date = since if isinstance(since, _date) else _date.fromisoformat(str(since))
-            scores = [s for s in scores if _date.fromisoformat(s["date"]) > since_date]
+            since_date = since if isinstance(since, date) else safe_parse_date(since, "score filtering watermark")
+            if since_date:
+                scores = [s for s in scores if safe_parse_date(s["date"], "score date filtering") and safe_parse_date(s["date"], "score date filtering") > since_date]
 
         return scores
 

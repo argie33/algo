@@ -3052,11 +3052,17 @@ def _fmt_phases_halted(phases_halted) -> str:
 # ── panel builders ────────────────────────────────────────────────────────────
 
 def panel_orch(run, cfg, risk=None):
+    # Validate error dicts (Issue 2 FIX: don't process errors as valid data)
+    if run and run.get("_error"):
+        return Panel(Text(f"error: {run.get('_error')}", style="dim"), title="[bold]ORCHESTRATOR[/]", border_style="yellow", padding=(0, 1))
+    if cfg and cfg.get("_error"):
+        return Panel(Text(f"error: {cfg.get('_error')}", style="dim"), title="[bold]ORCHESTRATOR[/]", border_style="yellow", padding=(0, 1))
+
     next_run  = next_run_str()
-    mode      = cfg.get("mode", "?")
-    mc2       = G if "LIVE" in mode else Y
-    en        = "ENABLED" if cfg.get("enabled", True) else "DISABLED"
-    ec        = G if cfg.get("enabled", True) else R
+    mode      = cfg.get("mode", "?") if cfg else "?"
+    mc2       = G if mode and "LIVE" in mode else Y
+    en        = "ENABLED" if cfg and cfg.get("enabled", True) else "DISABLED"
+    ec        = G if cfg and cfg.get("enabled", True) else R
     max_n     = cfg.get("max_pos_n")
     max_sec_n = cfg.get("max_sec_n")
     min_score = cfg.get("min_score")
