@@ -8,56 +8,54 @@ import sys
 import argparse
 from pathlib import Path
 
-# Import query functions from the test module
+# Import query functions from the utils module
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from tests.test_execution_history import (
-    get_failed_runs,
-    get_halt_patterns,
-    get_success_rate,
+from utils.orchestrator_query import (
+    print_recent_runs,
+    print_failed_runs,
+    print_halt_patterns,
+    print_success_rate,
+    get_run_details,
 )
+import json
 
 
 def main():
     """CLI interface for orchestrator history queries."""
     parser = argparse.ArgumentParser(description="Query orchestrator execution history")
-    subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
-    # Subcommand: failed-runs
-    failed_parser = subparsers.add_parser("failed-runs", help="Show failed runs")
-    failed_parser.add_argument("--limit", type=int, default=10, help="Limit results")
-    failed_parser.add_argument("--days", type=int, default=7, help="Days to look back")
-
-    # Subcommand: halt-patterns
-    halt_parser = subparsers.add_parser("halt-patterns", help="Show halt patterns")
-    halt_parser.add_argument("--limit", type=int, default=20, help="Limit results")
-
-    # Subcommand: success-rate
-    rate_parser = subparsers.add_parser("success-rate", help="Show success rate")
-    rate_parser.add_argument("--days", type=int, default=30, help="Days to look back")
+    parser.add_argument("--latest", type=int, default=10, help="Show latest N runs")
+    parser.add_argument("--show-errors", action="store_true", help="Show failed/halted runs")
+    parser.add_argument("--patterns", action="store_true", help="Show halt patterns")
+    parser.add_argument("--stats", action="store_true", help="Show success statistics")
+    parser.add_argument("--days", type=int, default=7, help="Days to look back")
+    parser.add_argument("--details", type=str, help="Show details for specific run ID")
 
     args = parser.parse_args()
 
-    if args.command == "failed-runs":
-        print(f"Failed runs (last {args.days} days):")
-        runs = get_failed_runs(args.days)
-        for i, run in enumerate(runs[:args.limit], 1):
-            print(f"  {i}. {run}")
+    if args.details:
+        details = get_run_details(args.details)
+        if details:
+            print(json.dumps(details, indent=2))
+        else:
+            print(f"Run {args.details} not found")
+        return 0
 
-    elif args.command == "halt-patterns":
-        print("Halt patterns:")
-        patterns = get_halt_patterns()
-        for i, pattern in enumerate(patterns[:args.limit], 1):
-            print(f"  {i}. {pattern}")
+    if args.show_errors:
+        print_failed_runs(args.days)
+        return 0
 
-    elif args.command == "success-rate":
-        print(f"Success rate (last {args.days} days):")
-        rate = get_success_rate(args.days)
-        print(f"  {rate}%")
+    if args.patterns:
+        print_halt_patterns(args.days)
+        return 0
 
-    else:
-        parser.print_help()
-        return 1
+    if args.stats:
+        print_success_rate(args.days)
+        return 0
 
+    # Default: show recent runs and success rate
+    print_recent_runs(args.days, args.latest)
+    print_success_rate(args.days)
     return 0
 
 
