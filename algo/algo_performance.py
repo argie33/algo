@@ -129,12 +129,12 @@ class LivePerformance:
                 return None
 
             total, win_count, loss_count, avg_win_r, avg_loss_r, avg_win_pct, avg_loss_pct = row
-            win_count = win_count or 0
-            loss_count = loss_count or 0
-            avg_win_r = float(avg_win_r or 0)
-            avg_loss_r = abs(float(avg_loss_r or 0))
-            avg_win_pct = float(avg_win_pct or 0)
-            avg_loss_pct = float(avg_loss_pct or 0)
+            win_count = win_count
+            loss_count = loss_count
+            avg_win_r = safe_float(avg_win_r)
+            avg_loss_r = abs(safe_float(avg_loss_r))
+            avg_win_pct = safe_float(avg_win_pct)
+            avg_loss_pct = safe_float(avg_loss_pct)
 
             win_rate_pct = (win_count / total * 100) if total > 0 else 0
 

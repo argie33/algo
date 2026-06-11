@@ -345,12 +345,12 @@ def _get_algo_status(cur) -> Dict:
                 """)
                 snap = cur.fetchone()
                 if snap:
-                    pv = float(snap[0] or 0)
+                    pv = safe_float(snap[0])
                     portfolio = {
                         'total_value': round(pv, 2),
-                        'daily_return_pct': round(float(snap[1] or 0), 2),
-                        'unrealized_pnl_pct': round((float(snap[2] or 0) / pv * 100) if pv > 0 else 0, 2),
-                        'open_positions': int(snap[3] or 0),
+                        'daily_return_pct': round(safe_float(snap[1]), 2),
+                        'unrealized_pnl_pct': round((safe_float(snap[2]) / pv * 100) if pv > 0 else 0, 2),
+                        'open_positions': safe_int(snap[3]),
                     }
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
                     psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
@@ -559,9 +559,9 @@ def _get_algo_performance(cur) -> Dict:
                     'win_rate': 0.0, 'profit_factor': 0.0, 'total_pnl_dollars': 0.0, 'total_pnl_pct': 0.0,
                     'avg_trade_pct': 0.0, 'best_trade_pct': 0.0, 'worst_trade_pct': 0.0,
                     'sharpe_ratio': 0.0, 'sortino_ratio': 0.0, 'max_drawdown_pct': 0.0, 'avg_holding_days': 0.0})
-            pnls_dollars = [float(t['profit_loss_dollars'] or 0) for t in trades]
-            pnls_pcts = [float(t['profit_loss_pct'] or 0) for t in trades]
-            holding_days = [float(t['holding_days'] or 0) for t in trades if t['holding_days']]
+            pnls_dollars = [safe_float(t['profit_loss_dollars']) for t in trades]
+            pnls_pcts = [safe_float(t['profit_loss_pct']) for t in trades]
+            holding_days = [safe_float(t['holding_days']) for t in trades if t['holding_days']]
             r_multiples = [float(t['exit_r_multiple']) for t in trades if t.get('exit_r_multiple') is not None]
             winning = sum(1 for p in pnls_dollars if p > 0)
             losing = sum(1 for p in pnls_dollars if p < 0)
@@ -584,7 +584,7 @@ def _get_algo_performance(cur) -> Dict:
                 snapshots = [dict(row) for row in cur.fetchall()]
                 snapshot_count = len(snapshots)
                 if snapshot_count > 1:
-                    vals = [float(s['total_portfolio_value'] or 0) for s in snapshots]
+                    vals = [safe_float(s['total_portfolio_value']) for s in snapshots]
                     dates = [s['snapshot_date'] for s in snapshots]
                     returns = [(vals[i] - vals[i-1]) / vals[i-1] for i in range(1, len(vals)) if vals[i-1] != 0]
                     if returns:
@@ -771,8 +771,8 @@ def _get_circuit_breakers(cur) -> Dict:
                     FROM algo_portfolio_snapshots
                 """)
                 row = cur.fetchone()
-                peak = float(row[0] or 0) if row else 0
-                current_val = float(row[1] or 0) if row else 0
+                peak = safe_float(row[0]) if row else 0
+                current_val = safe_float(row[1]) if row else 0
                 dd = round(((peak - current_val) / peak * 100) if peak > 0 else 0, 2)
                 threshold_dd = 20.0
                 breakers.append({
@@ -794,7 +794,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     WHERE snapshot_date = %s
                 """, (today,))
                 row = cur.fetchone()
-                daily = round(float(row[0] or 0), 2) if row else 0.0
+                daily = round(safe_float(row[0]), 2) if row else 0.0
                 daily_loss = abs(min(0, daily))
                 threshold_dl = 2.0
                 breakers.append({
@@ -820,7 +820,7 @@ def _get_circuit_breakers(cur) -> Dict:
                 rows = cur.fetchall()
                 streak = 0
                 for r in rows:
-                    if float(r[0] or 0) < 0:
+                    if safe_float(r[0]) < 0:
                         streak += 1
                     else:
                         break
@@ -871,8 +871,8 @@ def _get_circuit_breakers(cur) -> Dict:
                 """)
                 week_end = cur.fetchone()
                 if week_start and week_end:
-                    sv = float(week_start[0] or 0)
-                    ev = float(week_end[0] or 0)
+                    sv = safe_float(week_start[0])
+                    ev = safe_float(week_end[0])
                     weekly_ret = round(((ev - sv) / sv * 100) if sv > 0 else 0, 2)
                 else:
                     weekly_ret = 0.0
@@ -894,7 +894,7 @@ def _get_circuit_breakers(cur) -> Dict:
             try:
                 cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
                 row = cur.fetchone()
-                stage = int(row[0] or 0) if row else 0
+                stage = safe_int(row[0]) if row else 0
                 breakers.append({
                     'id': 'market_stage', 'label': 'Market Stage',
                     'triggered': stage == 4,
@@ -916,7 +916,7 @@ def _get_circuit_breakers(cur) -> Dict:
                     WHERE LOWER(p.status) = 'open'
                 """)
                 risk_result = cur.fetchone()
-                total_risk = float(risk_result[0] or 0) if risk_result else 0
+                total_risk = safe_float(risk_result[0]) if risk_result else 0
 
                 cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
                 port_result = cur.fetchone()
@@ -944,8 +944,8 @@ def _get_circuit_breakers(cur) -> Dict:
                 """, (today,))
                 prices = cur.fetchall()
                 if len(prices) >= 2:
-                    latest = float(prices[0][0] or 0)
-                    prior = float(prices[1][0] or 0)
+                    latest = safe_float(prices[0][0])
+                    prior = safe_float(prices[1][0])
                     if latest > 0 and prior > 0:
                         market_change = ((latest - prior) / prior * 100)
                         threshold_mc = -2.0
@@ -980,8 +980,8 @@ def _get_circuit_breakers(cur) -> Dict:
                 """)
                 wr_result = cur.fetchone()
                 if wr_result:
-                    wins = int(wr_result[0] or 0)
-                    losses = int(wr_result[1] or 0)
+                    wins = safe_int(wr_result[0])
+                    losses = safe_int(wr_result[1])
                     decisive = wins + losses
                     win_rate = (wins / decisive * 100) if decisive > 0 else 0
                     threshold_wr = 40.0
@@ -1076,9 +1076,9 @@ def _get_data_status(cur) -> Dict:
 
             for row in rows:
                 last_updated = row['last_updated']
-                row_count = row['row_count'] or 0
+                row_count = row.get('row_count')
 
-                if row_count == 0:
+                if row_count is None or row_count == 0:
                     status = 'empty'
                 elif last_updated is None:
                     status = 'empty'
@@ -1909,8 +1909,8 @@ def _get_algo_evaluate(cur) -> Dict:
                 },
                 'sector_exposure': sector_exposure,
                 'portfolio_health': {
-                    'today_return_pct': float(today_return or 0),
-                    'unrealized_pnl': float(unrealized_pnl or 0)
+                    'today_return_pct': safe_float(today_return),
+                    'unrealized_pnl': safe_float(unrealized_pnl)
                 }
             })
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,

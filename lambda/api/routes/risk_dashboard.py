@@ -116,11 +116,11 @@ def _get_comprehensive_risk_dashboard(cur) -> Dict:
             row = rows[0] if rows else None
             if row:
                 result['position_sizing_stats'] = {
-                    'trades_30d': row['total_trades'] or 0,
-                    'avg_cascade_multiplier': float(row['avg_cascade']) if row['avg_cascade'] else 1.0,
-                    'min_cascade_multiplier': float(row['min_cascade']) if row['min_cascade'] else 1.0,
-                    'max_cascade_multiplier': float(row['max_cascade']) if row['max_cascade'] else 1.0,
-                    'avg_position_size_pct': float(row['avg_position_size_pct']) if row['avg_position_size_pct'] else 0,
+                    'trades_30d': row['total_trades'],
+                    'avg_cascade_multiplier': float(row['avg_cascade']) if row['avg_cascade'] else None,
+                    'min_cascade_multiplier': float(row['min_cascade']) if row['min_cascade'] else None,
+                    'max_cascade_multiplier': float(row['max_cascade']) if row['max_cascade'] else None,
+                    'avg_position_size_pct': float(row['avg_position_size_pct']) if row['avg_position_size_pct'] else None,
                 }
         except Exception as e:
             logger.warning(f"Position sizing stats fetch failed: {e}")
@@ -333,16 +333,18 @@ def _get_exit_rules_distribution(cur, days: int) -> Dict:
 
         items = []
         for row in cur.fetchall():
-            count = row['count'] or 0
-            winning = row['winning_count'] or 0
+            count = row['count']
+            winning = row['winning_count']
+            losing = row['losing_count']
+            win_rate = (winning / count * 100) if (count is not None and winning is not None and count > 0) else None
             items.append({
                 'exit_rule': row['exit_rule'],
                 'count': count,
-                'avg_pnl_pct': float(row['avg_pnl_pct']) if row['avg_pnl_pct'] else 0,
-                'avg_r_multiple': float(row['avg_r_multiple']) if row['avg_r_multiple'] else 0,
+                'avg_pnl_pct': float(row['avg_pnl_pct']) if row['avg_pnl_pct'] else None,
+                'avg_r_multiple': float(row['avg_r_multiple']) if row['avg_r_multiple'] else None,
                 'winning_count': winning,
-                'losing_count': row['losing_count'] or 0,
-                'win_rate_pct': (winning / count * 100) if count > 0 else 0,
+                'losing_count': losing,
+                'win_rate_pct': win_rate,
             })
 
         return list_response(items)

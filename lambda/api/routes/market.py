@@ -219,10 +219,10 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 except Exception as sp_err:
                     logger.debug(f"Failed to rollback top_movers savepoint: {sp_err}")
             items = [dict(m) for m in movers] if movers else []
-            gainers = sorted([m for m in items if (m.get('pct_change') or 0) >= 0],
-                                 key=lambda x: -(x.get('pct_change') or 0))[:10]
-            losers = sorted([m for m in items if (m.get('pct_change') or 0) < 0],
-                            key=lambda x: (x.get('pct_change') or 0))[:10]
+            gainers = sorted([m for m in items if (m.get('pct_change')) >= 0],
+                                 key=lambda x: -(x.get('pct_change')))[:10]
+            losers = sorted([m for m in items if (m.get('pct_change')) < 0],
+                            key=lambda x: (x.get('pct_change')))[:10]
             return {
                 'statusCode': 200,
                 'gainers': gainers or [],
@@ -825,7 +825,7 @@ def _get_correlation_matrix(cur) -> Dict:
         avg_corr_val = round(avg_corr, 2) if avg_corr else None
 
         market_regime = 'high_correlation' if avg_corr_val and avg_corr_val > 0.5 else 'moderate_correlation' if avg_corr_val and avg_corr_val > 0.2 else 'low_correlation'
-        diversification_score = round(max(0, 1.0 - (avg_corr_val or 0)) * 100, 1) if avg_corr_val is not None else None
+        diversification_score = round(max(0, 1.0 - (avg_corr_val)) * 100, 1) if avg_corr_val is not None else None
 
         concentration_risk = 'high' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'low'
         diversification_benefit = 'low' if avg_corr_val and avg_corr_val > 0.6 else 'moderate' if avg_corr_val and avg_corr_val > 0.3 else 'high'

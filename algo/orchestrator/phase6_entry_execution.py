@@ -182,7 +182,7 @@ def run(
                 break
 
             # Liquidity: ADV, dollar volume, price history age
-            entry_price_hint = signal.get('entry_price') or 0
+            entry_price_hint = signal.get('entry_price')
             liq_ok, liq_reason = liquidity.run_all(symbol, entry_price_hint, run_date)
             if not liq_ok:
                 logger.debug(f"[PHASE 6] {symbol}: liquidity — {liq_reason}")

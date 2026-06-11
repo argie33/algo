@@ -55,8 +55,8 @@ def _handle_basic(cur) -> Dict:
 
             if pool_info and len(pool_info) > 0:
                 row = dict(pool_info[0])
-                active = row.get('active_connections', 0) or 0
-                max_conn = row.get('max_connections', 100) or 100
+                active = row.get('active_connections', 0)
+                max_conn = row.get('max_connections', 100)
                 pool_pct = int((active / max_conn) * 100) if max_conn > 0 else 0
 
                 health['rds_connection_pool'] = {
@@ -245,7 +245,8 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
         tables = []
         for row in rows:
             age = float(row.get('age_days')) if row.get('age_days') is not None else 999
-            status = 'HEALTHY' if age <= 2 and (row.get('row_count') or 0) > 0 else ('STALE' if age <= 7 else 'CRITICAL')
+            row_count = row.get('row_count')
+            status = 'HEALTHY' if age <= 2 and row_count is not None and row_count > 0 else ('STALE' if age <= 7 else 'CRITICAL')
             tables.append({
                 'table_name': row['table_name'],
                 'row_count': row.get('row_count', 0),

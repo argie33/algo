@@ -3683,7 +3683,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     ))
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)
-    cum_v  = float(cum) if cum is not None else None
+    cum_v  = safe_float(cum)
     # TIER 1A FIX: Use get_numeric instead of "or 0" to preserve None for missing data
     mxdd_v = get_numeric(perf, "maxdd") if perf and not perf.get("_error") else None
     cc     = G if cum_v is not None and cum_v >= 0 else (R if cum_v is not None else DIM)
@@ -4313,7 +4313,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
             val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
             pnl_raw = p.get("unrealized_pnl_pct")
             # Only track non-None P&L values for accurate averages
-            pnl = float(pnl_raw) if pnl_raw is not None else None
+            pnl = safe_float(pnl_raw)
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
             sd[sec]["val"] += val
@@ -4414,8 +4414,8 @@ def panel_exposure_compact(exp_f):
                      border_style="blue", padding=(0, 1))
     raw_score = exp_f.get("raw_score")
     epct_score = exp_f.get("exposure_pct")
-    raw     = float(raw_score) if raw_score is not None else None
-    epct    = float(epct_score) if epct_score is not None else None
+    raw     = safe_float(raw_score)
+    epct    = safe_float(epct_score)
     regime  = exp_f.get("regime") or ""
     factors = exp_f.get("factors") or {}
     tier    = tier_from_pct(epct)
@@ -4498,7 +4498,7 @@ def panel_exposure_compact(exp_f):
     for key, label, max_pts in FACTOR_MAP:
         f    = factors.get(key) or {}
         pts_val = f.get("pts")
-        pts  = float(pts_val) if pts_val is not None else 0
+        pts  = safe_float(pts_val, 0)
         bar  = mini_bar(pts, max_pts, w=3)
         fc   = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
         det  = factor_detail(key)
@@ -4509,8 +4509,8 @@ def panel_exposure_compact(exp_f):
     eco = factors.get("economic_overlay") or {}
     sr_pts = sr.get("pts")
     eco_pts = eco.get("pts")
-    sr_pen  = float(sr_pts) if sr_pts is not None else 0
-    eco_pen = float(eco_pts) if eco_pts is not None else 0
+    sr_pen  = safe_float(sr_pts, 0)
+    eco_pen = safe_float(eco_pts, 0)
     if sr_pen < 0:
         sig = (sr.get("signal") or "").replace("_", " ")[:20]
         items.append(f"[{R}]Sector Rotation[/] [dim]{sr_pen:+.0f} {sig}[/]")
@@ -5719,7 +5719,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None, sec_warn=
             sec = p.get("sector") or "[No Sector]"
             val = float(p.get("position_value")) if p.get("position_value") is not None else 0.0
             pnl_raw = p.get("unrealized_pnl_pct")
-            pnl = float(pnl_raw) if pnl_raw is not None else None
+            pnl = safe_float(pnl_raw)
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
             sd[sec]["val"] += val

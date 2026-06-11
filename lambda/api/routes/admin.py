@@ -129,7 +129,7 @@ def _get_loader_status(cur) -> Dict:
                     'name': row['table_name'],
                     'table': row['table_name'],
                     'last_run': last_updated.isoformat() if last_updated else None,
-                    'row_count': row['row_count'] or 0,
+                    'row_count': row['row_count'],
                     'latest_date': row['latest_date'].isoformat() if row['latest_date'] else None,
                     'status': status,
                     'age_hours': round(age_hours, 1),

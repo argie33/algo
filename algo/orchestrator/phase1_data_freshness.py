@@ -91,8 +91,7 @@ def run(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
                 (max_date,)
             )
-            symbols_loaded = cur.fetchone()[0] or 0
-
+            symbols_loaded = cur.fetchone()[0]
             # Compare against the prior date's symbol count to detect coverage drops.
             # Avoids querying stock_symbols (schema may vary across environments).
             cur.execute(
