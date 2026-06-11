@@ -796,6 +796,9 @@ def mini_bar(pts: Optional[float], max_pts: Optional[float], w: int = 5) -> str:
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 def sign(v) -> str:
+    """Return '+' for non-negative, '-' for negative, '' for None. TIER 1A FIX: safe None handling."""
+    if v is None:
+        return ""
     return "+" if float(v) >= 0 else ""
 
 def safe_float(v: any, default: float = None) -> Optional[float]:
@@ -1582,9 +1585,12 @@ def fetch_perf(c):
                 pass
 
         # Return metrics from database + calculated streak + recent returns
+        # Use adjusted win rate that includes open trades (not just closed)
+        final_wr = round(win_rate_adjusted * 100, 1) if win_rate_adjusted is not None else (round(wr, 1) if wr is not None else None)
         return {
             "n": len(trades), "w": len(wins), "l": len(losses), "b": len(breakeven),
-            "wr": round(wr, 1) if wr is not None else None, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+            "wr": final_wr, "wr_confidence": wr_confidence, "wr_breakeven_pct": round(be_pct, 1),
+            "_open_trades_count": len(open_trades),
             "pnl": round(pnl, 2), "streak": streak,
             "sharpe": sharpe, "sharpe_confidence": sharpe_confidence, "maxdd": round(maxdd, 1) if maxdd is not None else None,
             "avg_win": round(avg_win, 2) if avg_win is not None else None, "avg_loss": round(avg_loss, 2) if avg_loss is not None else None,
@@ -3166,7 +3172,8 @@ def panel_market_full(mkt, sentiment=None):
     lbl   = TIER_SHORT.get(tier, "LOADING")
     exp   = mkt.get("pct")
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
-    bar   = exp_bar(exp or 0, w=10)
+    # TIER 1A FIX: pass None to exp_bar instead of 0 when exposure is missing
+    bar   = exp_bar(exp, w=10)
     vix_val = get_numeric(mkt, "vix")
     vix   = f"{vix_val:.1f}" if vix_val is not None else "--"
     vc    = R if vix_val is not None and vix_val >= 30 else (Y if vix_val is not None and vix_val >= 20 else DIM)
@@ -3188,12 +3195,14 @@ def panel_market_full(mkt, sentiment=None):
 
     uvc   = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else DIM)
     pcr_c = G if pcr is not None and pcr <= 0.8 else (Y if pcr is not None and pcr <= 1.0 else DIM)
-    nhnl  = (nh or 0) - (nl or 0) if nh is not None and nl is not None else None
+    # TIER 1A FIX: Calculate NH-NL only when both values exist, don't use "or 0" fallback
+    nhnl  = nh - nl if nh is not None and nl is not None else None
     nhnl_c = G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else DIM)
 
     spy_raw = mkt.get("spy")
     spy_chg = get_numeric(mkt, "spy_chg")
-    spy_chg_s = f" [{G if spy_chg is not None and spy_chg >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
+    # TIER 1A FIX: sign() should only be called with non-None value
+    spy_chg_s = f" [{G if spy_chg is not None and spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
     spy_s   = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
