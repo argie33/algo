@@ -1081,7 +1081,15 @@ def fetch_algo_config(c):
                 "max_positions", "max_positions_per_sector", "min_swing_score",
                 "swing_score_good_threshold", "swing_score_excellent_threshold",
                 "alpaca_paper_trading", "base_risk_pct", "t1_target_r_multiple",
-                "pyramid_enabled"]
+                "pyramid_enabled",
+                # M1: Grade thresholds
+                "grade_a_plus_threshold", "grade_a_threshold", "grade_b_threshold", "grade_c_threshold",
+                # M2: Market thresholds
+                "vix_caution_threshold", "vix_alert_threshold", "up_volume_good_threshold",
+                "up_volume_caution_threshold", "put_call_bullish_threshold", "put_call_caution_threshold",
+                "nh_nl_good_threshold",
+                # M3: Risk thresholds
+                "var_percentile", "cvar_percentile"]
         rows = q(c, "SELECT key, value FROM algo_config WHERE key=ANY(%s)", (keys,))
         d = {r["key"]: r["value"] for r in rows}
         # Issue 3.1: Validate that expected config keys exist (don't silently use defaults)
@@ -2487,6 +2495,7 @@ def fetch_risk_metrics(c) -> dict:
             "svar":      float(row.get("stressed_var_pct")) if row.get("stressed_var_pct") is not None else None,
             "beta":      float(row.get("portfolio_beta")) if row.get("portfolio_beta") is not None else None,
             "conc5":     float(row.get("top_5_concentration")) if row.get("top_5_concentration") is not None else None,
+            "stale_alerts": stale_alerts,
             "_source":   "table",
             "_is_stale": not is_fresh,
             "_age_minutes": age_minutes,
@@ -2497,7 +2506,8 @@ def fetch_risk_metrics(c) -> dict:
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_risk_metrics: {type(e).__name__}: {e}")
         _log_data_quality("fetch_risk_metrics", 0, str(e))
-        return {"_has_data": False}
+        stale_alerts.append(f"Risk metrics fetch failed: {type(e).__name__}")
+        return {"_has_data": False, "stale_alerts": stale_alerts}
 
 def fetch_perf_analytics(c):
     """Fetch pre-calculated performance analytics (updated hourly by load_algo_performance_daily.py).
