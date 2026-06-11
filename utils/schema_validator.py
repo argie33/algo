@@ -11,7 +11,9 @@ CRITICAL ISSUE #5 FIX: Validates column types, not just existence.
 """
 
 import logging
+import psycopg2.sql
 from typing import Dict, List, Optional, Tuple
+from algo.algo_sql_safety import assert_safe_table
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,12 @@ def validate_table_schema(cur, table_name: str, required_columns: Optional[Dict[
                     )
 
         # Check table has data
-        cur.execute(f"SELECT COUNT(*) FROM {table_name} LIMIT 1")
+        table_safe = assert_safe_table(table_name)
+        cur.execute(
+            psycopg2.sql.SQL("SELECT COUNT(*) FROM {} LIMIT 1").format(
+                psycopg2.sql.Identifier(table_safe)
+            )
+        )
         row_count = cur.fetchone()[0]
         if row_count == 0:
             errors.append(f"Table {table_name} is empty (0 rows)")
