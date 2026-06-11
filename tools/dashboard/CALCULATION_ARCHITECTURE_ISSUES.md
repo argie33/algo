@@ -1,8 +1,33 @@
 # Dashboard Architecture Audit: 45+ Calculation Engine Issues
 
-**Status**: COMPREHENSIVE ANALYSIS  
+**Status**: FIXES IN PROGRESS (Phase 1-2 COMPLETE, Phase 3-5 PENDING)  
 **Date**: 2026-06-11  
-**Scope**: Transform dashboard from a calculation engine to a pure display layer  
+**Last Updated**: 2026-06-11  
+**Scope**: Transform dashboard from a calculation engine to a pure display layer
+
+## FIXES APPLIED
+
+### ✅ PHASE 1: REMOVE FALLBACK CALCULATIONS (Commits: 23728d0d3, 5005f6b3f)
+- ✅ C1-1: Grade distribution fallback removed (was: lines 2066-2106)
+- ✅ C1-2: Signal filtering moved to API layer (was: lines 2017-2050)
+- ✅ C1-9: Signal trend aggregation removed (was: GROUP BY date)
+- ✅ C1-10: CPI YoY calculation removed (was: (cur-prev)/prev*100 formula)
+- ✅ C1-11: Yield curve slope calculation removed (was: DGS10-DGS2)
+
+### ⏳ PHASE 2: CONFIG VALIDATION & HARDCODED CONSTANTS (IN PROGRESS)
+- ✅ min_signal_quality_threshold moved to config
+- ⏳ load_grade_thresholds() — need to remove fallback defaults
+- ⏳ load_market_thresholds() — need to remove fallback defaults
+- ⏳ load_performance_thresholds() — need to remove fallback defaults
+
+### ⏳ PHASE 3: PRE-COMPUTE ALL AGGREGATIONS (NOT STARTED)
+- Requires: create pre-computed tables + update loaders
+
+### ⏳ PHASE 4: DATA QUALITY & VALIDATION (NOT STARTED)
+- Requires: database constraints + move validation to insert time
+
+### ⏳ PHASE 5: AUDIT TRAIL & LOGGING (NOT STARTED)
+- Requires: comprehensive logging of calculation state + threshold changes  
 
 ---
 
