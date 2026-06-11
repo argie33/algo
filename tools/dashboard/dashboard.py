@@ -797,18 +797,27 @@ def next_run_str() -> str:
     return f"prep {fmt(tgt)}"
 
 def hbar(cur: float, thr: float, w: int = 6) -> str:
+    # TIER 1A FIX: Handle None values safely
+    if cur is None or thr is None:
+        return f"[dim]{'░' * w}[/]"  # Gray bar for missing data
     r = min(float(cur) / float(thr), 1.0) if thr and float(thr) > 0 else 0
     f = int(r * w)
     c = R if r >= HBAR_CRITICAL else (Y if r >= HBAR_WARNING else G)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 def exp_bar(pct, w=12):
-    f = int(min(float(pct or 0), 100) / 100 * w)
+    # TIER 1A FIX: Handle None safely instead of "or 0"
+    if pct is None:
+        return f"[dim]{'░' * w}[/]"  # Gray bar for missing data
+    f = int(min(float(pct), 100) / 100 * w)
     tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
     return f"[{tc}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 def mini_bar(pts: Optional[float], max_pts: Optional[float], w: int = 5) -> str:
-    r = min(float(pts or 0) / float(max_pts or 1), 1.0)
+    # TIER 1A FIX: Handle None safely instead of "or 0"
+    if pts is None or max_pts is None:
+        return f"[dim]{'░' * w}[/]"  # Gray bar for missing data
+    r = min(float(pts) / float(max_pts), 1.0) if max_pts > 0 else 0
     f = int(r * w)
     c = G if r >= MINIBAR_HIGH else (Y if r >= MINIBAR_MED else R)
     return f"[{c}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
@@ -3300,7 +3309,8 @@ def panel_circuit(cb, risk=None):
             fc = R if fired else (Y if ratio >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
             unavail = " [dim](unavailable)[/]" if not available else ""
-            return f"[{fc}]{lbl}:[/]{cur_str}[dim]/{thr:.0f}{u}[/]{hbar(cur or 0, thr, w=4)}{ind}{unavail}"
+            # TIER 1A FIX: Pass None instead of "or 0" to hbar for proper missing data display
+            return f"[{fc}]{lbl}:[/]{cur_str}[dim]/{thr:.0f}{u}[/]{hbar(cur, thr, w=4)}{ind}{unavail}"
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(Group(*parts), title="[bold blue]CIRCUIT BREAKERS[/]", border_style="blue", padding=(0, 1))
@@ -3436,10 +3446,10 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Line 4: cumulative return + max drawdown (always show, "--" when missing)
     cum_v  = float(cum) if cum is not None else None
-    mxdd_v = float(mxdd) if mxdd is not None else (
-        float((perf or {}).get("maxdd") or 0) if perf and not perf.get("_error") else None)
+    # TIER 1A FIX: Use get_numeric instead of "or 0" to preserve None for missing data
+    mxdd_v = get_numeric(perf, "maxdd") if perf and not perf.get("_error") else None
     cc     = G if cum_v is not None and cum_v >= 0 else (R if cum_v is not None else DIM)
-    cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v or 0)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
+    cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
     dd_v   = abs(mxdd_v) if mxdd_v is not None else None
     dd_c   = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else (G if dd_v is not None else DIM))
     mxdd_s = f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]MaxDD:[/] [dim]--[/]"
