@@ -4125,12 +4125,32 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
             entry  = bs.get("buylevel") or bs.get("close")
             stop   = bs.get("stoplevel")
             # M2 FIX: Use config-based signal quality thresholds
-            sq_c   = G if sq is not None and sq >= grade_thresholds["b"] else (Y if sq is not None and sq >= grade_thresholds["c"] else "white")
+            if sq is not None and sq >= grade_thresholds["b"]:
+                sq_c = G
+            elif sq is not None and sq >= grade_thresholds["c"]:
+                sq_c = Y
+            else:
+                sq_c = "white"
             # M8 FIX: Use get_swing_score_thresholds() for consistency (Issue 42)
             swing_thresholds = get_swing_score_thresholds(cfg)
-            swg_c  = G if swg is not None and swg >= swing_thresholds["excellent"] else (Y if swg is not None and swg >= swing_thresholds["good"] else "white")
-            rr_c   = G if rr is not None and rr >= sig_thr['reward_risk_good'] else (Y if rr is not None and rr >= sig_thr['reward_risk_caution'] else "white")
-            vs_c   = G if vsurge is not None and vsurge >= sig_thr['volume_surge_good'] else (Y if vsurge is not None and vsurge >= sig_thr['volume_surge_caution'] else "white")
+            if swg is not None and swg >= swing_thresholds["excellent"]:
+                swg_c = G
+            elif swg is not None and swg >= swing_thresholds["good"]:
+                swg_c = Y
+            else:
+                swg_c = "white"
+            if rr is not None and rr >= sig_thr['reward_risk_good']:
+                rr_c = G
+            elif rr is not None and rr >= sig_thr['reward_risk_caution']:
+                rr_c = Y
+            else:
+                rr_c = "white"
+            if vsurge is not None and vsurge >= sig_thr['volume_surge_good']:
+                vs_c = G
+            elif vsurge is not None and vsurge >= sig_thr['volume_surge_caution']:
+                vs_c = Y
+            else:
+                vs_c = "white"
             stg_c  = G if stg == 2 else (Y if stg == 3 else ("white" if stg else DIM))
             t.add_row(
                 sym,
@@ -5449,7 +5469,12 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
         for s in top_a:
             sc = get_numeric(s, "score")
             # M1 FIX: Use config-based grade thresholds for dynamic coloring
-            sc_c = G if sc is not None and sc >= grade_thresholds["a_plus"] else ("bright_green" if sc is not None and sc >= grade_thresholds["a"] else "green")
+            if sc is not None and sc >= grade_thresholds["a_plus"]:
+                sc_c = G
+            elif sc is not None and sc >= grade_thresholds["a"]:
+                sc_c = "bright_green"
+            else:
+                sc_c = "green"
             sc_s = f"{sc:.0f}" if sc is not None else "--"
             parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
