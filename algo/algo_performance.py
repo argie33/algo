@@ -24,6 +24,15 @@ from utils.database_context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+def safe_float(value, default=0.0):
+    """Safely convert value to float, returning default if conversion fails."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
 class LivePerformance:
     """Compute live performance metrics for institutional comparison."""
 
