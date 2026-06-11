@@ -115,14 +115,16 @@ def _handle_basic(cur) -> Dict:
             if signal_freshness and len(signal_freshness) > 0:
                 row = dict(signal_freshness[0])
                 age_hours = float(row.get('max_age_hours')) if row.get('max_age_hours') is not None else 999
+                config = get_config()
+
                 if age_hours <= 1:  # Fresh (within 1 hour)
                     signal_status = 'FRESH'
-                elif age_hours <= 24:  # Acceptable (within 1 day)
+                elif age_hours <= config.signal_stale_threshold_hours:  # Acceptable
                     signal_status = 'OK'
-                    if age_hours > 12:
+                    if age_hours > (config.signal_stale_threshold_hours * 0.5):  # Warn at 50% of threshold
                         degradation_reasons.append(f"Signals {age_hours:.1f}h old (waiting for fresh data)")
                         has_warning = True
-                else:  # Stale (>1 day)
+                else:  # Stale (exceeds threshold)
                     signal_status = 'STALE'
                     degradation_reasons.append(f"Signals {age_hours:.1f}h old (use with caution)")
                     has_critical = True
@@ -365,11 +367,17 @@ def _handle_pipeline(cur, jwt_claims: Dict) -> Dict:
         rows = execute_with_timeout(cur, query, timeout_sec=15, max_attempts=1)
         rows = [dict(row) for row in rows]
 
+        config = get_config()
         tables = []
         for row in rows:
             age = float(row.get('age_days')) if row.get('age_days') is not None else 999
             row_count = row.get('row_count')
-            status = 'HEALTHY' if age <= 2 and row_count is not None and row_count > 0 else ('STALE' if age <= 7 else 'CRITICAL')
+            if age <= config.pipeline_healthy_days and row_count is not None and row_count > 0:
+                status = 'HEALTHY'
+            elif age <= config.pipeline_critical_days:
+                status = 'STALE'
+            else:
+                status = 'CRITICAL'
             tables.append({
                 'table_name': row['table_name'],
                 'row_count': row.get('row_count', 0),

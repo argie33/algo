@@ -1,0 +1,120 @@
+name: Kill Hung Loader Task
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_name_filter:
+        description: 'Task name filter (e.g., technical_data_daily, all for any hung task >2h)'
+        required: false
+        default: 'technical_data_daily'
+      max_age_hours:
+        description: 'Kill tasks older than N hours'
+        required: false
+        default: '2'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  kill-hung-loader:
+    name: Kill Hung ECS Loader Task
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-github-actions-dev
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find and Kill Hung Tasks
+        run: |
+          CLUSTER="algo-cluster"
+          FILTER="${{ github.event.inputs.task_name_filter }}"
+          MAX_AGE_HOURS="${{ github.event.inputs.max_age_hours }}"
+
+          echo "[FINDING HUNG TASKS]"
+          echo "Cluster: $CLUSTER"
+          echo "Filter: $FILTER"
+          echo "Max age: ${MAX_AGE_HOURS}h"
+          echo ""
+
+          # List all running tasks
+          TASKS=$(aws ecs list-tasks \
+            --cluster "$CLUSTER" \
+            --launch-type FARGATE \
+            --desired-status RUNNING \
+            --query 'taskArns[]' \
+            --output text)
+
+          if [ -z "$TASKS" ]; then
+            echo "No running tasks found"
+            exit 0
+          fi
+
+          # Get task details
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks $TASKS \
+            --query 'tasks[*].[taskArn,createdAt,containers[0].name]' \
+            --output text)
+
+          echo "[TASK DETAILS]"
+          echo "$TASK_DETAILS"
+          echo ""
+
+          # Kill hung tasks
+          KILLED_COUNT=0
+          NOW=$(date +%s)
+
+          while IFS=$'\t' read -r TASK_ARN CREATED_AT CONTAINER_NAME; do
+            # Parse createdAt (ISO format with Z)
+            CREATED_EPOCH=$(date -d "${CREATED_AT}" +%s)
+            AGE_SECONDS=$((NOW - CREATED_EPOCH))
+            AGE_HOURS=$((AGE_SECONDS / 3600))
+
+            # Check if task matches filter and exceeds age threshold
+            if [[ "$CONTAINER_NAME" =~ $FILTER ]] || [[ "$FILTER" == "all" ]]; then
+              if [ $AGE_HOURS -gt $MAX_AGE_HOURS ]; then
+                TASK_ID=$(echo "$TASK_ARN" | awk -F'/' '{print $NF}')
+                echo "[KILLING] $CONTAINER_NAME (${AGE_HOURS}h old)"
+
+                aws ecs stop-task \
+                  --cluster "$CLUSTER" \
+                  --task "$TASK_ARN" \
+                  --reason "Hung loader task exceeds ${MAX_AGE_HOURS}h timeout"
+
+                echo "  ✓ Task stopped: $TASK_ID"
+                KILLED_COUNT=$((KILLED_COUNT + 1))
+              else
+                echo "[SKIP] $CONTAINER_NAME (${AGE_HOURS}h old, within threshold)"
+              fi
+            fi
+          done <<< "$TASK_DETAILS"
+
+          echo ""
+          echo "[SUMMARY] Killed $KILLED_COUNT hung tasks"
+
+          if [ $KILLED_COUNT -gt 0 ]; then
+            echo ""
+            echo "[ACTION] Hung loaders killed. Morning prep pipeline can now restart."
+            echo "Next morning prep run (2:00 AM ET) will use fresh parallelism=2 cap."
+          fi
+
+      - name: Verify Tasks Stopped
+        run: |
+          CLUSTER="algo-cluster"
+          sleep 5
+
+          echo "[VERIFICATION] Checking task status..."
+          RUNNING_COUNT=$(aws ecs list-tasks \
+            --cluster "$CLUSTER" \
+            --launch-type FARGATE \
+            --desired-status RUNNING \
+            --query 'taskArns[]' \
+            --output text | wc -w)
+
+          echo "Running tasks remaining: $RUNNING_COUNT"
