@@ -85,7 +85,12 @@ def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_cla
                 # Only fetch freshness if query succeeded
                 try:
                     freshness = check_data_freshness(cur, 'price_daily', 'date', warning_days=1)
-                except Exception:
+                except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn,
+                        psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                    logger.warning(f"[BREADTH_FRESHNESS] Database error: {type(e).__name__}: {e}")
+                    freshness = {}
+                except Exception as e:
+                    logger.warning(f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}")
                     freshness = {}
 
             return list_response([safe_json_serialize(dict(b)) for b in breadth], data_freshness=freshness)

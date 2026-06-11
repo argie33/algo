@@ -1902,10 +1902,24 @@ def fetch_recent_trades(c):
 
 def fetch_signals(c):
     stale_alerts = []
+    cfg = None
     try:
+        # Load config for grade thresholds (M1 FIX)
+        try:
+            cfg_data = fetch_algo_config(c)
+            if isinstance(cfg_data, dict) and not cfg_data.get("_error"):
+                cfg = cfg_data
+        except Exception:
+            cfg = {}
+
         # Issue 21 FIX: Use default min_swing_score instead of separate query (already fetched by fetch_algo_config)
         # This avoids redundant database round-trips; cfg will fetch the actual value from algo_config
         min_score = 70.0
+        if cfg and cfg.get('min_score'):
+            try:
+                min_score = float(cfg.get('min_score', 70.0))
+            except (ValueError, TypeError):
+                pass
 
         sig = q1(c, """
             SELECT COUNT(*) AS n, MAX(date) AS d FROM buy_sell_daily
