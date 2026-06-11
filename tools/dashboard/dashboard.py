@@ -1157,7 +1157,7 @@ def fetch_algo_config(c):
     except (psycopg2.Error, KeyError, TypeError, ValueError) as e:
         logger.error(f"fetch_algo_config: {type(e).__name__}: {e}")
         _log_data_quality("fetch_algo_config", 0, str(e))
-        return {}
+        return {"_error": f"Failed to load algo config: {type(e).__name__}"}
 
 def fetch_market(c):
     try:
