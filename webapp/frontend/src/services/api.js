@@ -682,6 +682,16 @@ export const updateAlgoConfigKey = async (key, value) => {
   }
 };
 
+export const resetAlgoConfigKey = async (key) => {
+  try {
+    const response = await api.delete(`/api/algo/config/${key}`);
+    return extractData(response);
+  } catch (error) {
+    console.error(`Error resetting config key ${key}:`, error);
+    throw error;
+  }
+};
+
 // ============================================
 // DIAGNOSTICS & ADMIN FUNCTIONS
 // ============================================

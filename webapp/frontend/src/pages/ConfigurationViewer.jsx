@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Filter, AlertCircle, CheckCircle, Edit2, Save, X } from 'lucide-react';
-import { getAlgoConfig, updateAlgoConfigKey } from '../services/api';
+import { Settings, Filter, AlertCircle, CheckCircle, Edit2, Save, X, RotateCcw } from 'lucide-react';
+import { getAlgoConfig, updateAlgoConfigKey, resetAlgoConfigKey } from '../services/api';
 import { extractData } from '../utils/responseNormalizer';
 
 /**
@@ -263,6 +263,29 @@ function ConfigItem({ item, onUpdate }) {
     }
   };
 
+  const handleReset = async () => {
+    if (!window.confirm(`Reset ${item.key} to default value: ${defaultVal}?`)) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await resetAlgoConfigKey(item.key);
+      if (res?.status === 'success' || res?.statusCode === 200) {
+        if (onUpdate) {
+          onUpdate(item.key, defaultVal);
+        }
+      } else {
+        setError(res?.message || 'Failed to reset config');
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to reset config');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCancel = () => {
     setEditValue(String(currentVal || ''));
     setIsEditing(false);
@@ -328,33 +351,70 @@ function ConfigItem({ item, onUpdate }) {
           )}
         </div>
         {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            style={{
-              padding: '4px 8px',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: '3px',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              fontSize: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.borderColor = 'var(--brand)';
-              e.target.style.color = 'var(--brand)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.borderColor = 'var(--border)';
-              e.target.style.color = 'var(--text-muted)';
-            }}
-          >
-            <Edit2 size={12} />
-            Edit
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setIsEditing(true)}
+              style={{
+                padding: '4px 8px',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.borderColor = 'var(--brand)';
+                e.target.style.color = 'var(--brand)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.borderColor = 'var(--border)';
+                e.target.style.color = 'var(--text-muted)';
+              }}
+            >
+              <Edit2 size={12} />
+              Edit
+            </button>
+            {isCustom && (
+              <button
+                onClick={handleReset}
+                disabled={saving}
+                style={{
+                  padding: '4px 8px',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: '3px',
+                  color: 'var(--text-muted)',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s',
+                  opacity: saving ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!saving) {
+                    e.target.style.borderColor = 'var(--amber)';
+                    e.target.style.color = 'var(--amber)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!saving) {
+                    e.target.style.borderColor = 'var(--border)';
+                    e.target.style.color = 'var(--text-muted)';
+                  }
+                }}
+              >
+                <RotateCcw size={12} />
+                Reset
+              </button>
+            )}
+          </div>
         )}
       </div>
 

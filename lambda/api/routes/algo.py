@@ -194,6 +194,9 @@ def _dispatch(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_
             elif method == 'PUT':
                 actor = (jwt_claims or {}).get('sub', 'unknown')
                 return _update_algo_config_key(cur, key, body, actor)
+            elif method == 'DELETE':
+                actor = (jwt_claims or {}).get('sub', 'unknown')
+                return _reset_algo_config_key(cur, key, actor)
         elif path == '/api/algo/last-run':
             # Last run accessible to authenticated users
             return _get_last_run(cur)
@@ -2312,6 +2315,59 @@ def _update_algo_config_key(cur, key: str, body: Dict, actor: str) -> Dict:
         except Exception as e:
             logger.error(f'Unexpected error: {e}', extra={'operation': 'update algo config key', 'error_type': type(e).__name__})
             return error_response(500, 'internal_error', 'Failed to update config key')
+
+def _reset_algo_config_key(cur, key: str, actor: str) -> Dict:
+        """Reset a configuration key to its default value (TIER 5: Reset capability)."""
+        try:
+            from algo.algo_config import AlgoConfig
+
+            # Validate the key exists
+            if key not in AlgoConfig.DEFAULTS:
+                return error_response(404, 'not_found', f'Config key not found: {key}')
+
+            default_val, _, _ = AlgoConfig.DEFAULTS[key]
+
+            # Get current value for audit
+            cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
+            old_row = cur.fetchone()
+            old_value = old_row['value'] if old_row else None
+
+            # Reset to default
+            cur.execute("""
+                UPDATE algo_config
+                SET value = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+                WHERE key = %s
+            """, (default_val, actor, key))
+
+            # Log to audit trail
+            cur.execute("""
+                INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+            """, (key, old_value, default_val, actor))
+
+            logger.info(f'[TIER5] Config reset by {actor}: {key} = {default_val} (was {old_value})')
+
+            return json_response(200, {
+                'status': 'success',
+                'key': key,
+                'old_value': old_value,
+                'new_value': default_val,
+                'reset_to_default': True,
+                'updated_at': datetime.now(timezone.utc).isoformat(),
+                'updated_by': actor,
+            })
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            logger.error(f'Data unavailable: {e}', extra={'operation': 'reset algo config key'})
+            return error_response(503, 'service_unavailable', 'Data unavailable')
+        except psycopg2.OperationalError as e:
+            logger.error(f'Database connection error: {e}', extra={'operation': 'reset algo config key'})
+            return error_response(503, 'service_unavailable', 'Database unavailable')
+        except psycopg2.DatabaseError as e:
+            logger.error(f'Database error: {e}', extra={'operation': 'reset algo config key', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Database query failed')
+        except Exception as e:
+            logger.error(f'Unexpected error: {e}', extra={'operation': 'reset algo config key', 'error_type': type(e).__name__})
+            return error_response(500, 'internal_error', 'Failed to reset config key')
 
 def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str = None) -> Dict:
         """Return algo audit log entries with pagination."""
