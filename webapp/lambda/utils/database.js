@@ -87,7 +87,7 @@ async function getDbConfig() {
 
         dbConfig = {
           host: secret.host || process.env.DB_ENDPOINT,
-          port: parseInt(secret.port) || 5432,
+          port: secret.port ? parseInt(secret.port) : undefined,
           user: secret.username,
           password: secret.password,
           database: secret.dbname,
@@ -138,7 +138,7 @@ async function getDbConfig() {
 
       dbConfig = {
         host,
-        port: parseInt(process.env.DB_PORT) || 5432,
+        port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
         user,
         password: process.env.DB_PASSWORD || "",
         database,

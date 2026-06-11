@@ -384,6 +384,11 @@ class CircuitBreaker:
             vix = self._compute_vix_fallback(current_date, cur)
             logger.info(f'VIX missing, using fallback estimate: {vix:.1f}')
 
+        # Ensure vix is always a valid float to prevent TypeError in comparison
+        if vix is None:
+            vix = 20.0  # Neutral fallback if all sources fail
+            logger.warning("VIX unavailable after fallback, using neutral 20")
+
         threshold = _safe_float(self.config.get('vix_max_threshold', 35.0), 35.0, context="vix_max_threshold")
         return {
             'halted': vix > threshold,

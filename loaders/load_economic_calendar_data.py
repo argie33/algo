@@ -51,7 +51,11 @@ def _load_economic_calendar(today: date) -> int:
     ]
 
     for event_config in events_config:
-        if today <= event_config["event_date"] <= end:
+        event_date = event_config.get("event_date")
+        if not event_date:
+            logger.warning(f"Event {event_config.get('event_id', 'unknown')}: Skipping record with None/empty date (prevents dedup collision)")
+            continue
+        if today <= event_date <= end:
             records.append({
                 "event_id": event_config["event_id"],
                 "event_date": event_config["event_date"],

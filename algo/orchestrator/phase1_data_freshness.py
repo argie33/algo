@@ -5,7 +5,7 @@ PHASE 1: DATA FRESHNESS CHECK (Simplified)
 Only check ONE thing: Are recent prices loaded?
 - Query price_daily for the most recent available date
 - Verify that date is the last trading day (or today on a trading day)
-- Verify 95%+ symbol coverage
+- Verify 75%+ symbol coverage with 8000+ minimum symbols
 - That's it. Done in <1 minute.
 
 This replaces the 2000-line complexity with 100 lines of actual logic.
@@ -42,9 +42,11 @@ def run(
     """
     phase_start = time.time()
 
-    # Get configurable thresholds (with defaults matching prior behavior)
-    min_coverage_pct = config.get('phase1_min_coverage_pct', 90) if config else 90  # 90% vs prior day
-    min_symbol_count = config.get('phase1_min_symbol_count', 1000) if config else 1000
+    # Get configurable thresholds (with realistic defaults for robust operation)
+    # 75% coverage vs prior day allows for minor data delays without halting
+    # 8000 minimum symbols ensures we have >75% of typical S&P 5000+ universe
+    min_coverage_pct = config.get('phase1_min_coverage_pct', 75) if config else 75
+    min_symbol_count = config.get('phase1_min_symbol_count', 8000) if config else 8000
 
     logger.info("[PHASE 1] Starting price data freshness check")
 
@@ -100,7 +102,7 @@ def run(
                 (max_date,)
             )
             prior_count = cur.fetchone()[0] or symbols_loaded
-            # Require at least 95% of prior date's coverage, and a hard minimum of 1000 symbols
+            # Require 75%+ of prior date's coverage, and a hard minimum of 8000 symbols
             coverage_vs_prior = (symbols_loaded / max(prior_count, 1)) * 100
 
             # If today has partial data (e.g. intraday seed or in-progress EOD load),

@@ -892,6 +892,19 @@ def _fmt_event_when(ed_date: Optional[date], et: any) -> str:
     return "--"
 
 
+def format_halt_reason(halt_code: str) -> str:
+    """Issue 34/35 FIX: Convert halt code to human-readable explanation.
+
+    Input: "drawdown" or "drawdown: Portfolio drawdown 23.45% >= 20%"
+    Output: "Portfolio drawdown >=20%"
+    """
+    if not halt_code or not isinstance(halt_code, str):
+        return halt_code
+    # Extract the prefix before the colon (if present)
+    code = halt_code.split(":")[0].strip().lower()
+    return HALT_REASON_NAMES.get(code, halt_code[:20])
+
+
 # ── fetchers ──────────────────────────────────────────────────────────────────
 
 def fetch_run(c):

@@ -136,6 +136,9 @@ def _load_economic_calendar(today: date) -> int:
     for series_id, (name, importance) in TRACKED_SERIES.items():
         release_dates = _fetch_release_dates(series_id, api_key, start, end)
         for rd in release_dates:
+            if not rd:
+                logger.warning(f"FRED {series_id}: Skipping record with None/empty date (prevents dedup collision)")
+                continue
             records.append({
                 "event_id":    f"FRED_{series_id}_{rd.isoformat()}",
                 "event_date":  rd,
