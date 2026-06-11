@@ -2149,7 +2149,9 @@ router.get('/sector-breadth', async (req, res) => {
         cp.sector,
         COUNT(*) AS total_stocks,
         SUM(CASE WHEN lt.price_above_sma50 THEN 1 ELSE 0 END) AS above_50d,
-        SUM(CASE WHEN lt.price_above_sma200 THEN 1 ELSE 0 END) AS above_200d
+        SUM(CASE WHEN lt.price_above_sma200 THEN 1 ELSE 0 END) AS above_200d,
+        ROUND(100.0 * SUM(CASE WHEN lt.price_above_sma50 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS pct_above_50d,
+        ROUND(100.0 * SUM(CASE WHEN lt.price_above_sma200 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS pct_above_200d
       FROM company_profile cp
       JOIN latest_tt lt ON lt.symbol = cp.ticker
       WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) <> ''
@@ -2166,16 +2168,16 @@ router.get('/sector-breadth', async (req, res) => {
         sector: { type: 'string', required: true },
         total_stocks: { type: 'int', required: false, defaultValue: 0 },
         above_50d: { type: 'int', required: false, defaultValue: 0 },
-        above_200d: { type: 'int', required: false, defaultValue: 0 }
+        above_200d: { type: 'int', required: false, defaultValue: 0 },
+        pct_above_50d: { type: 'float', required: false, defaultValue: 0 },
+        pct_above_200d: { type: 'float', required: false, defaultValue: 0 }
       }).map(r => ({
         sector: r.sector,
         total_stocks: r.total_stocks || 0,
         above_50d: r.above_50d || 0,
         above_200d: r.above_200d || 0,
-        pct_above_50d: (r.total_stocks || 0) > 0
-          ? Math.round(((r.above_50d || 0) / (r.total_stocks || 0)) * 1000) / 10 : 0,
-        pct_above_200d: (r.total_stocks || 0) > 0
-          ? Math.round(((r.above_200d || 0) / (r.total_stocks || 0)) * 1000) / 10 : 0,
+        pct_above_50d: r.pct_above_50d || 0,
+        pct_above_200d: r.pct_above_200d || 0,
       }))
     });
   } catch (error) {
@@ -2204,7 +2206,8 @@ router.get('/sector-stage2', async (req, res) => {
         SUM(CASE WHEN lt.weinstein_stage = 1 THEN 1 ELSE 0 END) AS stage_1,
         SUM(CASE WHEN lt.weinstein_stage = 3 THEN 1 ELSE 0 END) AS stage_3,
         SUM(CASE WHEN lt.weinstein_stage = 4 THEN 1 ELSE 0 END) AS stage_4,
-        AVG(lt.minervini_trend_score) AS avg_trend_score
+        AVG(lt.minervini_trend_score) AS avg_trend_score,
+        ROUND(100.0 * SUM(CASE WHEN lt.weinstein_stage = 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS pct_stage_2
       FROM company_profile cp
       JOIN latest_tt lt ON lt.symbol = cp.ticker
       WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) <> ''
@@ -2224,7 +2227,8 @@ router.get('/sector-stage2', async (req, res) => {
         stage_2: { type: 'int', required: false, defaultValue: 0 },
         stage_3: { type: 'int', required: false, defaultValue: 0 },
         stage_4: { type: 'int', required: false, defaultValue: 0 },
-        avg_trend_score: { type: 'float', required: false }
+        avg_trend_score: { type: 'float', required: false },
+        pct_stage_2: { type: 'float', required: false, defaultValue: 0 }
       }).map(r => ({
         sector: r.sector,
         total: r.total_stocks || 0,
@@ -2232,8 +2236,7 @@ router.get('/sector-stage2', async (req, res) => {
         stage_2: r.stage_2 || 0,
         stage_3: r.stage_3 || 0,
         stage_4: r.stage_4 || 0,
-        pct_stage_2: (r.total_stocks || 0) > 0
-          ? Math.round(((r.stage_2 || 0) / (r.total_stocks || 0)) * 1000) / 10 : 0,
+        pct_stage_2: r.pct_stage_2 || 0,
         avg_trend_score: r.avg_trend_score,
       }))
     });
