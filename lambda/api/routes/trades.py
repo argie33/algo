@@ -10,7 +10,10 @@ logger = logging.getLogger(__name__)
 def _check_admin_access(jwt_claims: Dict) -> bool:
     if not jwt_claims:
         return False
-    return 'admin' in (jwt_claims.get('cognito:groups') or [])
+    groups = jwt_claims.get('cognito:groups')
+    if groups is None:
+        groups = []
+    return 'admin' in groups
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
         """Handle /api/trades and /api/trades/* endpoints."""

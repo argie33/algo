@@ -258,6 +258,24 @@ def load_signal_thresholds(cfg: Optional[dict] = None) -> dict:
         'volume_surge_good': 50.0, 'volume_surge_caution': 20.0,
     }
 
+def load_ui_display_thresholds(cfg: Optional[dict] = None) -> dict:
+    """Load UI color coding thresholds for dashboard panels."""
+    if cfg:
+        return {
+            'circuit_breaker_ratio_caution': safe_float(cfg.get('circuit_breaker_ratio_caution_threshold', 0.75), 0.75),
+            'buy_signal_count_good': safe_float(cfg.get('buy_signal_count_good_threshold', 5.0), 5.0),
+            'buy_signal_count_caution': safe_float(cfg.get('buy_signal_count_caution_threshold', 1.0), 1.0),
+            'win_rate_history_good': safe_float(cfg.get('win_rate_history_good_threshold', 80.0), 80.0),
+            'win_rate_history_caution': safe_float(cfg.get('win_rate_history_caution_threshold', 50.0), 50.0),
+        }
+    return {
+        'circuit_breaker_ratio_caution': 0.75,
+        'buy_signal_count_good': 5.0,
+        'buy_signal_count_caution': 1.0,
+        'win_rate_history_good': 80.0,
+        'win_rate_history_caution': 50.0,
+    }
+
 def get_grade_thresholds(cfg: Optional[dict] = None) -> dict:
     """Load grade thresholds from config or hardcoded defaults.
 
@@ -3302,7 +3320,8 @@ def panel_circuit(cb, risk=None):
             else:
                 cur_str = f"{cur}{u}" if u else str(cur)
                 ratio = cur / thr if thr > 0 else 0
-            fc = R if fired else (Y if ratio >= 0.75 else G)  # TODO: convert to config
+            ui_cfg = load_ui_display_thresholds()
+            fc = R if fired else (Y if ratio >= ui_cfg['circuit_breaker_ratio_caution'] else G)
             ind = "[bold red] ![/]" if fired else ""
             unavail = " [dim](unavailable)[/]" if not available else ""
             # TIER 1A FIX: Pass None instead of "or 0" to hbar for proper missing data display
@@ -3466,7 +3485,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Line 5: largest position concentration (when available)
     if lgpos is not None:
-        lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else "white")  # TODO: config
+        risk_cfg = load_risk_thresholds()
+        lp_c = R if float(lgpos) >= risk_cfg['large_position_alert'] else (Y if float(lgpos) >= risk_cfg['large_position_caution'] else "white")
         rows.append(Text.from_markup(f"[dim]Largest pos:[/] [{lp_c}]{float(lgpos):.1f}%[/]"))
 
     # VaR metrics (compact one-liner)
@@ -3868,7 +3888,8 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
         return t[:12]
 
     # ── Row 1: count  ·  7-day sparkline  ·  grade pool  ·  date ─────────────
-    buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))  # TODO: convert to config
+    ui_cfg = load_ui_display_thresholds()
+    buy_c = G if raw >= ui_cfg['buy_signal_count_good'] else (Y if raw >= ui_cfg['buy_signal_count_caution'] else (DIM if total == 0 else R))
     trend = sig.get("trend")
     spark_s = ""
     if len(trend) >= 2:
@@ -4093,7 +4114,8 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None, sec_warn=No
         # Normalize strength to 0-1 range: if strength > 1, assume it's a percentage (0-100)
         if strength is not None and strength > 1:
             strength = strength / 100.0
-        sig_c = R if def_s is not None and def_s >= 60 else (Y if def_s is not None and def_s >= 40 else G)  # TODO: convert to config
+        sig_cfg = load_signal_thresholds()
+        sig_c = R if def_s is not None and def_s >= sig_cfg['signal_alert'] else (Y if def_s is not None and def_s >= sig_cfg['signal_caution'] else G)
         scores_s = f" [dim]defensive:{def_s:.0f} cyclical:{cyc_s:.0f}[/]" if (def_s is not None or cyc_s is not None) else ""
         str_s    = f" [dim]strength:{strength:.0%}[/]" if strength is not None else ""
         rows.append(Text.from_markup(
@@ -4548,7 +4570,8 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
         n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         wr_h  = n_ok / total_h * 100 if total_h else 0
-        wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)  # TODO: config
+        ui_cfg = load_ui_display_thresholds()
+        wc_h = G if wr_h >= ui_cfg['win_rate_history_good'] else (Y if wr_h >= ui_cfg['win_rate_history_caution'] else R)
         badges = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
@@ -5258,7 +5281,8 @@ def panel_signals_expanded(sig, sig_eval=None, cfg=None):
     if g is None:
         g = {}
     ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
-    buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))  # TODO: convert to config
+    ui_cfg = load_ui_display_thresholds()
+    buy_c = G if raw >= ui_cfg['buy_signal_count_good'] else (Y if raw >= ui_cfg['buy_signal_count_caution'] else (DIM if total == 0 else R))
     rows = [Text.from_markup(
         f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
         f"[{G}]A:{ga}[/] [{CY}]B:{gb}[/] [{Y}]C:{gc}[/] [{R}]D:{gd}[/]  "

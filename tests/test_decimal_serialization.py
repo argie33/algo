@@ -104,10 +104,14 @@ def test_top_movers_decimal_handling():
     items = [decimal_to_float_recursive(m) for m in movers]
 
     # Extract gainers and losers
-    gainers = sorted([m for m in items if (m.get('pct_change') or 0) >= 0],
-                     key=lambda x: -(x.get('pct_change') or 0))[:10]
-    losers = sorted([m for m in items if (m.get('pct_change') or 0) < 0],
-                    key=lambda x: (x.get('pct_change') or 0))[:10]
+    def get_pct_change(m):
+        pc = m.get('pct_change')
+        return pc if pc is not None else 0
+
+    gainers = sorted([m for m in items if get_pct_change(m) >= 0],
+                     key=lambda x: -get_pct_change(x))[:10]
+    losers = sorted([m for m in items if get_pct_change(m) < 0],
+                    key=lambda x: get_pct_change(x))[:10]
 
     response = {
         'gainers': gainers or [],

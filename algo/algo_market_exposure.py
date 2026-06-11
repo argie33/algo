@@ -698,8 +698,10 @@ class MarketExposure:
         first_net = nets[0]
         last_net = nets[-1]
         ad_change = last_net - first_net
-        first_spy = float(rows[0].get('spy_close') or 0)
-        last_spy = float(rows[-1].get('spy_close') or 0)
+        first_spy_val = rows[0].get('spy_close')
+        first_spy = float(first_spy_val) if first_spy_val is not None else 0.0
+        last_spy_val = rows[-1].get('spy_close')
+        last_spy = float(last_spy_val) if last_spy_val is not None else 0.0
         spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
         # Confirmation: both same direction. Divergence: opposite.
         if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):

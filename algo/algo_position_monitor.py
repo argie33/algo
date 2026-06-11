@@ -773,7 +773,12 @@ class PositionMonitor:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                buying_power = float(data.get('buying_power') or data.get('cash') or 0)
+                bp = data.get('buying_power')
+                if bp is None:
+                    bp = data.get('cash')
+                if bp is None:
+                    bp = 0
+                buying_power = float(bp)
                 if buying_power < 100:
                     return False, f'Insufficient buying power: ${buying_power:.2f}'
                 logger.debug(f"[MARGIN] Buying power ${buying_power:.2f} — entry allowed")

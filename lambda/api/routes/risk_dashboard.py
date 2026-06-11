@@ -21,7 +21,9 @@ def _check_admin_access(jwt_claims: Dict) -> bool:
     """Check if user has admin access from verified JWT claims only."""
     if not jwt_claims:
         return False
-    groups = jwt_claims.get('cognito:groups') or []
+    groups = jwt_claims.get('cognito:groups')
+    if groups is None:
+        groups = []
     return 'admin' in groups
 
 def handle(cur, path: str, method: str, params: Dict, body: Dict = None, jwt_claims: Dict = None) -> Dict:
