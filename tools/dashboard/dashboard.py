@@ -3142,6 +3142,7 @@ def panel_orch(run, cfg, risk=None):
     if cfg and cfg.get("_error"):
         return Panel(Text(f"error: {cfg.get('_error')}", style="dim"), title="[bold]ORCHESTRATOR[/]", border_style="yellow", padding=(0, 1))
 
+    mkt_cfg = load_market_thresholds(cfg)
     next_run  = next_run_str()
     mode      = cfg.get("mode", "?") if cfg else "?"
     mc2       = G if mode and "LIVE" in mode else Y
@@ -3546,6 +3547,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
 
 def panel_portfolio(port, cfg, risk=None, perf=None):
     risk_thr = load_risk_thresholds(cfg)
+    mkt_cfg = load_market_thresholds(cfg)
     if not port or port.get("_error"):
         return Panel(Text("no data", style="dim"), title="[bold]PORTFOLIO[/]", border_style="green", padding=(0, 1))
     pv_val = port.get("total_portfolio_value")
