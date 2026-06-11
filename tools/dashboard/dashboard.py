@@ -3598,7 +3598,14 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     cc     = G if cum_v is not None and cum_v >= 0 else (R if cum_v is not None else DIM)
     cum_s  = f"[dim]Total Return:[/] [{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]Total Return:[/] [dim]--[/]"
     dd_v   = abs(mxdd_v) if mxdd_v is not None else None
-    dd_c = R if dd_v is not None and dd_v >= risk_thr.get('drawdown_alert', 15) else (Y if dd_v is not None and dd_v >= risk_thr.get('drawdown_caution', 5) else (G if dd_v is not None else DIM))
+    if dd_v is not None and dd_v >= risk_thr.get('drawdown_alert', 15):
+        dd_c = R
+    elif dd_v is not None and dd_v >= risk_thr.get('drawdown_caution', 5):
+        dd_c = Y
+    elif dd_v is not None:
+        dd_c = G
+    else:
+        dd_c = DIM
     mxdd_s = f"[dim]MaxDD:[/] [{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]MaxDD:[/] [dim]--[/]"
     rows.append(Text.from_markup(f"{cum_s}  {mxdd_s}"))
 
@@ -3619,7 +3626,12 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         var95_v = get_numeric(risk, "var95")
         if var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
-            beta_c = R if beta_v is not None and beta_v >= mkt_cfg['beta_warning'] else (Y if beta_v is not None and beta_v >= mkt_cfg['beta_caution'] else G)
+            if beta_v is not None and beta_v >= mkt_cfg['beta_warning']:
+                beta_c = R
+            elif beta_v is not None and beta_v >= mkt_cfg['beta_caution']:
+                beta_c = Y
+            else:
+                beta_c = G
             cvar95_v = get_numeric(risk, "cvar95")
             conc5_v = get_numeric(risk, "conc5")
             cvar95_str = f"{cvar95_v:.2f}%" if cvar95_v is not None else "--"
