@@ -328,6 +328,7 @@ MORTGAGE_WARNING = 7.0  # 30Y Mortgage rate warning (%)
 MORTGAGE_CRITICAL = 8.0  # 30Y Mortgage rate critical (%)
 NFCI_NEGATIVE = -0.5  # Chicago Fed NFCI accommodative threshold
 NFCI_POSITIVE = 0.5  # Chicago Fed NFCI tight threshold
+YIELD_CURVE_GOOD = 0.5  # Yield curve 10-2 slope good threshold (%)
 UMCSENT_WARNING = 60  # University of Michigan Consumer Sentiment warning
 UMCSENT_GOOD = 70  # University of Michigan Consumer Sentiment good threshold
 
@@ -4969,7 +4970,12 @@ def panel_status(act, hlth, notifs, algo_metrics=None, loader=None, audit=None, 
                 rows.append(Text.from_markup(f"[{R}]✗[/] [{cc}]{nm:<10}[/] [dim]{age}d stale{lat_s}[/]"))
 
     # Notifications (up to 4)
-    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
+    notifs_list = []
+    if notifs and isinstance(notifs, dict) and not notifs.get("_error"):
+        notifs_list = notifs.get("notifications", []) if isinstance(notifs.get("notifications"), list) else []
+    elif notifs and isinstance(notifs, list):
+        notifs_list = notifs
+    valid_notifs = notifs_list
     if valid_notifs:
         rows.append(Rule(style="dim"))
         SEV_C = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
@@ -5309,7 +5315,12 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
-    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
+    notifs_list = []
+    if notifs and isinstance(notifs, dict) and not notifs.get("_error"):
+        notifs_list = notifs.get("notifications", []) if isinstance(notifs.get("notifications"), list) else []
+    elif notifs and isinstance(notifs, list):
+        notifs_list = notifs
+    valid_notifs = notifs_list
     if valid_notifs:
         rows.append(Rule(style="dim"))
         SEV_C  = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
@@ -5737,7 +5748,12 @@ def panel_algo_health_expanded(run, act, hlth, notifs, algo_metrics=None, loader
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # All notifications — untruncated titles
-    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
+    notifs_list = []
+    if notifs and isinstance(notifs, dict) and not notifs.get("_error"):
+        notifs_list = notifs.get("notifications", []) if isinstance(notifs.get("notifications"), list) else []
+    elif notifs and isinstance(notifs, list):
+        notifs_list = notifs
+    valid_notifs = notifs_list
     if valid_notifs:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Notifications:[/]"))
