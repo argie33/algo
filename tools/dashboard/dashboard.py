@@ -2503,17 +2503,20 @@ def fetch_sector_rotation(c):
         if not row:
             _log_data_quality("fetch_sector_rotation", 0, "No sector rotation data")
             return {"_error": "No sector rotation data available"}
-        d = row.get("details") or {}
-        if isinstance(d, str):
+        d = row.get("details")
+        if d is None:
+            d = {}
+        elif isinstance(d, str):
             try:
                 d = json.loads(d)
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"sector_rotation details corrupt; sector rotation signal unavailable: {e}")
                 return {"_error": "Sector rotation data corrupted"}
         strength = safe_float(row.get("strength"))
+        signal = row.get("signal")
         result = {
             "date":     row.get("date"),
-            "signal":   row.get("signal") or "",
+            "signal":   signal if signal is not None else "",
             "strength": strength,
             "weeks":    d.get("weeks_persistent", 1),
             "def_score": d.get("defensive_lead_score", 0),
@@ -2619,8 +2622,10 @@ def fetch_audit_log(c):
                        ORDER BY created_at DESC LIMIT 8""")
         result = []
         for r in rows:
-            det = r.get("details") or {}
-            if isinstance(det, str):
+            det = r.get("details")
+            if det is None:
+                det = {}
+            elif isinstance(det, str):
                 try: det = json.loads(det)
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.warning(f"Failed to parse audit_log details JSON: {e}")
@@ -3435,11 +3440,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     n_open = perf.get('_open_trades_count', 0)
     n_total = n_closed + n_open
     open_note = f" ([{n_open} open])" if n_open > 0 else ""
+    b_val = perf.get('b', 0)
+    b_str = f"[dim]/[/][yellow]{b_val}B[/]" if b_val > 0 else ""
     rows = [
         Text.from_markup(
             f"[bold white]{n_closed} Trades{open_note}[/]  "
             f"[{G}]{perf.get('w', 0)}W[/][dim]/[/][{R}]{perf.get('l', 0)}L[/]"
-            f"{'[dim]/[/][yellow]' + str(perf.get('b', 0)) + 'B[/]' if perf.get('b', 0) > 0 else ''}  "
+            f"{b_str}  "
             f"[dim]WR:[/][{wr_c}]{wr_s}{be_s}[/]  "
             f"[{str_c}]{str_s}[/]  "
             f"[dim]MaxDD:[/][{dd_c}]{dd_s}[/]"
@@ -3705,7 +3712,9 @@ def panel_signals_compact(sig, sig_eval=None, cfg=None):
     total = get_int(sig, "total")
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
-    g     = sig.get("grades") or {}
+    g     = sig.get("grades")
+    if g is None:
+        g = {}
     ga = int(g.get("a", 0)) if g.get("a") is not None else 0
     gb = int(g.get("b", 0)) if g.get("b") is not None else 0
     gc = int(g.get("c", 0)) if g.get("c") is not None else 0
@@ -4078,7 +4087,9 @@ def panel_exposure_compact(exp_f):
     raw     = safe_float(raw_score)
     epct    = safe_float(epct_score)
     regime  = exp_f.get("regime") or ""
-    factors = exp_f.get("factors") or {}
+    factors = exp_f.get("factors")
+    if factors is None:
+        factors = {}
     tier    = tier_from_pct(epct)
     tc      = TIER_COLOR.get(tier, "dim")
 
