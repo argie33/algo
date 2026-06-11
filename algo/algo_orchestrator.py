@@ -473,17 +473,9 @@ class Orchestrator:
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(ZoneInfo("America/New_York"))
 
-            ORCHESTRATOR_TIMES = [
-                (9, 30),    # 9:30 AM
-                (13, 0),    # 1 PM
-                (15, 0),    # 3 PM
-                (17, 30),   # 5:30 PM
-            ]
-            BUFFER_MINUTES = 15
-
             # Find next orchestrator run
             next_orch_et = None
-            for orch_hour, orch_minute in ORCHESTRATOR_TIMES:
+            for orch_hour, orch_minute in ORCHESTRATOR_RUN_TIMES_TUPLE:
                 orch_time = now_et.replace(hour=orch_hour, minute=orch_minute, second=0, microsecond=0)
                 if orch_time > now_et:
                     next_orch_et = orch_time
@@ -491,13 +483,13 @@ class Orchestrator:
 
             # If no more runs today, next is tomorrow morning
             if next_orch_et is None:
-                next_orch_et = (now_et + timedelta(days=1)).replace(hour=9, minute=30, second=0, microsecond=0)
+                next_orch_et = (now_et + timedelta(days=1)).replace(hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0, microsecond=0)
                 # Skip non-trading days
                 while not MarketCalendar.is_trading_day(next_orch_et.date()):
                     next_orch_et += timedelta(days=1)
 
-            # Calculate kill threshold: next_orch - 15 minutes buffer
-            kill_threshold_et = next_orch_et - timedelta(minutes=BUFFER_MINUTES)
+            # Calculate kill threshold: next_orch - buffer minutes
+            kill_threshold_et = next_orch_et - timedelta(minutes=ORCHESTRATOR_KILL_BUFFER_MINUTES)
             max_runtime = kill_threshold_et - now_et
 
             if max_runtime.total_seconds() <= 0:

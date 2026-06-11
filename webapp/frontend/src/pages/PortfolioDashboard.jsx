@@ -405,24 +405,52 @@ function PortfolioDashboardPage() {
       <CircuitBreakerPanel data={breakers} loading={isPrimaryLoading} />
 
       {/* Equity curve + Drawdown chart */}
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary>
-          <EquityCurve series={safeEquityCurve} loading={isPrimaryLoading} />
-        </ErrorBoundary>
-        <ErrorBoundary>
-          <DrawdownChart series={safeEquityCurve} loading={isPrimaryLoading} />
-        </ErrorBoundary>
-      </div>
+      {equityDataError && !hasCachedEquity ? (
+        <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-body">
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+              <div>
+                <div style={{ fontWeight: 'var(--w-semibold)' }}>Equity Curve & Analytics Unavailable</div>
+                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{equityDataError}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+          <ErrorBoundary>
+            <EquityCurve series={safeEquityCurve} loading={isPrimaryLoading} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <DrawdownChart series={safeEquityCurve} loading={isPrimaryLoading} />
+          </ErrorBoundary>
+        </div>
+      )}
 
       {/* Daily-return histogram + Trade outcome distribution */}
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary>
-          <DailyReturnHistogram series={safeEquityCurve} loading={isPrimaryLoading} />
-        </ErrorBoundary>
-        <ErrorBoundary>
-          <TradeDistribution trades={safeTradesList} loading={isPrimaryLoading} />
-        </ErrorBoundary>
-      </div>
+      {tradesDataError && !hasCachedTrades ? (
+        <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-body">
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+              <div>
+                <div style={{ fontWeight: 'var(--w-semibold)' }}>Trade Analytics Unavailable</div>
+                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{tradesDataError}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+          <ErrorBoundary>
+            <DailyReturnHistogram series={safeEquityCurve} loading={isPrimaryLoading} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <TradeDistribution trades={safeTradesList} loading={isPrimaryLoading} />
+          </ErrorBoundary>
+        </div>
+      )}
 
       {/* R-multiple ladder */}
       <ErrorBoundary>
@@ -451,35 +479,48 @@ function PortfolioDashboardPage() {
       </ErrorBoundary>
 
       {/* Trade-level metrics + holding-period histogram */}
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <div className="card-title">Trade Metrics</div>
-              <div className="card-sub">Closed trades · win/loss profile · expectancy</div>
-            </div>
-          </div>
+      {perfDataError && !hasCachedPerf ? (
+        <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
           <div className="card-body">
-            <div className="grid grid-3">
-              <Stile label="Avg Win" value={<Pnl value={perf?.avg_win_pct} suffix="%" />} />
-              <Stile label="Avg Loss" value={<Pnl value={perf?.avg_loss_pct} suffix="%" />} />
-              <Stile label="Expectancy" value={<span className="mono tnum">{num(perf?.expectancy_r, 3)}R</span>} />
-              <Stile label="Avg Win R" value={<span className="mono tnum">{num(perf?.avg_win_r)}R</span>} />
-              <Stile label="Avg Loss R" value={<span className="mono tnum">{num(perf?.avg_loss_r)}R</span>} />
-              <Stile label="Avg Hold" value={<span className="mono tnum">{num(perf?.avg_hold_days, 1)}d</span>} />
-              <Stile label="Best Streak" value={<span className="mono tnum up">{perf?.best_win_streak ?? 0}W</span>} />
-              <Stile label="Worst Streak" value={<span className="mono tnum down">{perf?.worst_loss_streak ?? 0}L</span>} />
-              <Stile label="Current" value={<StreakValue v={perf?.current_streak} />} />
-            </div>
-            <div style={{ marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-soft)' }}>
-              <div className="grid grid-3">
-                <Stile label="Total P&L" value={<Pnl value={perf?.total_pnl_dollars} />} />
-                <Stile label="Gross Wins" value={<span className="mono tnum up">{fmtMoneyShort(perf?.gross_win_dollars)}</span>} />
-                <Stile label="Gross Losses" value={<span className="mono tnum down">{fmtMoneyShort(perf?.gross_loss_dollars)}</span>} />
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+              <div>
+                <div style={{ fontWeight: 'var(--w-semibold)' }}>Trade Metrics Unavailable</div>
+                <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{perfDataError}</div>
               </div>
             </div>
           </div>
         </div>
+      ) : (
+        <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card">
+            <div className="card-head">
+              <div>
+                <div className="card-title">Trade Metrics</div>
+                <div className="card-sub">Closed trades · win/loss profile · expectancy</div>
+              </div>
+            </div>
+            <div className="card-body">
+              <div className="grid grid-3">
+                <Stile label="Avg Win" value={<Pnl value={perf?.avg_win_pct} suffix="%" />} />
+                <Stile label="Avg Loss" value={<Pnl value={perf?.avg_loss_pct} suffix="%" />} />
+                <Stile label="Expectancy" value={<span className="mono tnum">{num(perf?.expectancy_r, 3)}R</span>} />
+                <Stile label="Avg Win R" value={<span className="mono tnum">{num(perf?.avg_win_r)}R</span>} />
+                <Stile label="Avg Loss R" value={<span className="mono tnum">{num(perf?.avg_loss_r)}R</span>} />
+                <Stile label="Avg Hold" value={<span className="mono tnum">{num(perf?.avg_hold_days, 1)}d</span>} />
+                <Stile label="Best Streak" value={<span className="mono tnum up">{perf?.best_win_streak ?? 0}W</span>} />
+                <Stile label="Worst Streak" value={<span className="mono tnum down">{perf?.worst_loss_streak ?? 0}L</span>} />
+                <Stile label="Current" value={<StreakValue v={perf?.current_streak} />} />
+              </div>
+              <div style={{ marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-soft)' }}>
+                <div className="grid grid-3">
+                  <Stile label="Total P&L" value={<Pnl value={perf?.total_pnl_dollars} />} />
+                  <Stile label="Gross Wins" value={<span className="mono tnum up">{fmtMoneyShort(perf?.gross_win_dollars)}</span>} />
+                  <Stile label="Gross Losses" value={<span className="mono tnum down">{fmtMoneyShort(perf?.gross_loss_dollars)}</span>} />
+                </div>
+              </div>
+            </div>
+          </div>
 
         <ErrorBoundary>
           <HoldingPeriodHistogram trades={safeTradesList} />
@@ -587,9 +628,32 @@ export default function PortfolioDashboard() {
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
 function CircuitBreakerPanel({ data, loading }) {
   const breakers = Array.isArray(data) ? data : data?.breakers || [];
+  const error = data?._error;
 
   if (loading) {
     return <SkeletonCircuitBreaker />;
+  }
+
+  if (error) {
+    return (
+      <div className="card card-danger" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Circuit Breakers</div>
+            <div className="card-sub">Pre-trade kill-switch state</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+            <AlertTriangle size={20} style={{ color: 'var(--danger)' }} />
+            <div>
+              <div style={{ fontWeight: 'var(--w-semibold)' }}>Circuit Breaker Data Unavailable</div>
+              <div style={{ fontSize: 'var(--t-sm)', color: 'var(--muted)', marginTop: 'var(--space-1)' }}>{error}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (breakers.length === 0) {

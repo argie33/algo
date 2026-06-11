@@ -1173,7 +1173,7 @@ def fetch_market(c):
                                put_call_ratio, yield_curve_slope, breadth_momentum_10d,
                                fed_rate_environment, date
                         FROM market_health_daily ORDER BY date DESC LIMIT 1""")
-        pct   = float(exp.get("exposure_pct")) if exp and exp.get("exposure_pct") is not None else None
+        pct   = safe_float(exp.get("exposure_pct")) if exp else None
         halts = exp.get("halt_reasons") or [] if exp else []
         if isinstance(halts, str):
             try:
@@ -1218,7 +1218,7 @@ def fetch_market(c):
 
         vix_row = q1(c, "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL AND vix_level > 0 ORDER BY date DESC LIMIT 1")
         vix_v   = vix_row.get("vix_level") if vix_row else None
-        def _f(key): return float(h[key]) if h and h.get(key) is not None else None
+        def _f(key): return safe_float(h[key]) if h else None
         def _i(key): return int(h[key])   if h and h.get(key) is not None else None
         spy_v = _f("spy_close")
         spy_rows = q(c, "SELECT close, date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 2")
@@ -1233,7 +1233,7 @@ def fetch_market(c):
                 ORDER BY report_date DESC LIMIT 1
             """)
             if econ_metrics and econ_metrics.get('spy_price_change_pct') is not None:
-                spy_chg = float(econ_metrics.get('spy_price_change_pct'))
+                spy_chg = safe_float(econ_metrics.get('spy_price_change_pct'))
                 logger.debug(f"SPY price change from pre-computed table: {spy_chg}%")
         except Exception as e:
             logger.debug(f"Could not fetch pre-computed SPY change: {e}")
@@ -1408,7 +1408,7 @@ def fetch_market(c):
             "pct":   pct,
             "tier":  tier_from_pct(pct, tier_thresholds),
             "halts": halts,
-            "vix":     float(vix_v) if vix_v is not None else None,
+            "vix":     safe_float(vix_v),
             "dist":    _i("distribution_days_4w"),
             "dist_age": mkt_health_age,
             "stage":   _i("market_stage"),
@@ -1491,8 +1491,8 @@ def fetch_exposure_factors(c):
         elif not factors:
             data_quality = "missing"
             logger.warning(f"exposure_factors JSON is empty or null")
-        raw_score = float(row.get("raw_score")) if row.get("raw_score") is not None else None
-        exposure_pct = float(row.get("exposure_pct")) if row.get("exposure_pct") is not None else None
+        raw_score = safe_float(row.get("raw_score"))
+        exposure_pct = safe_float(row.get("exposure_pct"))
         result = {
             "raw_score":    raw_score,
             "exposure_pct": exposure_pct,
@@ -1594,21 +1594,41 @@ def fetch_perf(c):
 
         # Always show metrics even if no trades yet (issue: dashboard was hiding performance data after market close)
         # Calculate streak (sequence-dependent, must be calculated fresh) only if trades exist
-        wins = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) > 0]
-        losses = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) < 0]
-        breakeven = [t for t in trades if t.get("profit_loss_dollars") is not None and float(t.get("profit_loss_dollars")) == 0]
+        wins = []
+        losses = []
+        breakeven = []
+        for t in trades:
+            pld = t.get("profit_loss_dollars")
+            if pld is not None:
+                pld_f = safe_float(pld)
+                if pld_f is not None:
+                    if pld_f > 0:
+                        wins.append(t)
+                    elif pld_f < 0:
+                        losses.append(t)
+                    else:
+                        breakeven.append(t)
         # Win rate should account for OPEN trades too (not just closed)
         open_trades = [t for t in all_trades if t.get("status") != "closed"]
         total_trades_with_open = len(trades) + len(open_trades)
         win_rate_adjusted = len(wins) / total_trades_with_open if total_trades_with_open > 0 else None
-        pnl = sum(float(t.get("profit_loss_dollars")) for t in trades if t.get("profit_loss_dollars") is not None)
+        pnl = 0
+        for t in trades:
+            pld = t.get("profit_loss_dollars")
+            if pld is not None:
+                pld_f = safe_float(pld)
+                if pld_f is not None:
+                    pnl += pld_f
 
         streak = 0
         for t in reversed(trades):
             trade_pnl = t.get("profit_loss_dollars")
             if trade_pnl is None:
                 break
-            w = float(trade_pnl) > 0
+            trade_pnl_f = safe_float(trade_pnl)
+            if trade_pnl_f is None:
+                break
+            w = trade_pnl_f > 0
             if streak >= 0 and w:       streak += 1
             elif streak <= 0 and not w: streak -= 1
             else: break
@@ -1616,12 +1636,23 @@ def fetch_perf(c):
         # Fetch snapshots for equity curve and recent returns
         snaps = q(c, """SELECT snapshot_date, daily_return_pct, total_portfolio_value
                         FROM algo_portfolio_snapshots ORDER BY snapshot_date ASC""")
-        equity_vals = [float(s.get("total_portfolio_value"))
-                       for s in snaps if s.get("total_portfolio_value") is not None]
+        equity_vals = []
+        for s in snaps:
+            pv = s.get("total_portfolio_value")
+            if pv is not None:
+                pv_f = safe_float(pv)
+                if pv_f is not None:
+                    equity_vals.append(pv_f)
 
         # Recent returns (last 7 calendar days)
-        recent_rets = [(s.get("snapshot_date"), float(s.get("daily_return_pct")))
-                       for s in snaps[-7:] if s.get("snapshot_date") and s.get("daily_return_pct") is not None]
+        recent_rets = []
+        for s in snaps[-7:]:
+            if s.get("snapshot_date"):
+                drp = s.get("daily_return_pct")
+                if drp is not None:
+                    drp_f = safe_float(drp)
+                    if drp_f is not None:
+                        recent_rets.append((s.get("snapshot_date"), drp_f))
         recent_rets_confidence = "high" if len(recent_rets) >= 5 else ("low" if len(recent_rets) < 3 else "medium")
 
         # Read pre-computed metrics from database (CRITICAL ISSUE FIX)
@@ -1639,13 +1670,13 @@ def fetch_perf(c):
 
         if perf:
             # Use pre-computed values from database
-            wr = float(perf.get("win_rate_all")) if perf.get("win_rate_all") is not None else None
-            pf = float(perf.get("profit_factor")) if perf.get("profit_factor") is not None else None
-            exp = float(perf.get("expectancy")) if perf.get("expectancy") is not None else None
-            sharpe = float(perf.get("rolling_sharpe_252d")) if perf.get("rolling_sharpe_252d") is not None else None
-            maxdd = float(perf.get("max_drawdown_pct")) if perf.get("max_drawdown_pct") is not None else None
-            avg_win = float(perf.get("avg_win")) if perf.get("avg_win") is not None else None
-            avg_loss = float(perf.get("avg_loss")) if perf.get("avg_loss") is not None else None
+            wr = safe_float(perf.get("win_rate_all"))
+            pf = safe_float(perf.get("profit_factor"))
+            exp = safe_float(perf.get("expectancy"))
+            sharpe = safe_float(perf.get("rolling_sharpe_252d"))
+            maxdd = safe_float(perf.get("max_drawdown_pct"))
+            avg_win = safe_float(perf.get("avg_win"))
+            avg_loss = safe_float(perf.get("avg_loss"))
 
             # Infer confidence from number of trades
             total_trades = int(perf.get("total_trades")) if perf.get("total_trades") is not None else 0
@@ -1675,8 +1706,8 @@ def fetch_perf(c):
         # If loader hasn't populated avg_r, return None (show as "—" in UI)
         # Operator will see missing data and know loader calculation is incomplete
         avg_r = None
-        if perf and perf.get("avg_r") is not None:
-            avg_r = float(perf.get("avg_r"))
+        if perf:
+            avg_r = safe_float(perf.get("avg_r"))
         elif perf:
             logger.error("CRITICAL: avg_r not populated in algo_performance_daily — loader may not have completed")
 
@@ -1986,7 +2017,9 @@ def fetch_signals(c):
         def get_signal_quality(s):
             sq = s.get("signal_quality_score")
             eq = s.get("entry_quality_score")
-            return max(float(sq) if sq is not None else 0, float(eq) if eq is not None else 0)
+            sq_f = safe_float(sq, 0)
+            eq_f = safe_float(eq, 0)
+            return max(sq_f, eq_f)
         buy_sigs = [s for s in buy_sigs if get_signal_quality(s) >= MIN_QUALITY_SCORE]
         quality_filtered = before_threshold - len(buy_sigs)
         if quality_filtered > 0:
@@ -2278,7 +2311,7 @@ def fetch_economic_pulse(c):
                 ORDER BY report_date DESC LIMIT 1
             """)
             if ycs_metrics and ycs_metrics.get('yield_curve_slope_10y2y') is not None:
-                yc_10_2 = float(ycs_metrics.get('yield_curve_slope_10y2y'))
+                yc_10_2 = safe_float(ycs_metrics.get('yield_curve_slope_10y2y'))
                 logger.debug(f"Yield curve slope from pre-computed table: {yc_10_2}")
         except Exception as e:
             logger.debug(f"Could not fetch pre-computed yield curve slope: {e}")
@@ -2302,7 +2335,7 @@ def fetch_economic_pulse(c):
                 ORDER BY report_date DESC LIMIT 1
             """)
             if econ_metrics:
-                cpi_yoy = float(econ_metrics.get('cpi_yoy_pct')) if econ_metrics.get('cpi_yoy_pct') is not None else None
+                cpi_yoy = safe_float(econ_metrics.get('cpi_yoy_pct'))
                 cpi_error = econ_metrics.get('cpi_yoy_error')
                 if cpi_yoy is not None:
                     logger.debug(f"CPI YoY from pre-computed table: {cpi_yoy}%")
@@ -2318,8 +2351,10 @@ def fetch_economic_pulse(c):
                 ORDER BY date DESC LIMIT 1""")
             if cpi_cur and cpi_yoy_row and cpi_cur.get('value') is not None and cpi_yoy_row.get('value') is not None:
                 try:
-                    cur = float(cpi_cur['value'])
-                    prev = float(cpi_yoy_row['value'])
+                    cur = safe_float(cpi_cur['value'])
+                    prev = safe_float(cpi_yoy_row['value'])
+                    if cur is None or prev is None:
+                        continue
                     if prev > 0:
                         cpi_yoy = round((cur - prev) / prev * 100, 2)
                     else:
