@@ -5162,8 +5162,13 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Fallback: use algo_metrics for today's entry/exit counts
-    valid_metrics = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))) else []
-    today_m = valid_metrics[0] if valid_metrics else {}
+    metrics_list = []
+    if algo_metrics and isinstance(algo_metrics, dict) and not algo_metrics.get("_error"):
+        # Extract metrics from dict if present
+        metrics_list = algo_metrics.get("metrics", []) if isinstance(algo_metrics.get("metrics"), list) else []
+    elif algo_metrics and isinstance(algo_metrics, list):
+        metrics_list = algo_metrics
+    today_m = metrics_list[0] if metrics_list else {}
     if not entries_exec:
         entries_val = today_m.get("entries")
         entries_exec = int(entries_val) if entries_val is not None else 0
@@ -5187,9 +5192,9 @@ def panel_algo_health(run, act, hlth, notifs, algo_metrics=None, loader=None, au
         rows.append(Text.from_markup("  ".join(action_parts)))
 
     # 5-day activity strip
-    if len(valid_metrics) >= 2:
+    if len(metrics_list) >= 2:
         day_parts = []
-        for m in valid_metrics[:5]:
+        for m in metrics_list[:5]:
             d   = m.get("date")
             d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
             en_val = m.get("entries")
