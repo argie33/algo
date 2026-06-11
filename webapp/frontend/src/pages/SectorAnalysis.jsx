@@ -23,8 +23,8 @@ import {
   AreaChart, Area,
 } from 'recharts';
 import { api } from '../services/api';
-import { formatPercentageChange, formatNumber } from '../utils/formatters';
 import { formatXAxisDate } from '../utils/dateFormatters';
+import { num, fmtPct } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 const TT_STYLE = {
@@ -55,9 +55,6 @@ const FALLBACK_PALETTE = [
 ];
 const colorFor = (name, idx) =>
   SECTOR_COLORS[name] || FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
-
-const num = (v, dp = 2) => formatNumber(v, dp);
-const fmtPct = (v) => formatPercentageChange(v);
 const pctClass = (v) => {
   const n = Number(v);
   if (!isFinite(n)) return 'flat';

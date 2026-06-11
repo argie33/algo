@@ -10,13 +10,9 @@ import {
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
-import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
+import { num, pct, money } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
 import StockScoreAccordion from '../components/StockScoreAccordion';
-
-const num = (v, dp = 1) => formatNumber(v, dp);
-const pct = (v, dp = 2) => formatPercentageChange(v, dp);
-const money = (v) => formatCurrency(v);
 
 const scoreClass = (v) => {
   if (v == null || isNaN(Number(v))) return 'badge';

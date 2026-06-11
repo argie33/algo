@@ -27,10 +27,8 @@ import {
   CartesianGrid, AreaChart, Area, Legend, Line,
 } from 'recharts';
 import { api } from '../services/api';
-import { formatNumber } from '../utils/formatters';
+import { num } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
-
-const num = (v, dp = 2) => formatNumber(v, dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
