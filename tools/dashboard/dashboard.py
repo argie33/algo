@@ -23,7 +23,12 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
+from utils.data_freshness_config import is_table_fresh, get_freshness_rule, get_max_age_minutes
+
 logger = logging.getLogger(__name__)
+
+# Metric freshness thresholds (how recently were calculations run)
+METRICS_CALCULATION_MAX_AGE_MINUTES = 120  # Pre-computed metrics must be < 2 hours old
 
 def _log_data_quality(source: str, count: int, error: Optional[str] = None):
     """Log data fetch results: distinguishes 'empty' (no rows but no error) from 'failed' (error occurred).
@@ -1387,10 +1392,15 @@ def fetch_market(c):
                 logger.debug(f"Distribution days threshold satisfied: {mkt_health_age}d old <= {stale_threshold}d (is_monday={is_monday}, holiday={today_is_holiday})")
 
         # CRITICAL ISSUE 3 FIX: Enforce hard thresholds for market data freshness
-        # Halt if critical data exceeds acceptable age (prevents stale market context from misleading operator)
-        MAX_SPY_AGE_DAYS = 1      # SPY close must be from current or previous trading day
-        MAX_EXPOSURE_AGE_DAYS = 2  # Exposure data must be recent enough to reflect current market regime
-        MAX_DIST_DAYS_AGE = 5      # Distribution days threshold (computed once per week, can be older)
+        # Use centralized config (data_freshness_config.py) instead of hardcoded values
+        # This ensures dashboard, API, orchestrator all use same thresholds
+        spy_rule = get_freshness_rule("price_daily")
+        exposure_rule = get_freshness_rule("market_exposure_daily")
+        dist_rule = get_freshness_rule("market_health_daily")
+
+        MAX_SPY_AGE_DAYS = spy_rule["max_age_days"] if spy_rule else 1
+        MAX_EXPOSURE_AGE_DAYS = exposure_rule["max_age_days"] if exposure_rule else 2
+        MAX_DIST_DAYS_AGE = dist_rule["max_age_days"] if dist_rule else 5
 
         if spy_age is not None and spy_age > MAX_SPY_AGE_DAYS:
             msg = f"HALT: SPY price data is {spy_age} days old (max {MAX_SPY_AGE_DAYS}d allowed) — dashboard cannot run with stale market prices"
@@ -1959,7 +1969,7 @@ def fetch_signals(c):
               AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE signal='BUY' AND timeframe IN ('1d', 'daily', 'Daily'))""")
         total_r = q1(c, """SELECT COUNT(*) AS n FROM buy_sell_daily
                            WHERE timeframe IN ('1d', 'daily', 'Daily') AND date=(SELECT MAX(date) FROM buy_sell_daily WHERE timeframe IN ('1d', 'daily', 'Daily'))""")
-        total_n = int(total_r["n"] or 0) if total_r else 0
+        total_n = int(total_r["n"]) if total_r and total_r.get("n") is not None else None
         signal_date = sig.get("d") if sig else None
 
         # Actual BUY signals with rich setup detail
@@ -2501,7 +2511,7 @@ def fetch_risk_metrics(c) -> dict:
                 if update_time.tzinfo is None:
                     update_time = update_time.replace(tzinfo=timezone.utc)
                 age_minutes = (datetime.now(timezone.utc) - update_time).total_seconds() / 60
-                is_fresh = age_minutes < 120  # <2 hours = fresh
+                is_fresh = age_minutes < METRICS_CALCULATION_MAX_AGE_MINUTES  # Metric calculation must be recent
                 if age_minutes > 120:
                     logger.warning(f"fetch_risk_metrics: table data {age_minutes:.0f}m old (stale); will return with warning flag")
             except (ValueError, TypeError):
@@ -2571,7 +2581,7 @@ def fetch_perf_analytics(c):
                 if update_time.tzinfo is None:
                     update_time = update_time.replace(tzinfo=timezone.utc)
                 age_minutes = (datetime.now(timezone.utc) - update_time).total_seconds() / 60
-                is_fresh = age_minutes < 120  # <2 hours = fresh
+                is_fresh = age_minutes < METRICS_CALCULATION_MAX_AGE_MINUTES  # Metric calculation must be recent
                 loader_running = age_minutes < 1440  # Data updated within last 24 hours indicates loader runs
 
                 if not loader_running:
@@ -5382,7 +5392,7 @@ def panel_signals_expanded(sig, sig_eval=None):
     d     = sig.get("date")
     ds    = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
     g     = sig.get("grades") or {}
-    ga, gb, gc, gd = (int(g.get(k) or 0) for k in ("a", "b", "c", "d"))
+    ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
     rows = [Text.from_markup(
         f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
