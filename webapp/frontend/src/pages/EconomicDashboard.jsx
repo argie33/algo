@@ -11,7 +11,7 @@ import {
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useThresholds } from '../hooks/useThresholds';
 import { api } from '../services/api';
-import { formatNumber, formatPercentageChange } from '../utils/formatters';
+import { pct, bps, fmtD, _num } from '../components/dashboard/shared/utils/dashboardFormatters';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 const TT = {
@@ -20,10 +20,6 @@ const TT = {
   padding: 'var(--space-2) var(--space-3)',
 };
 
-const _num   = (v, dp = 2) => formatNumber(v, dp);
-const pct   = (v, dp = 2) => formatPercentageChange(v, dp);
-const bps   = (v)         => (v == null || isNaN(+v)) ? '—' : `${Math.round(+v * 100)} bps`;
-const fmtD  = (s)         => s ? new Date(s).toLocaleDateString() : '—';
 const fmtM  = (s)         => s ? new Date(s).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '';
 const up    = (v)         => v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
 

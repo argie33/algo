@@ -23,15 +23,9 @@ import {
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { api } from '../services/api';
-import { formatCurrency, formatPercentageChange, formatNumber } from '../utils/formatters';
+import { fmtMoney, fmtPct, fmtInt } from '../components/dashboard/shared/utils/dashboardFormatters';
 import { batchRequests } from '../utils/requestBatcher';
 import ErrorBoundary from '../components/ErrorBoundary';
-
-// ─── formatters ────────────────────────────────────────────────────────────
-const fmtMoney = (v) => formatCurrency(v);
-const fmtPct = (v) => formatPercentageChange(v, 2);
-const fmtInt = (v) => v == null ? '—' : Number(v).toLocaleString('en-US');
-const _num = (v, dp = 2) => formatNumber(v, dp);
 
 const TOOLTIP_STYLE = {
   background: 'var(--surface)',
