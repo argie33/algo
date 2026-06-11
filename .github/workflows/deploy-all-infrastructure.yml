@@ -879,6 +879,41 @@ jobs:
             && echo "[OK] Updated API Gateway CORS with CloudFront: $CF_DOMAIN" \
             || echo "[WARN] Failed to update API Gateway CORS"
 
+      - name: "C-7 FIX: Validate Cognito Client ID Configuration"
+        shell: pwsh
+        run: |
+          $POOL_ID="${{ steps.outputs.outputs.cognito_user_pool_id }}"
+          $CLIENT_ID="${{ steps.outputs.outputs.cognito_user_pool_client_id }}"
+          $ENVIRONMENT="${{ matrix.environment }}"
+
+          if (-not $ENVIRONMENT) {
+            $ENVIRONMENT = (Get-Content -Path terraform.tfvars | Select-String "^environment" | ForEach-Object { $_ -replace '^environment\s*=\s*"([^"]+)".*$', '$1' })
+          }
+
+          Write-Host "=== C-7 FIX: Pre-Deploy Cognito Validation ===" -ForegroundColor Cyan
+          Write-Host "Environment: $ENVIRONMENT"
+          Write-Host "User Pool ID: $POOL_ID"
+          Write-Host "Client ID: $CLIENT_ID"
+          Write-Host ""
+
+          if (-not $POOL_ID -or $POOL_ID -eq "null" -or $POOL_ID -eq "None") {
+            Write-Error "CRITICAL: COGNITO_USER_POOL_ID not found in Terraform outputs"
+            exit 1
+          }
+
+          if (-not $CLIENT_ID -or $CLIENT_ID -eq "null" -or $CLIENT_ID -eq "None") {
+            Write-Error "CRITICAL: COGNITO_USER_POOL_CLIENT_ID not found in Terraform outputs"
+            exit 1
+          }
+
+          # Run validation script (working directory is terraform/, so use ../scripts/)
+          & ../scripts/validate-cognito-deployment.ps1 -EnvironmentName $ENVIRONMENT -CognitoUserPoolId $POOL_ID -CognitoClientId $CLIENT_ID -AwsRegion ${{ env.AWS_REGION }}
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Cognito validation failed. Blocking deployment to prevent authentication outage."
+            exit 1
+          }
+
       - name: Summary
         run: |
           echo "### Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
