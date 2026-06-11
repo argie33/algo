@@ -1629,10 +1629,14 @@ def fetch_perf(c=None):
                         losses.append(t)
                     else:
                         breakeven.append(t)
-        # Win rate should account for OPEN trades too (not just closed)
+        # H19/H20 FIX: Win rate accounts for OPEN trades' unrealized P&L status
         open_trades = [t for t in all_trades if t.get("status") != "closed"]
-        total_trades_with_open = len(trades) + len(open_trades)
-        win_rate_adjusted = len(wins) / total_trades_with_open if total_trades_with_open > 0 else None
+        open_wins = [t for t in open_trades if t.get("profit_loss_dollars") and safe_float(t.get("profit_loss_dollars")) > 0]
+        open_losses = [t for t in open_trades if t.get("profit_loss_dollars") and safe_float(t.get("profit_loss_dollars")) < 0]
+        all_wins = len(wins) + len(open_wins)
+        all_losses = len(losses) + len(open_losses)
+        total_trades_with_open = all_wins + all_losses
+        win_rate_adjusted = all_wins / total_trades_with_open if total_trades_with_open > 0 else None
         pnl = 0
         for t in trades:
             pld = t.get("profit_loss_dollars")
