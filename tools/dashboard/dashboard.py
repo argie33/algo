@@ -2063,47 +2063,9 @@ def fetch_signals(c):
             d_grade = grades.get('d')
             logger.debug(f"Grade distribution from pre-computed table: A={a_grade} B={b_grade} C={c_grade} D={d_grade}")
         else:
-            # Issue 20 FIX: Fallback calculation with validation
-            logger.warning("Grade distribution not in pre-computed table, falling back to calculation")
-
-            # Validate signal_date is not NULL and not in future
-            if signal_date:
-                try:
-                    sig_dt = _parse_datetime(signal_date, as_date=True, timezone_aware=False)
-                    if sig_dt and sig_dt <= datetime.now(ET).date():
-                        # signal_date is valid and in past, use it
-                        grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores WHERE date <= %s", (sig_dt,))
-                        grades_date = grades_date_r.get("max") if grades_date_r else None
-                    else:
-                        logger.warning(f"VALIDATION: signal_date {signal_date} is in future or invalid; using latest available date")
-                        grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
-                        grades_date = grades_date_r.get("max") if grades_date_r else None
-                except (ValueError, TypeError):
-                    logger.warning(f"VALIDATION: signal_date {signal_date} unparseable; using latest available date")
-                    grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
-                    grades_date = grades_date_r.get("max") if grades_date_r else None
-            else:
-                # signal_date is NULL, use latest available
-                logger.warning("VALIDATION: signal_date is NULL; using latest available date from swing_trader_scores")
-                grades_date_r = q1(c, "SELECT MAX(date) FROM swing_trader_scores")
-                grades_date = grades_date_r.get("max") if grades_date_r else None
-
-            if grades_date:
-                # Load grade thresholds from config (M1 FIX: no longer hardcoded)
-                # Safe to use f-string here: thresholds come from our config table, not user input
-                grade_cfg = load_grade_thresholds(cfg)
-                thr_a = int(grade_cfg.get('a', 80))
-                thr_b = int(grade_cfg.get('b', 60))
-                thr_c = int(grade_cfg.get('c', 40))
-                grades_r = q(c, f"""
-                    SELECT COUNT(*) FILTER (WHERE score >= {thr_a}) AS a,
-                           COUNT(*) FILTER (WHERE score >= {thr_b} AND score < {thr_a}) AS b,
-                           COUNT(*) FILTER (WHERE score >= {thr_c} AND score < {thr_b}) AS c,
-                           COUNT(*) FILTER (WHERE score < {thr_c}) AS d,
-                           COUNT(*) AS total
-                    FROM swing_trader_scores
-                    WHERE date=%s""", (grades_date,))
-                grades = grades_r[0] if grades_r else {}
+            logger.error("Grade distribution table missing — loader (load_grade_distribution_daily.py) not run yet")
+            _log_data_quality("fetch_signals", 0, "grade_distribution_daily table missing")
+            grades = None
 
         # Issue 25: Near-misses: use actual min_swing_score instead of hardcoded 55-69 range
         # Near-miss is 15 points below threshold to 5 points below (e.g., if threshold is 70: 55-69)
@@ -2128,14 +2090,17 @@ def fetch_signals(c):
               AND s.score >= {thr_a}
             ORDER BY s.score DESC LIMIT 20""", (grades_date,)) if grades_date else []
 
-        # Signal count trend: last 7 trading days
-        trend = q(c, """
-            SELECT date,
-                   COUNT(*) FILTER (WHERE signal='BUY') AS buy_n,
-                   COUNT(*) AS total_n
-            FROM buy_sell_daily
-            WHERE timeframe IN ('1d', 'daily', 'Daily') AND date >= CURRENT_DATE - 14
-            GROUP BY date ORDER BY date DESC LIMIT 7""")
+        # Signal count trend: fetch from pre-computed table (not calculated in display)
+        trend = []
+        try:
+            trend = q(c, """
+                SELECT date, buy_count, total_count
+                FROM buy_sell_summary_daily
+                WHERE date >= CURRENT_DATE - 14
+                ORDER BY date DESC LIMIT 7""")
+        except psycopg2.Error:
+            logger.warning("VALIDATION: buy_sell_summary_daily table not available — daily signal trend not computed")
+            _log_data_quality("fetch_signals", 0, "signal_trend table missing")
 
         # ISSUE 32 FIX: Return None for missing signal counts instead of 0 (don't hide missing data)
         sig_count = int(sig["n"]) if sig and sig.get("n") is not None else None
@@ -2365,14 +2330,11 @@ def fetch_economic_pulse(c):
             logger.debug(f"Could not fetch pre-computed yield curve slope: {e}")
 
         if yc_10_2 is None:
-            t10 = d.get('DGS10'); t2 = d.get('DGS2'); t3m = d.get('DGS3MO')
-            yc_10_2  = round(t10 - t2,  2) if (t10 is not None and t2 is not None) else None
-            yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
-            if t10 is None or t2 is None:
-                logger.warning(f"VALIDATION: fetch_economic_pulse cannot compute yield curve 10-2: DGS10={t10}, DGS2={t2}")
+            logger.warning("Yield curve slope 10Y-2Y not in pre-computed table — economic_metrics_daily incomplete")
+            # Don't calculate; use pre-computed or error
         else:
             t10 = d.get('DGS10'); t3m = d.get('DGS3MO')
-            yc_10_3m = round(t10 - t3m, 2) if (t10 is not None and t3m is not None) else None
+            yc_10_3m = d.get('yield_curve_slope_10y3m') if ycs_metrics else None  # Also from pre-computed
 
         cpi_yoy = None
         cpi_error = None
@@ -2391,28 +2353,8 @@ def fetch_economic_pulse(c):
             logger.debug(f"Could not fetch pre-computed CPI YoY: {e}")
 
         if cpi_yoy is None:
-            logger.debug("CPI YoY not in pre-computed table, falling back to calculation")
-            cpi_cur = q1(c, "SELECT value FROM economic_data WHERE series_id='CPIAUCSL' ORDER BY date DESC LIMIT 1")
-            cpi_yoy_row = q1(c, """
-                SELECT value FROM economic_data
-                WHERE series_id='CPIAUCSL' AND date <= CURRENT_DATE - 365
-                ORDER BY date DESC LIMIT 1""")
-            if cpi_cur and cpi_yoy_row and cpi_cur.get('value') is not None and cpi_yoy_row.get('value') is not None:
-                try:
-                    cur = safe_float(cpi_cur['value'])
-                    prev = safe_float(cpi_yoy_row['value'])
-                    if cur is not None and prev is not None:
-                        if prev > 0:
-                            cpi_yoy = round((cur - prev) / prev * 100, 2)
-                        else:
-                            cpi_error = "prev_cpi_zero"
-                except (ValueError, TypeError) as e:
-                    cpi_error = f"parse_error:{type(e).__name__}"
-            else:
-                if not cpi_cur or cpi_cur.get('value') is None:
-                    cpi_error = "current_missing"
-                elif not cpi_yoy_row or cpi_yoy_row.get('value') is None:
-                    cpi_error = "yoy_history_missing"
+            logger.warning("CPI YoY not in pre-computed table — economic_metrics table may not be populated")
+            cpi_error = "cpi_not_precomputed"
 
         if cpi_error:
             logger.warning(f"VALIDATION: fetch_economic_pulse CPI YoY computation failed: {cpi_error}")
