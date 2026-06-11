@@ -3409,15 +3409,16 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         if var95_v is not None and var95_v > 0:
             beta_v = get_numeric(risk, "beta")
             beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
-            cvar95_v = get_numeric(risk, "cvar95") or 0
-            conc5_v = get_numeric(risk, "conc5") or 0
+            cvar95_v = get_numeric(risk, "cvar95")
+            conc5_v = get_numeric(risk, "conc5")
             row_text = (
                 f"[dim]VaR:[/][white]{var95_v:.2f}%[/]  "
-                f"[dim]CVaR:[/][white]{cvar95_v:.2f}%[/]  "
+                f"[dim]CVaR:[/][white]{cvar95_v:.2f if cvar95_v is not None else '--'}%[/]  "
             )
             if beta_v is not None:
                 row_text += f"[dim]β:[/][{beta_c}]{beta_v:.2f}[/]  "
-            row_text += f"[dim]Conc5:[/][white]{conc5_v:.0f}%[/]"
+            conc5_str = f"{conc5_v:.0f}%" if conc5_v is not None else "--"
+            row_text += f"[dim]Conc5:[/][white]{conc5_str}[/]"
             rows.append(Text.from_markup(row_text))
 
     return Panel(Group(*rows), title="[bold green]PORTFOLIO[/]", border_style="green", padding=(0, 1))
@@ -3439,9 +3440,13 @@ def panel_performance_spark(perf, rec, perf_anl=None):
         else:
             msg = "no data"
         return Panel(Text(msg, style="dim"), title="[bold]PERFORMANCE[/]", border_style="green", padding=(0, 1))
-    streak = perf.get("streak") if perf and not perf.get("_error") else None; streak = streak or 0 if streak is not None else 0
-    str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
-    str_c   = G if streak >= 0 else R
+    streak = perf.get("streak") if perf and not perf.get("_error") else None
+    if streak is not None:
+        str_s   = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
+        str_c   = G if streak >= 0 else R
+    else:
+        str_s = "--"
+        str_c = DIM
     pnl = get_numeric(perf, "pnl")
     pnl_c   = G if pnl is not None and pnl >= 0 else (R if pnl is not None else DIM)
     pf      = get_numeric(perf, "profit_factor")
